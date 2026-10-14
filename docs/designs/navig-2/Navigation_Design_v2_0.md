@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-08 (§14 P2 as built: tiled bake + tile cache + touched-tile rebuild, CE-3111/CE-1029 · §15 allocation, R-220 · §14 runtime navmesh change, R-218 — P1 snapshot built) · 2026-10-03 (CE-3026 — MoveTo is a PathToPoint intent planned on the vehicle side on every host; CE-2059/2060 — the path ends at the destination, driven at the requested speed)
-current-answer: §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
+current-answer: §5.2b (CE-3029 — a vehicle's corners rounded for its turn radius, R-3006); §5.2a (CE-3128 — the road network as a chosen layer, DESIGN 2026-10-08, R-230/R-231); §3.1's AS-BUILT block (the command path and its sequenceDiagram) and §7.1's AS-BUILT note; §14 (runtime
   navmesh change, rewritten 2026-10-08, R-218; "P2 as built" for the tiled bake and the tile cache); the rest is the architectural contract.
 stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAction/ActionInstanceId riding the intent —
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
@@ -9,6 +9,7 @@ known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — PROPOSES one motion module + ownership role per domain (ground / air / naval) behind an IMotionModel seam — ⚠ known-conflict with this doc's §7.1 (Naval / Flying as modes inside CarKinematics)
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — a flyer is moved by NavigationIntent (3-D FinalDestination) through PointMassFlightSystem; the bridge skips it
+  - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS the trajectory follower (pure pursuit on the path, CE-3115) that drives the corners §5.2b rounds (C7)
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §5 V5: AI reverse (BicycleModel clamp, ProgressS while reversing, preset reverse speeds)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §6 the measured state of formations (the deferred formations doc was never written) and the squad-march lean
   - ../../DESIGN_Terrain_Combat_Tuning.md §5c — draws this navmesh on the map (the Navmesh layer, CE-3133) through a debug-geometry export on the provider
@@ -866,6 +867,95 @@ key `roadUse` (an enum by name, omitted when Unspecified) reaches the MoveTo thr
 `PathfindingAutoSelectionIntegrationTests` `CE3128_*` (a real Recast mesh), `DangerAlongRouteClassifierTests` /
 `DangerAreaSensorSystemTests` on the graph, `TerrainWorldTests.CE3128_SurfaceRoad_IsRetired…`,
 `TerrainDefinitionTests.CE3128_ShippedTerrains_DeclareALoadableRoadGraph`.
+
+### 5.2b A vehicle's corners are rounded for its turn radius — `CE-3029` *(DESIGN `2026-10-14`, backend; 🔒 user `2026-10-14`: "round each corner in the planned path to fit the vehicle's turning radius" — R-3006; `build-state: BUILT` — as-built in C3 and C7)*
+
+📐 **The problem, measured** (tracker `CE-3029`): Detour's straight path puts a vertex ON the eroded mesh's corner — 1.8 m from the wall
+(the Vehicle bake, §8.2). A car cannot turn on that point: its tightest arc, R = WheelBase / tan(MaxSteer) (Bradley 3.93 / tan 0.8 =
+**3.8 m**), tangent to both legs of a 90° corner passes **0.41·R ≈ 1.6 m inside** the vertex — so ANY follower that obeys the steering
+limit cuts the corner into the 1.8 m margin; pure pursuit (CE-3115) adds its lookahead. Live `tt-nav-los`: 0.16–0.7 m from Block A.
+⇒ the PLAN must carry the turn.
+
+```mermaid
+classDiagram
+  direction LR
+  class PathRequests { <<exists — the one request builder, §5.2a D6>> FromIntent(repo, entity, intent, from, id) +TurnRadius from VehicleParams }
+  class PathfindingRequestEvent { <<exists>> … +float TurnRadius (new, appended; 0 = do not round) }
+  class PathfindingSolverSystem { <<exists>> SolveGround: Plan → CornerRounding.Round → RegisterTrajectoryWithKey }
+  class RoutePlanner { <<exists — shared with the danger solve, NOT touched>> Points · TraversalsOrNull() }
+  class CornerRounding { <<new, static>> Round(points, traversals, radius, navmesh, layerMask, outPoints, outTraversals) · TurnRadius(wheelBase, maxSteer) }
+  class CarKinematicsSystem { <<exists — the follower, CE-3115>> CapLookaheadByChord(pool, id, s, ld, floor) (new, C7) }
+  class INavmeshProvider { <<exists>> ProjectToNavmesh(p, out snapped, layerMask) }
+  class VehicleParams { <<exists>> WheelBase · MaxSteerAngle · Class }
+  class TrajectoryPoolManager { <<exists>> RegisterTrajectoryWithKey(positions, key, traversals) }
+  PathRequests ..> VehicleParams : reads
+  PathRequests --> PathfindingRequestEvent : builds
+  PathfindingSolverSystem ..> RoutePlanner : Plan
+  PathfindingSolverSystem ..> CornerRounding : when TurnRadius > 0
+  CornerRounding ..> INavmeshProvider : room for the shift?
+  PathfindingSolverSystem --> TrajectoryPoolManager : the rounded path
+  CarKinematicsSystem ..> TrajectoryPoolManager : follows it, lookahead capped on curves
+```
+
+*What the picture shows: one new static class at the single choke point every ground path passes (`SolveGround`, between plan and
+register); the radius rides the request from the one builder that already reads `VehicleParams`. `RoutePlanner` stays as it is —
+the danger solve (§5.2a D7) plans on it too and must not change. The follower gets one new method (C7): a rounded path is only worth
+anything if the vehicle can follow the arc.*
+
+```mermaid
+sequenceDiagram
+  participant B as NavigationIntentBridgeSystem / replan (Muscle)
+  participant R as PathRequests.FromIntent
+  participant S as PathfindingSolverSystem.SolveGround
+  participant P as RoutePlanner
+  participant C as CornerRounding
+  participant N as INavmeshProvider (Vehicle layer)
+  participant T as TrajectoryPoolManager
+  B->>R: intent, entity
+  R-->>B: request { …, TurnRadius = WheelBase / tan(MaxSteer) } (0 for a pedestrian)
+  B->>S: PathfindingRequestEvent
+  S->>P: Plan(query)
+  P-->>S: points + traversals (sharp corners)
+  alt TurnRadius > 0
+    S->>C: Round(points, traversals, TurnRadius, navmesh, layer)
+    loop each interior vertex turning ≥ 10°
+      C->>N: is V shifted out by R·(1/cos(φ/2) − 1) on the mesh? (½, ¼ if not, otherwise keep V)
+      C-->>C: replace V by an arc of radius R tangent to both legs (through V when fully shifted)
+    end
+    C-->>S: rounded points + traversals
+  end
+  S->>T: RegisterTrajectoryWithKey(rounded, handle, traversals)
+```
+
+*What the picture shows: the rounding happens once per solve, on the solver's thread, against the same navmesh the plan used;
+a request with no radius (people, the danger solve, a road-only plan from a non-vehicle) passes through untouched.*
+
+```mermaid
+graph TD
+  SH["SimHost / editor Muscle (host of NavigationSolverModule)"] -->|"SlowBackground(10) — each tick"| PSS["PathfindingSolverSystem"]
+  PSS --> CR["CornerRounding (static)"]
+  BR["NavigationIntentBridgeSystem + NavigationExecutionSystem (Muscle, every frame)"] --> PR["PathRequests.FromIntent"]
+  PR -->|"PathfindingRequestEvent (in-process)"| PSS
+  PR -.->|"DdsPathRequest — TurnRadius NOT carried (scale-out solver node)"| DDS["PathRequestSolverIngress (scale-out only)"]
+  style DDS stroke:#c00,stroke-dasharray: 4 4
+```
+
+*What the picture shows: the radius reaches the solver on the co-hosted path every production host uses today (SimHost and the
+editor host the solver beside the Muscle, §W6). The dashed red edge is the scale-out DDS request: it does not carry the radius,
+so a separate solver node plans un-rounded paths until the wire field exists (a wire change — not taken here, R-169's spirit).*
+
+| decision | lean (built) | why · what would change it |
+|---|---|---|
+| **C1 where** | the solver, after `Plan`, before `Register` | the one choke point for every ground path (§5.2), with the planner's traversals in hand; ⛔ not inside `RoutePlanner` (the danger solve shares it, §5.2a D7); ⛔ not on the Muscle at hand-off (the scale-out ingress registers its own copy, and the plan's traversals would be gone) |
+| **C2 the radius** | `TurnRadius = WheelBase / tan(MaxSteerAngle)` from `VehicleParams`, on the request; 0 for a pedestrian or an entity without `VehicleParams` | "the vehicle's turning radius" (user); per vehicle, not per layer |
+| **C3 the shape** | each interior vertex turning ≥ 10° is shifted OUT along its bisector by R·(1/cos(φ/2) − 1) and replaced by an arc of radius R tangent to both new legs, sampled every ≤ 15° — the arc's innermost point is the original vertex, so the planned clearance holds. ⚠ As built: the neighbours stay put, so the shift tilts both legs and enlarges the turn — the shift is RE-SOLVED (≤ 4 fixed-point steps, each re-checked for room) until the apex lands on V (measured: without it R 10 m passed 0.7 m inside V) | road legs (Hermite samples, §5.2a D4, a few degrees each) fall under the threshold and are untouched |
+| **C4 room** | the shifted vertex must project onto the request's navmesh layer within 0.3 m (one cell); else ½, then ¼ of the shift; else the vertex is kept as planned | a corner with no room outward (a narrow street) is no worse than today |
+| **C5 neighbours** | the tangent length R·tan(φ/2) is clamped to half of each adjacent leg (the radius shrinks to fit) | two close corners never overlap their arcs |
+| **C6 traversals** | an arc sample inherits its vertex's traversal; a vertex with a non-Walk traversal (a door) is never rounded | doors keep their exact waypoint |
+| **C7 the follower** | ✅ **built (measured necessary):** `CarKinematicsSystem.CapLookaheadByChord` shrinks a vehicle's lookahead (¾ steps, floor max(1 m, ½·WheelBase)) until the path to the lookahead point bows ≤ 0.1 m from the chord (`PathChordTolerance`); a straight keeps CE-3115's 2·WheelBase | 📐 measured (rail `CarKinematicsSystemTests.CE3029_*`, the Bradley, 90° corner, building 1.8 m inside the vertex): sharp corner today **1.22–1.44 m**; rounded with the uncapped lookahead **0.47–0.68 m — worse** (the 7.9 m lookahead starts the turn early and drives a ~7 m circle inside ANY arc; it never reached full lock); rounded + capped **1.65–1.81 m**. Tolerances 0.25 m / floor 1·WheelBase measured 1.16–1.64 m |
+
+⛔ **Rejected:** a wider Vehicle bake (closes narrow streets — CE-3027's own lean) · a follower-only fix (the arc floor 0.41·R is geometry,
+no follower beats it) · Catmull-Rom interpolation of the sharp polyline (it overshoots outward and inward without a radius).
 
 ### 5.3 Response materialization
 

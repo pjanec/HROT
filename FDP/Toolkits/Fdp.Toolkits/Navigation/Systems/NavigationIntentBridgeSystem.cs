@@ -301,6 +301,7 @@ namespace Fdp.Toolkit.Navigation.Systems
                             RouteHandle     = routeHandle,
                             NavLayerMask    = (int)NavLayerSelection.For(repo, entity, (uint)p.LayerMask),
                             MaxCost         = p.MaxCost,
+                            TurnRadius      = PathRequests.TurnRadiusOf(repo, entity),   // ⭐ CE-3029 (§5.2b C2) — a planned route is driven too
                         });
                         break;
                     }

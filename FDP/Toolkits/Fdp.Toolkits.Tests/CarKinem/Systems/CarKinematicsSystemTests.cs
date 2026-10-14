@@ -1213,5 +1213,85 @@ namespace CarKinem.Tests.Systems
             pool.Dispose();
             repo.Dispose();
         }
-    }
+    
+        // ── ⭐ CE-3029 (Navigation v2 §5.2b, R-3006) — a vehicle's corners are rounded for its turn radius ──
+
+        /// <summary>The tt-nav-los Bradley (scenario VehicleParams): WheelBase 3.93, MaxSteer 0.8 (R = 3.8 m), a slow steer rate.</summary>
+        private static VehicleParams Bradley() => new()
+        {
+            Class = VehicleClass.Tank, Length = 6.55f, Width = 3.6f, WheelBase = 3.93f, MaxSpeedFwd = 18f, MaxSpeedRev = 8f, MaxAccel = 3f,
+            MaxDecel = 4f, MaxSteerAngle = 0.8f, MaxSteerRate = 0.34906584f, MaxLatAccel = 6f, AvoidanceRadius = 5f,
+            LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f,
+        };
+
+        /// <summary>
+        /// Drives <paramref name="vehicle"/> along a 90° left corner planned the way Detour plans it — the vertex V = (60, 0) ON the eroded
+        /// mesh corner, the building's corner <c>clearance</c> inside it along the bisector — and returns the closest the vehicle's centre
+        /// came to the building corner. <paramref name="round"/> rounds the path with <see cref="Fdp.Toolkit.Navigation.CornerRounding"/>.
+        /// </summary>
+        private static (float Closest, Vector3 End) DriveCorner(VehicleParams vehicle, bool round, float speed, float clearance = 1.8f, float radius = 0f)
+        {
+            var planned = new[] { new Vector3(0f, 0f, 0f), new Vector3(60f, 0f, 0f), new Vector3(60f, 60f, 0f) };
+            var points = new System.Collections.Generic.List<Vector3>(planned);
+            if (round)
+            {
+                var outPts = new System.Collections.Generic.List<Vector3>();
+                var outTrav = new System.Collections.Generic.List<byte>();
+                Fdp.Toolkit.Navigation.CornerRounding.Round(planned, null,
+                    radius > 0f ? radius : Fdp.Toolkit.Navigation.CornerRounding.TurnRadius(vehicle.WheelBase, vehicle.MaxSteerAngle), null, 0xFFFFFFFFu, outPts, outTrav);
+                points = outPts;
+            }
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: speed, startSpeed: 0f, vehicle: vehicle);
+            pool.RegisterTrajectoryWithKey(points.ToArray(), 8);
+            ref var nav = ref repo.GetComponentRW<NavState>(e);
+            nav.TrajectoryId = 8; nav.FinalDestination = planned[^1];
+            var corner = new Vector2(60f, 0f) + Vector2.Normalize(new Vector2(-1f, 1f)) * clearance;
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float closest = float.MaxValue;
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                closest = MathF.Min(closest, Vector2.Distance(new Vector2(p.X, p.Y), corner));
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            pool.Dispose();
+            repo.Dispose();
+            return (closest, end);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3029</c> (§5.2b C3 + C7) — the Bradley drives a 90° corner whose building sits 1.8 m inside the planned vertex.
+        /// Rounded for its turn radius and followed with the chord-capped lookahead, it keeps (nearly) the clearance the plan had.
+        /// 📐 Measured: today's sharp corner 1.22–1.44 m; rounded with the uncapped lookahead 0.47–0.68 m (WORSE — the lookahead
+        /// starts the turn early and drives inside any arc); rounded + capped 1.65–1.81 m.
+        /// </summary>
+        [Theory]
+        [InlineData(3f, 1.6f)]
+        [InlineData(5f, 1.75f)]
+        [InlineData(8f, 1.75f)]
+        public void CE3029_ARoundedCorner_IsDrivenWithItsClearance(float speed, float atLeast)
+        {
+            var (closest, end) = DriveCorner(Bradley(), round: true, speed: speed);
+            Assert.True(closest >= atLeast, $"at {speed} m/s the Bradley came {closest:F2} m from the building corner (planned 1.8)");
+            Assert.True(end.Y > 55f && MathF.Abs(end.X - 60f) < 3f, $"it reached the end of the path ({end})");
+        }
+
+        /// <summary>⭐ C7 — the cap shortens the lookahead across a curve, never along a straight (CE-3115's two wheelbases stand).</summary>
+        [Fact]
+        public void CE3029_TheLookahead_ShrinksAcrossACurve_NotAlongAStraight()
+        {
+            using var pool = new TrajectoryPoolManager();
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0, 0, 0), new Vector3(100, 0, 0) }, 1);
+            var outPts = new System.Collections.Generic.List<Vector3>(); var outTrav = new System.Collections.Generic.List<byte>();
+            Fdp.Toolkit.Navigation.CornerRounding.Round(new[] { new Vector3(0, 0, 0), new Vector3(60, 0, 0), new Vector3(60, 60, 0) },
+                null, 3.8f, null, 0xFFFFFFFFu, outPts, outTrav);
+            pool.RegisterTrajectoryWithKey(outPts.ToArray(), 2);
+            Assert.Equal(7.86f, CarKinematicsSystem.CapLookaheadByChord(pool, 1, 10f, 7.86f, 1.965f), 3);
+            float onCurve = CarKinematicsSystem.CapLookaheadByChord(pool, 2, 56f, 7.86f, 1.965f);
+            Assert.True(onCurve < 4f, $"across the corner the lookahead stays {onCurve:F2} m");
+        }
+}
 }

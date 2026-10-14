@@ -580,5 +580,142 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.Equal(1 << NavigationConstants.FlagBitAllowReplan | 1 << NavigationConstants.FlagBitStreamCorridorPreview,
                 p.Flags & ~NavigationConstants.FlagMaskRoadUse);
         }
-    }
+    
+        // ── ⭐⭐ CE-3029 (Navigation v2 §5.2b, R-3006): a vehicle's corners are rounded for its turn radius ─────────────────
+
+        /// <summary>A navmesh that plans an L (start → (end.X, start.Y) → end) and has room everywhere except inside <c>NoRoom</c>.</summary>
+        private sealed class LNavmesh : INavmeshProvider
+        {
+            public Func<Vector3, bool> NoRoom = _ => false;
+            public byte CornerTraversal;
+            public bool IsWalkable(Vector3 position, uint layerMask = 0xFFFFFFFF) => !NoRoom(position);
+            public bool ProjectToNavmesh(Vector3 position, out Vector3 snapped, uint layerMask = 0xFFFFFFFF)
+            { snapped = NoRoom(position) ? position + new Vector3(5f, 5f, 0f) : position; return true; }
+            public int SampleNavmeshPoints(Vector3 center, float radius, Span<Vector3> results, uint layerMask = 0xFFFFFFFF) => 0;
+            public bool PathExists(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => true;
+            public float PathCost(Vector3 from, Vector3 to, uint layerMask = 0xFFFFFFFF) => Vector3.Distance(from, to);
+            public uint QueryVersion() => 0;
+            public int PlanPath(Vector3 from, Vector3 to, Span<NavWaypoint> waypoints, uint layerMask = 0xFFFFFFFF)
+            {
+                waypoints[0] = new NavWaypoint { Position = from };
+                waypoints[1] = new NavWaypoint { Position = new Vector3(to.X, from.Y, 0f), Traversal = (TraversalKind)CornerTraversal };
+                waypoints[2] = new NavWaypoint { Position = to };
+                return 3;
+            }
+        }
+
+        private static readonly Vector3[] LPath = { new(0f, 0f, 0f), new(60f, 0f, 0f), new(60f, 60f, 0f) };
+
+        /// <summary>
+        /// ⭐⭐ C3 — a 90° corner rounded for R 3.8 m (the Bradley): the arc's innermost point is the planned vertex (the clearance the
+        /// bake bought is kept), every arc point stays ≥ 1.8 m from the building corner 1.8 m inside it, and no step turns more than 15°.
+        /// 🔴 A fillet on the original legs passes R·(1/cos 45° − 1) = 1.57 m inside the vertex; one that keeps the neighbours fixed
+        /// without re-solving the shift passed 0.7 m inside for R 10 m.
+        /// </summary>
+        [Theory]
+        [InlineData(3.8f)]
+        [InlineData(10f)]
+        public void CE3029_ACornerIsRounded_ThroughItsVertex_ForTheTurnRadius(float radius)
+        {
+            var pts = new System.Collections.Generic.List<Vector3>(); var trav = new System.Collections.Generic.List<byte>();
+            Assert.Equal(1, CornerRounding.Round(LPath, null, radius, null, 0xFFFFFFFFu, pts, trav));
+            Assert.Equal(pts.Count, trav.Count);
+            Assert.Equal(LPath[0], pts[0]);
+            Assert.Equal(LPath[^1], pts[^1]);
+            var v = new Vector2(60f, 0f);
+            var building = v + Vector2.Normalize(new Vector2(-1f, 1f)) * 1.8f;
+            // measured against the DRAWN polyline (the trajectory interpolates linearly between the samples)
+            float apex = float.MaxValue, closest = float.MaxValue;
+            for (int k = 1; k < pts.Count; k++)
+            {
+                var p0 = new Vector2(pts[k - 1].X, pts[k - 1].Y); var p1 = new Vector2(pts[k].X, pts[k].Y);
+                apex = MathF.Min(apex, ToSegment(v, p0, p1));
+                closest = MathF.Min(closest, ToSegment(building, p0, p1));
+            }
+            Assert.True(closest >= 1.7f, $"the path came {closest:F2} m from the building corner (planned 1.8)");
+            Assert.True(apex < 0.15f, $"the arc passes {apex:F2} m from the planned vertex — it must pass through it");
+            for (int k = 2; k < pts.Count - 2; k++)
+            {
+                var d1 = Vector2.Normalize(new Vector2(pts[k].X - pts[k - 1].X, pts[k].Y - pts[k - 1].Y));
+                var d2 = Vector2.Normalize(new Vector2(pts[k + 1].X - pts[k].X, pts[k + 1].Y - pts[k].Y));
+                Assert.True(MathF.Acos(Math.Clamp(Vector2.Dot(d1, d2), -1f, 1f)) <= 15.5f * MathF.PI / 180f, "the arc steps ≤ 15°");
+            }
+        }
+
+        private static float ToSegment(Vector2 p, Vector2 a, Vector2 b)
+        {
+            var ab = b - a; float l2 = ab.LengthSquared();
+            float t = l2 < 1e-8f ? 0f : Math.Clamp(Vector2.Dot(p - a, ab) / l2, 0f, 1f);
+            return Vector2.Distance(p, a + ab * t);
+        }
+
+        /// <summary>⭐ C4 / C6 / C2 — no room outward ⇒ the vertex stays; a door vertex is never rounded; radius 0 rounds nothing;
+        /// a few-degree road sample stays.</summary>
+        [Fact]
+        public void CE3029_NoRoom_ADoor_NoRadius_OrAGentleBend_KeepTheVertex()
+        {
+            var pts = new System.Collections.Generic.List<Vector3>(); var trav = new System.Collections.Generic.List<byte>();
+            var walled = new LNavmesh { NoRoom = p => p.X > 60.1f || p.Y < -0.1f };   // the outside of the corner is a wall
+            Assert.Equal(0, CornerRounding.Round(LPath, null, 3.8f, walled, 0xFFFFFFFFu, pts, trav));
+            Assert.Equal(LPath, pts.ToArray());
+
+            Assert.Equal(0, CornerRounding.Round(LPath, new byte[] { 0, (byte)TraversalKind.Door, 0 }, 3.8f, null, 0xFFFFFFFFu, pts, trav));
+            Assert.Equal(LPath, pts.ToArray());
+            Assert.Equal((byte)TraversalKind.Door, trav[1]);
+
+            Assert.Equal(0, CornerRounding.Round(LPath, null, 0f, null, 0xFFFFFFFFu, pts, trav));
+            Assert.Equal(LPath, pts.ToArray());
+
+            var gentle = new[] { new Vector3(0, 0, 0), new Vector3(30, 0, 0), new Vector3(60, 3, 0) };   // ~5.7°
+            Assert.Equal(0, CornerRounding.Round(gentle, null, 3.8f, null, 0xFFFFFFFFu, pts, trav));
+        }
+
+        /// <summary>
+        /// ⭐⭐ C1 / C2 — end to end through the solver: a request carrying a turn radius registers a ROUNDED trajectory (more points,
+        /// and none within 1.5 m inside the corner); the same request without one registers the planner's three points.
+        /// </summary>
+        [Fact]
+        public void CE3029_TheSolver_RoundsAVehiclesPath_NotAPedestrians()
+        {
+            var solver = new PathfindingSolverSystem(default(RoadNetworkBlob), _pool, navmesh: new LNavmesh());
+            PathfindingResultEvent Plan(float radius)
+            {
+                _world.Bus.Publish(new PathfindingRequestEvent
+                {
+                    RequestId = ((long)31 << 32) | _world.GlobalVersion, Start = LPath[0], End = LPath[^1],
+                    BackendForce = NavigationBackend.Navmesh, NavLayerMask = (int)NavLayerMask.Vehicle, TurnRadius = radius,
+                });
+                RunSolverPipeline(_world, solver);
+                return Assert.Single(((ISimulationView)_world).ReadEvents<PathfindingResultEvent>().ToArray());
+            }
+            var sharp = Route(Plan(0f).RouteHandle);
+            Assert.Equal(3, sharp.Waypoints.Length);
+            var rounded = Plan(3.8f);
+            var route = Route(rounded.RouteHandle);
+            Assert.True(route.Waypoints.Length > 3, "the corner became an arc");
+            Assert.False(Along(route, p => p.X < 59.9f && p.Y > 0.1f && p.X > 58f && p.Y < 2f), "nothing cuts inside the corner");
+            Assert.True(rounded.TotalDistanceMeters > 100f && rounded.TotalDistanceMeters < 125f, $"length {rounded.TotalDistanceMeters}");
+        }
+
+        /// <summary>⭐ C2 — the one request builder states the vehicle's turn radius (WheelBase / tan MaxSteer); a soldier's is 0.</summary>
+        [Fact]
+        public void CE3029_TheRequest_CarriesTheVehiclesTurnRadius_NotASoldiers()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            repo.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new global::CarKinem.Core.VehicleParams
+                { Class = global::CarKinem.Core.VehicleClass.Tank, WheelBase = 3.93f, MaxSteerAngle = 0.8f });
+            var soldier = repo.CreateEntity();
+            repo.AddComponent(soldier, new global::CarKinem.Core.VehicleParams
+                { Class = global::CarKinem.Core.VehicleClass.Pedestrian, WheelBase = 0.5f, MaxSteerAngle = 1f });
+            var bare = repo.CreateEntity();
+            Assert.Equal(3.93f / MathF.Tan(0.8f), PathRequests.TurnRadiusOf(repo, tank), 3);
+            Assert.Equal(0f, PathRequests.TurnRadiusOf(repo, soldier));
+            Assert.Equal(0f, PathRequests.TurnRadiusOf(repo, bare));
+            var intent = new NavigationIntent { Mode = NavigationMode.PathToPoint, FinalDestination = new Vector3(50, 60, 0) };
+            Assert.Equal(PathRequests.TurnRadiusOf(repo, tank), PathRequests.FromIntent(repo, tank, in intent, Vector3.Zero, 1).TurnRadius);
+        }
+}
 }

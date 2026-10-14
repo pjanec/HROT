@@ -28,7 +28,20 @@ namespace Fdp.Toolkit.Navigation
                 RoadUse         = ResolveRoadUse(repo, entity, intent.RoadUse),
                 RouteHandle     = intent.RouteHandle,
                 NavLayerMask    = (int)NavLayerSelection.For(repo, entity, intent.LayerMask),
+                TurnRadius      = TurnRadiusOf(repo, entity),   // ⭐ CE-3029 (§5.2b C2)
             };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3029</c> (§5.2b C2) — the radius the solver rounds this entity's corners for: its <c>VehicleParams</c>'
+        /// WheelBase / tan(MaxSteerAngle); 0 (no rounding) for a pedestrian or an entity without <c>VehicleParams</c>.
+        /// </summary>
+        public static float TurnRadiusOf(EntityRepository repo, Entity entity)
+        {
+            if (!repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() || !repo.HasComponent<global::CarKinem.Core.VehicleParams>(entity))
+                return 0f;
+            var vp = repo.GetComponent<global::CarKinem.Core.VehicleParams>(entity);
+            return vp.Class == global::CarKinem.Core.VehicleClass.Pedestrian ? 0f : CornerRounding.TurnRadius(vp.WheelBase, vp.MaxSteerAngle);
         }
 
         /// <summary>
