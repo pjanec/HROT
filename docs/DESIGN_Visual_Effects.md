@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). Programme index: PLAN_3D_World_And_Realism.md.
 updated: 2026-10-11
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
@@ -312,6 +312,52 @@ reader keeps its present behaviour — a rifleman's round still starts at his ey
 every reader keeps its old answer for it (riflemen, unknown types). The kit draws the barrel of the FIRST mount on turret 0 with a
 forward offset (mount 0 on a tank, the 25 mm on the Bradley); the TOW is not drawn, but its rounds and flashes leave from its own
 offset. Gates: `FireProcessingSystemTests.E4_*` (2), `Map3DTests.E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm` (3 types).
+
+### 6c. CE-1070 — the flash out of the weapon: a rifleman's at his drawn rifle, every flash blooming forward *(✅ built `2026-10-14`, ui)*
+
+🔒 *User, 2026-10-14: "the muzzle flash for the soldier is shown as bright sphere above soldier's head, could it be at the end of
+the rifle? same for tanks cannons..."*
+
+📐 **Measured with a frame rail first** (`Map3DFrameRail.CE1070_MuzzleFlashes_AtTheWeapons`, "before" shots):
+- **Rifleman:** he has no TKB muzzle (E4's `Muzzle.TryOf` is false for him, by design), so the flash took the interim box-front point. That is 0.55 m in front of his PICK box at 1.35 m: above a crouched man's eye (1.1 m), and nowhere near the rifle he is drawn holding (chest-low when ready, shoulder when aimed).
+- **Tank:** E4 put the flash exactly at the barrel tip, but drew the 4 m `MuzzleFlashLarge` as a ball CENTRED there. Half of it sat back over the barrel and turret front, and it stood 2 m above the gun, so it read as "above the tank".
+
+| decision | ⭐ lean | rejected (one line each) |
+|---|---|---|
+| a rifleman's muzzle | the END OF THE RIFLE THE 3-D FIGURE DREW this frame (`EntityBodyLayer3D.TryGetWeaponTip`: the figure's Metal part's far end, posture, stance, lean and aim included); order: TKB muzzle → drawn weapon → box front → 1.5 m up | a TKB muzzle offset for the rifleman (a rifle's muzzle moves with posture, stance, lean and aim; no fixed offset is right) · moving the ROUND's launch point too (the sim keeps eye + 1 m; this is the picture) |
+| where the fireball sits | centred `FlashForwardOfMuzzle` (0.8) × its radius ALONG THE WEAPON from the muzzle: it blooms out of the barrel; the weapon's direction comes from the same pose as the muzzle (`Muzzle.TryOf(…, out forward)`, the drawn rifle's axis) | a smaller flash (the 120 mm fireball is about that big) · the target direction `EffectAnchor.Toward` (it is zero with no target, and a turret can lag its aim) |
+| 2-D | unchanged: the star at the muzzle point (now the drawn rifle's tip when the 3-D map drew one) | — |
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw
+  participant E as EffectLayer.Resolve
+  participant M as Muzzle.TryOf
+  B->>B: figure parts posed: rifle tip + axis cached per entity (WeaponTip)
+  E->>M: TryOf(shooter, weapon, out muzzle, out forward)
+  alt the type has a TKB muzzle (tank, IFV)
+    M-->>E: barrel tip + barrel direction (turret pose, hull)
+  else a rifleman
+    E->>B: TryGetWeaponTip(shooter)
+    B-->>E: drawn rifle tip + its axis
+  end
+  E->>E: fireball centre = muzzle + forward x 0.8 x radius
+```
+*What the picture shows that prose hid:* the flash takes its point from the same place the weapon is drawn, through two paths:
+- the TKB muzzle for a gun, which E4b already placed the drawn barrel from (within 5 cm);
+- the drawn rifle itself for a figure.
+
+So the flash and the weapon cannot disagree. Because the rifle path reads the cache the body layer fills while drawing, the flash
+is at most one frame behind a moving rifle.
+
+⚠ **Left, named:**
+- In 2-D, with no 3-D figure drawn, a rifleman's flash still uses the box front (seen from above it is one point).
+- The round still leaves a rifleman's eye + 1 m (FireProcessingSystem): the fire trace and the flash start apart by a few decimetres.
+- A vehicle type with a kit gun but no TKB muzzle (none built in today) would fall back to its box front.
+
+**Rails:**
+- `Map3DTests.CE1070_ARiflemansMuzzle_IsTheEndOfTheRifleHeIsDrawnHolding` and `CE1070_ATankFlash_BloomsForwardOfItsMuzzle_AlongTheBarrel`.
+- `Map3DFrameRail.CE1070_MuzzleFlashes_AtTheWeapons`, before and after shots.
 
 ## 7. Wrecks, dead bodies, flames and smoke — and one generic `Lifespan` *(✅ APPROVED `2026-10-11`, U6–U8, R-269 (ui); W1–W4 built — §7.5)*
 

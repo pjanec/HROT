@@ -1030,6 +1030,58 @@ public sealed class Map3DTests
         Assert.Equal(0f, stopped.Swing);
     }
 
+    // ── ⭐ CE-1070 (docs/DESIGN_Visual_Effects.md §6c) — the muzzle flash at the weapon ─────────────────────────────────────────────
+
+    /// <summary>⭐ CE-1070 — a rifleman has no TKB muzzle, so his flash starts where the rifle he is DRAWN holding ends: at the
+    /// chest-low muzzle when ready, at eye height pointing at the target when aimed — never above his head (the old box-front fallback
+    /// put it at 1.35 m, 0.55 m in front of a crouched man's face).</summary>
+    [Fact]
+    public void CE1070_ARiflemansMuzzle_IsTheEndOfTheRifleHeIsDrawnHolding()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var body = Matrix4x4.CreateTranslation(100f, 50f, 2f);   // standing at (100, 50) on ground 2 m up, facing +x
+        (Vector3 Tip, Vector3 Forward) TipOf(StanceId stance, WeaponPostureKind posture)
+        {
+            var rifle = BlockFigure.Parts(stance, true, posture).Last(p => p.Colour == ColourRole.Metal);
+            return EntityBodyLayer3D.WeaponTip(rifle, size, default, ArticulationPose.Neutral, MotionPose.Still, body);
+        }
+        var ready = TipOf(StanceId.Standing, WeaponPostureKind.Ready);
+        Assert.InRange(ready.Tip.Z - 2f, 0.7f, 1.2f);                       // chest-low, muzzle down and forward
+        Assert.True(ready.Tip.X - 100f > 0.6f, $"in front of him: {ready.Tip}");
+        Assert.True(ready.Forward.X > 0.7f && ready.Forward.Z < 0f, $"pointing forward and down: {ready.Forward}");
+        var aimed = TipOf(StanceId.Standing, WeaponPostureKind.Aimed);
+        Assert.InRange(aimed.Tip.Z - 2f, 1.2f, 1.45f);                      // shouldered, under the eye
+        Assert.True(aimed.Forward.X > 0.95f, $"level, at the target: {aimed.Forward}");
+        var crouched = TipOf(StanceId.Crouched, WeaponPostureKind.Aimed);
+        Assert.True(crouched.Tip.Z - 2f < 1.1f, $"below a crouched man's eye: {crouched.Tip}");   // the old fallback said 1.35 m
+    }
+
+    /// <summary>⭐ CE-1070 — a tank's barrel direction comes from the same pose as its muzzle (turned with the hull), and the flash's
+    /// fireball is centred FORWARD of the muzzle along it by most of its radius — out of the barrel, not swallowing it.</summary>
+    [Fact]
+    public void CE1070_ATankFlash_BloomsForwardOfItsMuzzle_AlongTheBarrel()
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        w.SetSingletonManaged<ITkbDatabase>(BuiltIn());
+        var tank = w.CreateEntity();
+        var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // facing north (+y)
+        w.AddComponent(tank, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = yaw });
+        w.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+        Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle, out var forward));
+        Assert.InRange(Vector3.Distance(forward, Vector3.UnitY), 0f, 1e-4f);   // the barrel points where the hull does (turret neutral)
+        Assert.True(muzzle.Y > 20f + 4f, $"the muzzle is at the barrel's end: {muzzle}");
+
+        var r = new Hrot.UI.Common.Effects.EffectLayer.Resolved(
+            EffectTkbCatalog.VisualOf(BuiltIn(), EffectTkbCatalog.MuzzleFlashLarge)!, muzzle, Vector3.Zero, 0f, 1f, default, Forward: forward);
+        float radius = 2f;
+        var centre = Hrot.UI.Common.Effects.EffectLayer.FlashCentre(r, radius);
+        Assert.InRange(Vector3.Distance(centre, muzzle + forward * radius * Hrot.UI.Common.Effects.EffectLayer.FlashForwardOfMuzzle), 0f, 1e-4f);
+        Assert.Equal(muzzle.Z, centre.Z, 4);                                 // not above the gun
+        Assert.Equal(muzzle, Hrot.UI.Common.Effects.EffectLayer.FlashCentre(r with { Forward = Vector3.Zero }, radius));   // no direction: at the muzzle
+    }
+
     // ── ⭐ CE-1068 (docs/DESIGN_Map_3D_Mode.md §6k) — a door is its LEAF, hinged in its doorway ───────────────────────────────────
 
     internal static TerrainWorld BtRange()

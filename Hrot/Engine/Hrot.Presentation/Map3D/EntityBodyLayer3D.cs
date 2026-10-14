@@ -136,6 +136,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             foreach (var part in parts)
             {
                 if (geometry != null && part.Role == PartRole.Gear) continue;
+                // ⭐ CE-1070 — a figure's rifle (its one Metal part): remember where its muzzle end was drawn, for the muzzle flash
+                if (look.Family == VisualFamily.Person && part.Colour == ColourRole.Metal)
+                    _weaponTips[e] = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
                 var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose, motion) * kitToBody * body);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
@@ -159,6 +162,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
         _doors.EndFrame(_drawn);
+        _tipsGone.Clear();
+        foreach (var k in _weaponTips.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
+        foreach (var k in _tipsGone) _weaponTips.Remove(k);
         _postures.EndFrame(_drawn);
     }
 
@@ -290,6 +296,30 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private readonly MotionTracker _motion = new();
     private readonly DeathFall _fall = new();
     private readonly DoorSwing _doors = new();
+    private readonly Dictionary<Entity, (Vector3 Tip, Vector3 Forward)> _weaponTips = new();
+    private readonly List<Entity> _tipsGone = new();
+
+    /// <summary>
+    /// ⭐ CE-1070 (docs/DESIGN_Visual_Effects.md §6c) — where the hand-held weapon of a figure drawn in the last frame ends, and which
+    /// way it points (its posture, stance, lean and aim included) — the muzzle flash of a type with no TKB muzzle data (a rifleman)
+    /// starts there. False when the entity was not drawn as a figure with a weapon.
+    /// </summary>
+    /// <summary>⭐ CE-1070 — the muzzle end of a weapon part as drawn (a rifle is a box from its stock to its muzzle, along the part's
+    /// own +X) and the way it points, through <paramref name="bodyToWorld"/>. Pure — the rail runs it without a GL context.</summary>
+    public static (Vector3 Tip, Vector3 Forward) WeaponTip(in KitPart part, Vector3 size, KitPivots pivots, ArticulationPose pose,
+                                                           MotionPose motion, Matrix4x4 bodyToWorld)
+    {
+        var m = part.BodyTransform(size, pivots, pose, motion) * bodyToWorld;
+        var tip = Vector3.Transform(new Vector3(0.5f, 0f, 0f), m);
+        return (tip, Vector3.Normalize(tip - Vector3.Transform(new Vector3(-0.5f, 0f, 0f), m)));
+    }
+
+    public bool TryGetWeaponTip(Entity e, out Vector3 tip, out Vector3 forward)
+    {
+        if (_weaponTips.TryGetValue(e, out var t)) { tip = t.Tip; forward = t.Forward; return true; }
+        tip = forward = default;
+        return false;
+    }
 
 
     /// <summary>⭐ CE-1068 (§6k) — door entity <paramref name="e"/>'s leaf, swung toward its state's angle on sim time; nothing for a
