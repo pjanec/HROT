@@ -20,12 +20,28 @@ public static class BasicSquadSop
             {
                 sel.Sequence(seq =>
                 {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierUnloading",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000071"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:Contact@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000072"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000070"));
+                sel.Sequence(seq =>
+                {
                     seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.SensedFreshAboard@0",
                         visualId: new Guid("c2123000-0000-0000-0000-000000000041"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:UnderFire@-1",
                         visualId: new Guid("c2123000-0000-0000-0000-000000000042"));
                 },
                     visualId: new Guid("c2123000-0000-0000-0000-000000000040"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000081"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadRide:Alert@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000082"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000080"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",

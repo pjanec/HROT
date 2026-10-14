@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.Mode         = NavigationMode.FollowRoute;
             intent.TrajectoryId = p.TrajectoryId;
             intent.RouteEntityId = p.RouteEntityId;   // ⭐ CE-2171 — the route ENTITY crosses the wire; the local pool id does not
+            intent.ReleaseHold = p.ReleaseHold != 0;  // ⭐ Air Ops slice 3 — the Brain's hold release (a level)
             world.SetComponent(entity, intent);
 
             channel.Status = Fbt.NodeStatus.Running;
@@ -49,6 +50,20 @@ namespace Fdp.Toolkit.Navigation.Executors
             // BS1-T020: poll NavigationStatus (set by NavigationExecutionSystem on the Muscle).
             var intent = world.GetComponent<NavigationIntent>(entity);
             var status = world.GetComponent<NavigationStatus>(entity);
+
+            // ⭐ Air Ops slice 3 (§9b) — mirror the Brain's hold release onto the intent while the route runs (a LEVEL: the motion side
+            //   consumes one rising edge per hold, so the bit must drop when the condition does). Only a change is written.
+            {
+                FollowRouteParams rp;
+                fixed (byte* src = channel.Params)
+                    rp = *(FollowRouteParams*)src;
+                bool release = rp.ReleaseHold != 0;
+                if (intent.ReleaseHold != release)
+                {
+                    intent.ReleaseHold = release;
+                    world.SetComponent(entity, intent);
+                }
+            }
 
             // Ignore stale status reports for a different intent.
             if (status.IntentId != intent.IntentId)

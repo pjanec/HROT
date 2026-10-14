@@ -6,6 +6,7 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -1373,6 +1374,115 @@ namespace Hrot.SimHost.Tests
             Ticks(t, 2);
             t.Repo.DestroyEntity(gone);
             Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(t, 5));
+        }
+
+        // ── CE-2173 slice 3 (B8, B10; Air Operations §9b) — riding, unloading, and the helicopter brain's hold release ──────────────
+
+        /// <summary>A helicopter (Rotorcraft, a route phase) at <paramref name="at"/> with <paramref name="aboard"/> seated.</summary>
+        private static Entity AirCarrier(Squad s, Vector3 at, NavigationPhase phase, long networkId, params int[] aboard)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
+            var v = Carrier(s, at, aboard);
+            s.Repo.AddComponent(v, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            s.Repo.AddComponent(v, new NavigationStatus { Phase = phase });
+            s.Repo.AddComponent(v, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            return v;
+        }
+
+        private static void SetPhase(Squad s, Entity v, NavigationPhase phase) => s.Repo.GetComponentRW<NavigationStatus>(v).Phase = phase;
+
+        /// <summary>⭐ <c>CE-2173</c> — a squad all aboard a FLYING helicopter rides (<c>SquadRide</c>, a reaction: its task waits); shot at in
+        /// the air it rides on — nobody gets out of a flying aircraft; when the helicopter holds at an Unload stop the squad dismounts, and
+        /// once everyone is out its task resumes. ✅ Red-proofs: the under-fire dismount row without the on-the-ground gate ⇒ SquadDismount in
+        /// the air ⇒ red; no Unloading row ⇒ the squad rides on at the LZ ⇒ red.</summary>
+        [Fact]
+        public void CE2173_BasicSquadSop_ASquadInAFlyingHelicopter_RidesThroughFire_AndDismountsWhenItUnloads()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);
+            var heli = AirCarrier(s, new Vector3(0f, 0f, 80f), NavigationPhase.Following, 2176, 0, 1, 2);
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // all aboard ⇒ ride
+            Assert.Equal(BehaviorOrigin.Reaction, s.Repo.GetComponent<BehaviorState>(s.Commander).Origin);
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // shot at in the air: ride on
+
+            s.Teleport(heli, Vector3.Zero);
+            SetPhase(s, heli, NavigationPhase.Unloading);
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadDismount, s.TaskName);                                   // the LZ: get out
+
+            foreach (var m in s.Members) Embarkation.Disembark(s.Repo, m);
+            Ticks(s, 10);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);                               // out: the task resumes
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
+        /// <summary>⭐ <c>CE-2173</c> — boarding is not paused by the first man in (the Ride row needs EVERY live member aboard); once the last
+        /// one is in, the squad rides; under fire at the Pickup stop (<c>Loading</c>, on the ground) it stays aboard — the aircraft is its
+        /// way out, and the Unloading row does not fire at a pickup. ✅ Red-proofs: Riding as "any member aboard" ⇒ the boarding is paused
+        /// by a Ride ⇒ red; the dismount row accepting a Loading carrier ⇒ SquadDismount ⇒ red.</summary>
+        [Fact]
+        public void CE2173_BasicSquadSop_BoardingIsNotPausedByTheFirstManIn_AndAtAPickupTheSquadStaysAboard()
+        {
+            var s = new Squad(members: 3);
+            var heli = AirCarrier(s, Vector3.Zero, NavigationPhase.Loading, 2177);
+            s.Order("{\"vehicle\":2177}", BehaviorNames.SquadEmbark);
+            s.StartSop("BasicSquadSop");
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[1], heli));
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadEmbark, s.TaskName);                                     // two of three: still boarding
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[2], heli));
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // all in: ride
+
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            Ticks(s, 20);   // the SOP decides every 0.2 s (BrainTickSystem.SopTickPeriod)
+            Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                       // under fire at the pickup: stay in
+            Assert.Equal(3, s.Repo.GetComponentRO<PassengerBuffer>(heli).Count);
+        }
+
+        /// <summary>⭐ <c>CE-2173</c> — the helicopter's BRAIN ends its holds (the FollowRoute node fills <c>ReleaseHold</c>): an Unload stop when
+        /// nobody alive is aboard; a Pickup stop when every live member of the waypoint's unit is aboard THIS helicopter; never while it is
+        /// just flying. ✅ Red-proofs: releasing a Pickup on "anybody aboard" ⇒ released with one man ⇒ red; releasing an Unload while a man
+        /// is aboard ⇒ red.</summary>
+        [Fact]
+        public void CE2173_TheHelicoptersBrain_ReleasesAnUnloadWhenEmpty_AndAPickupWhenItsUnitIsAboard()
+        {
+            var s = new Squad(members: 2);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2180 });
+            var heli = AirCarrier(s, new Vector3(5f, 0f, 0f), NavigationPhase.Unloading, 2178, 0);
+            var route = s.Repo.CreateEntity();
+            s.Repo.AddComponent(route, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 2179 });
+            var plan = new Hrot.Map.Common.Components.RoutePlan();
+            plan.Mutate(w =>
+            {
+                w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(500f, 0f, 0f), Kind = RouteWaypointKind.Ground, Hold = RouteHold.Unload });
+                w.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = Vector3.Zero, Kind = RouteWaypointKind.Ground, Hold = RouteHold.Pickup, HoldUnit = 2180 });
+            });
+            s.Repo.SetManagedComponent(route, plan);                                                  // RoutePlan: SimHostComponentRegistry
+
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                // a man still aboard at the Unload stop
+            Embarkation.Disembark(s.Repo, s.Members[0], heli);
+            Assert.True(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                 // empty: release
+
+            SetPhase(s, heli, NavigationPhase.Loading);
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                // nobody of the unit aboard
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                // one of two
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[1], heli));
+            Assert.True(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                 // the whole unit: release
+
+            SetPhase(s, heli, NavigationPhase.Following);
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                // flying: nothing to release
         }
 
         // ── CE-2158 F-c — bounding overwatch: suppress on contact, cover-point bounds ───────────────────────────────────────────────

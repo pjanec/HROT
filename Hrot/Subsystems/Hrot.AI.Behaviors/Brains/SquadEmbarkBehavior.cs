@@ -144,3 +144,26 @@ namespace Hrot.AI.Behaviors.Brains
         public void Release(ref SquadPlayState ws, EntityRepository world) { }
     }
 }
+
+namespace Hrot.AI.Behaviors.Brains
+{
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 3 (B8, R-2015; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9b) — <c>SquadRide</c>: the squad's SOP
+    /// reaction while every live member is aboard a vehicle. It orders nobody (a passenger has nothing to do), keeps the squad's task
+    /// paused, and succeeds the moment somebody is out — the task resumes. The carrier unloading (a more urgent row) replaces it with
+    /// <c>SquadDismount</c>.
+    /// </summary>
+    public static class SquadRideBehavior
+    {
+        [Behavior(BehaviorNames.SquadRide, Params = typeof(global::Hrot.Map.Definitions.Behavior.NoParams), Categories = BehaviorCategory.Commander)]
+        [BTreeDefinition(BehaviorNames.SquadRide, Curated = true, Group = "Library/Squad")]
+        public static BTreeBuilder<byte, BTreeContext> BuildTree()
+            => new BTreeBuilder<byte, BTreeContext>()
+                .Action(Ride);
+
+        /// <summary>Running while <see cref="SquadSopConditions.Riding"/>; Success once a member is out.</summary>
+        [Fbt.Kernel.SharedAiAction]
+        public static NodeStatus Ride(Entity self, EntityRepository world)
+            => SquadSopConditions.Riding(self, world) ? NodeStatus.Running : NodeStatus.Success;
+    }
+}

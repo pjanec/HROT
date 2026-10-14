@@ -119,6 +119,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// (docs/designs/air-attack/DESIGN_Air_Operations.md §9).</summary>
         public const string SquadEmbark = "SquadEmbark";
 
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B8) — the squad RIDES: every live member is aboard a vehicle; it does nothing, keeps the task
+        /// paused, and ends the moment somebody is out (Air Operations §9b).</summary>
+        public const string SquadRide = "SquadRide";
+
         /// <summary>⭐ <c>CE-2173</c> slice 3 — a soldier carrying a casualty seats him in a vehicle, then boards it himself (Air Operations §9).</summary>
         public const string LoadCasualty = "LoadCasualty";
 

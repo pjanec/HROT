@@ -474,8 +474,39 @@ aircraft's Move resolved to `PlatformMove`, which moves ON THE SURFACE — a hel
 has one DTO), SR_R2 +1 — 3 mutants red. ⏸ `AirPlatformAttack` / `AirPlatformStrike` arrive with `AirAttack` (needs E4); a Strike to an
 aircraft is refused until then. `AirPlatformHold` waits for the plane (a helicopter's `PlatformHold` already hovers).
 
-Still open in slice 3 (they need backend's E2 / E3): the squad SOP's Ride and dismount-on-`Unloading` rows, the helicopter brain's hold
-release, the mission tree, `SquadRecover`, and the two scenarios.
+### 9b. As-built `2026-10-14` — slice 3, second half (behaviors): riding, unloading, the hold release
+
+```mermaid
+sequenceDiagram
+  participant SOP as BasicSquadSop (squad leader, CGF)
+  participant HB as helicopter's FollowRoute node (CGF)
+  participant FX as FollowRouteExecutor (CGF)
+  participant RM as RotorcraftModel (Muscle)
+  Note over SOP: every live member aboard ⇒ React SquadRide (Alert), the task waits
+  RM-->>SOP: NavigationStatus.Phase = Unloading (the LZ)
+  SOP->>SOP: row CarrierUnloading ⇒ React SquadDismount (Contact, replaces the ride)
+  HB->>HB: AirHolds.ShouldRelease: Unloading and nobody alive aboard
+  HB->>FX: FollowRouteParams.ReleaseHold = 1
+  FX->>RM: NavigationIntent.ReleaseHold (a level, mirrored each tick)
+  RM-->>HB: TakingOff, then the next waypoint
+  Note over SOP: nobody aboard ⇒ SquadDismount Success ⇒ the squad's task resumes
+```
+
+*What the picture shows that prose hid: the release is decided by the HELICOPTER's brain from what it can see (its own passengers, the
+route's `HoldUnit`), never by the squad — so the squad and the aircraft need no channel between them; and the bit is a LEVEL the executor
+mirrors every tick, which is what lets the motion side re-arm for the next stop.*
+
+| as built | why / deviation |
+|---|---|
+| ★ SOP rows (`BasicSquadSop`), in order: ① **`CarrierUnloading`** ⇒ React `SquadDismount` (Contact) · ② the existing under-fire-mounted row, now only for a carrier **on the ground and not at a Pickup** · ③ **`Riding`** ⇒ React ★ `SquadRide` (Alert) — then the old rows | ③ sits above the contact rows: a squad shot at in the air rides on. ② gated: 📐 before it the row dismounted a squad from a FLYING helicopter (`Embarkation.Disembark` has no airborne gate) |
+| `Riding` = EVERY live member aboard a vehicle | ⛔ "any member" would pause the boarding when the first man is in |
+| ★ `SquadRide` (library, Commander, no params): orders nobody, Running while `Riding`, Success the moment somebody is out | a reaction the task waits behind; the Unloading row (more urgent) replaces it |
+| ★ `AirHolds` (`Hrot.AI.Behaviors`): `ShouldRelease` (Unloading ⇒ nobody alive aboard; Loading ⇒ every live member of the nearest Pickup waypoint's `HoldUnit` aboard THIS aircraft, `SquadEmbarkBehavior.AllAboard`; a Pickup naming no unit, or one this node cannot find, holds) · `OnTheGround` (a ground vehicle; an aircraft in `Landed` / `Unloading` / `Loading`, or within 1.5 m of the terrain with no landing phase) | the brain owns the rosters; the Muscle owns the landing |
+| ⚠ cross-lane (`Fdp.Toolkits`, backend's E4 report left it to us): `FireAtPointExecutor` holds a BOMB for the release cue (`AimAndFireExecutor.ReleaseCue` gained a point overload) and skips the person's body-turn rule for it — a strike on a PLACE now releases as exactly as the aimed path | the `AirAttack` LevelBomb drives `FireAtPoint` |
+| ⚠ cross-lane, additive (`Fdp.Toolkits`): `FollowRouteParams.ReleaseHold` (appended byte, 24 ≤ 32 bytes) · `FollowRouteExecutor` mirrors it onto `NavigationIntent.ReleaseHold` every tick (only a change is written) | the node writes the channel, the executor the intent (BS1-T020); no wire change — the bit is backend's E3 `Flags` bit 2 |
+| rails: `SquadManeuverTests.CE2173_BasicSquadSop_ASquadInAFlyingHelicopter_RidesThroughFire_AndDismountsWhenItUnloads` · `CE2173_BasicSquadSop_BoardingIsNotPausedByTheFirstManIn_AndAtAPickupTheSquadStaysAboard` · `CE2173_TheHelicoptersBrain_ReleasesAnUnloadWhenEmpty_AndAPickupWhenItsUnitIsAboard` · `FollowRouteExecutorTests.CE2173_TheBrainsHoldRelease_ReachesTheIntent_AsALevel` · `BTreeCallShapeTests` (+2 NoParams rows) · `SR_R2` (+`SquadRide`) · and the bomb on a POINT: `AimAndFireExecutorTests.CE2173_ABombAtAPoint_WaitsForTheReleaseCue` | red-proved by 5 mutants: the dismount without the on-the-ground gate, Riding as "any member", a Pickup released on anybody aboard, the release mirrored only on entry, the FireAtPoint release gate off |
+
+Still open in slice 3: `SquadRecover`, the rescue mission tree, and the two scenarios (`ua-air-assault`, `ua-air-rescue`).
 
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 

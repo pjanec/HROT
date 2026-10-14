@@ -1439,6 +1439,57 @@ namespace Fdp.Toolkit.Combat.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐ CE-2173 slice 5 (docs/designs/air-attack/DESIGN_Air_Operations.md §8, A6) — a BOMB fired at a POINT (a strike on a place,
+        /// <see cref="FireAtPointExecutor"/>) waits for the same release cue as the aimed path: it leaves exactly where a bomb dropped
+        /// then lands on the point, once, and nothing leaves on a pass wide of it. ✅ Red-proof: without the gate the first frame drops
+        /// (600 m early) ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2173_ABombAtAPoint_WaitsForTheReleaseCue()
+        {
+            const long Plane = 9406;
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            const float Dt = 1f / 60f, H = 500f;
+            var v = new Vector3(150f, 0f, 0f);
+            var (impact, _) = BombBallistics.Impact(new Vector3(0f, 0f, H), BombBallistics.Launch(v), null, Dt);
+            float releaseX = 3000f - impact.X;
+
+            (Entity Plane, int Released, float At) Run(Vector3 point)
+            {
+                var (plane, channel) = SpawnShooter(new Vector3(releaseX - 600f, 0f, H), 4, 0f, Entity.Null, 0f);
+                _world.AddComponent(plane, new SimVelocity { Linear = v });
+                _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+                Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = point, Rounds = 1 });
+                var executor = new FireAtPointExecutor();
+                executor.OnEnter(plane, ref channel, _world);
+                int released = 0; float at = float.NaN;
+                for (int frame = 0; frame < 60 * 8; frame++)
+                {
+                    executor.Execute(plane, ref channel, _world, Dt);
+                    _world.Bus.SwapBuffers();
+                    if (_world.Bus.Read<WeaponFireIntent>().Length > 0 && released++ == 0) at = _world.GetComponent<SimTransform>(plane).Position.X;
+                    _world.GetComponentRW<SimTransform>(plane).Position += v * Dt;
+                }
+                return (plane, released, at);
+            }
+
+            var hit = Run(new Vector3(3000f, 0f, 0f));
+            Assert.Equal(1, hit.Released);
+            Assert.InRange(hit.At, releaseX - v.X * Dt, releaseX + v.X * Dt);
+            Assert.Equal(3, _world.GetComponent<WeaponState>(hit.Plane).Ammo);
+
+            Assert.Equal(0, Run(new Vector3(3000f, 15f, 0f)).Released);                     // 15 m off the track: never released
+        }
+
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
 
         private const long M67 = 6001;
