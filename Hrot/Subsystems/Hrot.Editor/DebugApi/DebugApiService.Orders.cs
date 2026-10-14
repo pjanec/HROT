@@ -174,6 +174,7 @@ namespace Hrot.Editor.DebugApi
                 Lateral = Float(body, "lateral") ?? 0f,
                 Steer = Float(body, "steer") ?? 0f,
                 Yaw = Float(body, "yaw") ?? 0f,
+                Vertical = Float(body, "vertical") ?? 0f,   // ⭐ CE-2168 — a flyer's climb axis
                 Gait = (byte)(Float(body, "gait") ?? 0f),
                 Trigger = (byte)((body?["trigger"]?.ToString() is "true" or "1") ? 1 : 0),
                 Mount = (byte)(Float(body, "mount") ?? 0f),

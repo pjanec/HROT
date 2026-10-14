@@ -110,6 +110,25 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3199</c> / R-3005 (user, <c>2026-10-14</c>: "use one single Muscle role, so all positions are owned by it" ·
+        /// "keep MuscleGround so we do not need to rename") — a FLYER's body is granted to the same Muscle role as a tank's: the FPV
+        /// drone (no car kinematics, a <see cref="FlightParamsDto"/>) gets <see cref="NodeRole.MuscleGround"/>, and its flight state
+        /// sits in that group. 📄 <c>docs/designs/motion-models/DESIGN_Motion_Domains.md</c> §5a. Red before: the drone's position
+        /// stayed with its creator, so on a split cluster the SimHost's air module never moved it.
+        /// </summary>
+        [Fact]
+        public void CE3199_AFlyerIsMovedByTheOneMuscleRole_ItsPositionAndFlightStateAreMuscleGrounds()
+        {
+            var drone = HrotEnvironment.CreateTkb().GetAll().Single(t => t.TkbType == Hrot.Map.Common.TkbEntityTypes.Drone_Fpv);
+            Assert.NotNull(drone.GetDescriptor<FlightParamsDto>());
+            Assert.Null(drone.GetDescriptor<VehicleParametersDto>());
+            Assert.True(T.Groups[NodeRole.MuscleGround].AppliesTo(drone));
+            foreach (int id in new[] { GlobalComponentIds.SimTransform, GlobalComponentIds.SimVelocity,
+                                       GlobalComponentIds.FlightState, GlobalComponentIds.FlightParams })
+                Assert.Equal(NodeRole.MuscleGround, T.GroupOf(id));
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-523</c> (S8) rests on this: Health is in the BRAIN group, and only the Brain node runs
         /// <c>HealthApplicationSystem</c> (gated on the Health claim). A template that provisions Health
         /// (<see cref="CombatPlatformDefDto"/>) but no brain would keep Health with its creator — a SimHost or IG that

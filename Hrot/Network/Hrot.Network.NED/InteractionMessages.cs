@@ -65,7 +65,8 @@ namespace Hrot.NED.Messages
         public float AimX;
         public float AimY;
         public float AimZ;
-        /// <summary>⭐ CE-1074 — the operator's stance request (StanceId + 1; 0 = none).</summary>
+        public float Vertical;   // ⭐ CE-2168 (MD-D) — the station's climb axis, carried to the brain with the frame (appended)
+        /// <summary>⭐ CE-1074 — (appended after CE-2168's Vertical) the operator's stance request (StanceId + 1; 0 = none).</summary>
         public byte Stance;
     }
 

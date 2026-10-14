@@ -451,7 +451,10 @@ public sealed class EffectTests
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         var explosive = new HashSet<long> { MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.Tkb81mmMortarHe,
-                                            MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.TkbTowMissile };   // ⭐ M3
+                                            MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.TkbTowMissile,   // ⭐ M3
+                                            MunitionTkbCatalog.TkbJavelinMissile, MunitionTkbCatalog.TkbNlawMissile,   // ⭐ M5 — the new AT teams' own launchers
+                                            MunitionTkbCatalog.TkbKornetMissile,     // ⭐ M9 — the ATGM technical's
+                                            MunitionTkbCatalog.TkbFpvWarhead };      // ⭐ M7 — the drone's own shaped charge
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {
@@ -502,6 +505,51 @@ public sealed class EffectTests
             Assert.Equal(r.Warhead.Dto.FragmentRadiusM, w.FragmentRadiusM);
             Assert.NotEqual(library, tkb.GetByType(type).Name);   // the names stay (LR-1)
         }
+    }
+
+    /// <summary>⭐⭐ M5 (DESIGN_Missiles_And_Ammo §5) — the new munitions (6010–6021) carry the table's numbers ON THE TEMPLATE: a
+    /// generic penetration + damage (what another round of a loadout reads), a warhead of the right kind (shaped charge, tandem, HE —
+    /// none for the bullets) and, for a rocket or missile, its flight. The TOW and the PG-7V gain their flight; every one is a round
+    /// (never a body) and no name matches a reference-library entry.</summary>
+    [Fact]
+    public void M5_TheNewMunitions_CarryTheTablesNumbers_OnTheirTemplates()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var sc = WarheadKind.ShapedCharge;
+        foreach (var (type, pen, dmg, kind, tandem, guidance, speed) in new (long, float, float, WarheadKind?, bool, GuidanceKind?, float)[]
+                 {
+                     (MunitionTkbCatalog.TkbPg7vlRocket, 500, 450, sc, false, GuidanceKind.Unguided, 300),
+                     (MunitionTkbCatalog.TkbPg7vrRocket, 650, 500, sc, true, GuidanceKind.Unguided, 280),
+                     (MunitionTkbCatalog.TkbLawRocket, 300, 350, sc, false, GuidanceKind.Unguided, 145),
+                     (MunitionTkbCatalog.TkbNlawMissile, 500, 900, sc, false, GuidanceKind.FireAndForget, 200),
+                     (MunitionTkbCatalog.TkbJavelinMissile, 760, 1500, sc, true, GuidanceKind.FireAndForget, 140),
+                     (MunitionTkbCatalog.TkbKornetMissile, 1100, 2000, sc, true, GuidanceKind.Command, 300),
+                     (MunitionTkbCatalog.TkbFpvWarhead, 400, 450, sc, false, null, 0),
+                     (MunitionTkbCatalog.TkbTankHeatMp, 600, 1200, sc, false, null, 0),
+                     (MunitionTkbCatalog.TkbTankHeFrag, 50, 600, WarheadKind.HighExplosive, false, null, 0),
+                     (MunitionTkbCatalog.TkbHmgAp, 25, 60, null, false, null, 0),
+                 })
+        {
+            var t = tkb.GetByType(type);
+            Assert.Equal(2, t.DisType.Kind);
+            Assert.True(MunitionTkbCatalog.IsBuiltIn(type));
+            Assert.False(Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(t.Name, out _), $"{t.Name} matches a library entry by name");
+            var b = t.GetDescriptor<AmmoWeaponBallisticsDto>()!;
+            Assert.Equal((0L, pen, dmg), (b.WeaponGuid, b.PenetrationMm, b.Damage));
+            var w = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, type).Warhead;
+            Assert.Equal(kind, w?.Kind);
+            Assert.Equal(tandem, w?.Tandem ?? false);
+            var m = t.GetDescriptor<MissileDto>();
+            Assert.Equal(guidance, m?.Guidance);
+            if (m != null) Assert.Equal(speed, m.SpeedMps);
+        }
+        var javelin = tkb.GetByType(MunitionTkbCatalog.TkbJavelinMissile).GetDescriptor<MissileDto>()!;
+        Assert.True(javelin.TopAttack && javelin.TopAttackMinRangeM == 150f && javelin.MinRangeM == 65f);
+        var tow = tkb.GetByType(MunitionTkbCatalog.TkbTowMissile).GetDescriptor<MissileDto>()!;
+        Assert.Equal((GuidanceKind.Command, 280f, 65f), (tow.Guidance, tow.SpeedMps, tow.MinRangeM));
+        Assert.Equal(GuidanceKind.Unguided, tkb.GetByType(MunitionTkbCatalog.TkbRpg7Rocket).GetDescriptor<MissileDto>()!.Guidance);
+        Assert.Null(Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, MunitionTkbCatalog.Tkb762Ball).Warhead);
+        Assert.True(MunitionTkbCatalog.VisualOf(tkb, MunitionTkbCatalog.Tkb762Tracer)?.Tracer == true);
     }
 
     /// <summary>⭐ LR-3 (§8.5, R-271) — a VIEWER draws a replicated round from nothing but its master and position: the look from its

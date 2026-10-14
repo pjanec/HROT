@@ -65,6 +65,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
         // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
         world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+        // ⭐ CE-2168 (Motion Domains MD-A) / M7 (FPV) — how a body moves, and a flyer's parameters and state; every node.
+        world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
 

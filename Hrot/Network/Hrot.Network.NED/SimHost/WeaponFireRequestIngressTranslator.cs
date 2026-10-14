@@ -93,6 +93,7 @@ namespace Hrot.Network.NED.SimHost
                 IsRemote    = true,
                 AtPoint     = atPoint,
                 TargetPoint = new System.Numerics.Vector3(request.PointX, request.PointY, request.PointZ),
+                AmmoGuid    = request.AmmoGuid,   // ⭐ M8
             });
         }
 

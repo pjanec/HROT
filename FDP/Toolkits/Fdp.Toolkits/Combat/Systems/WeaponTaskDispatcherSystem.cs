@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 IsRemote    = true,
                 AtPoint     = task.Target.IsNull,
                 TargetPoint = task.Point,
+                AmmoGuid    = unchecked((long)task.AmmoGuid),   // ⭐ M8 — the round the weapon brain loaded
             });
             clock.CooldownRemaining = task.CooldownSeconds;
             status.RoundsFired++;

@@ -114,6 +114,7 @@ namespace Hrot.Network.NED.SimHost
                     PointX          = evt.TargetPoint.X,
                     PointY          = evt.TargetPoint.Y,
                     PointZ          = evt.TargetPoint.Z,
+                    AmmoGuid        = evt.AmmoGuid,   // ⭐ M8 — the loaded round (R-169: the one new wire field)
                 });
                 SentSampleCount++;
             }

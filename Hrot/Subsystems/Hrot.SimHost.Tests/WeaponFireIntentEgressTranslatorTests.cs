@@ -118,6 +118,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0,  msg.WeaponIndex);
         }
 
+        /// <summary>⭐ M8 (D-I, R-169) — the LOADED round crosses the wire: the intent's <c>AmmoGuid</c> is written on the request, and
+        /// the Muscle's ingress turns it back into the same intent field (the per-shot path's half of
+        /// <c>M8_TheLoadedRound_ReachesTheMuscle</c>; the turret path rides <c>EntityWeaponTask.AmmoGuid</c>).</summary>
+        [Fact]
+        public void M8_TheLoadedRound_RoundTripsTheWire()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnShooter(netId: 1L, authoritative: true);
+            var target  = SpawnTarget(netId: 2L);
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003 });
+            _world.Bus.SwapBuffers();
+
+            translator.ScanAndPublish(_world);
+
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal(9003L, msg.AmmoGuid);
+
+            var ingress = new WeaponFireRequestIngressTranslator(participant: null, _entityMap);
+            var cmd = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
+            ingress.ProcessSample(in msg, cmd, _world);
+            cmd.Playback(_world);
+            _world.Bus.SwapBuffers();
+            var back = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal(9003L, back.AmmoGuid);
+            Assert.True(back.IsRemote);
+        }
+
         // ── SC-2: No authority → no publish ──────────────────────────────────
 
         /// <summary>

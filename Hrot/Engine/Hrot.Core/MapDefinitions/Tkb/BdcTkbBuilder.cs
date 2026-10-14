@@ -155,8 +155,25 @@ namespace Hrot.Map.Definitions.Tkb
                 MaxSpeedRev = physicsDef.MaxSpeedRev,
                 MaxAccel    = physicsDef.Acceleration,
                 TurnRate    = physicsDef.TurnRate,
-                VehicleClass = MapMobility(physicsDef.Mobility),
+                VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });
+            // ⭐ B8 (M6, DESIGN_Armour_Hit_Model §2) — the hull's SIZE, engine-neutral (Body.Geometry, ground-centred): it gives the
+            //   collider its height (VehicleKinematicsTkbTranslator). 📐 Measured 2026-10-14 (hill-attack-close): without it every NED
+            //   hull had collider height 0 — no M1 height band, and the blast rule took a tank for a person, so the AI's round choice
+            //   picked HEAT-MP (blast "kills" a 50 hp tank) over APFSDS and the fight stalled.
+            if (physicsDef.Height > 0f && physicsDef.Mobility != TerrainMobility.Infantry && template.GetDescriptor<BodyGeometryDto>() == null)   // a person's profile is his posture
+                template.AddDescriptor(new BodyGeometryDto
+                {
+                    ReferencePoint = ReferencePointKind.GroundCentre,
+                    Length = physicsDef.Length, Width = physicsDef.Width, Height = physicsDef.Height, BodyCentreZ = physicsDef.Height / 2f,
+                });
+            // ⭐ CE-2168 (Motion Domains MD-A) — how it moves, stated: every ground mobility maps 1:1
+            template.AddDescriptor(new LocomotionDto { Class = physicsDef.Mobility switch
+            {
+                TerrainMobility.Tracked  => LocomotionClass.Tracked,
+                TerrainMobility.Infantry => LocomotionClass.Pedestrian,
+                _                        => LocomotionClass.Wheeled,
+            } });
             // Height stays out of VehicleParametersDto on purpose -- nothing on the
             // kinematics path consumes it (VehicleParams has no height field,
             // PhysicsCollider carries only Radius).  Its home is the render/collider
@@ -209,15 +226,24 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ Stage 0 — the formulas live in EngineFallbacks and every derived number is RECORDED, so /tkb/resolve
             //   reports it as Generated(formula, inputs) rather than as if an author had stated it.
             var generated = new TkbGeneratedValuesDto();
-            generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
-                ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
-                : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
+            // ⭐ M6 (D-F) — a type that STATES its health keeps it; the front × 5 derivation is only the fallback (and only then recorded)
+            if (combatDef.MaxHealth <= 0f)
+                generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
+                    ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
+                    : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
             template.AddDescriptor(new CombatPlatformDefDto
             {
-                MaxHealth  = EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
+                MaxHealth  = combatDef.MaxHealth > 0f ? combatDef.MaxHealth : EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
+                MobilityKillBelowFraction = combatDef.MobilityKillBelowFraction,
                 ArmorFront = combatDef.ArmorFront,
                 ArmorSide  = combatDef.ArmorSide,
                 ArmorRear  = combatDef.ArmorRear,
+                // ⭐ M6 — the roof and the shaped-charge column (0 ⇒ the rear / the kinetic value, ArmorModel.ArmourFor)
+                ArmorTop     = combatDef.ArmorTop,
+                ArmorFrontCe = combatDef.ArmorFrontCe,
+                ArmorSideCe  = combatDef.ArmorSideCe,
+                ArmorRearCe  = combatDef.ArmorRearCe,
+                ArmorTopCe   = combatDef.ArmorTopCe,
             });
 
             // Derived capability DTO for the general TKB pipeline.
@@ -255,6 +281,12 @@ namespace Hrot.Map.Definitions.Tkb
                         AmmoGuid          = unchecked((ulong)wm.AmmoTkb),        // ⭐ LR-1 (R-271)
                         TracerAmmoGuid    = unchecked((ulong)wm.TracerAmmoTkb),
                         TracerEvery       = wm.TracerEvery,
+                        // ⭐ M5 — the loadout, firing on the move, the aim / lock time and the magazine
+                        Loadout           = wm.Loadout?.ConvertAll(l => new AmmoLoadDto { AmmoGuid = unchecked((ulong)l.AmmoTkb), Rounds = l.Rounds }) ?? new(),
+                        FireOnMove        = wm.FireOnMove,
+                        AimSeconds        = wm.AimSeconds,
+                        MagazineSize      = wm.MagazineSize,
+                        ReloadSeconds     = wm.ReloadSeconds,
                     });
                 }
                 template.AddDescriptor(suite);
@@ -268,6 +300,7 @@ namespace Hrot.Map.Definitions.Tkb
                     VisionRange        = combatDef.SensorRange,
                     HearingRange       = combatDef.SensorRange * 1.5f,
                     FieldOfViewDegrees = 360f,
+                    EyeHeightStanding  = combatDef.EyeHeight,   // ⭐ M5 — a vehicle sees from its sight (0 ⇒ a standing man's)
                 });
             }
 
@@ -301,6 +334,28 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(new TurretSuiteDto { Turrets = new List<TurretDto>(turrets ?? Array.Empty<TurretDto>()) });
+            return this;
+        }
+
+        /// <summary>⭐ M7 / CE-2168 (Motion Domains MD-A) — a FLYER: <c>Gen.Locomotion</c> (<paramref name="cls"/>, an air class) and
+        /// <c>Gen.Flight</c>. ⛔ Not <see cref="WithPhysics"/> — that is ground physics.</summary>
+        public NedTkbBuilder WithFlight(long tkbId, LocomotionClass cls, FlightParamsDto flight)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(new LocomotionDto { Class = cls });
+            template.AddDescriptor(flight ?? throw new ArgumentNullException(nameof(flight)));
+            return this;
+        }
+
+        /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
+        public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(signatures ?? throw new ArgumentNullException(nameof(signatures)));
             return this;
         }
 
@@ -433,8 +488,10 @@ namespace Hrot.Map.Definitions.Tkb
             TerrainMobility.Tracked  => VehicleClass.Tank,
             TerrainMobility.Wheeled  => VehicleClass.Truck,
             TerrainMobility.Infantry => VehicleClass.Pedestrian,
-            TerrainMobility.Air      => VehicleClass.PersonalCar,
-            TerrainMobility.Naval    => VehicleClass.PersonalCar,
+            // ⭐ CE-2168 (MD-A) — the lossy "Air / Naval → PersonalCar" mapping ends: a flyer or a boat is not ground physics — it states
+            //   Gen.Locomotion and its domain's own parameters (Gen.Flight) instead. Fail loudly rather than drive an aircraft like a car.
+            TerrainMobility.Air or TerrainMobility.Naval => throw new NotSupportedException(
+                $"{mobility} is not a ground mobility: state Gen.Locomotion and its domain's parameters (DESIGN_Motion_Domains.md MD-A)"),
             _                        => VehicleClass.PersonalCar
         };
     }

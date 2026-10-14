@@ -186,6 +186,7 @@ namespace Hrot.NED.Descriptors
         public float Yaw;
         public byte Gait;
         public uint Seq;
+        public float Vertical;   // ⭐ CE-2168 (Motion Domains MD-D) — a flyer's climb axis; appended (the handoff's one allowed wire change)
     }
 
     // ⭐ CE-3172 S4e (§8c, C-3) — which station holds a unit, Brain → every node, keyed by the unit. Reliable + TransientLocal +

@@ -220,5 +220,30 @@ namespace Fdp.Toolkit.Navigation.Tests
 
             repo.Dispose();
         }
-    }
+    
+        /// <summary>⭐ M7 / CE-2168 (Motion Domains MD-E) — the bridge skips a FLYER: its air model reads the intent itself (straight legs
+        /// to the 3-D point); no ground NavState is written and no ground path is asked for.</summary>
+        [Fact]
+        public void M7_TheBridge_SkipsAFlyer()
+        {
+            var repo = CreateWorld();
+            repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var flyer = repo.CreateEntity();
+            repo.AddComponent(flyer, new NavigationIntent { Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(100, 0, 50), TargetSpeed = 10, IntentId = 1 });
+            repo.AddComponent(flyer, new NavState());
+            repo.AddComponent(flyer, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            var car = repo.CreateEntity();
+            repo.AddComponent(car, new NavigationIntent { Mode = NavigationMode.DirectPoint, FinalDestination = new Vector3(100, 0, 0), TargetSpeed = 10, IntentId = 1 });
+            repo.AddComponent(car, new NavState());
+            repo.AddComponent(car, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
+
+            repo.Bus.SwapBuffers();
+            new NavigationIntentBridgeSystem().Execute(repo, 0.016f);
+
+            Assert.Equal(KinematicsMode.None, repo.GetComponent<NavState>(flyer).Mode);
+            Assert.Equal(KinematicsMode.Direct, repo.GetComponent<NavState>(car).Mode);
+            repo.Dispose();
+        }
+
+}
 }

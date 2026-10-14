@@ -62,7 +62,10 @@ namespace CarKinem.Tkb
                     CollisionLayer = 1,
                     // ⭐ Height's home is the render/collider descriptor (see VehicleParametersDto remarks);
                     // 0 when absent = unknown height, which blocks sight at every height as before.
-                    Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
+                    //   ⭐ B8 (M6) — else the engine-neutral Body.Geometry height (the NED types state it; they have no Stride model), so
+                    //   a NED hull gets its height band (M1) and is no longer taken for a person by the blast rule.
+                    Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight
+                                     ?? (template.GetDescriptor<BodyGeometryDto>() is { Height: > 0f } g ? g.Height : 0f),
                 });
 
             if (repo.IsComponentTypeRegistered<NavigationIntent>() && !repo.HasComponent<NavigationIntent>(entity))

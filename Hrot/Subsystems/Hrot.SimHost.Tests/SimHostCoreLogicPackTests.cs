@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -154,6 +155,11 @@ namespace Hrot.SimHost.Tests
             Assert.Contains(pack.PostSimulationSystems, s => s is BallisticsSystem);
             Assert.Contains(pack.PostSimulationSystems, s => s is CarKinematicsSystem);
             Assert.Contains(pack.PostSimulationSystems, s => s is LinearKinematicsSystem);
+            // ⭐ CE-2168 (Motion Domains MD-B) / M7 — the AIR domain beside the ground one (this pack is the SimHost's and the editor's
+            //   Muscle): it moves the air bodies, then lets them meet what they fly into
+            int air = pack.PostSimulationSystems.ToList().FindIndex(s => s is Fdp.Toolkit.Motion.AirMotionSystem);
+            int impact = pack.PostSimulationSystems.ToList().FindIndex(s => s is Fdp.Toolkit.Motion.DroneImpactSystem);
+            Assert.True(air >= 0 && impact > air, $"air motion at {air}, drone impact at {impact}");
 
             // Cleanup
             roadNetwork.Dispose();

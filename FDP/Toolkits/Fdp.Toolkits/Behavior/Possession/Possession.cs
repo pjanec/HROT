@@ -63,6 +63,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         public long StationNodeId;
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
+        /// <summary>⭐ CE-2168 (MD-D) — a flyer's climb axis ∈ [−1, 1].</summary>
+        public float Vertical;
         public byte Gait;
         /// <summary>1 = the trigger is held.</summary>
         public byte Trigger;
@@ -101,6 +103,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     {
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
+        public float Vertical;   // ⭐ CE-2168
         public byte Gait;
         public byte Trigger;
         public byte Mount;
@@ -150,7 +153,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                     if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) continue;
                     var input = new OperatorInput
                     {
-                        Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Gait = f.Gait,
+                        Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
                         Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);

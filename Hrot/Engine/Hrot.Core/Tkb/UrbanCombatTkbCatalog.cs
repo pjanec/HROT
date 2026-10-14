@@ -53,6 +53,10 @@ namespace Hrot.Core.Tkb
         public const int TkbGrenadier          = 2004;
         /// <summary>⭐ <c>CE-1032</c> — an 81 mm mortar team (one mount, indirect).</summary>
         public const int TkbMortarTeam         = 2005;
+        /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §5) — an anti-tank team with a Javelin (fire-and-forget, top attack) and a rifle.</summary>
+        public const int TkbJavelinTeam        = 2006;
+        /// <summary>⭐ M5 — an anti-tank gunner with NLAWs (fire-and-forget, short range) and a rifle.</summary>
+        public const int TkbNlawGunner         = 2007;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         private const float CivilianVisionRange  = 30f;
@@ -78,8 +82,21 @@ namespace Hrot.Core.Tkb
         private const int   RifleAmmo           = 5 * RifleMagazine;
         private const float RifleReloadSeconds  = 3f;
         private const float RifleMuzzleVelocity = 800f;
-        private const int   RpgAmmo             = 1;
+        // ⭐ M5 (DESIGN_Missiles_And_Ammo §5, programme §2) — the RPG man carries FOUR rockets (was one), lays the launcher 2 s before
+        //   each and needs 6 s to load the next; he stands to fire (D-L).
+        private const int   RpgAmmo             = 4;
         private const float RpgMuzzleVelocity   = 300f;
+        private const float RpgAimSeconds = 2f, RpgReloadSeconds = 6f;
+
+        // ⭐ M5 — the anti-tank teams (§5): the Javelin locks 4 s, carries two, 20 s to mount the next; the NLAW tracks 2.5 s, two tubes.
+        private const int   JavelinMissiles = 2;
+        private const float JavelinAimSeconds = 4f, JavelinReloadSeconds = 20f, JavelinRange = 2500f, JavelinDamage = 1500f, JavelinSpeed = 140f;
+        private const int   NlawTubes = 2;
+        private const float NlawAimSeconds = 2.5f, NlawReloadSeconds = 3f, NlawRange = 800f, NlawDamage = 900f, NlawSpeed = 200f;
+
+        // ⭐ M6 (DESIGN_Armour_Hit_Model §2, D-F) — the APC is armoured against rifles, not against a rocket (it was unarmoured: a rifle
+        //   took 25 off it per hit). Its health stays as stated.
+        private const float ApcArmorFront = 30f, ApcArmorSide = 20f, ApcArmorRear = 15f, ApcArmorTop = 10f;
 
         // ⭐ CE-3071 — the munitions (docs/DESIGN_Utility_AI_Demo_Scenarios.md §9 calibration). The rifle keeps today's 25 per hit.
         private const float RifleRange = 300f, RiflePenetration = 5f,   RifleDamage = 25f;
@@ -97,7 +114,7 @@ namespace Hrot.Core.Tkb
         private const float MortarMuzzleVelocity = 60f, MortarRange = 360f;
 
         /// <summary>
-        /// Registers all five UrbanCombat entity blueprints into <paramref name="tkb"/>.
+        /// Registers all the UrbanCombat entity blueprints (1001–2007) into <paramref name="tkb"/>.
         ///
         /// <para>⚠ <c>TkbDatabase.Register</c> THROWS on a duplicate name or type, so call this exactly
         /// once per database. <c>HrotEnvironment.CreateTkb()</c> already does; a host that uses
@@ -151,7 +168,8 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(CarrierDefDto.PassengerSeats(8));   // ⭐ CE-2151 (R-2009) — the APC carries a squad (the convoy ambush boards five)
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f });   // CE-3092 — the APC's mobility kill (PACK-M002)
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f,   // CE-3092 — the APC's mobility kill (PACK-M002)
+                    ArmorFront = ApcArmorFront, ArmorSide = ApcArmorSide, ArmorRear = ApcArmorRear, ArmorTop = ApcArmorTop });   // ⭐ M6
                 t.AddDescriptor(Sounds(ApcEngineRange, SoundSourceClass.WheeledEngine));
                 tkb.Register(t);
             }
@@ -211,6 +229,14 @@ namespace Hrot.Core.Tkb
                 tkb.Register(t);
             }
 
+            // ⭐ M5 — JavelinTeam (2006) and NlawGunner (2007): an anti-tank weapon (mount 0) and a rifle (mount 1)
+            AntiTank(tkb, "JavelinTeam", TkbJavelinTeam, JavelinRange, new WeaponMountDto { InitialAmmunition = JavelinMissiles, MuzzleVelocity = JavelinSpeed, Range = JavelinRange,
+                DamagePerHit = JavelinDamage, AmmoGuid = MunitionTkbCatalog.TkbJavelinMissile, Category = WeaponCategory.Atgm,
+                MagazineSize = 1, ReloadSeconds = JavelinReloadSeconds, AimSeconds = JavelinAimSeconds });
+            AntiTank(tkb, "NlawGunner", TkbNlawGunner, NlawRange, new WeaponMountDto { InitialAmmunition = NlawTubes, MuzzleVelocity = NlawSpeed, Range = NlawRange,
+                DamagePerHit = NlawDamage, AmmoGuid = MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm,
+                MagazineSize = 1, ReloadSeconds = NlawReloadSeconds, AimSeconds = NlawAimSeconds });
+
             // Insurgent (2003)
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
@@ -221,12 +247,45 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */ } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */,
+                                         MagazineSize = 1, ReloadSeconds = RpgReloadSeconds, AimSeconds = RpgAimSeconds, FireOnMove = false },   // ⭐ M5
+                    Rifle(),   // ⭐ M5 — and a rifle, for men (the RPG for vehicles: the weapon brain picks)
+                } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
                 tkb.Register(t);
             }
+        }
+
+        /// <summary>⭐ M5 — the infantry rifle (the InfantrySoldier's mount), as a second mount.</summary>
+        private static WeaponMountDto Rifle() => new()
+        {
+            InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity,
+            Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer,
+            TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils, Category = WeaponCategory.SmallArms,
+        };
+
+        /// <summary>⭐ M5 — an anti-tank soldier: the InfantrySoldier's body, sensors and sounds, <paramref name="launcher"/> on mount 0 (its
+        /// penetration is the munition's own — <c>MunitionTkbCatalog</c> — so the mount states none) and a rifle on mount 1.</summary>
+        private static void AntiTank(ITkbDatabase tkb, string name, int type, float sightRange, WeaponMountDto launcher)
+        {
+            var t = new TkbTemplate(name, type);
+            Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+            t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+            t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 5.0f, MaxAccel = 2.0f });   // a loaded man runs a little slower
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+            t.AddDescriptor(new InjuryDefDto());
+            t.AddDescriptor(CarrierDefDto.PersonCarrier());
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = { launcher, Rifle() } });
+            // the launcher's sight (the Javelin's CLU) sees as far as the weapon reaches; a rifleman's eyes would cap it at 150 m
+            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = MathF.Max(SoldierVisionRange, sightRange), HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+            t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
+            t.AddDescriptor(BuildMannequinAnimationDef());
+            tkb.Register(t);
         }
 
         /// <summary>

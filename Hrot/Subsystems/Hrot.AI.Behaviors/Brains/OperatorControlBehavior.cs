@@ -68,7 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var input = world.GetComponentRO<OperatorInput>(self);
                 drive = new ManualDrive
                 {
-                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Gait = input.Gait,
+                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Vertical = input.Vertical, Gait = input.Gait,
                     Seq = input.Seq,
                 };
                 // ⭐ CE-1074 (DESIGN_Entity_Control.md §13.5) — the operator's stance, through the brain's one way to ask for it

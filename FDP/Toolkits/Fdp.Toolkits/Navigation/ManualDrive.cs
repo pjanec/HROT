@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Navigation
         /// unlike a yaw rate (M-2).</summary>
         public float Yaw;
 
+        /// <summary>⭐ CE-2168 (Motion Domains MD-D) — a flyer's climb (+) / descent (−) ∈ [−1, 1] of its climb rate. The ground ignores it.</summary>
+        public float Vertical;
+
         /// <summary>A person's pace: 0 = run (full speed), 1 = walk (half).</summary>
         public byte Gait;
 

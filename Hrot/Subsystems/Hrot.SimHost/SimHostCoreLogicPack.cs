@@ -50,6 +50,7 @@ namespace Hrot.SimHost
         private readonly CombatModule                _combatModule;
         private readonly DamageAssessmentModule      _damageAssessmentModule;
         private readonly GroundKinematicsModule      _groundKinematicsModule;
+        private readonly Fdp.Toolkit.Motion.AirMotionModule _airMotionModule = new(new Fdp.Toolkit.Motion.DroneImpactSystem());   // ⭐ M7 — after the motion
         private readonly NetworkEntityMap            _entityMap;
 
         // ── Navigation bridge systems ─────────────────────────────────────────
@@ -137,6 +138,9 @@ namespace Hrot.SimHost
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);
             foreach (var s in _groundKinematicsModule.PostSimulationSystems)   postSimList.Add(s);
+            // ⭐ CE-2168 (Motion Domains MD-B) — the AIR domain beside the ground one, on every host this pack runs on (SimHost, the
+            //   editor's Muscle): it moves the bodies whose Locomotion is an air class.
+            foreach (var s in _airMotionModule.PostSimulationSystems)          postSimList.Add(s);
 
             InputSystems          = inputList;
             SimulationSystems     = simList;

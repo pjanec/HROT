@@ -7,6 +7,10 @@ namespace Hrot.Map.Common
         public const long IFV_Bradley = 101;
         public const long Truck_HMMWV = 102;
         public const long Tank_T72 = 103;
+        /// <summary>⭐ M9 (DESIGN_Vehicle_Exposure_Cycle §6) — a pickup with a 12.7 mm HMG on a pintle: shoot and scoot.</summary>
+        public const long Technical_Hmg = 104;
+        /// <summary>⭐ M9 — a pickup with a command-guided ATGM: halts for the flight, then scoots.</summary>
+        public const long Technical_Atgm = 105;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;
@@ -47,6 +51,8 @@ namespace Hrot.Map.Common
         public const long Heli_UH60  = 400;
         public const long Jet_F16    = 401;
         public const long Cargo_C130 = 402;
+        /// <summary>⭐ M7 (DESIGN_FPV_Drone §2) — a small FPV attack quadcopter: a Rotorcraft with a shaped-charge warhead (munition 6016).</summary>
+        public const long Drone_Fpv  = 403;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

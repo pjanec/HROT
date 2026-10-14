@@ -44,6 +44,10 @@ namespace Hrot.NED.Messages
         public float PointX;
         public float PointY;
         public float PointZ;
+
+        /// <summary>⭐ M8 (D-I, R-169) — the munition type of the LOADED round (the weapon brain's choice from the mount's loadout);
+        /// 0 = the mount's own <c>AmmoGuid</c>.</summary>
+        public long AmmoGuid;
     }
 
     /// <summary>

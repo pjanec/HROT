@@ -30,6 +30,12 @@ namespace Fdp.Toolkit.Combat
 
         private const double GoldenFraction = 0.6180339887498949;
 
+        /// <summary>True when <paramref name="unit"/> moves faster than <see cref="MovingSpeed"/> — the one test both the spread
+        /// (× <see cref="MovingFactor"/>) and the fire-on-the-move gate (D-L) read.</summary>
+        public static bool IsMoving(EntityRepository repo, Entity unit)
+            => repo.IsComponentTypeRegistered<SimVelocity>() && repo.HasComponent<SimVelocity>(unit)
+               && repo.GetComponentRO<SimVelocity>(unit).Linear.Length() > MovingSpeed;
+
         /// <summary>
         /// σ (radians, the half-width of a uniform spread) of <paramref name="shooter"/> firing <paramref name="mount"/>: the mount's
         /// <see cref="WeaponMountDto.DispersionMils"/> (0 = exact aim ⇒ 0) × 2 moving × 2 under fire × stance (prone 0.5, crouched 0.75).
@@ -42,7 +48,7 @@ namespace Fdp.Toolkit.Combat
             if (mils <= 0f) return 0f;
             float sigma = mils / 1000f;
 
-            if (repo.HasComponent<SimVelocity>(shooter) && repo.GetComponentRO<SimVelocity>(shooter).Linear.Length() > MovingSpeed)
+            if (IsMoving(repo, shooter))
                 sigma *= MovingFactor;
             if (repo.HasComponent<UnderFire>(shooter) && now - repo.GetComponentRO<UnderFire>(shooter).LastTime < UnderFireSeconds)
                 sigma *= UnderFireFactor;
