@@ -1449,7 +1449,7 @@ public sealed class Map3DFrameRail
         Unit(TkbEntityTypes.Infantry_Rifleman, 1.6f);
         Unit(TkbEntityTypes.Infantry_Rifleman, 0.6f, StanceId.Standing, Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed);
         Unit(TkbEntityTypes.Infantry_Rifleman, -0.4f, StanceId.Crouched);
-        Unit(TkbEntityTypes.CivilianPedestrian, -1.4f);
+        Unit(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, -1.4f);   // a PERSON (TkbEntityTypes.CivilianPedestrian is drawn as a box)
         var dead = Unit(TkbEntityTypes.Infantry_Rifleman, 0f, dx: -2.4f);
         world.SetComponent(dead, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });   // first seen dead: he lies there
 
@@ -1467,7 +1467,7 @@ public sealed class Map3DFrameRail
 
         // face-on: the camera east of them, looking west at their faces
         float ground = G(spot.X, spot.Y);
-        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 0.1f, ground + 1.2f), 4.2f, MathF.PI, -0.10f);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 0.1f, ground + 1.0f), 5.6f, MathF.PI, -0.10f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "face-1-front.png"));
@@ -1482,6 +1482,68 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1.2f, spot.Y, ground + 0.4f), 5.5f, 0.35f, -0.75f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "face-3-above.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — the (V) acceptance for blood: five riflemen facing east at health 100, 85, 50 and 15,
+    /// and a dead one; more spots the more hurt he is (0 + 2 + 4 + 7 + 8). Face-on, then from above. Screenshots <c>blood-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1098_V_BloodSpots_GrowAsTheyAreHurt()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Man(float dy, float health, float dx = 0f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+        }
+        Man(1.8f, 100f);
+        Man(0.6f, 85f);
+        Man(-0.6f, 50f);
+        Man(-1.8f, 15f);
+        Man(0f, 0f, dx: -2.4f);   // dead: on his back behind them
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.0f), 5.8f, MathF.PI, -0.10f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "blood-1-front.png"));
+        Assert.Equal(0 + 2 + 4 + 7 + 8, bodies.StainsDrawn);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1.2f, spot.Y, ground + 0.4f), 5.5f, 0.35f, -0.75f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "blood-2-above.png"));
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>

@@ -937,6 +937,50 @@ public sealed class Map3DTests
         Assert.Equal(FaceOn.Up, BlockFigure.Fall(standing, 0.6f, true)[BlockFigure.HeadIndex].Face);
     }
 
+    /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,
+    /// all eight at none left (a dead man), none for a pool with no maximum.</summary>
+    [Fact]
+    public void CE1098_TheSpots_GrowWithTheHealthLost()
+    {
+        Assert.Equal(0, BlockFigure.StainCount(100f, 100f));
+        Assert.Equal(1, BlockFigure.StainCount(99f, 100f));
+        Assert.Equal(2, BlockFigure.StainCount(85f, 100f));
+        Assert.Equal(4, BlockFigure.StainCount(50f, 100f));
+        Assert.Equal(7, BlockFigure.StainCount(15f, 100f));
+        Assert.Equal(BlockFigure.MaxStains, BlockFigure.StainCount(0f, 100f));
+        Assert.Equal(BlockFigure.MaxStains, BlockFigure.StainCount(-20f, 100f));
+        Assert.Equal(0, BlockFigure.StainCount(0f, 0f));
+    }
+
+    /// <summary>⭐ CE-1098 (§6p B-1, B-3) — a spot is REPEATABLE (the same man's spot k is the same on every call and every node, so his spots
+    /// stay put and the earlier ones stay as more appear), different men bleed in different places, and every spot lies flat ON a side of a
+    /// body part — never the head (his face), never the rifle.</summary>
+    [Fact]
+    public void CE1098_TheSpots_AreRepeatable_DifferPerMan_AndLieOnTheBody()
+    {
+        Assert.Equal(BlockFigure.StainOf(4711, 3), BlockFigure.StainOf(4711, 3));
+        var one = Enumerable.Range(0, BlockFigure.MaxStains).Select(k => BlockFigure.StainOf(4711, k)).ToArray();
+        var other = Enumerable.Range(0, BlockFigure.MaxStains).Select(k => BlockFigure.StainOf(4712, k)).ToArray();
+        Assert.NotEqual(one, other);
+        var parts = new HashSet<int>();
+        for (long seed = 1; seed <= 200; seed++)
+            for (int k = 0; k < BlockFigure.MaxStains; k++)
+            {
+                var st = BlockFigure.StainOf(seed, k);
+                parts.Add(st.Part);
+                Assert.NotEqual(BlockFigure.HeadIndex, st.Part);
+                Assert.NotEqual(BlockFigure.WeaponIndex, st.Part);
+                float[] c = [st.Centre.X, st.Centre.Y, st.Centre.Z];
+                Assert.Equal(1, c.Count(v => MathF.Abs(v) > 0.5f));                  // proud of exactly one side
+                float[] e = [st.Extent.X, st.Extent.Y, st.Extent.Z];
+                for (int i = 0; i < 3; i++)
+                    if (MathF.Abs(c[i]) <= 0.5f) Assert.InRange(MathF.Abs(c[i]) + e[i] / 2f, 0f, 0.5f);   // and wholly inside it
+            }
+        Assert.Contains(BlockFigure.TorsoIndex, parts);
+        Assert.Contains(0, parts);   // a thigh
+        Assert.Contains(6, parts);   // an upper arm
+    }
+
     /// <summary>⭐ CE-1097 (§6o F-2, F-3, F-4) — WHERE the face is drawn: on a standing soldier the eyes are in front of his head and the helmet
     /// on top of it; on a dead one (on his back) the eyes look UP and the helmet is at the far end of his head from his body; draped over a
     /// shoulder his eyes look DOWN. A soldier's helmet is his uniform a step darker (green stays green); a civilian has hair, no helmet.</summary>

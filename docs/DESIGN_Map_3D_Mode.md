@@ -1790,6 +1790,64 @@ would move; *a fixed olive helmet* — from above the helmet is most of what is 
 *rotating the head box in the lying poses instead of a tag* — face-up with the top of the head away from the body needs a turn of 180°
 about a diagonal, and the fall blends yaw and pitch linearly, so the head would spin as he falls.
 
+**AS-BUILT** — as drawn above. Rails `Map3DTests.CE1097_*` ×2 (every pose's head and its face side; the face's place, the helmet's colour),
+frame rail `Map3DFrameRail.CE1097_V` (`face-*.png`). ⚠ `TkbEntityTypes.CivilianPedestrian` (501) is drawn as a box, not a person —
+the civilian figure is `UrbanCombatTkbCatalog.TkbCivilianPedestrian` (1001).
+
+### 6p. CE-1098 — blood: spots on a hurt man, more as his health drops — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"Some red blood stains where soldier was hit would also be great … or just repeatably random spots based on
+health level"*.
+
+| the choice rests on | code — how it is | design basis |
+|---|---|---|
+| the sim knows where a bullet struck | ✅ `HitEvent` carries the bullet segment and `HitT` (`FDP/Toolkits/Fdp.Toolkits/Combat/HitEvent.cs`) | ⛔ searched `docs/`, `.dev/` for blood / wound marks: none found |
+| …but no node is told where | ✅ the wire carries the damage (`EntityHitDamage`: id + HP) and the health (`EntityDamage`: `Current`, `Max`), no point | `docs/DESIGN_Injury_States.md` owns the injury states (from health), not marks |
+| every node has the health | ✅ `EntityDamage` → `Health{Current, Max}` | — |
+
+⇒ the user's second option, which needs nothing new on the wire: **repeatably random spots by health.** The real hit point is a
+follow-up if backend ever puts it on the hit message.
+
+```mermaid
+classDiagram
+    direction LR
+    class BlockFigure { <<existing, grows>> MaxStains · StainCount · StainOf · StainDetail }
+    class Stain { <<NEW>> Part · Centre · Extent · Fresh }
+    class Health { <<existing, replicated>> Current · Max }
+    class EntityBodyLayer3D { <<existing, grows>> Bloodied · draws each spot on its part · StainsDrawn }
+    BlockFigure ..> Stain
+    EntityBodyLayer3D ..> Health
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    L->>F: StainCount of his health
+    L->>F: StainOf his network id, k, for k below the count
+    L->>L: draw the figure part by part
+    L->>L: after each part, its spots, carried by that part's transform
+```
+
+*Caption:* a spot belongs to a PART (by the shared part order) and sits in that part's own frame, so it moves with the limb through every
+gait, blend and fall; its place comes only from the man's network id and its number, so every node draws the same spots and a spot never
+jumps when another appears.
+
+| decision | rule |
+|---|---|
+| **B-1 where** | on the torso (three times as often: chest, back, sides, shoulders) or a thigh, shin, upper arm or forearm; never the head or the rifle |
+| **B-2 how many** | none unhurt, one after any hit, up to 8 at no health left (a dead man shows them all) |
+| **B-3 the same everywhere** | seeded by the network id (the entity index where there is none); spot k never changes |
+| **B-4 colour** | a fresh red or a dried darker red, half and half |
+
+**Rejected — one line each:** *spots where he was hit* — no node but the one that resolved the hit knows where (a wire change, backend's);
+*a random draw per frame* — the spots would flicker; *more spots the longer he is hurt* — health is what every node shares, time since the
+hit is not.
+
+**AS-BUILT** — as drawn. Rails `Map3DTests.CE1098_*` ×2 (how many; repeatable, per man, on the body), frame rail `Map3DFrameRail.CE1098_V`
+(`blood-*.png`).
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

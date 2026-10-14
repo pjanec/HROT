@@ -68,7 +68,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = 0;
         _carried.Clear();
         _shouldering.Clear();
         _figureFrames.Clear();
@@ -182,6 +182,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var kitToBody = geometry == null
                 ? Matrix4x4.Identity
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
+            int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet) : 0;   // ⭐ CE-1098 (§6p)
             for (int pi = 0; pi < parts.Length; pi++)
             {
                 var part = parts[pi];
@@ -207,6 +208,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
                 PartsDrawn++;
                 if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader);   // ⭐ CE-1097 (§6o)
+                for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
+                    if (_stains[k].Part == pi)
+                    {
+                        Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Fresh ? BloodFresh : BloodDark),
+                                        HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)));
+                        StainsDrawn++;
+                    }
             }
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
@@ -467,6 +475,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — the face details (eyes, nose, mouth, helmet or hair) drawn this frame.</summary>
     public int FaceDetailsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — the blood spots drawn this frame.</summary>
+    public int StainsDrawn { get; private set; }
 
     /// <summary>
     /// ⭐ CE-1092 (N-8) — how many bombs an attack plane still carries (at most its pylons): its bomb mount's rounds from the replicated
@@ -764,6 +775,27 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             FaceDetailsDrawn++;
         }
     }
+
+    /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — this man's blood spots, into <see cref="_stains"/>: as many as his lost health
+    /// earns (<see cref="BlockFigure.StainCount"/>), seeded by his network id so every node draws the same spots in the same places
+    /// (the entity's index where he has none). Returns the count.</summary>
+    private int Bloodied(EntityRepository world, Entity e, bool hasNet)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
+            || !world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e)) return 0;
+        ref readonly var hp = ref world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e);
+        int n = BlockFigure.StainCount(hp.Current, hp.Max);
+        if (n == 0) return 0;
+        long seed = hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0 ? net : e.Index;
+        _stains.Clear();
+        for (int k = 0; k < n; k++) _stains.Add(BlockFigure.StainOf(seed, k));
+        return n;
+    }
+
+    private readonly List<Stain> _stains = new(BlockFigure.MaxStains);
+
+    /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
+    public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
 
     /// <summary>⭐ CE-1097 (§6o F-1) — the skin; the features a shade of it or dark.</summary>
     public static readonly Color Skin = new(206, 168, 132, 255);

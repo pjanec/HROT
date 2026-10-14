@@ -30,6 +30,10 @@ public enum FaceShade : byte { Eye, Nose, Mouth, Helmet, Hair }
 /// face, y = his left, z = the top of his head), before <see cref="BlockFigure.FaceFrame"/> turns it onto the side the face is on.</summary>
 public readonly record struct FacePart(Vector3 Centre, Vector3 Extent, FaceShade Shade);
 
+/// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — one blood spot: a flat box in figure part <paramref name="Part"/>'s unit frame
+/// (the shared part order), on one of its sides; <paramref name="Fresh"/> brighter red, else darker.</summary>
+public readonly record struct Stain(int Part, Vector3 Centre, Vector3 Extent, bool Fresh);
+
 /// <summary>
 /// ⭐ CE-1033 — which articulated assembly a part belongs to. A <see cref="Turret"/> part turns with the turret's azimuth about the
 /// kit's turret pivot; a <see cref="Gun"/> part also lifts with the gun's elevation about the trunnion. Hull parts never move.
@@ -501,6 +505,72 @@ public static class BlockFigure
         FaceOn.Down => new Matrix4x4(0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 1f),
         _ => Matrix4x4.Identity,
     };
+
+    // ── ⭐ CE-1098 (§6p) — blood: repeatably random spots on the body, more as health drops ──────────────────────────────────────
+
+    /// <summary>⭐ CE-1098 — the most blood spots a figure shows (at no health left: a dead man shows them all).</summary>
+    public const int MaxStains = 8;
+
+    /// <summary>⭐ CE-1098 (§6p B-2) — how many spots a man with <paramref name="health"/> of <paramref name="max"/> shows: none unhurt, one
+    /// after any hit, <see cref="MaxStains"/> at none left.</summary>
+    public static int StainCount(float health, float max)
+    {
+        if (!(max > 0f) || health >= max) return 0;
+        float lost = 1f - Math.Clamp(health, 0f, max) / max;
+        return Math.Clamp((int)MathF.Ceiling(lost * MaxStains), 1, MaxStains);
+    }
+
+    /// <summary>The parts a spot may be on (the shared order: thighs 0 / 2, shins 1 / 3, torso 4, upper arms 6 / 8, forearms 7 / 9) — the
+    /// torso three times as often; never the head (the face is there).</summary>
+    private static readonly int[] StainParts = [TorsoIndex, TorsoIndex, TorsoIndex, 0, 2, 1, 3, 6, 8, 7, 9];
+
+    /// <summary>
+    /// ⭐ CE-1098 (§6p B-1, B-3) — spot <paramref name="k"/> of the man seeded <paramref name="seed"/> (his network id — the same on every node):
+    /// which part it is on, and a flat box in that part's unit frame lying on one of its sides — for the torso its front, back, sides or
+    /// shoulders; for a limb a side along its length. The same seed and k always give the same spot, so a man's spots stay put and the
+    /// earlier ones stay as more appear.
+    /// </summary>
+    public static Stain StainOf(long seed, int k)
+    {
+        ulong s = Mix((ulong)seed * 0x9E3779B1UL + (ulong)k * 0x85EBCA77UL + 0x2545F491UL);
+        float U() { s = Mix(s); return (s >> 40) / (float)(1 << 24); }   // [0, 1)
+        int part = StainParts[(int)(U() * StainParts.Length)];
+        bool torso = part == TorsoIndex;
+        int side = (int)(U() * (torso ? 5 : 4));
+        float w = 0.36f + U() * 0.28f, h = w * (0.7f + U() * 0.6f);
+        float a = (U() - 0.5f) * 2f * (0.5f - w / 2f) * 0.9f, b = (U() - 0.5f) * 2f * (0.5f - h / 2f) * 0.9f;   // the whole spot on its side
+        const float Proud = 0.51f, Thin = 0.03f;
+        (Vector3 c, Vector3 e) = torso
+            ? side switch
+            {
+                0 => (new Vector3(Proud, a, b), new Vector3(Thin, w, h)),     // chest
+                1 => (new Vector3(-Proud, a, b), new Vector3(Thin, w, h)),    // back
+                2 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),     // left side
+                3 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),    // right side
+                _ => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),     // shoulders (seen from above; the chest of a man on his back)
+            }
+            : side switch   // a limb runs along its own x: a spot on one of the four sides along it
+            {
+                0 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),
+                1 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),
+                2 => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),
+                _ => (new Vector3(a, b, -Proud), new Vector3(w, h, Thin)),
+            };
+        return new Stain(part, c, e, Fresh: U() < 0.5f);
+    }
+
+    /// <summary>⭐ CE-1098 — where spot <paramref name="st"/> is drawn: a unit box sized and placed in its part's frame, carried by that part's
+    /// own transform <paramref name="part"/> (so it moves with the limb).</summary>
+    public static Matrix4x4 StainDetail(in Stain st, Matrix4x4 part)
+        => Matrix4x4.CreateScale(st.Extent) * Matrix4x4.CreateTranslation(st.Centre) * part;
+
+    private static ulong Mix(ulong z)   // SplitMix64's finaliser
+    {
+        z += 0x9E3779B97F4A7C15UL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        return z ^ (z >> 31);
+    }
 
     /// <summary>⭐ CE-1097 — where face detail <paramref name="d"/> is drawn: a unit box sized and placed in the head box's frame, turned onto
     /// the face's side, then carried by the head part's own transform <paramref name="head"/> (its lean, twist, blend and fall).</summary>
