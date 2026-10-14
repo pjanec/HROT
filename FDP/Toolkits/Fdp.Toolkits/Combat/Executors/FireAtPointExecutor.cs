@@ -89,6 +89,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.CooldownSecondsRemaining > 0f) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown;
             // ⭐ CE-3195 (W-14a) — a person's round at a point waits for his body to face it (the AI's; an operator turns himself)
             if (obeyArc && BodyAim.HoldsFire(world, unit, point)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Turning;
+            // ⭐ Air Ops slice 6a (AW-1, §7a) — the AI's fixed gun / rocket pod: only inside its nose cone (the operator points it himself)
+            if (obeyArc && BodyAim.OutsideFixedCone(world, unit, CombatTkb.MountOf(world, unit, mountIndex), point))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.

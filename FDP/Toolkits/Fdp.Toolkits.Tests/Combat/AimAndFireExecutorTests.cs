@@ -1490,6 +1490,64 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0, Run(new Vector3(3000f, 15f, 0f)).Released);                     // 15 m off the track: never released
         }
 
+        /// <summary>
+        /// ⭐ Air Ops slice 6a F1 (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-1) — a FIXED-forward mount with a nose cone (the
+        /// A-10's cannon, 5°) fires only when the target lies inside the cone round the body's 3-D forward: a level plane 300 m up holds a
+        /// ground target 1 km ahead (16.7° below the nose) as <c>OutOfArc</c>, nothing spent; nosed down onto it, the round leaves. A target
+        /// 3° off the nose fires; a point off the nose holds the AI's round at a point too — the operator's never (M-2). A turret mount and a
+        /// mount with no cone are never held. ✅ Red-proof: without the hold the level pass fires at once ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F1_AFixedForwardMount_FiresOnlyInsideItsNoseCone()
+        {
+            const long Plane = 9407;
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, FixedConeDeg = 5f, InitialAmmunition = 100, DamagePerHit = 30 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(new Vector3(1000f, 0f, 0f));
+            var (plane, channel) = SpawnShooter(new Vector3(0f, 0f, 300f), 100, 0f, target, 0.05f);
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            EnterAimed(plane, ref channel);
+            var mount = CombatTkb.MountOf(_world, plane, 0);
+
+            // level: the target is 16.7° under the nose — held, nothing spent
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc, AimAndFireExecutor.HoldOf(_world, plane, target, mount, 0));
+            for (int i = 0; i < 10; i++) Assert.Equal(0, Step(plane, ref channel, 1f / 60f));
+            Assert.Equal(100, _world.GetComponent<WeaponState>(plane).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+
+            // nosed down onto it (a dive): it fires
+            float dive = MathF.Atan2(300f, 1000f);
+            _world.GetComponentRW<SimTransform>(plane).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, dive);
+            Assert.Null(AimAndFireExecutor.HoldOf(_world, plane, target, mount, 0));
+            Assert.Equal(1, Step(plane, ref channel, 1f / 60f));
+
+            // 3° off the nose: inside the 5° cone; 8° off: outside
+            _world.GetComponentRW<SimTransform>(plane).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, dive + 3f * MathF.PI / 180f);
+            Assert.Null(AimAndFireExecutor.HoldOf(_world, plane, target, mount, 0));
+            _world.GetComponentRW<SimTransform>(plane).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, dive + 8f * MathF.PI / 180f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc, AimAndFireExecutor.HoldOf(_world, plane, target, mount, 0));
+
+            // at a POINT: the AI's round is held outside the cone, the operator's is not
+            _world.GetComponentRW<SimTransform>(plane).Rotation = Quaternion.Identity;
+            ref var weapon = ref _world.GetComponentRW<WeaponState>(plane);
+            weapon.CooldownSecondsRemaining = 0f;
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc,
+                FireAtPointExecutor.ShootAtPoint(_world, plane, 0, ref weapon, new Vector3(1000f, 0f, 0f), 0f, 1f / 60f, obeyRoe: true, obeyArc: true));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing,
+                FireAtPointExecutor.ShootAtPoint(_world, plane, 0, ref weapon, new Vector3(1000f, 0f, 0f), 0f, 1f / 60f, obeyRoe: false, obeyArc: false));
+
+            // no cone, or a turret: never held
+            Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount! with { FixedConeDeg = 0f }, new Vector3(0f, 1000f, 0f)));
+            Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount with { TurretIndex = 0 }, new Vector3(0f, 1000f, 0f)));
+            Assert.True(BodyAim.OutsideFixedCone(_world, plane, mount, new Vector3(0f, 1000f, 300f)));
+        }
+
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
 
         private const long M67 = 6001;

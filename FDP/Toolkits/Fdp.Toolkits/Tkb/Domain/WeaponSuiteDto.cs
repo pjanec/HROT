@@ -110,6 +110,15 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// gun sets <c>false</c>).
         /// </summary>
         public bool? FireOnMove { get; init; }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a (AW-1; docs/designs/air-attack/DESIGN_Air_Operations.md §7a) — the NOSE CONE of a FIXED mount (no turret):
+        /// the half-angle, in degrees, around the unit body's 3-D forward (pitch included) inside which the AI may fire it — an A-10's
+        /// cannon, a helicopter's rocket pod. The weapon brain holds a round aimed outside it (<c>OutOfArc</c>; the aircraft must point).
+        /// <b>0 = no cone</b>: the mount fires in any direction, as before. The operator is never held (he points the aircraft).
+        /// </summary>
+        [EditUnit("deg")]
+        public float FixedConeDeg { get; init; }
     }
 
     /// <summary>⭐ M8 — one munition type in a mount's <see cref="WeaponMountDto.Loadout"/> and how many rounds of it.</summary>

@@ -83,11 +83,24 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a Mk-82-class 500 lb free-fall bomb: an indirect area warhead (the
         /// library's own <c>"Mk-82 bomb"</c> entry, CE-3201: 94 kg TNT-equivalent in a 227 kg case), dropped by the Release profile.</summary>
         public const int TkbMk82Bomb = 6022;
+        /// <summary>⭐ Air Ops slice 6a (AW-2, DESIGN_Air_Operations §7a) — the A-10's GAU-8 30 mm HEI: the library's <c>"30mm HE"</c> warhead
+        /// (an area burst against men and soft vehicles).</summary>
+        public const int TkbGau8Hei = 6023;
+        /// <summary>⭐ Air Ops 6a (AW-2) — the GAU-8's armour-piercing round: the library's nearest penetrator, <c>"30mm APFSDS"</c>.</summary>
+        public const int TkbGau8Api = 6024;
+        /// <summary>⭐ Air Ops 6a (AW-4) — a Hydra-70-class UNGUIDED 70 mm rocket with an HE warhead (the library's <c>"70mm rocket HE"</c>,
+        /// public M151 figures): fast and flat, scattered by its pod's dispersion.</summary>
+        public const int TkbHydra70Rocket = 6025;
 
         public const string Pg7vlName = "PG-7VL rocket", Pg7vrName = "PG-7VR rocket", LawName = "M72 LAW rocket", NlawName = "NLAW missile",
                             JavelinName = "Javelin missile", KornetName = "Kornet missile", FpvWarheadName = "FPV warhead",
                             TankHeatMpName = "120mm HEAT-MP round", TankHeFragName = "tank HE-FRAG round", HmgApName = "12.7mm AP round",
-                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb";
+                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb",
+                            Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket";
+
+        /// <summary>⭐ Air Ops 6a — the reference-library entries the air weapons' rounds take their numbers from (the template's own names
+        /// match no entry, so nothing is picked up by name — LR-1).</summary>
+        public const string Gau8HeiLibraryName = "30mm HE", Gau8ApiLibraryName = "30mm APFSDS", Hydra70LibraryName = "70mm rocket HE";
 
         /// <summary>⭐ M5 — the reference-library entries the new warheads are copied from (the nearest real one; the template's numbers win).</summary>
         public const string TankHeatLibraryName = "120mm HEAT", TankHeLibraryName = "125mm HE-frag";
@@ -135,6 +148,15 @@ namespace Hrot.Core.Tkb
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
             Register(tkb, Mk82Name, TkbMk82Bomb, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
+            // ⭐ Air Ops 6a (AW-2, AW-4) — the air weapons' rounds: every number from the library entry (its generic pair: penetration
+            //   and damage; its generated warhead); the rocket's flight is its own (700 m/s, self-destruct after 6 s, ~4 km).
+            Register(tkb, Gau8HeiName, TkbGau8Hei, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(Gau8HeiLibraryName), LibraryPenetration(Gau8HeiLibraryName), LibraryDamage(Gau8HeiLibraryName));
+            Register(tkb, Gau8ApiName, TkbGau8Api, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     null, LibraryPenetration(Gau8ApiLibraryName), LibraryDamage(Gau8ApiLibraryName));
+            Register(tkb, Hydra70Name, TkbHydra70Rocket, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(Hydra70LibraryName), LibraryPenetration(Hydra70LibraryName), LibraryDamage(Hydra70LibraryName),
+                     Rocket(700f, 6f));
         }
 
         /// <summary>⭐ M5 — an unguided rocket's flight: its speed and how long until it self-destructs.</summary>
@@ -151,6 +173,14 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ M5 — the library's generated warhead for <paramref name="libraryName"/>, as is (an HE round keeps its kind).</summary>
         private static WarheadDto? LibraryWarhead(string libraryName)
             => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) && r.Warhead != null ? r.Warhead.Dto : null;
+
+        /// <summary>⭐ Air Ops 6a — the library entry's generic penetration (mm RHA) and damage, so a round's numbers have one source.</summary>
+        public static float LibraryPenetration(string libraryName)
+            => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) ? r.Generic.PenetrationMm : 0f;
+
+        /// <inheritdoc cref="LibraryPenetration"/>
+        public static float LibraryDamage(string libraryName)
+            => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) ? r.Generic.Damage : 0f;
 
         private static void Register(ITkbDatabase tkb, string name, int type, DISEntityType dis, WarheadDto? warhead = null,
                                      float penetrationMm = 0f, float damage = 0f, MissileDto? missile = null)
@@ -191,10 +221,14 @@ namespace Hrot.Core.Tkb
                 [TkbTankHeFrag] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [Tkb762Tracer] = new() { Shape = MunitionShape.Bullet, Length = 0.033f, Diameter = 0.0078f, Tracer = true, TracerColorHex = "#FF6A30" },
                 [TkbMk82Bomb] = new() { Shape = MunitionShape.Bomb, Length = 2.2f, Diameter = 0.27f, ColorHex = "#4B5320" },
+                // ⭐ Air Ops 6a — the GAU-8's rounds trace (a gun run is seen); the Hydra is a rocket with a smoke trail
+                [TkbGau8Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
+                [TkbGau8Api] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
+                [TkbHydra70Rocket] = new() { Shape = MunitionShape.Rocket, Length = 1.4f, Diameter = 0.07f, ColorHex = "#6B6E4A", SmokeTrail = true },
             };
 
-        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6022), whether or not it has a look: a round, never a body.</summary>
-        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbMk82Bomb;
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6025), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbHydra70Rocket;
 
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>

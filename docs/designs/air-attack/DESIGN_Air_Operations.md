@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4 and the backend half of 6 BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F3 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
 current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -395,6 +395,96 @@ only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the sam
 | the run-in: start point = the target − `RunInDistanceM` along `RunInHeadingDeg` (automatic: from the aircraft's bearing); `RunInDistanceM` ≥ 2 turn radii | A2: the heading comes from geometry, not from the movement order |
 | weapons: the behaviour flies, the weapon brain fires (R-261) — the gun / rocket runs fire when the target is in the nose cone and in range; the bomb by the Release profile (§8) | one weapon path for the AI and the player |
 | FPV §2's `FpvAttackNodes` / `FpvAttackState` are NOT built; the drone's attack is the Dive profile with the same phases (Route → Search → Pursue → Dive) and `DroneTargetDecision` as its target pick | B5: one air-attack loop |
+
+### 7a. The air weapons — slice 6a (backend, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Weapons.md))
+
+```mermaid
+classDiagram
+  class WeaponMountDto {
+    <<existing TKB>>
+    Category
+    TurretIndex = -1 fixed
+    Loadout
+    +FixedConeDeg ★ 0 = no cone
+  }
+  class WeaponCategory {
+    <<existing enum>>
+    Autocannon = 3
+    Bomb = 8
+    +Rocket = 9 ★ appended
+  }
+  class BodyAim {
+    <<existing>>
+    HoldsFire(person twist)
+    +OutsideFixedCone(world, unit, mount, point) ★
+  }
+  class AimAndFireExecutor {
+    <<existing>>
+    HoldOf() gains the cone ⇒ OutOfArc
+  }
+  class FireAtPointExecutor {
+    <<existing>>
+    ShootAtPoint() gains the cone when obeyArc
+  }
+  class FireProcessingSystem {
+    <<existing, unchanged>>
+    A4 Air-domain launch adds the carrier velocity
+    unguided MissileDto flies straight
+  }
+  class MunitionTkbCatalog {
+    <<existing>>
+    +6023 GAU-8 HEI ★
+    +6024 GAU-8 API ★
+    +6025 Hydra-70 HE rocket ★
+  }
+  class BdcTkbCatalog {
+    <<existing>>
+    405 A-10 + GAU-8 mount ★
+    +406 AH-64 class ★ chin M134 turret, Hydra pod
+  }
+  AimAndFireExecutor ..> BodyAim : the cone
+  FireAtPointExecutor ..> BodyAim : the cone
+  BdcTkbCatalog ..> WeaponMountDto : states FixedConeDeg
+  BdcTkbCatalog ..> MunitionTkbCatalog : AmmoTkb / Loadout
+```
+
+*What the picture shows that the prose hid: nothing new flies — the cone is a HOLD in the two executors the AI already fires through,
+and the rocket and the shell ride the existing A4 launch (`FireProcessingSystem` is not touched).*
+
+```mermaid
+sequenceDiagram
+  participant B as AirAttack GunRun / RocketRun (behaviors)
+  participant AF as AimAndFireExecutor / FireAtPoint (brain)
+  participant BA as BodyAim.OutsideFixedCone
+  participant FP as FireProcessingSystem (muscle)
+  B->>AF: fire mount m at the target (rounds = the ripple)
+  loop each frame on the run-in
+    AF->>BA: target inside the nose cone? (3-D: body forward incl. pitch)
+    BA-->>AF: outside ⇒ OutOfArc (Running, nothing spent)
+  end
+  AF->>FP: WeaponFireIntent (inside the cone)
+  FP->>FP: Air domain ⇒ v = muzzle / rocket speed along the aim + carrier v (A4)
+```
+
+| who calls it each frame | |
+|---|---|
+| `AimAndFireExecutor` / `FireAtPointExecutor` | the weapon channel's dispatcher on the **brain** (CGF; one world in `--mode editor`) — the same path every AI shot takes |
+| `FireProcessingSystem` | the **muscle** (SimHost — the node whose role composes combat), from the replicated `WeaponFireIntent` |
+
+| decision (backend, inside the approved slice 6a) | rejected — one line |
+|---|---|
+| **AW-1** a fixed mount's arc is `WeaponMountDto.FixedConeDeg` (0 = none): the half-angle around the **unit body's 3-D forward** (pitch included — a plane dives its gun onto the target); outside it the AI's aimed and at-point rounds are held `OutOfArc` (Running, nothing spent); the operator is never held (M-2: he points the aircraft) | a ±5° `TurretDto` — a part entity and a `WeaponTask` that slews a gun that cannot slew · `BodyAim.HoldsFire` widened to vehicles — its twist is a person's |
+| **AW-2** the A-10's GAU-8 = ONE mount, `Autocannon`, a two-round loadout: **6023 HEI** (the library's `30mm HE` — area burst for soft targets) and **6024 API** (the library's `30mm APFSDS` — the nearest penetrator); `AmmoChoice` picks per target (M8) | two mounts (the brain would pick a gun, not a round) |
+| **AW-3** `WeaponCategory.Rocket = 9`, appended: the per-shot profile; NOT fired per press — a held trigger keeps firing at the cooldown, so the player's ripple is the hold and the AI's is the action's round count | a rocket as `Autocannon` (no profile can tell a pod from a gun) · per press (one rocket per click) |
+| **AW-4** **6025 Hydra-70 HE**: an unguided `MissileDto` (700 m/s, 6 s) with the warhead of a NEW library entry `70mm rocket HE` (he, 70 mm, 4.5 kg warhead, 1.04 kg explosive — public M151 figures); the scatter is the mount's `DispersionMils` | a hand-typed `WarheadDto` (a second source of blast / fragment numbers) — the Mk-82 precedent (CE-3201) |
+| **AW-5** **406 AH-64-class** (`Heli_AH64`): DIS 1.2.225.20 (attack helicopter) so the air classes resolve; Rotorcraft flight like 404; mount 0 a chin **M134** on turret 0 (traverse ±110°, elevation −60…+11°), mount 1 the **Hydra pod** (fixed forward, cone 8°) | a 30 mm M230 chin gun — the handoff asks for the minigun the demo shows |
+| **F4** ⭐ the passenger list widens to **12** seats (🔒 user, `2026-10-14`: *"extend the wire capacity … No problem extending"* — the list is sent only on change) so 404 keeps 8 riders and gains 2 door stations + 2 door gunners | ~~4 of the 8 seats become door stations~~ (404 would carry 4 riders) |
+
+⭐ **As built (backend, `2026-10-14`) — AW-1…AW-5 exactly as above.** Rails: `AimAndFireExecutorTests.F1_AFixedForwardMount_FiresOnlyInsideItsNoseCone`
+· `FireProcessingSystemTests.F3_FromTheAir_TheShellAndTheRocket_KeepTheCarriersVelocity_TheRocketFliesUnguided_ARippleScatters` ·
+`NedTkbBuilderCombatTests.F1_TheAttackPlane_CarriesTheRackAndAFixedForwardGau8_HeiAndAPenetrator` · `…F2_TheAttackHelicopter_HasAChinMinigunTurret_AndAFixedRocketPod`
+· `…F2_B7_TheAttackHelicopter_FliesARoute_FromItsGear_ToItsGear`. Also: the cone holds the AI's BLIND rounds too (`FireBlind`), and the
+possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405, so `AirAttackProfiles.Pick` (LevelBomb) is unchanged.
 
 ## 8. The bomb (A3, A4, A6, B6)
 

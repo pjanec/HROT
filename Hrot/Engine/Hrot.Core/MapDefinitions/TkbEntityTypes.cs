@@ -73,6 +73,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §6, §8) — an A-10 class ATTACK AIRCRAFT (~150 m/s): a FixedWing flyer with four
         /// Mk-82 bombs (munition 6022) on a Bomb mount, released by the weapon brain's Release profile.</summary>
         public const long Jet_AttackA10 = 405;
+        /// <summary>⭐ Air Ops slice 6a (DESIGN_Air_Operations §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: a Rotorcraft with a chin M134
+        /// turret (mount 0) and a fixed-forward Hydra-70 rocket pod (mount 1, munition 6025).</summary>
+        public const long Heli_AH64 = 406;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

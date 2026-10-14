@@ -297,6 +297,7 @@ namespace Hrot.Map.Definitions.Tkb
                         AimSeconds        = wm.AimSeconds,
                         MagazineSize      = wm.MagazineSize,
                         ReloadSeconds     = wm.ReloadSeconds,
+                        FixedConeDeg      = wm.FixedConeDeg,   // ⭐ Air Ops 6a (AW-1) — a fixed gun / pod fires inside its nose cone
                     });
                 }
                 template.AddDescriptor(suite);

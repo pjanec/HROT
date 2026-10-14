@@ -456,7 +456,8 @@ public sealed class EffectTests
                                             MunitionTkbCatalog.TkbKornetMissile,     // ⭐ M9 — the ATGM technical's
                                             MunitionTkbCatalog.TkbFpvWarhead,        // ⭐ M7 — the drone's own shaped charge
                                             MunitionTkbCatalog.TkbMk82Bomb,          // ⭐ Air Ops slice 4 — the new bomb's area warhead (new type, no number moved)
-                                            MunitionTkbCatalog.TkbLawRocket };       // ⭐ WS-4 — the M72 LAW weapon system (605) is the first mount to load the existing LAW rocket (no number moved)
+                                            MunitionTkbCatalog.TkbLawRocket,         // ⭐ WS-4 — the M72 LAW weapon system (605) is the first mount to load the existing LAW rocket (no number moved)
+                                            MunitionTkbCatalog.TkbGau8Hei, MunitionTkbCatalog.TkbHydra70Rocket };   // ⭐ Air Ops 6a — new types on new mounts (the A-10's gun, the AH-64's pod): no number moved
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {

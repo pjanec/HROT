@@ -535,6 +535,7 @@ namespace Hrot.Map.Definitions.Tkb
                 });
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
+            DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
@@ -643,6 +644,81 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 5000;
                     c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, Category = WeaponCategory.Bomb });
+                    // ⭐ Air Ops slice 6a (AW-1, AW-2; §7a) — the GAU-8: FIXED forward in the nose (its arc is a 5° cone round the body's
+                    //   forward, so the gun run points the plane), 1150 rounds, ~3900 rounds/min; HEI loaded, the penetrator for armour
+                    //   (AmmoChoice, M8). Every round's numbers are the library's (MunitionTkbCatalog); dispersion 5 mils (80 % in ~5 mil).
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "GAU-8 Avenger", Ammunition = 1150, Range = 1200f, RateOfFire = 3900, DispersionMils = 5f,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
+                        Category = WeaponCategory.Autocannon, FixedConeDeg = 5f, FireOnMove = true,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei,
+                        Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, 575), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api, 575) },
+                        MuzzleOffset = new System.Numerics.Vector3(7.5f, 0f, -0.6f),
+                    });
+                })
+                .WithBehavior(type);
+        }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: it FLIES like the
+        /// doors-off UH-60 (Rotorcraft, a little faster and more agile), carries a chin M134 on a turret (mount 0: ±110°, −60…+11°) and a
+        /// fixed-forward Hydra-70 pod (mount 1: 38 rockets, an 8° cone — the pod points where the helicopter points; a held trigger or the
+        /// action's round count is the ripple). DIS 1.2.225.20 (attack helicopter) so the air orders resolve. Public figures, rounded;
+        /// the crew is the type itself (no seats). A brain (its behaviours are the behaviour lane's, slice 6). Friendly.
+        /// </summary>
+        private static void DefineAttackHelicopter(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Heli_AH64;
+            DefineAircraft(builder, type, "AH-64 Apache (attack helicopter)", "SFAPMHA-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 17.73f, Width = 14.63f, Height = 3.87f,   // rotors turning; width = main-rotor diameter
+                    BodyCentreX = -1.5f, BodyCentreZ = 0.6f,             // box bottom = the tyres (−1.33)
+                    GroundContacts =
+                    {
+                        Wheel("main left",  1.8f,  1.0f, -1.33f, 0.32f, 0.8f, retractable: false),
+                        Wheel("main right", 1.8f, -1.0f, -1.33f, 0.32f, 0.8f, retractable: false),
+                        Wheel("tail",      -8.6f,  0f,   -1.33f, 0.18f, 0.6f, retractable: false),
+                    },
+                });
+            builder
+                .WithFlight(type, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft, new FlightParamsDto
+                {
+                    MaxSpeedMps = 80f, ClimbMps = 12f, TurnRateDeg = 40f, EnduranceSeconds = 7200f,
+                    ContactRadiusM = 1f, BodyRadiusM = 1.2f, BodyHeightM = 3.0f,
+                    HoverHeightM = 30f, TurnRadiusM = 50f, AccelMps2 = 4f,
+                })
+                .WithTurrets(type, new TurretDto
+                {
+                    PivotX = 4.3f, PivotZ = -1.0f, TrunnionX = 0.2f,          // under the nose
+                    TraverseMinDeg = -110f, TraverseMaxDeg = 110f, ElevationMinDeg = -60f, ElevationMaxDeg = 11f,
+                    TraverseRateDegPerSec = 120f, ElevationRateDegPerSec = 90f,
+                })
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 800;
+                    c.EyeHeight = 1f;
+                    c.SensorRange = 6000;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                        DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+                        MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "Hydra-70 pod", Ammunition = 38, Range = 4000f, RateOfFire = 300, DispersionMils = 10f,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
+                        Category = WeaponCategory.Rocket, FixedConeDeg = 8f, FireOnMove = true,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket,
+                        MuzzleOffset = new System.Numerics.Vector3(0.5f, 1.8f, -0.6f),   // the left stub wing
+                    });
                 })
                 .WithBehavior(type);
         }

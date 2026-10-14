@@ -37,6 +37,23 @@ namespace Fdp.Toolkit.Combat
                     && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter))
                && OffBody(world, shooter, at) > global::CarKinem.Controllers.HumanGait.MaxAimTwist;
 
+        /// <summary>
+        /// ⭐ Air Ops slice 6a (AW-1; docs/designs/air-attack/DESIGN_Air_Operations.md §7a) — true when <paramref name="mount"/> is a FIXED
+        /// mount with a nose cone (<see cref="Fdp.Toolkit.Tkb.Domain.WeaponMountDto.FixedConeDeg"/> &gt; 0, no turret) and
+        /// <paramref name="at"/> lies outside it: more than the cone off <paramref name="unit"/>'s 3-D forward (its pitch included — a plane
+        /// dives its gun onto the target). False with no cone, a turret, no transform, or the point at the body.
+        /// </summary>
+        public static bool OutsideFixedCone(EntityRepository world, Entity unit, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, Vector3 at)
+        {
+            if (mount == null || mount.FixedConeDeg <= 0f || mount.TurretIndex >= 0 || !world.HasComponent<SimTransform>(unit)) return false;
+            ref readonly var tf = ref world.GetComponentRO<SimTransform>(unit);
+            var to = at - tf.Position;
+            if (to.LengthSquared() < 0.01f) return false;
+            var forward = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+            float cos = Vector3.Dot(Vector3.Normalize(forward), Vector3.Normalize(to));
+            return cos < MathF.Cos(mount.FixedConeDeg * MathF.PI / 180f);
+        }
+
         /// <summary>The point an aimed round at <paramref name="target"/> flies to, for <see cref="HoldsFire"/>: its position; false when
         /// it has none (then nothing is held).</summary>
         public static bool TargetPoint(EntityRepository world, Entity target, out Vector3 at)

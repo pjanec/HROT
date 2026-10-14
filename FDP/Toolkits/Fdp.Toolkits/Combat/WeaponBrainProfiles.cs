@@ -56,7 +56,8 @@ namespace Fdp.Toolkit.Combat
         public static IWeaponBrainProfile For(WeaponCategory category) => category switch
         {
             WeaponCategory.SmallArms or WeaponCategory.Grenade or WeaponCategory.Mortar => PerShot,
-            WeaponCategory.Bomb => PerShot,   // ⭐ Air Ops slice 4 — the Release profile: the per-shot path, held by its cue (AimAndFireExecutor.HoldOf)
+            WeaponCategory.Bomb => PerShot,
+            WeaponCategory.Rocket => PerShot,   // ⭐ Air Ops 6a (AW-3) — a rocket pod: each round its own intent; the ripple is the round count   // ⭐ Air Ops slice 4 — the Release profile: the per-shot path, held by its cue (AimAndFireExecutor.HoldOf)
             WeaponCategory.Atgm => Guided,
             _ => Turret,   // TankGun, Autocannon, MachineGun (a hull one names no turret), Unknown
         };

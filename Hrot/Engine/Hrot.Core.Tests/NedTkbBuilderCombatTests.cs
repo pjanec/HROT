@@ -271,7 +271,7 @@ namespace Hrot.Map.Common.Tests
             var flight = t.GetDescriptor<FlightParamsDto>()!;
             Assert.Equal((150f, 60f, 60f, 300f), (flight.CruiseSpeedMps, flight.StallSpeedMps, flight.MaxBankDeg, flight.HoverHeightM));
             Assert.Null(t.GetDescriptor<VehicleParametersDto>());
-            var bombs = System.Linq.Enumerable.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+            var bombs = t.GetDescriptor<WeaponSuiteDto>()!.Mounts[0];   // ⭐ Air Ops 6a — the rack stays mount 0; the GAU-8 is mount 1 (F1)
             Assert.Equal((WeaponCategory.Bomb, 4, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb),
                 (bombs.Category, bombs.InitialAmmunition, bombs.AmmoGuid));
             var munitions = new TkbDatabase();
@@ -304,6 +304,143 @@ namespace Hrot.Map.Common.Tests
             b.DefineVehicle(9500, "a plane on ground physics");
             Assert.Throws<System.NotSupportedException>(() => b.WithPhysics(9500, p => p.Mobility = TerrainMobility.Air));
         }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a F1 (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-1/AW-2) — the A-10 (405) carries the Mk-82 rack
+        /// AND the GAU-8: an Autocannon FIXED forward (no turret) in a 5° nose cone, HEI loaded and an armour-piercing round beside it
+        /// (AmmoChoice picks per target). Its rounds' numbers are the library's: the HEI bursts over an area (the "30mm HE" warhead), the
+        /// API has no warhead and out-penetrates it; the mount states the HEI's own numbers.
+        /// </summary>
+        [Fact]
+        public void F1_TheAttackPlane_CarriesTheRackAndAFixedForwardGau8_HeiAndAPenetrator()
+        {
+            var db = BuildDatabase();
+            var mounts = db.GetByType(TkbEntityTypes.Jet_AttackA10)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal(2, mounts.Count);
+            Assert.Equal(WeaponCategory.Bomb, mounts[0].Category);
+            var gun = mounts[1];
+            Assert.Equal((WeaponCategory.Autocannon, -1, 5f, 1150), (gun.Category, gun.TurretIndex, gun.FixedConeDeg, gun.InitialAmmunition));
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, gun.AmmoGuid);
+            Assert.Equal(new[] { (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api },
+                System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(gun.Loadout, l => l.AmmoGuid)));
+
+            var munitions = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(munitions);
+            var hei = munitions.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei)!;
+            var api = munitions.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api)!;
+            Assert.True(hei.GetDescriptor<WarheadDto>()!.HasAreaEffect);
+            Assert.Null(api.GetDescriptor<WarheadDto>());
+            float heiPen = hei.GetDescriptor<AmmoWeaponBallisticsDto>()!.PenetrationMm, apiPen = api.GetDescriptor<AmmoWeaponBallisticsDto>()!.PenetrationMm;
+            Assert.True(apiPen > 10f * heiPen, $"the penetrator out-penetrates the HEI: {apiPen} vs {heiPen} mm");
+            Assert.Equal((heiPen, hei.GetDescriptor<AmmoWeaponBallisticsDto>()!.Damage), (gun.Penetration, gun.DamagePerHit));
+            Assert.True(Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket));
+        }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a F2 + F3 (§7a, AW-4/AW-5) — the attack helicopter (406): an air-domain DIS type (1.2.225.20), a Rotorcraft
+        /// with its gear; mount 0 a chin M134 on turret 0 (±110°, down to −60°), mount 1 the Hydra pod (a Rocket, fixed forward in an 8°
+        /// cone, 38 rounds of munition 6025). The Hydra is UNGUIDED at 700 m/s with an area warhead (the library's "70mm rocket HE").
+        /// </summary>
+        [Fact]
+        public void F2_TheAttackHelicopter_HasAChinMinigunTurret_AndAFixedRocketPod()
+        {
+            var db = BuildDatabase();
+            var t = db.GetByType(TkbEntityTypes.Heli_AH64)!;
+            Assert.Equal((byte)1, t.DisType.Kind);
+            Assert.Equal(((byte)2, (byte)20), (t.DisType.Domain, t.DisType.Category));
+            Assert.Equal(LocomotionClass.Rotorcraft, t.GetDescriptor<LocomotionDto>()!.Class);
+            Assert.Null(t.GetDescriptor<VehicleParametersDto>());
+            Assert.Equal(3, t.GetDescriptor<BodyGeometryDto>()!.GroundContacts.Count);
+            var turret = System.Linq.Enumerable.Single(t.GetDescriptor<TurretSuiteDto>()!.Turrets);
+            Assert.Equal((-110f, 110f, -60f), (turret.TraverseMinDeg, turret.TraverseMaxDeg, turret.ElevationMinDeg));
+            var mounts = t.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal((WeaponCategory.MachineGun, 0, 0f), (mounts[0].Category, mounts[0].TurretIndex, mounts[0].FixedConeDeg));
+            Assert.Equal((WeaponCategory.Rocket, -1, 8f, 38), (mounts[1].Category, mounts[1].TurretIndex, mounts[1].FixedConeDeg, mounts[1].InitialAmmunition));
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket, mounts[1].AmmoGuid);
+
+            var munitions = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(munitions);
+            var hydra = munitions.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket)!;
+            var flight = hydra.GetDescriptor<MissileDto>()!;
+            Assert.Equal((GuidanceKind.Unguided, 700f), (flight.Guidance, flight.SpeedMps));
+            var warhead = hydra.GetDescriptor<WarheadDto>()!;
+            Assert.True(warhead.HasAreaEffect && !warhead.Indirect);
+            Assert.Equal(1.04f, warhead.ExplosiveKg, 3);
+        }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a F2 — the B7 rail for the new type, on ITS catalogue numbers: the attack helicopter on its gear takes a route
+        /// off the ground, flies it at its hover height and sets down on its gear at the last Ground waypoint.
+        /// </summary>
+        [Fact]
+        public void F2_B7_TheAttackHelicopter_FliesARoute_FromItsGear_ToItsGear()
+        {
+            var db = BuildDatabase();
+            var t = db.GetByType(TkbEntityTypes.Heli_AH64)!;
+            var dto = t.GetDescriptor<FlightParamsDto>()!;
+            float rest = -t.GetDescriptor<BodyGeometryDto>()!.GroundContacts[0].Z;
+
+            using var w = new Fdp.Core.EntityRepository();
+            w.RegisterComponent<Fdp.Core.SimTransform>();
+            w.RegisterComponent<Fdp.Core.SimVelocity>();
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
+            w.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+            w.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
+            w.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            w.RegisterComponent<CarKinem.Core.VehicleState>();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var heli = w.CreateEntity();
+            w.AddComponent(heli, new Fdp.Core.SimTransform { Position = new System.Numerics.Vector3(0, 0, rest), Rotation = System.Numerics.Quaternion.Identity });
+            w.AddComponent(heli, new Fdp.Core.SimVelocity());
+            w.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Rotorcraft });
+            w.AddComponent(heli, Fdp.Toolkit.Motion.FlightParams.From(dto));
+            w.AddComponent(heli, new Fdp.Toolkit.Motion.FlightState { Airborne = 0 });
+            w.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationIntent
+                { Mode = Fdp.Toolkit.Navigation.NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 900 });
+            w.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus());
+            w.AddComponent(heli, new Fdp.Toolkit.Combat.Components.Health { Current = 800, Max = 800 });
+            w.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Heli_AH64 });
+            w.SetAuthority<Fdp.Core.SimTransform>(heli, true);
+
+            var routes = new OneRoute();
+            routes.Waypoints.AddRange(new[] { Wp(0, 0, Fdp.Toolkit.Navigation.RouteWaypointKind.Ground), Wp(400, 0), Wp(400, 400),
+                                              Wp(800, 400, Fdp.Toolkit.Navigation.RouteWaypointKind.Ground) });
+            var air = new Fdp.Toolkit.Motion.AirMotionSystem { RouteSource = routes };
+            float maxZ = 0f;
+            for (int i = 0; i < 60 * 180; i++)
+            {
+                air.Execute(w, 1f / 60f);
+                maxZ = System.MathF.Max(maxZ, w.GetComponent<Fdp.Core.SimTransform>(heli).Position.Z);
+                if (w.GetComponent<Fdp.Toolkit.Navigation.NavigationStatus>(heli).Result == Fdp.Toolkit.Navigation.NavigationResult.Arrived) break;
+            }
+            var end = w.GetComponent<Fdp.Core.SimTransform>(heli).Position;
+            var status = w.GetComponent<Fdp.Toolkit.Navigation.NavigationStatus>(heli);
+            Assert.Equal((Fdp.Toolkit.Navigation.NavigationResult.Arrived, Fdp.Toolkit.Navigation.NavigationPhase.Landed), (status.Result, status.Phase));
+            Assert.True(System.Numerics.Vector2.Distance(new System.Numerics.Vector2(end.X, end.Y), new System.Numerics.Vector2(800, 400)) < 0.5f, $"at {end}");
+            Assert.InRange(end.Z, rest - 0.01f, rest + 0.01f);                   // on its gear
+            Assert.InRange(maxZ, dto.HoverHeightM - 0.5f, dto.HoverHeightM + 0.5f);   // its hover height over the ground
+        }
+
+        private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource
+        {
+            public readonly System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> Waypoints = new();
+            public bool TryGetTrajectory(Fdp.Core.EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(Fdp.Core.EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> into,
+                                    out bool loop, out int version)
+            {
+                into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
+                return into.Count > 0;
+            }
+        }
+
+        private static Fdp.Toolkit.Navigation.NavRouteWaypoint Wp(float x, float y,
+            Fdp.Toolkit.Navigation.RouteWaypointKind kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Pass)
+            => new(new System.Numerics.Vector3(x, y, 0f), 0f, kind, 0f, Fdp.Toolkit.Navigation.RouteHold.None, 0f, 0L);
 
         private static TkbDatabase BuildDatabase()
         {

@@ -69,6 +69,10 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <inheritdoc cref="MagazineSize"/>
         public float ReloadSeconds { get; set; }
+
+        /// <summary>⭐ Air Ops slice 6a (AW-1) — a FIXED mount's nose cone, degrees off the body's forward (0 = no cone).
+        /// <c>WeaponMountDto.FixedConeDeg</c>.</summary>
+        public float FixedConeDeg { get; set; }
     }
     
     /// <summary>
