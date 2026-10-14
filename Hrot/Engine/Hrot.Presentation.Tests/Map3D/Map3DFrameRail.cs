@@ -1104,12 +1104,13 @@ public sealed class Map3DFrameRail
         var tkb = Map3DTests.BuiltIn();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 1.0 });
-        var states = new[] { Fdp.Toolkit.Terrain.TerrainDoorState.Closed, Fdp.Toolkit.Terrain.TerrainDoorState.Open, Fdp.Toolkit.Terrain.TerrainDoorState.Destroyed };
-        Assert.True(terrain.Doors.Count >= states.Length, "bt-range has three doors");
+        var states = new[] { Fdp.Toolkit.Terrain.TerrainDoorState.Closed, Fdp.Toolkit.Terrain.TerrainDoorState.Open };
+        Assert.True(terrain.Doors.Count >= states.Length, "bt-range has two doors");
+        var doors = new Entity[states.Length];
         for (int i = 0; i < states.Length; i++)
         {
             var def = terrain.Doors[i];
-            var e = world.CreateEntity();
+            var e = doors[i] = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = new Vector3(def.Center, def.SillZ), Rotation = Quaternion.Identity });
             world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Door });
             world.AddComponent(e, new Fdp.Toolkit.Terrain.DoorState { State = states[i] });
@@ -1129,18 +1130,27 @@ public sealed class Map3DFrameRail
         canvas.AddLayer(bodies);
         sw.Set(true, animate: false);
 
-        string[] names = { "closed", "open", "destroyed" };
-        for (int i = 0; i < states.Length; i++)
+        CameraPose Facing(int i)
         {
             var fp = terrain.DoorLeaves[i].Footprint;
             var n = Vector2.Normalize(fp[3] - fp[0]);                     // the side the leaf swings to
             var def = terrain.Doors[i];
-            float yaw = MathF.Atan2(-n.Y, -n.X) + 0.35f;                  // from that side, a little off-axis
-            sw.Camera3D.Pose = new CameraPose(new Vector3(def.Center, def.SillZ + 1.0f), 5.5f, yaw, -0.18f);
-            frame.Step(canvas.Draw);
-            frame.Screenshot(Path.Combine(shots, $"door-{i + 1}-{names[i]}.png"));
+            return new CameraPose(new Vector3(def.Center, def.SillZ + 1.0f), 5.5f, MathF.Atan2(-n.Y, -n.X) + 0.35f, -0.18f);
         }
-        Assert.Equal(2, bodies.DoorsDrawn);   // the destroyed one is not drawn
+        sw.Camera3D.Pose = Facing(0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "door-1-closed.png"));
+        sw.Camera3D.Pose = Facing(1);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "door-2-open.png"));
+        Assert.Equal(2, bodies.DoorsDrawn);
+
+        // the shut door is destroyed: from the same camera, its doorway is empty
+        world.SetComponent(doors[0], new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Destroyed });
+        sw.Camera3D.Pose = Facing(0);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "door-3-destroyed.png"));
+        Assert.Equal(1, bodies.DoorsDrawn);   // the destroyed one is not drawn
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
