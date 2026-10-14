@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016)
+build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails — §1 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount; here they become presets (a pickup host + a weapon system in its station) — §6 stays true until slice WS-4 lands.
 related-designs:
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267) and the weapon posture (R-272); this file only widens WHICH mounts a unit's weapon brain fires (the controlled weapon systems) and keeps the one firing path
@@ -58,7 +58,7 @@ graph TD
     WS["WeaponSystems.ControllerOf ★ (one controller per weapon)"]
     DP["WeaponDeploySystem ★ (Stowed → Deploying → Deployed → Packing) on the weapon's owner"]
     BT["BrainTickSystem: an AUTOMATIC weapon's own SOP ★ · ManWeapon / SetUpWeapon / PackUpWeapon / CarryWeapon ★"]
-    PS["StationPresets ★: a placed host fills its StartWith stations once"]
+    PS["SeatPresets ★: a placed host fills every seat's StartWith once — a weapon into a station, a soldier into a crew seat"]
   end
   subgraph WIRE["wire"]
     D1["dtWeaponSystemState ★ (deploy state)"]
@@ -101,7 +101,7 @@ classDiagram
     +OperatedBy : seat index, −1 = the host ★
     +NeedsGunner : bool ★
     +Traverse/Elevation limits (optional) ★
-    +StartWith : weapon type id ★
+    +StartWith : type id ★ «a weapon for a Station, a soldier for a crew seat (W-I)»
     X Y Z · FacingDegrees · Pose «existing»
   }
   class SeatRole { <<existing enum, grows>> Passenger · Driver · Gunner · Commander · +Station ★ }
@@ -117,7 +117,7 @@ classDiagram
   class Embarkation { <<existing rules, grows>> +a weapon into a Station seat (Accepts) ★ · +a portable weapon onto a soldier's carry station ★ }
   class EmbarkedStateSystem { <<existing, grows>> a Station passenger at the seat's place and facing ★ }
   class WeaponDeploySystem { <<★ on the weapon's owner>> Deploying → Deployed after DeploySeconds ; Packing → Stowed }
-  class StationPresets { <<★>> Fill(world, host): StartWith → create the weapon, seat it, mark the host filled }
+  class SeatPresets { <<★>> Fill(world, host): each seat's StartWith → create it (a weapon / a soldier of the host's side), seat it; mark the host filled }
   class WeaponSystemNodes { <<★ Hrot.AI.Behaviors>> ManWeapon · SetUpWeapon · PackUpWeapon · CarryWeapon }
   class AimAndFireExecutor { <<existing>> unchanged — fires whatever EnumerateMounts returns, on the mount's own turret part }
   class TurretParts { <<existing>> a weapon system's turret part = TurretParts.Find(weapon, 0) }
@@ -132,7 +132,7 @@ classDiagram
   Embarkation ..> SeatDto : Station, Accepts
   EmbarkedStateSystem ..> SeatDto : place, facing
   WeaponDeploySystem ..> WeaponSystemState
-  StationPresets ..> Embarkation
+  SeatPresets ..> Embarkation
   WeaponSystemNodes ..> Embarkation
   WeaponSystemNodes ..> WeaponSystemState
 ```
@@ -157,6 +157,7 @@ sequenceDiagram
   WB->>M: WeaponTask on M2's turret part (EntityWeaponTask)
   M->>M: slew M2's turret (its own pintle arcs within the station's), muzzle at the station's place
   M-->>WB: WeaponTaskStatus · rounds from M2's WeaponState
+  Note over WB: the gunner (a soldier in the pickup's Gunner seat) fires nothing himself, he only has to be there
 ```
 
 ### 4b. A soldier sets up a tripod HMG and mans it
@@ -188,6 +189,26 @@ sequenceDiagram
   WB->>WB: ControllerOf(sentry) = the sentry itself ⇒ fires its mount 0
 ```
 
+### 4d. A preset is placed — technical 104 (W-I)
+
+```mermaid
+sequenceDiagram
+  participant SC as scenario / editor (places ONE entity: type 104)
+  participant SP as SeatPresets (the creating node)
+  participant E as Embarkation
+  participant H as the pickup
+  SC->>H: create 104 (the bare pickup type + its seat StartWith values)
+  SP->>SP: host not yet filled: for each seat with a StartWith
+  SP->>E: create an M2, board it into the bed Station (Deployed)
+  SP->>E: create a soldier of the pickup's side, board him into the Gunner seat
+  SP->>H: mark filled (saved) ⇒ a load never adds a second M2 or gunner
+  Note over H: orders go to the pickup only, the scenario never names the M2 or the gunner
+```
+
+*What the picture shows that prose hid: the scenario holds ONE entity; the gun and the gunner are the TYPE's business, made once on
+the creating node — so an order, a save and a load all see just the pickup, and killing the gunner is an ordinary death that silences
+the gun (§6 `CanFire`) until somebody boards the seat.*
+
 ## 5. The TKB
 
 | descriptor | on | what |
@@ -198,14 +219,14 @@ sequenceDiagram
 | `Gen.Carrier` (existing) | the weapon type | one `Gunner` seat (+ a `Passenger` seat as the loader for a two-man weapon) — manning on the ground |
 | `Body.Geometry`, visual, DIS, faction, combat health / armour (existing) | the weapon type | placed, seen, hit, destroyed |
 | sensor + `WithBehavior` (existing) | an AUTOMATIC weapon type | it sees and fights like a tank |
-| `Gen.Carrier` `SeatDto` grows ★ | a HOST type | role `Station` · `Accepts` · `OperatedBy` · `NeedsGunner` · optional arc limits · `StartWith` (place / facing reuse `X Y Z`, `FacingDegrees`) |
+| `Gen.Carrier` `SeatDto` grows ★ | a HOST type | role `Station` · `Accepts` · `OperatedBy` · `NeedsGunner` · optional arc limits · `StartWith` on ANY seat — a weapon type for a `Station`, a soldier type for a crew seat (`Gunner` / `Driver` / `Commander`) (W-I) (place / facing reuse `X Y Z`, `FacingDegrees`) |
 | `Gen.Carrier` on a soldier (person carrier) grows | a soldier type | one more seat: `Station` accepting `Carried` — the carry slot |
 | ★ class **`WeaponSystem`** | the class table | Kind 1 · Domain 1 · **Category 50** (HROT; free on land); subcategories HMG · Minigun · Atgm · Launcher · Sentry |
 
 **Data (catalogue entries, nothing else new):** M2 HMG · DShK · M134 minigun · Javelin · NLAW · LAW · Kornet (tripod) · TOW (tripod) · a sentry
 gun / remote weapon station (automatic) · a bare Toyota pickup (driver, gunner, one bed station `OperatedBy` the gunner) · the doors-off
-UH-60 (404) gains a left and a right door station, each operated by a door-gunner seat · presets: **104** = pickup + M2 in its station,
-**105** = pickup + Kornet, **2006** = soldier carrying a Javelin, **2007** = soldier carrying an NLAW. Unchanged: `WeaponMountDto`, the munitions,
+UH-60 (404) gains a left and a right door station, each operated by a door-gunner seat · presets: **104** = pickup + M2 in its station + a
+gunner in its Gunner seat, **105** = pickup + Kornet + a gunner, **2006** = soldier carrying a Javelin, **2007** = soldier carrying an NLAW. Unchanged: `WeaponMountDto`, the munitions,
 the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 
 ## 6. Rules
@@ -220,7 +241,7 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 | mounting / carrying / manning are boarding (`Embarkation`): a weapon into a `Station` whose `Accepts` fits its `MountKinds`; a portable weapon onto a soldier's carry station (the person-carrier rule widened from "a man who is down" to "or a portable weapon system"); a soldier into a weapon's `Gunner` seat | W-B: one implementation of seats, places, poses, exposure |
 | a weapon in a `Station` stands at the seat's place and facing (EmbarkedStateSystem, sim — not only drawn) | the muzzle and the arc must be where the station is (§1: today a passenger stands at the reference point) |
 | deploy state (W-C): `Stowed` (transport, can be carried, does not fire unless `FireWhileCarried`) → `Deploying` (`DeploySeconds`) → `Deployed` → `Packing` → `Stowed`; written by its owner, replicated (`dtWeaponSystemState`, R-136). A station weapon is placed Deployed | the drawing and the gate both read it; At ease / Ready / Aimed stays the gunner's (R-272) |
-| a placed host fills its `StartWith` stations ONCE (`StationPresets`, on the creating node, R-138); the host is then marked filled (saved), so a load never refills a station the user emptied | presets keep 104 / 105 / 2006 / 2007 scenarios working |
+| ★ W-I — a placed host fills EVERY seat's `StartWith` ONCE (`SeatPresets`, on the creating node, R-138): a weapon into a `Station`, a soldier of the host's side into a crew seat. The soldier is a real entity — seen, hit, killed; aboard, his own brain fires nothing. The host is then marked filled (saved), so a load never refills a seat the user emptied, nor adds a second gunner | presets keep 104 / 105 / 2006 / 2007 scenarios working, and their guns fire: `CanFire` needs the operating seat occupied, so a preset that seated no gunner would never fire (📐 the gap the W-I review found) |
 | a weapon system cannot drive: `Move` to a `WeaponSystem` is refused; it moves by being carried or by its host | it has no locomotion |
 
 ## 7. Decisions — 🔒 APPROVED `2026-10-14` (R-2016)
@@ -235,6 +256,7 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 | **W-F** | NLAW, LAW, Javelin become weapon systems; 2006 / 2007 become presets; the RPG and rifles stay built-in | both forms for one launcher |
 | **W-G** | a soldier carries one weapon system (a carry station beside the casualty seat); a two-man weapon needs both men to move it | an inventory system |
 | **W-H** | 🔒 the HOST's gunner seat operates its station weapon (no passenger-of-a-passenger) | a soldier sitting on the weapon itself while it is mounted |
+| **W-I** | 🔒 *"Agreed"* (`2026-10-14`) — presets seat their CREW too: `StartWith` on any seat, so 104 / 105 arrive with a real gunner; orders go to the host; killing the gunner silences the gun until someone boards the seat | `NeedsGunner = false` on preset stations (the gun fires from an empty truck) · an abstract vehicle-level gunner (nobody to kill) |
 
 ## 8. Slices and rails — in the features' own suites
 
@@ -242,8 +264,8 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 |---|---|---|---|
 | **WS-1** | backend | `Gen.WeaponSystem`, `SeatRole.Station` + the seat fields, the class `WeaponSystem` (1.1.*.50), `WeaponSystemState` + `dtWeaponSystemState`, `WeaponDeploySystem` | TKB round-trip rails (`NedTkbBuilder…`), `CarrierTkbTranslatorTests` (station seats), the descriptor's translator rails, `WeaponDeploySystemTests` |
 | **WS-2** | backend | `Embarkation`: station boarding by `Accepts`, the widened person-carrier rule, the carry station; `EmbarkedStateSystem` puts a station weapon at its seat | `EmbarkationTests` / `EmbarkedStateSystemTests`: an HMG into a pickup's station stands at the station; a Javelin carried; a non-portable weapon refused |
-| **WS-3** | backend | `WeaponSystems.ControllerOf` / `CanFire` / `Controlled`; `WeaponMountQuery.EnumerateMounts` + controlled weapons; the turret path on the weapon's own turret part; the muzzle from the weapon entity | `WeaponMountTests` (the host lists its station weapon; a manned tripod's soldier lists it; an automatic unmanned one lists itself) · `AimAndFireExecutorTests.WS_ThePickupFiresItsStationHmg_OnTheHmgsTurret` · `WS_AnAutomaticTurret_FiresOnItsOwn_AManualOneDoesNot` |
-| **WS-4** | backend | the catalogue: weapon types, the bare pickup, the UH-60 door stations, `StationPresets`, presets 104 / 105 / 2006 / 2007 | `UrbanCombatCatalogRails` / `NedTkbBuilderCombatTests`; the existing technical rails (`M9_TheTechnicals_…`, `V8_AnHmg_…`) stay green through the presets |
+| **WS-3** | backend | `WeaponSystems.ControllerOf` / `CanFire` / `Controlled` (★ and `WS_AStationWeapon_FallsSilent_WhenItsGunnerDies`, W-I); `WeaponMountQuery.EnumerateMounts` + controlled weapons; the turret path on the weapon's own turret part; the muzzle from the weapon entity | `WeaponMountTests` (the host lists its station weapon; a manned tripod's soldier lists it; an automatic unmanned one lists itself) · `AimAndFireExecutorTests.WS_ThePickupFiresItsStationHmg_OnTheHmgsTurret` · `WS_AnAutomaticTurret_FiresOnItsOwn_AManualOneDoesNot` |
+| **WS-4** | backend | the catalogue: weapon types, the bare pickup, the UH-60 door stations, `SeatPresets` (stations AND crew seats, W-I), presets 104 / 105 (+ a gunner) / 2006 / 2007 | `UrbanCombatCatalogRails` / `NedTkbBuilderCombatTests`; ★ a placed 104 holds an M2 in its station and a soldier in its Gunner seat, and a save / load adds neither again; the existing technical rails (`M9_TheTechnicals_…`, `V8_AnHmg_…`) stay green through the presets |
 | **WS-5** | ui | the stowed / deployed drawings, a gunner at his weapon, placing a weapon into a host station in the editor, Add Entity entries | frame rails under Xvfb, editor rails |
 | **WS-6** | behaviors | `ManWeapon`, `SetUpWeapon`, `PackUpWeapon`, `CarryWeapon`; `WeaponSystemAttack` / `WeaponSystemHold`; an automatic weapon's SOP; the demo **`ua-weapon-systems`** (a squad sets up an HMG; a technical fights; a sentry gun covers a gate) | `WeaponSystemNodesTests`, `TacticalIntentResolutionSystemTests.WS_*`, the demo's live rail |
 
