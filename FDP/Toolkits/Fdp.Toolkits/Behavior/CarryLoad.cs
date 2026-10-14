@@ -20,8 +20,21 @@ namespace Fdp.Toolkit.Behavior
             ref readonly var pc = ref repo.GetComponentRO<PersonCarrier>(carrier);
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
-                if (buffer.Passengers[i].IsNull) continue;
-                return buffer.ModeOf(i) == CarryMode.Dragged ? pc.DragSpeedFactor : pc.CarrySpeedFactor;
+                var load = buffer.Passengers[i];
+                if (load.IsNull) continue;
+                // ⭐ T-a (R-2017 T3) — a carried WEAPON slows him by its own CarrySpeedFactor (a two-man weapon's is the pair's); a stretcher
+                //   by the type's StretcherSpeedFactor. ⚠ WS-2 used the casualty factor for a carried weapon (a LAW halved his speed).
+                if (Embarkation.IsWeaponSystem(repo, load))
+                {
+                    float f = repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(load).CarrySpeedFactor;
+                    return f > 0f ? f : 1f;
+                }
+                return buffer.ModeOf(i) switch
+                {
+                    CarryMode.Dragged   => pc.DragSpeedFactor,
+                    CarryMode.Stretcher => pc.StretcherSpeedFactor > 0f ? pc.StretcherSpeedFactor : pc.CarrySpeedFactor,
+                    _                   => pc.CarrySpeedFactor,
+                };
             }
             return 1f;
         }

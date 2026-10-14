@@ -26,5 +26,9 @@ namespace Fdp.Toolkit.Behavior.Events
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — onto a PERSON carrier: carried or dragged (a seated request is carried). Ignored by a
         /// vehicle, which always seats.</summary>
         public Fdp.Toolkit.Behavior.Components.CarryMode Mode;
+
+        /// <summary>⭐ Team carry T-a (R-2017 T1, T4) — onto a PERSON carrier: the second man of a team load (a <c>Stretcher</c> carry, a
+        /// <c>TwoMan</c> weapon). Required for those, refused for any other load. APPENDED.</summary>
+        public Entity Assistant;
     }
 }

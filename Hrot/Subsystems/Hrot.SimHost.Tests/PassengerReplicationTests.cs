@@ -163,6 +163,49 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(CarryMode.Seated, other.GetComponentRO<PassengerBuffer>(otherApc).ModeOf(0));
         }
 
+        /// <summary>⭐ Team carry T-a (R-2017 T1; R-169 — <c>EntityPassengers.Assistant</c> APPENDED) — a stretcher's second man travels with
+        /// the list, and the sample is held until he is known on the other node. ✅ Red-proof: ToSample without Assistant ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void TA_TheSecondMan_TravelsWithTheList_HeldUntilHeIsKnown()
+        {
+            const long CarrierId = 910L, CasualtyId = 911L, HelperId = 912L;
+            using var owner = World();
+            var ownerMap = new NetworkEntityMap();
+            var carrier = Networked(owner, ownerMap, CarrierId, vehicle: true);
+            var casualty = Networked(owner, ownerMap, CasualtyId);
+            var helper = Networked(owner, ownerMap, HelperId);
+            ref var src = ref owner.GetComponentRW<PassengerBuffer>(carrier);
+            src.Passengers[0] = casualty;
+            src.SetMode(0, CarryMode.Stretcher);
+            src.Count = 1;
+            src.Assistant = helper;
+
+            var sample = EntityPassengersEgressTranslator.ToSample(owner, CarrierId, owner.GetComponentRO<PassengerBuffer>(carrier));
+            Assert.Equal(HelperId, sample.Assistant);
+
+            using var other = World();
+            var otherMap = new NetworkEntityMap();
+            var otherCarrier = Networked(other, otherMap, CarrierId, vehicle: true);
+            Networked(other, otherMap, CasualtyId);
+            var ingress = new EntityPassengersIngressTranslator(participant: null, otherMap);
+            using (var cmd = new EntityCommandBuffer())
+            {
+                ingress.Receive(in sample);
+                ingress.Flush(cmd, other);
+                cmd.Playback(other);
+            }
+            Assert.Equal(1, ingress.PendingCount);   // the second man is not known here yet: held
+            var otherHelper = Networked(other, otherMap, HelperId);
+            using (var cmd = new EntityCommandBuffer())
+            {
+                ingress.Flush(cmd, other);
+                cmd.Playback(other);
+            }
+            Assert.Equal(0, ingress.PendingCount);
+            Assert.Equal(otherHelper, other.GetComponentRO<PassengerBuffer>(otherCarrier).Assistant);
+            Assert.Equal(CarryMode.Stretcher, other.GetComponentRO<PassengerBuffer>(otherCarrier).ModeOf(0));
+        }
+
         [Fact]
         public void CE3110_I2b_OnlyTheDescriptorOwnerPublishes_AndTheOwnerNeverTakesItsOwnSampleBack()
         {

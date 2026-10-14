@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Behavior.Translators
                 {
                     CarrySpeedFactor = dto.Person.CarrySpeedFactor, DragSpeedFactor = dto.Person.DragSpeedFactor,
                     CarryBehindMetres = dto.Person.CarryBehindMetres, DragBehindMetres = dto.Person.DragBehindMetres,
+                    StretcherSpeedFactor = dto.Person.StretcherSpeedFactor, AssistantBehindMetres = dto.Person.AssistantBehindMetres,   // ⭐ T-a
                 };
                 if (repo.HasComponent<PersonCarrier>(entity)) repo.SetComponent(entity, person);
                 else repo.AddComponent(entity, person);

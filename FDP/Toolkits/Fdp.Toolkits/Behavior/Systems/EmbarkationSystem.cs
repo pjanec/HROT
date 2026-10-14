@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref readonly var c = ref boards[i];
                     if (!Embarkation.OwnsVehicle(repo, c.Vehicle)) continue;
-                    Count(Embarkation.TryEmbark(repo, c.Passenger, c.Vehicle, c.Role, c.Mode) is EmbarkResult.Applied or EmbarkResult.AlreadyAboard);
+                    Count(Embarkation.TryEmbark(repo, c.Passenger, c.Vehicle, c.Role, c.Mode, c.Assistant) is EmbarkResult.Applied or EmbarkResult.AlreadyAboard);   // ⭐ T-a
                 }
             }
             if (repo.Bus.IsRegistered<DisembarkEntityCommand>())

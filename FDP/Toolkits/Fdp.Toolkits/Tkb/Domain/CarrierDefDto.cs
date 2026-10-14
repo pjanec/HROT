@@ -62,6 +62,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float CarryBehindMetres { get; init; } = 0f;
         /// <summary>How far behind the carrier a dragged casualty is held (m).</summary>
         public float DragBehindMetres { get; init; } = 1f;
+        /// <summary>⭐ Team carry T-a (R-2017 T3) — top-speed factor while two men carry a stretcher.</summary>
+        public float StretcherSpeedFactor { get; init; } = 0.6f;
+        /// <summary>⭐ Team carry T-a (R-2017 T3) — the rear handle: how far behind the carrier his assistant walks (m). A stretcher's casualty
+        /// lies half way between them.</summary>
+        public float AssistantBehindMetres { get; init; } = 2f;
     }
 
     /// <summary>One seat of a <see cref="CarrierDefDto"/>.</summary>

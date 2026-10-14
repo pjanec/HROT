@@ -277,6 +277,9 @@ namespace Hrot.NED.Descriptors
         public long Passenger7;
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — each seat's <c>CarryMode</c>, 2 bits per seat (the list's own <c>Modes</c>).</summary>
         public ushort Modes;
+        /// <summary>⭐ Team carry T-a (R-2017 T1) — a person carrier's second man (<c>PassengerBuffer.Assistant</c>), network id; 0 = none.
+        /// APPENDED (R-169).</summary>
+        public long Assistant;
     }
 
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the

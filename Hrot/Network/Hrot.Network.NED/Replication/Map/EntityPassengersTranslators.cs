@@ -69,6 +69,9 @@ namespace Hrot.Map.Common.Replication.Egress
                 Passenger0 = ids[0], Passenger1 = ids[1], Passenger2 = ids[2], Passenger3 = ids[3],
                 Passenger4 = ids[4], Passenger5 = ids[5], Passenger6 = ids[6], Passenger7 = ids[7],
                 Modes = b.Modes,   // ⭐ CE-2152 (R-2011 C5) — carried / dragged travels with the seat
+                // ⭐ T-a (R-2017 T1) — the second man of a team carry
+                Assistant = !b.Assistant.IsNull && view.IsAlive(b.Assistant) && view.HasComponent<NetworkIdentity>(b.Assistant)
+                    ? view.GetComponentRO<NetworkIdentity>(b.Assistant).Value : 0,
             };
         }
 
@@ -151,6 +154,11 @@ namespace Hrot.Map.Common.Replication.Ingress
                 buffer.Count++;
             }
             buffer.Modes = d.Modes;   // ⭐ CE-2152 (R-2011 C5)
+            if (d.Assistant != 0)    // ⭐ T-a — held, like a passenger, until the second man is known here
+            {
+                if (!_entityMap.TryGetEntity(d.Assistant, out var assistant) || !view.IsAlive(assistant)) return false;
+                buffer.Assistant = assistant;
+            }
             cmd.AddComponent(vehicle, buffer);
             return true;
         }

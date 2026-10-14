@@ -35,6 +35,13 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>Sets the mode of seat <paramref name="seat"/>.</summary>
         public void SetMode(int seat, CarryMode mode)
             => Modes = (ushort)((Modes & ~(0b11 << (2 * seat))) | (((int)mode & 0b11) << (2 * seat)));
+
+        /// <summary>⭐ Team carry T-a (R-2017 T1; docs/DESIGN_Entity_Interactions.md §7.5) — a PERSON carrier's second man: the one at the
+        /// rear handle of a stretcher or of a two-man weapon. Null for every other load and for every vehicle. It lives in the LIST, so every
+        /// node derives the assistant's <see cref="IsAssistingTag"/> from it and it crosses the wire with the list (appended). ⚠ Not saved
+        /// with a scenario, as the carry mode is not.</summary>
+        [ScenarioIgnore]
+        public Entity Assistant;
     }
 
     /// <summary>⭐ <c>CE-2152</c> (R-274 C / R-2011 C2) — how a passenger rides: in a seat, or as a casualty a person CARRIES or DRAGS. One
@@ -44,6 +51,9 @@ namespace Fdp.Toolkit.Behavior.Components
         Seated = 0,
         Carried = 1,
         Dragged = 2,
+        /// <summary>⭐ Team carry T-a (R-2017 T2) — on a stretcher between two men: the carrier at the front, his named assistant
+        /// (<see cref="PassengerBuffer.Assistant"/>) at the rear handle. The 2-bit seat field's free value — no wire shape changes.</summary>
+        Stretcher = 3,
     }
 
     /// <summary>
@@ -168,6 +178,10 @@ namespace Fdp.Toolkit.Behavior.Components
         public float CarryBehindMetres;
         /// <summary>How far behind the carrier a dragged casualty is held (m).</summary>
         public float DragBehindMetres;
+        /// <summary>⭐ Team carry T-a (R-2017 T3) — top-speed factor while a stretcher is carried.</summary>
+        public float StretcherSpeedFactor;
+        /// <summary>⭐ Team carry T-a (R-2017 T3) — how far behind the carrier his assistant walks (m): the rear handle.</summary>
+        public float AssistantBehindMetres;
     }
 
     /// <summary>
@@ -198,6 +212,21 @@ namespace Fdp.Toolkit.Behavior.Components
     /// fills them again — a seat the user emptied stays empty and no second gunner appears; a host loaded WITHOUT it (a scenario saved
     /// before the presets existed) is filled on load. Never replicated: only the creating node reads it.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ Team carry T-a (R-2017 T1; docs/DESIGN_Entity_Interactions.md §7.5) — this man is the SECOND man of a team carry: the carrier
+    /// <see cref="Carrier"/> names him as its <see cref="PassengerBuffer.Assistant"/>. Derived on every node from the carrier's list (as
+    /// <see cref="IsEmbarkedTag"/> is from a vehicle's); while it stands his fire and his own movement are off (he is placed at the rear
+    /// handle). Never saved.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.IsAssistingTag)]
+    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario)]
+    public struct IsAssistingTag
+    {
+        /// <summary>The man carrying the load at the front.</summary>
+        public Entity Carrier;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.SeatPresetsFilled)]
     public struct SeatPresetsFilled

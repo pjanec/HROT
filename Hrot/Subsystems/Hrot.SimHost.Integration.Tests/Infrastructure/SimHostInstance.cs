@@ -920,6 +920,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();   // ⭐ T-a
 
             // Perception
             world.RegisterComponent<PerceptionReceptor>();

@@ -97,13 +97,18 @@ namespace Fdp.Toolkit.Behavior
         /// <paramref name="mode"/> is <see cref="CarryMode.Carried"/> or <see cref="CarryMode.Dragged"/> (a seated request is carried); onto a
         /// vehicle it is always <see cref="CarryMode.Seated"/>.</para>
         public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger,
-            CarryMode mode = CarryMode.Seated)
+            CarryMode mode = CarryMode.Seated, Entity assistant = default)
         {
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
             // ⭐ CE-3110 (R-272) — a UNIT is not a physical actor: it takes no seat and carries nobody (its members do the boarding).
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             int aboard = SlotOf(repo, passenger, vehicle);
             if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            // ⭐⭐ Team carry T-a (R-2017 T4; DESIGN_Entity_Interactions §7.5.3) — a STRETCHER and a TWO-MAN weapon need a named, fit second
+            //   man; every other load refuses one. Only a person carries a team load.
+            bool team = IsPersonCarrier(repo, vehicle) && (mode == CarryMode.Stretcher || IsTwoManWeapon(repo, passenger));
+            if (team ? !FitAssistant(repo, vehicle, passenger, assistant) : !assistant.IsNull) return EmbarkResult.Invalid;
+            if (mode == CarryMode.Stretcher && (!IsPersonCarrier(repo, vehicle) || IsWeaponSystem(repo, passenger))) return EmbarkResult.Invalid;
             // ⭐⭐ Weapon systems WS-2 (W-B, R-2016; DESIGN_Weapon_Systems §6) — a WEAPON SYSTEM boards a Station seat whose Accepts
             //   shares one of its mount kinds — never a seat for a man; onto a PERSON only a portable one, and only while he is in the fight.
             if (IsWeaponSystem(repo, passenger))
@@ -115,7 +120,7 @@ namespace Fdp.Toolkit.Behavior
                 int station = FreeStation(repo, vehicle, kinds.MountKinds);
                 if (station == -2) return EmbarkResult.Invalid;   // no station on this type accepts it
                 if (station < 0) return EmbarkResult.Full;
-                return Seat(repo, passenger, vehicle, station, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated);
+                return Seat(repo, passenger, vehicle, station, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated, assistant);
             }
             if (role == SeatRole.Station) return EmbarkResult.Invalid;   // ⭐ WS-2 — a station holds a weapon, never a man
             if (IsPersonCarrier(repo, vehicle))
@@ -128,7 +133,71 @@ namespace Fdp.Toolkit.Behavior
             else mode = CarryMode.Seated;
             int seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
             if (seat < 0) return EmbarkResult.Full;
-            return Seat(repo, passenger, vehicle, seat, mode);
+            return Seat(repo, passenger, vehicle, seat, mode, assistant);
+        }
+
+        /// <summary>The reach (m) within which a team load's second man must stand by the carrier (R-2017 T4).</summary>
+        public const float AssistantReach = 2f;
+
+        /// <summary>⭐ T-a — is <paramref name="e"/> a weapon system two men carry (<c>Portable = TwoMan</c>)?</summary>
+        public static bool IsTwoManWeapon(EntityRepository repo, Entity e)
+            => IsWeaponSystem(repo, e)
+               && repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(e).Portable == (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.TwoMan;
+
+        /// <summary>
+        /// ⭐⭐ Team carry T-a (R-2017 T4) — may <paramref name="assistant"/> take the rear of <paramref name="carrier"/>'s team load? Alive and
+        /// in the fight; neither the carrier nor the load; carrying nothing and aboard nothing and assisting nobody; the carrier's side (where
+        /// both say); within <see cref="AssistantReach"/> of him.
+        /// </summary>
+        public static bool FitAssistant(EntityRepository repo, Entity carrier, Entity load, Entity assistant)
+        {
+            if (assistant.IsNull || !repo.IsAlive(assistant) || assistant == carrier || assistant == load) return false;
+            if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, assistant)) return false;
+            if (Has<IsEmbarkedTag>(repo, assistant) || Has<IsAssistingTag>(repo, assistant) || !LoadOf(repo, assistant).IsNull) return false;
+            if (Has<Fdp.Core.EntityInfo>(repo, assistant) && Has<Fdp.Core.EntityInfo>(repo, carrier)
+                && !repo.GetComponentRO<Fdp.Core.EntityInfo>(assistant).ForceId.Equals(repo.GetComponentRO<Fdp.Core.EntityInfo>(carrier).ForceId))
+                return false;
+            if (Has<SimTransform>(repo, assistant) && Has<SimTransform>(repo, carrier)
+                && Vector3.Distance(repo.GetComponentRO<SimTransform>(assistant).Position, repo.GetComponentRO<SimTransform>(carrier).Position) > AssistantReach)
+                return false;
+            return true;
+        }
+
+        /// <summary>⭐ T-a — <paramref name="carrier"/>'s second man, or null.</summary>
+        public static Entity AssistantOf(EntityRepository repo, Entity carrier)
+            => Has<PassengerBuffer>(repo, carrier) ? repo.GetComponentRO<PassengerBuffer>(carrier).Assistant : Entity.Null;
+
+        /// <summary>
+        /// ⭐ T-a — THE assistant-side writer (the <see cref="Board"/> of the second man): the tag naming his carrier, his fire and his own
+        /// movement off (T5: hands full; T3: he is placed at the rear handle). Two callers, as for <see cref="Board"/>: the deciding node at
+        /// once and every node from the list. Idempotent.
+        /// </summary>
+        public static void Assist(EntityRepository repo, Entity assistant, Entity carrier)
+        {
+            if (!repo.IsAlive(assistant) || !repo.IsComponentTypeRegistered<IsAssistingTag>()) return;
+            if (Has<ActorCapabilityState>(repo, assistant)) repo.GetComponentRW<ActorCapabilityState>(assistant).Capabilities &= ~StrippedAboard;
+            repo.SetComponent(assistant, new IsAssistingTag { Carrier = carrier });
+        }
+
+        /// <summary>⭐ T-a — the second man lets go: the tag gone, his fire and movement back while he is in the fight (T5, T6).</summary>
+        public static void ReleaseAssistant(EntityRepository repo, Entity assistant)
+        {
+            if (!repo.IsAlive(assistant)) return;
+            if (Has<ActorCapabilityState>(repo, assistant) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, assistant))
+                repo.GetComponentRW<ActorCapabilityState>(assistant).Capabilities |= StrippedAboard;
+            if (Has<IsAssistingTag>(repo, assistant)) repo.RemoveComponent<IsAssistingTag>(assistant);
+        }
+
+        /// <summary>⭐ T-a — the carrier's list drops its second man (the load is gone or put down); he is released at once here and on
+        /// every other node from the list.</summary>
+        private static void DropAssistant(EntityRepository repo, Entity carrier)
+        {
+            if (!Has<PassengerBuffer>(repo, carrier)) return;
+            ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(carrier);
+            var assistant = buffer.Assistant;
+            if (assistant.IsNull) return;
+            buffer.Assistant = Entity.Null;
+            ReleaseAssistant(repo, assistant);
         }
 
         /// <summary>
@@ -157,13 +226,15 @@ namespace Fdp.Toolkit.Behavior
             return Seat(repo, passenger, vehicle, seat, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated);
         }
 
-        private static EmbarkResult Seat(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode)
+        private static EmbarkResult Seat(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode, Entity assistant = default)
         {
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             buffer.Passengers[seat] = passenger;
             buffer.SetMode(seat, mode);   // ⭐ CE-2152 (R-2011 C5) — in the list, so every node derives the tag's mode from it
             buffer.Count++;
+            if (!assistant.IsNull) buffer.Assistant = assistant;   // ⭐ T-a (T1) — in the list too
             Board(repo, passenger, vehicle, seat);
+            if (!assistant.IsNull) Assist(repo, assistant, vehicle);
             return EmbarkResult.Applied;
         }
 
@@ -207,6 +278,7 @@ namespace Fdp.Toolkit.Behavior
             buffer.SetMode(slot, CarryMode.Seated);
             buffer.Count--;
             Leave(repo, passenger, at);
+            if (IsPersonCarrier(repo, vehicle)) DropAssistant(repo, vehicle);   // ⭐ T-a — a person carries one load: the team ends with it
             ReleaseCarrier(repo, vehicle);
             return true;
         }
@@ -230,6 +302,7 @@ namespace Fdp.Toolkit.Behavior
             }
             buffer.Count = 0;
             buffer.Modes = 0;
+            DropAssistant(repo, vehicle);   // ⭐ T-a (T6) — the load put down, the link dropped
             ReleaseCarrier(repo, vehicle);
             return left;
         }
@@ -317,7 +390,9 @@ namespace Fdp.Toolkit.Behavior
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
             // ⭐ CE-2152 (R-2011 C7) — a person carrying or dragging a casualty has his hands full: no fire (back on ReleaseCarrier).
             //   ⭐ WS-2 — a carried WEAPON does not: the soldier still fights (he may even fire it, FireWhileCarried).
-            if (IsPersonCarrier(repo, vehicle) && !IsWeaponSystem(repo, passenger) && Has<ActorCapabilityState>(repo, vehicle))
+            //   ⭐ T-a (R-2017 T5) — a TEAM load (a two-man weapon) fills his hands as a casualty does.
+            if (IsPersonCarrier(repo, vehicle) && (!IsWeaponSystem(repo, passenger) || !AssistantOf(repo, vehicle).IsNull)
+                && Has<ActorCapabilityState>(repo, vehicle))
                 repo.GetComponentRW<ActorCapabilityState>(vehicle).Capabilities &= ~ActorCapabilities.CanShoot;
             var mode = Has<PassengerBuffer>(repo, vehicle) ? repo.GetComponentRO<PassengerBuffer>(vehicle).ModeOf(seat) : CarryMode.Seated;
             // ⭐ I-2c (R-271): an OPEN cabin leaves the passenger exposed (seen, targeted, hit); enclosed hides it (PhysicalPresence).
@@ -342,6 +417,7 @@ namespace Fdp.Toolkit.Behavior
             if (Has<IsEmbarkedTag>(repo, carrier)) return;
             // ⭐ WS-2 — only a CASUALTY fills his hands: a weapon he carries (his carry station) does not keep his fire off
             ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(carrier);
+            if (!list.Assistant.IsNull) return;   // ⭐ T-a — a team load still in his hands
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
                 if (!list.Passengers[i].IsNull && !IsWeaponSystem(repo, list.Passengers[i])) return;
             if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, carrier)) return;

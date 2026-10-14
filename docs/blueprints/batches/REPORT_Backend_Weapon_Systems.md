@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-current-answer: the whole file. It is the report for HANDOFF_Behaviors_To_Backend_Weapon_Systems.md (WS-1–WS-4) as steered by STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md (W-I).
+current-answer: the whole file. It is the report for HANDOFF_Behaviors_To_Backend_Weapon_Systems.md (WS-1–WS-4) as steered by STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md (W-I) and STEER_Behaviors_To_Backend_Team_Carry.md (T-a).
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -9,9 +9,11 @@ related-designs:
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Weapon_Systems.md — the handoff this report answers
   - docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md — the steer (W-I) that changed WS-1 / WS-3 / WS-4 before any item was built
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — the as-built for all four items: §9
+  - docs/blueprints/batches/STEER_Behaviors_To_Backend_Team_Carry.md — the second steer (T-a, built with WS-2's code)
+  - docs/DESIGN_Entity_Interactions.md — §7.5.5 the T-a as-built
 -->
 
-# Report — backend → behaviors: weapon systems (WS-1–WS-4)
+# Report — backend → behaviors: weapon systems (WS-1–WS-4) and the team carry (T-a)
 
 Scope frozen at the dispatch commit `f71ce3a0b`, merged into `backend` in `85abc3d4a`; the started marker is `d453c45e4`. ⭐ **Steered** by
 [`STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md`](STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md) (W-I: presets seat
@@ -26,7 +28,8 @@ rail, WS-4 `SeatPresets` + a gunner in 104 / 105). Branch: **`backend`**. Each i
 | WS-1 | `Gen.WeaponSystem`, the station seat fields (+ W-I `StartWith` on any seat), `CarrierStations`, class `WeaponSystem` (1.1.*.50), `WeaponSystemState` + `dtWeaponSystemState`, `WeaponDeploySystem` | `5c3fe8974` | §9 WS-1 | ✅ |
 | WS-2 | a weapon boards a station that accepts it; a soldier carries a portable one (the carry station); a station weapon stands at its seat | `0123eae36` | §9 WS-2 | ✅ |
 | WS-3 | one controller per weapon (`WeaponSystems`); the brain's mount list grows by the controlled weapons; a controlled weapon fires as itself; ⭐ W-I: the gun falls silent when its gunner dies | `f656cb38b` | §9 WS-3 | ✅ |
-| WS-4 | nine weapon types, the bare Toyota (106), `SeatPresets` (W-I), 104 / 105 = pickup + weapon + gunner; seats survive a save / load | WS4_SHA | §9 WS-4 | ✅ partly — see "not built" |
+| WS-4 | nine weapon types, the bare Toyota (106), `SeatPresets` (W-I), 104 / 105 = pickup + weapon + gunner; seats survive a save / load | `e49721cc0` | §9 WS-4 | ✅ partly — see "not built" |
+| ⭐ **T-a** (steer: [`STEER_Behaviors_To_Backend_Team_Carry.md`](STEER_Behaviors_To_Backend_Team_Carry.md), R-2017, CE-2175) | the team carry: `CarryMode.Stretcher`, the named second man (`PassengerBuffer.Assistant`, `IsAssistingTag`), the T4 gate, the rear-handle placement and the speeds (T3), both men's fire (T5), either man down ⇒ put down (T6) | TA_SHA | [`DESIGN_Entity_Interactions.md` §7.5.5](../../DESIGN_Entity_Interactions.md) | ✅ |
 
 ## Deviations (each argued in §9)
 
@@ -61,6 +64,10 @@ rail, WS-4 `SeatPresets` + a gunner in 104 / 105). Branch: **`backend`**. Each i
 | `SeatDto` fields (`Accepts`, `OperatedBy`, `NeedsGunner`, arc, `StartWith`) | ❌ TKB only (`CarrierStations` is a per-node type fact) |
 | `SeatPresetsFilled` (382, saved), `PresetSeatIntent` (383, creating node only) | ❌ |
 | scenario JSON: `PassengerBuffer.Seats`, `IsEmbarkedTag.Seat` | ❌ (scenario file; older files still load) |
+| ⭐ T-a: `EntityPassengers.Assistant` (long, network id) | ✅ **APPENDED** to `EntityPassengers` (dtPassengerBuffer) |
+| ⭐ T-a: `EmbarkInteractionPayload.Assistant` (long, network id) | ✅ **APPENDED** to the Embark case of `EntityInteractionRequest` |
+| T-a: `EmbarkEntityCommand.Assistant`, `PassengerBuffer.Assistant`, `CarryMode.Stretcher = 3` | ❌ FDP event / component (the mode rides the existing 2-bit `Modes` — no shape change) |
+| T-a: `IsAssistingTag` (384) | ❌ derived on every node, never saved |
 
 ## Gates
 
@@ -75,6 +82,17 @@ after that build (the test project, never the production one — the stale-binar
 | 4 | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-build` | 1310 / 0 / 3 | +3 WS-4 rails (`CreateEntityRequestSystemTests.WS4_*`) + `PassengerBufferTranslatorTests.WS4_TheSeats_SurviveASaveAndLoad` + `EntityCreationPackRails.EveryRootThatBuildsThePack_SchedulesTheSeatPresets` | ✅ |
 | 5 | ⭐ **integration (rule 8)** `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests/… --no-build --filter "FullyQualifiedName~WeaponSystemsAcrossNodes"` | 1 / 0 / 0 | new: `WS_ATechnicalsStationHmg_FiresOnASplitCluster` — a placed 104 on SimHost + IG + ExCon + CGF: presets boarded on CGF, the pickup marked filled, `FireAtTarget` given from SimHost; the M2's turret task crosses to SimHost (Engage, OnTarget), **the shot leaves the M2 on SimHost** (`ShotLog` shooter = the M2's net id) and the brain spends the M2's own belt on CGF (300 → 299) | ✅ |
 | 6 | `python3 scripts/rulings-check.py` · `tracker-counts.py --check` · `design-digest.py --check` · `mermaid-check.mjs DESIGN_Weapon_Systems.md` | 202/202 · open 106 / done 386 · OK · 7/7 | — | n/a |
+
+### T-a gates (after `behaviors@ee891028d` was merged, `32264ce64`)
+
+| # | gate (verbatim) | result | delta | `--no-build` |
+|---|---|---|---|---|
+| 1 | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests/… --no-build` | 3352 / 0 / 1 | +4 (`PersonCarrierTests.TA_*`) | ✅ |
+| 2 | `dotnet test Hrot/Engine/Hrot.Core.Tests/… --no-build` | 244 / 0 / 0 | — | ✅ |
+| 3 | `dotnet test Hrot/Engine/Hrot.Presentation.Tests/… --no-build` | 598 / 0 / 12 | — | ✅ |
+| 4 | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests/… --no-build` | 1357 / 30 / 6 in the full run · ⚠ **the 30 are 31/31 green alone** (`--filter` on their six classes: the replay/recording four, `BlueprintStateTranslatorTests`, `ZoneEntityPersistenceTests`) — order-dependent, no file of theirs touched | +2 (`PassengerReplicationTests.TA_*`, the `InteractionTransportTests` stretcher leg) | ✅ |
+| 5 | ⭐ integration `--filter "FullyQualifiedName~WeaponSystemsAcrossNodes\|FullyQualifiedName~CE1056_AConvoyIsAmbushed"` | 2 / 0 / 0 | the station HMG still fires across nodes; the convoy squad still dismounts (passenger list + interaction transport, both changed by T-a) | ✅ |
+| 6 | red-proofs, each mechanism removed then restored | 6/6 red: the T4 gate · the rear-handle pass · either-man-down · the stretcher speed · `EntityPassengers.Assistant` egress · the codec's `idsOut` | — | ✅ |
 
 - **Red-proofs** (each inverse edit made the new rail red, then reverted): `TrackTarget` without the platform routing ⇒ `WS_TrackTarget_…` red · the
   occluder without `RideGroups` ⇒ `WS4_ACarrierAndItsRiders_…` red · (WS-3's five, unchanged).
@@ -104,5 +122,5 @@ on open ground never fires**: it runs `VehicleFightFromCover`, which fires only 
 
 ## Ids allocated
 
-None. No tracker or ruling id was allocated (progress went to CE-2174 as dated lines). Component ids 379–383 (`GlobalComponentIds`),
+None. No tracker or ruling id was allocated (progress went to CE-2174 and CE-2175 as dated lines). Component ids 379–384 (`GlobalComponentIds`; 384 = `IsAssistingTag`),
 descriptor ordinal 132, TKB types 106 and 600–608.

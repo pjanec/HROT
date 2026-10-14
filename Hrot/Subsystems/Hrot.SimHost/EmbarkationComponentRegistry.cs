@@ -32,6 +32,7 @@ public static class EmbarkationComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
         world.RegisterComponent<IsEmbarkedTag>();
+        world.RegisterComponent<IsAssistingTag>();   // ⭐ T-a (R-2017) — a team carry's second man (also in HrotSharedComponentRegistry)
         world.RegisterComponent<OpenPassengerCabin>();   // ⭐ CE-3110 I-2c (R-271) — the open-cabin vehicle type (also in HrotSharedComponentRegistry)
 
         // ⚠ The commands travel WITH the components deliberately. FdpConfig.EnforceExplicitEventRegistration
