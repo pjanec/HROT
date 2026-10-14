@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — V5's reverse fix lives in the ground domain's wheeled / tracked models
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (V1–V8, M9; decisions D-A…D-L)
   - docs/DESIGN_Peek_And_Fire.md — OWNS the infantry fight-from-cover node; G8 (R-257) keeps vehicles out of it — this node is its vehicle sibling and reuses FiringPositionMemory, PositionHeat, PostureNodes.Keep / Fire
   - docs/designs/hill-attack/DESIGN.md — OWNS HullDownAttackRun (one exposure: creep → fire → reverse); this node makes it repeatable; the hill attack is re-pointed at it later (R-256 d)
@@ -33,7 +34,7 @@ related-designs:
 | EQS templates are `[EqsTemplate]` static classes with one generator and four test arrays; each needs a golden scenario (`EqsFlatTerrainGoldenTests.RegisteredTemplates_AllHaveAGoldenScenario`) | `EqsQueryTemplate.cs:61-120`, `EqsFlatTerrainGoldenTests.cs:55-122` |
 | cover points are baked by `TerrainCoverProvider` at 0.75 m off each face, 2.5 m apart; `CoverPoint` has a facing (`DirectionX/Y`) but no size; `VehicleCover.StandingPoints` derives points round live vehicles per query | `TerrainCoverProvider.cs:22-24,70-106`, `CoverPoint.cs:14-40`, `VehicleCover.cs:93` |
 | tests measure the self at `EqsTerrainSight.Mount(self)` (its `SensorMount`, else 1.7 / 1.1 / 0.35) — a vehicle's sight height is TKB data | `EqsTerrainSight.cs:29`, `ThreatExposureTest.cs:67-75` |
-| ⚠ the EQS solver runs as a background module on a snapshot with no TKB singleton — a test cannot read weapon ranges | `EntityRepository.Sync.cs:116-123` (synced singletons) |
+| the EQS solver's systems run on a replica WORLD the kernel refreshes for the background module; a world singleton (`SetSingletonManaged`) lives in one world, and the replica receives only eight of the live world's singleton references (`SyncSingletonById`) — the TKB (`ITkbDatabase`, id 60, one object per process built by `HrotEnvironment.CreateTkb`, no production hot reload) is not among them | `EntityRepository.Sync.cs:103-125`, `SimHostNodeBootstrapper.cs:268,515`, `HrotEnvironment.cs:28-41` |
 | no overhead test exists, but a vertical `SightBlocked` sees slabs, decks and templated roofs | `TerrainWorld.cs:390-412` |
 | PeekAndFire's reusable parts: `FiringPositionMemory` (8 slots, heat) + `PositionHeat`, `PostureNodes.Keep / Drop` (owned EQS sensors), `PostureNodes.Fire(…, target)`, `EqsTacticsNodes.TopAim`, `CoverClaim`, `LocomotionMoveTo.Issue / Status / Stop` (always `ReverseAllowed = 0`), `TrackTargetNodes.TrackTarget` (shares the weapon channel with Fire; no stop helper) | `PeekAndFireNodes.cs`, `FiringPositionMemory.cs:37-110`, `PostureNodes.cs:396-468`, `LocomotionMoveTo.cs:85-122`, `TrackTargetExecutor.cs:86-103` |
 | ⚠ **today a tank's attack order runs the INFANTRY posture tree** (`PlatformAttack` → CombatPosture → PeekAndFire) — no `Tank*` / `Armor*` / `LandPlatform*` behaviour exists | `ClassOrderBehaviors.cs:68-71`, `OrderResolver.cs:33` |
@@ -97,6 +98,12 @@ classDiagram
     +StandOff(view, self) float  «half width + 0.5 m»
     +Clear(world, point, facing, length, width) bool
   }
+  class BeyondThreatRangeTest {
+    <<new IEqsTest, ScoreExpensive>>
+    Weight
+    Tkb : ITkbDatabase  «set once at module construction»
+    reads each acquired threat's best mount Range
+  }
   class OverheadCoverTest {
     <<new IEqsTest, FilterExpensive, cost Sight>>
     ClearanceM = 0.1
@@ -121,7 +128,7 @@ classDiagram
   FindVehicleFiringPoint ..> DonutGenerator
   FindVehicleFiringPoint ..> CheapLineOfSightTest
   FindVehicleFiringPoint ..> DotProductTest
-  FindVehicleFiringPoint ..> DistanceScoreTest
+  FindVehicleFiringPoint ..> BeyondThreatRangeTest
   FindVehicleFiringPoint ..> ThreatExposureTest
   FindShelter ..> GridGenerator
   FindShelter ..> OverheadCoverTest
@@ -129,19 +136,22 @@ classDiagram
   OverheadCoverTest ..> IWorldQuery : vertical SightBlocked
 ```
 
-*What the picture shows that prose hid: one new test and one generator mode; the three templates are compositions of tests that exist.
-The "beyond threat range" score is the existing `DistanceScoreTest{PreferFar}` from the threat slot — a range-aware test cannot be built
-in the solver, which has no TKB (§1), so the stand-off decision lives in V1's danger (the Brain), and the template only prefers distance.*
+*What the picture shows that prose hid: two new tests and one generator mode; the three templates are compositions of tests otherwise
+existing. ⛔ SUPERSEDED (2026-10-14, user: "tkb is singleton and is constant does not need any snapshot"): the first draft said a
+range-aware test could not run in the solver — wrong; the TKB is one constant object, handed to the test once when the EQS module is
+built (a reference, nothing copied) and read by `BeyondThreatRangeTest`.*
 
 | template | generator | filter | score | answer |
 |---|---|---|---|---|
 | **FindVehicleHide** | `CoverPointsGenerator{VehicleFootprint}` (baked points pushed out to the hull's stand-off, kept only where the hull's box is clear) | `CheapLineOfSight{slot 1, Slot viewer, Hidden}` | `Distance` (near self), `ThreatExposure{HideFromAll}`, `PathCost` | a hide hidden from every known threat at the vehicle's sight height |
-| **FindVehicleFiringPoint** | `Donut{anchor slot 0 = the hide, 2 rings, ~25 m}` | `CheapLineOfSight{slot 1, Candidate viewer, Visible}` | `DotProduct` (ahead of the hide's facing — a straight drive out and a straight reverse back), `Distance{PreferFar from slot 1}` (stand-off), `ThreatExposure` (fewest OTHER threats), `PathCost` | a point that sees the target and as little else as possible |
+| **FindVehicleFiringPoint** | `Donut{anchor slot 0 = the hide, 2 rings, ~25 m}` | `CheapLineOfSight{slot 1, Candidate viewer, Visible}` | `DotProduct` (ahead of the hide's facing — a straight drive out and a straight reverse back), `BeyondThreatRange` (outside each known threat's weapon range scores 1, inside it falls with distance), `ThreatExposure` (fewest OTHER threats), `PathCost` | a point that sees the target and as little else as possible |
 | **FindShelter** | `Grid{anchor self, spacing 5}` | `OverheadCover{Covered}` | `Distance` (near), `PathCost` | the nearest reachable spot with solid above the hull (a deck, a bridge, a roof slab) |
 
 | rule | why |
 |---|---|
 | `VehicleFootprint` acts only for a vehicle querier; a person's cover points are unchanged | infantry templates, goldens and rails untouched |
+| ⭐ **the TKB reaches a test ONCE, AT CONSTRUCTION, by reference**: `EqsModule.ForTerrainHost(world)` (built once per node from the LIVE world, `EqsInfrastructureCapability.cs:97`) reads `world.GetSingletonManaged<ITkbDatabase>()` and sets it on every registered test that declares a `Tkb` property (`ITkbAwareTest`) — templates are built once at registration, so this is one hand-over per node; the solver's replica world and its singleton list (`EntityRepository.Sync.cs:117-124`) are NOT touched | 🔒 user, 2026-10-14: *"passing the TKB to the solver once at construction sounds ok … Certainly not snapshotting it please. Pass reference somehow."* — the same pattern as the sight strategy's terrain (`LosStrategies.cs:81-82`) |
+| ⚠ a TKB FILE load refills the same object (`Register` / `Clear`); holding the reference sees the current content — assumed, not measured: no solve runs while a load refills it | `ITkbDatabase.cs:10-33` |
 | `OverheadCoverTest`: covered when `SightBlocked(c + (0, 0, hullHeight + 0.1), c + (0, 0, hullHeight + 30))` | §1: the vertical ray already sees decks and roofs |
 | the vehicle's sight height is its `SensorMount` (TKB: tank ~2.4 m, technical ~2.2 m) — hidden means hidden at the commander's sight | data (Missiles §5), read by the existing tests |
 | each new template gets its golden scenario (flat terrain ⇒ an empty `FindShelter` answer is the golden) | `EqsFlatTerrainGoldenTests` |

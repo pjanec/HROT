@@ -164,7 +164,8 @@ classDiagram
   FireProcessingSystem ..> MissileDto
   FireProcessingSystem --> GuidedRound : on spawn
   GuidedRoundSystem ..> GuidedRound
-  GuidedRoundSystem ..> IWorldQuery : gunner sight (Command)
+  GuidedRoundSystem ..> IWorldQuery : sight (Command, FireAndForget seeker)
+  GuidedRoundSystem ..> TurretPose : the launcher's sight line (Command)
   AimAndFireExecutor ..> MissileDto : min range, top-attack mode
 ```
 
@@ -175,12 +176,13 @@ Model D-A), so nothing marks a hit "top attack".*
 | guidance | each frame | what defeats it |
 |---|---|---|
 | `Unguided` (RPG, LAW) | nothing — today's straight round | the aim time and the dispersion |
-| `Command` (TOW-like, ATGM technicals) | if the GUNNER's eye still has sight of the target (`IWorldQuery.SightBlocked`, Muscle-local) steer toward its aim point; else `Lost` — the round keeps its last velocity | ⭐ break sight during the flight (the vehicle reverses into its hide) |
-| `FireAndForget` (Javelin, NLAW) | steer toward the locked target's aim point; with `TopAttack` (range ≥ `TopAttackMinRangeM`): Climb to `CruiseAltitudeM` → Cruise → Dive at `DiveAngleDeg` once the horizontal distance ≤ altitude / tan(dive) | ⭐ deny the LOCK — the gunner's aim time is the lock (D3), a short exposure never completes it; once launched, nothing in v1 |
+| `Command` (TOW-like, ATGM technicals) | steer onto the LAUNCHER's sight line: a turret launcher's sight = its `TurretPose` (Muscle-owned), which the weapon brain keeps on the target during the flight hold (WL-5's hold already writes `Track`); a per-shot launcher's sight = the gunner's eye → the target while `IWorldQuery.SightBlocked` is false. Sight blocked ⇒ `Lost` — the round keeps its last velocity | ⭐ break sight during the flight (the vehicle reverses into its hide); an operator possessing the gunner guides it by aiming — no extra channel |
+| `FireAndForget` (Javelin, NLAW) | the round's own SEEKER: steer toward the locked target while the ROUND has sight of it (its last seen point otherwise); with `TopAttack` (range ≥ `TopAttackMinRangeM`): Climb to `CruiseAltitudeM` → Cruise → Dive at `DiveAngleDeg` once the horizontal distance ≤ altitude / tan(dive) | ⭐ deny the LOCK — the gunner's aim time is the lock (D3), a short exposure never completes it; once launched, nothing in v1 |
 
 | rule | why |
 |---|---|
 | steering = turn the velocity toward the aim point at a fixed turn rate (≤ 30°/s) at `SpeedMps` — no aerodynamics, no thrust curve | D-D |
+| ⭐ **where it lives and what crosses the wire**: `GuidedRoundSystem` runs on the MUSCLE beside `BallisticsSystem` — the round, its target, the launcher's turret pose and the terrain are all on that node; **no new channel**: the fire intent already names the target, and the turret task (Brain → Muscle, `EntityWeaponTask`) keeps the sight on it | user: "where is missile steering living, how would it work, what channel?" |
 | `MaxFlightSeconds` replaces the 2 s bullet lifetime for a guided round (Javelin ~20 s, TOW ~22 s) | §1: a 2 km missile vanished mid-flight |
 | `SpeedMps` replaces the generated `range × 0.5` muzzle speed for a missile | §1: the TOW flew ~7× too fast |
 | below `MinRangeM` the weapon brain refuses (`ActionReason.TooClose`); between `MinRangeM` and `TopAttackMinRangeM` a top-attack weapon fires direct | Javelin 65 m direct, 150 m top |
@@ -198,7 +200,7 @@ sequenceDiagram
   EX->>FP: fire (turret task grant or per-shot intent)
   FP->>FP: round at SpeedMps + GuidedRound { Guidance, Target, Gunner, Phase = Climb or Cruise }
   loop every frame until it hits or MaxFlightSeconds
-    GS->>GS: Command: gunner sight? steer : Lost
+    GS->>GS: Command: steer onto the launcher's sight line (TurretPose kept on target by Track) — blocked ⇒ Lost
     GS->>GS: FireAndForget + TopAttack: Climb → Cruise → Dive
     BS->>BS: swept segment, terrain carry, lifetime
   end
