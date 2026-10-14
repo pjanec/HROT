@@ -835,17 +835,21 @@ FNV-1a-16 identifiers for squad-tier input readers:
 
 Register via `SquadInputs.RegisterAll()` (alongside `StandardInputs.RegisterAll()`).
 
-### ManeuverSelectStarterDecision
+### SquadCrossingDecision *(supersedes `ManeuverSelectStarterDecision`, retired `2026-10-14`)*
 
-A squad-commander starter decision (`Kind: ManeuverSelect`) ships in
-`FDP/Toolkits/Fdp.Toolkits/Squad/StarterPack/ManeuverSelectStarterDecision.cs`.
-It uses squad inputs to choose among three maneuver options:
+The squad commander's "how to cross the danger area ahead" decision ships in
+`FDP/Toolkits/Fdp.Toolkits/Utility/StarterPack/SquadCrossingDecision.cs` — an attributed OPTION decision (kind `PostureSelect`,
+option ids from 1), scored by `SquadDangerCrossing` through `ChooseOptionOnce`. 📄 `docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md` §7.7.7.
 
 | Option | Key inputs |
 |---|---|
-| `DangerAreaCross` (0) | SquadStrengthRatio (Linear), ActiveFeatureKindIs (StreetCrossing), SquadAmmoRollup (Step) |
-| `BoundOverwatch` (1) | SquadStrengthRatio (Linear), ActiveFeatureKindIs (OpenGround), ActiveFeatureThreatRating (Logistic) |
-| `Hold` (2) | ActiveFeatureThreatRating (Linear), SquadAmmoRollup (InverseLinear) |
+| `Cross` (1) | SquadStrengthRatio (Linear), ActiveFeatureKindIs(OpenGround) (InverseLinear), SquadAmmoRollup (Step 0.3) |
+| `Bound` (2) | SquadStrengthRatio (Linear), ActiveFeatureKindIs(OpenGround) (Linear), ActiveFeatureThreatRating (Logistic) |
+| `Hold` (3) | ActiveFeatureThreatRating (Linear), SquadAmmoRollup (InverseLinear) |
+
+⛔ The retired `ManeuverSelectStarterDecision` (kind `ManeuverSelect`, options 0–2) was scored only by `CommanderUtilityTickSystem`,
+which no production host runs, and its area inputs read nothing in production; its only user was `Phase3IntegrationTests`
+(removed with it — its behaviour cases are the `CE2159_*` rails, its tick-system cases are `CommanderUtilityTickSystemTests`).
 
 ---
 

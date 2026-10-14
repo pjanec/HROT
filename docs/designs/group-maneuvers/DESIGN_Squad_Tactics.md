@@ -1325,7 +1325,7 @@ classDiagram
     class SquadDangerCrossingBehavior { Run() }
     class CrossingChoiceState { <<NEW>> Stage · Choice · Play · HeldSince }
     class SquadCrossingDecision { <<NEW, PostureSelect>> Cross 1 · Bound 2 · Hold 3 }
-    class ManeuverSelectStarterDecision { <<existing, ManeuverSelect - not scored>> }
+    class ManeuverSelectStarterDecision { <<RETIRED 2026-10-14>> }
     class SquadInputs { ActiveFeatureKindIs · ActiveFeatureThreatRating }
     class UnitSensors { TryGetResults~DangerAreaCognitiveBuffer~ }
     class TacticalFeatureHandles { <<existing, no caller>> Acquire() }
@@ -1340,11 +1340,15 @@ classDiagram
     SquadDangerCrossingBehavior --> DangerCrossingPlay : Cross
     SquadDangerCrossingBehavior --> BoundingOverwatchPlay : Bound - to beyond the far side
     SquadDangerCrossingBehavior --> SquadHoldPlay : Hold - then decide again
-    ManeuverSelectStarterDecision ..> SquadCrossingDecision : superseded by - kept, its test still runs
+    ManeuverSelectStarterDecision ..> SquadCrossingDecision : superseded by - removed
 ```
 
 *What the picture shows that the prose hid:* the three options are three EXISTING plays — the choice adds no drill, only a decision and
-two corrected inputs; and the starter decision is not deleted (it is unreachable, not harmful — "no rush removals").
+two corrected inputs. ⛔ SUPERSEDED: *"the starter decision is not deleted"* — retired `2026-10-14` (🔒 user: "Retiring the old starter
+decision is ok if it is superseded by something else (better)" → approved): its only user was `Phase3IntegrationTests`, whose behaviour
+cases the `CE2159_*` rails cover on the live path and whose tick-system cases `CommanderUtilityTickSystemTests` covers. ⚠ Kept:
+`CommanderUtilityTickSystem` and the `ManeuverSelect` kind (`Hrot.SquadCoordination.md` §8.0 names it the intended mechanism;
+`ForceManeuverMapper` and the authoring analyzer use it) — whether that path is dead is its owner's question.
 
 ```mermaid
 sequenceDiagram
