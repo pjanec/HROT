@@ -8,7 +8,7 @@ known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on AN
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount; here they become presets (a pickup host + a weapon system in its station) — §6 stays true until slice WS-4 lands.
 related-designs:
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267) and the weapon posture (R-272); this file only widens WHICH mounts a unit's weapon brain fires (the controlled weapon systems) and keeps the one firing path
-  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation, seats, roles, the person carrier (§7, R-2009); this file adds the Station seat role and the weapon carry, so mounting / carrying / manning are all boarding
+  - docs/DESIGN_Entity_Interactions.md — OWNS embarkation, seats, roles, the person carrier (§7, R-2009) and the TEAM CARRY (§7.5, R-2017 — the two-man weapon); this file adds the Station seat role and the weapon carry, so mounting / carrying / manning are all boarding
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §6 the technicals (M9, D-K) become presets here
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS the rounds, loadouts and guidance the weapon systems fire (6008, 6013–6015, 6019 unchanged)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — M9 / D-K (the gunner is vehicle-level) — kept: the host fires its stations
@@ -254,7 +254,7 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 | **W-D** | ONE controller per weapon (`ControllerOf`); the weapon brain's mount list = own mounts + controlled weapon systems | a brain on the weapon competing with its host's |
 | **W-E** | 🔒 automatic turrets are REQUIRED: `NeedsOperator = false` ⇒ the weapon fights on its own (own sensors, SOP, weapon brain) like a tank | (the earlier lean "a ground weapon fires only when manned" — overruled by the user) |
 | **W-F** | NLAW, LAW, Javelin become weapon systems; 2006 / 2007 become presets; the RPG and rifles stay built-in | both forms for one launcher |
-| **W-G** | a soldier carries one weapon system (a carry station beside the casualty seat); a two-man weapon needs both men to move it | an inventory system |
+| **W-G** | a soldier carries one weapon system (a carry station beside the casualty seat); a two-man weapon needs both men to move it — ★ built as the **team carry** ([`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.5, R-2017): one man carries it, a named assistant is linked and placed at the rear handle; either man down ⇒ the weapon is put down; at the firing point the assistant takes the loader seat | an inventory system |
 | **W-H** | 🔒 the HOST's gunner seat operates its station weapon (no passenger-of-a-passenger) | a soldier sitting on the weapon itself while it is mounted |
 | **W-I** | 🔒 *"Agreed"* (`2026-10-14`) — presets seat their CREW too: `StartWith` on any seat, so 104 / 105 arrive with a real gunner; orders go to the host; killing the gunner silences the gun until someone boards the seat | `NeedsGunner = false` on preset stations (the gun fires from an empty truck) · an abstract vehicle-level gunner (nobody to kill) |
 

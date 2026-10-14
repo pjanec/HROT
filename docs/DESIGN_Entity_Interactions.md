@@ -1,14 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14 (§7.2a CE-2163 — a round in flight is hidden from every candidate door)
+updated: 2026-10-14 (§7.5 team carry — a stretcher, a two-man weapon, R-2017; §7.2a CE-2163 — a round in flight is hidden from every candidate door)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
-current-answer: §7.4.10 C-b the carrier's actions (built; the squad's use is Squad Tactics §7.4) · §7.4.9 C-a as built · §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
+current-answer: §7.5 team carry (READY-TO-BUILD, R-2017) · §7.4.10 C-b the carrier's actions (built; the squad's use is Squad Tactics §7.4) · §7.4.9 C-a as built · §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
 known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
-  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the Station seat role, the weapon carry station and manning a weapon's Gunner seat — mounting, carrying and manning a weapon are boarding (R-2016)
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the Station seat role, the weapon carry station and manning a weapon's Gunner seat (a TwoMan weapon uses §7.5's team carry) — mounting, carrying and manning a weapon are boarding (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air assault on the doors-off UH-60 (404) and LoadCasualty (a carried man seated in a vehicle) (R-2015)
   - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the carried / dragged casualty, the carrier, riders in their seats (SeatDto place / facing / pose) and the jump down
   - docs/DESIGN_Injury_States.md — OWNS the injury states (R-263 D1, CE-2155) that the person carrier's C3 gate reads
@@ -1035,3 +1035,86 @@ can board can carry; ⚠ a host with its own interaction table (`HeadlessDemoApp
 Rails (in the feature's own suite, `EmbarkNodesTests`): `CE2152_PickUp_WalksToTheCasualty_ThenTakesHimThroughTheOwner` ·
 `CE2152_TheCarrierDragsTheCasualtyToAPoint_AndPutsHimDownThere` (the C-b rail, node by node as the tree runs them) ·
 `CE2152_PickUp_FailsForAManCarriedByAnother_AndForAManWhoIsNotDown`.
+
+### 7.5 Team carry — a load two men carry: a stretcher, a two-man weapon *(R-2017 (behaviors); build-state: READY-TO-BUILD — T1–T7 approved `2026-10-14`; `CE-2175`)*
+
+> 🔒 **User, `2026-10-14`:** *"What about the weapon to be carried by 2 men, is that in the plan, including demo scenario?"* · *"... becase we
+> might need aomething like that for medics carrying stretcher with wounded soldier"* · on the lean: *"Approwed write it into Entity
+> Interactions §7"*.
+
+#### 7.5.0 INVENTORY *(graph CLI + grep, `2026-10-14`)*
+
+| measured | where | so |
+|---|---|---|
+| a carry is ONE man: a `PersonCarrier` takes only an incapacitated man, into one open seat | `Embarkation.cs:107-111`, §7.4.8 C3 | the team carry is a second man ATTACHED to that one carry, not a new carry |
+| `CarryMode` = `Seated 0 · Carried 1 · Dragged 2`, 2 bits a seat in `PassengerBuffer.Modes` and on the wire | `InteractionComponents.cs:42-47`, §7.4.8 C5 | value **3 is free** — `Stretcher` costs no wire shape |
+| the speed is `CarryLoad.Factor` beside `StanceSpeed`; the offset by mode, and a downed carrier drops his load, in `EmbarkedStateSystem` | §7.4.8 C8–C10 | the pair reuses both places |
+| a weapon system declares `Portable = None · OneMan · TwoMan` and a carry station on the soldier | Weapon Systems §5, W-G | a two-man weapon is the same team carry |
+| no stretcher, litter or team-carry record | `search_code` / grep over `docs/`, `.dev/`, the code: none | new |
+
+#### 7.5.1 Classes
+
+```mermaid
+classDiagram
+  class CarryMode { existing enum: Seated · Carried · Dragged · +Stretcher = 3 ★ }
+  class PassengerBuffer { existing +Assistant : Entity ★ the carrier's second man }
+  class EntityPassengers { existing wire +Assistant : network id ★ appended }
+  class EmbarkEntityCommand { existing +Assistant : Entity ★ appended }
+  class IsAssistingTag { ★ derived on every node like IsEmbarkedTag: Carrier }
+  class PersonCarryDto { existing +StretcherSpeedFactor = 0.6 ★ +AssistantOffset ★ (the rear handle, about 2 m behind) }
+  class WeaponSystemDto { existing Portable TwoMan · CarrySpeedFactor }
+  class Embarkation { existing TryEmbark gate +a team load needs a named, fit assistant ★ }
+  class EmbarkedStateSystem { existing +places the assistant at the rear handle ★ +a team load is put down when either man is down ★ }
+  class CarryLoad { existing Factor: +Stretcher, +a TwoMan weapon ★ }
+  class TeamCarryNodes { ★ Hrot.AI.Behaviors: Stretcher (two men take a casualty) · the CarryWeapon team }
+  PassengerBuffer --> CarryMode
+  EmbarkEntityCommand ..> PassengerBuffer : Assistant
+  IsAssistingTag ..> PassengerBuffer : derived from Assistant
+  Embarkation ..> WeaponSystemDto : TwoMan
+  Embarkation ..> IsAssistingTag
+  EmbarkedStateSystem ..> PersonCarryDto : AssistantOffset
+  CarryLoad ..> PersonCarryDto
+  CarryLoad ..> WeaponSystemDto
+  TeamCarryNodes ..> EmbarkEntityCommand : raises, Assistant set
+```
+
+*What the picture shows that prose hid: the team carry is ONE more field on the carry that already exists — the carrier still holds the
+load in his one seat; the assistant is linked to it, derived on every node like the passenger tag, and placed at the rear handle by the
+same system that places the load. A stretcher is a carry MODE, not an entity, so nothing is nested (no load inside a load inside a man).*
+
+#### 7.5.2 Sequence — two men stretcher a casualty
+
+```mermaid
+sequenceDiagram
+  participant N as TeamCarryNodes.Stretcher (the carrier's brain)
+  participant O as EmbarkationSystem (carrier's owner)
+  participant S as EmbarkedStateSystem (every node)
+  participant K as CarKinematicsSystem (carrier's owner)
+  N->>N: both men walk to the casualty (the assistant told to follow)
+  N->>O: EmbarkEntityCommand(casualty, vehicle = carrier, mode = Stretcher, assistant)
+  O->>O: gate: casualty down, carrier and assistant fit, the assistant within reach and carrying nothing
+  O->>O: seat 0 = casualty (Stretcher), Assistant = the second man, both lose CanShoot
+  S->>S: IsAssistingTag on the assistant, he stands at the rear handle, the casualty between them
+  K->>K: top speed x stance x StretcherSpeedFactor
+  Note over S: either man down: the load is put down where it is and the link drops
+```
+
+#### 7.5.3 Decisions — 🔒 approved `2026-10-14` (R-2017)
+
+| # | decision | rejected |
+|---|---|---|
+| **T1** | a team carry = the existing one-man carry + an **assistant** linked to it (`PassengerBuffer.Assistant`, on the wire, `IsAssistingTag` derived on every node) | a load split into two halves, each man carrying one |
+| **T2** | a **stretcher is a carry mode** (`CarryMode.Stretcher = 3`, free in the 2 bits), drawn between the two men | a stretcher entity with the casualty seated on it — a passenger of a passenger |
+| **T3** | the assistant is PLACED at the rear handle (`AssistantOffset`) where his position is owned — the pair moves as one at the carrier's speed × `StretcherSpeedFactor` (0.6) or the weapon's `CarrySpeedFactor` | the assistant walking on his own and the carrier waiting for him (two moves to keep in step, a pair that drifts apart on a corner) |
+| **T4** | the gate (`Embarkation`): a `Stretcher` carry and a `TwoMan` weapon need a named assistant — alive, not incapacitated, carrying nothing, aboard nothing, the carrier's side, within reach (2 m); a `OneMan` load refuses one | a behaviour-only rule — a possessed soldier would carry a two-man weapon alone |
+| **T5** | both men lose `CanShoot` while carrying; both get it back on the put-down | — |
+| **T6** | either man down (incapacitated or dead) ⇒ the load is PUT DOWN where it is (the casualty laid there, the weapon left `Stowed`) and the link drops; the team (or another) picks it up again | the stretcher continuing with one man |
+| **T7** | at a weapon's firing point the assistant boards the weapon's loader seat (Weapon Systems §5) — the carry ends, the crew begins | — |
+
+#### 7.5.4 Slices and rails
+
+| # | lane | slice | rails |
+|---|---|---|---|
+| **T-a** | backend (with WS-2) | `CarryMode.Stretcher`; `Assistant` on the list, the wire and the command (appended — report, R-169); `IsAssistingTag`; the T4 gate; T3 placement and speed; T5; T6 | `EmbarkationTests`: a stretcher needs an assistant, a two-man weapon too, a one-man load refuses one · `EmbarkedStateSystemTests`: the assistant at the rear handle as the carrier turns; either man down ⇒ the load put down, the link gone · `CarKinematicsSystem` speed × 0.6 · the passenger codec round-trips `Assistant` |
+| **T-b** | ui (with WS-5) | the stretcher drawn between the pair; a two-man weapon carried by the pair | frame rails |
+| **T-c** | behaviors | `TeamCarryNodes.Stretcher`; the squad's casualty care may stretcher (two men free, no contact) instead of a drag; `LoadCasualty` puts a stretchered man into a vehicle; the `CarryWeapon` team for a `TwoMan` weapon; demos — medics stretcher a casualty in `ua-air-rescue`, a Kornet team in `ua-weapon-systems` | `CarryNodesTests` / `SquadManeuverTests` / `WeaponSystemNodesTests` |
