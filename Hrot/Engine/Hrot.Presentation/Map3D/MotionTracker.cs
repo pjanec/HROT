@@ -26,6 +26,13 @@ public sealed class MotionTracker
     /// <summary>The main rotor's speed (UH-60: about 258 rpm).</summary>
     public const float RotorRevsPerSecond = 4.3f;
 
+    /// <summary>⭐ CE-1093 (§6n N-9) — how long a helicopter's rotor keeps running after it last moved (s), how long it takes to spool up
+    /// or down (s), and the smallest movement between two frames that counts (m).</summary>
+    public const float RotorRunOnSeconds = 20f, RotorSpoolSeconds = 3f, MovedMetres = 0.02f;
+
+    /// <summary>⭐ CE-1086 — a drone's drawn prop speed (not the real ~150 rev/s, which would alias into a standstill at frame rate).</summary>
+    public const float DroneRotorRevsPerSecond = 7.3f;
+
     /// <summary>A position jump bigger than this between two frames is a teleport, not motion.</summary>
     public const float TeleportMetres = 40f;
 
@@ -45,6 +52,7 @@ public sealed class MotionTracker
     {
         public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen;
         public float Swing, Lean, Stride, Moving; public bool HasGait;   // ⭐ CE-1064 — the last gait, kept over a frame with no sim time
+        public float RotorRate, RotorAngle; public double LastMoved; public bool HasMoved;   // ⭐ CE-1093 — the rotor's spool and its angle
     }
 
     private readonly Dictionary<Entity, State> _states = new();
@@ -56,7 +64,7 @@ public sealed class MotionTracker
                               bool rotorTurning)
     {
         if (!_states.TryGetValue(e, out var st) || !st.Seen)
-            st = new State { Last = position, SimTime = simTime, Seen = true };
+            st = new State { Last = position, SimTime = simTime, Seen = true, RotorRate = rotorTurning ? 1f : 0f };   // first seen flying: at speed
 
         var delta = position - st.Last;
         if (delta.Length() > TeleportMetres) delta = Vector3.Zero;
@@ -95,8 +103,21 @@ public sealed class MotionTracker
                 st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
                 break;
             }
-            case VisualFamily.Helicopter when rotorTurning:
-                rotor = (float)((simTime * RotorRevsPerSecond % 1.0) * MathF.PI * 2.0);
+            case VisualFamily.Helicopter:
+            {
+                // ⭐ CE-1093 (§6n N-9) — the rotor RUNS while it is airborne or has moved in the last RotorRunOnSeconds (taking off,
+                //   landing, taxiing — the height test alone stood it still on the ground), and spools up / down over RotorSpoolSeconds
+                if (delta.LengthSquared() > MovedMetres * MovedMetres) { st.LastMoved = simTime; st.HasMoved = true; }
+                bool runs = rotorTurning || (st.HasMoved && simTime - st.LastMoved <= RotorRunOnSeconds);
+                float step = (float)dt / RotorSpoolSeconds;
+                st.RotorRate = runs ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
+                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * RotorRevsPerSecond * MathF.PI * 2f * (float)dt);
+                rotor = st.RotorAngle;
+                break;
+            }
+            case VisualFamily.Drone when rotorTurning:
+                // ⭐ CE-1086 — small props: a visible spin, not the real ~150 rev/s (which would alias into a standstill at frame rate)
+                rotor = (float)((simTime * DroneRotorRevsPerSecond % 1.0) * MathF.PI * 2.0);
                 break;
         }
 

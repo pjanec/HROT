@@ -27,11 +27,15 @@ public enum CarriageKind : byte
     Seated,
     /// <summary>Down but alive: lying on his back (C-2).</summary>
     Downed,
+    /// <summary>⭐ CE-1088 (§6n N-2) — in a weapon system's own <c>Gunner</c> seat: at his weapon (the holder is the weapon).</summary>
+    Manning,
 }
 
 /// <summary>⭐ CE-1081 … CE-1083 — the answer for one person: how he is held, by what (the carrier or the vehicle), the seat (when
-/// seated), and whether he is WOUNDED (he limps — C-2; it combines with walking free or carrying).</summary>
-public readonly record struct FigureCarriage(CarriageKind Kind, Entity Holder = default, SeatDto? Seat = null, bool Wounded = false)
+/// seated), and whether he is WOUNDED (he limps — C-2; it combines with walking free or carrying). ⭐ CE-1085 (§6n N-3) — and the
+/// weapon system he CARRIES in his carry station (<paramref name="Load"/>; null when none), which combines with any of his own kinds.</summary>
+public readonly record struct FigureCarriage(CarriageKind Kind, Entity Holder = default, SeatDto? Seat = null, bool Wounded = false,
+                                             Entity Load = default)
 {
     public static readonly FigureCarriage Free = new(CarriageKind.Free);
 }
@@ -61,6 +65,9 @@ public static class Carriage
                         CarryMode.Dragged => new FigureCarriage(CarriageKind.Dragged, holder),
                         _ => new FigureCarriage(CarriageKind.Free, Wounded: wounded),
                     };
+                // ⭐ CE-1088 (§6n N-2) — a man in a weapon system's own seat mans it (a tripod HMG, a mortar): drawn AT the weapon
+                if (WeaponSystems.IsWeaponSystem(world, holder))
+                    return new FigureCarriage(CarriageKind.Manning, holder, SeatOf(world, holder, tag.Seat, tkb), wounded);
                 if (tag.Exposed != 0 && SeatOf(world, holder, tag.Seat, tkb) is { HasPlace: true } seat)
                     return new FigureCarriage(CarriageKind.Seated, holder, seat, wounded);
             }
@@ -70,11 +77,24 @@ public static class Carriage
         if (world.IsComponentTypeRegistered<PassengerBuffer>() && world.HasComponent<PassengerBuffer>(e)
             && world.IsComponentTypeRegistered<PersonCarrier>() && Embarkation.IsPersonCarrier(world, e))
         {
+            // ⭐ CE-1085 (§6n N-3) — his casualty seat and his carry station are read APART: a weapon system in his list is the LOAD he
+            //   carries; only a man in it makes him a carrier. (CE-1081 read seat 0's mode whenever the list was not empty, so a soldier
+            //   with only a Javelin in his carry station was drawn carrying a casualty.)
             var list = world.GetComponentRO<PassengerBuffer>(e);
-            if (list.Count > 0)
-                return list.ModeOf(0) == CarryMode.Dragged
-                    ? new FigureCarriage(CarriageKind.Dragging, Wounded: wounded)
-                    : new FigureCarriage(CarriageKind.Carrying, Wounded: wounded);
+            Entity load = default;
+            int casualty = -1;
+            for (int i = 0; i < PassengerBuffer.Capacity; i++)
+            {
+                var p = list.Passengers[i];
+                if (p.IsNull || !world.IsAlive(p)) continue;
+                if (WeaponSystems.IsWeaponSystem(world, p)) { if (load.IsNull) load = p; }
+                else if (casualty < 0) casualty = i;
+            }
+            if (casualty >= 0)
+                return list.ModeOf(casualty) == CarryMode.Dragged
+                    ? new FigureCarriage(CarriageKind.Dragging, Wounded: wounded, Load: load)
+                    : new FigureCarriage(CarriageKind.Carrying, Wounded: wounded, Load: load);
+            if (!load.IsNull) return new FigureCarriage(CarriageKind.Free, Wounded: wounded, Load: load);
         }
         return wounded ? new FigureCarriage(CarriageKind.Free, Wounded: true) : FigureCarriage.Free;
     }

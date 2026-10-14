@@ -32,6 +32,9 @@ public enum PartRole : byte
     /// <summary>⭐ CE-1033 S4 — a block figure's limbs: swing about their TOP (hip, shoulder); left and right in opposite phase,
     /// each arm against its leg (<see cref="MotionPose.Swing"/>).</summary>
     LegLeft, LegRight, ArmLeft, ArmRight,
+    /// <summary>⭐ CE-1093 (docs/DESIGN_Map_3D_Mode.md §6n N-9) — a tail-rotor blade: spins about its centre's SIDEWAYS axis, faster than the
+    /// main rotor (<see cref="ShapeKits.TailRotorRatio"/>).</summary>
+    TailRotor,
 }
 
 /// <summary>
@@ -123,6 +126,9 @@ public readonly record struct KitPart(
                 m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Rotor) * Matrix4x4.CreateTranslation(axis);
                 break;
             }
+            case PartRole.TailRotor when motion.Rotor != 0f:
+                m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.Rotor * ShapeKits.TailRotorRatio) * Matrix4x4.CreateTranslation(centre);
+                break;
             case PartRole.WheelSpoke when motion.WheelRoll != 0f:
                 // rolling forward turns the wheel's top forward: about +y, the top (+z) toward +x
                 m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.WheelRoll) * Matrix4x4.CreateTranslation(centre);
@@ -199,6 +205,9 @@ public static class ShapeKits
     private static KitPart Spoke(float cx, float cy, float cz, float width)
         => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(0.13f, width * 1.06f, 0.03f), ColourRole.Metal, Role: PartRole.WheelSpoke);
 
+    /// <summary>⭐ CE-1093 — how many turns the tail rotor makes per main-rotor turn (UH-60: ~4.7).</summary>
+    public const float TailRotorRatio = 4.7f;
+
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
     public const float WheelRadiusOfHeight = 0.21f;
 
@@ -257,7 +266,8 @@ public static class ShapeKits
         Box(0.31f, 0f, 0.38f, 0.10f, 0.12f, 0.30f, ColourRole.Glass),                        // cockpit
         Box(-0.28f, 0f, 0.50f, 0.42f, 0.04f, 0.09f, ColourRole.Body),                        // tail boom
         Box(-0.47f, 0f, 0.64f, 0.06f, 0.015f, 0.34f, ColourRole.Body, -25f),                 // tail fin
-        Cyl(PartAxis.Y, -0.48f, 0.02f, 0.70f, 0f, 0.006f, 0.30f, ColourRole.Dark),           // tail rotor disc
+        Box(-0.48f, 0.025f, 0.70f, 0.17f, 0.004f, 0.012f, ColourRole.Dark, role: PartRole.TailRotor),   // ⭐ CE-1093 — tail-rotor blades
+        Box(-0.48f, 0.025f, 0.70f, 0.006f, 0.004f, 0.56f, ColourRole.Dark, role: PartRole.TailRotor),
         Cyl(PartAxis.Z, 0.06f, 0f, 0.66f, 0.015f, 0f, 0.10f, ColourRole.Metal),              // mast
         Box(0.06f, 0f, 0.72f, 0.83f, 0.03f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, fore–aft
         Box(0.06f, 0f, 0.72f, 0.025f, 1.0f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, across
@@ -305,6 +315,79 @@ public static class ShapeKits
         Box(0.36f, 0f, 0.07f, 0.03f, 0.02f, 0.14f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
     }, default);
 
+    /// <summary>⭐ CE-1086 (§6n N-7) — a quadcopter (an FPV drone; x, y = its rotor span): a body, an X frame, four motor pods and four
+    /// rotors (each spins about its own motor, <see cref="PartRole.Rotor"/>), the camera at the front, the warhead slung under it.</summary>
+    public static readonly ShapeKit Drone = new(new[]
+    {
+        Box(0f, 0f, 0.45f, 0.36f, 0.30f, 0.34f, ColourRole.Body),                            // body
+        Box(0f, 0f, 0.50f, 1.15f, 0.07f, 0.10f, ColourRole.Dark, yaw: 45f),                   // frame arm, front-left to rear-right
+        Box(0f, 0f, 0.50f, 1.15f, 0.07f, 0.10f, ColourRole.Dark, yaw: -45f),                  // frame arm, front-right to rear-left
+        Cyl(PartAxis.Z, 0.36f, 0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),            // motor pods
+        Cyl(PartAxis.Z, 0.36f, -0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Cyl(PartAxis.Z, -0.36f, 0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Cyl(PartAxis.Z, -0.36f, -0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Box(0.36f, 0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),   // rotors (two blades each)
+        Box(0.36f, -0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(-0.36f, 0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(-0.36f, -0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(0.21f, 0f, 0.50f, 0.07f, 0.10f, 0.14f, ColourRole.Glass),                        // the camera, at the front
+        Cyl(PartAxis.X, 0.02f, 0f, 0.16f, 0.62f, 0f, 0.30f, ColourRole.Dark),                // the warhead, slung under
+    }, default);
+
+    /// <summary>
+    /// ⭐ CE-1092 (docs/DESIGN_Map_3D_Mode.md §6n N-8) — an attack plane (A-10-like; y = span): a round fuselage with the GAU-8's barrel out
+    /// of the nose, a low straight wing, two engines high on the rear fuselage, the tailplane and its TWIN fins. Its bombs are
+    /// <see cref="AttackJetBombs"/>, drawn one per round left on its bomb rack.
+    /// </summary>
+    public static readonly ShapeKit AttackJet = new(new[]
+    {
+        Cyl(PartAxis.X, 0.02f, 0f, 0.40f, 0.78f, 0f, 0.30f, ColourRole.Body),               // fuselage
+        Cone(PartAxis.X, 0.45f, 0f, 0.40f, 0.08f, 0f, 0.28f, ColourRole.Body),              // nose
+        Cyl(PartAxis.X, 0.50f, 0f, 0.34f, 0.07f, 0f, 0.05f, ColourRole.Metal),              // the GAU-8's barrel
+        Box(0.30f, 0f, 0.57f, 0.10f, 0.06f, 0.12f, ColourRole.Glass),                       // canopy
+        Box(0.02f, 0f, 0.30f, 0.15f, 1.00f, 0.03f, ColourRole.Body),                        // the straight wing, low
+        Cyl(PartAxis.X, -0.20f, 0.10f, 0.64f, 0.18f, 0f, 0.24f, ColourRole.Dark),           // engines, high on the rear fuselage
+        Cyl(PartAxis.X, -0.20f, -0.10f, 0.64f, 0.18f, 0f, 0.24f, ColourRole.Dark),
+        Box(-0.42f, 0f, 0.58f, 0.10f, 0.32f, 0.025f, ColourRole.Body),                      // tailplane
+        Box(-0.43f, 0.16f, 0.74f, 0.10f, 0.012f, 0.32f, ColourRole.Body),                   // twin fins
+        Box(-0.43f, -0.16f, 0.74f, 0.10f, 0.012f, 0.32f, ColourRole.Body),
+        Box(0.12f, 0f, 0.13f, 0.02f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+        Box(0.02f, 0.15f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+        Box(0.02f, -0.15f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+    }, default);
+
+    /// <summary>⭐ CE-1092 — the attack plane's bombs on their wing pylons (Mk-82: 2.2 m, 0.27 m), outboard first; a pylon each.</summary>
+    public static readonly KitPart[] AttackJetBombs =
+    [
+        Cyl(PartAxis.X, 0.03f, 0.31f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, -0.31f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, 0.19f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, -0.19f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+    ];
+
+    /// <summary>⭐ CE-1092 — the pylons the bombs hang from (drawn whether loaded or not).</summary>
+    public static readonly KitPart[] AttackJetPylons =
+    [
+        Box(0.03f, 0.31f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, -0.31f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, 0.19f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, -0.19f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+    ];
+
+    /// <summary>⭐ CE-1089 (§6n N-5) — a self-propelled howitzer (M109-like; x includes the barrel): tracks, hull, a big boxy turret set
+    /// back, a long barrel with a muzzle brake and its bore evacuator, the travel lock folded on the glacis.</summary>
+    public static readonly ShapeKit SpArtillery = new(new[]
+    {
+        Box(-0.12f, 0.38f, 0.16f, 0.70f, 0.24f, 0.32f, ColourRole.Dark),                          // track, left (the hull is behind the barrel)
+        Box(-0.12f, -0.38f, 0.16f, 0.70f, 0.24f, 0.32f, ColourRole.Dark),                         // track, right
+        Box(-0.12f, 0f, 0.40f, 0.68f, 0.56f, 0.32f, ColourRole.Body),                            // hull
+        Box(-0.20f, 0f, 0.72f, 0.42f, 0.62f, 0.34f, ColourRole.Body, role: PartRole.Turret),     // the big turret
+        Cyl(PartAxis.X, 0.20f, 0f, 0.72f, 0.62f, 0f, 0.06f, ColourRole.Metal, PartRole.Gun),     // barrel
+        Cyl(PartAxis.X, 0.17f, 0f, 0.72f, 0.07f, 0f, 0.09f, ColourRole.Metal, PartRole.Gun),     // bore evacuator
+        Cyl(PartAxis.X, 0.50f, 0f, 0.72f, 0.04f, 0f, 0.10f, ColourRole.Dark, PartRole.Gun),      // muzzle brake
+        Box(0.21f, 0f, 0.46f, 0.03f, 0.10f, 0.20f, ColourRole.Dark, -30f),                       // travel lock, folded
+    }, new KitPivots(new Vector2(-0.20f, 0f), new Vector2(-0.06f, 0.72f)));
+
     public static readonly ShapeKit Unknown = new(new[] { Box(0f, 0f, 0.5f, 1f, 1f, 1f, ColourRole.Body) }, default);
     public static readonly ShapeKit None = new(System.Array.Empty<KitPart>(), default);
 
@@ -318,6 +401,9 @@ public static class ShapeKits
         VisualFamily.Helicopter => Helicopter,
         VisualFamily.Jet => Jet,
         VisualFamily.CargoPlane => CargoPlane,
+        VisualFamily.Drone => Drone,
+        VisualFamily.SpArtillery => SpArtillery,
+        VisualFamily.AttackJet => AttackJet,
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -333,6 +419,9 @@ public static class ShapeKits
         VisualFamily.Helicopter => new Vector3(19.8f, 16.4f, 5.1f),
         VisualFamily.Jet => new Vector3(15f, 10f, 4.9f),
         VisualFamily.CargoPlane => new Vector3(29.8f, 40.4f, 11.6f),
+        VisualFamily.Drone => new Vector3(0.6f, 0.6f, 0.3f),
+        VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
+        VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
         _ => new Vector3(2f, 2f, 2f),
     };
 }
@@ -707,6 +796,56 @@ public static class BlockFigure
         if (soldier && parts.Length > TorsoIndex + 6)
             parts[TorsoIndex + 6] = Limb(new(-0.16f, 0.22f, 1.55f), new(-0.14f, -0.24f, 0.85f), 0.05f, 0.08f, ColourRole.Metal);   // slung
         return parts;
+    }
+
+    /// <summary>⭐ CE-1085 … CE-1090 — a soldier's weapon part in the shared order (after the four leg parts, torso, head and four arm parts).</summary>
+    public const int WeaponIndex = TorsoIndex + 6;
+
+    /// <summary>
+    /// ⭐ CE-1088 (docs/DESIGN_Map_3D_Mode.md §6n N-2) — a man AT HIS WEAPON: kneeling (<paramref name="kneel"/>, the kneel's legs) or
+    /// standing, both hands forward on its grips or handles (0.5 m in front of him, at the grips' height), a soldier's rifle slung across his
+    /// back. The figure's frame is placed at the weapon's gunner spot (<see cref="WeaponKits.GunnerSpot"/>) or his seat.
+    /// </summary>
+    public static KitPart[] AtWeapon(bool kneel, bool soldier)
+    {
+        var body = kneel ? CrouchedBody : StandingBody;
+        var drop = kneel ? CrouchDrop : Vector3.Zero;
+        float gripZ = kneel ? 0.62f : 0.98f;
+        var l = StandShoulderL + drop;
+        var r = StandShoulderR + drop;
+        KitPart[] parts =
+        [
+            .. body,
+            .. Arm(l, l + new Vector3(0.24f, 0.02f, -0.20f), new Vector3(0.50f, 0.10f, gripZ), PartRole.Hull),
+            .. Arm(r, r + new Vector3(0.24f, -0.02f, -0.20f), new Vector3(0.50f, -0.10f, gripZ), PartRole.Hull),
+        ];
+        if (!soldier) return parts;
+        var back = drop + new Vector3(0f, 0f, 0f);
+        return [.. parts, Limb(new Vector3(-0.16f, 0.22f, 1.55f) + back, new Vector3(-0.14f, -0.24f, 0.85f) + back, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    /// <summary>The length and diameter of a shoulder-fired tube (m) — a Javelin's, near enough for an NLAW or an RPG.</summary>
+    public const float TubeLength = 1.10f, TubeDiameter = 0.13f;
+
+    /// <summary>
+    /// ⭐ CE-1090 (§6n N-4) — the soldier's rifle replaced by a launcher TUBE on his shoulder, along the rifle's line (his aim): the tube
+    /// sits a little higher and further back than the rifle, so a third of it sticks out behind the shoulder (where the backblast leaves).
+    /// Only the weapon part changes — the hands stay where they hold the rifle. A figure with no weapon part is returned as it is.
+    /// </summary>
+    public static KitPart[] Shouldered(KitPart[] parts)
+    {
+        if (parts.Length <= WeaponIndex) return parts;
+        var rifle = parts[WeaponIndex];
+        float p = rifle.PitchDegrees * MathF.PI / 180f, y = rifle.YawDegrees * MathF.PI / 180f;
+        var dir = new Vector3(MathF.Cos(p) * MathF.Cos(y), MathF.Cos(p) * MathF.Sin(y), -MathF.Sin(p));   // the rifle's +X, in the body
+        var centre = rifle.Centre * S - dir * 0.18f + new Vector3(0f, 0f, 0.06f);
+        var shouldered = (KitPart[])parts.Clone();
+        shouldered[WeaponIndex] = rifle with
+        {
+            Shape = PartShape.Cylinder, Axis = PartAxis.X, Centre = centre / S,
+            Extent = new Vector3(TubeLength, 0f, TubeDiameter) / S, Colour = ColourRole.Body,
+        };
+        return shouldered;
     }
 
     /// <summary>⭐ CE-1081 — how far a carrier's upper body leans under the load (radians): carrying ~11°, dragging ~17°.</summary>

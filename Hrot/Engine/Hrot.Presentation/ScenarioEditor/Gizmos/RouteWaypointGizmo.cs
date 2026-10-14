@@ -15,10 +15,9 @@ namespace Hrot.ScenarioEditor.Gizmos
     // a RoutePlan entity. Implements IRouteWaypointEditorState so WaypointEditorPanel
     // can read per-waypoint TargetSpeed and ExtensionJson without depending on this class.
     //
-    // Coordinate convention:
-    //   RouteWaypoint.Position = (X=East, Y=?, Z=North) -- same ENU as SimTransform.
-    //   2D map canvas = (X=East, Y=North). So worldPos.X -> waypoint.Position.X,
-    //   worldPos.Y -> waypoint.Position.Z.
+    // Coordinate convention (⭐ CE-2172, R-182 — was "Z = North", which put a drag's north into the altitude):
+    //   RouteWaypoint.Position = (X=East, Y=North, Z=Up) -- same as SimTransform and the draw tool.
+    //   2D map canvas = (X=East, Y=North). So a drag moves Position.X / Position.Y and keeps Position.Z.
     //
     // Static Current: exposes the active gizmo instance so WaypointEditorPanel can
     // bind to it without requiring a DI lookup. Set on construction, cleared on Dispose.
@@ -107,9 +106,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             {
                 var a = _waypoints[i];
                 var b = _waypoints[(i + 1) % _waypoints.Count];
-                draw.DrawLine(
-                    new Vector3(a.Position.X, a.Position.Z, 0f),
-                    new Vector3(b.Position.X, b.Position.Z, 0f),
+                draw.DrawLine(RouteGizmo.PointOf(view, a), RouteGizmo.PointOf(view, b),
                     new Rgba32(0x44, 0x88, 0xFF, 0xFF), 1.5f, SizeMode.ScreenPixels);
             }
 
@@ -125,7 +122,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 prim.Space            = CoordinateSpace.World;
                 prim.TargetView       = PipelineTarget.Map2D;
                 prim.BoxCenterX       = pos.X;
-                prim.BoxCenterY       = pos.Z;     // Z=North maps to canvas Y
+                prim.BoxCenterY       = pos.Y;     // ⭐ CE-2172 — Y is north
                 prim.BoxExtentX       = 8f;
                 prim.BoxExtentY       = 8f;
                 prim.Color            = isActive ? ActiveColor : IdleColor;
@@ -149,8 +146,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (_activeVertex < 0 || _activeVertex >= _waypoints.Count) return;
             var wp = _waypoints[_activeVertex];
-            // worldPos.Y on 2D map = North = Position.Z
-            wp.Position = new Vector3(worldPos.X, wp.Position.Y, worldPos.Y);
+            // ⭐ CE-2172 — the map's X / Y are the waypoint's; its height (Z) is not the drag's to change
+            wp.Position = new Vector3(worldPos.X, worldPos.Y, wp.Position.Z);
             _waypoints[_activeVertex] = wp;
         }
 

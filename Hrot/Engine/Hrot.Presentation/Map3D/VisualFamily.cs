@@ -22,6 +22,15 @@ public enum VisualFamily : byte
     CargoPlane,
     /// <summary>A composite unit: no body of its own, its members draw themselves.</summary>
     Unit,
+    /// <summary>⭐ CE-1086 (§6n N-7) — a multirotor drone: a <c>Uav</c> that flies as a <c>Rotorcraft</c> (the FPV drone).</summary>
+    Drone,
+    /// <summary>⭐ CE-1087 (§6n N-1) — a separable weapon (class <c>WeaponSystem</c>, <c>Mortar</c>, <c>TowedArtillery</c>); its kind picks the kit
+    /// (<c>WeaponKits.KindOf</c>).</summary>
+    WeaponSystem,
+    /// <summary>⭐ CE-1089 (§6n N-5) — a self-propelled howitzer: a tank hull, a big turret, a long barrel.</summary>
+    SpArtillery,
+    /// <summary>⭐ CE-1092 (§6n N-8) — an attack plane (class <c>AttackAircraft</c>, the A-10): straight wings, rear engines, twin fins, pylons.</summary>
+    AttackJet,
 }
 
 /// <summary>
@@ -47,11 +56,25 @@ public static class VisualFamilies
         ["Helicopter"] = VisualFamily.Helicopter,
         ["Jet"] = VisualFamily.Jet,
         ["CargoPlane"] = VisualFamily.CargoPlane,
+        ["WeaponSystem"] = VisualFamily.WeaponSystem,   // ⭐ CE-1087 — and its subclasses (HMG, Minigun, ATGM, Launcher, Sentry)
+        ["Mortar"] = VisualFamily.WeaponSystem,         // ⭐ CE-1087 — a tube is a weapon system (Indirect Fire IF-G)
+        ["TowedArtillery"] = VisualFamily.WeaponSystem,
+        ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089
+        ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
     /// because its DIS Kind is the unit Kind (11), no longer because it carries a <see cref="TkbCompositionDef"/>.</summary>
-    public static VisualFamily Of(TkbTemplate t) => Of(t.DisType);
+    /// <para>⭐ CE-1086 (§6n N-7) — a <see cref="VisualFamily.Jet"/> whose class chain names <c>Uav</c> and that FLIES AS A ROTORCRAFT
+    /// (<c>Gen.Locomotion</c>) is a <see cref="VisualFamily.Drone"/> — a quadcopter, not a 15 m fighter. A fixed-wing UAV stays a jet.</para>
+    public static VisualFamily Of(TkbTemplate t)
+    {
+        var family = Of(t.DisType);
+        if (family == VisualFamily.Jet && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>()?.Class == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft
+            && EntityClassTable.Default.Chain(t.DisType).Any(c => c.Name == "Uav"))
+            return VisualFamily.Drone;
+        return family;
+    }
 
     /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
     public static VisualFamily Of(DISEntityType dis)

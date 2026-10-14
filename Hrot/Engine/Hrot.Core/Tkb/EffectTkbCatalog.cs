@@ -23,6 +23,10 @@ namespace Hrot.Core.Tkb
         /// fading (U6: "Durations ok").</summary>
         public const long Fire = 7141, Smoke = 7151;
 
+        /// <summary>⭐ CE-1090 (docs/DESIGN_Map_3D_Mode.md §6n N-4) — the dust thrown BEHIND a recoilless launcher, and the ground blast round a
+        /// howitzer when it fires.</summary>
+        public const long Backblast = 7161, GunBlast = 7162;
+
         /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit.</summary>
         public enum CalibreClass : byte { Small, Medium, Large }
 
@@ -73,6 +77,8 @@ namespace Hrot.Core.Tkb
                 [Tracer]            = ("Tracer",              V(EffectKind.Tracer, 0.25f, 0.12f, "#FFB040", 0.1f)),
                 [Fire]              = ("Wreck fire",          V(EffectKind.Fire, 60f, 3.2f, "#FF8A2A", 15f)),          // sized for a tank, scaled by the wreck
                 [Smoke]             = ("Wreck smoke",         V(EffectKind.Smoke, 180f, 3f, "#2E2B28B0", 60f)),
+                [Backblast]         = ("Backblast",           V(EffectKind.Explosion, 0.8f, 2.6f, "#D8D0C0", 0.6f)),     // ⭐ CE-1090 — a dust cloud
+                [GunBlast]          = ("Gun blast",           V(EffectKind.Explosion, 1.1f, 6.0f, "#C8BA9C", 0.8f)),
             };
 
         private static EffectVisualDto V(EffectKind kind, float duration, float size, string colour, float fade)

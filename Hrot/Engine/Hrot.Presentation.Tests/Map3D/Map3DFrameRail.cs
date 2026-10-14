@@ -686,6 +686,7 @@ public sealed class Map3DFrameRail
         {
             world.AddComponent(carrier, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f, DragBehindMetres = 1f });
             var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+            list.Passengers[0] = casualty;   // ⭐ CE-1085 — as the sim lists him
             list.SetMode(0, mode);
             world.AddComponent(carrier, list);
             world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Exposed = 1, Mode = mode });
@@ -1409,6 +1410,205 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
+    /// <summary>
+    /// ⭐⭐ CE-1085 … CE-1093 (docs/DESIGN_Map_3D_Mode.md §6n) — the (V) acceptance, a real frame: a row of weapon systems — a tripod HMG
+    /// STOWED beside one DEPLOYED with its gunner kneeling at the grips, a Kornet with its gunner, a mortar laid at 60° with its gunner, a
+    /// towed howitzer with its trails spread and a man at the breech, a sentry gun, a self-propelled howitzer; a soldier carrying a Javelin
+    /// on his back, one holding a launcher on his shoulder just after firing, an FPV drone hovering; a technical with its M2 in the bed and a
+    /// kneeling gunner; a missile's top-attack trail; an A-10 with two of its four bombs left. Screenshots <c>ws-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1085_V_WeaponSystems_Gunners_Launchers_TheDrone_AndTheAttackPlane()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        var tkb = Map3DTests.BuiltIn();
+        Fdp.Core.DISEntityType Dis(byte category, byte sub = 0) => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = sub };
+        void Type(long id, string name, Fdp.Core.DISEntityType dis) => tkb.Register(new Fdp.Interfaces.TkbTemplate(name, id) { DisType = dis });
+        Type(990001, "M2 HMG", Dis(50, 1)); Type(990002, "M134 minigun", Dis(50, 2)); Type(990003, "Kornet", Dis(50, 3));
+        Type(990004, "Javelin", Dis(50, 4)); Type(990005, "Sentry gun", Dis(50, 5)); Type(990006, "81 mm mortar", Dis(10));
+        Type(990007, "M119 105 mm", Dis(5)); Type(990008, "M109 155 mm", Dis(4));
+        var pickup = new Fdp.Interfaces.TkbTemplate("Technical (test)", 990009) { DisType = Dis(6) };
+        pickup.AddDescriptor(new CarrierDefDto
+        {
+            Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open,
+            Seats =
+            {
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, Exposed = false },
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, X = -1.95f, Y = 0f, Z = 1.35f, Pose = SeatPose.Kneel },
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, X = -1.0f, Y = 0f, Z = 1.35f },
+            },
+        });
+        tkb.Register(pickup);
+        const long TestMissile = 6999;
+        var missileType = new Fdp.Interfaces.TkbTemplate("Test ATGM", TestMissile);
+        missileType.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.14f, ColorHex = "#6B6E4A", SmokeTrail = true });
+        tkb.Register(missileType);
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 20.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Put(long type, float dx, float dy, float yaw = 0f, float up = 0f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + up), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        Entity Weapon(long type, float dx, float dy, Fdp.Toolkit.Combat.WeaponDeploy deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed)
+        {
+            var w = Put(type, dx, dy);
+            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, DeploySeconds = 3f, PackSeconds = 3f });
+            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
+            return w;
+        }
+        Entity Soldier(float dx, float dy, long type = TkbEntityTypes.Infantry_Rifleman)
+        {
+            var s = Put(type, dx, dy);
+            world.AddComponent(s, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(s, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            return s;
+        }
+        void Mans(Entity weapon)
+        {
+            var man = Soldier(0f, 0f);
+            world.SetComponent(man, world.GetComponent<SimTransform>(weapon));   // the sim keeps a gunner at his weapon's origin
+            world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = weapon, Exposed = 1, Seat = 0 });
+        }
+        // the row, west to east (x), all facing north (+y)
+        float north = MathF.PI / 2f;
+        Weapon(990001, -14f, 0f, Fdp.Toolkit.Combat.WeaponDeploy.Stowed);
+        var hmg = Weapon(990001, -11f, 0f); Mans(hmg);
+        var kornet = Weapon(990003, -7.5f, 0f); Mans(kornet);
+        var mortar = Weapon(990006, -4f, 0f); Mans(mortar);
+        var howitzer = Weapon(990007, 2f, 0f); Mans(howitzer);
+        Weapon(990005, 7f, 0f);
+        Weapon(990002, 9.5f, 0f);
+        var spGun = Put(990008, 17f, 2f);
+        foreach (var w in new[] { hmg, kornet, mortar, howitzer })
+            world.SetComponent(w, world.GetComponent<SimTransform>(w) with { Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, north) });
+        foreach (var w in new[] { hmg, kornet, mortar, howitzer })
+            foreach (var g in world.Query().With<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>().Build())
+                if (world.GetComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(g).VehicleEntity == w)
+                    world.SetComponent(g, world.GetComponent<SimTransform>(w));
+
+        // a soldier carrying a Javelin (on his back) and one who has just fired a launcher (on his shoulder), and an FPV drone above them
+        var bearer = Soldier(-6f, -7f);
+        var javelin = Weapon(990004, -6f, -7f, Fdp.Toolkit.Combat.WeaponDeploy.Stowed);
+        world.AddComponent(bearer, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
+        var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 2 };
+        list.Passengers[1] = javelin;
+        world.AddComponent(bearer, list);
+        world.AddComponent(javelin, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bearer, Exposed = 1, Seat = 1 });
+        var shooter = Soldier(-3f, -7f, UrbanCombatTkbCatalog.TkbJavelinTeam);
+        world.SetComponent(shooter, new Fdp.Toolkit.Combat.Components.WeaponPosture
+        {
+            Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Point = new Vector3(spot.X - 3f, spot.Y + 60f, G(spot.X, spot.Y) + 1.5f),
+        });
+        var suite = tkb.GetByType(UrbanCombatTkbCatalog.TkbJavelinTeam)!.GetDescriptor<WeaponSuiteDto>()!;
+        int launcher = suite.Mounts.FindIndex(m => m.Category == WeaponCategory.Atgm);
+        Hrot.UI.Common.Effects.RecentShots.In(world).Record(shooter, launcher, now - 0.5);
+        Put(TkbEntityTypes.Drone_Fpv, -4.5f, -5f, up: 2.5f);
+
+        // a technical, its M2 in the bed's station and a gunner kneeling behind it
+        var tech = Put(990009, 4f, -9f);
+        var techTf = world.GetComponent<SimTransform>(tech);
+        var m2 = Weapon(990001, 0f, 0f);
+        world.SetComponent(m2, new SimTransform { Position = techTf.Position + new Vector3(-1.0f, 0f, 1.35f), Rotation = techTf.Rotation });
+        world.AddComponent(m2, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = tech, Exposed = 1, Seat = 2 });
+        var techGunner = Soldier(0f, 0f);
+        world.SetComponent(techGunner, techTf);
+        world.AddComponent(techGunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = tech, Exposed = 1, Seat = 1 });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+        void Draw(int n = 2) { for (int i = 0; i < n; i++) { now += 1.0 / 30.0; world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now }); frame.Step(canvas.Draw); } }
+
+        // the row of weapons, from the south-east, a little above
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y + 0.5f, G(spot.X, spot.Y) + 0.8f), 15f, MathF.PI * 0.58f, -0.22f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-1-weapons.png"));
+        Assert.Equal(4, bodies.GunnersDrawn);   // the four men at ground weapons (the technical's gunner is drawn from his SEAT, a Kneel seat pose)
+
+        // the closer half: the stowed and deployed HMG, the Kornet and the mortar, their gunners
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 9f, spot.Y + 0.3f, G(spot.X, spot.Y) + 0.6f), 7f, MathF.PI * 0.62f, -0.18f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-2-hmg-kornet-mortar.png"));
+
+        // the Javelin on a back, the launcher on a shoulder, the drone
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 4.5f, spot.Y - 6.5f, G(spot.X, spot.Y) + 1.4f), 6f, MathF.PI * 1.15f, -0.10f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-3-carried-shouldered-drone.png"));
+        Assert.Equal(1, bodies.CarriedDrawn);
+        Assert.Equal(1, bodies.ShoulderedDrawn);
+
+        // the technical
+        sw.Camera3D.Pose = new CameraPose(techTf.Position + new Vector3(0f, 0f, 1.2f), 8f, MathF.PI * 1.25f, -0.25f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-4-technical.png"));
+
+        // the laid guns side-on, from the west and above: the mortar at 60°, the howitzer at 25°
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1f, spot.Y + 1f, G(spot.X, spot.Y) + 1f), 11f, 0f, -0.30f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-4b-laid-guns.png"));
+
+        // a missile's top attack: up from the launcher, over and down onto the SP howitzer — the trail bends with it
+        var sp = world.GetComponent<SimTransform>(spGun).Position;
+        var start = new Vector3(spot.X - 120f, spot.Y - 7f, G(spot.X, spot.Y) + 1.5f);   // fired from 140 m west
+        var missile = world.CreateEntity();
+        world.AddComponent(missile, new SimTransform { Position = start, Rotation = Quaternion.Identity });
+        world.AddComponent(missile, new SimVelocity());
+        world.AddComponent(missile, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Ammo = TestMissile, Muzzle = start, PreviousPosition = start });
+        Vector3 Arc(float t) => Vector3.Lerp(start, sp, t) + new Vector3(0f, 0f, 45f * MathF.Sin(MathF.PI * MathF.Min(1f, t * 1.15f)));
+        sw.Camera3D.Pose = new CameraPose((start + sp) / 2f + new Vector3(0f, 0f, 18f), 120f, MathF.PI * 0.5f, -0.05f);   // from the south
+        for (int i = 1; i <= 70; i++)
+        {
+            float t = i / 80f;
+            var at = Arc(t);
+            world.SetComponent(missile, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            world.SetComponent(missile, new SimVelocity { Linear = (Arc(t + 0.01f) - at) * 100f });
+            Draw(1);
+        }
+        frame.Screenshot(Path.Combine(shots, "ws-5-top-attack-trail.png"));
+
+        // an A-10 flying 60 m over the row, two of its four bombs gone
+        var a10 = Put(TkbEntityTypes.Jet_AttackA10, 0f, 10f, yaw: MathF.PI * 0.85f, up: 60f);
+        world.AddComponent(a10, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 2, Max0 = 4 });
+        sw.Camera3D.Pose = new CameraPose(world.GetComponent<SimTransform>(a10).Position, 24f, MathF.PI * 1.3f, -0.30f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-6-a10.png"));
+    }
+
     private static Vector2 FindOpenGround(Fdp.Toolkit.Terrain.TerrainWorld terrain, IWorldQuery query)
     {
         var mid = (terrain.BoundsMin + terrain.BoundsMax) / 2f;

@@ -36,8 +36,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private bool _meshes;
 
     /// <summary>What a TKB type looks like — resolved once per type.</summary>
+    /// <para>⭐ CE-1087 — a weapon system's <paramref name="Weapon"/> kind picks its kit.</para>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
-                                           BodyGeometryDto? Geometry = null);
+                                           BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg);
 
     /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⭐ WL-1 — in
     /// production it is <see cref="TurretPoseSource.PoseOf"/> (the turret part's <c>TurretPose</c>, DESIGN_Weapon_Layers W-9), plugged in
@@ -67,7 +68,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = 0;
+        _carried.Clear();
+        _shouldering.Clear();
+        _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
         if (!ReferenceEquals(world, _queryWorld))
@@ -102,6 +106,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
+            // ⭐ CE-1085 (§6n N-3) — a weapon a man CARRIES is drawn on his back, after every figure is placed (pass 2)
+            if (look.Family == VisualFamily.WeaponSystem && CarrierOf(world, e) is { } bearer)
+            {
+                _carried.Add((e, bearer, look, size, colour));
+                _drawn.Add(e);
+                continue;
+            }
             // ⭐ W2 (docs/DESIGN_Visual_Effects.md §7 VE-N/VE-O) — a destroyed VEHICLE is a near-black wreck, every part; the turret
             //   stays where it last pointed (its pose is no longer driven). A dead person is drawn by the Dead figure instead (VE-S).
             bool wreck = look.Family != VisualFamily.Person && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
@@ -109,7 +120,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
-            bool rotorTurning = look.Family == VisualFamily.Helicopter && !wreck && IsAirborne(world, tf.Position, look.Geometry);
+            bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
+                                           || look.Family == VisualFamily.Helicopter && IsAirborne(world, tf.Position, look.Geometry));
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
 
             KitPart[] parts;
@@ -126,6 +138,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 (parts, float aimed, float crouchRun) = FigurePose(world, e, look.Soldier, simTime, motion);
                 motion = FigureMotion(world, e, motion, look.Soldier, tf, size, simTime, aimed, crouchRun);
                 (parts, motion) = Burdened(world, e, carriage, look.Soldier, parts, motion);
+                // ⭐ CE-1090 (§6n N-4) — just fired a launcher and still aimed: the tube on his shoulder instead of the rifle
+                if (look.Soldier && PostureOf(world, e) == WeaponPostureKind.Aimed && Shouldering(world, e, carriage, tkb, simTime))
+                {
+                    parts = BlockFigure.Shouldered(parts);
+                    _shouldering.Add(e);
+                }
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
                 if (jumping)
@@ -136,13 +154,28 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     JumpsDrawn++;
                 }
             }
+            else if (look.Family == VisualFamily.WeaponSystem)
+            {
+                // ⭐ CE-1087 (§6n N-1) — stowed / deployed from the replicated deploy state, blended while it is set up or packed; only a
+                //   deployed weapon traverses and elevates (a laid tube or howitzer at its elevation, N-5)
+                float deployed = DeploymentOf(world, e, simTime);
+                var kit = WeaponKits.Blend(look.Weapon, deployed);
+                (parts, pivots) = (kit.Parts, kit.Pivots);
+                if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon), simTime);
+            }
             else
             {
                 var kit = ShapeKits.For(look.Family);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
+                if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation, simTime);   // ⭐ CE-1089 (N-5)
+                if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
+                    parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
             }
             _drawn.Add(e);
+            if (look.Family == VisualFamily.Person) _figureFrames[e] = (body, size.Z);   // ⭐ CE-1085 — where a carried weapon hangs
+            if (_shouldering.Contains(e)) ShoulderedDrawn++;
+            if (carriage.Kind == CarriageKind.Manning) GunnersDrawn++;
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
             //   (an aircraft's CG), and the gear is drawn AT the TKB's contact points instead of the kit's generic gear.
             var geometry = look.Geometry;
@@ -153,9 +186,14 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 var part = parts[pi];
                 if (geometry != null && part.Role == PartRole.Gear) continue;
-                // ⭐ CE-1070 — a figure's rifle (its one Metal part): remember where its muzzle end was drawn, for the muzzle flash
-                if (look.Family == VisualFamily.Person && part.Colour == ColourRole.Metal)
-                    _weaponTips[e] = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
+                // ⭐ CE-1070 — a figure's rifle (its weapon part): remember where its muzzle end was drawn, for the muzzle flash.
+                //   ⭐ CE-1090 — a shouldered launcher is that part too; its tip is also the CARRIED weapon's muzzle (its shot is the weapon's)
+                if (look.Family == VisualFamily.Person && look.Soldier && pi == BlockFigure.WeaponIndex)
+                {
+                    var tip = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
+                    _weaponTips[e] = tip;
+                    if (_shouldering.Contains(e) && !carriage.Load.IsNull) _weaponTips[carriage.Load] = tip;
+                }
                 // ⭐ CE-1073 (§6l) — a figure's head: remember its eyes (in the body's frame) for the first-person camera, and do not
                 //   draw the head of the unit seen FROM it (the camera sits inside it)
                 if (look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
@@ -183,6 +221,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             }
             BodiesDrawn++;
         }
+        DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
+        UpdateLaid(world, simTime);
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
         _down.EndFrame(_drawn);
@@ -356,10 +396,19 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
                 body = Carriage.InSeat(Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
-                _drops.Riding(e, body.Translation.Z, simTime);
+                // ⭐ CE-1088 (§6n N-2) — a gunner seat may say he STANDS or KNEELS at its weapon (the place is then his feet)
+                bool stands = seat.Pose is Fdp.Toolkit.Tkb.Domain.SeatPose.Stand or Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
+                float hips = stands ? BlockFigure.HipFraction(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel ? StanceId.Crouched : StanceId.Standing) * size.Z : 0f;
+                _drops.Riding(e, body.Translation.Z + hips, simTime);
                 _fall.Alive(e, StanceId.Crouched, simTime);
+                if (stands) return BlockFigure.AtWeapon(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel, soldier);
                 return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
             }
+            case CarriageKind.Manning when world.HasComponent<SimTransform>(carriage.Holder)
+                                          && GunnerFrame(world, carriage, size, simTime, out var frame, out bool kneel):
+                body = frame;
+                _fall.Alive(e, kneel ? StanceId.Crouched : StanceId.Standing, simTime);
+                return BlockFigure.AtWeapon(kneel, soldier);
             case CarriageKind.Downed:
             {
                 var (t, from) = _down.Dead(e, simTime);
@@ -396,6 +445,180 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             };
         return (parts, motion);
     }
+    // ── ⭐ CE-1085 … CE-1090 (docs/DESIGN_Map_3D_Mode.md §6n) — weapon systems, their gunners, carried weapons, launchers in hands ──
+
+    private readonly List<(Entity Weapon, Entity Bearer, TypeLook Look, Vector3 Size, Color Colour)> _carried = new();
+    private readonly HashSet<Entity> _shouldering = new();
+    private readonly Dictionary<Entity, (Matrix4x4 Frame, float Height)> _figureFrames = new();
+    private readonly Dictionary<Entity, (float Elevation, double At)> _laid = new();
+    private readonly HashSet<Entity> _roundsSeen = new();
+    private readonly HashSet<Entity> _roundsNow = new();
+    private EntityRepository? _roundsWorld;
+    private EntityQuery? _rounds;
+
+    /// <summary>⭐ CE-1085 — weapons drawn on a carrier's back by the last frame (rails).</summary>
+    public int CarriedDrawn { get; private set; }
+    /// <summary>⭐ CE-1088 — men drawn at their weapons by the last frame (rails).</summary>
+    public int GunnersDrawn { get; private set; }
+    /// <summary>⭐ CE-1090 — soldiers drawn with a launcher on the shoulder by the last frame (rails).</summary>
+    public int ShoulderedDrawn { get; private set; }
+
+    /// <summary>
+    /// ⭐ CE-1092 (N-8) — how many bombs an attack plane still carries (at most its pylons): its bomb mount's rounds from the replicated
+    /// <c>WeaponAmmo</c> mirror (CE-1079) — the full load where no mirror exists yet (a scenario being edited).
+    /// </summary>
+    public static int BombsLeft(EntityRepository world, Entity plane, ITkbDatabase? tkb)
+    {
+        int pylons = ShapeKits.AttackJetBombs.Length;
+        if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, plane, out var template)
+            || template.GetDescriptor<WeaponSuiteDto>() is not { } suite) return pylons;
+        for (int i = 0; i < suite.Mounts.Count; i++)
+        {
+            if (suite.Mounts[i].Category != WeaponCategory.Bomb) continue;
+            int rounds = suite.Mounts[i].InitialAmmunition;
+            if (i < WeaponAmmo.MaxMounts && world.IsComponentTypeRegistered<WeaponAmmo>() && world.HasComponent<WeaponAmmo>(plane)
+                && world.GetComponentRO<WeaponAmmo>(plane) is { } ammo && i < ammo.Count)
+                rounds = ammo.AmmoOf(i);
+            return Math.Clamp(rounds, 0, pylons);
+        }
+        return 0;
+    }
+
+    /// <summary>⭐ CE-1089 (N-5) — a self-propelled howitzer's barrel when nothing says better (radians, 25°).</summary>
+    public static readonly float SpGunElevation = WeaponKits.DefaultElevation(WeaponKind.TowedGun);
+
+    /// <summary>⭐ CE-1089 (N-5) — how long a gun keeps the elevation its last round left at (s).</summary>
+    public const double LaidSeconds = 60.0;
+
+    /// <summary>The man carrying <paramref name="weapon"/> (in his carry station), or null when it is not carried by a person.</summary>
+    private static Entity? CarrierOf(EntityRepository world, Entity weapon)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+            || !world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(weapon)) return null;
+        var holder = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(weapon).VehicleEntity;
+        return world.IsAlive(holder) && world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PersonCarrier>()
+               && Fdp.Toolkit.Behavior.Embarkation.IsPersonCarrier(world, holder) ? holder : null;
+    }
+
+    /// <summary>⭐ CE-1087 — how far <paramref name="weapon"/> is deployed now (0 stowed … 1 deployed); 1 without a deploy state.</summary>
+    public static float DeploymentOf(EntityRepository world, Entity weapon, double now)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemState>() || !world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemState>(weapon))
+            return 1f;
+        var state = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemState>(weapon);
+        float seconds = 0f;
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>() && world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon))
+        {
+            var p = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon);
+            seconds = state.Deploy == Fdp.Toolkit.Combat.WeaponDeploy.Packing ? p.PackSeconds : p.DeploySeconds;
+        }
+        return WeaponKits.Deployment(state.Deploy, state.Until, now, seconds);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1089 (N-5) — the turret and gun pose of a gun that fires INDIRECT: its own turret pose where it is driven; else level guns
+    /// are laid at the elevation of the last round it fired (seen on this node within <see cref="LaidSeconds"/>), else at
+    /// <paramref name="fallback"/>. ⏭ Backend's IF-1 replicated elevation will replace the fallback on every host.
+    /// </summary>
+    private ArticulationPose LaidPose(EntityRepository world, Entity gun, float fallback, double now)
+    {
+        var pose = _poseOf != null ? _poseOf(world, gun) : ArticulationPose.Neutral;
+        if (MathF.Abs(pose.GunElevation) > 1e-3f) return pose;
+        float elevation = _laid.TryGetValue(gun, out var laid) && now >= laid.At && now - laid.At <= LaidSeconds ? laid.Elevation : fallback;
+        return pose with { GunElevation = elevation };
+    }
+
+    /// <summary>⭐ CE-1089 — remembers the elevation each gun's NEWEST round left at (where combat runs, a round knows its shooter).</summary>
+    private void UpdateLaid(EntityRepository world, double now)
+    {
+        if (!world.IsComponentTypeRegistered<BallisticProjectile>() || !world.IsComponentTypeRegistered<SimVelocity>()) return;
+        if (!ReferenceEquals(world, _roundsWorld))
+        {
+            _roundsWorld = world;
+            _rounds = world.Query().With<BallisticProjectile>().With<SimVelocity>().Build();
+            _roundsSeen.Clear();
+        }
+        _roundsNow.Clear();
+        foreach (var r in _rounds!)
+        {
+            _roundsNow.Add(r);
+            if (!_roundsSeen.Add(r)) continue;
+            var shooter = world.GetComponentRO<BallisticProjectile>(r).Shooter;
+            var v = world.GetComponentRO<SimVelocity>(r).Linear;
+            float flat = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
+            if (shooter.IsNull || v.LengthSquared() < 1f) continue;
+            _laid[shooter] = (MathF.Atan2(v.Z, flat), now);
+        }
+        _roundsSeen.IntersectWith(_roundsNow);
+    }
+
+    /// <summary>⭐ CE-1089 — a gun's laid elevation as its last round left (the rails' seam on a host with no combat).</summary>
+    internal void RememberLaid(Entity gun, float elevation, double at) => _laid[gun] = (elevation, at);
+
+    /// <summary>
+    /// ⭐ CE-1090 (N-4) — does <paramref name="e"/> hold a launcher on his shoulder now: he fired a launcher mount of his own, or the
+    /// launcher he carries fired, within <see cref="WeaponKits.ShoulderSeconds"/>.
+    /// </summary>
+    private static bool Shouldering(EntityRepository world, Entity e, in FigureCarriage carriage, ITkbDatabase? tkb, double now)
+    {
+        if (Hrot.UI.Common.Effects.RecentShots.Of(world) is not { } shots) return false;
+        if (shots.FiredWithin(e, now, WeaponKits.ShoulderSeconds, out int mount)
+            && WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, mount))) return true;
+        return !carriage.Load.IsNull && shots.FiredWithin(carriage.Load, now, WeaponKits.ShoulderSeconds, out _)
+               && WeaponKits.TypeOf(world, tkb, carriage.Load).Kind is WeaponKind.Launcher or WeaponKind.Atgm;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1088 (N-2) — where a man in a weapon's own seat is drawn: at its seat's place when the seat declares one, else at the weapon
+    /// kind's gunner spot (scaled to the weapon's size), turned with its traverse about its pivot. False for a weapon nobody mans on foot.
+    /// </summary>
+    internal bool GunnerFrame(EntityRepository world, in FigureCarriage carriage, Vector3 manSize, double now, out Matrix4x4 frame, out bool kneel)
+    {
+        frame = default; kneel = false;
+        var weapon = carriage.Holder;
+        if (!world.HasComponent<TkbIdentity>(weapon)) return false;
+        var look = LookOf(world.GetComponentRO<TkbIdentity>(weapon).TkbType, _tkb());
+        ref readonly var w = ref world.GetComponentRO<SimTransform>(weapon);
+        var weaponBody = Matrix4x4.CreateFromQuaternion(w.Rotation) * Matrix4x4.CreateTranslation(w.Position);
+        if (carriage.Seat is { HasPlace: true } seat)
+        {
+            frame = Carriage.InSeat(weaponBody, seat);
+            kneel = seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
+            return true;
+        }
+        if (look.Family != VisualFamily.WeaponSystem || WeaponKits.GunnerSpot(look.Weapon) is not { } spot) return false;
+        var size = SizeOf(world, weapon, look);
+        var scale = size / WeaponKits.DefaultSize(look.Weapon);
+        float azimuth = DeploymentOf(world, weapon, now) >= 1f && _poseOf != null ? _poseOf(world, weapon).TurretAzimuth : 0f;
+        var pivot = WeaponKits.TraversePivot(look.Weapon, size);
+        frame = Matrix4x4.CreateRotationZ(spot.Facing) * Matrix4x4.CreateTranslation(spot.At * scale)
+                * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot)
+                * weaponBody;
+        kneel = spot.Kneel;
+        return true;
+    }
+
+    /// <summary>⭐ CE-1085 (N-3) — pass 2: each carried weapon on its bearer's back as his figure was drawn, stowed; not drawn while he
+    /// holds it on his shoulder (the figure's tube is it), nor when its bearer was not drawn.</summary>
+    private void DrawCarried(EntityRepository world, LitShader shader, Func<Entity, bool> wreckOf)
+    {
+        foreach (var (weapon, bearer, look, size, colour) in _carried)
+        {
+            if (_shouldering.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
+            var frame = WeaponKits.OnBack(figure.Frame, figure.Height, size);
+            bool wreck = wreckOf(weapon);
+            foreach (var part in WeaponKits.Kit(look.Weapon, deployed: false).Parts)
+            {
+                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size) * frame);
+                var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
+                Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
+                PartsDrawn++;
+            }
+            CarriedDrawn++;
+            BodiesDrawn++;
+        }
+    }
+
     private readonly DoorSwing _doors = new();
     private readonly Dictionary<Entity, (Vector3 Tip, Vector3 Forward)> _weaponTips = new();
     private readonly List<Entity> _tipsGone = new();
@@ -434,8 +657,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                                                            MotionPose motion, Matrix4x4 bodyToWorld)
     {
         var m = part.BodyTransform(size, pivots, pose, motion) * bodyToWorld;
-        var tip = Vector3.Transform(new Vector3(0.5f, 0f, 0f), m);
-        return (tip, Vector3.Normalize(tip - Vector3.Transform(new Vector3(-0.5f, 0f, 0f), m)));
+        // ⭐ CE-1090 — a box runs along its own x; a cylinder (a shouldered tube) along its unit z, 0 → 1
+        bool tube = part.Shape == PartShape.Cylinder;
+        var tip = Vector3.Transform(tube ? new Vector3(0f, 0f, 1f) : new Vector3(0.5f, 0f, 0f), m);
+        return (tip, Vector3.Normalize(tip - Vector3.Transform(tube ? Vector3.Zero : new Vector3(-0.5f, 0f, 0f), m)));
     }
 
     public bool TryGetWeaponTip(Entity e, out Vector3 tip, out Vector3 forward)
@@ -600,11 +825,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (t.DisType.Kind == 2 || t.GetDescriptor<MunitionVisualDto>() != null)
             return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         var family = VisualFamilies.Of(t);
-        var size = ShapeKits.DefaultSize(family);
+        var weapon = family == VisualFamily.WeaponSystem ? WeaponKits.KindOf(t.DisType) : WeaponKind.Hmg;   // ⭐ CE-1087
+        var size = family == VisualFamily.WeaponSystem ? WeaponKits.DefaultSize(weapon) : ShapeKits.DefaultSize(family);
         var geometry = t.GetDescriptor<BodyGeometryDto>();
         if (geometry is { Length: > 0f, Width: > 0f, Height: > 0f })
         {
             size = new Vector3(geometry.Length, geometry.Width, geometry.Height);   // ⭐ CE-1041 — engine-neutral size wins
+        }
+        else if (family == VisualFamily.Drone && t.GetDescriptor<FlightParamsDto>() is { BodyRadiusM: > 0f, BodyHeightM: > 0f } flight)
+        {
+            // ⭐ CE-1086 (§6n N-7) — a drone is as big as its flight body (the collider the sim stamps from Gen.Flight)
+            size = new Vector3(2f * flight.BodyRadiusM, 2f * flight.BodyRadiusM, flight.BodyHeightM);
         }
         else if (family != VisualFamily.Person && family != VisualFamily.Unit)
         {
@@ -620,7 +851,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             size *= tall / size.Z;
         }
         var colour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex) ?? DefaultColour(family);
-        return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t), geometry);
+        return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t), geometry, weapon);
     }
 
     /// <summary>
@@ -710,6 +941,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         VisualFamily.Helicopter => new Color(96, 104, 92, 255),
         VisualFamily.Jet => new Color(128, 136, 146, 255),
         VisualFamily.CargoPlane => new Color(118, 124, 116, 255),
+        VisualFamily.Drone => new Color(74, 74, 74, 255),
+        VisualFamily.WeaponSystem => new Color(84, 92, 70, 255),
+        VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
+        VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         _ => new Color(180, 120, 200, 255),
     };
 
