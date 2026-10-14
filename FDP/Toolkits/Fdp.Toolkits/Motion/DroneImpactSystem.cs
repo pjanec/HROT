@@ -63,16 +63,28 @@ namespace Fdp.Toolkit.Motion
                         if (tIn < bestT) { bestT = tIn; hit = b; }
                     }
 
-                // ── the terrain: a wall or a roof between the two points, or the ground under it ──
-                bool ground = false; float groundZ = float.NegativeInfinity;
-                if (hit.IsNull && world != null)
+                // ── the terrain: a wall, a roof or a deck between the two points, or the ground under it ── ⭐ C2 (handoff 2): whichever
+                //   comes FIRST along the segment wins — a deck over a parked tank stops the dive even when the same frame's segment also
+                //   enters the hull's band behind it (measured: at a 0.1 s frame the hull won, the deck was flown through).
+                float terrainT = float.MaxValue, groundZ = float.NegativeInfinity;
+                if (world != null)
                 {
                     groundZ = world.GroundHeightAt(p1.X, p1.Y);
-                    ground = p1.Z - contact <= groundZ || world.SightBlocked(p0, p1);
+                    if (world.SightBlocked(p0, p1)) terrainT = FirstBlocked(world, p0, p1);
+                    if (p1.Z - contact <= groundZ)
+                    {
+                        float drop = p0.Z - p1.Z;
+                        float tGround = drop > 1e-6f ? Math.Clamp((p0.Z - contact - groundZ) / drop, 0f, 1f) : 1f;
+                        terrainT = MathF.Min(terrainT, tGround);
+                    }
                 }
-                if (hit.IsNull && !ground) continue;
+                if (!hit.IsNull && terrainT <= bestT) hit = Entity.Null;
+                if (hit.IsNull && terrainT == float.MaxValue) continue;
 
-                var at = hit.IsNull ? new Vector3(p1.X, p1.Y, MathF.Max(p1.Z, groundZ)) : p0 + (p1 - p0) * Math.Clamp(bestT, 0f, 1f);
+                var at = hit.IsNull
+                    ? p0 + (p1 - p0) * terrainT
+                    : p0 + (p1 - p0) * Math.Clamp(bestT, 0f, 1f);
+                if (hit.IsNull && at.Z < groundZ) at.Z = groundZ;
                 if (alive)
                 {
                     var mount = CombatTkb.MountOf(repo, d, 0);
@@ -98,6 +110,19 @@ namespace Fdp.Toolkit.Motion
                 fs.Airborne = 0;
                 fs.VerticalSpeed = 0f;
             }
+        }
+
+        /// <summary>The fraction along p0→p1 where the terrain first blocks it (bisected on <see cref="IWorldQuery.SightBlocked"/>, ~2 cm on
+        /// a 30 m/s frame); the caller knows the whole segment is blocked.</summary>
+        private static float FirstBlocked(IWorldQuery world, Vector3 p0, Vector3 p1)
+        {
+            float lo = 0f, hi = 1f;
+            for (int i = 0; i < 10; i++)
+            {
+                float mid = 0.5f * (lo + hi);
+                if (world.SightBlocked(p0, p0 + (p1 - p0) * mid)) hi = mid; else lo = mid;
+            }
+            return hi;
         }
     }
 }

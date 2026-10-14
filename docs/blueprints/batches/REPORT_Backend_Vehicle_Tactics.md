@@ -58,6 +58,25 @@ tt-convoy-ambush: the in-process `CE1056_AConvoyIsAmbushed` rail is in the integ
 | **CE-3199** (who owns a flyer's position) | 🔒 *"use one single Muscle role, so all positions are owned by it"* · *"keep MuscleGround"* — **R-3005** | `MuscleGround` applies to a template with `Gen.Flight`; `FlightParams`/`FlightState` in its group. No `MuscleAir`, no rename, no wire | `c5d5b7689` |
 | **CE-3029** (vehicles cut corners) | 🔒 *"round each corner in the planned path to fit the vehicle's turning radius"* — **R-3006** | corners rounded in the solver for WheelBase / tan(MaxSteer) + (measured necessary) the follower's lookahead capped across a curve. Live `tt-nav-los`: **1.77 m** from Block A (was 0.16–0.7). ⚠ the scale-out DDS path request does not carry the radius — filed `CE-3200` | `b25c01e35` + this |
 
+## Handoff (2) — C1–C4 done, C5 queued (`HANDOFF_Behaviors_To_Backend_Vehicle_Tactics_2.md`, scope frozen at `6d22683c8`)
+
+| item | what | result | design fold-back |
+|---|---|---|---|
+| C1 | merge `behaviors` (CE-2169 fixes CE-3197) | merged `behaviors@6d22683c8` in `5e12adb75`; `CE2069_*` green in **4 of 4** full `Fdp.Toolkits.Tests` runs; CE-3197 closed as a duplicate | tracker |
+| C2 | `DroneImpactSystemTests.M7_ADive_UnderADeck_MeetsTheSlab` | ✅ — ⚠ **red first** (4/4) on a 0.1 s frame: the hull beat a deck in front of it; fixed in `DroneImpactSystem` (first hit along the segment wins) — own code (B11), in scope | FPV §6 |
+| C3 | `EntityOrdersAcrossNodesTests.M7_APossessedDrone_FollowsTheStation_AcrossNodes` | ✅ — the station's `Vertical = 1` reaches SimHost (dtManualDrive), the drone climbs 20 → 22.05 m in 17 frames, then flies forward; release resumes the brain | FPV §6 |
+| C4 | `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` | ✅ without a code change — the pintle HMG fires its 5 granted rounds at a drone ~52° up; the M1 gun ends `OutOfArc` and fires none | Exposure Cycle §8 (cross-lane edit, said in the commit) |
+| C5 ⏸ | CE-3198 NLAW overfly | not started — waits for the behaviors lane's go after the drone attack | — |
+
+| gate (all `--no-build`, the TEST project built) | result | delta |
+|---|---|---|
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests` ×4 (C1) | 3297 / 1 / 1 each — the 1 red = the new C2 rail before its fix (red-proof); CE2069 green 4/4 | — |
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --filter "DroneImpactSystemTests\|V8_AnHmg"` | 6 / 0 / 0 after the fix | +4 (C2 ×2, C4 ×2) |
+| ⭐ integration (C3): `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter EntityOrdersAcrossNodesTests` | 3 / 0 / 0 | +1 (the drone); the soldier possession and the cross-node order stay green |
+| docs: `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` | ✅ | no ids allocated |
+
+No combat number moved; no wire change (R-169). Behaviour-lane surfaces (`ShelterFromAir`, `VehicleFightFromCover`, `BasicVehicleSop`, `AirContacts`) untouched.
+
 ## Findings (ids allocated: CE-3197, CE-3198, CE-3199)
 
 - **CE-3199 ❓ decision** — the `MuscleAir` role (MD-B) cannot exist while the ownership table allows a component in ONE group only; lean:

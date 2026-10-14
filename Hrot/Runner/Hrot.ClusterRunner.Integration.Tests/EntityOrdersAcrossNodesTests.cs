@@ -174,4 +174,89 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             || sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Forward == 0f, timeoutFrames: 300),
             "the brain's let-go must reach the muscle: no axes left after the release");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>C3</c> (handoff 2; DESIGN_FPV_Drone §6, Motion Domains §5; R-3005) — an FPV DRONE possessed from another node flies there:
+    /// SimHost is the station; its frames cross to CGF as <c>ControlFrameInteractionPayload</c> (with the B10 <c>Vertical</c> axis);
+    /// CGF's <c>OperatorControl</c> writes <c>ManualDrive</c> + <c>NavigationIntent.Manual</c>, which come back as dtManualDrive /
+    /// dtNavigationIntent; SimHost — the ONE Muscle role, <c>MuscleGround</c>, owns the drone's position (R-3005) — climbs and flies it
+    /// through <c>AirMotionSystem</c> → <c>RotorcraftModel.Manual</c>. 🔒 User: <i>"Drone will need to be controllable also from FPS
+    /// possess mode."</i> The scenario is <c>ua-grenade-or-rifle</c> plus one drone (no drone scenario ships yet).
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task M7_APossessedDrone_FollowsTheStation_AcrossNodes()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        var scenario = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json")))!;
+        scenario["entities"]!["a4120000-0000-4000-8000-0000000000d1"] = System.Text.Json.Nodes.JsonNode.Parse("""
+            {
+              "SimTransform": { "Position": [120, 0, 20], "Rotation": [0, 0, 0, 1] },
+              "Health": { "Current": 10, "Max": 10 },
+              "NetworkIdentity": { "Value": 7790 },
+              "TkbIdentity": { "TkbType": 403 },
+              "EntityInfo": { "Name": "FPV", "ForceId": "Hostile" }
+            }
+            """);
+        File.WriteAllText(Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), scenario.ToJsonString());
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "FPV").IsNull && !ByName(sim, "FPV").IsNull, timeoutFrames: 2000),
+            "the drone must exist on both nodes");
+        var onBrain = ByName(cgf, "FPV");
+        var onMuscle = ByName(sim, "FPV");
+        var simMap = harness.SimHost.App.TestHook_EntityMap;
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the drone has a network id on SimHost");
+        Assert.True(harness.PumpUntil(() => sim.HasComponent<Fdp.Toolkit.Motion.FlightState>(onMuscle), timeoutFrames: 300),
+            "SimHost provisioned the drone's flight state (Gen.Flight)");
+        var station = new EntityOrders(sim, simMap, geo: null);
+        int operatorControl = BehaviorHash.FromName("OperatorControl");
+
+        Assert.True(station.Possess(id).Accepted);
+        bool possessed = harness.PumpUntil(() =>
+        {
+            var bs = cgf.GetComponentRO<BehaviorState>(onBrain);
+            return bs.ActiveBehaviorHash == operatorControl && bs.Origin == BehaviorOrigin.Possession && station.HolderOf(id) is not null;
+        }, timeoutFrames: 600);
+        Assert.True(possessed, "the possession must reach the CGF brain, and dtPossessedBy must come back to the station");
+
+        // climb: the Vertical axis only — the drone rises on SimHost
+        var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        uint seq = 1;
+        bool climbed = harness.PumpUntil(() =>
+        {
+            station.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, Vertical = 1f });
+            return sim.GetComponentRO<SimTransform>(onMuscle).Position.Z > start.Z + 2f;
+        }, timeoutFrames: 1500);
+        var afterClimb = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        _out.WriteLine($"drone {start} -> {afterClimb} after {seq} frames; ManualDrive.Vertical on SimHost: "
+            + $"{(sim.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle) ? sim.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(onMuscle).Vertical : -9f)}");
+        Assert.True(climbed, $"the possessed drone must climb on SimHost: {start} -> {afterClimb}");
+
+        // fly: forward at the same height
+        bool flew = harness.PumpUntil(() =>
+        {
+            station.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, Forward = 1f });
+            var p = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+            return System.Numerics.Vector2.Distance(new(p.X, p.Y), new(afterClimb.X, afterClimb.Y)) > 3f;
+        }, timeoutFrames: 1500);
+        Assert.True(flew, $"the possessed drone must fly forward on SimHost: {afterClimb} -> {sim.GetComponentRO<SimTransform>(onMuscle).Position}");
+        Assert.Equal(1, sim.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(onMuscle).Airborne);
+
+        Assert.True(station.Unpossess(id).Accepted);
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Possession
+            && station.HolderOf(id) is null, timeoutFrames: 600), "released");
+    }
 }
