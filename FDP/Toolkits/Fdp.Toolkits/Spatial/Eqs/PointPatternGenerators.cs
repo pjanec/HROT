@@ -45,6 +45,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
             public bool Full => Count >= _out.Length;
 
+            /// <summary>How many points the span holds.</summary>
+            public int Capacity => _out.Length;
+
             public void Add(Vector2 p)
             {
                 if (Full || !EqsTerrainSight.TryPlace(_world, p, _zHint, out var placed)) return;
@@ -80,7 +83,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     /// <summary>⭐ §5.5 <c>Grid</c>: a square grid of <see cref="Spacing"/> metres covering the search radius (inside the circle),
-    /// nearest rings first so a full candidate span keeps the closest points.</summary>
+    /// nearest rings first. ⭐ <c>CE-2164</c> (R-3004) — the spacing widens so the circle fits the candidate span
+    /// (spacing ≥ radius·√(π / capacity)): 📌 at 5 m a 128-point span held rings 1–5 only, so a 60 m search reached ~28 m.</summary>
     public sealed class GridGenerator : PointPatternGenerator
     {
         public float Spacing { get; set; } = 5f;
@@ -88,14 +92,15 @@ namespace Fdp.Toolkit.Spatial.Eqs
         protected override void Layout(ISimulationView view, Entity observer, ref EqsSensor sensor, Vector2 anchor, ref Emitter emit)
         {
             float radius = sensor.SearchRadius;
-            if (radius <= 0f || Spacing <= 0f) return;
-            int n = (int)(radius / Spacing);
+            if (radius <= 0f || Spacing <= 0f || emit.Capacity <= 0) return;
+            float spacing = MathF.Max(Spacing, radius * MathF.Sqrt(MathF.PI / emit.Capacity));
+            int n = (int)(radius / spacing);
             for (int ring = 1; ring <= n && !emit.Full; ring++)     // square rings outward; the anchor itself is not a move
                 for (int i = -ring; i <= ring && !emit.Full; i++)
                     for (int j = -ring; j <= ring && !emit.Full; j++)
                     {
                         if (Math.Max(Math.Abs(i), Math.Abs(j)) != ring) continue;
-                        var off = new Vector2(i, j) * Spacing;
+                        var off = new Vector2(i, j) * spacing;
                         if (off.Length() <= radius) emit.Add(anchor + off);
                     }
         }
