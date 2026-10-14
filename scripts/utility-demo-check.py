@@ -1002,6 +1002,105 @@ def run_squad_danger_crossing(c, timeout):
     c.ok(reform_t is not None and reform_t - t0 <= 120, f"⑧ the crossing took ≤ 120 s ({(reform_t or 0) - t0:.0f} s)")
 
 
+
+def run_squad_danger_crossing_contact(c, timeout):
+    """⭐ CE-2159 X-d `-contact` (Squad Tactics §7.8.4, D6) — the same march and road; a hostile stands north-east beyond the road,
+    out of sight (150 m vision) from the near side and in sight from the far side, so contact comes DURING the crossing: the
+    more urgent contact reaction replaces the crossing, the split squad fights where it stands (both sides of the road fire), and
+    the assault closes on the far contact by fire and movement."""
+    ids = ids_by_name()
+    sq, hostile = ids.get("Squad"), ids.get("Hostile")
+    names = ["Leader"] + [f"Rifleman {i}" for i in range(1, 7)]
+    members = [ids.get(n) for n in names]
+    if not c.ok(sq and hostile and None not in members, "the squad, its seven men and the hostile are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    ammo0 = {m: ammo(m)[0] for m in members}
+    call("POST", "/sim/play", {})
+    s = wait_for(lambda: (x := danger_sensor(sq)) and areas_of(x) and x, 30)
+    if not c.ok(s is not None, "the commander's route sensor lists the road ahead"):
+        return
+    area = areas_of(s)[0]
+    started = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "DangerAreaCrossing" and x.get("active", True) and x, 120)
+    if not c.ok(started is not None, "① the crossing drill starts (maneuver kindName DangerAreaCrossing)"):
+        return
+    near, far = area["nearHandle"], area["farHandle"]
+    dx, dy = far[0] - near[0], far[1] - near[1]
+    L = (dx * dx + dy * dy) ** 0.5 or 1.0
+    def along(p):
+        return ((p[0] - near[0]) * dx + (p[1] - near[1]) * dy) / L
+    t0 = sim_time() or 0
+    left, side_at_contact, task_after = None, {}, None
+    while (sim_time() or 0) < t0 + 120:
+        m = maneuver(sq) or {}
+        if m.get("kindName") != "DangerAreaCrossing" or not m.get("active", True):
+            left = (m.get("kindName"), sim_time())
+            for nid in members:
+                p = position(nid)
+                if p: side_at_contact[nid] = "far" if along(p) > 0 else "near"
+            break
+        time.sleep(0.5)
+    c.ok(left is not None, f"② the crossing is replaced before it ends (next drill: {left})")
+    if left is None:
+        return
+    task_after = wait_for(lambda: (n := (((data(call("GET", f"/entities/{sq}/state")) or {}).get("behavior") or {}).get("name"))) == "ReactToContact" and n, 10)
+    c.ok(task_after == "ReactToContact", f"③ … by the contact reaction (the commander's task: {task_after})")
+    sides = sorted(set(side_at_contact.values()))
+    print(f"    sides at contact: {[(names[members.index(n)], v) for n, v in side_at_contact.items()]}")
+    c.ok(sides == ["far", "near"], f"④ the squad was split across the road when contact came ({sides})")
+    def fired_on(side):
+        return [n for n in members if side_at_contact.get(n) == side and (ammo(n)[0] or 0) < (ammo0[n] or 0)]
+    t1 = sim_time() or 0
+    kinds = []
+    while (sim_time() or 0) < t1 + 40:
+        k = (maneuver(sq) or {}).get("kindName")
+        if k and (not kinds or kinds[-1] != k): kinds.append(k)
+        if fired_on("far") and fired_on("near") and "FireAndMovement" in kinds: break
+        time.sleep(1)
+    print(f"    fired: {[names[members.index(n)] for n in fired_on('far') + fired_on('near')]}; drills after the crossing: {kinds}")
+    # ⚠ the hostile has no task of its own (as in every squad demo): "both sides" is the two halves of the split squad (D6)
+    c.ok(len(fired_on("far")) > 0, f"⑤ the far side fires ({len(fired_on('far'))} men)")
+    c.ok(len(fired_on("near")) > 0, f"⑥ the near side fires too — each side keeps its element ({len(fired_on('near'))} men)")
+    c.ok("FireAndMovement" in kinds, "⑦ the assault closes on the far contact by fire and movement (§7.6.3)")
+
+
+
+def run_squad_march_loose(c, timeout):
+    """⭐ CE-2159 (Squad Tactics §6.1a) — a squad strung out on a diagonal marches ~110 m east in file: the followers close up on
+    the lead's trail while it walks, so the lead keeps a march pace instead of holding for stragglers again and again."""
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader"] + [f"Rifleman {i}" for i in range(1, 7)]
+    members = [ids.get(n) for n in names]
+    if not c.ok(sq and None not in members, "the squad and its seven men are loaded"):
+        return
+    goal = (175.0, 60.0)
+    call("POST", "/sim/play", {})
+    t0 = sim_time() or 0
+    def front():
+        best = None
+        for nid in members:
+            p = position(nid)
+            if p and (best is None or p[0] > best[0]): best = p
+        return best
+    x0 = (front() or [0])[0]
+    arrived = None
+    samples = []
+    while (sim_time() or 0) < t0 + 200:
+        f = front()
+        t = sim_time() or 0
+        if f: samples.append((t, f[0]))
+        if f and abs(f[0] - goal[0]) <= 6 and arrived is None: arrived = t; break
+        time.sleep(1)
+    dist = goal[0] - x0
+    pace = dist / ((arrived or (sim_time() or 0)) - t0 or 1)
+    print(f"    front from x={x0:.0f}: arrived at {arrived} ({pace:.2f} m/s); samples every 10: {[(round(t), round(x)) for t, x in samples[::10]]}")
+    c.ok(arrived is not None, "① the lead reaches the objective")
+    c.ok(pace >= 0.9, f"② at a march pace (≥ 0.9 m/s of the asked 1.5; measured {pace:.2f})")
+    end = wait_for(lambda: all((p := position(n)) and ((p[0] - goal[0]) ** 2 + (p[1] - goal[1]) ** 2) ** 0.5 <= 35 for n in members), 60)
+    c.ok(end, "③ … and the file closes up behind it (every man within 35 m)")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -1021,7 +1120,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-fire-and-movement": run_fire_and_movement,
              "ua-bounding-overwatch": run_bounding_overwatch,
              # ⭐ CE-2159 X-d — the squad danger crossing (Squad Tactics §7.8.4)
-             "ua-squad-danger-crossing": run_squad_danger_crossing}
+             "ua-squad-danger-crossing": run_squad_danger_crossing,
+             "ua-squad-danger-crossing-contact": run_squad_danger_crossing_contact,
+             "ua-squad-march-loose": run_squad_march_loose}
 
 
 def main():

@@ -731,6 +731,28 @@ namespace Hrot.SimHost.Tests
             Assert.False(s.FlankQuery().IsNull, "the leader asks the terrain for a flank");
         }
 
+        /// <summary>⭐⭐ <c>CE-2158</c> F-e (§7.6.3) — a FAR contact is CLOSED on first: the assault starts as fire and movement toward
+        /// where the contact stands; once both halves are within <c>CloseMetres</c> the flank (suppress and manoeuvre) takes over and the
+        /// leader asks the terrain for it. 🔴 Red before: the assault went straight to the flank at any range.</summary>
+        [Fact]
+        public void CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked()
+        {
+            var s = new Squad(members: 4);
+            var far = new Vector3(0f, 150f, 0f);
+            var enemy = Enemy(s, far);
+            s.Pool(enemy, far, reporters: 0b0011);
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();                                   // past DecideAfterSeconds
+
+            Assert.Equal(FireAndMovementManeuver.ManeuverKind, s.Kind);              // closing, not flanking from 150 m
+            Assert.True(s.FlankQuery().IsNull, "no flank asked while the squad closes");
+
+            foreach (var m in s.Members) s.Teleport(m, s.At(m) + new Vector3(0f, 110f, 0f));   // the halves are within 50 m
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(SuppressAndManeuverManeuver.ManeuverKind, s.Kind);
+            Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
+        }
+
         /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes there
         /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success.</summary>
         [Fact]
@@ -985,6 +1007,29 @@ namespace Hrot.SimHost.Tests
                 Assert.True(OnTrail(orders[m].Objective), $"a file slot lies on the lead's trail: {orders[m].Objective}");
                 Assert.True(Vector3.Distance(orders[m].Objective, behind) < SquadMarchPlay.ReorderMetres, $"{orders[m].Objective} vs {behind}");
             }
+        }
+
+        /// <summary>⭐ <c>CE-2159</c> (§6.1b) — a follower far behind his slot is sent FASTER than the march (a slot on the trail moves at
+        /// the march speed, so the march speed never closes the gap); one near his slot at the march speed. 🔴 Red before: always the
+        /// march speed.</summary>
+        [Fact]
+        public void CE2159_SquadMarch_AFollowerFarBehindHisSlot_IsSentFaster_ANearOneAtTheMarchSpeed()
+        {
+            var s = new Squad(members: 3);
+            s.Order("{\"Objective\":[0,100,0],\"Shape\":0,\"Speed\":1.5}", BehaviorNames.SquadMarch);
+            s.Tick(); s.Tick();
+            Walk(s, s.Members[0], new Vector3(0f, 20f, 0f));                                            // slots 5 and 10 m behind the lead
+            s.Teleport(s.Members[1], new Vector3(0f, 19f, 0f));                                         // where his slot will be (5 m behind)
+            s.Orders.Clear();
+            Walk(s, s.Members[0], new Vector3(0f, 26f, 0f));                                            // the slots move on: both re-ordered
+            float Speed(Entity m)
+            {
+                var opts = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+                var o = s.Orders.Last(x => x.Entity == m && x.IntentId == BehaviorNames.AdvanceTo);
+                return System.Text.Json.JsonSerializer.Deserialize<AdvanceToParamsJsonDto>(o.JsonParams, opts).Speed;
+            }
+            Assert.Equal(1.5f * SquadMarchPlay.CatchUpFactor, Speed(s.Members[2]), 3);                 // ~16 m behind: catches up
+            Assert.Equal(1.5f, Speed(s.Members[1]), 3);                                                 // ≤ 3 m from it: the march speed
         }
 
         /// <summary>

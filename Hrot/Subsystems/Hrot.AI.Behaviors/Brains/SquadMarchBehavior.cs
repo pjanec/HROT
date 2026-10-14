@@ -92,6 +92,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A lead that gets no 0.5 m closer to the objective for this long hands the lead on (s) — 📐 live: the first lead
         /// picked stood on a spot no move works from (z 9 on <c>test-town</c>) and the whole squad waited behind it.</summary>
         public const float LeadStuckSeconds = 5f;
+        /// <summary>⭐ <c>CE-2159</c> (§6.1b) — a follower more than <see cref="CatchUpLagMetres"/> behind its slot is sent this much faster
+        /// than the march: a slot on the lead's trail moves at the march speed, so a man sent at that speed never closes the gap and
+        /// the lead held for him again and again (📐 live: ~0.3 m/s from a diagonal start).</summary>
+        public const float CatchUpFactor = 1.6f;
+        public const float CatchUpLagMetres = 4f;
 
         private static readonly SquadHsmShell s_shell = new(SquadMarchManeuver.BuildTransitionTable(), SquadMarchManeuver.PhaseAborted);
         private static readonly FormationTemplateManager s_templates = new();
@@ -167,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (lag > SquadManeuverRunner.MoverArrivalMetres) allAtSlots = false;
                 if (!silent && Flat(slot - ordered) >= ReorderMetres)
                 {
-                    SquadManeuverRunner.Move(ctx.World, ctx.Commander, m, slot, p.Speed, SquadManeuverRunner.MoverArrivalMetres);
+                    SquadManeuverRunner.Move(ctx.World, ctx.Commander, m, slot, FollowerSpeed(in p, lag), SquadManeuverRunner.MoverArrivalMetres);
                     Aim(ref ws, i, slot, at, t);
                     march.Reorders++;
                 }
@@ -247,10 +252,13 @@ namespace Hrot.AI.Behaviors.Brains
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = SquadMarchManeuver.RoleFollower };
             return new MemberOrder
             {
-                Kind = MemberOrderKind.AdvanceTo, Point = slot, Speed = p.Speed,
+                Kind = MemberOrderKind.AdvanceTo, Point = slot, Speed = FollowerSpeed(in p, Flat(slot - at)),
                 ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = SquadMarchManeuver.RoleFollower,
             };
         }
+
+        /// <summary>⭐ <c>CE-2159</c> (§6.1b) — the follower's asked speed: the march's, or faster while he is behind his slot.</summary>
+        public static float FollowerSpeed(in SquadMarchParams p, float lag) => lag > CatchUpLagMetres ? p.Speed * CatchUpFactor : p.Speed;
 
         /// <summary>⭐ CE-2141 — nothing of its own to drop; the members' orders are released when the commander's RUN ends
         /// (<c>SubordinateOrders</c>), not here: a play inside <c>ReactToContact</c> ends and the next starts in one tick.</summary>

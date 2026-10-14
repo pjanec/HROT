@@ -845,7 +845,7 @@ quiet 1 · strength 0.81 · enemy share 0.09 · ammo 1 ⇒ Assault **0.888** vs 
 ⚠ **§7.8.2 check ⑧ changed with the build**: "each member runs what he ran before ①" cannot hold — after the care the reaction DECIDES
 AGAIN (the fight may have moved on). ⑧ is now *"the drill is no longer `CasualtyCare` and every member in the fight has an order of it"*.
 
-### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b + F-c BUILT (§7.6.1, §7.6.2), F-d not; F-e live — ✅ approved (R-2013, leans (b)))*
+### 7.6 Fire and movement — the same pattern *(behaviors, `2026-10-13`; build-state: F-a + F-b + F-c BUILT (§7.6.1, §7.6.2), the Assault route BUILT (§7.6.3), F-d not; F-e live — ✅ approved (R-2013, leans (b)))*
 
 📖 **Doctrine (general knowledge, ⛔ not in the corpus):** two drills, not one. **Bounding overwatch** is used BEFORE contact: one element
 watches, ready to fire, while the other bounds 20–50 m to the next cover; then they swap. **Fire and movement** is used IN contact: the
@@ -961,7 +961,7 @@ the cover-query centre each tick — a moving centre re-solves every frame and t
 point) · `SquadManeuverRunner.AskTerrainAll` (the whole buffer; `AskTerrain` is now its one-answer wrapper) · defaults `RushMetres` 15,
 `Speed` 4, `ArrivalRadius` 20, `CoveringSeconds` 3, `RushTimeoutSeconds` 12, pick timeout 5 s · the movers' picks live in the play's
 params — ⛔ SUPERSEDED by F-c: they moved to the shared `SquadCoverPicks` / `SquadCover` (§7.6.2), so `PickX/Y/Z` and `PickedPhase` are gone. Rails `SquadManeuverTests.CE2158_FireAndMovement_*` (4). ⚠ Not yet: the live
-`ua-fire-and-movement` (F-e) and the SOP route into it (the contact reaction's `Assault` still runs `SuppressAndManeuver`).
+`ua-fire-and-movement` (F-e) and the SOP route into it (the contact reaction's `Assault` still runs `SuppressAndManeuver`) — ⛔ SUPERSEDED: both built (§7.8.3, §7.6.3).
 
 #### 7.6.2 F-c — bounding overwatch on the same gates *(behaviors, `2026-10-13`, `CE-2158`; build-state: BUILT)*
 
@@ -1026,7 +1026,40 @@ contact). F-b rails unchanged after the move onto `SquadCover`.
 | the swap came while the cover movers were 2.6–3.9 m short (one 3 m gate), and the drill could end mid-bound once both centres were near the objective | ⇒ a man sent to cover is ordered to 1 m of it and is set within 1.5 m (`MoversSet`); the drill waits for a cover bound to finish. Live: the cover bounds now end 0.1–0.5 m from the point |
 | ⚠ **OPEN:** both halves read as moving for 1.1–3.6 s right after a swap (run to run), ⛔ cause not measured — the members' reported speed is 0 on the state route, so it may be the replica's smoothing of a stop | `ua-bounding-overwatch` check ① (tolerance 1.5 s); 8 of 9 checks pass |
 
-### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` not yet) — ✅ approved 2026-10-13 (R-2014))*
+#### 7.6.3 The contact reaction's Assault closes by fire and movement first *(behaviors, `2026-10-14`, `CE-2158` F-e; build-state: BUILT)*
+
+**Measured:** `ReactToContactBehavior.Run` ran `SuppressAndManeuverPlay` for `Assault` at any range (`SquadContactBehaviors.cs`, the drill
+switch); its flank query is a `FlankSearchRadius` (40 m) circle around a base-of-fire member, so from 150 m the "flank" is 40 m out of
+the base and the assault then walks the rest in the open. Fire and movement (§7.6.1) is the drill for closing IN contact.
+**Design basis:** §7.6 ("fire and movement is used IN contact") and §3 (S&M = flank, then assault through); ⛔ searched `docs/` + `.dev/`
+for a ruling on WHEN to close vs flank — none found; the lean below is mine.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Undecided
+    Undecided --> Closing: top live contact farther than CloseMetres + one rush
+    Undecided --> Flanking: nearer
+    Closing --> Flanking: FireAndMovement ends - both halves within CloseMetres, a half gone, or could not start
+    Flanking --> [*]: SuppressAndManeuver Success or Failure
+```
+
+*What the picture shows that the prose hid:* the closing stage cannot END the reaction — every way out of it goes to the flank, because
+the assault is what was decided; only the flank's own outcome reaches the reaction's success / hold-on handling.
+
+| decision | as built | why |
+|---|---|---|
+| the threshold | `CloseMetres` 50 m (both halves' centres within it ⇒ fire and movement Success); closing starts only beyond 50 + `RushMetres` 15 | the band stops a squad at 51 m from closing for one rush and flanking at once |
+| the objective | where the top LIVE contact stood when the Assault began | fire and movement takes a point; the flank re-reads the contact |
+| where it lives | `ReactToContactParams.Close` + `ReactToContactState.AssaultStage`, one play state (the play is reset between the two) | one play at a time on the S1 runner (§4.3); no new behaviour |
+
+Rejected: **a new decision option ("Close")** — the decision picks WHAT (assault / break / hold), range picks HOW · **S&M with a bigger
+flank radius** — a 150 m flank is still a walk in the open · **re-checking the range during the flank** — a squad pushed back would
+oscillate between drills.
+
+Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked`; the near case stays
+`CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults` (60 m ⇒ the flank at once).
+
+### 7.7 Danger-area crossing — the squad drill *(behaviors, `2026-10-13`; build-state: BUILT (§7.7.6; X-a … X-d, `-contact` §7.8.4) — ✅ approved 2026-10-13 (R-2014))*
 
 ⭐ **Status for whoever returns:** measured `2026-10-13` (§7.7.1), approved; nothing built. It reuses §7.6's pattern (the commander reads
 gates and speaks only through orders) and §7.5's `Suppress` order; build after F-a (the gates). No re-measurement needed unless a cited file
@@ -1233,6 +1266,79 @@ Failure · the condition · the march's sensor · the SOP row and a contact repl
 red-proved. ⚠ **Measured live:** the march from a diagonal line crawled (~0.3 m/s, the lead holding for stragglers) — the demo starts in
 file ~40 m short of the road; the march's pace is not this slice's to fix.
 
+#### 7.7.7 D3 — the squad chooses HOW to cross *(behaviors, `2026-10-14`, `CE-2159`; build-state: READY-TO-BUILD — the open decision of R-2014 D3)*
+
+**Measured `2026-10-14`** (graph CLI `search_graph name_pattern=.*(ManeuverSelect|CrossingDecision|ActiveFeature).*` → 35 rows,
++ reads): `ManeuverSelectStarterDecision` (`Squad/StarterPack/…:18-90`, Cross 0 / Bound 1 / Hold 2) is a `UtilityDecisionDef` of
+kind `ManeuverSelect`, which `UtilityScorer.ChooseOption` does NOT score (it scores `PostureSelect`; `SquadContactResponseDecision.cs`
+says so) — its only drivers are the dead `CommanderUtilityTickSystem` and `Phase3IntegrationTests`. Its two area inputs
+(`SquadInputs.ActiveFeatureThreatRating` / `ActiveFeatureKindIs`, `SquadInputs.cs:313-350`) read a `DangerAreaCognitiveBuffer` ON THE
+COMMANDER and `SquadCognitiveState.ActiveFeatureId` — both empty in production: the buffer lives on the commander's danger SENSOR
+(§7.7.6, read through `UnitSensors`) and nothing writes `ActiveFeatureId` — its primitive `TacticalFeatureHandles.Acquire` exists, with a test, and no production caller.
+`SquadInputsP3Tests.ActiveFeatureThreatRating_NoActiveFeature_Returns0` pins "no active area ⇒ 0".
+**Design basis:** R-2014 D3 (*"wiring `ManeuverSelectStarterDecision` (cross / bound / hold) comes later"*); doctrine §7.6 (bounding
+overwatch for OPEN ground before contact); [`Hrot.SquadCoordination.md`](../../projects/Hrot/Subsystems/Hrot.SquadCoordination.md) §8.0
+(*"which maneuver the squad runs is a commander-tier utility decision … the same scoring core recursed one level"* — applies: this is
+that decision; its kind `ManeuverSelect` does not, for the scoring reason above).
+
+```mermaid
+classDiagram
+    class SquadDangerCrossingBehavior { Run() }
+    class CrossingChoiceState { <<NEW>> Stage · Choice · Play · HeldSince }
+    class SquadCrossingDecision { <<NEW, PostureSelect>> Cross 1 · Bound 2 · Hold 3 }
+    class ManeuverSelectStarterDecision { <<existing, ManeuverSelect - not scored>> }
+    class SquadInputs { ActiveFeatureKindIs · ActiveFeatureThreatRating }
+    class UnitSensors { TryGetResults~DangerAreaCognitiveBuffer~ }
+    class TacticalFeatureHandles { <<existing, no caller>> Acquire() }
+    class DangerCrossingPlay { <<existing>> }
+    class BoundingOverwatchPlay { <<existing>> }
+    class SquadHoldPlay { <<existing>> }
+    SquadDangerCrossingBehavior --> CrossingChoiceState
+    SquadDangerCrossingBehavior ..> SquadCrossingDecision : ChooseOptionOnce
+    SquadCrossingDecision ..> SquadInputs : the starter's considerations
+    SquadInputs ..> UnitSensors : the buffer - its own, else its danger sensor's (CHANGED)
+    SquadDangerCrossingBehavior ..> TacticalFeatureHandles : Acquire the next area first
+    SquadDangerCrossingBehavior --> DangerCrossingPlay : Cross
+    SquadDangerCrossingBehavior --> BoundingOverwatchPlay : Bound - to beyond the far side
+    SquadDangerCrossingBehavior --> SquadHoldPlay : Hold - then decide again
+    ManeuverSelectStarterDecision ..> SquadCrossingDecision : superseded by - kept, its test still runs
+```
+
+*What the picture shows that the prose hid:* the three options are three EXISTING plays — the choice adds no drill, only a decision and
+two corrected inputs; and the starter decision is not deleted (it is unreachable, not harmful — "no rush removals").
+
+```mermaid
+sequenceDiagram
+    participant SOP as BasicSquadSop
+    participant B as SquadDangerCrossing
+    participant D as SquadCrossingDecision
+    participant P as the chosen play
+    SOP->>B: React (Alert) - a danger area ahead
+    B->>D: ChooseOptionOnce (area kind · area threat · strength · ammo)
+    alt Cross
+        B->>P: DangerCrossingPlay (security · pairs · far side · reform)
+    else Bound
+        B->>P: BoundingOverwatchPlay to the far side + BeyondMetres
+    else Hold
+        B->>P: SquadHoldPlay HoldSeconds 10
+        P-->>B: done
+        B->>D: decide again
+    end
+    P-->>B: Success / Failure ends the reaction
+```
+
+| decision | ⭐ as built | why |
+|---|---|---|
+| the decision | a NEW attributed `SquadCrossingDecision` (kind `PostureSelect`, options from 1), the starter's considerations, ONE change below | `ChooseOptionOnce` scores only `PostureSelect`; option 0 is "nothing scored" |
+| ⚠ the one change | Cross weighs **NOT open ground** (`ActiveFeatureKindIs(OpenGround)`, InverseLinear) instead of **is a street** | the starter's Cross scored 0 on an Intersection, ChokePoint or CrestLine — and so did Bound ⇒ nothing won |
+| the inputs' area | unchanged: the `ActiveFeatureId` one — the behaviour `Acquire`s the next area's id before it decides (the existing primitive); the BUFFER is the commander's own, else its danger sensor's (`UnitSensors`) | the buffer lives on the sensor (§7.7.6); "no active area ⇒ 0" stays true and tested |
+| Bound's objective | the far handle + `BeyondMetres` along the crossing line | bounding overwatch takes a point; the same place the crossing reforms |
+| Hold | `SquadHold` for `HoldSeconds` (10), then decide again | the area may quieten; the SOP row would only start the reaction again |
+
+Rejected: **scoring `ManeuverSelect` in `ChooseOption`** — it changes what every other decision kind means · **editing the starter
+in place** — its `UtilityDecisionDef` API is the dead tick system's, and its test pins the option ids 0/1/2 · **a new drill for open
+ground** — bounding overwatch is the drill (§7.6).
+
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 
 ⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh
@@ -1359,11 +1465,16 @@ the squad marches east from `(150, 65)` to `(300, 100)` and meets the north-sout
 crossed at 94 / 105 s (the third man alone) and security at 121 / 131 s, never more than 2 men in the strip, nobody fired, and the march
 resumed (`Retake`).
 
-**Variant `-contact` (D6):** the checker spawns a hostile on the far side while the second pair is in the strip. ⚠ Not authored yet
-(the D6 hand-over is a rail: `CE2159_BasicSquadSop_ADangerAreaAhead_CrossesIt_AndAContactReplacesTheCrossing`).
-① `/squad` history shows `Abort` within 2 s of the first shot (anyone's ammo drop) · ② the commander's behaviour becomes
-`ReactToContact` · ③ no member ENTERS the strip after the abort (those in it finish within 5 s) · ④ at least one member on EACH side
-fires at the hostile (each side keeps its element).
+**Variant `-contact` (D6)** — ⛔ SUPERSEDED plan: *"the checker spawns a hostile on the far side while the second pair is in the
+strip"* (a scripted move or spawn does not reach a live soldier — §7.6.2's live table). **As built `2026-10-14`
+(`ua-squad-danger-crossing-contact`):** the same march; a hostile stands at (345, 128), north-east beyond the road, **out of the
+soldiers' 150 m vision from the near side and in it from the far side** (the line of sight passes south of the L-Block and north of the
+High Wall's end), so the contact comes DURING the crossing, from the far side. Checks: ① the crossing starts · ② it is replaced before
+it ends · ③ by `ReactToContact` · ④ the squad is split across the road when it is · ⑤ the far side fires · ⑥ the near side fires too
+(each side keeps its element) · ⑦ the assault closes on the far contact by fire and movement (§7.6.3). The hostile has no task of its
+own, as in every squad demo. 📐 First run: the first pair (Leader, Rifleman 1) was across when the hostile was seen; both sides
+fired; the reaction's assault ran `FireAndMovement`. The D6 hand-over stays a rail too
+(`CE2159_BasicSquadSop_ADangerAreaAhead_CrossesIt_AndAContactReplacesTheCrossing`).
 
 #### 7.8.5 Order
 
@@ -1627,3 +1738,16 @@ handoff's 4/s-per-8-men estimate. ⛔ ~~not measured: the path-request cost~~
 | `…_AStuckFollowerFallsBackToFile_AndTheLeadWaitsForStragglers` | stuck 3 s ⇒ trail point; the lead holds, then goes on | no stuck fallback ⇒ red |
 | `…_TheLeadFalls_TheNextMemberLeads_ThenEveryoneArrives` | lead hand-off on death; Success | — |
 | `SquadTacticsScenarioTests.CE2123_ASquadMarchesInAWedge_…` (live) | everyone within 15 m of the objective, no two closer than 2.5 m, ≤ 5 move orders a sim-second | ✅ **run 3 green** (leader soldier moved into the line): all five arrived in **30 sim-seconds**, closest pair 4.4 m, **50 move orders = 1.65/s for 5 men**. Run 2 (lead hand-off + own height): the four riflemen arrived in a wedge (6–11 m round the point man) and stopped re-ordering; only the leader soldier on the z 9 spot stayed |
+
+#### 6.1b Followers catch up *(behaviors, `2026-10-14`, `CE-2159`; build-state: BUILT — one item moved out of the `CE-2124` column above)*
+
+**Measured live (`ua-squad-march-loose`, a 7-man file strung out on a 36 m diagonal, marching 91 m east):** a follower's file slot
+is on the lead's trail and moves at the march speed, so a man sent to it AT the march speed never closes the gap — only the lead's
+halts close it (15 s, then 15 s without), and the march went at **0.85 m/s of the asked 1.5** (earlier, from a worse start, ~0.3).
+**As built:** a follower more than `CatchUpLagMetres` (4 m) behind his slot is sent at `CatchUpFactor` (1.6) × the speed
+(`SquadMarchPlay.FollowerSpeed`, on both the re-order and the issue path); within 4 m, the march speed. ⇒ **1.00 m/s**, every man within
+35 m of the objective at the end (one run each — run-to-run spread not measured). The halts stay as the brake. "Catch-up gain per
+member" is now the simplest form of it; station keeping (speed MATCHING) stays `CE-2124`'s.
+
+Rejected: **no halts at all** — a man stuck behind a wall would be left behind · **a faster march** — the lead's pace is the order's ·
+**the speed per follower kept in `MarchMemory`** — the order is re-sent every 3 m of slot movement anyway, which re-reads the lag.

@@ -242,6 +242,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The choice (<see cref="SquadContactResponseDecision"/>).</summary>
         public ChooseOptionParams Choose;
         public SuppressAndManeuverParams Assault;
+        /// <summary>⭐ <c>CE-2158</c> F-e (§7.6.3) — the Assault's CLOSING stage: a contact farther than <see cref="ReactToContactBehavior.CloseMetres"/>
+        /// + one rush is closed on by fire and movement first; the flank and the assault through start from there.</summary>
+        public FireAndMovementParams Close;
         public BreakContactParams Break;
         /// <summary>The fallback and the Hold choice: hold until the squad knows no contact.</summary>
         public SquadHoldParams HoldOn;
@@ -261,6 +264,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SquadPlayState Play;
         /// <summary>⭐ <c>CE-2152</c> C-c (R-d) — sim time the choice was last scored (the re-decide clock while a man is down).</summary>
         public double DecidedAt;
+        /// <summary>⭐ <c>CE-2158</c> §7.6.3 — the Assault's stage: 0 = not decided · 1 = closing (fire and movement) · 2 = flank and assault.</summary>
+        public byte AssaultStage;
     }
 
     /// <summary>
@@ -295,6 +300,10 @@ namespace Hrot.AI.Behaviors.Brains
                     FlankSearchRadius = authored.FlankSearchRadius > 0f ? authored.FlankSearchRadius : 40f,
                     Speed = speed, ArrivalRadius = arrival, PhaseTimeoutSeconds = timeout,
                 },
+                Close      = new FireAndMovementParams
+                {
+                    RushMetres = 15f, Speed = MathF.Max(speed, 4f), ArrivalRadius = CloseMetres, CoveringSeconds = 3f, RushTimeoutSeconds = 12f,
+                },
                 Break      = BreakContactBehavior.Defaults(authored.RetreatSearchRadius, speed, arrival, timeout),
                 HoldOn     = new SquadHoldParams { Speed = speed, EndWhenClear = 1 },
                 Care       = CasualtyCareBehavior.Defaults(speed),
@@ -309,6 +318,12 @@ namespace Hrot.AI.Behaviors.Brains
                 .StatefulAction(bb => bb.Order, bb => bb.State, Run);
 
         public const byte StageReturnFire = 0, StageDrill = 1, StageHoldOn = 2;
+
+        /// <summary>⭐ <c>CE-2158</c> §7.6.3 — the assault distance: the squad closes by fire and movement until its halves are this near
+        /// the contact (m); a contact already within this + one rush is flanked at once.</summary>
+        public const float CloseMetres = 50f;
+
+        public const byte AssaultUndecided = 0, AssaultClosing = 1, AssaultFlanking = 2;
 
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
@@ -368,7 +383,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 var drill = (SquadContactResponse)ws.Choice.Winner switch
                 {
-                    SquadContactResponse.Assault      => SquadManeuverRunner.Tick<SuppressAndManeuverPlay, SuppressAndManeuverParams>(ref p.Assault, ref ws.Play, self, world),
+                    SquadContactResponse.Assault      => Assault(ref p, ref ws, self, world),
                     SquadContactResponse.BreakContact => SquadManeuverRunner.Tick<BreakContactPlay, BreakContactParams>(ref p.Break, ref ws.Play, self, world),
                     SquadContactResponse.Rescue       => SquadManeuverRunner.Tick<SquadCasualtyCarePlay, CasualtyCareParams>(ref p.Care, ref ws.Play, self, world),
                     _                                 => NodeStatus.Failure,   // Hold, or nothing scored: hold until clear
@@ -395,6 +410,51 @@ namespace Hrot.AI.Behaviors.Brains
                 Next(ref ws, StageHoldOn, world);                          // failed, or could not start (e.g. only a heard contact)
             }
             return SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.HoldOn, ref ws.Play, self, world);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2158</c> F-e (📄 DESIGN_Squad_Tactics.md §7.6.3) — the Assault: a FAR contact is first CLOSED on by fire and movement
+        /// (halves, cover rushes, toward where the contact stands) until both halves are within <see cref="CloseMetres"/>; then — or at once
+        /// when the contact is already near — suppress and manoeuvre flanks and assaults through. The closing ending in any way (won,
+        /// a half gone, could not start) hands over to the flank: the assault is what was decided.
+        /// </summary>
+        private static NodeStatus Assault(ref ReactToContactParams p, ref ReactToContactState ws, Entity self, EntityRepository world)
+        {
+            if (ws.AssaultStage == AssaultUndecided)
+            {
+                ws.AssaultStage = AssaultFlanking;
+                if (FarContact(world, self, CloseMetres + p.Close.RushMetres, out var at))
+                {
+                    ws.AssaultStage = AssaultClosing;
+                    p.Close.Objective = at;
+                    p.Close.Cover = default;
+                }
+            }
+            if (ws.AssaultStage == AssaultClosing)
+            {
+                var close = SquadManeuverRunner.Tick<FireAndMovementPlay, FireAndMovementParams>(ref p.Close, ref ws.Play, self, world);
+                if (close == NodeStatus.Running) return NodeStatus.Running;
+                SquadManeuverRunner.DropSensor(ref ws.Play, world);   // closed (or could not close): the flank starts from here
+                ws.Play = default;
+                ws.AssaultStage = AssaultFlanking;
+            }
+            return SquadManeuverRunner.Tick<SuppressAndManeuverPlay, SuppressAndManeuverParams>(ref p.Assault, ref ws.Play, self, world);
+        }
+
+        /// <summary>The squad's top identified live contact is farther than <paramref name="metres"/> from the live members' centre.</summary>
+        private static bool FarContact(EntityRepository world, Entity self, float metres, out Vector3 at)
+        {
+            at = default;
+            if (!world.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self) || !world.HasComponent<SquadCognitiveState>(self)) return false;
+            var roster = world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self);
+            var ctx = new SquadPlayContext(world, self, 0d, in roster);
+            if (!SquadManeuverRunner.TopContact(in ctx, 0, out var contact, liveOnly: true)) return false;
+            var sum = Vector3.Zero; int n = 0;
+            for (int i = 0; i < roster.Count; i++) if (ctx.Live(i, out var m)) { sum += ctx.At(m); n++; }
+            if (n == 0) return false;
+            at = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            var d = at - sum / n; d.Z = 0f;
+            return d.LengthSquared() > metres * metres;
         }
 
         /// <summary>
@@ -434,6 +494,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             SquadManeuverRunner.DropSensor(ref ws.Play, world);
             ws.Play = default;
+            ws.AssaultStage = AssaultUndecided;
             ws.Stage = stage;
             ws.StageSince = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
         }
