@@ -1690,6 +1690,44 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 - *Matching a viewer's new shell to the nearest muzzle for the elevation* — two guns side by side break it (approved lean).
 - *A trail in the SIMULATION* — a look; the round's own positions over time are enough.
 
+#### 6n as-built `2026-10-14` (ui)
+
+⭐ **Built as the three diagrams draw it** — `WeaponKits` / `WeaponKind` / `FiringBlast` (`Map3D/WeaponKits.cs`), `RecentShots`
+(`Effects/RecentShots.cs`), the four families, `ShapeKits.Drone` / `SpArtillery` / `AttackJet` (+ `AttackJetBombs` / `AttackJetPylons`),
+`BlockFigure.AtWeapon` / `Shouldered`, `Carriage` (fixed, + `Manning`, + `Load`), `ProjectileLayer.RoundPath` / `TrailOf(r, path)` /
+`StreakOf`, `MotionTracker`'s spool, `PartRole.TailRotor`, `SeatPose.Stand` / `Kneel`. The details the diagrams do not carry:
+
+| as-built detail | why |
+|---|---|
+| ⚠ `RecentShots` lives BESIDE the world (a `ConditionalWeakTable<EntityRepository, …>`), not as a managed singleton in it | ⛔ a managed singleton needs a central component id (FDP `GlobalComponentIds`) — for one host's drawing memory that must never be saved, recorded or replicated. ⭐ The class diagram's «managed singleton» is SUPERSEDED by this |
+| the backblast and gun blast are two new built-in EFFECT TYPES of the existing `Explosion` kind (**7161** Backblast — a 2.6 m dust cloud, **7162** Gun blast — 6 m), no new effect kind; the backblast sits 2.2 m behind the shooter on the line of fire, 1.3 m up | the effect layer already draws a world-fixed expanding cloud; a type is data |
+| a gunner at his weapon is drawn at the kind's GUNNER SPOT scaled to the weapon's size and turned with its traverse; a gunner seat that declares a place wins (`Kneel` / `Stand` ⇒ the place is his feet) | ⚠ the spot is the KIT's, not the TKB's: the WS-4 weapon types may later give their gunner seat a place, and then it wins |
+| a carried weapon is drawn in a SECOND pass, on its bearer's figure frame as drawn (`OnBack`: its length from the right hip to the left shoulder) | the bearer may be drawn after the weapon in the query order |
+| the launcher-on-the-shoulder rule: AIMED and a launcher shot (an `Atgm` mount, or one firing a `Rocket` / `Missile` round — the RPG) by him or by the launcher he carries within **4 s** | no replicated "active mount" (⏭ asked of backend) |
+| the shouldered tube's front is the weapon tip (the muzzle flash), and also the CARRIED weapon's tip — its shot is the weapon entity's (WS-3) | the flash would otherwise leave the weapon at his feet |
+| a laid gun: its turret pose where driven, else the elevation its newest round left at (seen on this node, 60 s), else **60°** mortar / **25°** howitzer | N-5 |
+| ⚠ the A-10's bombs read the `WeaponAmmo` mirror (CE-1079) — present only where a brain mirrors it; elsewhere the full load | an editor's placed plane shows four |
+| the rotor: spools over **3 s**; runs while airborne or for **20 s** after it last moved (> 2 cm a frame); a helicopter first seen airborne is at speed. The tail rotor: two crossed blades at **4.7×** the main rotor; the tail-rotor DISC is gone (a spinning disc shows nothing) | ⚠ the old S4 rail's "parked ⇒ rotor 0 at once" moved to "parked ⇒ it runs on, spools down, stands" |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos (`RouteWaypointGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`), not only the one the row named — the same Z-as-north read; one helper `RouteGizmo.PointOf` (a flyer's waypoint at ground + `HeightAgl`, else its own Z — 0 drapes) | three copies of one rule had one bug; now one rule |
+| the type golden moved on exactly two lines (403 Jet → Drone, 405 Jet → AttackJet) and the class-table sweep on the five classes that now have a family | deliberate |
+| ⚠ **finding for backend (WS-4):** a weapon type's `Gen.Carrier` must be `Exposure = Open` (and a pickup's bed station / gunner seat exposed) — the engine's one rule hides an ENCLOSED passenger, so a gunner at a tripod, or the M2 in a bed, of a type left enclosed is neither drawn nor seen | `PhysicalPresence.IsEnclosedPassenger` |
+
+📐 **Rails:** `Map3DTests.CE1085_*` · `CE1086_*` · `CE1087_*` · `CE1088_*` · `CE1090_*` · `CE1091_*` · `CE1092_*` · `CE1093_*` ·
+`EffectTests.CE1094_*` · `RouteWaypointGizmoTests.CE2172_*` (+ RWG-002 / RWG-003 and `AuthoredRouteGizmoTests` re-pinned Z-up) ·
+`Map3DFrameRail.CE1085_V_*` (the real frame, below).
+
+✅ **(V) — a real frame under Xvfb** (`Map3DFrameRail.CE1085_V_*`):
+
+| | |
+|---|---|
+| ![weapon systems](assets/map-3d/ws-1-weapons.png) | ![HMG stowed / deployed, Kornet](assets/map-3d/ws-2-hmg-kornet-mortar.png) |
+| *the row: kneeling gunners at an HMG, a Kornet and a mortar, a towed howitzer with its trails spread, a sentry gun; the Javelin shooter's tube; the drone; the technical's gunner at its bed M2 (front)* | *an HMG stowed (lying) beside one deployed, its gunner at the grips* |
+| ![carried, shouldered, drone](assets/map-3d/ws-3-carried-shouldered-drone.png) | ![the technical](assets/map-3d/ws-4-technical.png) |
+| *a Javelin slung across a back; a launcher on the shoulder just after firing; an FPV drone* | *the M2 in the bed's station, its gunner kneeling behind it* |
+| ![laid guns](assets/map-3d/ws-4b-laid-guns.png) | ![top attack](assets/map-3d/ws-5-top-attack-trail.png) |
+| *the howitzer laid at 25°, a man at its breech; the mortar at 60°, its gunner beside it* | *a missile's top-attack trail arcing onto the SP howitzer* |
+| ![A-10](assets/map-3d/ws-6-a10.png) | *the A-10's own airframe: straight wing, engines on the rear fuselage, twin fins, the nose gun* |
+
 ⏭ **Built in their OWN designs, not here:** the route gizmo Z-up and the waypoint heights (air hand-off U1 / U2 — CE-2172 / CE-2173,
 [DESIGN_Air_Operations.md](designs/air-attack/DESIGN_Air_Operations.md) §5), the pilot station (U3, §6 there and
 [DESIGN_Entity_Control.md](DESIGN_Entity_Control.md)), placing a weapon into a station in the editor (weapon-systems hand-off U2, CE-2174). ⏸ **Blocked on
