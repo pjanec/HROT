@@ -117,7 +117,7 @@ namespace Hrot.SimHost
                 formationTemplateManager);
 
             // Navigation bridge systems
-            _navIntentBridge        = new NavigationIntentBridgeSystem();
+            _navIntentBridge        = new NavigationIntentBridgeSystem { RouteSource = new Hrot.Map.Common.Components.HrotRouteSource() };   // ⭐ CE-2171
             _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
             _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
 

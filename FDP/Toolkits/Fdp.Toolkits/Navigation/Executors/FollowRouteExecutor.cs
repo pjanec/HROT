@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Navigation.Executors
             intent.IntentId++;
             intent.Mode         = NavigationMode.FollowRoute;
             intent.TrajectoryId = p.TrajectoryId;
+            intent.RouteEntityId = p.RouteEntityId;   // ⭐ CE-2171 — the route ENTITY crosses the wire; the local pool id does not
             world.SetComponent(entity, intent);
 
             channel.Status = Fbt.NodeStatus.Running;

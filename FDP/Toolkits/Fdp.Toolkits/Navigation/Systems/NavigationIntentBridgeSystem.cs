@@ -62,6 +62,16 @@ namespace Fdp.Toolkit.Navigation.Systems
 
         private uint _lastScanTick;
 
+        /// <summary>⭐ CE-2171 — FollowRoute intents whose route entity is not compiled on this node yet: retried every tick.</summary>
+        private readonly Dictionary<Entity, uint> _pendingRoute = new();
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2171</c> / Air Ops B1 — resolves <see cref="NavigationIntent.RouteEntityId"/> to THIS node's compiled trajectory. The
+        /// host that compiles routes passes it (SimHost / the editor's Muscle: <c>SimHostCoreLogicPack</c>); null = the intent's local
+        /// <see cref="NavigationIntent.TrajectoryId"/> only (as before).
+        /// </summary>
+        public IRouteSource? RouteSource { get; init; }
+
         /// <summary>
         /// Creates an instance without trajectory pool access.
         /// FollowPath and ReleasePath actions requiring pool queries will treat all handles as invalid.
@@ -86,6 +96,15 @@ namespace Fdp.Toolkit.Navigation.Systems
             _dtCrowd = dtCrowd;
         }
 
+        /// <summary>⭐ CE-2171 — the trajectory a FollowRoute intent drives on THIS node: the route entity's own compiled one when the
+        /// intent names a route and this node compiled it, else the intent's local <see cref="NavigationIntent.TrajectoryId"/>.</summary>
+        private int ResolveRouteTrajectory(EntityRepository repo, in NavigationIntent intent)
+        {
+            if (intent.RouteEntityId != 0 && RouteSource != null && RouteSource.TryGetTrajectory(repo, intent.RouteEntityId, out int own))
+                return own;
+            return intent.RouteEntityId != 0 && RouteSource != null ? 0 : intent.TrajectoryId;
+        }
+
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -99,6 +118,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             {
                 _lastScanTick = 0;
                 _lastAppliedIntentId.Clear();
+                _pendingRoute.Clear();
             }
 
             // ⭐ CE-498 — Constructing entities too, not only Active (the query default). An intent written while the entity
@@ -192,8 +212,16 @@ namespace Fdp.Toolkit.Navigation.Systems
                         break;
 
                     case NavigationMode.FollowRoute:
+                        // ⭐⭐ CE-2171 — the route ENTITY resolves to this node's own compiled trajectory; the intent's TrajectoryId is
+                        //   a pool index of the node that wrote it (0 on a split cluster). Not compiled yet ⇒ retried every tick below.
+                        int trajectory = ResolveRouteTrajectory(repo, in intent);
+                        if (trajectory == 0 && intent.RouteEntityId != 0)
+                        {
+                            _pendingRoute[entity] = intent.IntentId;
+                            continue;
+                        }
                         nav.Mode         = KinematicsMode.CustomTrajectory;
-                        nav.TrajectoryId = intent.TrajectoryId;
+                        nav.TrajectoryId = trajectory;
                         nav.TargetSpeed  = intent.TargetSpeed;   // ⭐ CE-2060 — caps the route's speeds (0 = uncapped); was left from the previous move
                         nav.HasArrived   = 0;
                         nav.ProgressS    = 0f; 
@@ -222,6 +250,30 @@ namespace Fdp.Toolkit.Navigation.Systems
             }
 
             _lastScanTick = repo.GlobalVersion;
+
+            // ⭐ CE-2171 — retry a FollowRoute whose route was not compiled on this node yet (the route entity can arrive, and compile,
+            //   after the intent does).
+            if (_pendingRoute.Count > 0)
+            {
+                foreach (var (pending, pendingIntentId) in new List<KeyValuePair<Entity, uint>>(_pendingRoute))
+                {
+                    if (!repo.IsAlive(pending) || !repo.HasComponent<NavigationIntent>(pending) || !repo.HasComponent<NavState>(pending))
+                    { _pendingRoute.Remove(pending); continue; }
+                    var pendingIntent = repo.GetComponent<NavigationIntent>(pending);
+                    if (pendingIntent.IntentId != pendingIntentId || pendingIntent.Mode != NavigationMode.FollowRoute) { _pendingRoute.Remove(pending); continue; }
+                    int trajectory = ResolveRouteTrajectory(repo, in pendingIntent);
+                    if (trajectory == 0) continue;
+                    var nav = repo.GetComponent<NavState>(pending);
+                    nav.Mode         = KinematicsMode.CustomTrajectory;
+                    nav.TrajectoryId = trajectory;
+                    nav.TargetSpeed  = pendingIntent.TargetSpeed;
+                    nav.HasArrived   = 0;
+                    nav.ProgressS    = 0f;
+                    repo.SetComponent(pending, nav);
+                    _lastAppliedIntentId[pending] = pendingIntent.IntentId;
+                    _pendingRoute.Remove(pending);
+                }
+            }
 
             // ⭐ CE-3026 — retry a PathToPoint whose crowd registration was deferred (the crowd provider exists only once a
             //   navmesh is baked). Replaces the old ActionInstanceId non-caching trick (STR-D21 F6) of the removed branch.

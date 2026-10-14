@@ -149,6 +149,21 @@ public sealed class NavigationIntentEgressTranslatorTests
         Assert.Equal(6, w.RouteHandle);
     }
 
+    /// <summary>⭐⭐ CE-2171 (handoff E2; R-169 — <c>RouteEntityId</c> APPENDED to the wire intent) — a FollowRoute publishes the route
+    /// ENTITY, which the motion side resolves to its own compiled path (the local pool id never crosses).</summary>
+    [Fact]
+    public void CE2171_AFollowRoute_PublishesTheRouteEntity()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 45);
+        world.Tick();
+        world.SetComponent(entity, new EcsNavigationIntent { IntentId = 1, Mode = EcsNavMode.FollowRoute, TrajectoryId = 9, RouteEntityId = 7800 });
+        translator.ScanAndPublish(world);
+        var w = Assert.Single(writer.Publishes);
+        Assert.Equal(7800L, w.RouteEntityId);
+    }
+
     /// <summary>⭐ CE-3026 — a STOP (Mode None with a new IntentId, as MoveToExecutor.OnExit writes) crosses the wire;
     /// only the never-commanded default (IntentId 0) stays silent.</summary>
     [Fact]

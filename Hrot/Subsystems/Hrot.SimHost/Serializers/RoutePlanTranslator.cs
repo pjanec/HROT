@@ -78,6 +78,13 @@ namespace Hrot.SimHost.Serializers
                     if (wp.ExtensionJson != null)
                         node["ExtensionJson"] = wp.ExtensionJson;
 
+                    // ⭐ Air Ops B1 — the air fields, written only when set (a ground route saves as before)
+                    if (wp.Kind != Fdp.Toolkit.Navigation.RouteWaypointKind.Pass) node["Kind"] = wp.Kind.ToString();
+                    if (wp.HeightAgl != 0f) node["HeightAgl"] = wp.HeightAgl;
+                    if (wp.Hold != Fdp.Toolkit.Navigation.RouteHold.None) node["Hold"] = wp.Hold.ToString();
+                    if (wp.HoldSeconds != 0f) node["HoldSeconds"] = wp.HoldSeconds;
+                    if (wp.HoldUnit != 0) node["HoldUnit"] = wp.HoldUnit;
+
                     waypoints.Add(node);
                 }
             }
@@ -120,6 +127,12 @@ namespace Hrot.SimHost.Serializers
                                 wpObj["Z"]?.GetValue<float>() ?? 0f),
                             TargetSpeed   = wpObj["TargetSpeed"]?.GetValue<float>() ?? 0f,
                             ExtensionJson = wpObj["ExtensionJson"]?.GetValue<string>(),
+                            // ⭐ Air Ops B1 — enums by name (R-2005 / R-2007: every JSON enum a string)
+                            Kind          = System.Enum.TryParse<Fdp.Toolkit.Navigation.RouteWaypointKind>(wpObj["Kind"]?.GetValue<string>(), true, out var kind) ? kind : default,
+                            HeightAgl     = wpObj["HeightAgl"]?.GetValue<float>() ?? 0f,
+                            Hold          = System.Enum.TryParse<Fdp.Toolkit.Navigation.RouteHold>(wpObj["Hold"]?.GetValue<string>(), true, out var hold) ? hold : default,
+                            HoldSeconds   = wpObj["HoldSeconds"]?.GetValue<float>() ?? 0f,
+                            HoldUnit      = wpObj["HoldUnit"]?.GetValue<long>() ?? 0L,
                         });
                     }
                 });

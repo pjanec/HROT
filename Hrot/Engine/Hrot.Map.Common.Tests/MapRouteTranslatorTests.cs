@@ -85,6 +85,42 @@ public class MapRouteTranslatorTests
         Assert.Equal(@"{""hint"":""slow""}", published.Points[0].ExtensionJson);
     }
 
+    /// <summary>⭐ Air Ops B1 (handoff E2; R-169 — the fields are APPENDED to <c>MapRoute.Waypoint</c>) — the air fields cross the wire:
+    /// egress writes them, ingress reads them back onto the route plan.</summary>
+    [Fact]
+    public void B1_TheAirFields_CrossTheWire_OutAndIn()
+    {
+        using var world  = CreateEcsWorld();
+        var entityMap    = new NetworkEntityMap();
+        var geoTransform = new StubGeoTransform();
+        var writer       = new CapturingWriter<MapRoute>();
+        var egress       = new MapRouteEgressTranslator(writer, entityMap, geoTransform);
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(3));
+        world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+        world.AddComponent(entity, new SimTransform());
+        entityMap.Register(3, entity);
+        var plan = new RoutePlan();
+        plan.Mutate(wps => wps.Add(new RouteWaypoint
+        {
+            Position = new Vector3(1, 2, 3), Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, HeightAgl = 45f,
+            Hold = Fdp.Toolkit.Navigation.RouteHold.Unload, HoldSeconds = 4f, HoldUnit = 7701,
+        }));
+        world.SetManagedComponent(entity, plan);
+        egress.ScanAndPublish(world);
+        var wire = writer.Publishes[0].Points![0];
+        Assert.Equal(((byte)1, 45f, (byte)2, 4f, 7701L), (wire.Kind, wire.HeightAgl, wire.Hold, wire.HoldSeconds, wire.HoldUnit));
+
+        using var other = CreateEcsWorld();
+        var otherMap = new NetworkEntityMap();
+        var replica = other.CreateEntity();
+        otherMap.Register(3, replica);
+        new MapRouteIngressTranslator(null, otherMap, geoTransform).ApplyToEntity(replica, writer.Publishes[0], other);
+        var back = ((ISimulationView)other).GetManagedComponentRO<RoutePlan>(replica).Waypoints[0];
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 45f, Fdp.Toolkit.Navigation.RouteHold.Unload, 4f, 7701L),
+                     (back.Kind, back.HeightAgl, back.Hold, back.HoldSeconds, back.HoldUnit));
+    }
+
     [Fact]
     public void Egress_GeoPosition_RoundTripWithinOneMm()
     {

@@ -1106,6 +1106,11 @@ enum KinematicsMode : byte {
 
 > ⛔ **`CE-498` (`2026-10-01`) — the bridge must see an intent written while the entity is still CONSTRUCTING.** It reads through a DELTA query ("components changed since my last scan"). With the query's default lifecycle filter (Active only), an intent written before activation was never applied: becoming Active changes no component version, so the delta never revisited the entity — a spawn-then-move order never moved (measured: `NavState.Mode` stayed `None`). ⭐ The bridge now includes `Constructing` entities; motion still starts at activation (the kinematics run on Active entities only). ⚠ **Open:** the same blind spot exists for a GHOST promoted to Active with an intent already present, and for any delta-query system that assumes activation re-dirties components (15 production delta-query users) — whether activation should bump versions is an engine decision, not made here.
 
+> ⭐ **AS-BUILT `2026-10-14` (`CE-2171`, Air Ops slice 1 — 📄 `DESIGN_Air_Operations.md` §5a):** a `FollowRoute` intent
+> carries **`RouteEntityId`** (the route's network id). ⛔ The trajectory pool id is LOCAL to the node that compiled it, so
+> the Brain no longer waits for one; the bridge resolves the route through an `IRouteSource` seam (Hrot.Core's
+> `HrotRouteSource`) and starts the order once that route's `RouteTrajectoryCache` is current.
+
 > ⭐ **AS-BUILT `2026-10-03` (`CE-3026`):** the bridge keys a `MoveTo` on **`NavigationIntent.Mode == PathToPoint`
 > and a new `IntentId`**, not on the Brain's `ActionInstanceId` (see §3.1). Every kind publishes the path request; an
 > infantry agent (no `VehicleState`) on a crowd host also joins the crowd (retried every tick until the crowd exists —
@@ -1138,7 +1143,9 @@ on ActionInstanceId mismatch (new intent):
     FollowRoute:
       ensure no CrowdAgent (scripted, no avoidance)
       NavState.Mode := CustomTrajectory
-      NavState.TrajectoryId := intent payload trajectory id
+      NavState.TrajectoryId := the Muscle's OWN pool id for intent.RouteEntityId (via IRouteSource)
+                               — waits (pending) until the route has arrived and compiled;
+                               intent.TrajectoryId only when RouteEntityId is 0 (an in-process host)
     Flee:
       Infantry: as MoveTo/Crowd with dynamic re-target each tick
       Vehicles: existing FleeExecutor path, NavState.Mode := DirectPoint

@@ -190,6 +190,11 @@ public class MapRouteIngressTranslator : IDescriptorTranslator
                         Position      = cartesian,
                         TargetSpeed   = (float)wp.SpeedMetersPerSec,
                         ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
+                        Kind          = (Fdp.Toolkit.Navigation.RouteWaypointKind)wp.Kind,   // ⭐ Air Ops B1
+                        HeightAgl     = wp.HeightAgl,
+                        Hold          = (Fdp.Toolkit.Navigation.RouteHold)wp.Hold,
+                        HoldSeconds   = wp.HoldSeconds,
+                        HoldUnit      = wp.HoldUnit,
                     });
                 }
             }

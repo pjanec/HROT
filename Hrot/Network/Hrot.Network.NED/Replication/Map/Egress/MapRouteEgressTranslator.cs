@@ -110,6 +110,11 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
                     Name              = string.Empty,
                     SpeedMetersPerSec = wp.TargetSpeed,
                     ExtensionJson     = wp.ExtensionJson ?? string.Empty,
+                    Kind              = (byte)wp.Kind,        // ⭐ Air Ops B1 — appended
+                    HeightAgl         = wp.HeightAgl,
+                    Hold              = (byte)wp.Hold,
+                    HoldSeconds       = wp.HoldSeconds,
+                    HoldUnit          = wp.HoldUnit,
                 });
             }
 

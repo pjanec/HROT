@@ -330,6 +330,14 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>⭐ CE-1035 Q0b — true when <see cref="FinalDestination"/>'s Z is NOT given; read it through
         /// <see cref="NavigationDestination.Of"/>, never directly.</summary>
         public readonly bool OnSurface => (Flags & (1 << NavigationConstants.FlagBitDestinationOnSurface)) != 0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2171</c> / Air Ops B1 (DESIGN_Air_Operations §5) — the ROUTE ENTITY a <see cref="NavigationMode.FollowRoute"/> follows,
+        /// by its network id (appended; on the wire). The motion side resolves its OWN compiled path from it (<see cref="IRouteSource"/>):
+        /// <see cref="TrajectoryId"/> is a LOCAL pool index that never crosses the wire, so on a split cluster it is 0 and the route was
+        /// never driven. 0 = none (the local <see cref="TrajectoryId"/> alone, as before).
+        /// </summary>
+        public long RouteEntityId;
     }
 
     /// <summary>

@@ -264,10 +264,11 @@ public sealed class CatalogTests
         var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
-        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte).
-        Assert.Contains("TrajectoryId", dataNames);
-        Assert.Contains("IsLooped",     dataNames);
-        Assert.Equal(2, dataPins.Count);
+        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte), RouteEntityId (long — CE-2171, the route the motion side resolves).
+        Assert.Contains("TrajectoryId",  dataNames);
+        Assert.Contains("IsLooped",      dataNames);
+        Assert.Contains("RouteEntityId", dataNames);
+        Assert.Equal(3, dataPins.Count);
     }
 
     [Fact]

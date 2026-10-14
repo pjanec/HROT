@@ -159,6 +159,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     Flags            = intent.Flags,
                     MaxReplans       = intent.MaxReplans,
                     ReverseAllowed   = intent.ReverseAllowed,
+                    RouteEntityId    = intent.RouteEntityId,   // ⭐ CE-2171
                 });
 
                 SentSampleCount++;

@@ -129,7 +129,7 @@ namespace Fdp.Toolkit.Navigation
     /// Instructs the executor to follow a pre-computed trajectory from the trajectory pool.
     /// </summary>
     /// <remarks>
-    /// <b>Size:</b> int (4 bytes) + byte (1 byte) + 3 bytes implicit padding = 8 bytes.
+    /// <b>Size:</b> int (4) + byte (1) + 3 padding + long (8, CE-2171) = 16 bytes — within the 32-byte action-params blob.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     public struct FollowRouteParams
@@ -140,7 +140,9 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>Non-zero if the route should loop back to the start on completion.</summary>
         public byte IsLooped;
 
-        // 3 bytes of implicit Sequential padding; struct total = 8 bytes (int + byte + 3 pad).
+        /// <summary>⭐ <c>CE-2171</c> — the route entity's network id (appended): it rides the intent to the motion side, which resolves its
+        /// own trajectory from it. 0 = only the local <see cref="TrajectoryId"/>.</summary>
+        public long RouteEntityId;
     }
 
     /// <summary>

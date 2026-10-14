@@ -30,6 +30,23 @@ public struct RouteWaypoint
     /// Nullable.
     /// </summary>
     public string? ExtensionJson;
+
+    // ⭐⭐ Air Ops B1 / B7 (docs/designs/air-attack/DESIGN_Air_Operations.md §5) — a ground unit ignores these; a flyer reads them.
+
+    /// <summary>Passed through, or a point on the ground a flyer lands on.</summary>
+    public Fdp.Toolkit.Navigation.RouteWaypointKind Kind;
+
+    /// <summary>&gt; 0 ⇒ a flyer holds this height ABOVE THE TERRAIN here (m); 0 ⇒ <see cref="Position"/>'s Z, as before.</summary>
+    public float HeightAgl;
+
+    /// <summary>How long a flyer stays on a Ground waypoint (Seconds — timed by the motion side; Unload / Pickup — released by its brain).</summary>
+    public Fdp.Toolkit.Navigation.RouteHold Hold;
+
+    /// <summary>The hold for <see cref="Fdp.Toolkit.Navigation.RouteHold.Seconds"/> (s).</summary>
+    public float HoldSeconds;
+
+    /// <summary>The unit whose members a <see cref="Fdp.Toolkit.Navigation.RouteHold.Pickup"/> waits for (network id); 0 = none.</summary>
+    public long HoldUnit;
 }
 
 /// <summary>

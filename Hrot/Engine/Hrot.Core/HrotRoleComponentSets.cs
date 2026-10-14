@@ -195,9 +195,8 @@ public static class HrotRoleComponentSets
         //   only SimTransform, so MapVisualOverlayEgress's HasAuthority gate fails and overlays silently
         //   stop publishing. ⛔ It deliberately excludes everything combat/brain/muscle/kinematic so a
         //   Map2D-created tank declines those. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
-        // ⚠ A PURE Map2D node does not yet run MapRouteEgress (it lives in KinematicTranslatorPack,
-        //   gated _roleHasMuscle) — owning RoutePlan is correct-in-principle but inert until that
-        //   translator reaches Map2D; that move is a separate seam, out of scope here.
+        // ⭐ MapRouteEgress runs on every role since CE-2171 (2026-10-14: moved from KinematicTranslatorPack into
+        //   SharedTranslatorPack), so a Map2D-owned RoutePlan now publishes too.
         // ⚠ EditablePolyline and RoutePlan are MANAGED components (classes), so ComponentType<T>.ID —
         //   which is unmanaged-only — cannot be used; their ids come from the same [ComponentId] constants
         //   the egress translators use (GlobalComponentIds.EditablePolyline = 117, HrotComponentIds
