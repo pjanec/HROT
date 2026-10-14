@@ -150,10 +150,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 }
             }
 
-            // Drain cooldown continuously each frame; fire only after cooldown reaches zero.
+            // Fire only after the cooldown reaches zero. ⭐ CE-2166 — WeaponDispatcherSystem drains it, once a frame for every weapon
+            //   and mount (it already did): this drained it AGAIN while an aim ran, so a 10 s cooldown fired every ~5 s.
             if (weapon.CooldownSecondsRemaining > 0f)
             {
-                weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
                 if (!seen && p.BlindFire != 0) Say(world, entity, ActionReason.BlindFire, p.Target, RoundsFired(ref channel), p.Rounds);
                 else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
@@ -259,8 +259,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, p.Point); return; }
             if (p.Trigger == 0)
             {
-                if (weapon.CooldownSecondsRemaining > 0f) weapon.CooldownSecondsRemaining -= dt;
-                Magazine.StartIfEmpty(ref weapon);
+                Magazine.StartIfEmpty(ref weapon);   // ⭐ CE-2166 — the cooldown drains in the dispatcher, not here too
                 SayAt(world, entity, ActionReason.Aiming, p.Point);
                 return;
             }
