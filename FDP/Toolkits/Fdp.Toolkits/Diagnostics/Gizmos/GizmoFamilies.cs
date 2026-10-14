@@ -33,14 +33,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>The hash of <see cref="SettingKey"/>.</summary>
         public static uint SettingHash(AiOverlayFlags family) => GizmoSettingsRegistry.ComputeHash(SettingKey(family));
 
-        /// <summary>The scope a family starts with: the busy per-unit drawings show the selection, the rest show every unit.</summary>
-        public static GizmoScope DefaultScope(AiOverlayFlags family) => family switch
-        {
-            AiOverlayFlags.Path or AiOverlayFlags.UtilityDecision or AiOverlayFlags.SquadAssignment
-                or AiOverlayFlags.Channels
-                or AiOverlayFlags.Eqs => GizmoScope.SelectedOrPinned,   // ⭐ CE-3143 — EQS draws every candidate's verdict now: per unit, busy
-            _ => GizmoScope.All,
-        };
+        /// <summary>The scope a family starts with. ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — EVERY family now starts on the
+        /// selected and pinned units: Perception (a vision cone per unit) and Contacts (a line per remembered contact) drew for every
+        /// unit and, with the rest, buried the scene (🔒 user, 2026-10-14). ⛔ SUPERSEDED: §5b B's "Perception, Contacts = All".</summary>
+        public static GizmoScope DefaultScope(AiOverlayFlags family) => GizmoScope.SelectedOrPinned;
 
         /// <summary>What the menu and the layer panel call a family.</summary>
         public static string Label(AiOverlayFlags family) => family switch

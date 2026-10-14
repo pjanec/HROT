@@ -6,6 +6,7 @@ related-designs:
   - ../../DESIGN_Map_3D_Mode.md — the map's 3-D mode: a second, 3-D terminal of this stream in-process (the 3-D subset via
     the extracted triage); §10 menus reused unchanged. ../../DESIGN_Godot_3D_Viewer.md is the DEFERRED Godot terminal.
   - ../../DESIGN_Stride_Node_Modes.md — owns §8, the 3-D subset of this stream Stride draws (DebugPrimitiveRenderer3D).
+  - ../../DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: a struct-inspector field edit commits at once (§11.8 below), and which map layers are on by default
 -->
 
 # FDP Declarative Gizmo & Presentation Framework -- Design
@@ -980,7 +981,7 @@ publish the same generic schema type. The state machine has two states:
 
 | State | Description |
 |-------|-------------|
-| `Viewing` | Incoming `GizmoUiState` updates are applied immediately. The Apply button is still shown; the operator can interact with any field. |
+| `Viewing` | Incoming `GizmoUiState` updates are applied immediately; the operator can interact with any field. ⭐ CE-1065: there is no Apply button any more. |
 | `Editing` | The operator has focused the window. Incoming `GizmoUiState` updates are discarded. |
 
 State transitions:
@@ -989,7 +990,8 @@ State transitions:
 |---------|-----------|--------|
 | `ImGui.IsWindowFocused(RootAndChildWindows)` returns `true` while in `Viewing` | Viewing → Editing | None (begin blocking updates) |
 | Window loses focus (`!isFocused`) while in `Editing` | Editing → Viewing | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` to commit changes |
-| Operator clicks "Apply" while in `Editing` | Editing → Viewing | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` to commit changes |
+| ⭐ **CE-1065 (`2026-10-14`)**: the operator EDITS a field (a checkbox click) | → Editing (stays) | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` in the same frame (`CommitIfEdited`) — each click takes effect at once. 📄 `DESIGN_Terrain_Combat_Tuning.md` §5d D |
+| ⛔ SUPERSEDED by the row above: ~~Operator clicks "Apply" while in `Editing`~~ | ~~Editing → Viewing~~ | the Apply button is removed; its gizmo (the layer control) closed the panel on it, so every second checkbox needed the menu again |
 
 Note: the key is `(NetworkId, GizmoTypeId)` rather than `NetworkId` alone so that two gizmo
 inspectors on the same entity track focus independently, even if they happen to share the same

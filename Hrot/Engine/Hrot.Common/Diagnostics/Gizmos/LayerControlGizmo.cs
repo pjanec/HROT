@@ -25,21 +25,25 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
+    // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
+    //   scene, especially in the 3d map. I would like to turn most of them off by default". OFF by default now: AiHelpers (a nav
+    //   arrow per moving unit, danger areas), FireTraces, Blast, Hearing (a ring per moving unit — a wire sphere in 3-D), and the
+    //   two new layers UnitDetails and SpatialGrid. Each is still one checkbox away.
     public class LayerControlDto
     {
         public bool Entities { get; set; } = true;
         public bool Perception { get; set; } = true;
-        public bool AiHelpers { get; set; } = true;
+        public bool AiHelpers { get; set; }
         /// <summary>⭐ Tuning T-5 — the fire traces (FireTraceGizmo, layer 3).</summary>
-        public bool FireTraces { get; set; } = true;
+        public bool FireTraces { get; set; }
         /// <summary>⭐ <c>CE-3117</c> — door leaves by state (DoorLeafGizmo, layer 4).</summary>
         public bool Doors { get; set; } = true;
         /// <summary>⭐ <c>CE-3117</c> — the selected mover's planned path and look-ahead (PlannedPathGizmo, layer 5).</summary>
         public bool Paths { get; set; } = true;
         /// <summary>⭐ <c>CE-3117</c> — bursts: radii and fragment rays (DetonationGizmo, layer 6).</summary>
-        public bool Blast { get; set; } = true;
+        public bool Blast { get; set; }
         /// <summary>⭐ <c>CE-3117</c> — sound rings and heard estimates (HearingGizmo, layer 7).</summary>
-        public bool Hearing { get; set; } = true;
+        public bool Hearing { get; set; }
         /// <summary>⭐ <c>CE-3124</c> — the loaded terrain's road network (RoadNetworkGizmo, layer 8).</summary>
         public bool Roads { get; set; } = true;
         /// <summary>⭐ Stage 7a (<c>CE-3134</c>) — cover points and window firing positions (CoverPointsGizmo, layer 9). Off by
@@ -52,16 +56,20 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public NavmeshDrawLayers NavmeshLayers { get; set; } = NavmeshLayerSetting.Default;
         /// <summary>⭐ CE-1033 S5b — the entity cards (frame, name, health bar; layer 11). U19: "switchable on/off (layer for labels)".</summary>
         public bool Labels { get; set; } = true;
+        /// <summary>⭐ CE-1065 — heading arrows with their degrees and stance labels on every unit (layer 12). Off by default.</summary>
+        public bool UnitDetails { get; set; }
+        /// <summary>⭐ CE-1065 — the spatial hash grid (layer 13). Off by default.</summary>
+        public bool SpatialGrid { get; set; }
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 12;
+        public const int FirstUntoggledLayer = 14;
 
         // ⭐ CE-3120 (R-227) — per gizmo FAMILY: true = draw only for the selected and the pinned units, false = for every unit.
         //   Written into the GizmoSettingsRegistry on Apply (map.scope.<Family>), where GizmoFamilyVisibilityPolicy reads it.
         //   Defaults are GizmoFamilies.DefaultScope's. 📄 docs/DESIGN_Terrain_Combat_Tuning.md §5b.
         public bool PathSelectedOnly { get; set; } = true;
-        public bool PerceptionSelectedOnly { get; set; }
-        public bool ContactsSelectedOnly { get; set; }
+        public bool PerceptionSelectedOnly { get; set; } = true;   // ⭐ CE-1065 — vision cones: selected and pinned by default
+        public bool ContactsSelectedOnly { get; set; } = true;     // ⭐ CE-1065 — contact lines: selected and pinned by default
         public bool EqsSelectedOnly { get; set; } = true;   // ⭐ CE-3143 — EQS draws every candidate's verdict: selected by default
         public bool UtilitySelectedOnly { get; set; } = true;
         public bool SquadSelectedOnly { get; set; } = true;
@@ -123,6 +131,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Cover) mask.SetBit(DebugTraceLayers.Cover);
             if (Navmesh) mask.SetBit(DebugTraceLayers.Navmesh);
             if (Labels) mask.SetBit(DebugTraceLayers.Labels);
+            if (UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
+            if (SpatialGrid) mask.SetBit(DebugTraceLayers.SpatialGrid);
             for (int i = FirstUntoggledLayer; i < 256; i++) mask.SetBit(i);
             return mask;
         }

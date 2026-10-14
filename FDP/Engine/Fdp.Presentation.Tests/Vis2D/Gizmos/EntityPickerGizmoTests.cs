@@ -39,8 +39,8 @@ public class EntityPickerGizmoTests
         float reach = 0f, circle = -1f;
         foreach (var p in buffer.GetFrame())
         {
-            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Sphere) circle = p.SphereRadius;
-            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Line)
+            if (p.Shape == DebugPrimitiveShape.Sphere) circle = p.SphereRadius;
+            if (p.Shape == DebugPrimitiveShape.Line)
                 reach = MathF.Max(reach, MathF.Max(MathF.Abs(p.LineStart.X), MathF.Max(MathF.Abs(p.LineEnd.X), MathF.Max(MathF.Abs(p.LineStart.Y), MathF.Abs(p.LineEnd.Y)))));
         }
         Assert.Equal(6f, reach, 3);

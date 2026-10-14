@@ -23,6 +23,7 @@ related-designs:
     ⭐ W-13 (R-272) owns the WEAPON POSTURE (at ease / ready / aimed) that §3.5's block figure draws (WL-6).
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
+  - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
     (S3b) and places a muzzle flash on the posed barrel (§3.11).

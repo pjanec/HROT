@@ -70,14 +70,17 @@ namespace Hrot.SimHost.Tests.Gizmos
         public void CE3117_TheDebugTraceLayers_AreToggledByTheirOwnBits()
         {
             var all = new LayerControlDto().ToMask();
-            foreach (var bit in new[] { DebugTraceLayers.Doors, DebugTraceLayers.Paths, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
+            foreach (var bit in new[] { DebugTraceLayers.Doors, DebugTraceLayers.Paths })
                 Assert.True(all.IsSet(bit), $"layer {bit} defaults on");
+            // ⭐ CE-1065 — 🔒 user, 2026-10-14: "turn most of them off by default": AiHelpers, FireTraces, Blast, Hearing start off
+            foreach (var bit in new byte[] { 2, DebugTraceLayers.FireTraces, DebugTraceLayers.Blast, DebugTraceLayers.Hearing })
+                Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
 
-            var mask = new LayerControlDto { Doors = false, Hearing = false }.ToMask();
+            var mask = new LayerControlDto { Doors = false, Hearing = true }.ToMask();
             Assert.False(mask.IsSet(DebugTraceLayers.Doors));
-            Assert.False(mask.IsSet(DebugTraceLayers.Hearing));
+            Assert.True(mask.IsSet(DebugTraceLayers.Hearing));
             Assert.True(mask.IsSet(DebugTraceLayers.Paths));
-            Assert.True(mask.IsSet(DebugTraceLayers.Blast));
+            Assert.False(mask.IsSet(DebugTraceLayers.Blast));
             Assert.True(mask.IsSet(LayerControlDto.FirstUntoggledLayer));
             // ⭐ CE-3124 — the road network has its own toggle too
             Assert.True(all.IsSet(DebugTraceLayers.Roads));
@@ -92,6 +95,14 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(all.IsSet(DebugTraceLayers.Labels));
             Assert.False(new LayerControlDto { Labels = false }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
+            foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid })
+            {
+                Assert.False(all.IsSet(bit), $"layer {bit} defaults off");
+                Assert.True(bit < LayerControlDto.FirstUntoggledLayer, $"layer {bit} lies below the always-on range");
+            }
+            Assert.True(new LayerControlDto { UnitDetails = true }.ToMask().IsSet(DebugTraceLayers.UnitDetails));
+            Assert.True(new LayerControlDto { SpatialGrid = true }.ToMask().IsSet(DebugTraceLayers.SpatialGrid));
         }
 
         // ⭐ CE-3133 — the navmesh layer choice: Infantry by default, kept in the settings registry by the panel, and an enum that
@@ -129,23 +140,23 @@ namespace Hrot.SimHost.Tests.Gizmos
             var gizmo = new LayerControlGizmo(7, new FdpEventBus(), edit, settings: settings);
             Assert.Equal(GizmoScope.SelectedOrPinned,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.All,
+            Assert.Equal(GizmoScope.SelectedOrPinned,   // ⭐ CE-1065 — every family starts on the selection
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
-            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = true };
+            var edited = new LayerControlDto { PathSelectedOnly = false, ContactsSelectedOnly = false };
             string json;
             using (var s = edit.Open(edited, typeof(LayerControlDto))) json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
             gizmo.OnStructUpdate(json);
 
             Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.Path));
-            Assert.Equal(GizmoScope.SelectedOrPinned,
+            Assert.Equal(GizmoScope.All,
                 GizmoFamilies.ScopeOf(settings, Fdp.Toolkit.Behavior.Diagnostics.AiOverlayFlags.TargetMemory));
 
             var reread = new LayerControlDto();
             reread.ReadScopes(settings);
             Assert.False(reread.PathSelectedOnly);
-            Assert.True(reread.ContactsSelectedOnly);
+            Assert.False(reread.ContactsSelectedOnly);
             Assert.True(reread.SquadSelectedOnly);   // untouched family keeps its default
         }
 
@@ -200,7 +211,7 @@ namespace Hrot.SimHost.Tests.Gizmos
         {
             var bus = new FdpEventBus();
             Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
-            var edit = new ComponentEditService(new StructEdit.Core.SchemaProvider());
+            var edit = new ComponentEditServiceBuilder().Build();
             var buffer = new DebugPrimitiveBuffer();
             var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
             long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();

@@ -26,7 +26,9 @@ namespace Hrot.MuscleCharacter.Animation.Stance
             string? text = Text(view, entity, in status);
             if (text == null) return;
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
-            draw.DrawText(tf.Position.X, tf.Position.Y, new FixedString32(text), Color, fontSizePx: 12f, lineOffsetPx: 14f);
+            // ⭐ CE-1065 — on the UnitDetails layer (off by default): in 3-D the figure already shows the stance
+            draw.DrawText(tf.Position.X, tf.Position.Y, new FixedString32(text), Color, fontSizePx: 12f, lineOffsetPx: 14f,
+                          layer: DebugTraceLayers.UnitDetails);
         }
 
         /// <summary>The line shown, or null for none. Public for the rail.</summary>

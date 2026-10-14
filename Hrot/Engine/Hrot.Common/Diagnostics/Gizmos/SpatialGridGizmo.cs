@@ -47,7 +47,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     float x = originX + cx * cellSize;
                     var start = new Vector3(x, originY,                    0f);
                     var end   = new Vector3(x, originY + height * cellSize, 0f);
-                    draw.DrawLine(start, end, GridColor, 1f, SizeMode.ScreenPixels);
+                    draw.DrawLine(start, end, GridColor, 1f, SizeMode.ScreenPixels, layer: DebugTraceLayers.SpatialGrid);   // ⭐ CE-1065
                 }
 
                 // Draw horizontal grid lines.
@@ -56,7 +56,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                     float y = originY + cy * cellSize;
                     var start = new Vector3(originX,                   y, 0f);
                     var end   = new Vector3(originX + width * cellSize, y, 0f);
-                    draw.DrawLine(start, end, GridColor, 1f, SizeMode.ScreenPixels);
+                    draw.DrawLine(start, end, GridColor, 1f, SizeMode.ScreenPixels, layer: DebugTraceLayers.SpatialGrid);   // ⭐ CE-1065
                 }
             }
 
@@ -87,7 +87,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
                         float labelY = grid.OriginY + (cy + 0.5f) * grid.CellSize;
 
                         // FixedString32 supports at most 31 chars; a cell count fits easily.
-                        draw.DrawText(labelX, labelY, new Fdp.Core.FixedString32($"{count}"), CountColor);
+                        draw.DrawText(labelX, labelY, new Fdp.Core.FixedString32($"{count}"), CountColor, layer: DebugTraceLayers.SpatialGrid);
                     }
                 }
             }

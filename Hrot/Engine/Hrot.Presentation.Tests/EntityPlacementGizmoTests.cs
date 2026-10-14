@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.ScenarioEditor.Gizmos;
@@ -47,7 +48,7 @@ public class EntityPlacementGizmoTests
         gizmo.UpdateAndDraw(new Fdp.Core.EntityRepository(), 0f, buffer);
         float radius = -1f;
         foreach (var p in buffer.GetFrame())
-            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
+            if (p.Shape == DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
         Assert.Equal(7.5f, radius);
     }
 

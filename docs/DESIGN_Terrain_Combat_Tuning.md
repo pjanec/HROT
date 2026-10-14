@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09 (rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
+updated: 2026-10-14 (rev 6 — §5d quiet defaults, live layer panel, CE-1065; rev 5 — §5c navmesh layer, CE-3133; rev 4 — §5a debug traces as recorded components, CE-3117; rev 3 — T-1 library + T-2 premises as built, §2b; rev 2 — generated defaults, §2a; Stage 0 as built after §2a)
 build-state: READY-TO-BUILD — §2, §2a, §3, §4, §5 leans APPROVED by the user 2026-10-07; §5a APPROVED 2026-10-08 (R-226); §5b APPROVED 2026-10-08 (R-227), BUILT 2026-10-08
-current-answer: §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
+current-answer: §5d a quiet map by default + the live layer panel (CE-1065, BUILT) · §5c navmesh layer (CE-3133, BUILT) · §5b gizmo scope and pins (CE-3120/3121) · §5a debug traces (recorded components + gizmos, CE-3117) · §4a T-4 records as built · §2b T-1/T-2 as built · §2 defaults + §2a generated defaults · §3 tests and demos · §4 diagnostics API · §5 map debug layers · §6 slices
 stale-below: nothing
 known-rot: none yet
 known-conflict: none
@@ -23,6 +23,8 @@ related-designs:
   - designs/mgmt-1/DESIGN.md §13.3 — the exercise archive folder that CE-3119 adds a scenario copy to.
   - DESIGN_Mcp_Diagnostics_Federation.md + RUNBOOK_Cluster_Debugging_Over_Http.md — the route → MCP tool flow §4 extends.
   - GUIDE_Debug_Gizmos.md — the USER guide to §5's layers, families and pins (how to turn each on, how to read its colours); this design owns the why
+  - DESIGN_Map_3D_Mode.md — the 3-D map whose clutter §5d answers (labels on top, rings as spheres); its §3.8 / S3 owns how gizmos draw in 3-D
+  - designs/gizmos-1/DESIGN.md §11.8 — the struct inspector's state machine; §5d D adds "an edit commits at once"
   - DESIGN_Ai_Action_Status_Gizmo.md — OWNS the per-unit action status (why a unit is not firing) drawn by the Channels gizmo family (proposed; departs from §5a's armed-only precedent, argued there)
 -->
 
@@ -783,6 +785,123 @@ graph TD
 | the setting | `NavmeshLayerSetting` (`map.navmesh.layers`, int) next to `GizmoFamilies`; `LayerControlDto.NavmeshLayers` (enum) is read and written with the family scopes, and survives the panel's StructEdit JSON round trip (rail) |
 | the layer | bit `Navmesh = 10`, `FirstUntoggledLayer = 11`, off by default; ground outlines 1 px, doorway outlines 2 px in `DoorLeafGizmo.ColorOf` (now public, the one door-colour table) |
 | rails | `RecastNavmeshFactoryTests.CE3133_*` (3: every polygon in engine space with its door · once per navmesh, fresh after a rebake · the node navmesh forwards), `NavmeshGizmoTests` (4), `LayerControlGizmoTests` (toggle + the choice's round trip) |
+
+## 5d. A quiet map by default — layer defaults, family scopes and a live layer panel *(`CE-1065`, ui, `2026-10-14`; R-1000; build-state: BUILT — as built at the end of this section)*
+
+🔒 **User, `2026-10-14`:** *"I am now overwhelmed with the amount of gizmos shown on the scene, especially in the 3d map. I would like to turn most of them off by default or make them less intrusive, blocking the real scene content."* · *"check how the layer dialog with checkboxes for each layer … could be made responding to each checkbox click immediately, ie not needing Apply butoon which closes the dialog which makes it annoying to open it again from the menu to try another checkbox."*
+
+### INVENTORY *(graph + read, `2026-10-14`)*
+
+`search_graph(name_pattern=".*Gizmo$", label="Class")` → **77** classes (`has_more:false`). Of those, the 38 `[GizmoProjector]` classes plus the stateful ones were read for their layer, family, default and weight. The full table is in this commit's report; what decides the defaults:
+
+| drawn for EVERY unit by default, before this section | layer | why it buried the scene |
+|---|---|---|
+| `EntityRotationGizmo` — an arrow and a degree label | 0 Entities, **no toggle** | per unit; labels are unoccluded in 3-D |
+| `VisibilityConeGizmo` — 10 lines | 1 Perception, family Perception = **All** | per unit |
+| `LineOfSightGizmo` — a line per contact, a ring per heard slot | 1 Perception, family Contacts = **All** | per unit; the ring is a wire SPHERE in 3-D |
+| `NavigationTargetGizmo` — an arrow | 2 AiHelpers | per moving unit |
+| `HearingGizmo` — an expanding ring | 7 Hearing, no family | per moving unit; a wire sphere in 3-D |
+| `SpatialGridGizmo` — 604 lines over 1.5 km | 0 Entities, **no toggle** | the whole map |
+| `StanceGizmo` — "Crouched" | 0 Entities, **no toggle** | per non-standing unit; the 3-D figure already shows it |
+
+```mermaid
+graph TD
+  Panel["Layer panel (StructInspector, ImGuiPropertyTreeAdapter)"] -->|"checkbox click: GizmoStructUpdateEvent (at once)"| LCG["LayerControlGizmo"]
+  LCG -->|"LayerControlMask: bits 0..13 toggled, 14+ always on"| R2["DebugPrimitiveRenderer2D"]
+  LCG -->|same mask| R3["DebugPrimitiveTriage3D / GizmoRenderer3D"]
+  LCG -->|"WriteScopes: map.scope.Family"| Reg["GizmoSettingsRegistry"]
+  Reg --> Pol["GizmoFamilyVisibilityPolicy (selected or pinned)"]
+  Rot["EntityRotationGizmo"] -->|"layer 12 UnitDetails"| LCG
+  St["StanceGizmo"] -->|"layer 12 UnitDetails"| LCG
+  Grid["SpatialGridGizmo"] -->|"layer 13 SpatialGrid"| LCG
+  Menu["View: Tactical Map Layers..."] -->|"OpenLayerEditorEvent: toggles the panel"| LCG
+```
+*What the picture shows that prose hid:* every visibility decision already flows through ONE mask and ONE scope registry, on every map host and in both 2-D and 3-D, so quieter defaults are a change to their DEFAULT VALUES and two new bits. No renderer or host changes. The panel commits per click on the same route Apply used.
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant A as ImGuiPropertyTreeAdapter
+  participant L as DebugGizmoLayer
+  participant M as GlobalGizmoManager
+  participant G as LayerControlGizmo
+  U->>A: View, Tactical Map Layers...
+  Note over G: OpenLayerEditorEvent, panel open
+  U->>A: clicks "Hearing"
+  A->>L: onStructUpdate(json) in the same frame
+  L->>M: GizmoStructUpdateEvent (AnchorId)
+  M->>G: OnStructUpdate(json)
+  G->>G: mask recomputed, scopes written, panel STAYS open
+  U->>A: clicks "Fire traces" (no reopen)
+  U->>A: View, Tactical Map Layers... again
+  Note over G: panel closes
+```
+
+```mermaid
+classDiagram
+  class LayerControlDto {
+    <<exists, changed>>
+    AiHelpers, FireTraces, Blast, Hearing : now false
+    UnitDetails : new, false
+    SpatialGrid : new, false
+    PerceptionSelectedOnly, ContactsSelectedOnly : now true
+    FirstUntoggledLayer = 14
+  }
+  class DebugTraceLayers {
+    <<exists, changed>>
+    UnitDetails = 12
+    SpatialGrid = 13
+  }
+  class GizmoFamilies {
+    <<exists, changed>>
+    DefaultScope() SelectedOrPinned for every family
+  }
+  class ImGuiPropertyTreeAdapter {
+    <<exists, changed>>
+    DrawEditNode() returns edited
+    CommitIfEdited() new
+    Apply button removed
+  }
+  class LayerControlGizmo {
+    <<exists, changed>>
+    OnStructUpdate() no longer closes the panel
+  }
+  LayerControlGizmo --> LayerControlDto
+  LayerControlDto --> DebugTraceLayers
+  LayerControlDto --> GizmoFamilies
+```
+
+### Decisions *(R-1000)*
+
+| ⭐ lean | rejected (one line each) |
+|---|---|
+| **A** OFF by default: AiHelpers, FireTraces, Blast, Hearing; ON: Entities, Perception (its families scoped, B), Doors, Paths (selected), Roads, Labels | everything off (the map would show no roads and no unit cards: the 3-D map's roads ARE the road gizmo, §6f of the 3-D design) |
+| **B** EVERY gizmo family starts on the selected and pinned units: Perception and Contacts join the five that already did. ⛔ SUPERSEDES §5b B's "Perception, Contacts = All" | keep them on All (a cone and contact lines on every unit is the clutter) |
+| **C** two NEW toggles, OFF: `UnitDetails` (heading arrow + degree label + stance label) and `SpatialGrid` (the spatial hash tiles) | hard-coding them off (no way back; the grid's `ShowTiles` setting has no UI) · leaving them on layer 0 (only "Entities off" could hide them, which also hides the units) |
+| **D** the struct inspector COMMITS EACH FIELD EDIT at once; the Apply button goes; the layer gizmo no longer closes on an update; the View menu entry still toggles the panel | keep Apply and stop closing (still a click per change) · a close [X] that tells the gizmo (a new interaction-event kind: a wire change through the NED egress/ingress translators for a panel that the menu already closes) |
+| **E** the placement ghost and both pickers at HALF size (ghost sphere 15 → 7.5 m, entity picker 12 → 6 m, location picker 14 → 7 m) — world metres, so 3-D sees the same | screen pixels (the 2-D size would change with zoom differently from today) |
+
+### ✅ As built *(ui, `2026-10-14`)*
+
+| piece | where |
+|---|---|
+| defaults A, C | `LayerControlDto` (`Hrot.Common/Diagnostics/Gizmos/LayerControlGizmo.cs`), `DebugTraceLayers.UnitDetails / SpatialGrid` (`Fdp.Toolkits`) |
+| layers C | `EntityRotationGizmo` (arrow and label), `StanceGizmo`, `SpatialGridGizmo` (lines and counts) draw on them |
+| scopes B | `GizmoFamilies.DefaultScope` returns `SelectedOrPinned`; the panel's `…SelectedOnly` defaults follow |
+| live panel D | `ImGuiPropertyTreeAdapter.DrawEditNode` returns whether a field changed; `CommitIfEdited` sends it in the same frame and stays `Editing`; "Changes apply as you click." replaces Apply; `LayerControlGizmo.OnStructUpdate` keeps `_isEditing` |
+| sizes E | `EntityPlacementGizmo`, `EntityPickerGizmo`, `FdpLocationPickerGizmo` constants |
+
+⚠ **Left, named:**
+- In 3-D, labels still draw on top of everything (`LabelOverlay3D`, no occlusion), and an un-anchored ring with height is still a wire sphere. The defaults hide most of them, but drawing them less loudly in 3-D is its own change.
+- The card stack (Labels) stays on for every unit, because the user asked for cards (U19). There is no distance or zoom culling for cards.
+- A family scope a user saved to disk overrides the new default.
+- The GizmoMap.Viewer (external terminal) gets the live panel too: same adapter.
+
+**Rails:**
+- `LayerControlGizmoTests.CE1065_AnUpdate_AppliesTheMask_AndThePanelStaysOpen`, through the real manager route.
+- `CE3117_…` and `CE3120_…` updated to the new defaults.
+- `GizmoPresentationTests.CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing`.
+- `EntityPlacementGizmoTests.CE1065_TheGhost_IsHalfTheOldSize` and `EntityPickerGizmoTests.CE1065_TheCrosshair_IsHalfTheOldSize`.
 
 ## 6. Slices
 

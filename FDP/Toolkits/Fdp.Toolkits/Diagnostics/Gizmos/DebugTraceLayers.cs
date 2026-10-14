@@ -19,6 +19,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte Navmesh    = 10;
         /// <summary>⭐ CE-1033 S5b — the entity CARDS: frame in the side colour, name, health bar (docs/DESIGN_Map_3D_Mode.md §3.6).</summary>
         public const byte Labels     = 11;
+        /// <summary>⭐ CE-1065 — per-unit annotations nobody needs on every unit all the time: the heading arrow and its degree label
+        /// (<c>EntityRotationGizmo</c>) and the stance label (<c>StanceGizmo</c>). Off by default.</summary>
+        public const byte UnitDetails = 12;
+        /// <summary>⭐ CE-1065 — the spatial hash's tiles (<c>SpatialGridGizmo</c>): hundreds of long lines over the whole map. Off by
+        /// default; before, only the Entities layer could hide it.</summary>
+        public const byte SpatialGrid = 13;
     }
 }
 
