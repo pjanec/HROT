@@ -739,6 +739,12 @@ public sealed class Map3DFrameRail
         Assert.Equal(6, bodies.BodiesDrawn);
         Assert.Equal(CarriageKind.Carried, Carriage.Of(world, carried, tkb).Kind);
 
+        // close and side-on from the north (the carrier walks east, left to right): the casualty across his shoulders
+        var bearerAt = world.GetComponent<SimTransform>(bearer).Position;
+        sw.Camera3D.Pose = new CameraPose(bearerAt + new Vector3(0f, 0f, 1.2f), 4.2f, -MathF.PI * 0.42f, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "held-1b-carried-close.png"));
+
         // side-on from the south, low: the limp (bent, short steps) and the man down
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.5f, spot.Y - 4.5f, G(spot.X, spot.Y) + 0.7f), 7f, MathF.PI * 0.5f, -0.10f);
         for (int i = 0; i < 4; i++)
@@ -778,10 +784,12 @@ public sealed class Map3DFrameRail
         var jumper = riders[0];
         world.RemoveComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(jumper);
         world.SetComponent(jumper, new SimTransform { Position = new Vector3(hx + 2.4f, hy + 3.5f, G(hx + 2.4f, hy + 3.5f)), Rotation = Quaternion.Identity });
+        // from the north (the left door's side), on the jumper: mid-air below the door
+        sw.Camera3D.Pose = new CameraPose(new Vector3(hx + 2.4f, hy + 3.5f, G(hx, hy) + 1.8f), 9f, -MathF.PI * 0.40f, -0.05f);
         now += 1.0 / 30.0;
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
         frame.Step(canvas.Draw);
-        now += 0.15;
+        now += 0.20;
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "held-4-jump.png"));

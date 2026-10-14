@@ -666,7 +666,7 @@ public sealed class Map3DTests
         var parts = BlockFigure.Seated(legsOut: true, soldier: true);
         var foot = Vector3.Transform(Vector3.Zero, parts[1].BodyTransform(size) * frame);   // the left shin
         var outward = Vector3.TransformNormal(new Vector3(0f, MathF.Sign(seat.Y), 0f), heliBody);
-        Assert.True(Vector3.Dot(foot - hips, outward) > 0.1f, "his legs hang OUT of the door");
+        Assert.True(Vector3.Dot(foot - hips, outward) > 0.25f, $"his legs hang OUT of the door (out {Vector3.Dot(foot - hips, outward):0.00} m)");
         Assert.True(foot.Z < hips.Z - 0.3f, "and down");
     }
 

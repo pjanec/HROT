@@ -1423,7 +1423,7 @@ The free camera's feel was not seen with a real mouse — the wheel glide and th
 has settled — the speeds are unchanged) · `Map3DTests.CE1073_*` ×2 (the head is part `HeadIndex` in every pose; the eye follows a lean, a
 crouch and prone) · `PossessionStationTests.CE1073_*` (the eye on the current pose, the head hidden while held, the look the same frame).
 
-### 6m. CE-1081 … CE-1084 — the carried and the dragged, the wounded, riders in their seats, the jump down — DESIGN `2026-10-14` (ui)
+### 6m. CE-1081 … CE-1084 — the carried and the dragged, the wounded, riders in their seats, the jump down — DESIGN + AS-BUILT `2026-10-14` (ui)
 
 🔒 **User, `2026-10-14`:** *"the soldiers now can drag or carry another soldier (wounded one), using pick and drop action. can you pls render
 in 3d map the carried/dragged one? Also when soldier is wounded his motion pattern could be degraded (limping, bent etc.) also vehicles got
@@ -1533,6 +1533,35 @@ scaled, on the node that moves the man.
 - *A limp in the gait SOLVER* — the gait is the muscle's; the limp is a drawing over the same stride.
 - *Doors-off on the existing UH-60* — it would make every Black Hawk open; a type per configuration keeps scenarios explicit.
 - *A jump in the simulation* — the dismount already lands him; only the drop between seat and ground is missing, and it is a look.
+
+#### 6m as-built `2026-10-14` (ui)
+
+⭐ **Built as the three diagrams above draw it** — `Carriage` (+ `FigureCarriage`, `CarriageKind`), `DismountDrop` (in `Carriage.cs`), the
+`BlockFigure` poses, `EntityBodyLayer3D.HeldFigure` / `Burdened`, `Injury.SpeedFactor`, `SeatDto` place / facing / pose, the new type. No
+box moved. The details the diagrams do not carry:
+
+| as-built detail | why |
+|---|---|
+| a man dying while held (carried, dragged, seated, down) falls from a LYING figure (`DeathFall.Alive(…, Prone)` / `Crouched` for a rider) | the death fall blends from his last stance; he would otherwise stand up to fall |
+| the downed collapse is a second `DeathFall` instance (`_down`) and `BlockFigure.Collapse` (the same blend as a death fall) | one blend mechanism, two meanings |
+| the wounded limp and the carrier's arms apply to a STANDING man only | a crouched / prone man keeps his stance's figure (a limp on a crawl reads as noise) |
+| the jump: `DismountDrop` — a rider seen riding within 0.5 s whose seated hips were more than 0.5 m above his standing hips now; the lift falls as 1 − t² over the free-fall time (min 0.3 s), then 0.3 s crouched | measured on the doors-off Black Hawk: its door hips sit 0.9 m above the tyres — standing hips — so a LANDED helicopter's dismount is a step, a hovering one a jump |
+| `Heli_UH60_DoorsOff` = **404** (401 is the F-16); the UH-60's geometry moved into `Uh60Geometry()`, shared by both | ⚠ the design said 401 — corrected before building |
+| ⚠ the wounded factor scales the person's TOP speed (the 6 m/s sprint), like the stance and carry factors: asked 5 m/s, a wounded man makes 3.6 | one rule for every speed factor (`CarKinematicsSystem`) |
+| the type golden (`EntityTypeCatalogTests.BuiltInGolden`) gained the 404 line | a deliberate new type |
+| ⚠ the carried figure reads BULKY side-on (his torso crosses the carrier's shoulders, his legs and arms hang either side) — legible, not pretty | block figures; a rounder look waits for the mesh kits |
+
+📐 **Rails:** `Map3DTests.CE1081_*` ×3 + `CE1082_*` + `CE1083_*` + `CE1084_*` (the classifier; the shoulders; the part order; the
+limp and the carrier's lean; the door seats, legs out; the jump) · `CarKinematicsSystemTests.CE1082_*` ×3 · `InjuryTests.CE1082_*` ·
+`Map3DFrameRail.CE1081_V_*` (the real frame, below).
+
+✅ **(V) — a real frame under Xvfb** (`Map3DFrameRail.CE1081_V_*`):
+
+| | |
+|---|---|
+| ![carried and dragged](assets/map-3d/held-1-carried-dragged.png) | ![carried, close](assets/map-3d/held-1b-carried-close.png) |
+| ![wounded and down](assets/map-3d/held-2-wounded-down.png) | ![doors off](assets/map-3d/held-3-doors-off.png) |
+| ![the jump](assets/map-3d/held-4-jump.png) | *the forward left rider, 0.23 s after leaving his seat in a Black Hawk hovering 2 m up: crouched, about 1.7 m in the air below the door* |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
