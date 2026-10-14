@@ -25,6 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         public float ArrivalRadius;
         public float MaxLagMetres;
+        /// <summary>⭐ <c>CE-2159</c> X-a — 1 = the march owns the commander's danger-area sensor to <see cref="Objective"/>.</summary>
+        public byte DangerAreas;
     }
 
     /// <summary>
@@ -52,6 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Speed         = authored.Speed > 0f ? authored.Speed : 1.5f,
                 ArrivalRadius = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 5f,
                 MaxLagMetres  = authored.MaxLagMetres > 0f ? authored.MaxLagMetres : 10f,
+                DangerAreas   = authored.DangerAreas ? (byte)1 : (byte)0,
             };
             block.State = default;
         }
@@ -89,6 +92,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>A lead that gets no 0.5 m closer to the objective for this long hands the lead on (s) — 📐 live: the first lead
         /// picked stood on a spot no move works from (z 9 on <c>test-town</c>) and the whole squad waited behind it.</summary>
         public const float LeadStuckSeconds = 5f;
+        /// <summary>⭐ <c>CE-2159</c> (§6.1b) — a follower more than <see cref="CatchUpLagMetres"/> behind its slot is sent this much faster
+        /// than the march: a slot on the lead's trail moves at the march speed, so a man sent at that speed never closes the gap and
+        /// the lead held for him again and again (📐 live: ~0.3 m/s from a diagonal start).</summary>
+        public const float CatchUpFactor = 1.6f;
+        public const float CatchUpLagMetres = 4f;
 
         private static readonly SquadHsmShell s_shell = new(SquadMarchManeuver.BuildTransitionTable(), SquadMarchManeuver.PhaseAborted);
         private static readonly FormationTemplateManager s_templates = new();
@@ -112,6 +120,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Update(ref SquadMarchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
+            if (p.DangerAreas != 0) WatchRoute(in p, in ws, in ctx);
             ref var march = ref ws.March;
             float t = (float)(ctx.Now - ws.StartedAt);
             int lead = march.LeadPlusOne - 1;
@@ -163,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (lag > SquadManeuverRunner.MoverArrivalMetres) allAtSlots = false;
                 if (!silent && Flat(slot - ordered) >= ReorderMetres)
                 {
-                    SquadManeuverRunner.Move(ctx.World, ctx.Commander, m, slot, p.Speed, SquadManeuverRunner.MoverArrivalMetres);
+                    SquadManeuverRunner.Move(ctx.World, ctx.Commander, m, slot, FollowerSpeed(in p, lag), SquadManeuverRunner.MoverArrivalMetres);
                     Aim(ref ws, i, slot, at, t);
                     march.Reorders++;
                 }
@@ -188,6 +197,23 @@ namespace Hrot.AI.Behaviors.Brains
                 Aim(ref ws, lead, p.Objective, leadAt, t);
                 march.Reorders++;
             }
+        }
+
+        /// <summary>The commander's danger-area sensor's site (the march's run owns it).</summary>
+        public const int DangerSensorSite = 0x21590001;
+
+        /// <summary>
+        /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the march owns the commander's route sensor: the route from where the squad
+        /// stands to the objective, answered every 2 s. A crossing reaction pauses the march and keeps it (the SOP row and the crossing
+        /// read it); back from a pause the march RE-POINTS it, so the answer it reads next is from where the squad now stands — past the
+        /// area it crossed.
+        /// </summary>
+        private static void WatchRoute(in SquadMarchParams p, in SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(p.Objective);
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
+            if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);
+            else if (ws.Reissue != 0) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);
         }
 
         public NodeStatus Outcome(ref SquadMarchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
@@ -226,10 +252,13 @@ namespace Hrot.AI.Behaviors.Brains
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = SquadMarchManeuver.RoleFollower };
             return new MemberOrder
             {
-                Kind = MemberOrderKind.AdvanceTo, Point = slot, Speed = p.Speed,
+                Kind = MemberOrderKind.AdvanceTo, Point = slot, Speed = FollowerSpeed(in p, Flat(slot - at)),
                 ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = SquadMarchManeuver.RoleFollower,
             };
         }
+
+        /// <summary>⭐ <c>CE-2159</c> (§6.1b) — the follower's asked speed: the march's, or faster while he is behind his slot.</summary>
+        public static float FollowerSpeed(in SquadMarchParams p, float lag) => lag > CatchUpLagMetres ? p.Speed * CatchUpFactor : p.Speed;
 
         /// <summary>⭐ CE-2141 — nothing of its own to drop; the members' orders are released when the commander's RUN ends
         /// (<c>SubordinateOrders</c>), not here: a play inside <c>ReactToContact</c> ends and the next starts in one tick.</summary>

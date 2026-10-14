@@ -32,6 +32,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float ArrivalRadius;
         /// <summary>A bound counts as complete after this long even if a mover never arrives (s).</summary>
         public float BoundTimeoutSeconds;
+        /// <summary>⭐ <c>CE-2158</c> F-c — runtime: each mover's cover point for his element's next bound (<see cref="SquadCover"/>).</summary>
+        public SquadCoverPicks Cover;
     }
 
     /// <summary>
@@ -78,6 +80,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2123</c> — the commander's tick, through the generic runner (<see cref="BoundingOverwatchPlay"/>).</summary>
         public static NodeStatus Run(ref BoundingOverwatchParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
             => SquadManeuverRunner.Tick<BoundingOverwatchPlay, BoundingOverwatchParams>(ref p, ref ws, self, world);
+
+        /// <summary>⭐ <c>CE-2158</c> F-c — the play owns a cover query now: it goes when the run is left.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.BoundingOverwatchBehavior.Run")]
+        public static void Deactivate_Run(ref BoundingOverwatchParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
+            => SquadManeuverRunner.DropSensor(ref ws, world);
     }
 
     /// <summary>
@@ -87,6 +94,13 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public struct BoundingOverwatchPlay : ISquadPlay<BoundingOverwatchParams>
     {
+        /// <summary>⭐ <c>CE-2158</c> F-c — the commander's cover query for the next element's bound.</summary>
+        public const int CoverSite = 0x21580002;
+        /// <summary>A bound may stretch this much past <c>BoundMetres</c> to end in cover ("bound 20–50 m to the next cover").</summary>
+        public const float CoverStretch = 1.25f;
+        /// <summary>A mover sent to a cover point stops this close to it (m): the point stands 0.75 m off the wall.</summary>
+        public const float CoverArrivalMetres = 1f;
+
         private static readonly SquadHsmShell s_shell = new(
             BoundingOverwatchManeuver.BuildTransitionTable(), BoundingOverwatchManeuver.PhaseAborted);
 
@@ -99,10 +113,26 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             BoundingOverwatchManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);
+            p.Cover = default;
             return PlayStart.Go;
         }
 
-        public void Update(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
+        /// <summary>⭐ <c>CE-2158</c> F-c — track the squad's top contact (on contact the watchers suppress it), and pick the NEXT element's
+        /// cover while this one bounds: hidden from the contact, or before contact from the objective, where the enemy is expected.</summary>
+        public void Update(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (SquadManeuverRunner.TopContact(in ctx, ws.ThreatId, out var contact, liveOnly: true))
+            {
+                if (contact.EntityId != ws.ThreatId) ws.Reissue = 1;   // contact: the watchers start (or switch) suppressing
+                ws.ThreatId = contact.EntityId;
+                ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
+            }
+            else if (ws.ThreatId != 0) { ws.ThreatId = 0; ws.Reissue = 1; }   // the contact is down: the watchers go back to watching
+            byte next = (byte)(1 - BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
+            if (!SquadCover.IsReady(in p.Cover, next))
+                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, p.Objective, p.BoundMetres * CoverStretch,
+                                ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
+        }
 
         public NodeStatus Outcome(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
@@ -113,15 +143,54 @@ namespace Hrot.AI.Behaviors.Brains
                 var d = p.Objective - c; d.Z = 0f;
                 if (d.LengthSquared() > p.ArrivalRadius * p.ArrivalRadius) return NodeStatus.Running;
             }
+            // ⭐ CE-2158 F-c — a mover still bounding to a COVER point finishes the bound (or it times out): ⛔ the drill does not end
+            //   with him in the open because both centres came within ArrivalRadius (measured live: the last bound to Block B's face
+            //   was cut off 5–18 m short). A geometric bound ends as before.
+            if (ws.IssuedPhase == ctx.Squad.PhaseId && ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds)
+            {
+                ushort movers = SquadGates.Element(in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
+                for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+                {
+                    if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m) || !SquadCover.Has(in p.Cover, i, out var pick)) continue;
+                    var d = ctx.At(m) - pick; d.Z = 0f;
+                    if (d.Length() > SquadGates.SetMetres) return NodeStatus.Running;
+                }
+            }
             return NodeStatus.Success;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2158</c> F-c — every live mover is at his point: a man sent to a COVER point within <see cref="SquadGates.SetMetres"/>
+        /// (he is ordered to 1 m of it — in cover, not near it), a man on a geometric bound within the runner's 3 m.
+        /// ⛔ SUPERSEDED: one 3 m gate for all — measured live, the swap came while the cover movers were 2.6–3.9 m short, and the next
+        /// order held them there.
+        /// </summary>
+        private static unsafe bool MoversSet(in BoundingOverwatchParams p, in SquadPlayState ws, in SquadPlayContext ctx, byte element)
+        {
+            ushort movers = SquadGates.Element(in ctx, element);
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
+                bool cover = SquadCover.Has(in p.Cover, i, out var pick);
+                var target = cover ? pick : new Vector3(ws.TargetX[i], ws.TargetY[i], ws.TargetZ[i]);
+                var d = ctx.At(m) - target; d.Z = 0f;
+                if (d.Length() > (cover ? SquadGates.SetMetres : SquadManeuverRunner.MoverArrivalMetres)) return false;
+            }
+            return true;
         }
 
         public bool PhaseComplete(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, out PhaseEventKind evt)
         {
-            evt = PhaseEventKind.BoundComplete;
-            if (SquadManeuverRunner.ElementArrived(in ws, in ctx, BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId))) return true;
-            if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
-            ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
+            byte moving = BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId);
+            // ⭐ CE-2158 F-c — every mover at his point is "set" (DefiladeReached); only the clock is BoundComplete (traced as Timeout).
+            evt = PhaseEventKind.DefiladeReached;
+            if (!MoversSet(in p, in ws, in ctx, moving))
+            {
+                if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
+                evt = PhaseEventKind.BoundComplete;
+                ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
+            }
+            SquadCover.Spend(ref p.Cover, in ctx, moving);   // the bound is over: its next one picks afresh
             return true;
         }
 
@@ -138,16 +207,29 @@ namespace Hrot.AI.Behaviors.Brains
         public MemberOrder OrderFor(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             bool mover = element == BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId);
+            if (!mover)
+            {
+                // ⭐ CE-2158 F-c — before contact the watchers watch; on contact they suppress the squad's top contact
+                if (ws.ThreatId == 0)
+                    return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
+                return new MemberOrder
+                {
+                    Kind = MemberOrderKind.Suppress, Target = new Entity((ulong)ws.ThreatId), Point = ws.ThreatPoint, Speed = p.Speed,
+                    RoleId = BoundingOverwatchManeuver.RoleCovering,
+                };
+            }
+            bool cover = SquadCover.Has(in p.Cover, member, out var pick);   // ⭐ F-c — a cover point, else the formation's bound
             return new MemberOrder
             {
-                Kind          = mover ? MemberOrderKind.AdvanceTo : MemberOrderKind.Hold,
-                Point         = at + ws.Scratch,
+                Kind          = MemberOrderKind.AdvanceTo,
+                Point         = cover ? pick : at + ws.Scratch,
+                Cover         = cover ? (byte)1 : (byte)0,
                 Speed         = p.Speed,
-                ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres,
-                RoleId        = mover ? BoundingOverwatchManeuver.RoleMoving : BoundingOverwatchManeuver.RoleCovering,
+                ArrivalRadius = cover ? CoverArrivalMetres : SquadManeuverRunner.MoverArrivalMetres,   // in cover, not 3 m from it
+                RoleId        = BoundingOverwatchManeuver.RoleMoving,
             };
         }
 
-        public void Release(ref SquadPlayState ws, EntityRepository world) { }
+        public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
     }
 }

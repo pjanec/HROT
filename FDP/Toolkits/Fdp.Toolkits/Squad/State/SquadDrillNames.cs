@@ -33,6 +33,7 @@ namespace Fdp.Toolkit.Squad
             (DangerAreaCrossingManeuver.ManeuverKind, DangerAreaCrossingManeuver.PhaseFarSideCover)     => "FarSideCover",
             (DangerAreaCrossingManeuver.ManeuverKind, DangerAreaCrossingManeuver.PhaseCollapseSecurity) => "CollapseSecurity",
             (DangerAreaCrossingManeuver.ManeuverKind, DangerAreaCrossingManeuver.PhaseReform)           => "Reform",
+            (DangerAreaCrossingManeuver.ManeuverKind, DangerAreaCrossingManeuver.PhaseAborted)          => "Aborted",
             (BoundingOverwatchManeuver.ManeuverKind, BoundingOverwatchManeuver.PhaseElement0Moving)     => "Element0Moving",
             (BoundingOverwatchManeuver.ManeuverKind, BoundingOverwatchManeuver.PhaseElement1Moving)     => "Element1Moving",
             (BoundingOverwatchManeuver.ManeuverKind, BoundingOverwatchManeuver.PhaseAborted)            => "Aborted",

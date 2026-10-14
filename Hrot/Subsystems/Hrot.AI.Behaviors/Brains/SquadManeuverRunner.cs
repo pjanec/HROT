@@ -47,6 +47,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — go for <see cref="MemberOrder.Target"/> (a man who is down) and bring him to
         /// <see cref="MemberOrder.Point"/>: the library <c>CarryCasualty</c>. A unit member holds.</summary>
         CarryCasualty = 4,
+        /// <summary>⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6, D5) — go to <see cref="MemberOrder.Point"/> and hold there, fighting only what
+        /// it sees: the library CombatPosture at that point (a <see cref="Hold"/> somewhere else). ⚠ It does not face a sector — no facing
+        /// control exists for a standing soldier. A unit member gets <c>Order.Hold</c>.</summary>
+        Watch = 5,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -418,7 +422,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
-                if (order.Kind == MemberOrderKind.Hold) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
+                if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
@@ -566,22 +570,36 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static bool AskTerrainAll(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from,
                                          Entity at, out EqsCognitiveBuffer answers)
+            => AskTerrainAll(ref ws, in ctx, blueprintId, site, radius, from, at, false, default, out answers);
+
+        /// <summary>⭐ <c>CE-2158</c> F-c — the same query aimed at a POINT in slot 1 (where the enemy is expected, before there is one to
+        /// name): <see cref="EqsSensor.ContextPoint1"/>.</summary>
+        public static bool AskTerrainAll(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from,
+                                         Vector3 atPoint, out EqsCognitiveBuffer answers)
+            => AskTerrainAll(ref ws, in ctx, blueprintId, site, radius, from, Entity.Null, true, atPoint, out answers);
+
+        private static bool AskTerrainAll(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from,
+                                          Entity at, bool aimAtPoint, Vector3 atPoint, out EqsCognitiveBuffer answers)
         {
             answers = default;
             var world = ctx.World;
             var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
             if (child.IsNull)
             {
-                if (from.IsNull || at.IsNull) return true;
+                if (from.IsNull || (at.IsNull && !aimAtPoint)) return true;
                 var config = new EqsSensor
                 {
                     BlueprintId         = blueprintId,
                     Epoch               = 1,
                     SearchRadius        = radius,
-                    PublishPolicy       = (byte)EqsPublishPolicy.ScoreDelta,
-                    ScoreDeltaThreshold = 0.05f,
+                    // ⭐ CE-2158 F-c — a ONE-SHOT query (dropped after its answer) wants every answer. ⛔ SUPERSEDED: ScoreDelta, which
+                    //   — measured live — never published the answer of a query re-made on the same part id when it equalled the last
+                    //   one (an empty answer again), so the play waited out its pick timeout every bound.
+                    PublishPolicy       = (byte)EqsPublishPolicy.AlwaysPush,
                     ContextSlot0        = from,
                     ContextSlot1        = at,
+                    ContextPoint1       = atPoint,
+                    ContextPointMask    = aimAtPoint ? EqsSensor.Point1Bit : (byte)0,
                 };
                 child = EqsChildSensor.Ensure(world, ctx.Commander, site, in config);
                 if (child.IsNull) return false;
@@ -600,6 +618,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2123</c> — the squad's top IDENTIFIED pooled contact (highest threat), preferring <paramref name="keep"/>
         /// while it is pooled. A heard-only contact has no entity to aim at and is skipped.</summary>
         public static bool TopContact(in SquadPlayContext ctx, long keep, out SquadContact contact)
+            => TopContact(in ctx, keep, out contact, liveOnly: false);
+
+        /// <summary>⭐ <c>CE-2158</c> F-c — as above; <paramref name="liveOnly"/> also skips a pooled contact already out of the fight
+        /// (<see cref="CombatLife.IsAlive"/>): the pool remembers the dead until they age out, and nobody suppresses a dead man.</summary>
+        public static bool TopContact(in SquadPlayContext ctx, long keep, out SquadContact contact, bool liveOnly)
         {
             contact = default;
             ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
@@ -611,6 +634,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var c = pool[i];
                 if ((c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) continue;
+                if (liveOnly && !CombatLife.IsAlive(ctx.World, new Entity((ulong)c.EntityId))) continue;
                 if (keep != 0 && c.EntityId == keep) { contact = c; return true; }
                 if (!found || c.ThreatScore > contact.ThreatScore) { contact = c; found = true; }
             }

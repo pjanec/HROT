@@ -48,9 +48,9 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
             Assert.Equal(DangerAreaCrossingManeuver.PhaseFarSideCover, state.PhaseId);
             phasesEntered.Add(state.PhaseId);
 
-            // Phase 2 -> 3: ShotFired
+            // Phase 2 -> 3: DefiladeReached (CE-2159 D2 — the far side is set; was ShotFired)
             bool t23 = PhaseSequencer.Advance(ref state,
-                new PhaseEvent[] { new PhaseEvent(PhaseEventKind.ShotFired) },
+                new PhaseEvent[] { new PhaseEvent(PhaseEventKind.DefiladeReached) },
                 table, currentTick: 3, dwellTimeoutTicks: 100, recoveryPhaseId: 0);
             Assert.True(t23);
             Assert.Equal(DangerAreaCrossingManeuver.PhaseCollapseSecurity, state.PhaseId);

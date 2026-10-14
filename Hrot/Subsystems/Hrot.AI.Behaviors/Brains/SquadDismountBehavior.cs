@@ -144,5 +144,23 @@ namespace Hrot.AI.Behaviors.Brains
         [Fbt.Kernel.SharedAiCondition]
         public static bool SensedFreshAboard(ref SopSenseParams p, Entity self, EntityRepository world)
             => SopConditions.SensedFresh(ref p, self, world) && SquadDismountBehavior.AnyMemberAboard(world, self);
+
+        /// <summary>
+        /// ⭐ <c>CE-2159</c> X-c (Squad Tactics §7.7.6) — a danger area is AHEAD: the commander's danger-area sensor (the march's) holds
+        /// one the route reaches within <see cref="SopAreaParams.WithinMetres"/>, and the squad's centre is not yet past its far side.
+        /// ⭐ State, not the <c>AreaAhead</c> edge: the edge fires once, when the area first shows on the route — often 100 m+ out —
+        /// and the far-side test keeps a buffer not yet refreshed after the crossing from starting it again.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool DangerAreaAhead(ref SopAreaParams p, Entity self, EntityRepository world)
+        {
+            if (!DangerCrossingPlay.NextArea(world, self, out var area)) return false;
+            if (area.DistanceAlongRoute > (p.WithinMetres > 0f ? p.WithinMetres : 30f)) return false;
+            var line = area.FarSideHandle - area.NearSideHandle; line.Z = 0f;
+            if (line.LengthSquared() < 1f) return false;
+            if (!world.HasComponent<SimTransform>(self)) return true;
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            return System.Numerics.Vector3.Dot(at - area.FarSideHandle, System.Numerics.Vector3.Normalize(line)) < 0f;
+        }
     }
 }

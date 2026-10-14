@@ -210,9 +210,12 @@ public sealed class SquadTacticsScenarioTests : IDisposable
             // ② contact ⇒ the SOP's reaction pauses the bound and the squad holds and returns fire …
             Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SquadHoldManeuver.ManeuverKind) && Paused(); }, timeoutFrames: 6000),
                 $"on contact the leader's standing orders must pause the bound and hold; {State()}");
-            // ③ … then the leader decides — four riflemen against one ⇒ assault.
-            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SuppressAndManeuverManeuver.ManeuverKind); }, timeoutFrames: 3000),
+            // ③ … then the leader decides — four riflemen against one ⇒ assault: ⭐ CE-2158 (§7.6.3) the enemy is ~75 m off, so the
+            //   assault first CLOSES by fire and movement (kind 12), then flanks (suppress and manoeuvre).
+            Assert.True(harness.PumpUntil(() => { Note(); return kinds.Contains(SuppressAndManeuverManeuver.ManeuverKind); }, timeoutFrames: 12000),
                 $"the leader must decide to assault; {State()}");
+            Assert.True(kinds.IndexOf(Fdp.Toolkit.Squad.Maneuvers.FireAndMovementManeuver.ManeuverKind) is >= 0 and var fm
+                        && fm < kinds.IndexOf(SuppressAndManeuverManeuver.ManeuverKind), $"the assault closes by fire and movement first; {State()}");
             _out.WriteLine("assault: " + State());
             // ④ the drill ends ⇒ the bound resumes, with its own squad state.
             Assert.True(harness.PumpUntil(() => { Note(); return !Paused() && Squad().ManeuverKind == BoundingOverwatchManeuver.ManeuverKind

@@ -652,6 +652,35 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.All(top, r => Assert.True(Vector2.Distance(new(300, 80), new(r.PositionX, r.PositionY)) <= 60f));
         }
 
+        /// <summary>⭐ <c>CE-2158</c> F-c — a bounding squad asks for cover hidden from a POINT (where the enemy is, or is expected)
+        /// as well as from an entity, and the two agree: north of the squad at (140,200) with the threat at (195,300), the answers
+        /// are on Block B's south face (y ≈ 229). ⚠ Measured: the Low Wall (0.5 m, prone points) on the way is NOT an answer —
+        /// a point candidate is judged at the CROUCHED eye (<c>CheapLineOfSightTest</c>, Viewer = Slot), and the movers are not
+        /// ordered prone there either.</summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE2158_FindCoverFromTarget_HiddenFromAPointOrAnEntity_FindsBlockBsSouthFace(bool asEntity)
+        {
+            var town = TestTown();
+            _repo.SetSingletonManaged(town);
+            _repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(town));
+            var self = At(140, 200);
+            var threat = new Vector3(195, 300, 0);
+            var sensor = asEntity
+                ? new EqsSensor { SearchRadius = 35f, ContextSlot0 = self, ContextSlot1 = At(threat.X, threat.Y) }
+                : new EqsSensor { SearchRadius = 35f, ContextSlot0 = self, ContextPoint1 = threat, ContextPointMask = EqsSensor.Point1Bit };
+
+            var top = Run(FindCoverFromTarget.Build((IEqsTemplateBuilder)new EqsTemplateBuilder()), sensor);
+
+            Assert.NotEmpty(top);
+            Assert.All(top, r => Assert.InRange(r.PositionY, 228.5f, 230f));   // the face, outside the building
+            Assert.All(top, r => Assert.False(SeenBy(town, threat, r, 1.1f)));
+
+            var lowWall = new EqsSensor { SearchRadius = 35f, ContextSlot0 = At(147, 72), ContextPoint1 = threat, ContextPointMask = EqsSensor.Point1Bit };
+            Assert.Empty(Run(FindCoverFromTarget.Build((IEqsTemplateBuilder)new EqsTemplateBuilder()), lowWall));
+        }
+
         /// <summary>A firing position on B sees B (standing eye) and is not inside a building.</summary>
         [Fact]
         public void FindOpenFiringPosition_OnTestTown_EveryAnswerSeesTheTarget()

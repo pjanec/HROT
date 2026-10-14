@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
@@ -48,6 +50,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
         ///     instance is never disposed while the parent lives (BDC/NED descriptor rules).</item>
         ///   <item>⭐ The epoch's high 16 bits carry the owning run (§1 D5 ②), so an answer computed for an earlier run's
         ///     sensor on a reused part id fails <c>EqsResultUpdateSystem</c>'s epoch check.</item>
+        ///   <item>⭐⭐ <c>CE-2158</c> (EQS §17.6.1) — bits 8–15 carry the LIFETIME of this part id (<see cref="StampLifetime"/>): each
+        ///     sensor made on a part id gets the next number for that part, so a lifetime never shares its epoch with the one before
+        ///     it on the same part — even when that one ended in the same frame and nothing on the wire marked the end. Bits 0–7
+        ///     count refreshes (<see cref="NextEpoch"/>).</item>
         ///   <item>⭐ On the live world (<see cref="EntityRepository"/> — what every behaviour tick is handed) the child is
         ///     created IMMEDIATELY and returned, so a second creation in the same frame sees it and takes the next id.
         ///     ⚠ On any other view it goes through the command buffer and <see cref="Entity.Null"/> is returned; only one
@@ -72,7 +78,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             uint owner  = BehaviorOwnedParts.OwnerOf(view, parent);
             int partId  = AllocatePartId(view, parent);
             var config  = sensor;
-            config.Epoch = StampOwner(config.Epoch, owner);
+            config.Epoch = StampLifetime(StampOwner(config.Epoch, owner), NextLifetime(view, parent, partId));
             var meta    = new PartMetadata { ParentEntity = parent, InstanceId = partId };
             var stamp   = new BehaviorOwnedPart { OwnerInstanceId = owner, SiteId = siteId, Key = key };
 
@@ -130,10 +136,34 @@ namespace Fdp.Toolkit.Spatial.Eqs
             => ((((ownerInstanceId & 0xFFFFu) ^ (ownerInstanceId >> 16)) & 0xFFFFu) << 16) | (epoch & 0xFFFFu);
 
         /// <summary>
-        /// ⭐ CE-3049 — the next epoch of a sensor: bumps the refresh count (low 16 bits) and NEVER the owner stamp (high
-        /// 16). 🔴 A plain <c>Epoch++</c> carried a refresh overflow into the owner bits. Every refresh goes through here.
+        /// ⭐ CE-3049 — the next epoch of a sensor: bumps the refresh count (low 8 bits) and NEVER the owner stamp (high
+        /// 16) or the lifetime (bits 8–15, CE-2158). 🔴 A plain <c>Epoch++</c> carried a refresh overflow into the owner bits.
+        /// Every refresh goes through here.
         /// </summary>
-        public static uint NextEpoch(uint epoch) => (epoch & 0xFFFF0000u) | ((epoch + 1u) & 0xFFFFu);
+        public static uint NextEpoch(uint epoch) => (epoch & 0xFFFFFF00u) | ((epoch + 1u) & 0xFFu);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2158</c> (EQS §17.6.1) — the epoch with bits 8–15 set to <paramref name="lifetime"/> (its low 8 bits). The owner
+        /// stamp (high 16) and the refresh count (low 8) are kept.
+        /// <para>🔴 Why: the Muscle carrier OUTLIVES a lifetime and every lifetime was stamped <c>StampOwner(1, run)</c>, so a sensor ended
+        /// and re-made in ONE frame (nothing on the wire marks the end — the config egress de-duplicates an equal config, the topic keeps
+        /// one sample per key) looked like a continuation: same epoch, the last lifetime's evaluation state, and a <c>ScoreDelta</c>
+        /// answer equal to the last one never published. A different epoch makes the solver reset (its epoch rule), and the egress send.</para>
+        /// </summary>
+        public static uint StampLifetime(uint epoch, uint lifetime) => (epoch & 0xFFFF00FFu) | ((lifetime & 0xFFu) << 8);
+
+        // The next lifetime number of (parent, part id), per world. ⭐ Per PART: consecutive lifetimes on one part always differ (until
+        // 256 of them wrap — the one before is the only one that matters). The first lifetime is 0, so a part's first sensor stamps
+        // exactly as before. Deterministic: creation order is the world's.
+        private static readonly ConditionalWeakTable<object, Dictionary<(Entity Parent, int Part), byte>> s_lifetimes = new();
+
+        internal static byte NextLifetime(ISimulationView view, Entity parent, int partId)
+        {
+            var parts = s_lifetimes.GetValue(view, static _ => new Dictionary<(Entity, int), byte>());
+            parts.TryGetValue((parent, partId), out byte next);
+            parts[(parent, partId)] = unchecked((byte)(next + 1));
+            return next;
+        }
 
         /// <summary>
         /// Ask again: bump the sensor's <c>Epoch</c> and clear its buffer, so <see cref="EqsCognitiveBuffer.IsReady"/> turns true
@@ -162,7 +192,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         private static bool Apply(ISimulationView view, Entity child, EqsSensor sensor)
         {
-            // ⭐ CE-485: only the low 16 bits count refreshes; the high 16 carry the owning run and never change.
+            // ⭐ CE-485: only the low 8 bits count refreshes; the high 16 carry the owning run, bits 8–15 the lifetime (CE-2158).
             sensor.Epoch = NextEpoch(sensor.Epoch);
             if (view is EntityRepository repo)
             {

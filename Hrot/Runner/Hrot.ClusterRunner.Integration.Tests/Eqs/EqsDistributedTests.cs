@@ -1224,6 +1224,96 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2158</c> (EQS §17.6.1, the per-lifetime epoch) — END TO END: a one-shot <c>ScoreDelta</c> query made through
+    /// <c>EqsChildSensor.Ensure</c>, answered, ended and RE-MADE IN THE SAME FRAME on the same part id is answered again. Nothing on
+    /// the wire marks that end (the egress de-duplicates an equal config; the topic keeps one sample per key) — only the lifetime in
+    /// the epoch does. 🔴 Red before: both lifetimes were <c>StampOwner(1, run)</c>, the egress sent nothing, and the answer, equal to
+    /// the last, was never published.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE2158_AOneShotQueryRemadeInTheSameFrame_IsAnsweredAgain()
+    {
+        using var rig = new LifecycleRig();
+        var registry = new SimpleEqsTemplateRegistry();
+        registry.Register(new EqsQueryTemplate { BlueprintId = ConstantScoreTemplate, Generator = new ConstantScoreGenerator(), MaxCandidates = 4 });
+        rig.Sim.SetSingletonManaged<IEqsTemplateRegistry>(registry);
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity parent);
+        var config = new EqsSensor
+        {
+            BlueprintId = ConstantScoreTemplate, Epoch = 1, SearchRadius = 25f,
+            PublishPolicy = (byte)EqsPublishPolicy.ScoreDelta, ScoreDeltaThreshold = 0.5f,
+        };
+
+        var first = EqsChildSensor.Ensure(rig.Cgf, parent, siteId: 0x2158, in config);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(first), timeoutFrames: 3000), "The first lifetime must be answered.");
+        int part = rig.Cgf.GetComponentRO<PartMetadata>(first).InstanceId;
+
+        rig.Cgf.DestroyEntity(first);                                                  // ended …
+        var second = EqsChildSensor.Ensure(rig.Cgf, parent, siteId: 0x2158, in config); // … and re-made, same frame
+        Assert.Equal(part, rig.Cgf.GetComponentRO<PartMetadata>(second).InstanceId);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(second), timeoutFrames: 3000),
+            $"The next lifetime on part {part}, re-made in the same frame, must be answered (epoch {rig.Cgf.GetComponentRO<EqsSensor>(second).Epoch:X}).");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2158</c> (EQS §17.6.1) — a NEW lifetime starts as a fresh carrier did EVEN WHEN THE SOLVER NEVER SAW THE END:
+    /// ① the end's Suspended sample and the next lifetime's config arrive in ONE batch (the ingress keeps the newest), or ② the
+    /// carrier was suspended by the last poll and the solver has not run since. Either way the carrier's evaluation state goes.
+    /// 🔴 Before: it survived — "published this epoch" and the last top-K, under the SAME epoch (<c>StampOwner(1, run)</c>) — so a
+    /// <c>ScoreDelta</c> one-shot query re-made on the part id was never answered when its answer equalled the last (measured live,
+    /// 3 of 5 cover queries in <c>ua-bounding-overwatch</c>). ⭐ Ingress-level, like <c>CE492</c>: real DDS controls neither batch.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE2158_ANewLifetime_TheSolverNeverSawEnd_StartsWithoutTheLastLifetimesEvalState()
+    {
+        using var rig = new LifecycleRig();
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null, rig.H.SimHost.TestHook_EntityMap);
+        EqsSensorConfigTopic Config(int part, bool suspended) => new()
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 0x0002_0001u,
+            SearchRadius = 25f, Suspended = suspended,
+        };
+        void Arrive(params (EqsSensorConfigTopic Data, long SourceTime)[] arrivals)
+        {
+            var cmd = new EntityCommandBuffer();
+            foreach (var (data, sourceTime) in arrivals) ingress.Receive(cmd, data, valid: true, disposed: false, sourceTime);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+        void Answered(int part)   // the solver's memory of a published answer, as after a real solve
+        {
+            var carrier = rig.Carrier(part);
+            var eval = new SensorEvalState { CurrentEpoch = 0x0002_0001u, PublishedThisEpoch = true };
+            if (rig.Sim.HasComponent<SensorEvalState>(carrier)) rig.Sim.SetComponent(carrier, eval);
+            else rig.Sim.AddComponent(carrier, eval);
+        }
+
+        // ① the end and the next lifetime in one batch
+        Arrive((Config(21, suspended: false), 100));
+        Assert.False(rig.Carrier(21).IsNull, "the first lifetime gets a carrier");
+        Answered(21);
+        Arrive((Config(21, suspended: true), 200), (Config(21, suspended: false), 300));
+        Assert.False(rig.CarrierSensor(21).Suspended, "the next lifetime is solved");
+        Assert.False(rig.Sim.HasComponent<SensorEvalState>(rig.Carrier(21)),
+            "the next lifetime must not inherit the ended one's evaluation state (one batch)");
+
+        // ② the end applied, the solver not run since, then the next lifetime
+        Arrive((Config(22, suspended: false), 100));
+        Answered(22);
+        Arrive((Config(22, suspended: true), 200));
+        Assert.True(rig.CarrierSensor(22).Suspended);
+        Arrive((Config(22, suspended: false), 300));
+        Assert.False(rig.Sim.HasComponent<SensorEvalState>(rig.Carrier(22)),
+            "the next lifetime must not inherit the ended one's evaluation state (the solver never saw the end)");
+
+        // ③ an ordinary parameter change of a LIVE sensor keeps it (no lifetime boundary)
+        Arrive((Config(23, suspended: false), 100));
+        Answered(23);
+        Arrive((Config(23, suspended: false), 200));
+        Assert.True(rig.Sim.HasComponent<SensorEvalState>(rig.Carrier(23)), "a live sensor's update is not a new lifetime");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-492</c> — an instance with TWO writers (after an authority move: the old owner's last ACTIVE sample, the new
     /// owner's SUSPEND from its orphan sweep) ends in the state of the NEWEST sample by source time, whatever order a
     /// late-joining Muscle receives them in. 🔴 Before: the sample that ARRIVED last won, so an ended sensor could be solved

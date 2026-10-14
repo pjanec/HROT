@@ -58,6 +58,14 @@ public static class BasicSquadSop
                         visualId: new Guid("c2123000-0000-0000-0000-000000000022"));
                 },
                     visualId: new Guid("c2123000-0000-0000-0000-000000000020"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.DangerAreaAhead@32",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000061"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDangerCrossing:Alert@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000062"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000060"));
             },
                 visualId: new Guid("c2123000-0000-0000-0000-000000000002"));
 

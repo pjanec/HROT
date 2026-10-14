@@ -94,6 +94,7 @@ namespace Fdp.Toolkit.Squad.Systems
         {
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1035 Q2 — bound to this view's doors (R-219)
             bool memory = repo.IsComponentTypeRegistered<TargetMemory>();
+            bool pooled = repo.IsComponentTypeRegistered<SquadCognitiveState>();
             bool tags = repo.IsComponentTypeRegistered<SensorTag>();
             _next.Clear();
 
@@ -107,7 +108,9 @@ namespace Fdp.Toolkit.Squad.Systems
                 for (int i = 0; i < buffer.Count && i < span.Length; i++)
                     span[i].ThreatRating = memory && repo.HasComponent<TargetMemory>(unit)
                         ? ThreatOn(repo, unit, terrain, in span[i])
-                        : 0f;
+                        : pooled && repo.HasComponent<SquadCognitiveState>(unit)
+                            ? ThreatOnFromPool(repo, unit, terrain, in span[i])   // ⭐ CE-2159 X-a — a body-less commander
+                            : 0f;
 
                 // ③ edges on the next area ahead (slot 0 — the solve keeps route order)
                 uint feature = buffer.Count > 0 ? span[0].FeatureId : 0u;
@@ -146,6 +149,30 @@ namespace Fdp.Toolkit.Squad.Systems
                 best = danger;
             }
             return Math.Clamp(best, 0f, 1f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the threat on <paramref name="area"/> as a SQUAD knows it: a commander has no
+        /// memory of its own, so its sensor is rated from the squad's merged contact pool — 1 when any contact still in the fight (or
+        /// heard, which cannot be told dead) has sight of the area from where it was last placed, else 0.
+        /// </summary>
+        public static unsafe float ThreatOnFromPool(EntityRepository repo, Entity unit, Fdp.Toolkit.World.IWorldQuery? terrain, in DangerAreaDescriptor area)
+        {
+            ref readonly var squad = ref repo.GetComponentRO<SquadCognitiveState>(unit);
+            var pool = System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            var target = area.Center + new Vector3(0f, 0f, AreaHeight);
+            for (int i = 0; i < squad.Contacts.Count && i < 16; i++)
+            {
+                var c = pool[i];
+                bool heard = (c.Flags & SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0;
+                if (!heard && !Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, new Entity((ulong)c.EntityId))) continue;
+                var eye = new Vector3(c.PositionX, c.PositionY, c.PositionZ + EyeHeight);
+                if (terrain != null && terrain.SightBlocked(eye, target)) continue;
+                return 1f;
+            }
+            return 0f;
         }
 
         private static void Publish(ISimulationView view, Entity unit, Entity sensor, SensorModality kind, SensorChange what)

@@ -98,6 +98,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// cover, then they swap (DESIGN_Squad_Tactics §7.6).</summary>
         public const string FireAndMovement = "FireAndMovement";
 
+        /// <summary>⭐ <c>CE-2159</c> X-b — a commander crosses a danger area: security watches the near side, the rest cross one pair
+        /// at a time, watch from the far side, then security follows (DESIGN_Squad_Tactics §7.7).</summary>
+        public const string SquadDangerCrossing = "SquadDangerCrossing";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 
