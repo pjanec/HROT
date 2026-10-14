@@ -65,6 +65,14 @@ Each TEST project is built once (`dotnet build <tests.csproj> --no-restore`); ev
 | ⭐ integration, E3/E4 (row 8: motion and fire) | `… --no-build --filter "EntityOrdersAcrossNodesTests\|DistributedBrainMuscleIntegrationTests\|SubEntityCascadeDestroyTests"` | — | 9 / 0 / 1 | 9 / 0 / 1 | yes | the skip (`CgfAiIntent_ReachesSimHost_ViaDds`) pre-exists |
 | docs | `tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` · `mermaid-check.mjs` (touched designs) | ✅ | ✅ | ✅ open 106 / done 386 · 200/200 · ✅ · ✅ | — | — |
 
+**E5 gates** (on `a71724e9c`, all `--no-build`, the TEST project built):
+
+| gate | result | delta |
+|---|---|---|
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | 3324 / 0 / 1 | +3 (the three `B3_*` rails); the skip pre-exists |
+| ⭐ integration (the drone's cross-node possession, since `RotorcraftModel.Manual` changed): `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --no-build --filter "FullyQualifiedName~EntityOrdersAcrossNodesTests\|FullyQualifiedName~DistributedBrainMuscleIntegrationTests"` | 8 / 0 / 1 | `M7_APossessedDrone_FollowsTheStation_AcrossNodes` still green; the skip pre-exists |
+| `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build` | 1364 / 0 / 6 | unchanged |
+
 **Red-proofs** (each production change removed, the TEST project rebuilt successfully, the rail run):
 - **E2:** CE-2171 red at the merge base.
 - **E3:** the three `RotorcraftModelTests` rails go red with the route follower off.
