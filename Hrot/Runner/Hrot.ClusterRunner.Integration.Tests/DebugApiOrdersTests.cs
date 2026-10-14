@@ -457,7 +457,7 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(afterBurst, r.GetComponentRO<WeaponState>(unit).Ammo);
     }
 
-    /// <summary>A possessed rifleman for operator fire: a one-round magazine with a 2 s reload, HoldFire (the operator overrides it).</summary>
+    /// <summary>A possessed rifleman for operator fire: a one-round magazine with a 0.5 s reload (a harness frame is 5 ms), HoldFire (the operator overrides it).</summary>
     private static Entity Gunner(EditorHarness h, int ammo = 30)
     {
         var unit = Walker(h, UnitId);
@@ -465,7 +465,7 @@ public sealed class DebugApiOrdersTests
         if (!r.IsComponentTypeRegistered<WeaponState>()) r.RegisterComponent<WeaponState>();
         if (!r.IsComponentTypeRegistered<WeaponChannel>()) r.RegisterComponent<WeaponChannel>();
         if (!r.IsComponentTypeRegistered<Roe>()) r.RegisterComponent<Roe>();
-        r.AddComponent(unit, new WeaponState { Ammo = ammo, MaxAmmo = ammo, MagazineSize = 1, MagazineRounds = 1, ReloadSeconds = 2f, MuzzleVelocity = 800f });
+        r.AddComponent(unit, new WeaponState { Ammo = ammo, MaxAmmo = ammo, MagazineSize = 1, MagazineRounds = 1, ReloadSeconds = 0.5f, MuzzleVelocity = 800f });
         r.AddComponent(unit, new WeaponChannel());
         r.AddComponent(unit, new Roe { Fire = RoeFire.HoldFire });
         if (!r.IsComponentTypeRegistered<ActorCapabilityState>()) r.RegisterComponent<ActorCapabilityState>();
