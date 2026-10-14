@@ -824,8 +824,8 @@ def run_fire_and_movement(c, timeout):
                 moving[nid] = speed_of[nid] > 0.5
             if p: last_pos[nid] = p
         # ⭐ CE-2163 — the halves are the drill's own elements (its members' roles), not the order the names are listed in, and the
-        #   measure is the LONGEST overlap, as ua-bounding-overwatch's ① (§7.8.3 "as ① above"). It summed every overlap by name order:
-        #   once a suppressing man no longer crept back (CE-2163) the drill swapped twice as often, and each swap's settling poll added up.
+        #   measure is the LONGEST overlap, as ua-bounding-overwatch's ① (§7.8.3 "as ① above"). By name order it read 2.4 s live;
+        #   by the drill's elements the same run's overlap is 0.0 s.
         roles = {x.get("networkId"): x.get("role") for x in m.get("members", [])}
         groups = {}
         for nid in members: groups.setdefault(roles.get(nid), []).append(nid)
