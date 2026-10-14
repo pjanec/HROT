@@ -190,6 +190,58 @@ namespace Hrot.SimHost.Tests.Gizmos
         }
     }
 
+    public class CE1065_LayerPanelStaysOpen_Tests
+    {
+        // ⭐ CE-1065 — 🔒 user, 2026-10-14: "the layer dialog … responding to each checkbox click immediately, ie not needing Apply
+        // button which closes the dialog". A struct update (now sent on every checkbox click) applies the mask AND leaves the panel
+        // open — the panel is still emitted the frame after; only the View menu entry toggles it shut.
+        [Fact]
+        public void CE1065_AnUpdate_AppliesTheMask_AndThePanelStaysOpen()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = new ComponentEditService(new StructEdit.Core.SchemaProvider());
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            var gizmo = new LayerControlGizmo(id, bus, edit);
+            manager.Register(id, gizmo);
+            var repo = new EntityRepository();
+
+            bus.Publish(new OpenLayerEditorEvent());   // the menu entry opens the panel
+            bus.SwapBuffers();
+            manager.Execute(repo, 0f);
+            Assert.True(HasPanel(buffer), "the menu entry did not open the panel");
+
+            string json;
+            using (var s = edit.Open(new LayerControlDto { Doors = false }, typeof(LayerControlDto)))
+                json = StructEdit.Json.EditSessionJsonExtensions.ToJson(s);
+            bus.PublishManaged(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoStructUpdateEvent { AnchorId = id, PayloadJson = json });
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // routes the click
+            buffer.Clear();
+            manager.Execute(repo, 0f);   // the frame after
+
+            Assert.True(HasPanel(buffer), "the panel closed on the update — a second checkbox would need the menu again");
+            foreach (var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.LayerControlMask) Assert.False(p.ActiveLayers.IsSet(DebugTraceLayers.Doors));
+
+            bus.Publish(new OpenLayerEditorEvent());   // the menu entry again closes it
+            bus.SwapBuffers();
+            buffer.Clear();
+            manager.Execute(repo, 0f);
+            Assert.False(HasPanel(buffer), "the menu entry did not close the panel");
+        }
+
+        private static bool HasPanel(DebugPrimitiveBuffer buffer)
+        {
+            foreach (var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.StructInspector) return true;
+            return false;
+        }
+    }
+
     // ==========================================================================
     // DEBT-002: GizmoUiStateHub wired in composition roots
     // ==========================================================================

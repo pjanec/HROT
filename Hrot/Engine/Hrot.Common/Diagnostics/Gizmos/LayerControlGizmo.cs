@@ -140,9 +140,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
     //   interactionBus.Publish(new OpenLayerEditorEvent()) ->
     //   UpdateAndDraw drains the event -> _isEditing toggled ->
     //   StructInspector panel appears on terminal ->
-    //   Operator edits and clicks Apply ->
+    //   Operator clicks a checkbox (⭐ CE-1065: each click commits; no Apply) ->
     //   GizmoStructUpdateEvent with PayloadJson routed here via OnStructUpdate ->
-    //   _dto updated, _activeLayers recomputed.
+    //   _dto updated, _activeLayers recomputed; the panel stays open until the menu entry toggles it shut.
     public sealed class LayerControlGizmo : IEntityStatefulGizmo
     {
         // Schema hash computed from the DTO's full type name — matches what the terminal
@@ -228,7 +228,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             _projector.ApplyUpdate(payloadJson, ref _dto);
             _activeLayers = _dto.ToMask();
             if (_settings != null) _dto.WriteScopes(_settings);
-            _isEditing = false;
+            // ⭐ CE-1065 — the panel STAYS OPEN: each checkbox now commits as it is clicked (ImGuiPropertyTreeAdapter), so closing
+            //   here made every second toggle a trip back through View ▸ Tactical Map Layers…. The menu entry toggles it shut.
         }
 
         // No-op stubs for IGizmoInteractionHandler methods not used by this gizmo.

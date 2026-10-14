@@ -28,6 +28,25 @@ public class EntityPickerGizmoTests
         return gizmo;
     }
 
+    // ⭐ CE-1065 — the crosshair is HALF the size it was (user, 2026-10-14: "make … the entity picker gizmo 2 times smaller"):
+    //   arms reach 6 m from the cursor (were 12), the centre circle is 2 m (was 4); the line width stays in pixels.
+    [Fact]
+    public void CE1065_TheCrosshair_IsHalfTheOldSize()
+    {
+        var gizmo = CreateGizmo();
+        var buffer = new DebugPrimitiveBuffer();
+        gizmo.UpdateAndDraw(new Moq.Mock<ISimulationView>().Object, 0f, buffer);
+        float reach = 0f, circle = -1f;
+        foreach (var p in buffer.GetFrame())
+        {
+            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Sphere) circle = p.SphereRadius;
+            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Line)
+                reach = MathF.Max(reach, MathF.Max(MathF.Abs(p.LineStart.X), MathF.Max(MathF.Abs(p.LineEnd.X), MathF.Max(MathF.Abs(p.LineStart.Y), MathF.Abs(p.LineEnd.Y)))));
+        }
+        Assert.Equal(6f, reach, 3);
+        Assert.Equal(2f, circle);
+    }
+
     [Fact]
     public void UpdateAndDraw_NoHoveredEntity_DrawsAmberCrosshair()
     {

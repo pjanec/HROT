@@ -142,8 +142,9 @@ namespace GizmoMap.Presentation
                 {
                     if (hasSchema)
                     {
+                        bool edited = false;
                         foreach (var child in doc!.Root.Children)
-                            DrawEditNode(child, item.IsReadOnly);
+                            edited |= DrawEditNode(child, item.IsReadOnly);
 
                         var stateKey = (item.NetworkId, item.GizmoTypeId);
                         bool isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows);
@@ -166,19 +167,14 @@ namespace GizmoMap.Presentation
                             }
                         }
 
+                        // ⭐ CE-1065 — a field edit commits AT ONCE (the operator sees each checkbox take effect and the panel stays
+                        //   open); ⛔ the "Apply" button is gone — it was the only commit besides focus loss, and its gizmos closed the
+                        //   panel on it, so trying a second checkbox meant reopening the panel from the menu.
+                        CommitIfEdited(item, doc!, edited, onStructUpdate);
                         if (!item.IsReadOnly && onStructUpdate != null)
                         {
                             ImGui.Separator();
-                            if (ImGui.Button("Apply"))
-                            {
-                                if (!_inspectorStates.TryGetValue(stateKey, out var applyState) ||
-                                    applyState == InspectorState.Editing)
-                                {
-                                    _inspectorStates[stateKey] = InspectorState.Viewing;
-                                    string json = EditDocumentJsonSerializer.Serialize(doc!);
-                                    onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
-                                }
-                            }
+                            ImGui.TextDisabled("Changes apply as you click.");
                         }
                     }
                     else
@@ -193,11 +189,22 @@ namespace GizmoMap.Presentation
             _items.Clear();
         }
 
+        /// <summary>⭐ CE-1065 — a field was edited this frame: commit the document now, and stay in <c>Editing</c> (the window keeps
+        /// its focus, so a later focus loss commits whatever came after).</summary>
+        private void CommitIfEdited(in ScheduledItem item, EditDocument doc, bool edited, Action<long, uint, string>? onStructUpdate)
+        {
+            if (!edited || item.IsReadOnly || onStructUpdate == null) return;
+            _inspectorStates[(item.NetworkId, item.GizmoTypeId)] = InspectorState.Editing;
+            onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, EditDocumentJsonSerializer.Serialize(doc));
+        }
+
         // Test-only overload: runs state cleanup and state-machine transitions without any ImGui calls.
-        // isFocusedOverride is invoked with the window title to determine focus per item.
+        // isFocusedOverride is invoked with the window title to determine focus per item; ⭐ CE-1065 editedOverride says whether
+        // a field was edited in that window this frame (a checkbox click).
         internal void DrawScheduled(
             Action<long, uint, string>? onStructUpdate,
-            Func<string, bool>? isFocusedOverride)
+            Func<string, bool>? isFocusedOverride,
+            Func<string, bool>? editedOverride = null)
         {
             // Remove stale entries whose (NetworkId, GizmoTypeId) is not in the current frame.
             var keys = new HashSet<(long, uint)>(_items.Select(it => (it.NetworkId, it.GizmoTypeId)));
@@ -230,6 +237,8 @@ namespace GizmoMap.Presentation
                         onStructUpdate.Invoke(item.NetworkId, item.GizmoTypeId, json);
                     }
                 }
+                if (hasSchema && editedOverride != null && editedOverride(windowTitle))
+                    CommitIfEdited(item, doc!, edited: true, onStructUpdate);
             }
             _items.Clear();
         }
@@ -251,9 +260,10 @@ namespace GizmoMap.Presentation
             EditDocumentJsonSerializer.Deserialize(state.EditDocumentJson, doc);
         }
 
-        // Recursively renders an EditNode and its children as an ImGui tree.
-        private static void DrawEditNode(EditNode node, bool parentReadOnly)
+        // Recursively renders an EditNode and its children as an ImGui tree. ⭐ CE-1065 — true when a field was edited.
+        private static bool DrawEditNode(EditNode node, bool parentReadOnly)
         {
+            bool edited = false;
             bool ro = parentReadOnly || node.IsReadOnly;
 
             if (node.Children.Count > 0)
@@ -263,7 +273,7 @@ namespace GizmoMap.Presentation
                 if (open)
                 {
                     foreach (var child in node.Children)
-                        DrawEditNode(child, ro);
+                        edited |= DrawEditNode(child, ro);
                     ImGui.TreePop();
                 }
             }
@@ -279,13 +289,17 @@ namespace GizmoMap.Presentation
                 {
                     bool val = node.Binding.GetBoxed() is bool b && b;
                     if (ImGui.Checkbox(node.Name, ref val))
+                    {
                         node.Binding.SetBoxed(val);
+                        edited = true;
+                    }
                 }
                 else
                 {
                     ImGui.Text($"{node.Name}: {valueText}");
                 }
             }
+            return edited;
         }
 
         private static string? TryGetBindingText(EditNode node)

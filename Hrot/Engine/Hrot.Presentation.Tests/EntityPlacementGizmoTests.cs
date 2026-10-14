@@ -36,6 +36,21 @@ public class EntityPlacementGizmoTests
         return (captured, gizmo);
     }
 
+    // ⭐ CE-1065 — the ghost is HALF the size it was (user, 2026-10-14: "make the entity placement … gizmo 2 times smaller"):
+    //   a 7.5 m sphere (world metres — a 15 m translucent ball hid the scene in 3-D), its labels half as far below the cursor.
+    [Fact]
+    public void CE1065_TheGhost_IsHalfTheOldSize()
+    {
+        var (_, gizmo) = CreateGizmo();
+        gizmo.OnDragUpdate(new Vector3(100f, 200f, 0f));
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        gizmo.UpdateAndDraw(new Fdp.Core.EntityRepository(), 0f, buffer);
+        float radius = -1f;
+        foreach (var p in buffer.GetFrame())
+            if (p.Shape == GizmoMap.Contracts.Primitives.DebugPrimitiveShape.Sphere) radius = p.SphereRadius;
+        Assert.Equal(7.5f, radius);
+    }
+
     // -- EPG-001: left-click publishes exactly one command ----------------
 
     [Fact]

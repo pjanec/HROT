@@ -340,6 +340,31 @@ namespace GizmoMap.Presentation.Tests
             Assert.Equal(0, callbackCount);
         }
 
+        // ⭐ CE-1065: a field edited in a FOCUSED window commits at once (no Apply, no waiting for focus loss) and the window stays
+        // in Editing; a frame with no edit sends nothing more.
+        [Fact]
+        public void CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing()
+        {
+            var (doc, _) = TestDocFactory.MakeIntDoc();
+            var registry = new GizmoSchemaRegistry();
+            registry.Register(0x1111u, doc);
+            var adapter = new ImGuiPropertyTreeAdapter(registry);
+
+            int callbackCount = 0;
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+            Assert.Equal(ImGuiPropertyTreeAdapter.InspectorState.Editing, adapter._inspectorStates[(1L, 10u)]);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, false);
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => false);
+            Assert.Equal(1, callbackCount);
+
+            adapter.Schedule(1L, 0x1111u, 10u, 0f, 0f, isReadOnly: true);   // a read-only panel never commits
+            adapter.DrawScheduled((_, _, _) => callbackCount++, isFocusedOverride: _ => true, editedOverride: _ => true);
+            Assert.Equal(1, callbackCount);
+        }
+
         // SC-GZ069-2: Editing + unfocused => transitions to Viewing; callback invoked exactly once.
         [Fact]
         public void SC_GZ069_2_EditingAndUnfocused_TransitionsToViewing_CallbackOnce()
