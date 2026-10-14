@@ -503,10 +503,18 @@ namespace Fdp.Toolkit.Combat.Executors
         /// position, over this world's terrain.</summary>
         public static bool ReleaseCue(EntityRepository world, Entity unit, Entity target)
         {
-            if (!world.HasComponent<SimTransform>(unit) || target.IsNull || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target)) return false;
+            if (target.IsNull || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target)) return false;
+            return ReleaseCue(world, unit, world.GetComponentRO<SimTransform>(target).Position);
+        }
+
+        /// <summary>⭐ CE-2173 slice 5 — <see cref="ReleaseCue(EntityRepository, Entity, Entity)"/> over a POINT (a strike on a place,
+        /// <c>FireAtPointExecutor</c>).</summary>
+        public static bool ReleaseCue(EntityRepository world, Entity unit, Vector3 point)
+        {
+            if (!world.HasComponent<SimTransform>(unit)) return false;
             var v = world.HasComponent<SimVelocity>(unit) ? world.GetComponentRO<SimVelocity>(unit).Linear : Vector3.Zero;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
-            return BombBallistics.ReleaseNow(world.GetComponentRO<SimTransform>(unit).Position, v, world.GetComponentRO<SimTransform>(target).Position,
+            return BombBallistics.ReleaseNow(world.GetComponentRO<SimTransform>(unit).Position, v, point,
                 terrain == null ? null : terrain.GroundHeightAt);
         }
 

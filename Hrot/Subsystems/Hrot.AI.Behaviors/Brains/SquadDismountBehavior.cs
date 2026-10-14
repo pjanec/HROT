@@ -141,9 +141,81 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class SquadSopConditions
     {
+        /// <remarks>⭐ <c>CE-2173</c> slice 3 (Air Operations §9b) — only a member aboard a carrier that is ON THE GROUND counts
+        /// (<see cref="AirHolds.OnTheGround"/>) and is not picking the squad up (<c>Loading</c>): a squad shot at in a flying helicopter, or while
+        /// boarding its way out, rides on (📐 before it the row dismounted it in the
+        /// air — <c>Embarkation.Disembark</c> has no airborne gate).</remarks>
         [Fbt.Kernel.SharedAiCondition]
         public static bool SensedFreshAboard(ref SopSenseParams p, Entity self, EntityRepository world)
-            => SopConditions.SensedFresh(ref p, self, world) && SquadDismountBehavior.AnyMemberAboard(world, self);
+            => SopConditions.SensedFresh(ref p, self, world) && AnyMemberAboard(world, self, AboardWhere.OnTheGround);
+
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 3 (B8, Air Operations §9b) — the squad's carrier is UNLOADING it: a member is aboard a vehicle whose route
+        /// holds it at an <c>Unload</c> stop (<see cref="Fdp.Toolkit.Navigation.NavigationPhase.Unloading"/>). ⭐ <c>Unloading</c>, not "landed",
+        /// so a squad that has just boarded at a <c>Pickup</c> stop is not put out again.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool CarrierUnloading(Entity self, EntityRepository world) => AnyMemberAboard(world, self, AboardWhere.Unloading);
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B8) — the squad RIDES: it has a live member and every live one is aboard a vehicle (a unit
+        /// member: all of its own). ⭐ ALL, not any — while the squad boards, the first man in must not pause the boarding.</summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool Riding(Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<UnitRoster>(self)) return false;
+            var roster = world.GetComponentRO<UnitRoster>(self);
+            bool any = false;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (!world.IsAlive(m)) continue;
+                if (!AllRiding(world, m, 0)) return false;
+                any = true;
+            }
+            return any;
+        }
+
+        private static bool AllRiding(EntityRepository world, Entity member, int depth)
+        {
+            if (!SquadManeuverRunner.IsUnit(world, member)) return !AirHolds.CarrierOf(world, member).IsNull;
+            if (depth >= 4 || !world.HasComponent<UnitRoster>(member)) return true;
+            var roster = world.GetComponentRO<UnitRoster>(member);
+            for (int i = 0; i < roster.Count; i++)
+                if (world.IsAlive(roster.SubordinateEntities[i]) && !AllRiding(world, roster.SubordinateEntities[i], depth + 1)) return false;
+            return true;
+        }
+
+        private enum AboardWhere : byte { OnTheGround, Unloading }
+
+        private static bool AnyMemberAboard(EntityRepository world, Entity commander, AboardWhere where)
+        {
+            if (!world.HasComponent<UnitRoster>(commander)) return false;
+            var roster = world.GetComponentRO<UnitRoster>(commander);
+            for (int i = 0; i < roster.Count; i++)
+                if (AboardWhereIs(world, roster.SubordinateEntities[i], where, 0)) return true;
+            return false;
+        }
+
+        private static bool AboardWhereIs(EntityRepository world, Entity member, AboardWhere where, int depth)
+        {
+            if (!world.IsAlive(member)) return false;
+            var carrier = AirHolds.CarrierOf(world, member);
+            if (!carrier.IsNull)
+            {
+                var phase = world.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(carrier)
+                    ? world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(carrier).Phase
+                    : Fdp.Toolkit.Navigation.NavigationPhase.Idle;
+                // OnTheGround: standing, and not the stop that is picking the squad UP — under fire there, the aircraft is the way out
+                return where == AboardWhere.OnTheGround
+                    ? phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
+                    : phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading;
+            }
+            if (depth >= 4 || !SquadManeuverRunner.IsUnit(world, member) || !world.HasComponent<UnitRoster>(member)) return false;
+            var roster = world.GetComponentRO<UnitRoster>(member);
+            for (int i = 0; i < roster.Count; i++)
+                if (AboardWhereIs(world, roster.SubordinateEntities[i], where, depth + 1)) return true;
+            return false;
+        }
 
         /// <summary>
         /// ⭐ <c>CE-2159</c> X-c (Squad Tactics §7.7.6) — a danger area is AHEAD: the commander's danger-area sensor (the march's) holds

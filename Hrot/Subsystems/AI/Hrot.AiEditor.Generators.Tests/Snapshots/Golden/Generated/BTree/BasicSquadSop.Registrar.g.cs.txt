@@ -104,7 +104,31 @@ public static class BasicSquadSopRegistrar
                 }
             });
 
+        // CE-504: shared param-less node calls — keyed by bare FQN, no variable.
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierUnloading",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierUnloading(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.SquadSopConditions.Riding(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
+                return status;
+            });
+
         // CE-2079: SOP orders — Fdp.Toolkit.Behavior.SopActions, keyed as the topology keys them.
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:Contact@-1",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "SquadDismount", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Contact, "{}");
+            });
+        actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:SquadRide:Alert@-1",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                return global::Fdp.Toolkit.Behavior.SopActions.React(ctx.World, ctx.Self, "SquadRide", global::Fdp.Toolkit.Behavior.Components.ReactionUrgency.Alert, "{}");
+            });
         actionRegistry.Register("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:UnderFire@-1",
             static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {

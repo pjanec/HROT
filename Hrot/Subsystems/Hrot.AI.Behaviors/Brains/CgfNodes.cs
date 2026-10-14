@@ -352,6 +352,8 @@ namespace Hrot.AI.Behaviors.Brains
                 TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
                 IsLooped     = (byte)(p.Loop ? 1 : 0),
                 RouteEntityId = p.RouteNetworkId,   // ⭐ CE-2171
+                // ⭐ CE-2173 slice 3 (Air Ops §9b) — an aircraft held at an Unload / Pickup stop: its brain says when the hold is over.
+                ReleaseHold  = AirHolds.ShouldRelease(world, self, p.RouteNetworkId) ? (byte)1 : (byte)0,
             });
 
             return NodeStatus.Running;

@@ -51,7 +51,17 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
-            var reason = ShootAtPoint(world, entity, p.Mount, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: true);
+            // ⭐ CE-2173 slice 5 (Air Ops §8 A6, the backend's E4 report) — a BOMB on a point waits for the release cue, as the aimed path
+            //   does (AimAndFireExecutor.HoldOf): where a bomb dropped now lands must have reached the point. The aircraft flies; the
+            //   weapon releases. No body turn for a bomb (a person's arc rule).
+            bool bomb = CombatTkb.MountOf(world, entity, p.Mount)?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
+            if (bomb && !AimAndFireExecutor.ReleaseCue(world, entity, p.Point))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingRelease);
+                return;
+            }
+            var reason = ShootAtPoint(world, entity, p.Mount, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: !bomb);
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;

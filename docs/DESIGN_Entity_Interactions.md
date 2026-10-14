@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the Station seat role, the weapon carry station and manning a weapon's Gunner seat — mounting, carrying and manning a weapon are boarding (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air assault on the doors-off UH-60 (404) and LoadCasualty (a carried man seated in a vehicle) (R-2015)
   - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the carried / dragged casualty, the carrier, riders in their seats (SeatDto place / facing / pose) and the jump down
   - docs/DESIGN_Injury_States.md — OWNS the injury states (R-263 D1, CE-2155) that the person carrier's C3 gate reads

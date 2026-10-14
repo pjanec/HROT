@@ -115,6 +115,20 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-1056</c> I-2d — the squad gets out of its vehicles; done when nobody is aboard (DESIGN_Squad_Tactics §5a).</summary>
         public const string SquadDismount = "SquadDismount";
 
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B10, R-2015) — the squad boards one vehicle; done when every live member is aboard it
+        /// (docs/designs/air-attack/DESIGN_Air_Operations.md §9).</summary>
+        public const string SquadEmbark = "SquadEmbark";
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B8) — the squad RIDES: every live member is aboard a vehicle; it does nothing, keeps the task
+        /// paused, and ends the moment somebody is out (Air Operations §9b).</summary>
+        public const string SquadRide = "SquadRide";
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3 — a soldier carrying a casualty seats him in a vehicle, then boards it himself (Air Operations §9).</summary>
+        public const string LoadCasualty = "LoadCasualty";
+
+        /// <summary>⭐ <c>CE-2173</c> (B4, R-278) — MOVE for any aircraft: fly to the point at cruise height above the ground (Air Operations §7).</summary>
+        public const string AirPlatformMove = "AirPlatformMove";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

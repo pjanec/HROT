@@ -14,5 +14,7 @@ namespace Hrot.AI.Behaviors.Orders
         Attack = 2,
         /// <summary>Stay where you are: <see cref="HoldOrder"/>.</summary>
         Hold = 3,
+        /// <summary>⭐ <c>CE-2173</c> (B4, R-2015) — strike a place (an aircraft first; artillery later): <see cref="StrikeOrder"/>.</summary>
+        Strike = 4,
     }
 }

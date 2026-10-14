@@ -9,6 +9,7 @@ known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount part
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
+  - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon-system entities (placeable / mountable / carried / deployable weapons) and widens the weapon brain's mount list to the weapons a unit controls (WeaponSystems.ControllerOf, R-2016); the three layers and the one firing path stay here
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the Release profile (the bomb cue) and the air attack profiles' weapon use under R-261 (R-2015)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — BUILD design of W-6 / W-12d (ammo loadout chosen by the one ArmorModel), WL-5's timing rule turned into guidance (Command / FireAndForget, lock = AimSeconds), per-mount FireOnMove
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — urban vehicle tactics: names targets, asks for track-while-hidden; M8 gives a mount an ammo loadout (APFSDS + HEAT + HE) chosen by W-6's rule (unblocks W-12d); D-L adds a per-mount FireOnMove; M9 technicals (pintle HMG / ATGM mounts)

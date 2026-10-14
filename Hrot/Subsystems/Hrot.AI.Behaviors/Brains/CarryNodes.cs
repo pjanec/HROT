@@ -37,6 +37,26 @@ namespace Hrot.AI.Behaviors.Brains
         [JsonIgnore] public uint Started;
     }
 
+    /// <summary>The params of <see cref="CarryNodes.LoadCasualty"/>: the vehicle to seat the carried man in, how fast to walk to it.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LoadCasualtyNodeParams
+    {
+        /// <summary>The vehicle (resolved from the behaviour's <c>EntityRef</c> by its resolver).</summary>
+        public Entity Vehicle;
+        /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ <see cref="EmbarkNodes.DefaultSpeed"/>.</summary>
+        public float Speed;
+        /// <summary>Runtime: the man being loaded (remembered once put down) — never authored.</summary>
+        [JsonIgnore] public Entity Casualty;
+        /// <summary>Runtime: 1 while this node's walk to the vehicle is on the locomotion channel — never authored.</summary>
+        [JsonIgnore] public byte Walking;
+        /// <summary>Runtime: where that walk goes — never authored.</summary>
+        [JsonIgnore] public Vector3 WalkTo;
+        /// <summary>Runtime: the interaction activation this node started (0 = none) — never authored.</summary>
+        [JsonIgnore] public uint Started;
+        /// <summary>Runtime: which action <see cref="Started"/> is (put down / embark) — never authored.</summary>
+        [JsonIgnore] public ushort StartedAction;
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-2152</c> C-b (C6, R-2011; 📄 docs/DESIGN_Entity_Interactions.md §7.4.10) — a soldier picks up and puts down a man who is
     /// down. Two shared nodes (BTree, HSM, blueprint) in the shape of <see cref="EmbarkNodes"/>: walk on the locomotion channel, then ONE
@@ -143,6 +163,87 @@ namespace Hrot.AI.Behaviors.Brains
             EmbarkNodes.Start(world, self, ref channel, BehaviorConstants.ActionIdPutDown);
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 3 (B10; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9) — a soldier carrying a man seats him in
+        /// <paramref name="p"/>'s vehicle: walk to its boarding point (the man carried), put him down (action 10), then board HIM (action 1
+        /// with <see cref="EmbarkParams.Passenger"/> = the man — <see cref="Embarkation.TryEmbark"/> seats an incapacitated man in a
+        /// vehicle). Success = he is aboard the vehicle; carrying nobody to begin with = Success at once. ⭐ Not by boarding while
+        /// carrying: that would nest him inside his carrier (measured, Air Operations §1).
+        /// </summary>
+        [SharedAiAction]
+        public static unsafe NodeStatus LoadCasualty(ref LoadCasualtyNodeParams p, Entity self, EntityRepository world)
+        {
+            var vehicle = p.Vehicle;
+            if (!world.IsAlive(vehicle) || !world.HasComponent<PassengerBuffer>(vehicle) || !world.HasComponent<SimTransform>(vehicle))
+            {
+                EndWalk(ref p, self, world);
+                return NodeStatus.Failure;
+            }
+            if (!world.HasComponent<InteractionChannel>(self) || !world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
+
+            // The action this node started: forward its answer once.
+            if (p.Started != 0 && EmbarkNodes.OwnsInteraction(world, self, p.Started, p.StartedAction))
+            {
+                ref var running = ref world.GetComponentRW<InteractionChannel>(self);
+                if (running.Status == NodeStatus.Running) return NodeStatus.Running;
+                var done = running.Status;
+                EmbarkNodes.Release(world, self);
+                p.Started = 0;
+                if (done != NodeStatus.Success) return NodeStatus.Failure;
+            }
+            p.Started = 0;
+
+            var load = Embarkation.LoadOf(world, self);
+            if (!load.IsNull) p.Casualty = load;
+            if (p.Casualty.IsNull) { EndWalk(ref p, self, world); return NodeStatus.Success; }   // carrying nobody: nothing to load
+            if (!world.IsAlive(p.Casualty)) { EndWalk(ref p, self, world); return NodeStatus.Failure; }
+            if (world.HasComponent<IsEmbarkedTag>(p.Casualty) && world.GetComponentRO<IsEmbarkedTag>(p.Casualty).VehicleEntity == vehicle)
+            {
+                EndWalk(ref p, self, world);
+                return NodeStatus.Success;                                                          // seated
+            }
+
+            float range = Embarkation.BoardingRange(world, vehicle);
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            var centre = world.GetComponentRO<SimTransform>(vehicle).Position;
+            if (!load.IsNull && Vector3.Distance(at, centre) > range)
+            {
+                var point = Embarkation.BoardingPoint(world, vehicle);
+                if (p.Walking != 0 && Vector3.Distance(point, p.WalkTo) <= EmbarkNodes.RewalkMetres)
+                {
+                    if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+                    p.Walking = 0;
+                    return NodeStatus.Failure;   // the walk ended and the vehicle is still out of reach
+                }
+                if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : EmbarkNodes.DefaultSpeed, 0.5f)) return NodeStatus.Failure;
+                p.Walking = 1;
+                p.WalkTo = point;
+                return NodeStatus.Running;
+            }
+
+            EndWalk(ref p, self, world);
+            ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
+            if (!load.IsNull)
+            {
+                EmbarkNodes.Start(world, self, ref channel, BehaviorConstants.ActionIdPutDown);   // first: put him down beside the vehicle
+                p.StartedAction = BehaviorConstants.ActionIdPutDown;
+            }
+            else
+            {
+                EmbarkNodes.Start(world, self, ref channel, BehaviorConstants.ActionIdEmbark);    // then: seat him
+                Unsafe.As<byte, EmbarkParams>(ref channel.Params[0]) = new EmbarkParams { VehicleEntity = vehicle, MaxBoardingRange = range, Passenger = p.Casualty };
+                p.StartedAction = BehaviorConstants.ActionIdEmbark;
+            }
+            p.Started = channel.ActionInstanceId;
+            return NodeStatus.Running;
+        }
+
+        private static void EndWalk(ref LoadCasualtyNodeParams p, Entity self, EntityRepository world)
+        {
+            if (p.Walking != 0) LocomotionMoveTo.Stop(world, self);
+            p.Walking = 0;
         }
 
         /// <summary>Stops this node's walk (a new action instance, so the next move node starts afresh) — the channel is handed back.</summary>
