@@ -30,6 +30,9 @@ namespace Hrot.Core.Tkb
         //   (ParameterResolver.Warhead falls back to the library BY NAME) — the kinetic ones carry their real names (no warhead there),
         //   the two shaped-charge ones (RPG, TOW) deliberately do NOT match "PG-7V HEAT" / "TOW-2 HEAT": giving them a real HEAT
         //   warhead is the combat lane's call, not a side effect of naming.
+        //   ⭐ M3 (docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md §2, by decision): that call is made — the RPG and TOW TEMPLATES
+        //   carry their OWN WarheadDto (the template-first rule of ParameterResolver.Warhead makes it win), copied from the library's
+        //   "PG-7V HEAT" / "TOW-2 HEAT" so the numbers have one source; the names stay. A shaped charge reads the armour's …Ce column.
         /// <summary>5.56 mm ball (the rifles' round) — an ordinary bullet: no look, never replicated (R-271).</summary>
         public const int Tkb556Ball = 6003;
         /// <summary>5.56 mm tracer — mixed one in five into the rifles' magazines; drawn and replicated.</summary>
@@ -60,15 +63,25 @@ namespace Hrot.Core.Tkb
             Register(tkb, Apds25Name, Tkb25mmApdsT, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
             Register(tkb, Apfsds120Name, Tkb120mmApfsds, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
             Register(tkb, Apfsds125Name, Tkb125mmApfsds, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
-            Register(tkb, TowName, TkbTowMissile, new DISEntityType { Kind = 2, Domain = 9, Category = 1 });
-            Register(tkb, Rpg7Name, TkbRpg7Rocket, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
+            Register(tkb, TowName, TkbTowMissile, new DISEntityType { Kind = 2, Domain = 9, Category = 1 }, ShapedChargeOf(TowLibraryName));
+            Register(tkb, Rpg7Name, TkbRpg7Rocket, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, ShapedChargeOf(Rpg7LibraryName));
         }
 
-        private static void Register(ITkbDatabase tkb, string name, int type, DISEntityType dis)
+        /// <summary>⭐ M3 — the reference-library entries the RPG and TOW warheads are copied from.</summary>
+        public const string Rpg7LibraryName = "PG-7V HEAT", TowLibraryName = "TOW-2 HEAT";
+
+        /// <summary>⭐ M3 — the library's generated warhead for <paramref name="libraryName"/>, as a template's own (a shaped charge).</summary>
+        private static WarheadDto? ShapedChargeOf(string libraryName)
+            => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) && r.Warhead != null
+                ? r.Warhead.Dto with { Kind = WarheadKind.ShapedCharge }
+                : null;
+
+        private static void Register(ITkbDatabase tkb, string name, int type, DISEntityType dis, WarheadDto? warhead = null)
         {
             var t = new TkbTemplate(name, type) { DisType = dis };
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString(), HideFromPalette = true });
             if (BuiltInLooks.TryGetValue(type, out var look)) t.AddDescriptor(look);   // ⭐ P1 — how its round looks
+            if (warhead != null) t.AddDescriptor(warhead);
             tkb.Register(t);
         }
 

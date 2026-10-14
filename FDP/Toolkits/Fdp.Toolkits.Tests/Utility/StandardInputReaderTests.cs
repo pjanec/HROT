@@ -633,6 +633,31 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, rifle)), precision: 4);
         }
 
+        /// <summary>
+        /// ⭐ M1 (DESIGN_Armour_Hit_Model §5) — the AI expects the face the SHOT would meet, in 3-D: a Bradley 30 m above a tank
+        /// 10 m away expects its roof (20 mm: the 25 mm defeats it — 60 of 2500), level at 1500 m its front (500 mm: nothing). The
+        /// same ArmorModel the damage step applies (R-212 A1).
+        /// </summary>
+        [Fact]
+        public void M1_Effectiveness_ReadsTheFaceInThreeD_AShooterAboveExpectsTheRoof()
+        {
+            const long RoofTank = 990;
+            var roof = new Fdp.Interfaces.TkbTemplate("roof T-72", RoofTank);
+            roof.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 20 });
+            _world.UseTkb(UtilityTestWorld.BradleyTemplate(), roof);
+            var bradley = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bradley, new SimTransform { Position = new Vector3(0, 0, 30) });
+            _world.SetType(bradley, UtilityTestWorld.BradleyType);
+            var gun = _world.SpawnWeaponMount(bradley, mountIndex: 0, weaponGuid: 1, effRange: 2500f, ammo01: 1f, initialAmmunition: 300);
+
+            var below = _world.SpawnTypedTarget(RoofTank, 10f, maxHealth: 2500f);
+            Assert.Equal(60f / 2500f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, below)), precision: 4);
+
+            _world.Repo.GetComponentRW<SimTransform>(bradley).Position = Vector3.Zero;
+            var far = _world.SpawnTypedTarget(RoofTank, 1500f, maxHealth: 2500f);
+            Assert.Equal(0f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, far)), precision: 4);
+        }
+
         /// <summary>⭐ <c>CE-3071</c> — the target's OWN maximum counts (scenarios override it): a 50-HP tank dies to one TOW.</summary>
         [Fact]
         public void CE3071_Effectiveness_UsesTheTargetsOwnMaximum()

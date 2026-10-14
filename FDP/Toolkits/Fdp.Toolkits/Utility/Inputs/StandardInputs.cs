@@ -405,10 +405,19 @@ namespace Fdp.Toolkit.Utility
             float pen = mount?.Penetration ?? 0f, dmg = mount?.DamagePerHit ?? 0f;
 
             float armour = 0f;
-            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self), out var selfPos))
+            var shooter = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self);
+            if (pen > 0f && repo.HasComponent<SimTransform>(ctx.Context) && TryGetWorldPosition(repo, shooter, out var selfPos))
+            {
+                // ⭐ M1/M2 (DESIGN_Armour_Hit_Model §2) — the face the SHOT would meet: from this unit's eye to the target's middle
+                //   (the line FireProcessingSystem flies), so a shooter above a hull expects its roof; and the column this mount's
+                //   round reads (a shaped charge: …Ce). The same ArmorModel the damage step applies (R-212 A1).
+                selfPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, Fdp.Toolkit.Combat.HitModel.LogicalStance(repo, shooter));
+                var middle = Fdp.Toolkit.Combat.AimPoint.Middle(repo, ctx.Context, out _, out _);
                 armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(
                     Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, ctx.Context),
-                    Fdp.Toolkit.Combat.ArmorModel.FacingOf(repo.GetComponent<SimTransform>(ctx.Context), selfPos));
+                    Fdp.Toolkit.Combat.ArmorModel.FacingOfArrival(repo.GetComponent<SimTransform>(ctx.Context), middle - selfPos),
+                    Fdp.Toolkit.Combat.CombatTkb.PenetratorOf(repo, mount != null ? unchecked((long)mount.AmmoGuid) : 0L));
+            }
             float damage = Fdp.Toolkit.Combat.ArmorModel.HitDamage(pen, dmg, armour);
 
             float maxHealth = repo.HasComponent<Health>(ctx.Context) ? repo.GetComponentRO<Health>(ctx.Context).Max : 0f;

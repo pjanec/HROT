@@ -65,14 +65,27 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   face the shot came from (the shooter, or the hit point when the shooter is gone), that face's armour
                 //   from the target's TKB type, and the round's penetration and damage the bullet carried. An unknown
                 //   munition (an external detonation: penetration 0) keeps the flat default. Was: a flat 25 for every hit.
+                //   ⭐ M1/M2 (DESIGN_Armour_Hit_Model §3) — the face from the way the ROUND was travelling (Top when it descends
+                //   ≥ 45°), and the armour column its penetrator reads (a shaped charge: the …Ce column). A detonation with no
+                //   travel (published by hand, ingress) keeps the legacy rule: the face from the shooter (or the hit point),
+                //   horizontal, as before M1.
                 float armour = 0f;
                 if (evt.Penetration > 0f && repo.HasComponent<SimTransform>(targetEntity))
                 {
-                    var from = repo.IsAlive(evt.Shooter) && repo.HasComponent<SimTransform>(evt.Shooter)
-                        ? repo.GetComponent<SimTransform>(evt.Shooter).Position
-                        : new Vector3(evt.HitX, evt.HitY, evt.HitZ);
-                    var facing = ArmorModel.FacingOf(repo.GetComponent<SimTransform>(targetEntity), from);
-                    armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, targetEntity), facing);
+                    var targetTf = repo.GetComponent<SimTransform>(targetEntity);
+                    var travel = new Vector3(evt.TravelX, evt.TravelY, evt.TravelZ);
+                    Facing facing;
+                    if (travel.LengthSquared() > 1e-8f)
+                        facing = ArmorModel.FacingOfArrival(targetTf, travel);
+                    else
+                    {
+                        var from = repo.IsAlive(evt.Shooter) && repo.HasComponent<SimTransform>(evt.Shooter)
+                            ? repo.GetComponent<SimTransform>(evt.Shooter).Position
+                            : new Vector3(evt.HitX, evt.HitY, evt.HitZ);
+                        from.Z = targetTf.Position.Z;   // the legacy rule is horizontal
+                        facing = ArmorModel.FacingOf(targetTf, from);
+                    }
+                    armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, targetEntity), facing, CombatTkb.PenetratorOf(repo, evt.Ammo));
                 }
                 float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour);
 
