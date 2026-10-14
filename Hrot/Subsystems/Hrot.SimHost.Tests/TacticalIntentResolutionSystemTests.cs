@@ -524,5 +524,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("PlatformMove", Assert.Single(Order(repo, system, t72, "Move", "{}")).BehaviorName);
             Assert.Equal("PersonAttack", Assert.Single(Order(repo, system, soldier, "Attack", "{}")).BehaviorName);
         }
+    
+
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> (B4, R-2015) — every aircraft resolves its orders through <c>AirPlatform</c> (DIS Kind 1, Domain 2): a helicopter's
+        /// and an attack plane's Move is <c>AirPlatformMove</c> (through the air), never the surface <c>PlatformMove</c>; a land vehicle's Move
+        /// stays <c>PlatformMove</c>. 🔴 Red before: the helicopter resolved to <c>PlatformMove</c> and flew down to the ground point.
+        /// </summary>
+        [Fact]
+        public void B4_EveryAircraftsMove_ResolvesTo_AirPlatformMove_ALandVehiclesStaysOnTheSurface()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            var blackHawk = Typed(repo, Dis(1, 2, 225, 21));
+            var attackJet = Typed(repo, Dis(1, 2, 222, 2));
+            var t72       = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            Assert.Equal("AirPlatformMove", Assert.Single(Order(repo, system, blackHawk, "Move", "{}")).BehaviorName);
+            Assert.Equal("AirPlatformMove", Assert.Single(Order(repo, system, attackJet, "Move", "{}")).BehaviorName);
+            Assert.Equal("PlatformMove", Assert.Single(Order(repo, system, t72, "Move", "{}")).BehaviorName);
+        }
     }
 }

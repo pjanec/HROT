@@ -60,4 +60,24 @@ namespace Hrot.AI.Behaviors.Orders
     public struct HoldOrder
     {
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> (B4, R-2015; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §7) — the STRIKE order: hit <see cref="Location"/>
+    /// (an optional <see cref="Target"/> entity there is tracked). Every aircraft fulfils it through <c>AirPlatformStrike</c>; the attack
+    /// pattern is chosen from the aircraft and its weapons, never by the sender. ⭐ No RTS gesture: a ground click is a Move — Strike is
+    /// a menu / HTTP order.
+    /// </summary>
+    [Order(nameof(OrderKind.Strike))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StrikeOrder
+    {
+        /// <summary>Where to strike (geodetic). Required.</summary>
+        [Required]
+        [JsonPropertyName("Location")]
+        public PickableGeoPoint Location;
+
+        /// <summary>An entity at the place to track (optional).</summary>
+        [JsonPropertyName("Target")]
+        public EntityRef Target;
+    }
 }
