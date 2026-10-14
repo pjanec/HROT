@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Motion
     /// [stall, top]), banked atan(v²κ/g) eased by a roll rate, pitched to its climb; at the end it orbits the last point (planes do not
     /// land in v1 — a Ground waypoint is flown over, <see cref="AirMotionSystem"/> warns). A point (<c>MoveTo</c>): it turns toward it at
     /// its steepest bank and circles it once there (Arrived). No order: straight and level.
-    /// <b>Manual</b>: slice 6 (the mouse-aim pilot, E5) — until then it flies straight and level at cruise.
+    /// <b>Manual</b> (slice 6, E5): the mouse-aim pilot — see <see cref="Manual"/>.
     /// A dead plane falls; a plane down (<c>Airborne = 0</c>) stays down.
     /// </summary>
     public sealed class FixedWingModel : IMotionModel
@@ -47,13 +47,52 @@ namespace Fdp.Toolkit.Motion
             ToPoint(ref f, in intent, in p, dt);
         }
 
+        /// <summary>
+        /// ⭐⭐ Air Ops slice 6 (E5, §6 B3) — the MOUSE-AIM pilot on the existing <see cref="ManualDrive"/> axes: <c>Yaw</c> = the heading the
+        /// camera looks along, <c>Vertical</c> ∈ [−1, 1] = the climb angle asked for (× <see cref="MaxPitchDeg"/>, the climb rate caps it),
+        /// <c>Forward</c> ∈ [−1, 1] = the throttle (0 cruise, +1 top, −1 the stall speed). The plane flies itself: it banks toward the look
+        /// (a coordinated turn — the bank IS the turn), levels its wings as the nose comes onto the look, and never flies under its stall
+        /// speed whatever it is told.
+        /// </summary>
         public void Manual(ref MotionFrame f, in ManualDrive d, float dt)
         {
             var p = Params(f);
             if (IsDown(f)) { f.Velocity.Linear = Vector3.Zero; return; }
             if (!Alive(f)) { Fall(ref f, dt); return; }
-            Straight(ref f, in p, dt);   // ⏸ slice 6 (E5): the mouse-aim pilot
+            SetAirborne(ref f);
+
+            // the throttle: a speed between stall and top, eased like a route's
+            float throttle = Math.Clamp(d.Forward, -1f, 1f), cruise = Math.Clamp(Cruise(in p), Stall(in p), Top(in p));
+            float want = throttle >= 0f ? cruise + throttle * (Top(in p) - cruise) : cruise + throttle * (cruise - Stall(in p));
+            float now = f.Velocity.Linear.Length();
+            if (now <= 0.1f) now = want;   // possessed already flying
+            float speed = Math.Clamp(now + Math.Clamp(want - now, -AccelMps2 * dt, AccelMps2 * dt), Stall(in p), Top(in p));
+
+            // the turn: a bank toward the look that fades as the nose comes onto it; the yaw follows the bank (coordinated)
+            float yaw = RotorcraftModel.YawOf(f.Transform.Rotation);
+            float error = MathF.IEEERemainder(d.Yaw - yaw, 2f * MathF.PI);
+            float maxRate = RotorcraftModel.Gravity * MathF.Tan(MaxBank(in p)) / speed;
+            float rateWanted = Math.Clamp(error / ManualTurnSeconds, -maxRate, maxRate);
+            float roll = EaseRoll(f, -MathF.Atan(speed * rateWanted / RotorcraftModel.Gravity), in p, dt);
+            float turned = -RotorcraftModel.Gravity * MathF.Tan(roll) / speed * dt;
+            turned = Math.Clamp(turned, MathF.Min(0f, error), MathF.Max(0f, error));   // never past the look, never away from it
+            yaw += turned;
+
+            // the climb: the angle asked for, capped by the climb rate, eased
+            float pitchMax = MathF.Min(MaxPitchDeg * MathF.PI / 180f, MathF.Asin(Math.Clamp(p.ClimbMps / speed, 0f, 1f)));
+            float pitchWanted = Math.Clamp(d.Vertical, -1f, 1f) * pitchMax;
+            float pitchNow = RotorcraftModel.TiltOf(f.Transform.Rotation).Pitch;
+            float pitchStep = ManualPitchRateDeg * MathF.PI / 180f * dt;
+            float pitch = pitchNow + Math.Clamp(pitchWanted - pitchNow, -pitchStep, pitchStep);
+
+            var dir = new Vector3(MathF.Cos(yaw) * MathF.Cos(pitch), MathF.Sin(yaw) * MathF.Cos(pitch), MathF.Sin(pitch));
+            Pose(ref f, f.Transform.Position + dir * speed * dt, yaw, pitch, roll, dt);
         }
+
+        /// <summary>The mouse-aim pilot turns at a rate of (heading error ÷ this), up to its steepest bank — a soft approach to the look.</summary>
+        public const float ManualTurnSeconds = 1.5f;
+        /// <summary>How fast the mouse-aim pilot's nose follows the climb angle asked for (deg/s).</summary>
+        public const float ManualPitchRateDeg = 20f;
 
         // ── a route ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -157,8 +196,7 @@ namespace Fdp.Toolkit.Motion
 
         private static float EaseRoll(in MotionFrame f, float target, in FlightParams p, float dt)
         {
-            var left = Vector3.Transform(Vector3.UnitY, f.Transform.Rotation);
-            float now = MathF.Asin(Math.Clamp(left.Z, -1f, 1f));   // left side up +
+            float now = RotorcraftModel.TiltOf(f.Transform.Rotation).Roll;   // left side up +
             float max = MaxBank(in p), rate = RollRateDeg * MathF.PI / 180f * dt;
             return now + Math.Clamp(Math.Clamp(target, -max, max) - now, -rate, rate);
         }

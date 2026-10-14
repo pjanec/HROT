@@ -14,7 +14,8 @@ namespace Fdp.Toolkit.Motion
     /// min(<c>TargetSpeed</c>, <c>MaxSpeedMps</c>); within the arrival radius (2 m unless the intent states one) it stops and reports
     /// <c>Arrived</c> on <see cref="NavigationStatus"/>, so <c>LocomotionMoveTo.Status</c> works unchanged. No intent ⇒ it hovers.
     /// <b>Manual</b>: <see cref="ManualDrive"/> Forward / Lateral in the body frame × top speed, Yaw = the absolute heading it turns to,
-    /// Vertical × climb rate. A DEAD rotorcraft (<c>Health</c> ≤ 0) falls under gravity whatever it is told. It owns its Z (MD-G): it is
+    /// Vertical × climb rate; no axis ⇒ it holds its hover; it tilts as a route draws it (nose down forward, rolled into a strafe or a
+    /// turn — slice 6, E5). A DEAD rotorcraft (<c>Health</c> ≤ 0) falls under gravity whatever it is told. It owns its Z (MD-G): it is
     /// never clamped to the ground. No aerodynamics.
     /// <para>⭐⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6, as-built §5b) — <b>a route</b>
     /// (<c>FollowRoute</c>): it flies its <see cref="AirPath"/> exactly, its speed eased by an acceleration limit, slowed for the curves
@@ -99,11 +100,23 @@ namespace Fdp.Toolkit.Motion
                 if (d.Vertical <= 0f) { f.Velocity.Linear = Vector3.Zero; return; }   // on the ground until the collective comes up
                 SetAirborne(ref f, 1);
             }
-            float yaw = TurnToward(YawOf(f.Transform.Rotation), d.Yaw, p.TurnRateDeg, dt);
+            float before = YawOf(f.Transform.Rotation);
+            float yaw = TurnToward(before, d.Yaw, p.TurnRateDeg, dt);
             float fwd = Math.Clamp(d.Forward, -1f, 1f) * p.MaxSpeedMps, lat = Math.Clamp(d.Lateral, -1f, 1f) * p.MaxSpeedMps;
             var v = new Vector3(MathF.Cos(yaw) * fwd - MathF.Sin(yaw) * lat, MathF.Sin(yaw) * fwd + MathF.Cos(yaw) * lat,
                                 Math.Clamp(d.Vertical, -1f, 1f) * p.ClimbMps);
+            // ⭐ Air Ops slice 6 (E5, §6 B3) — the same tilt a route draws: the nose down as it flies forward, the roll into a strafe
+            //   and into the turn; level again in the hover the released keys leave it in (the hover hold: no axis ⇒ it stays put)
+            float yawRate = MathF.IEEERemainder(yaw - before, 2f * MathF.PI) / MathF.Max(dt, 1e-4f);
+            float top = MathF.Max(p.MaxSpeedMps, 1f);
+            float pitchTarget = -MaxPitchDeg * MathF.PI / 180f * fwd / top;
+            float rollTarget = -MaxBankDeg * MathF.PI / 180f * lat / top - MathF.Atan(fwd * yawRate / Gravity);
+            var (pitchNow, rollNow) = TiltOf(f.Transform.Rotation);
+            float maxPitch = MaxPitchDeg * MathF.PI / 180f, maxRoll = MaxBankDeg * MathF.PI / 180f, step = TiltRateDeg * MathF.PI / 180f * dt;
+            float pitch = pitchNow + Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - pitchNow, -step, step);
+            float roll = rollNow + Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - rollNow, -step, step);
             Fly(ref f, yaw, v, dt);
+            f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, pitch, roll));
             // a body with gear that comes down onto the ground sets down on it (no crash for a gentle landing)
             if (v.Z < 0f && Geometry(f) is { } geo)
             {
@@ -369,6 +382,14 @@ namespace Fdp.Toolkit.Motion
         {
             var fwd = Vector3.Transform(Vector3.UnitX, q);
             return MathF.Atan2(fwd.Y, fwd.X);
+        }
+
+        /// <summary>The nose pitch (up +) and the roll (left side up +) of a rotation built by <see cref="BodyGeometry.Rotation"/>.</summary>
+        public static (float Pitch, float Roll) TiltOf(Quaternion q)
+        {
+            float sinPitch = Math.Clamp(Vector3.Transform(Vector3.UnitX, q).Z, -1f, 1f);
+            float cosPitch = MathF.Max(0.1f, MathF.Sqrt(1f - sinPitch * sinPitch));
+            return (MathF.Asin(sinPitch), MathF.Asin(Math.Clamp(Vector3.Transform(Vector3.UnitY, q).Z / cosPitch, -1f, 1f)));
         }
 
         /// <summary><paramref name="from"/> turned toward <paramref name="to"/> by at most <paramref name="rateDeg"/>·dt.</summary>

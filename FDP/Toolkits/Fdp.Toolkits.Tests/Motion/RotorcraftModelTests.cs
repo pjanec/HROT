@@ -105,6 +105,37 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // no axis ⇒ it hovers
         }
 
+        /// <summary>⭐ B3 (slice 6, E5) — manual flight tilts as a route draws it: the nose down while it flies forward, rolled into a
+        /// strafe to the left (left side down); keys released, it holds its hover where it is and levels out.</summary>
+        [Fact]
+        public void B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover()
+        {
+            var d = Drone(new Vector3(0, 0, 50));
+            _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.Manual });
+            _w.SetComponent(d, new ManualDrive { Forward = 1 });
+            Run(60);
+            var (pitch, roll) = RotorcraftModel.TiltOf(_w.GetComponent<SimTransform>(d).Rotation);
+            Assert.Equal(-RotorcraftModel.MaxPitchDeg * MathF.PI / 180f, pitch, 2);   // full forward: the nose fully down
+            Assert.Equal(0f, roll, 2);
+            Assert.Equal(0f, RotorcraftModel.YawOf(_w.GetComponent<SimTransform>(d).Rotation), 3);   // the tilt does not turn it
+
+            _w.SetComponent(d, new ManualDrive { Lateral = 1 });
+            Run(60);
+            (pitch, roll) = RotorcraftModel.TiltOf(_w.GetComponent<SimTransform>(d).Rotation);
+            Assert.Equal(-RotorcraftModel.MaxBankDeg * MathF.PI / 180f, roll, 2);   // strafing left: left side down
+            Assert.Equal(0f, pitch, 2);
+
+            _w.SetComponent(d, new ManualDrive());
+            Run(60);
+            var held = _w.GetComponent<SimTransform>(d).Position;
+            Run(120);
+            var tf = _w.GetComponent<SimTransform>(d);
+            Assert.Equal(held, tf.Position);   // the hover hold: no drift
+            (pitch, roll) = RotorcraftModel.TiltOf(tf.Rotation);
+            Assert.Equal(0f, pitch, 3);
+            Assert.Equal(0f, roll, 3);
+        }
+
         /// <summary>⭐ M7 — a dead rotorcraft falls under gravity whatever it is told.</summary>
         [Fact]
         public void M7_ADeadRotorcraft_Falls()

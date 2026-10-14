@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4 BUILT 2026-10-14 (as-built §5a, §5b, §6a, §8a); slices 3, 5 (behaviors), the ui half of 1, and 6 remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip, §10 decisions, §11 slices and rails — §1 is the measured ground.
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4 and the backend half of 6 BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); slices 3, 5 (behaviors), the ui half of 1, and the rest of 6 remain
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip, §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -348,9 +348,21 @@ only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the sam
 | `FixedWingModel` (MD-H's row in `MotionModelTable`, no longer "fail loudly"): a route = the SAME `AirPath` a helicopter flies, compiled at cruise² / (g·tan max bank) (`FlightParams.TurnRadius`), flown kinematically at the route's / the intent's / the cruise speed clamped to [stall, top] and eased ±5 m/s²; roll −atan(v²κ/g) ≤ max bank, eased at 60°/s; pitch = its climb (capped by `ClimbMps`) | A1 / B2 |
 | the end of a route: a left-hand circle of the turn radius beside the last point, entered with the frame's leftover travel (Arrived, still flying) · a point (`MoveTo`): turn to it at the steepest bank, circle it once there · no order: straight and level | B9: planes never stop |
 | a Ground waypoint or a hold on a plane's route is flown over / ignored, with a warning, when `AirMotionSystem` compiles the path | B9 (v1: no runways) |
-| `Manual` = straight and level at cruise until slice 6 (E5, the mouse-aim pilot) | E5 is queued after E3+E4 |
+| ~~`Manual` = straight and level at cruise until slice 6~~ ⛔ SUPERSEDED by §6b (E5 built the mouse-aim pilot) | — |
 | `FlightParamsDto` + `StallSpeedMps` · `CruiseSpeedMps` · `MaxBankDeg`; the attack plane **405 "A-10C Thunderbolt II"**: FixedWing, cruise 150 / stall 60 / top 200 m/s, bank 60° (≈ 1.3 km turns), routes 300 m over the ground, 600 hp, four Mk-82 on a `Bomb` mount, gear for the 3-D map | §6 "an attack aircraft, not the F-16" |
 | rails: `FixedWingModelTests.A1_APlane_FliesItsRoute_BanksInTheTurns_AndNeverStalls` · `B9_AGroundWaypoint_IsFlownOver_NotLandedOn` · `A1_APlane_ToldAPoint_TurnsToIt_AndCirclesIt` · `NedTkbBuilderCombatTests.A1_TheAttackPlane_IsAFixedWing_WithFourBombs`; `RotorcraftModelTests.CE2168_*` re-pinned (FixedWing is moved now, Surface still fails loudly) | ⚠ the speed floor is checked on displacement per frame to 1 %: a turning frame's chord across a 15°-sampled arc is that much shorter than the distance flown |
+
+### 6b. As-built — the pilots, backend half of slice 6 (E5, `2026-10-14`)
+
+| as built | why / deviation |
+|---|---|
+| `FixedWingModel.Manual` — **mouse-aim** on the existing `ManualDrive` axes (no wire change): `Yaw` = the absolute heading looked along · `Vertical` ∈ [−1, 1] × the climb angle (≤ 25°, and ≤ asin(climb rate / speed)), the nose eased at 20°/s · `Forward` = throttle: 0 ⇒ cruise, +1 ⇒ top, −1 ⇒ stall, eased ±5 m/s² | B3: a non-expert flies the plane by looking where to go |
+| the turn is **coordinated**: the pilot asks for a turn rate of (heading error ÷ 1.5 s), up to the steepest bank; the bank is eased at 60°/s, and the yaw follows the bank (g·tan bank / v); the wings level as the error closes, and the yaw never passes the look | "the model banks itself, levels out when centred" |
+| it cannot stall: the speed is clamped to [stall, top] whatever the throttle and the nose say | B3 |
+| ⚠ no ground floor: a plane flown into the terrain meets it through `DroneImpactSystem`, which bursts mount 0 (the A-10's Mk-82 rack) — a crash, reported as a finding | not designed; the design asks only "cannot stall" |
+| `RotorcraftModel.Manual` — today's direct axes (Forward / Lateral × top speed, `Yaw` absolute, `Vertical` × climb) **plus the tilt a route draws**: the nose down ∝ forward speed (≤ 20°), rolled ∝ strafe (≤ 30°) and into the turn (atan(v·ω/g)), eased at 40°/s; no axis ⇒ it holds its hover where it is (no drift) and levels | B3 "today's controls + hover hold + the same tilt"; no acceleration limit was added, because the drone's possession rails pin the direct response |
+| `RotorcraftModel.TiltOf(q)` — the pitch and roll of a `BodyGeometry.Rotation`, shared with `FixedWingModel` (its roll reading is corrected for pitch: left.Z = sin roll · cos pitch) | one reader of the attitude |
+| rails: `FixedWingModelTests.B3_TheMouseAimPilot_TurnsToTheLook_BanksItself_AndLevelsOut` · `B3_ThrottleBack_AndNoseUp_NeverStalls` · `RotorcraftModelTests.B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover` | the station half (`ControlScheme.FixedWing`, camera attitude, HUD) is ui's |
 
 ## 7. Orders and the one attack behaviour (B4, B5)
 

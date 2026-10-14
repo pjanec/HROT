@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.RegisterComponent<NavigationIntent>();
             _w.RegisterComponent<NavigationStatus>();
             _w.RegisterComponent<Health>();
+            _w.RegisterComponent<ManualDrive>();
             _air = new AirMotionSystem { RouteSource = _routes };
         }
 
@@ -155,6 +156,62 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.True(minSpeed >= Stall * 0.99f, $"flew at {minSpeed} m/s, under its {Stall} m/s stall");   // 1 %: a turning frame's chord
             var p = _w.GetComponent<SimTransform>(plane).Position;
             Assert.True(Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(-6000, 0)) < 3000f, $"it stays near the point: {p}");
+        }
+
+        private static float Pitch(Quaternion q) => MathF.Asin(Math.Clamp(Vector3.Transform(Vector3.UnitX, q).Z, -1f, 1f));   // nose up +
+
+        /// <summary>⭐ B3 (slice 6, E5) — the mouse-aim pilot: told to look 90° left (ManualDrive.Yaw), the plane banks ITSELF into the
+        /// turn — steeply, as far as its max bank — turns onto the look, and levels its wings once the nose is on it; it holds its height
+        /// with Vertical at 0 and its cruise with the throttle at 0.</summary>
+        [Fact]
+        public void B3_TheMouseAimPilot_TurnsToTheLook_BanksItself_AndLevelsOut()
+        {
+            var plane = Plane(new Vector3(0, 0, 500), Cruise);
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.Manual });
+            _w.AddComponent(plane, new ManualDrive { Yaw = MathF.PI / 2 });
+            float minRoll = 0f;
+            for (int i = 0; i < 60 * 30; i++)
+            {
+                _air.Execute(_w, Dt);
+                var q = _w.GetComponent<SimTransform>(plane).Rotation;
+                minRoll = MathF.Min(minRoll, Roll(q));
+                Assert.True(RotorcraftModel.YawOf(q) <= MathF.PI / 2 + 1e-3f, $"overshot the look: {RotorcraftModel.YawOf(q) * 180f / MathF.PI:F1}°");
+            }
+            var tf = _w.GetComponent<SimTransform>(plane);
+            Assert.True(minRoll < -50f * MathF.PI / 180f, $"rolled only {minRoll * 180f / MathF.PI:F1}° into the left turn");
+            Assert.True(minRoll >= -Bank * MathF.PI / 180f - 1e-3f, "never past its max bank");
+            Assert.Equal(MathF.PI / 2, RotorcraftModel.YawOf(tf.Rotation), 2);       // on the look
+            Assert.InRange(Roll(tf.Rotation), -1f * MathF.PI / 180f, 1f * MathF.PI / 180f);   // wings level again
+            Assert.Equal(500f, tf.Position.Z, 1);
+            Assert.Equal(Cruise, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);
+        }
+
+        /// <summary>⭐ B3 — it cannot stall: throttle fully back and the nose held up for a minute, it slows to its stall speed and no
+        /// further, climbing no faster than its climb rate; throttle forward, it speeds up to its top speed.</summary>
+        [Fact]
+        public void B3_ThrottleBack_AndNoseUp_NeverStalls()
+        {
+            var plane = Plane(new Vector3(0, 0, 500), Cruise);
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.Manual });
+            _w.AddComponent(plane, new ManualDrive { Yaw = 0f, Forward = -1f, Vertical = 1f });
+            float minSpeed = float.MaxValue, maxClimb = 0f, maxPitch = 0f;
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                _air.Execute(_w, Dt);
+                var v = _w.GetComponent<SimVelocity>(plane).Linear;
+                minSpeed = MathF.Min(minSpeed, v.Length());
+                maxClimb = MathF.Max(maxClimb, v.Z);
+                maxPitch = MathF.Max(maxPitch, Pitch(_w.GetComponent<SimTransform>(plane).Rotation));
+            }
+            Assert.True(minSpeed >= Stall - 0.01f, $"flew at {minSpeed} m/s, under its {Stall} m/s stall");
+            Assert.Equal(Stall, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);
+            Assert.True(maxClimb <= 30f + 0.01f, $"climbed at {maxClimb} m/s, over its 30 m/s");
+            Assert.True(maxPitch > 15f * MathF.PI / 180f, $"the nose came up only {maxPitch * 180f / MathF.PI:F1}°");
+            Assert.True(_w.GetComponent<SimTransform>(plane).Position.Z > 1500f, "it climbed");
+
+            _w.SetComponent(plane, new ManualDrive { Yaw = 0f, Forward = 1f });
+            for (int i = 0; i < 60 * 60; i++) _air.Execute(_w, Dt);
+            Assert.Equal(200f, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);
         }
     }
 }
