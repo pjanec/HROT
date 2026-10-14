@@ -158,6 +158,44 @@ public class RouteWaypointGizmoTests : IDisposable
         Assert.Null(RouteWaypointGizmo.Current);
     }
 
+    // -- ⭐ CE-1096 (ROUTES1 §11.4 — air hand-off U2) --
+
+    /// <summary>
+    /// ⭐⭐ CE-1096 — a waypoint STAYS selected after its click (press + release) and the waypoint panel shows it, air fields included; a
+    /// field the panel changes is COMMITTED to the route at once — the route entity holds it and an update is published.
+    /// 📌 Red before: OnCommit deselected (the panel went blank the moment the mouse came up) and the panel never wrote back.
+    /// </summary>
+    [Fact]
+    public void CE1096_AClickedWaypointStaysSelected_AndThePanelsAirFieldsAreCommittedToTheRoute()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);   // a click: press …
+        gizmo.OnCommit(Vector3.Zero);                         // … and release
+        Assert.Equal(1, gizmo.SelectedVertexIndex);
+
+        var panel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);
+        var vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        Assert.True(vm.HasSelection);
+        Assert.Equal(("Pass", 0f, "None"), (vm.Kind, vm.HeightAgl, vm.Hold));
+
+        IRouteWaypointEditorState state = gizmo;
+        ref var wp = ref state.GetSelectedWaypointRef();
+        wp.Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground;
+        wp.HeightAgl = 120f;
+        wp.Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup;
+        wp.HoldUnit = 4242L;
+        _repo.Bus.SwapBuffers();
+        state.CommitEdits();
+
+        var stored = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![1];
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 120f, Fdp.Toolkit.Navigation.RouteHold.Pickup, 4242L),
+                     (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit));
+        _repo.Bus.SwapBuffers();
+        Assert.NotEmpty(_repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand>());   // published
+        vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        Assert.Equal(("Ground", 120f, "Pickup", 4242L), (vm.Kind, vm.HeightAgl, vm.Hold, vm.HoldUnit));
+    }
+
     // -- §4.7i — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES (user ruling, 2026-09-10) --
 
     /// <summary>

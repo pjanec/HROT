@@ -129,7 +129,7 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
         Assert.NotNull(vm);
     }
 
-    // ── WaypointEditorPanel / IgWaypointEditorWindow ─────────────────────────────────────────
+    // ── WaypointEditorPanel / WaypointEditorWindow (⭐ CE-1096 — shared, in Hrot.Presentation) ─────────────────────────────────────────
 
     private sealed class StubRouteState : IRouteWaypointEditorState
     {
@@ -137,6 +137,7 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
         public int SelectedVertexIndex { get; }
         public StubRouteState(int selectedIndex, RouteWaypoint wp) { SelectedVertexIndex = selectedIndex; _wp = wp; }
         public ref RouteWaypoint GetSelectedWaypointRef() => ref _wp;
+        public void CommitEdits() { }
     }
 
     [Fact]
@@ -146,14 +147,14 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
 
         PanelSnapshot.CaptureEnabled = true;
         var wp = new RouteWaypoint { TargetSpeed = 7.5f };
-        var window = new IgWaypointEditorWindow(new WaypointEditorPanel(() => new StubRouteState(0, wp)));
+        var window = new Hrot.Presentation.Windows.WaypointEditorWindow(new Hrot.UI.Common.Panels.WaypointEditorPanel(() => new StubRouteState(0, wp)), Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", default);
 
         Assert.Contains("ig_waypoint_editor", PanelSnapshot.RegisteredPanels);
         window.SimulateDrawClientArea();
 
         var vm = PanelSnapshot.TryGet("ig_waypoint_editor");
         Assert.NotNull(vm);
-        Assert.Equal(IgWaypointEditorWindow.Kind, vm!.PanelKind);
+        Assert.Equal(Hrot.Presentation.Windows.WaypointEditorWindow.Kind, vm!.PanelKind);
         var dump = vm.Dump();
         Assert.True(dump["hasSelection"]!.GetValue<bool>());
         Assert.Equal(7.5f, dump["targetSpeed"]!.GetValue<float>());
@@ -162,7 +163,7 @@ public sealed class IgWindowsDumpTheirModelsTests : IDisposable
     [Fact]
     public void WaypointEditorWindow_WithCaptureOff_PublishesNothing_ButStaysRegistered()
     {
-        var window = new IgWaypointEditorWindow(new WaypointEditorPanel(() => null));
+        var window = new Hrot.Presentation.Windows.WaypointEditorWindow(new Hrot.UI.Common.Panels.WaypointEditorPanel(() => null), Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", default);
 
         var vm = window.SimulateDrawClientArea();
 

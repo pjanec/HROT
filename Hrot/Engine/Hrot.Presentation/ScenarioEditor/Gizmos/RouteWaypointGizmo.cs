@@ -154,9 +154,13 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnCommit(Vector3 worldPos)
         {
             // Finalize drag. Marker stays so more waypoints can be edited.
+            // ⭐ CE-1096 (ROUTES1 §11.4 W-4) — and the waypoint STAYS SELECTED: a click is a press and a release, so deselecting here
+            //   left the waypoint panel empty the moment the mouse came up (Escape / a deletion clear it)
             WriteBackAndPublish();
-            _activeVertex = -1;
         }
+
+        /// <summary>⭐ CE-1096 (W-3) — the waypoint panel changed a field: the route written back and published, as a drag's end does.</summary>
+        public void CommitEdits() => WriteBackAndPublish();
 
         public void OnCancel()
         {

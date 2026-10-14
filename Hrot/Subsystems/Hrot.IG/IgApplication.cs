@@ -428,7 +428,7 @@ public class IgApplication : IDisposable
     private EntityInspectorState  _inspectorState    = null!;
 
     private EntityInspectorPanel  _inspectorPanel    = null!;
-    private WaypointEditorPanel    _waypointEditorPanel = null!;
+    private Hrot.UI.Common.Panels.WaypointEditorPanel _waypointEditorPanel = null!;
 
     private MiniExConPanelState     _miniIosState      = null!;
 
@@ -504,7 +504,7 @@ public class IgApplication : IDisposable
     /// <summary>The IG entity properties panel.</summary>
     public EntityInspectorPanel  EntityPropertiesPanel => _inspectorPanel;
     /// <summary>The IG waypoint editor panel.</summary>
-    public WaypointEditorPanel   WaypointEditorPanel  => _waypointEditorPanel;
+    public Hrot.UI.Common.Panels.WaypointEditorPanel WaypointEditorPanel => _waypointEditorPanel;
     /// <summary>The IG Mini ExCon spawner panel.</summary>
     public MiniExConPanel        MiniExConPanel       => _miniIosPanel;
     /// <summary>The IG performance overlay panel.</summary>
@@ -736,7 +736,7 @@ public class IgApplication : IDisposable
 
         _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
 
-        _waypointEditorPanel = new WaypointEditorPanel(() => RouteWaypointGizmo.Current);
+        _waypointEditorPanel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);   // ⭐ CE-1096 — moved to Presentation
 
         _miniIosState       = new MiniExConPanelState(_effectiveInstanceId);
 
@@ -1416,7 +1416,7 @@ public class IgApplication : IDisposable
         {
             _debugPanel.Draw();
             _inspectorPanel.Draw();
-            _waypointEditorPanel.Draw();
+            _waypointEditorPanel.Draw(IgPanelColors.Push, IgPanelColors.Pop);   // ⭐ CE-1096 — the shared panel, the IG's colours
         }
 
         if (!_panelsWindowManaged)

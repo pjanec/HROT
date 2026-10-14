@@ -213,7 +213,8 @@ namespace Hrot.IG
             if (_app == null) return;
             windowManager.RegisterWindow(new IgDebugWindow(_app.DebugPanel));
             windowManager.RegisterWindow(new IgEntityPropertiesWindow(_app.EntityPropertiesPanel));
-            windowManager.RegisterWindow(new IgWaypointEditorWindow(_app.WaypointEditorPanel));
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(   // ⭐ CE-1096 — the shared window
+                _app.WaypointEditorPanel, Hrot.Presentation.Windows.ScenarioPanelWindowIds.IgWaypoint, "IG", IgWindowColor.TitleBar));
             windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
             windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
             // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites this host used to spell out by hand are

@@ -1601,6 +1601,30 @@ public sealed class Map3DFrameRail
         }
         frame.Screenshot(Path.Combine(shots, "ws-5-top-attack-trail.png"));
 
+        // ⭐ CE-2172 / CE-1096 (air hand-off U1 / U2) — a helicopter's route drawn by the REAL route gizmo through the production gizmo
+        //   layer: on the ground (z 0, draped), then 30 m, 60 m and 30 m above it at its waypoints (HeightAgl), Z-up
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+        var route = world.CreateEntity();
+        world.AddComponent(route, new TkbIdentity { TkbType = TkbEntityTypes.TacGraphic_Route });
+        var plan = new Hrot.Map.Common.Components.RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X - 25f, spot.Y + 20f, 0f) });
+            wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X - 5f, spot.Y + 35f, 0f), HeightAgl = 30f });
+            wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X + 20f, spot.Y + 30f, 0f), HeightAgl = 60f });
+            wps.Add(new Hrot.Map.Common.Components.RouteWaypoint { Position = new Vector3(spot.X + 40f, spot.Y + 10f, 0f), HeightAgl = 30f,
+                                                                   Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground });
+        });
+        world.SetManagedComponent(route, plan);
+        var routeBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var routeLayer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, routeBuffer, new Fdp.Core.FdpEventBus()) { CurrentCamera = () => canvas.Camera };
+        routeLayer.Renderer3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(routeLayer);
+        new Hrot.ScenarioEditor.Gizmos.RouteGizmo().Draw(world, route, routeBuffer);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 5f, spot.Y + 25f, G(spot.X, spot.Y) + 20f), 110f, MathF.PI * 0.40f, -0.18f);
+        Draw();
+        frame.Screenshot(Path.Combine(shots, "ws-7-route-heights.png"));
+
         // an A-10 flying 60 m over the row, two of its four bombs gone
         var a10 = Put(TkbEntityTypes.Jet_AttackA10, 0f, 10f, yaw: MathF.PI * 0.85f, up: 60f);
         world.AddComponent(a10, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 2, Max0 = 4 });
