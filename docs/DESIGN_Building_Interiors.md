@@ -11,6 +11,8 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   buildings.
 related-designs:
   - DESIGN_Map_3D_Mode.md §6k — CE-1068: how a door entity is DRAWN (a hinged leaf in 3-D, no symbol in 2-D, gone when destroyed)
+  - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — R-217's penetration lookup keyed by the LOADED round (a mount's ammo loadout)
+  - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the penetrator kind (kinetic / shaped charge / tandem) read beside R-217's lookup
   - DESIGN_Visual_Effects.md — draws the detonations §3k's warheads make (explosion and decal sized by the ammo's TKB type).
   - DESIGN_World_Query_Seam.md — owns the engine-neutral query (IWorldQuery.Trace with a purpose) that generalises §3a's
     "one query for all, different solver"; sound B-6 is its Trace(Sound) (WQ-E).

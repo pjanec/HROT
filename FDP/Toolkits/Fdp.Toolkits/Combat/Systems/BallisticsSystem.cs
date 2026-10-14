@@ -229,6 +229,8 @@ namespace Fdp.Toolkit.Combat.Systems
             repo.Bus.Publish(new DetonationNotification
             {
                 Shooter = proj.Shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Ammo = proj.Ammo,
+                // ⭐ M1 — the way it was travelling (0 = unknown: a round lying where it landed has no last segment)
+                TravelX = at.X - proj.PreviousPosition.X, TravelY = at.Y - proj.PreviousPosition.Y, TravelZ = at.Z - proj.PreviousPosition.Z,
             });
             if (shot != null) ShotLog.End(shot, ShotOutcome.Detonated, tick, at);
         }

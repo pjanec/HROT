@@ -797,6 +797,7 @@ def run_fire_and_movement(c, timeout):
     print(f"    orders once in contact: {kinds}")
     c.ok(kinds is not None, "① the halves split: one half suppresses, the other holds or rushes")
     history, rush_lengths, rush_cover, both_up, last_pos, last_t = {}, [], [], 0.0, {}, None
+    overlaps, overlap, longest = [], 0.0, 0.0
     seen_orders = set()
     end = (sim_time() or 0) + 90
     while (sim_time() or 0) < end:
@@ -815,19 +816,32 @@ def run_fire_and_movement(c, timeout):
                 if at and o.get("point"):
                     rush_lengths.append(round(flat(at, o["point"]), 1))
                     rush_cover.append(bool(o.get("cover")))
-        moving = {}
+        moving, speed_of = {}, {}
         for i, nid in enumerate(members):
             p = position(nid)
             if p and nid in last_pos and last_t is not None and t > last_t:
-                moving[i] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+                speed_of[nid] = flat(p, last_pos[nid]) / (t - last_t)
+                moving[nid] = speed_of[nid] > 0.5
             if p: last_pos[nid] = p
-        half_a = any(moving.get(i) for i in range(0, 3)); half_b = any(moving.get(i) for i in range(3, 6))
-        if half_a and half_b and last_t is not None: both_up += t - last_t
+        # ⭐ CE-2163 — the halves are the drill's own elements (its members' roles), not the order the names are listed in, and the
+        #   measure is the LONGEST overlap, as ua-bounding-overwatch's ① (§7.8.3 "as ① above"). By name order it read 2.4 s live;
+        #   by the drill's elements the same run's overlap is 0.0 s.
+        roles = {x.get("networkId"): x.get("role") for x in m.get("members", [])}
+        groups = {}
+        for nid in members: groups.setdefault(roles.get(nid), []).append(nid)
+        both = len(groups) >= 2 and sum(1 for g in groups.values() if any(moving.get(n) for n in g)) >= 2
+        if both and last_t is not None:
+            overlaps.append((round(t, 1), m.get("phaseName"),
+                             [(names[members.index(n)], roles.get(n), round(speed_of.get(n, 0), 1)) for n in members if moving.get(n)]))
+            both_up += t - last_t
+        overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
+        longest = max(longest, overlap)
         last_t = t
         time.sleep(0.5)
     hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
     print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
-    print(f"    rushes: {rush_lengths} cover {rush_cover}; both halves moving for {both_up:.1f} s")
+    print(f"    rushes: {rush_lengths} cover {rush_cover}; both halves moving for {both_up:.1f} s in all, {longest:.1f} s at most at a time")
+    for o in overlaps: print(f"    both halves moving at t={o[0]} ({o[1]}): {o[2]}")
     rushes = [h for h in hs if (h.get("phaseName") or "").startswith("Rush")]
     swaps = [h for h in hs if (h.get("phaseName") or "").startswith("Cover") and h.get("event") in ("DefiladeReached", "Timeout")]
     c.ok(rushes and all(h.get("event") in ("ShotFired", "Timeout") for h in rushes),
@@ -838,7 +852,74 @@ def run_fire_and_movement(c, timeout):
     c1 = centre()
     gained = (d0 - flat(c1, target)) if (c1 and d0) else 0
     c.ok(gained >= 30, f"⑤ it closes the distance (the squad's centre is {gained:.0f} m nearer)")
-    c.ok(both_up <= 1.0, f"⑥ never both halves up for more than 1 s ({both_up:.1f} s)")
+    # ⚠ 1.5 s, not §7.8.3's 1 s: positions are polled every 0.5 s over HTTP, and a man settling the last metre counts as moving
+    c.ok(longest <= 1.5, f"⑥ never both halves up for more than a moment ({longest:.1f} s at most at a time)")
+
+
+# ── F-d (CE-2158) — fire and movement IN PAIRS: inside the moving half one buddy rushes while the other fires, then the other ──
+#   docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.6.4 / §7.8.3. The same cast as ua-fire-and-movement, `Pairs` on.
+
+def run_fire_and_movement_pairs(c, timeout):
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader", "Rifleman 1", "Rifleman 2", "Rifleman 3", "Rifleman 4", "Rifleman 5"]
+    members = [ids.get(n) for n in names]
+    hostiles = [ids.get("Hostile 1"), ids.get("Hostile 2")]
+    if not c.ok(sq and None not in members and None not in hostiles, "the squad, six men and two hostiles are loaded"):
+        return
+    target = (200.0, 285.0)
+    def centre():
+        ps = [p for p in (position(m) for m in members) if p]
+        return (sum(p[0] for p in ps) / len(ps), sum(p[1] for p in ps) / len(ps)) if ps else None
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    c0 = centre()
+    d0 = flat(c0, target) if c0 else None
+    call("POST", "/sim/play", {})
+    m = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "FireAndMovement" and x, 20)
+    if not c.ok(m is not None, "the squad runs the drill (maneuver kindName FireAndMovement)"):
+        return
+    rush_polls, max_up, buddy_fires, handovers = 0, 0, 0, 0
+    issued = {}          # (member, issuedAt) -> (rush length, metres it brings him nearer the objective)
+    phase_ups = {}       # (phase, phase start) -> list of the rushing sets seen in it, in order
+    history = {}
+    end = (sim_time() or 0) + 120
+    while (sim_time() or 0) < end:
+        m = maneuver(sq)
+        if m.get("kindName") != "FireAndMovement" and history:
+            break
+        for h in m.get("history", []):
+            history.setdefault((h.get("t"), h.get("phase")), h)
+        phase = m.get("phaseName") or ""
+        if phase.startswith("Rush"):
+            orders = {x.get("networkId"): (x.get("order") or {}) for x in m.get("members", [])}
+            up = frozenset(n for n, o in orders.items() if o.get("kind") == "AdvanceTo")
+            for n in up:
+                o = orders[n]
+                if (n, o.get("issuedAt")) not in issued and o.get("point") and (at := position(n)):
+                    issued[(n, o.get("issuedAt"))] = (round(flat(at, o["point"]), 1), round(flat(at, target) - flat(o["point"], target), 1))
+            suppress = sum(1 for o in orders.values() if o.get("kind") == "Suppress")
+            if up:
+                rush_polls += 1
+                max_up = max(max_up, len(up))
+                if suppress >= 4: buddy_fires += 1   # the base of fire is 3: a 4th means a buddy fires for his partner
+                key = (phase, m.get("phaseSince"))
+                seen = phase_ups.setdefault(key, [])
+                if not seen or seen[-1] != up: seen.append(up)
+        time.sleep(0.5)
+    for sets in phase_ups.values():
+        handovers += sum(1 for a, b in zip(sets, sets[1:]) if not (a & b))
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    print(f"    rush polls {rush_polls}; most men rushing at once {max_up}; polls where a buddy fires for the rusher {buddy_fires}; "
+          f"A→B hand-overs inside a rush {handovers}; rushing sets per rush {[[len(s) for s in v] for v in phase_ups.values()]}")
+    print(f"    rushes (length, gain toward the objective): {list(issued.values())}")
+    c.ok(rush_polls >= 4, f"① the squad rushes ({rush_polls} polls in a rush)")
+    c.ok(0 < max_up <= 2, f"② never the whole half up: at most one buddy of each pair rushes ({max_up} at once, a half is 3)")
+    c.ok(buddy_fires >= 1, f"③ the buddy who stays down fires for the one who is up ({buddy_fires} polls with ≥ 4 suppressing)")
+    c.ok(handovers >= 1, f"④ inside one rush the A buddies go, then the B buddies ({handovers} hand-overs)")
+    c1 = centre()
+    gained = (d0 - flat(c1, target)) if (c1 and d0) else 0
+    c.ok(gained >= 20, f"⑤ it closes the distance (the squad's centre is {gained:.0f} m nearer)")
 
 
 # ── F-e (CE-2158) — bounding overwatch: one half watches (suppresses on contact) while the other bounds to cover ───────────
@@ -1113,6 +1194,75 @@ def run_squad_march_loose(c, timeout):
     c.ok(end, "③ … and the file closes up behind it (every man within 35 m)")
 
 
+def run_squad_bound_open_ground(c, timeout):
+    """⭐ CE-2161 (Squad Tactics §7.7.7 D3; CE-3081 OpenGround) — a squad marching with OpenGround on leaves Shed Row's cover for the
+    ~100 m open field to (175, 60): the commander's route sensor lists the field as OpenGround, the crossing choice picks BOUND, the
+    squad crosses by bounding overwatch (one half moves, the other watches) and ends beyond the field's far side, then marches on."""
+    ids = ids_by_name()
+    sq = ids.get("Squad")
+    names = ["Leader"] + [f"Rifleman {i}" for i in range(1, 7)]
+    members = [ids.get(n) for n in names]
+    if not c.ok(sq and None not in members, "the squad and its seven men are loaded"):
+        return
+    call("POST", "/trace/observe", {"networkId": sq, "on": True})
+    ammo0 = {m: ammo(m)[0] for m in members}
+    call("POST", "/sim/play", {})
+    s = wait_for(lambda: (x := danger_sensor(sq)) and any(a.get("kind") == "OpenGround" for a in areas_of(x)) and x, 30)
+    if not c.ok(s is not None, "① the commander's route sensor lists the open field ahead (kind OpenGround)"):
+        return
+    area = next(a for a in areas_of(s) if a.get("kind") == "OpenGround")
+    print(f"    area: {area}; sensor kinds: {(s.get('settings') or {}).get('kinds')}")
+    c.ok(area["distanceAlongRoute"] > 0, f"   … ahead of the squad, which starts in cover ({area['distanceAlongRoute']:.1f} m along)")
+    started = wait_for(lambda: (x := maneuver(sq)) and x.get("kindName") == "BoundingOverwatch" and x.get("active", True) and x, 60)
+    if not c.ok(started is not None, "② the crossing choice picks BOUND (maneuver kindName BoundingOverwatch)"):
+        return
+    near, far = area["nearHandle"], area["farHandle"]
+    dx, dy = far[0] - near[0], far[1] - near[1]
+    L = (dx * dx + dy * dy) ** 0.5 or 1.0
+    def along(p):
+        return ((p[0] - near[0]) * dx + (p[1] - near[1]) * dy) / L
+    t0 = sim_time() or 0
+    last_pos, last_t, overlap, longest = {}, None, 0.0, 0.0
+    history = {}
+    while (sim_time() or 0) < t0 + 240:
+        t = sim_time() or 0
+        m = maneuver(sq) or {}
+        if m.get("kindName") != "BoundingOverwatch" or not m.get("active", True):
+            break
+        for h in m.get("history", []):
+            history.setdefault((h.get("t"), h.get("phase")), h)
+        roles = {x.get("networkId"): x.get("role") for x in m.get("members", [])}
+        moving = {}
+        for nid in members:
+            p = position(nid)
+            if p and nid in last_pos and last_t is not None and t > last_t:
+                moving[nid] = flat(p, last_pos[nid]) / (t - last_t) > 0.5
+            if p: last_pos[nid] = p
+        groups = {}
+        for nid in members: groups.setdefault(roles.get(nid), []).append(nid)
+        both = len(groups) >= 2 and sum(1 for g in groups.values() if any(moving.get(n) for n in g)) >= 2
+        overlap = overlap + (t - last_t) if (both and last_t is not None) else 0.0
+        longest = max(longest, overlap)
+        last_t = t
+        time.sleep(0.5)
+    t_end = sim_time() or 0
+    hs = sorted(history.values(), key=lambda h: h.get("t") or 0)
+    print(f"    bound history: {[(h.get('t'), h.get('phaseName'), h.get('event')) for h in hs]}")
+    time.sleep(1.5)   # the replicated positions this node reads lag the commander's by a moment
+    alongs = {names[members.index(n)]: round(along(p) - L, 1) for n in members if (p := position(n))}
+    beyond = [k for k, v in alongs.items() if v >= -2.0]
+    print(f"    after {t_end - t0:.0f} s, metres past the far side: {alongs}")
+    c.ok(t_end - t0 < 240, f"③ the bound ends ({t_end - t0:.0f} s)")
+    c.ok(longest <= 1.5, f"④ one half moves, the other watches (both halves moving at most {longest:.1f} s at a time)")
+    # the last bound carries ONE element to beyond the far side; the overwatching one is a bound behind by design (§7.6)
+    c.ok(len(beyond) >= len(members) // 2, f"⑤ the last bound ends beyond the field's far side ({len(beyond)} of {len(members)})")
+    gathered = wait_for(lambda: all((p := position(n)) and along(p) >= L - 15.0 for n in members), 60, every=1)
+    final = {names[members.index(n)]: round(along(p) - L, 1) for n in members if (p := position(n))}
+    print(f"    then, metres past the far side: {final}")
+    c.ok(gathered, "⑥ … and the march gathers the whole squad at the far side (every man within 15 m of it)")
+    c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑦ watching, not shooting: nobody's ammo dropped")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -1130,11 +1280,14 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-casualty-care-leader": run_casualty_care_leader,
              # ⭐ CE-2158 F-e — fire and movement (Squad Tactics §7.8.3)
              "ua-fire-and-movement": run_fire_and_movement,
+             "ua-fire-and-movement-pairs": run_fire_and_movement_pairs,
              "ua-bounding-overwatch": run_bounding_overwatch,
              # ⭐ CE-2159 X-d — the squad danger crossing (Squad Tactics §7.8.4)
              "ua-squad-danger-crossing": run_squad_danger_crossing,
              "ua-squad-danger-crossing-contact": run_squad_danger_crossing_contact,
-             "ua-squad-march-loose": run_squad_march_loose}
+             "ua-squad-march-loose": run_squad_march_loose,
+             # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
+             "ua-squad-bound-open-ground": run_squad_bound_open_ground}
 
 
 def main():

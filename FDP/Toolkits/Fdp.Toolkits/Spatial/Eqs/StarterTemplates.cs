@@ -88,7 +88,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
     }
 
     /// <summary>⭐ Somewhere safe to fall back to: grid points around the self that the target CANNOT see, farther from the
-    /// target scores more, hidden from every known threat scores more, unreachable dropped.</summary>
+    /// target scores more, hidden from every known threat scores more, unreachable dropped. ⭐ <c>CE-2164</c> (R-3004) — on open
+    /// ground, where the target sees every point, it still answers: the least exposed, farthest, reachable point
+    /// (<see cref="EqsQueryTemplate.KeepAllWhenFilteredOut"/>) — a squad breaking contact or a soldier falling back never freezes.</summary>
     [EqsTemplate(AssetId)]
     public static class FindSafeRetreatPoint
     {
@@ -105,6 +107,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             //   least-exposed wins, so the unit never freezes on open ground.
             ScoreExpensive = new IEqsTest[] { new ThreatExposureTest { Weight = ThreatExposureTest.HideFromAllWeight }, new PathCostScoreTest() },
             MaxCandidates  = 128,
+            KeepAllWhenFilteredOut = true,
         };
     }
 

@@ -443,12 +443,15 @@ public sealed class EffectTests
     /// <summary>⭐⭐ LR-1 (docs/DESIGN_Visual_Effects.md §8.5, R-271: "Every ammo needs its tkb type, always") — every built-in mount
     /// loads a registered munition type, and giving it one CHANGED NO COMBAT NUMBER: no new type picks up an explosive warhead from
     /// the reference library by name (only the M67 and the 81 mm, which had them), and every mount's penetration is still its own.
-    /// The visible ones carry a look (tracers, the big gun rounds, the rocket, the missile); 5.56 ball does not.</summary>
+    /// The visible ones carry a look (tracers, the big gun rounds, the rocket, the missile); 5.56 ball does not.
+    /// <para>⭐ M3 (DESIGN_Armour_Hit_Model §2) — RE-PINNED ON PURPOSE: the RPG and the TOW now carry their own shaped-charge
+    /// warhead (a decided combat change), so they join the explosive set; every other "no number moved" claim stands.</para></summary>
     [Fact]
     public void LR1_EveryBuiltInMountLoadsAMunitionType_AndNoCombatNumberMoved()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        var explosive = new HashSet<long> { MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.Tkb81mmMortarHe };
+        var explosive = new HashSet<long> { MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.Tkb81mmMortarHe,
+                                            MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.TkbTowMissile };   // ⭐ M3
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {
@@ -479,6 +482,26 @@ public sealed class EffectTests
         foreach (var visible in new[] { MunitionTkbCatalog.Tkb556Tracer, MunitionTkbCatalog.Tkb25mmApdsT, MunitionTkbCatalog.Tkb120mmApfsds,
                                         MunitionTkbCatalog.Tkb125mmApfsds, MunitionTkbCatalog.TkbTowMissile, MunitionTkbCatalog.TkbRpg7Rocket })
             Assert.NotNull(tkb.GetByType(visible).GetDescriptor<MunitionVisualDto>());
+    }
+
+    /// <summary>⭐ M3 (DESIGN_Armour_Hit_Model §2) — the RPG and TOW rounds carry a SHAPED-CHARGE warhead of their own (the template
+    /// wins over the library by name), with the library's "PG-7V HEAT" / "TOW-2 HEAT" numbers; the names stay.</summary>
+    [Fact]
+    public void M3_TheRpgAndTowRounds_CarryAShapedChargeWarhead()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        foreach (var (type, library) in new[] { (MunitionTkbCatalog.TkbRpg7Rocket, MunitionTkbCatalog.Rpg7LibraryName),
+                                                 (MunitionTkbCatalog.TkbTowMissile, MunitionTkbCatalog.TowLibraryName) })
+        {
+            var (w, source, provenance) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, type);
+            Assert.NotNull(w);
+            Assert.Equal(WarheadKind.ShapedCharge, w!.Kind);
+            Assert.Equal(Fdp.Toolkit.Tkb.Parameters.ParameterProvenance.Explicit, provenance);
+            Assert.True(Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(library, out var r));
+            Assert.Equal(r.Warhead!.Dto.ExplosiveKg, w.ExplosiveKg);
+            Assert.Equal(r.Warhead.Dto.FragmentRadiusM, w.FragmentRadiusM);
+            Assert.NotEqual(library, tkb.GetByType(type).Name);   // the names stay (LR-1)
+        }
     }
 
     /// <summary>⭐ LR-3 (§8.5, R-271) — a VIEWER draws a replicated round from nothing but its master and position: the look from its

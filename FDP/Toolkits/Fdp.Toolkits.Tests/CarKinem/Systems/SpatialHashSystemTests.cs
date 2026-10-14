@@ -148,5 +148,30 @@ namespace CarKinem.Tests.Systems
             Assert.DoesNotContain(enclosed, found);
             repo.Dispose();
         }
+
+        /// <summary>⭐ <c>CE-2163</c> — a ROUND IN FLIGHT is not in the collider hash (<c>PhysicalPresence.IsHidden</c>): it searches the
+        /// hash, it is never found in it. The body it was fired at, standing beside it, is.</summary>
+        [Fact]
+        public void CE2163_ARoundInFlight_IsNotInTheColliderHash()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            Entity At(float x, float r) { var e = repo.CreateEntity(); repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 100f, 0f), Rotation = Quaternion.Identity }); repo.AddComponent(e, new PhysicsCollider { Radius = r }); return e; }
+            var soldier = At(100f, 0.4f);
+            var round = At(101f, 0.05f);
+            repo.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = soldier });
+
+            new SpatialHashSystem().Execute(repo, 0.016f);
+
+            Span<(Entity foundEntity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int count = repo.GetSingleton<SpatialGridData>().Grid.QueryNeighbors(new Vector2(100f, 100f), 2f, results);
+            var found = results.Slice(0, count).ToArray().Select(r => r.foundEntity).ToList();
+            Assert.Contains(soldier, found);
+            Assert.DoesNotContain(round, found);
+            repo.Dispose();
+        }
     }
 }

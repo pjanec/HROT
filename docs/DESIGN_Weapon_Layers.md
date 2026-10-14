@@ -1,14 +1,16 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-build-state: BUILDING (WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
+updated: 2026-10-14
+build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
+current-answer: W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — BUILD design of W-6 / W-12d (ammo loadout chosen by the one ArmorModel), WL-5's timing rule turned into guidance (Command / FireAndForget, lock = AimSeconds), per-mount FireOnMove
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — urban vehicle tactics: names targets, asks for track-while-hidden; M8 gives a mount an ammo loadout (APFSDS + HEAT + HE) chosen by W-6's rule (unblocks W-12d); D-L adds a per-mount FireOnMove; M9 technicals (pintle HMG / ATGM mounts)
   - blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): Suppress at a hidden target asks this file's weapon brain for BLIND fire; bravery/obedience (CombatTemperament) decides the close-to-throw
   - DESIGN_Map_3D_Mode.md — §3.11 M23–M26 (R-255): the turret is a part child with a TurretPose, the weapon side aims it, it
     replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming. ⭐ W-13 (R-272):
@@ -27,6 +29,7 @@ related-designs:
   - DESIGN_Dead_Reckoning.md — the ONE dead-reckoning model (sample + rate + sim stamp, pure projection, R1–R8); W-10 applies it
     to TurretPose instead of inventing a second one.
   - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
+  - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162): LD-1 reuses W-14's body turn (HumanGait.FacingTurn) for a look direction, LD-2 points the vision cone along it
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle
@@ -310,7 +313,147 @@ sequenceDiagram
 | **W-13b** | who writes it | the weapon brain's executors, at the points they already report status, through ONE mapping (`WeaponPostureOf.Report`: Aiming / Firing / Cooldown / BlindFire / Hold-friendly / Hold-ROE / Slewing / Guiding ⇒ Aimed; HoldNotSeen / Reloading / Throwing / OutOfArc / Done / Failed / OutOfAmmo ⇒ Ready); the dispatcher lowers Aimed ⇒ Ready when no action runs and Ready ⇒ AtEase after `LowerAfterSeconds` (5 s) | every executor exit calls `Say` (`AimAndFireExecutor.cs:394`, `FireAtPointExecutor.cs:94`, `TrackTargetExecutor.cs:74`) · W-1 (the weapon brain keeps the gates) | reading `ActionStatus` — it is diagnostics and never on the wire (R-226) · deriving it on viewers from fire events — not the weapon brain (U-W9) |
 | **W-13c** | where it lives | a component on the UNIT (a rifleman has no turret part), in the Brain ownership group, provisioned at spawn beside `WeaponChannel` | `HrotOwnershipGroups.cs` brain group · `BehaviorTkbTranslator.cs:140` | on a turret part — persons have none · inside `StanceIntent` — the animation contract, a different writer |
 | **W-13d** | the wire | `dtWeaponPosture` = 127, keyed by the unit's network id, Reliable + TransientLocal + KeepLast 1, sent on change only (it changes a few times per engagement); the target crosses as its network id | `EntityWeaponTask` (`SimDescriptors.cs:118`), `SharedTranslatorPack.cs:93` (every node) | inside `dtBrainIntent` — a JSON slot written per change of task, SOP or ROE |
-| **W-13e** | how it is drawn | each arm is an upper arm + a forearm; AtEase / Ready / Aimed rifle-and-hand poses for standing and crouched (prone is always aimed, dead unchanged); Aimed turns the upper body toward the target (≤ 75°) and pitches it (≤ 35°) — a soldier's body does not turn to face his target (searched: nothing writes his heading when firing); an ARMED soldier's arms do not swing (they hold the rifle); running tilts the upper body forward (12° at a full run) | `ShapeKit.cs` `BlockFigure` · `MotionTracker.cs` | turning the whole body — the heading is the Muscle's (movement), not the picture's |
+| **W-13e** | how it is drawn | each arm is an upper arm + a forearm; AtEase / Ready / Aimed rifle-and-hand poses for standing and crouched (prone is always aimed, dead unchanged); Aimed turns the upper body toward the target (≤ 75°) and pitches it (≤ 35°) — a soldier's body does not turn to face his target (⛔ SUPERSEDED by W-14 `2026-10-14`: the gait now turns an aimed soldier and the shot waits for him — CE-3195); an ARMED soldier's arms do not swing (they hold the rifle); running tilts the upper body forward (12° at a full run) | `ShapeKit.cs` `BlockFigure` · `MotionTracker.cs` | turning the whole body — the heading is the Muscle's (movement), not the picture's |
+
+### W-14 — the body turns to the shot: a fire arc, and a body that follows a lasting aim *(🔒 user `2026-10-14` (U-W10), R-3003; CE-3195; WL-7 §5i)*
+
+> 🔒 **User, `2026-10-14` (U-W10):** *"I noticed the soldier when firing does not turn his body into the firing direction … i have
+> seen it going away from the target and still shooting at him, basically shooting behind his own back."* — on the lean: *"Approved.
+> Firing with high angle difference should be possible (like quick fire on suddenly appearing target) but i think The motion should
+> try to align the body smoothly to the firing direction if that situation (target behind) lasts longer."*
+
+#### INVENTORY *(graph CLI + grep, `2026-10-14`; the MCP server was down — the CLI ran `search_graph` / `search_code`; ⚠ `check_index_coverage` is not in the CLI)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=.*(Aim\|Facing\|Heading\|Orient\|LookAt\|Yaw).* label=Class` | 49 — the aim side is `AimAndFireExecutor` (+`AimState`), `BallisticAim`, `AimPoint`; the look side is the animation `LookAt*` channel (drawing only, unplayed — CE-3010); no facing class |
+| `search_graph .*Weapon.*(Executor\|Dispatcher\|System\|Channel).*` · `.*(Locomotion\|Kinematic).*(Dispatcher\|System\|Executor).*` | `WeaponDispatcherSystem`, `WeaponTaskDispatcherSystem` · `CarKinematicsSystem`, `LinearKinematicsSystem`, `LocomotionDispatcherSystem` |
+| writers of a person's heading *(grep `Rotation =` / `FromYaw` / `CreateFromAxisAngle(UnitZ`)* | `CarKinematicsSystem.FinishMove` (from `HumanGait.Integrate`, which turns only while moving, and `ManualMotion.Person`, the operator's) · `BulletCharacterMotor` on the Stride host (from velocity) · `EmbarkedStateSystem` (a passenger takes the vehicle's) — ⛔ nothing writes it from the aim |
+| readers of `WeaponPosture` | `EntityBodyLayer3D.TryAim` (the drawn twist, clamped `MaxAimTwist` 75°) · the NED translators · `WeaponPostureOf` — ⛔ no kinematics reader |
+| fire gates on angle | the turret path only (`Failed(OutOfArc)`, W-8) — the per-shot path (`AimAndFireExecutor.cs:123-213`) and `FireAtPointExecutor.ShootAtPoint` have none |
+| sight | every shipped soldier sees 360° (`UrbanCombatTkbCatalog.cs:170`) — the sight cone cannot stop it |
+
+#### Classes — ⭐ what the picture shows that the prose hid: ONE angle limit and ONE aim point, read by the shot, the gait and the drawing
+
+```mermaid
+classDiagram
+  class WeaponPosture {
+    <<component, replicated>>
+    Kind : AtEase Ready Aimed
+    Target : Entity
+    Point : Vector3
+  }
+  class WeaponPostureOf {
+    <<static, existing>>
+    Report(world, unit, reason, target, point)
+    +TryAimPoint(view, unit, out at) bool
+  }
+  class BodyAim {
+    <<static, NEW, Combat>>
+    +OffBody(view, unit, at) float
+    +HoldsFire(world, shooter, at) bool
+  }
+  class HumanGait {
+    <<static, existing, R-247>>
+    TurnRate
+    +MaxAimTwist 75 deg
+    +AlignGain 1 per s
+    +AlignDeadband 3 deg
+    +FacingTurn(fwd, toAim, dt) float
+    +FacingSpeedFactor(fwd, travel) float
+    +IntegrateFacing(pos, fwd, state, wanted, moving, toAim, accel, dt, out travel) float
+  }
+  class ManualMotion {
+    <<static, existing, M-2>>
+    BackAndStrafeFactor 0.6
+  }
+  class AimAndFireExecutor {
+    <<weapon brain, existing>>
+    Execute() per-shot path + FireBlind
+  }
+  class FireAtPointExecutor {
+    <<weapon brain, existing>>
+    ShootAtPoint(..., obeyRoe, obeyArc)
+  }
+  class CarKinematicsSystem {
+    <<muscle, existing>>
+    UpdateVehicle() person branch
+  }
+  class BulletCharacterMotor {
+    <<Stride host muscle, existing>>
+  }
+  class EntityBodyLayer3D {
+    <<drawing, existing>>
+    TryAim() twist clamp
+  }
+  AimAndFireExecutor ..> BodyAim : holds a round
+  FireAtPointExecutor ..> BodyAim : holds a round
+  AimAndFireExecutor ..> WeaponPostureOf : Report Turning = Aimed
+  WeaponPostureOf --> WeaponPosture : writes
+  BodyAim ..> HumanGait : MaxAimTwist
+  CarKinematicsSystem ..> WeaponPostureOf : TryAimPoint
+  CarKinematicsSystem ..> HumanGait : IntegrateFacing
+  BulletCharacterMotor ..> WeaponPostureOf : TryAimPoint
+  BulletCharacterMotor ..> HumanGait : FacingTurn
+  HumanGait ..> ManualMotion : BackAndStrafeFactor
+  EntityBodyLayer3D ..> WeaponPostureOf : TryAimPoint
+  EntityBodyLayer3D ..> HumanGait : MaxAimTwist
+```
+
+#### Sequence — ⭐ what it shows: the shot waits for the body, and the body is turned by the Muscle, never by the brain
+
+```mermaid
+sequenceDiagram
+  participant X as AimAndFireExecutor (Brain node)
+  participant P as WeaponPosture (replicated)
+  participant K as CarKinematicsSystem (Muscle node)
+  participant T as SimTransform heading (replicated)
+  X->>X: target seen, aim clock running
+  X->>X: BodyAim.HoldsFire: target 120 deg off the body
+  X->>P: Report(Turning) = Aimed at target, no round spent
+  P->>K: Aimed + target
+  K->>K: off by more than MaxAimTwist: turn at TurnRate (snap)
+  K->>T: heading
+  T->>X: next frame: 70 deg off, inside the arc
+  X->>X: aim clock done: WeaponFireIntent (a snap shot)
+  loop while the engagement lasts
+    K->>K: inside the arc: turn at AlignGain x angle (smooth)
+  end
+  X->>P: action ends: Ready (not Aimed)
+  K->>K: HumanGait again: walks where he faces (turn first when more than 30 deg off)
+```
+
+#### Modules — ⭐ who calls each piece every frame (no new system, no new wire, no dead edge)
+
+```mermaid
+graph TD
+  subgraph CGF["Brain node (CGF)"]
+    WD["WeaponDispatcherSystem<br/>runs the executors"] --> AF["AimAndFireExecutor / FireAtPointExecutor<br/>+ BodyAim.HoldsFire"]
+  end
+  subgraph SH["Muscle node (SimHost)"]
+    GK["GroundKinematicsModule"] --> CK["CarKinematicsSystem<br/>person: HumanGait.IntegrateFacing"]
+  end
+  subgraph ST["Stride host"]
+    BM["BulletCharacterMotor<br/>HumanGait.FacingTurn"]
+  end
+  subgraph VW["every viewer"]
+    BL["EntityBodyLayer3D<br/>twist clamp = MaxAimTwist"]
+  end
+  AF -- "dtWeaponPosture (existing, on change)" --> CK
+  AF -- "dtWeaponPosture" --> BM
+  AF -- "dtWeaponPosture" --> BL
+  CK -- "heading (existing attribute)" --> AF
+```
+
+| # | question | ⭐ decision | rests on (code · design) | rejected — one line each |
+|---|---|---|---|---|
+| **W-14a** | may he fire at a target off his body | yes, up to **`HumanGait.MaxAimTwist` (75°)** each side of his heading — a snap shot. Beyond it the round is HELD (`ActionReason.Turning` ⇒ Aimed, nothing spent) while he turns; the aim clock keeps running, so the shot comes the moment he is round. Every aimed round of a PERSON: the per-shot path, blind fire, `FireAtPoint`'s AI path. Not: operator fire (the operator turns the body, M-2), the turret path (its own arc, W-8), an embarked passenger (the vehicle's heading, `IsEmbarkedTag`), a non-person | the drawn twist is already 75° (W-13e, `EntityBodyLayer3D.cs:173`) ⇒ one constant, picture and shot agree · `PhysicsColliderReaders.IsPerson` | no arc (today: fire behind the back) · restart the aim clock on the turn — kills the quick shot the user asked for · a hit-chance penalty by angle instead — still a round out of his back |
+| **W-14b** | who turns the body | the **Muscle's person gait** (R-247 — the heading is movement's), reading the replicated `WeaponPosture` (Aimed + target / point) through ONE helper `WeaponPostureOf.TryAimPoint` that the drawing already used | `WeaponPosture` reaches every node (W-13d) · R-158 / R-169: no new message | the brain writes the heading — a second writer of a Muscle-owned component · a new facing channel / message — the posture already says it · the animation LookAt channel — drawing only, unplayed (CE-3010) |
+| **W-14c** | how fast | beyond the arc: **`TurnRate`** (an about-face in 0.5 s); inside it: **`AlignGain` × angle** (1 /s — 63 % of the way in 1 s, 95 % in 3 s), nothing inside `AlignDeadband` (3°). A brief snap shot barely moves him; a lasting aim brings the body round — U-W10 | `HumanGait.TurnRate` · a first-order lag needs no timer, so no new component | a dwell timer, then turn — needs per-unit state on the Muscle for the same picture · always snap — a flick at every new target |
+| **W-14d** | moving while aimed | travel and facing separate: he keeps his path; the body follows W-14c; the "turn first when > 30° off" rule is off; speed × **1** within 45° of the body, **`ManualMotion.BackAndStrafeFactor` (0.6)** at 90° and beyond (back-pedal, sidestep). When the aim ends the gait rule returns — more than 30° off ⇒ he stops, turns, walks on | `ManualMotion.Person` already moves a person off his heading (M-2) · the user approved option ① (face the threat, walk back / sideways) | stop, turn, fire, move on — option ②, not chosen · keep the gait and only hold fire — he never fires on the move away |
+| **W-14e** | standing | the same rule: an aimed soldier who stands turns to his target | `HumanGait.Integrate` turned only while moving (`HumanGait.cs:54`) | — |
+| **W-14f** | the Stride host | `BulletCharacterMotor` faces the same wanted heading (`HumanGait.FacingTurn` toward the aim point), else travel as today | the one rule, two integrators (ruling 9 — one implementation of the rule) | leave it facing velocity — the Stride host would still shoot behind its back |
+
 
 ## 5. Slices
 
@@ -847,6 +990,21 @@ never aimed while crawling — and blends back into his prone pose (unchanged �
 
 ⚠ **Not built:** a vehicle's posture is written but nothing draws it (its turret has `TurretPose`); the Stride skeletal aim layer could
 read the same component — not wired.
+
+### 5i. WL-7 — W-14: the body turns to the shot *(backend, `2026-10-14`; CE-3195, R-3003; build-state: BUILT — as drawn in W-14)*
+
+| piece | as built | where |
+|---|---|---|
+| the twist | ONE constant, `HumanGait.MaxAimTwist` (75°); the drawn twist `EntityBodyLayer3D.MaxAimTwist` is now an alias of it | `HumanGait.cs` · `EntityBodyLayer3D.cs:175` |
+| the aim point | `WeaponPostureOf.TryAimPoint` (Aimed ⇒ the target's chest or the point) — moved out of `EntityBodyLayer3D.TryAim`, which now calls it | `WeaponPostureOf.cs` |
+| the fire arc | `BodyAim.HoldsFire` (a person, not embarked, more than the twist off) holds: the per-shot path (before the friendly-line check), blind fire (turning toward the REMEMBERED point), and `FireAtPointExecutor.ShootAtPoint(…, obeyArc)` — required argument: the AI passes `true`, operator fire `false` | `BodyAim.cs` · `AimAndFireExecutor.cs` · `FireAtPointExecutor.cs` |
+| the reason | `ActionReason.Turning` (appended — 17), label "turning", posture **Aimed** | `ActionStatus.cs` · `WeaponPostureOf.For` |
+| the gait | `HumanGait.FacingTurn` (snap beyond the twist, `AlignGain` × angle inside, 3° dead band) · `FacingSpeedFactor` · `IntegrateFacing` (moves along the way, not the heading); `CarKinematicsSystem`'s person branch uses them when `TryAimPoint` answers — standing too — else `HumanGait.Integrate` exactly as before | `HumanGait.cs` · `CarKinematicsSystem.cs` |
+| the Stride host | `BulletCharacterMotor` turns an aimed character by `FacingTurn` from its body's current heading (less the model offset), else faces travel as before | `BulletCharacterMotor.cs` |
+
+Gates `2026-10-14`: `Fdp.Toolkits.Tests` 3225 / 0 (1 skip) · `Hrot.Presentation.Tests` Map3D 139 / 0 (8 skip) · cluster scenarios (`PostureScenarioTests`, `GrenadeOrRifleScenarioTests`, `SquadTacticsScenarioTests`, `EqsCombatNodesTests`) 31 / 0 — no baseline moved · `Hrot.Stride.Core` builds clean, ⚠ its tests cannot run on Linux (net8.0-windows runtime) and the motor's aimed branch has no rail — verify on the Windows host.
+
+⚠ Known, not fixed here: blind fire's ROUNDS-in-progress posture still names the hidden target ENTITY (W-13b), so between held rounds the gait turns toward where he really is, not where he was last seen — the gate itself uses the remembered point. Small in practice (the point is where he was a moment ago).
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

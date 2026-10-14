@@ -1044,5 +1044,174 @@ namespace CarKinem.Tests.Systems
             Drive(aboard, 10);
             Assert.Equal(new Vector3(10, 2, 0), aboard.GetComponent<SimTransform>(a).Position);
         }
+
+        // ── ⭐ CE-2167 (V5, docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §5) — an AI vehicle can REVERSE ────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2167</c> (V5) — an AI tank given a point straight BEHIND it, reverse allowed, backs to it and keeps facing the way it
+        /// faced (out of a firing position into the hide). 🔴 Red-proof: <c>BicycleModel</c> clamped speed at 0 — the kinematics asked
+        /// for reverse and the tank stood still.
+        /// </summary>
+        [Fact]
+        public void V5_AnAiTank_ReversesToAPointBehindIt_FacingUnchanged()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Tank, null);
+            repo.SetComponent(e, new NavState
+            {
+                Mode = KinematicsMode.Direct, FinalDestination = new Vector3(-20f, 0f, 0f), TargetSpeed = 6f, ArrivalRadius = 1.5f,
+                ReverseAllowed = 1,
+            });
+            Run(repo, 15f);
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(at.X < -17f, $"it backed to the point: x {at.X:F1}");
+            Assert.InRange(MathF.Abs(at.Y), 0f, 0.5f);
+            Assert.InRange(MathF.Abs(YawOf(repo, e)), 0f, 2f * MathF.PI / 180f);   // still facing east
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-2167</c> (V5) — backing ALONG a path counts as progress (it froze: the forward vector points against the
+        /// tangent while reversing), so a reversing vehicle reaches the end of its path.</summary>
+        [Fact]
+        public void V5_ReversingAlongAPath_MakesProgress()
+        {
+            var tank = VehiclePresets.GetPreset(VehicleClass.Tank);
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 6f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI), vehicle: tank);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.ReverseAllowed = 1;
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 10 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(at.X > 30f, $"it backed east along the path: x {at.X:F1}");
+            Assert.True(repo.GetComponent<NavState>(e).ProgressS > 25f, $"progress {repo.GetComponent<NavState>(e).ProgressS:F1}");
+            Assert.InRange(MathF.Abs(MathF.Abs(YawOf(repo, e)) - MathF.PI), 0f, 5f * MathF.PI / 180f);   // still facing west
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        // ── ⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person turns his body to the aim ─────────────
+
+        /// <summary>A standing person facing EAST, aimed (his weapon brain's posture) at <paramref name="aimAt"/>.</summary>
+        private static (EntityRepository Repo, Entity E) AimedStander(Vector3 aimAt)
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Pedestrian, null);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.None });
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture
+                { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Point = aimAt });
+            return (repo, e);
+        }
+
+        private static float Off(EntityRepository repo, Entity e, float bearing)
+            => MathF.Abs(CarKinem.Controllers.HumanGait.SignedAngle(
+                new Vector2(MathF.Cos(YawOf(repo, e)), MathF.Sin(YawOf(repo, e))), new Vector2(MathF.Cos(bearing), MathF.Sin(bearing))));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14c/e) — a STANDING soldier aimed at a point BEHIND him snaps round at the full turn rate until it is
+        /// inside his twist (≈ 0.3 s for 105°), then the body follows smoothly: still well off after a further 0.3 s, within 10° after
+        /// 3 s. He does not move. 🔴 Red-proof: before CE-3195 <c>HumanGait</c> turned a person only while he walked — he never turned.
+        /// </summary>
+        [Fact]
+        public void CE3195_AStandingAimedPerson_SnapsInsideHisTwist_ThenAlignsSmoothly()
+        {
+            var (repo, e) = AimedStander(new Vector3(-20f, 0f, 1f));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float inside = -1f;
+            for (int i = 0; i < 60 && inside < 0f; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                if (Off(repo, e, MathF.PI) <= CarKinem.Controllers.HumanGait.MaxAimTwist + 0.01f) inside = (i + 1) / 60f;
+            }
+            Assert.InRange(inside, 0.2f, 0.4f);
+            Run(repo, 0.3f);
+            Assert.True(Off(repo, e, MathF.PI) > 0.5f, $"a smooth follow, not a snap: {Off(repo, e, MathF.PI) * 180f / MathF.PI:F0}° off after 0.3 s more");
+            Run(repo, 3f);
+            Assert.True(Off(repo, e, MathF.PI) < 10f * MathF.PI / 180f, $"aligned: {Off(repo, e, MathF.PI) * 180f / MathF.PI:F1}° off");
+            Assert.True(new Vector2(repo.GetComponent<SimTransform>(e).Position.X, repo.GetComponent<SimTransform>(e).Position.Y).Length() < 0.01f);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2163</c> — a soldier who stands and FIRES does not walk backwards. Every frame a fresh round leaves his muzzle 1 m in
+        /// front of him at 800 m/s (as <c>FireProcessingSystem</c> spawns it: a collider, so the ballistics can carry it). After 3 s of
+        /// fire he is where he stood. 🔴 Red-proof: with rounds in the collider hash (before CE-2163) the avoidance shell shoved him
+        /// back on every shot — live, a man who only suppressed crept ~5 m a minute away from the enemy.
+        /// </summary>
+        [Fact]
+        public void CE2163_AStandingSoldier_WhoFires_IsNotPushedBackByHisOwnRounds()
+        {
+            var (repo, e) = AimedStander(new Vector3(20f, 0f, 1f));   // aimed ahead (east), the way he faces
+            repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            repo.AddComponent(e, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            Entity round = Entity.Null;
+            for (int i = 0; i < 180; i++)
+            {
+                if (!round.IsNull) repo.DestroyEntity(round);
+                round = repo.CreateEntity();
+                repo.AddComponent(round, new SimTransform { Position = new Vector3(1f, 0f, 1.4f), Rotation = Quaternion.Identity });
+                repo.AddComponent(round, new SimVelocity { Linear = new Vector3(800f, 0f, 0f) });
+                repo.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = e });
+                repo.AddComponent(round, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.05f, CollisionLayer = 2 });
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(at.X, at.Y).Length() < 0.01f, $"he moved {at.X:F2} m along his facing while firing");
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14c) — a BRIEF aim inside the twist barely turns him (a snap shot), and when the posture is no
+        /// longer Aimed he stops turning.</summary>
+        [Fact]
+        public void CE3195_ABriefAimInsideTheTwist_BarelyTurnsHim()
+        {
+            float bearing = 60f * MathF.PI / 180f;
+            var (repo, e) = AimedStander(new Vector3(20f * MathF.Cos(bearing), 20f * MathF.Sin(bearing), 1f));
+            Run(repo, 0.3f);
+            float turned = YawOf(repo, e);
+            Assert.InRange(turned, 0.05f, 0.35f);   // ≈ 26 % of 60°
+            repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready;
+            Run(repo, 1f);
+            Assert.InRange(YawOf(repo, e), turned - 0.001f, turned + 0.001f);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14d) — a soldier WALKING his path EAST while aimed at a target WEST of him keeps his path, turns to face
+        /// the target and BACK-PEDALS at <c>ManualMotion.BackAndStrafeFactor</c> of his speed; the aim lifted, he turns on the spot and
+        /// walks on facing his way (R-247). 🔴 Red-proof: before CE-3195 he walked on facing east — firing behind his back.
+        /// </summary>
+        [Fact]
+        public void CE3195_AnAimedPersonOnAPath_KeepsHisWay_FacesTheTarget_AndBackPedals()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture
+                { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Point = new Vector3(-50f, 0f, 1f) });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            void RunFor(float seconds) { for (int i = 0; i < (int)(seconds * 60); i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); } }
+
+            RunFor(4f);
+            var tf = repo.GetComponent<SimTransform>(e);
+            Assert.True(tf.Position.X > 2f, $"kept his way east: {tf.Position}");
+            Assert.True(Off(repo, e, MathF.PI) < 15f * MathF.PI / 180f, $"faces the target: {Off(repo, e, MathF.PI) * 180f / MathF.PI:F0}° off");
+            float vx = repo.GetComponent<SimVelocity>(e).Linear.X;
+            Assert.InRange(vx, 0.6f * 1.5f - 0.1f, 0.6f * 1.5f + 0.1f);   // back-pedalling at 60 %
+
+            repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready;
+            RunFor(2f);
+            Assert.True(Off(repo, e, 0f) < 15f * MathF.PI / 180f, "the aim lifted, he faces his way again");
+            Assert.InRange(repo.GetComponent<SimVelocity>(e).Linear.X, 1.4f, 1.6f);
+            pool.Dispose();
+            repo.Dispose();
+        }
     }
 }

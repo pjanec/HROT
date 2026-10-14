@@ -130,6 +130,37 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(expectDamage, det.Damage, 2);
         }
 
+        // ── ⭐ M1 (DESIGN_Armour_Hit_Model §3): the way the round was travelling rides on the detonation ─────────────
+
+        /// <summary>
+        /// ⭐ M1 — a hit carries the round's TRAVEL: the swept segment (straight, or an arc's descending last segment), and for a
+        /// zero-length first segment the line from the muzzle. All three 0 means "unknown" to the damage step.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, 0f, 1.6f,   10f, 0f, 1.6f,   10f, 0f, 0f)]      // a straight round
+        [InlineData(0f, 0f, 20f,    3f, 0f, 16f,     3f, 0f, -4f)]      // an arc's last segment, descending
+        [InlineData(5f, 0f, 1.6f,   5f, 0f, 1.6f,    5f, 0f, -0.4f)]    // zero-length: from the muzzle (0,0,2) to the hit (5,0,1.6)
+        public void M1_HitResolution_CarriesTheTravelDirection(float sx, float sy, float sz, float ex, float ey, float ez, float tx, float ty, float tz)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var bullet = _world.CreateEntity();
+            _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+                { Damage = 25f, Penetration = 5f, Muzzle = new Vector3(0, 0, 2f), TerrainFlags = 1 });
+            var unit = _world.CreateEntity();
+            _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = unit,
+                Start = new Vector3(sx, sy, sz), End = new Vector3(ex, ey, ez), T = 0.5f,
+            } });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var det = Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            Assert.Equal(tx, det.TravelX, 3);
+            Assert.Equal(ty, det.TravelY, 3);
+            Assert.Equal(tz, det.TravelZ, 3);
+        }
+
         // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
 
         /// <summary>

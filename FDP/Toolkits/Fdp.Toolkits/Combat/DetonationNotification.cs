@@ -51,5 +51,16 @@ namespace Fdp.Toolkit.Combat.Contracts
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); its warhead decides the area
         /// effect. <see cref="Target"/> is <see cref="Entity.Null"/> for a round that detonated on the terrain (W-3).</summary>
         public long Ammo;
+
+        /// <summary>⭐ M1 (D-A) — the direction the round was TRAVELLING when it struck (any length; its last swept segment),
+        /// world X. <b>All three 0 = unknown</b> (a detonation published by hand, an ingress one): the damage step then takes the
+        /// face from the shooter's position, as before. 📄 <c>DESIGN_Armour_Hit_Model.md</c> §3.</summary>
+        public float TravelX;
+
+        /// <summary>⭐ M1 — the travel direction, world Y. See <see cref="TravelX"/>.</summary>
+        public float TravelY;
+
+        /// <summary>⭐ M1 — the travel direction, world Z (negative = descending). See <see cref="TravelX"/>.</summary>
+        public float TravelZ;
     }
 }

@@ -157,12 +157,30 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(standing, Shoot(0.2f).HitEntity);
         }
 
-        /// <summary>⭐ <c>CE-3136</c> P-2 — a vehicle is hit anywhere in its circle, as before (no band).</summary>
+        /// <summary>
+        /// ⭐⭐ M1 (DESIGN_Armour_Hit_Model §2, a decided change — replaces <c>P2_AVehicleKeepsTheCircle</c>) — a ROUND hits a vehicle
+        /// only inside its height band (feet … feet + collider Height): a round at 1 m strikes a 2.4 m hull, one at 5 m passes OVER
+        /// it, and one dropping straight down meets its roof (a segment wholly inside the circle — the circle test alone never saw
+        /// it). A sight ray keeps the circle; a collider of Height 0 (unknown) keeps the circle too.
+        /// </summary>
         [Fact]
-        public void P2_AVehicleKeepsTheCircle()
+        public void M1_ARoundPassingOverAHull_DoesNotHitIt()
         {
-            var car = SpawnCollider(new Vector2(10f, 0f), radius: 2f, layer: 1);
-            Assert.Equal(car, Shoot(5f).HitEntity);
+            var hull = SpawnCollider(new Vector2(10f, 0f), radius: 2f, layer: 1);
+            _world.GetComponentRW<PhysicsCollider>(hull).Height = 2.4f;
+            Assert.Equal(hull, Shoot(1f).HitEntity);
+            Assert.Equal(0, Shoot(5f).HasHit);
+            Assert.Equal(1, Shoot(5f, bullet: false).HasHit);   // a sight ray: unchanged
+            var drop = RunSolver(new RaycastRequestEvent
+            {
+                Start = new Vector3(10.5f, 0f, 10f), End = new Vector3(10.5f, 0f, 0f),
+                RayId = PhysicsConstants.PackBulletRayId(78), LayerMask = 1,
+            });
+            Assert.Equal(hull, drop.HitEntity);
+            Assert.Equal(0.76f, drop.T, 3);                        // where the drop reaches the roof (z 2.4)
+
+            _world.GetComponentRW<PhysicsCollider>(hull).Height = 0f;
+            Assert.Equal(hull, Shoot(5f).HitEntity);               // unknown height: the circle, as before
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────────

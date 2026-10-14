@@ -76,6 +76,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("Fired on a high arc at a point (mortar, thrown grenade), not straight at a target.")]
         public bool Indirect { get; init; }
 
+        /// <summary>⭐ M3 (D-C) — a TANDEM shaped charge (a precursor for reactive armour). Reads the same armour column as a single
+        /// shaped charge until ERA exists (<c>ArmorModel.ArmourFor</c>). Meaningful only with <see cref="WarheadKind.ShapedCharge"/>.</summary>
+        [Description("Tandem shaped charge (defeats reactive armour once ERA exists).")]
+        public bool Tandem { get; init; }
+
         /// <summary>True when the warhead has any area effect.</summary>
         [JsonIgnore]
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;

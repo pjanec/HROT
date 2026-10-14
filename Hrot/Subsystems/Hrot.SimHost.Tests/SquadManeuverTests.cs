@@ -1744,6 +1744,26 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(new Vector3(0f, 100f, 0f), settings.RoutePoint);
         }
 
+        /// <summary>⭐ <c>CE-2161</c> — the march asks its route sensor for OPEN GROUND only when the order says <c>OpenGround</c>
+        /// (CE-3081 A5); otherwise the crossings alone, as every existing march. 🔴 Red before: no way to ask, so D3's Bound scored 0 live.</summary>
+        [Fact]
+        public void CE2161_TheMarch_AsksForOpenGround_OnlyWhenTheOrderSaysSo()
+        {
+            Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds KindsOf(string order)
+            {
+                var w = new Squad(4);
+                w.Order(order, BehaviorNames.SquadMarch);
+                w.Tick(); w.Tick(); w.Repo.FlushCommandBuffers();
+                var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(w.Repo, w.Commander, SquadMarchPlay.DangerSensorSite);
+                Assert.False(sensor.IsNull);
+                return w.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings.Kinds;
+            }
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Crossings, KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}"));
+            var open = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true,\"OpenGround\":true}");
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.StreetCrossing));
+        }
+
         /// <summary>⭐ X-c (D4, D6) — the shipped squad SOP: a danger area ahead of a marching squad starts the crossing as a reaction
         /// (<c>Alert</c>) that PAUSES the march; a contact during it is more urgent and replaces it with <c>ReactToContact</c>.
         /// 🔴 Red before: the SOP had no danger-area row.</summary>

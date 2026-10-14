@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: (resolved by CE-2143) docs/DESIGN_Entity_Control.md §3.1/§10 is now marked superseded in its own STATUS. · docs/blueprints/DESIGN_Parameter_Model.md §P.7 (a resolver asset's authored shape = its Parameters) and §1 (Role Input/State) are superseded HERE by R-276/R-277 (one params DTO, no roles); that doc is updated when B3 builds, not before. docs/DESIGN_Entity_Control.md §3.1/§10 (EntityOrders names soldier behaviours) is superseded by R-273; updated when D4 builds.
 related-designs:
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — §4: LandPlatformAttack — the attack order of every land vehicle (R-278 naming), so a tank stops running the infantry posture
   - docs/blueprints/Variables_Designer_Quickstart.md — the designer-facing account of params, node memory and shared memory (rewritten for CE-3193)
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — OWNS the run-end release step (D4) that §7 hangs the members' release on (D4′)
   - docs/DESIGN_Decision_Layer.md — OWNS the gate (§4.1) the named clear of §7 is weighed by

@@ -626,5 +626,24 @@ namespace Fdp.Toolkit.Tests
                 }
             };
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3196</c> — readers registered from many threads at once (as parallel test classes do, each calling
+        /// <c>StandardInputs.RegisterAll</c>) all land and nothing throws. 🔴 Red before: the store was a plain Dictionary and a
+        /// concurrent write corrupted it — 61 SimHost squad tests failed in one run with "Operations that change non-concurrent
+        /// collections must have exclusive access".
+        /// </summary>
+        [Fact]
+        public unsafe void CE3196_ReadersRegisteredFromManyThreads_AllLand()
+        {
+            const int Threads = 16, PerThread = 2000;
+            System.Threading.Tasks.Parallel.For(0, Threads, t =>
+            {
+                for (int i = 0; i < PerThread; i++)
+                    UtilityInputReaderStore.Register((ushort)(0x8000 + ((t * PerThread + i) % 0x4000)), &Stub09);
+            });
+            for (int id = 0x8000; id < 0x8000 + Math.Min(Threads * PerThread, 0x4000); id++)
+                Assert.True(UtilityInputReaderStore.TryGet((ushort)id, out _), $"input {id:X} missing");
+        }
     }
 }

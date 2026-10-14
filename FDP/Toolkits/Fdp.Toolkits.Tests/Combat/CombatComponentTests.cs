@@ -137,9 +137,9 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
             // Current actual layout: 2×Entity(8) + 3×float(4) + bool (marshalled as 4) = 32, ⭐ CE-3071 + Penetration and
-            // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48. A LOCAL event — the wire message (MunitionDetonation) is
-            // mapped field by field.
-            Assert.Equal(48, Marshal.SizeOf<DetonationNotification>());
+            // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48, ⭐ M1 + TravelX/Y/Z (3×float) = 60. A LOCAL event — the wire
+            // message (MunitionDetonation) is mapped field by field, so the travel never reaches the wire.
+            Assert.Equal(60, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>

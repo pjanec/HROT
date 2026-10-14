@@ -181,7 +181,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public const float AthleticLean = 0.17f, GlideStepCut = 0.45f, KneeLift = 0.55f;
 
     /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
-    public const float MaxAimTwist = 75f * MathF.PI / 180f, MaxAimPitch = 35f * MathF.PI / 180f;
+    /// <remarks>⭐ <c>CE-3195</c> (W-14a) — the twist is the person body's own limit, <see cref="CarKinem.Controllers.HumanGait.MaxAimTwist"/>:
+    /// the fire arc reads the same value, so the drawn rifle points where the round can go.</remarks>
+    public const float MaxAimTwist = global::CarKinem.Controllers.HumanGait.MaxAimTwist, MaxAimPitch = 35f * MathF.PI / 180f;
 
     /// <summary>
     /// ⭐ WL-6 (W-13e) — the figure's upper body: it leans from the hip at a stance's height; an AIMED soldier turns and pitches it
@@ -236,14 +238,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public static bool TryAim(EntityRepository world, Entity e, in SimTransform tf, Vector3 size, StanceId stance, out float twist, out float pitch)
     {
         twist = pitch = 0f;
-        if (!world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(e)) return false;
-        ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(e);
-        if (posture.Kind != WeaponPostureKind.Aimed) return false;
-        Vector3 at;
-        if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
-            at = world.GetComponentRO<SimTransform>(posture.Target).Position + new Vector3(0f, 0f, 1.0f);
-        else if (posture.Target.IsNull && posture.Point != Vector3.Zero) at = posture.Point;
-        else return false;
+        // ⭐ CE-3195 — the ONE reading of what the posture aims at (the gait and the Stride motor read it too)
+        if (!Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)) return false;
         float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f - BlockFigure.AthleticDrop) / 1.8f * size.Z;   // aimed: the athletic stance
         var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
         var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));

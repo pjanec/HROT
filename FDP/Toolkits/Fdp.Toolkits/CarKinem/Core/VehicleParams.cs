@@ -36,7 +36,7 @@ namespace CarKinem.Core
         public float WheelBase;      // Distance between axles (meters)
         
         public float MaxSpeedFwd;    // Max forward speed (m/s)
-        public float MaxSpeedRev;    // Reserved for future (currently unused)
+        public float MaxSpeedRev;    // Max reverse speed (m/s, ≥ 0) — used when NavState.ReverseAllowed (CE-2167) and by the manual drive
         
         public float MaxAccel;       // Max acceleration (m/s²)
         public float MaxDecel;       // Max braking deceleration (m/s²)

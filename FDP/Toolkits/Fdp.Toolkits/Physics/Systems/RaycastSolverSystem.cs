@@ -155,11 +155,23 @@ namespace Fdp.Toolkit.Physics.Systems
                     var tf  = repo.GetComponent<SimTransform>(candidate);
                     var c2D = new Vector2(tf.Position.X, tf.Position.Y);
 
+                    // ⭐ M1 (DESIGN_Armour_Hit_Model §2) — a ROUND hits a VEHICLE only inside its height band (feet … feet + collider
+                    //   Height): a round passing over a hull misses it, and one dropping onto it meets the roof — the first point of the
+                    //   segment inside the circle AND the band (a cylinder; RaycastCircle cannot answer a segment wholly inside). A
+                    //   collider of Height 0 (unknown) keeps the circle.
+                    if (PhysicsConstants.IsBulletRay(req.RayId) && collider.Height > 0f && !PhysicsColliderReaders.IsPerson(repo, candidate))
+                    {
+                        if (!Intersection2D.SegmentInCircle(start2D, end2D, c2D, collider.Radius, out float tIn, out float tOut)) continue;
+                        if (!ZBandOverlap(req.Start.Z, req.End.Z, tf.Position.Z, tf.Position.Z + collider.Height, ref tIn, ref tOut)) continue;
+                        if (tIn < bestT) { bestT = tIn; bestEnt = candidate; anyHit = true; }
+                        continue;
+                    }
+
                     if (Intersection2D.RaycastCircle(start2D, end2D, c2D, collider.Radius, out float t))
                     {
                         // ⭐ CE-3136 P-2 (peek-and-fire D2) — a ROUND hits a person only inside the body band of its logical stance
                         //   (feet … highest body point): a round through a window passes over a man lying prone below the sill.
-                        //   Vehicles keep the circle; sight and query rays are unchanged.
+                        //   Vehicles have their own band (M1, above); sight and query rays are unchanged.
                         if (PhysicsConstants.IsBulletRay(req.RayId) && PhysicsColliderReaders.IsPerson(repo, candidate))
                         {
                             float z = req.Start.Z + t * (req.End.Z - req.Start.Z);
@@ -199,6 +211,19 @@ namespace Fdp.Toolkit.Physics.Systems
             var cmd = view.GetCommandBuffer();
             for (int i = 0; i < count; i++)
                 cmd.PublishEvent(new RaycastResultEvent { Hit = results[i] });
+        }
+
+        /// <summary>⭐ M1 — narrows [<paramref name="tIn"/>, <paramref name="tOut"/>] of a segment whose height runs
+        /// <paramref name="z0"/>→<paramref name="z1"/> to where it lies in [<paramref name="lo"/>, <paramref name="hi"/>]; false when it
+        /// never does.</summary>
+        internal static bool ZBandOverlap(float z0, float z1, float lo, float hi, ref float tIn, ref float tOut)
+        {
+            float dz = z1 - z0;
+            if (MathF.Abs(dz) < 1e-9f) return z0 >= lo && z0 <= hi;
+            float ta = (lo - z0) / dz, tb = (hi - z0) / dz;
+            if (ta > tb) (ta, tb) = (tb, ta);
+            tIn = MathF.Max(tIn, ta); tOut = MathF.Min(tOut, tb);
+            return tIn <= tOut;
         }
     }
 }

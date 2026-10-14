@@ -82,6 +82,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public int MaxCandidates;
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2164</c> (R-3004) — when the filters reject EVERY candidate, keep them all: the filters become a preference, and the
+        /// score phases rank the whole set. ⭐ For a query that must always answer — a retreat: 📌 live, on open ground no point within
+        /// 60 m was hidden from the enemy, the retreat answered nothing, and a squad (and a lone soldier's <c>FallBack</c>) stood in the
+        /// open being shot. ⚠ Only when nothing passes: a candidate that passes always beats one that does not.
+        /// </summary>
+        public bool KeepAllWhenFilteredOut;
+
+        /// <summary>
         /// FNV-1a 64-bit hash over the fully-qualified type names of the Generator and all Tests.
         /// Compared each tick to SensorEvalState.CurrentStructureHash to detect hot-reload changes.
         /// </summary>
@@ -134,6 +142,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public static int Run(in EqsQueryTemplate template, Entity entity, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
             int cost = 0;
+            // ⭐ CE-2164 (R-3004) — remember who was a candidate, to give them all back if the filters leave nobody
+            Span<long> before = template.KeepAllWhenFilteredOut && candidates.Length <= MaxKeptOnStack
+                ? stackalloc long[candidates.Length] : Span<long>.Empty;
+            for (int i = 0; i < before.Length; i++) before[i] = candidates[i].EntityId;
             if (template.FilterCheap != null)
                 foreach (var test in template.FilterCheap)
                 {
@@ -146,8 +158,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     cost += candidates.Length * EqsCost.WeightOf(test);
                     test.ExecuteBatch(entity, ref sensor, view, candidates);
                 }
+            if (!before.IsEmpty)
+            {
+                bool any = false;
+                foreach (var c in candidates) if (c.EntityId != -1L) { any = true; break; }
+                if (!any)
+                    for (int i = 0; i < before.Length; i++) candidates[i].EntityId = before[i];
+            }
             return cost;
         }
+
+        /// <summary>The most candidates <see cref="EqsQueryTemplate.KeepAllWhenFilteredOut"/> remembers (on the stack); a larger
+        /// span filters hard.</summary>
+        public const int MaxKeptOnStack = 1024;
     }
 
     [ComponentId(GlobalComponentIds.IEqsTemplateRegistry)]

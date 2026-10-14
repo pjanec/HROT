@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Executors;
@@ -89,6 +90,17 @@ namespace Fdp.Toolkit.Combat.Tests
                 { Target = p.Target, Stance = (byte)Fdp.Toolkit.Tkb.Domain.StanceId.Standing, Ready = 1 });
         }
 
+        /// <summary>
+        /// One frame as production runs it: the executor, then <see cref="WeaponDispatcherSystem.DrainCooldown"/> — the dispatcher's one
+        /// drain, which the next frame applies before it runs the executor again (⭐ <c>CE-2166</c>: the executor no longer drains).
+        /// </summary>
+        private void Tick(Entity shooter, ref WeaponChannel channel, float dt)
+        {
+            _executor.Execute(shooter, ref channel, _world, dt);
+            if (_world.HasComponent<WeaponState>(shooter))
+                WeaponDispatcherSystem.DrainCooldown(ref _world.GetComponentRW<WeaponState>(shooter), dt);
+        }
+
         /// <summary>Spawns a target entity at <paramref name="pos"/>.</summary>
         private Entity SpawnTarget(Vector3 pos)
         {
@@ -120,7 +132,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 cooldownSeconds:  0.05f);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
 
             // Swap buffers so published events are visible to Consume.
             _world.Bus.SwapBuffers();
@@ -159,7 +171,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 cooldownSeconds:   0.05f);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             var fireRequests = _world.Bus.Read<FireRequestEvent>();
@@ -169,8 +181,8 @@ namespace Fdp.Toolkit.Combat.Tests
         // ── Test 2 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// BS1-T004 SC-3: When <see cref="WeaponState.CooldownSecondsRemaining"/> > 0, Execute must
-        /// decrement the cooldown by dt and NOT publish a <see cref="WeaponFireIntent"/>.
+        /// BS1-T004 SC-3: When <see cref="WeaponState.CooldownSecondsRemaining"/> > 0, the executor must NOT publish a
+        /// <see cref="WeaponFireIntent"/>; the frame's drain (the dispatcher's, <c>CE-2166</c>) takes dt off the cooldown.
         /// Status stays Running.
         /// </summary>
         [Fact]
@@ -185,7 +197,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 cooldownSeconds:   0.5f);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             var intents = _world.Bus.Read<WeaponFireIntent>();
@@ -215,7 +227,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 cooldownSeconds:   0.05f);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.Equal(NodeStatus.Failure, channel.Status);
@@ -247,7 +259,7 @@ namespace Fdp.Toolkit.Combat.Tests
             // Destroy the target before Execute is called.
             _world.DestroyEntity(target);
 
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.Equal(NodeStatus.Success, channel.Status);
@@ -284,7 +296,7 @@ namespace Fdp.Toolkit.Combat.Tests
             int drainSteps = (int)System.Math.Ceiling(cooldownSec / dt);
             for (int i = 0; i < drainSteps; i++)
             {
-                _executor.Execute(shooter, ref channel, _world, dt);
+                Tick(shooter, ref channel, dt);
                 _world.Bus.SwapBuffers();
 
                 var earlyIntents = _world.Bus.Read<WeaponFireIntent>();
@@ -296,12 +308,43 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(_world.GetComponent<WeaponState>(shooter).CooldownSecondsRemaining <= 0f);
 
             // Next Execute fires.
-            _executor.Execute(shooter, ref channel, _world, dt);
+            Tick(shooter, ref channel, dt);
             _world.Bus.SwapBuffers();
 
             var fireIntents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(1, fireIntents.Length);
             Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2166</c> — through the real <see cref="WeaponDispatcherSystem"/>: a 10 s per-shot cooldown fires every 10 s. 🔴 Red-proof:
+        /// the executor drained the cooldown a second time while it aimed, so the rounds left every ~5 s (9 shots in 41 s, not 5).
+        /// </summary>
+        [Fact]
+        public unsafe void CE2166_ThroughTheDispatcher_A10SecondCooldown_FiresEvery10Seconds()
+        {
+            _world.RegisterComponent<ActorCapabilityState>();
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, ammo: 50, cooldownRemaining: 0f, target: target, cooldownSeconds: 10f);
+            _world.AddComponent(shooter, new ActorCapabilityState { Capabilities = ActorCapabilities.CanShoot });
+            channel.ActiveAction = Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire;
+            channel.ActionInstanceId = 1;
+            _world.SetComponent(shooter, channel);
+            var dispatcher = new WeaponDispatcherSystem();
+            dispatcher.RegisterExecutor(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, _executor);
+
+            const float dt = 0.1f;
+            var shots = new System.Collections.Generic.List<float>();
+            for (int i = 0; i < 410; i++)
+            {
+                dispatcher.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                if (_world.Bus.Read<WeaponFireIntent>().Length > 0) shots.Add(i * dt);
+            }
+
+            Assert.True(shots.Count >= 3, $"shots at {string.Join(", ", shots)}");
+            for (int k = 1; k < shots.Count; k++)
+                Assert.InRange(shots[k] - shots[k - 1], 9.9f, 10.3f);
         }
 
         // ── CE-321 ────────────────────────────────────────────────────────────
@@ -333,7 +376,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(cover, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -341,7 +384,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             // The APC moves off the line (5 m to the side, radius 3.5) ⇒ the shot goes.
             _world.GetComponentRW<SimTransform>(apc).Position = new Vector3(8f, 5f, 0f);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Equal(1, _world.Bus.Read<WeaponFireIntent>().Length);
             Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
@@ -358,7 +401,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.True(_world.IsAlive(target));
@@ -394,7 +437,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(shooter, senses);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
@@ -421,7 +464,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(shooter, senses);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
@@ -449,7 +492,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(shooter, senses);
 
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
 
             Assert.Equal(fires ? 1 : 0, _world.Bus.Read<WeaponFireIntent>().Length);
@@ -506,7 +549,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         private int Step(Entity shooter, ref WeaponChannel channel, float dt)
         {
-            _executor.Execute(shooter, ref channel, _world, dt);
+            Tick(shooter, ref channel, dt);
             _world.Bus.SwapBuffers();
             return _world.Bus.Read<WeaponFireIntent>().Length;
         }
@@ -530,8 +573,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // 0.8 s — aimed
             Assert.Equal(0, Step(shooter, ref channel, 0.1f));                        // cooldown 0.2 s …
-            Assert.Equal(0, Step(shooter, ref channel, 0.1f));
-            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … then the next round, no new aim
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … 0.2 s later the next round, no new aim
+            // ⭐ CE-2166 re-pinned: it was 0.3 s — the rail drove the executor alone, whose own drain lagged the dispatcher's by a frame
             Assert.Equal(3, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
@@ -600,7 +643,8 @@ namespace Fdp.Toolkit.Combat.Tests
         /// 0 keeps firing (today's behaviour).</summary>
         [Theory]
         [InlineData(3, 3, NodeStatus.Success)]
-        [InlineData(0, 4, NodeStatus.Running)]   // 8 steps, a round every second step (cooldown 0.05 s drains in one)
+        [InlineData(0, 8, NodeStatus.Running)]   // 8 steps, a round every step: a 0.05 s cooldown is gone by the next 0.1 s frame (⭐ CE-2166
+                                                  //   re-pinned from 4 — the rail drove the executor alone; through the dispatcher it was every step)
         public unsafe void B7_RoundsEndsTheActionAfterThatMany(int rounds, int expectedFired, NodeStatus expectedStatus)
         {
             var target = SpawnTarget(new Vector3(10f, 0f, 0f));
@@ -807,7 +851,7 @@ namespace Fdp.Toolkit.Combat.Tests
             int shots = 0, firstShotFrame = -1, lastShotFrame = -1, minGap = int.MaxValue;
             for (int f = 0; f < 60 * 8 && channel.Status == NodeStatus.Running; f++)
             {
-                _executor.Execute(shooter, ref channel, _world, dt);
+                Tick(shooter, ref channel, dt);
                 muscle.Execute(_world, dt);
                 _world.Bus.SwapBuffers();
                 foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
@@ -845,20 +889,20 @@ namespace Fdp.Toolkit.Combat.Tests
             uint epoch = 0;
             for (int f = 0; f < 60 * 4 && shots < 2; f++)
             {
-                _executor.Execute(shooter, ref channel, _world, dt);
+                Tick(shooter, ref channel, dt);
                 muscle.Execute(_world, dt);
                 _world.Bus.SwapBuffers();
                 shots += _world.Bus.Read<WeaponFireIntent>().Length;
                 epoch = _world.GetComponent<WeaponTask>(turret).Epoch;
             }
             Assert.Equal(2, shots);
-            _executor.Execute(shooter, ref channel, _world, dt);   // accounts the second round: the magazine is empty
+            Tick(shooter, ref channel, dt);   // accounts the second round: the magazine is empty
             Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(turret).Mode);
             Assert.True(Fdp.Toolkit.Combat.Magazine.Reloading(_world.GetComponent<WeaponState>(shooter)));
 
             ref var reloading = ref _world.GetComponentRW<WeaponState>(shooter);
             Fdp.Toolkit.Combat.Magazine.Tick(ref reloading, 1.1f);   // the weapon dispatcher runs the reload; here by hand
-            _executor.Execute(shooter, ref channel, _world, dt);
+            Tick(shooter, ref channel, dt);
             var task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(WeaponTaskMode.Engage, task.Mode);
             Assert.Equal(epoch, task.Epoch);
@@ -1020,7 +1064,7 @@ namespace Fdp.Toolkit.Combat.Tests
             int shots = 0, last = -1, minGap = int.MaxValue;
             for (int f = 0; f < 60 * 10 && channel.Status == NodeStatus.Running; f++)
             {
-                _executor.Execute(shooter, ref channel, _world, dt);
+                Tick(shooter, ref channel, dt);
                 muscle.Execute(_world, dt);
                 _world.Bus.SwapBuffers();
                 foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
@@ -1096,7 +1140,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var remembered = new Vector3(0f, 18f, 0f);
             var (unit, grenade, channel, target) = Grenadier(remembered);
             _executor.OnEnter(unit, ref channel, _world);
-            _executor.Execute(unit, ref channel, _world, 0.1f);
+            Tick(unit, ref channel, 0.1f);
             _world.Bus.SwapBuffers();
             var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(1, intents.Length);
@@ -1156,7 +1200,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var (unit, grenade, channel, _) = Grenadier(remembered);
             AskBlind(ref channel);
             _executor.OnEnter(unit, ref channel, _world);
-            _executor.Execute(unit, ref channel, _world, 0.1f);
+            Tick(unit, ref channel, 0.1f);
             _world.Bus.SwapBuffers();
             var intents = _world.Bus.Read<WeaponFireIntent>();
             Assert.Equal(1, intents.Length);
@@ -1165,7 +1209,8 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(remembered + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres), intents[0].TargetPoint);
             Assert.Equal(29, _world.GetComponent<WeaponState>(unit).Ammo);
             Assert.Equal(4, _world.GetComponent<WeaponState>(grenade).Ammo);   // nothing thrown
-            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
+            // set on the shot, then the frame's one drain (⭐ CE-2166 — the dispatcher's) takes the 0.1 s off
+            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor - 0.1f, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
             Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
@@ -1202,7 +1247,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             AskOperator(ref channel, point, trigger: 0);
             _executor.OnEnter(shooter, ref channel, _world);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
             Assert.Equal(NodeStatus.Running, channel.Status);
@@ -1211,7 +1256,7 @@ namespace Fdp.Toolkit.Combat.Tests
             int shots = 0;
             for (int f = 0; f < 30; f++)   // 0.5 s at 60 Hz, a 0.2 s cooldown ⇒ three rounds
             {
-                _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+                Tick(shooter, ref channel, 1f / 60f);
                 _world.Bus.SwapBuffers();
                 foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
                 {
@@ -1235,7 +1280,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
             _world.AddComponent(shooter, new Roe { Fire = RoeFire.HoldFire });
             EnterAimed(shooter, ref channel);
-            _executor.Execute(shooter, ref channel, _world, 0.016f);
+            Tick(shooter, ref channel, 0.016f);
             _world.Bus.SwapBuffers();
             Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
         }
@@ -1251,7 +1296,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             AskOperator(ref channel, point, trigger: 0);
             _executor.OnEnter(shooter, ref channel, _world);
-            _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+            Tick(shooter, ref channel, 1f / 60f);
             var task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(WeaponTaskMode.Track, task.Mode);
             Assert.True(task.Target.IsNull);
@@ -1263,7 +1308,7 @@ namespace Fdp.Toolkit.Combat.Tests
             for (int f = 0; f < 120; f++)
             {
                 if (f == 60) AskOperator(ref channel, point + new Vector3(0f, 3f, 0f), trigger: 1);   // the operator sweeps
-                _executor.Execute(shooter, ref channel, _world, 1f / 60f);
+                Tick(shooter, ref channel, 1f / 60f);
                 muscle.Execute(_world, 1f / 60f);
                 _world.Bus.SwapBuffers();
                 foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>()) { Assert.True(shot.AtPoint); shots++; }
@@ -1272,9 +1317,88 @@ namespace Fdp.Toolkit.Combat.Tests
             task = _world.GetComponent<WeaponTask>(turret);
             Assert.Equal(epoch, task.Epoch);
             Assert.Equal(point + new Vector3(0f, 3f, 0f), task.Point);
-            _executor.Execute(shooter, ref channel, _world, 1f / 60f);   // account the last reported round
+            Tick(shooter, ref channel, 1f / 60f);   // account the last reported round
             Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
+
+            // ── ⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14a) — a person's round waits for his body ─────────────────────
+
+        /// <summary>The shooter becomes a PERSON (pedestrian kinematics) with a weapon posture; optionally embarked.</summary>
+        private void MakePerson(Entity shooter, bool embarked = false)
+        {
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            if (!_world.IsComponentTypeRegistered<WeaponPosture>()) _world.RegisterComponent<WeaponPosture>();
+            _world.AddComponent(shooter, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
+            _world.AddComponent(shooter, new WeaponPosture());
+            if (embarked)
+            {
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            }
+        }
+
+        private void Face(Entity unit, float yawDegrees)
+            => _world.GetComponentRW<SimTransform>(unit).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yawDegrees * MathF.PI / 180f);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> — a soldier facing EAST with his target WEST of him holds the round (Running, nothing spent) and stays
+        /// AIMED at it (so the gait turns him — <c>CarKinematicsSystem</c> rails); turned so it is 60° off (inside the 75° twist) he fires
+        /// at once — a snap shot, the aim clock did not restart. 🔴 Red-proof: before CE-3195 the first step fired out of his back.
+        /// </summary>
+        [Fact]
+        public void CE3195_APerson_HoldsTheRoundAtATargetBehindHim_ThenSnapsItOffOnceInsideHisTwist()
+        {
+            var target = SpawnTarget(new Vector3(-10f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            MakePerson(shooter);
+            EnterAimed(shooter, ref channel);
+
+            Assert.Equal(0, Step(shooter, ref channel, 0.1f));
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            var posture = _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.Aimed, posture.Kind);
+            Assert.Equal(target, posture.Target);
+
+            Face(shooter, 120f);   // the target (180°) is now 60° off his body
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> — the arc is the PERSON's: a vehicle's fixed gun and an embarked passenger (he sits at the vehicle's
+        /// heading; the gait does not turn him) fire behind as before; and a person exactly at the twist (75°) still fires.</summary>
+        [Theory]
+        [InlineData("vehicle", 180f)]
+        [InlineData("embarked", 180f)]
+        [InlineData("person", 74f)]
+        public void CE3195_TheArcHoldsOnlyAPersonsRoundBeyondHisTwist(string who, float targetBearingDegrees)
+        {
+            float r = targetBearingDegrees * MathF.PI / 180f;
+            var target = SpawnTarget(new Vector3(10f * MathF.Cos(r), 10f * MathF.Sin(r), 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 5, 0f, target, cooldownSeconds: 0.2f);
+            if (who != "vehicle") MakePerson(shooter, embarked: who == "embarked");
+            EnterAimed(shooter, ref channel);
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> — a person's BURST at a point behind him (a grenade, a blind burst) holds the same way and keeps the
+        /// posture aimed at the POINT; facing it, the round goes.</summary>
+        [Fact]
+        public void CE3195_APersonsBurstAtAPointBehindHim_Holds_UntilHeFacesIt()
+        {
+            var (shooter, friend) = BurstWithAFriendOnTheLine(new Vector3(-20f, 0f, 1f));
+            _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(8f, 50f, 0f);   // nobody on the line
+            MakePerson(shooter);
+            Assert.Equal(0, BurstStep(shooter));
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            var posture = _world.GetComponent<WeaponPosture>(shooter);
+            Assert.Equal(WeaponPostureKind.Aimed, posture.Kind);
+            Assert.Equal(new Vector3(-20f, 0f, 1f), posture.Point);
+
+            Face(shooter, 180f);
+            Assert.Equal(1, BurstStep(shooter));
+        }
     }
 }
+
