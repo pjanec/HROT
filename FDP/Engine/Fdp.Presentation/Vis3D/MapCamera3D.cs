@@ -84,7 +84,21 @@ namespace Fdp.Toolkit.Vis3D
         // ── the view basis (HROT, Z up) ──
 
         public Vector3 Forward => new(MathF.Cos(Pitch) * MathF.Cos(Yaw), MathF.Cos(Pitch) * MathF.Sin(Yaw), MathF.Sin(Pitch));
-        public Vector3 Up => new(-MathF.Sin(Pitch) * MathF.Cos(Yaw), -MathF.Sin(Pitch) * MathF.Sin(Yaw), MathF.Cos(Pitch));
+        public Vector3 Up
+        {
+            get
+            {
+                var level = new Vector3(-MathF.Sin(Pitch) * MathF.Cos(Yaw), -MathF.Sin(Pitch) * MathF.Sin(Yaw), MathF.Cos(Pitch));
+                if (Roll == 0f) return level;
+                var right = Vector3.Cross(Forward, level);
+                return level * MathF.Cos(Roll) + right * MathF.Sin(Roll);   // ⭐ CE-1095 — banked
+            }
+        }
+
+        /// <summary>⭐ CE-1095 (Hrot docs/DESIGN_Entity_Control.md §8f P-3) — the view's BANK (radians; + banks it right: its up leans
+        /// right, as a cockpit's does when the aircraft rolls right). 0 for every view but a flyer's first person (its driver sets it each
+        /// frame and clears it when it lets go). Not part of <see cref="CameraPose"/>: no saved or scenario view is ever banked.</summary>
+        public float Roll { get; set; }
         public Vector3 Right => Vector3.Cross(Forward, Up);
         public Vector3 Eye => LookAt - Forward * Distance;
 
