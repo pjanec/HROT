@@ -624,6 +624,68 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Same(source, b.Tkb);
         }
 
+        // ── CE-2165 V3 / V8: overhead cover (DESIGN_Vehicle_Exposure_Cycle §3) ─────────────────────────────
+
+        /// <summary>A HIGH deck (4–4.5 m) over x, y ∈ [5, 15] and a LOW one (1.5–2 m) over x, y ∈ [-15, -5]; open sky elsewhere.</summary>
+        private static TerrainWorld Decks() => new()
+        {
+            BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+            Prisms = new[] { Deck(new Vector2(5, 5), new Vector2(15, 15), 4f, 4.5f), Deck(new Vector2(-15, -15), new Vector2(-5, -5), 1.5f, 2f) },
+        };
+
+        private static TerrainPrism Deck(Vector2 min, Vector2 max, float baseZ, float topZ) => new()
+        {
+            Kind = TerrainPrismKind.Building,
+            Footprint = new[] { min, new Vector2(max.X, min.Y), max, new Vector2(min.X, max.Y) },
+            BaseZ = baseZ, TopZ = topZ, Min = min, Max = max,
+        };
+
+        /// <summary>
+        /// ⭐ A soldier is covered under either deck and not under the open sky; a 2.4 m TANK fits only under the HIGH deck — the low
+        /// one is below its hull, so the line above its roof sees the sky (it could not drive under it anyway).
+        /// </summary>
+        [Fact]
+        public void V3_OverheadCover_KeepsThePointsUnderADeck_AboveTheSelfsHeight()
+        {
+            if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            _repo.SetSingletonManaged(Decks());
+
+            var soldier = At(40, 40);
+            var asSoldier = new EqsSensor { ContextSlot0 = soldier };
+            var s = new[] { Point(10, 10), Point(-10, -10), Point(30, 30) };   // high deck · low deck · open
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref asSoldier, _repo, s);
+            Assert.Equal(new[] { 0L, 0L, -1L }, s.Select(p => p.EntityId).ToArray());
+
+            var tank = At(40, -40);
+            _repo.AddComponent(tank, new VehicleParams { Class = VehicleClass.Tank });
+            _repo.AddComponent(tank, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f, Height = 2.4f });
+            var asTank = new EqsSensor { ContextSlot0 = tank };
+            var t = new[] { Point(10, 10), Point(-10, -10), Point(30, 30) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref asTank, _repo, t);
+            Assert.Equal(new[] { 0L, -1L, -1L }, t.Select(p => p.EntityId).ToArray());
+        }
+
+        /// <summary>⭐ In <see cref="OverheadRequire.Score"/> mode nothing is dropped: a covered point gains the weight; with no terrain
+        /// nothing is judged at all.</summary>
+        [Fact]
+        public void V3_OverheadCover_ScoreMode_AddsTheWeight_AndNoTerrainJudgesNothing()
+        {
+            var self = At(40, 40);
+            var sensor = new EqsSensor { ContextSlot0 = self };
+            var none = new[] { Point(10, 10) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref sensor, _repo, none);
+            Assert.Equal(0L, none[0].EntityId);
+
+            _repo.SetSingletonManaged(Decks());
+            var c = new[] { Point(10, 10), Point(30, 30) };
+            new OverheadCoverTest { Require = OverheadRequire.Score, Weight = 2f }.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(new[] { 0L, 0L }, c.Select(p => p.EntityId).ToArray());
+            Assert.Equal(2f, c[0].Score);
+            Assert.Equal(0f, c[1].Score);
+        }
+
         // ── scoring tests ────────────────────────────────────────────────────────────────────
 
         [Fact]
