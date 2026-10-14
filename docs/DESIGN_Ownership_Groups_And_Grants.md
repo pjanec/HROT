@@ -7,6 +7,7 @@ stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — proposes roles MuscleAir / MuscleNaval with their own kinematic groups (MD-B)
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7 BUILDS CE-514: the owner-side centroid of a composite unit (R-272 (behaviors)), and the body-less unit's exclusion from sensing
   - docs/DESIGN_Entity_Interactions.md — an actor's ACTION on an entity it does not own (open a door, board a vehicle) travels to the owner as a typed command; each handler gates on this design's descriptor ownership
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.7 OWNS dtBrainIntent (CE-3048): the Brain group's AI-intent descriptor (SopState, Roe) and the hand-over that starts it on the gaining node — the declarative projection that keeps R-165's 'never sent' intact.

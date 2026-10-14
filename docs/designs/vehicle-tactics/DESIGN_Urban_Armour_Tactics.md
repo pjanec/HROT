@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how every vehicle, the drone and later boats / aircraft move (domains, roles, the motion-model seam)
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — a BUILD design of this programme (§4a)
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — a BUILD design of this programme (§4a)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — a BUILD design of this programme (§4a)

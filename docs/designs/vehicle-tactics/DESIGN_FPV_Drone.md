@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-E: a minimal FPV drone now, the first slice of R-263 D2)
+build-state: DESIGN — the FLIGHT half waits on DESIGN_Motion_Domains (MD-A…MD-H); the impact, sensing and behaviour halves stand
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails — §1 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: §2's PointMassFlightSystem / own position integration / the Stride registration are SUPERSEDED (2026-10-14) — the drone flies as a RotorcraftModel in the AirMotionModule (DESIGN_Motion_Domains §3); user: "We can ignore stride completely", "no ad hoc exceptions".
 known-conflict: none.
 related-designs:
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (role MuscleAir), autonomous AND manual (FPS possession)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (item M7, decision D-E)
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS R-263 D2 ("point-mass flight + acoustic signature + battery … follow a planned 3d path and … attack autonomously") and AIR-1…AIR-4; this file is AIR-2's first slice (FPV: search, select, pursue, dive)
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the drone detonates through that chain; its dive arrives from above ⇒ the Top face
@@ -20,6 +21,9 @@ related-designs:
 **Item:** M7. **Decision applied:** D-E (a minimal FPV drone in this programme). **Scope v1:** a scenario-placed drone with its own
 behaviour: fly the route → search → select → pursue → dive → detonate. Reconnaissance drones, loitering munitions, launch from an operator,
 jamming and the full 3-D route type are later (R-263, catalogue AIR-1…AIR-4).
+
+> ⛔ **SUPERSEDED IN PART `2026-10-14`** — 🔒 user: *"no ad hoc exceptions, rather initially limited but extendable architecture. Motion needs to stay on muscle node"* · *"Drone will need to be controllable also from FPS possess mode as any possessable movable entity"* · *"We can ignore stride completely."*
+> ⇒ the drone's MOTION is no longer its own `PointMassFlightSystem`: it is a `RotorcraftModel` (`Gen.Locomotion = Rotorcraft`) run by the `AirMotionModule` on the Muscle, with `Autonomous` (the same `NavigationIntent` as below) and `Manual` (FPS possession through the existing chain, `ManualDrive` + a `Vertical` axis) — [DESIGN_Motion_Domains.md](../motion-models/DESIGN_Motion_Domains.md) §3, MD-D, MD-H (leans pending). Everything Stride-specific below is void. **What stands unchanged:** the TKB type, the rotor sound, the broadphase fix, `DroneImpactSystem` (it detects the contact whoever flies the drone — AI or a possessing operator), the detonation through the damage chain, and the `FpvAttack` behaviour.
 
 ## 1. What exists — measured `2026-10-14`
 
