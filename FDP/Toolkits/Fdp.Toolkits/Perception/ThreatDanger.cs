@@ -65,14 +65,18 @@ namespace Fdp.Toolkit.Perception
             var myTransform = view.GetComponentRO<SimTransform>(self);
             var hisPosition = view.GetComponentRO<SimTransform>(target).Position;
             float distance = System.Numerics.Vector3.Distance(myTransform.Position, hisPosition);
-            float armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(mine, Fdp.Toolkit.Combat.ArmorModel.FacingOf(in myTransform, hisPosition));
+            // ⭐ M1 — the face his round meets, in 3-D: from his eye to my hull's middle (a man on a roof close in reads my TOP).
+            var hisEye = hisPosition + new System.Numerics.Vector3(0f, 0f, Fdp.Toolkit.Spatial.Eqs.EqsTerrainSight.Mount(view, target).Standing);
+            var myMiddle = myTransform.Position
+                           + new System.Numerics.Vector3(0f, 0f, 0.5f * Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, self));
+            var face = Fdp.Toolkit.Combat.ArmorModel.FacingOfArrival(in myTransform, myMiddle - hisEye);
 
             float best = 0f;
             foreach (var mount in suite.Mounts)
             {
                 float inRange = InRange(mount.Range, distance);
                 if (inRange <= 0f) continue;
-                best = System.Math.Max(best, CanHurt(db, mount, armour) * inRange);
+                best = System.Math.Max(best, CanHurt(db, mount, mine, face, distance) * inRange);
             }
             danger = System.Math.Clamp(best, ArmedHarmless, 1f);
             return true;
@@ -89,19 +93,48 @@ namespace Fdp.Toolkit.Perception
             if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, target, out var template)) return 0f;
             var suite = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
             if (suite == null) return 0f;
-            float thinnest = MyArmour(view, db, self, out var mine) ? Thinnest(mine) : 0f;
+            bool armoured = MyArmour(view, db, self, out var mine);
             float reach = 0f;
             foreach (var mount in suite.Mounts)
-                if (mount.Range > reach && (thinnest <= 0f || CanHurt(db, mount, thinnest) > 0f)) reach = mount.Range;
+                if (mount.Range > reach && (!armoured || CanHurt(db, mount, mine, face: null, distance: float.MaxValue) > 0f)) reach = mount.Range;
             return reach;
         }
 
-        /// <summary>The chance <paramref name="mount"/>'s round defeats <paramref name="armour"/> mm; ⚠ an UNKNOWN round (penetration ≤ 0)
-        /// ignores armour, exactly as <c>ArmorModel.HitDamage</c> does — never harmless.</summary>
-        private static float CanHurt(Fdp.Interfaces.ITkbDatabase? db, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, float armour)
+        /// <summary>
+        /// The chance <paramref name="mount"/> defeats <paramref name="mine"/>: the best of the ROUNDS it carries (its loadout, M8 — else its
+        /// one round), each with its own penetrator (M2 / M3) against <paramref name="face"/> — a top-attack missile beyond its top-attack
+        /// range dives on my TOP (as <c>FireProcessingSystem</c> flies it); none inside a missile's minimum range. A null
+        /// <paramref name="face"/> = my THINNEST face for that round (can he hurt me at all). ⚠ An UNKNOWN round (penetration ≤ 0) ignores
+        /// armour, exactly as <c>ArmorModel.HitDamage</c> does — never harmless.
+        /// </summary>
+        private static float CanHurt(Fdp.Interfaces.ITkbDatabase? db, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount,
+            Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto mine, Fdp.Toolkit.Combat.Facing? face, float distance)
         {
-            float penetration = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, mount).Value;
-            return penetration <= 0f ? 1f : Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(penetration, armour);
+            if (mount.Loadout.Count == 0) return RoundCanHurt(db, mount, unchecked((long)mount.AmmoGuid), mine, face, distance);
+            float best = 0f;
+            foreach (var load in mount.Loadout)
+                best = System.Math.Max(best, RoundCanHurt(db, mount, unchecked((long)load.AmmoGuid), mine, face, distance));
+            return best;
+        }
+
+        private static float RoundCanHurt(Fdp.Interfaces.ITkbDatabase? db, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, long ammo,
+            Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto mine, Fdp.Toolkit.Combat.Facing? face, float distance)
+        {
+            var (penetration, _) = Fdp.Toolkit.Combat.CombatTkb.RoundOf(db, mount, ammo);
+            if (penetration <= 0f) return 1f;
+            var penetrator = Fdp.Toolkit.Combat.CombatTkb.PenetratorOf(db, ammo);
+            var missile = ammo != 0 && db != null && db.TryGetByType(ammo, out var t) && t != null
+                ? t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MissileDto>() : null;
+            if (missile != null && distance < missile.MinRangeM) return 0f;
+            float armour;
+            if (face == null) armour = Thinnest(mine, penetrator);
+            else
+            {
+                bool dives = missile != null && missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && missile.TopAttack
+                             && distance >= missile.TopAttackMinRangeM;
+                armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(mine, dives ? Fdp.Toolkit.Combat.Facing.Top : face.Value, penetrator);
+            }
+            return Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(penetration, armour);
         }
 
         /// <summary>True when <paramref name="self"/> is a VEHICLE whose TKB declares armour (a soldier's vest is not a vehicle's armour).</summary>
@@ -116,15 +149,21 @@ namespace Fdp.Toolkit.Perception
             return true;
         }
 
-        /// <summary>The thinnest armoured face of <paramref name="platform"/> (faces of 0 mm are not armoured and do not count).</summary>
-        private static float Thinnest(Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto platform)
+        /// <summary>The thinnest armoured face of <paramref name="platform"/> against <paramref name="penetrator"/> — front, side, rear and top
+        /// (a face of 0 mm is not armoured and does not count).</summary>
+        private static float Thinnest(Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto platform, Fdp.Toolkit.Combat.Penetrator penetrator)
         {
             float t = float.MaxValue;
-            if (platform.ArmorFront > 0f) t = System.Math.Min(t, platform.ArmorFront);
-            if (platform.ArmorSide  > 0f) t = System.Math.Min(t, platform.ArmorSide);
-            if (platform.ArmorRear  > 0f) t = System.Math.Min(t, platform.ArmorRear);
+            foreach (var f in Faces)
+            {
+                float a = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(platform, f, penetrator);
+                if (a > 0f) t = System.Math.Min(t, a);
+            }
             return t == float.MaxValue ? 0f : t;
         }
+
+        private static readonly Fdp.Toolkit.Combat.Facing[] Faces =
+            { Fdp.Toolkit.Combat.Facing.Front, Fdp.Toolkit.Combat.Facing.Side, Fdp.Toolkit.Combat.Facing.Rear, Fdp.Toolkit.Combat.Facing.Top };
 
         /// <summary>1 inside <paramref name="range"/> (0 = unknown ⇒ always in range), fading linearly to 0 at <see cref="RangeFadeFactor"/> × it.</summary>
         public static float InRange(float range, float distance)
