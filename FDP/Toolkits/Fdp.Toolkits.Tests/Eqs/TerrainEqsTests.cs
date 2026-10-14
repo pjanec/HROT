@@ -667,6 +667,31 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(new[] { 0L, -1L, -1L }, t.Select(p => p.EntityId).ToArray());
         }
 
+        /// <summary>⭐ A WALKABLE SLAB — how the terrain models a floor or a bridge deck (the ground under it stays standable) — is
+        /// overhead cover too: the vertical line crosses its triangles.</summary>
+        [Fact]
+        public void V3_OverheadCover_AWalkableSlabIsCover()
+        {
+            _repo.SetSingletonManaged(new TerrainWorld
+            {
+                BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50),
+                Walkables = new[]
+                {
+                    new TerrainWalkable
+                    {
+                        Kind = TerrainWalkableKind.Slab,
+                        Vertices = new[] { new Vector3(5, 5, 4.5f), new Vector3(15, 5, 4.5f), new Vector3(15, 15, 4.5f), new Vector3(5, 15, 4.5f) },
+                        Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                        Min = new Vector2(5, 5), Max = new Vector2(15, 15), MinZ = 4.5f, MaxZ = 4.5f,
+                    },
+                },
+            });
+            var sensor = new EqsSensor { ContextSlot0 = At(40, 40) };
+            var c = new[] { Point(10, 10), Point(30, 30) };
+            new OverheadCoverTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(new[] { 0L, -1L }, c.Select(p => p.EntityId).ToArray());
+        }
+
         /// <summary>⭐ In <see cref="OverheadRequire.Score"/> mode nothing is dropped: a covered point gains the weight; with no terrain
         /// nothing is judged at all.</summary>
         [Fact]
