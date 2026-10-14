@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: BatteryFireMissionPlay — one more ISquadPlay, with MemberOrderKind.FireAtPoint
+  - docs/DESIGN_Entity_Interactions.md §7.5 — OWNS the team carry (R-2017): two men stretcher a casualty; the squad's casualty care (§7.4) may choose it instead of a drag
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS SquadEmbark, the squad SOP's Ride / dismount-on-Unloading rows and the rescue mission tree (R-2015) — beside §5a's SquadDismount
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the ua-* demo programme and scripts/utility-demo-check.py; its §10.3 ua-danger-crossing is the single-soldier demo whose route §7.8.4's squad demo reuses
   - ../../DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that L4 casualty care waits for

@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: Strike fulfilled by a battery or a self-propelled gun (IF-D adds the fire-mission fields)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the UH-60 (404) door stations and the minigun / door-gun weapon systems the DoorGunOrbit profile fires (R-2016)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS IMotionModel, MotionModelTable, the Air module and R-3005 (one Muscle role); this file adds FixedWingModel (MD-H's "fail loudly" row) and grows RotorcraftModel
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the drone's Muscle half (impact, sound, broadphase); its Brain half becomes AirAttack's Dive profile here (B5)
@@ -509,6 +510,33 @@ mirrors every tick, which is what lets the motion side re-arm for the next stop.
 
 Still open in slice 3: `SquadRecover`, the rescue mission tree, and the two scenarios (`ua-air-assault`, `ua-air-rescue`).
 
+### 9c. As-built `2026-10-14` — slice 5, the strike (behaviors): `AirAttack` LevelBomb and `AirPlatformStrike`
+
+```mermaid
+stateDiagram-v2
+  [*] --> Start
+  Start --> ToRunIn : a run-in bearing given
+  Start --> RunIn : no bearing, straight at the point
+  ToRunIn --> RunIn : at the run-in start
+  RunIn --> Out : the bomb released on the cue
+  RunIn --> ToRunIn : overflown with no release, turn back (3 passes at most)
+  Out --> [*] : at the egress point
+```
+
+*What the picture shows that prose hid: the release is not a state of the attack — the run-in only keeps the plane on the line and keeps
+the weapon's `FireAtPoint` asking; the weapon brain decides the moment (§8a). A missed pass is just a way back into the run-in.*
+
+| as built | why / deviation |
+|---|---|
+| ★ `AirAttackNodes.Run` (`AirAttackParams` + `AirAttackState`, a stateful shared action) — one attack, the profile a parameter; only `LevelBomb` built | B4 / B5 |
+| ★ `AirAttackProfiles.Pick`: a FixedWing with a `Bomb` mount ⇒ LevelBomb (that mount); anything else ⇒ no profile — the attack FAILS at once, logged | ⚠ deviation from "a helicopter gets PopUp / RunningFire": those profiles are slice 6; failing loudly beats flying somewhere and doing nothing |
+| ⭐⭐ the run-in steers at a point **4 km BEYOND the target** on the line from the plane through it (re-aimed every 0.5 s until 2.5 km out, then frozen), at the pass height (300 m) above the ground at the target | 📐 measured on the as-built `FixedWingModel.ToPoint`: a point move counts as arrived within `max(arrival radius, turn radius)` and then CIRCLES — an A-10's turn radius (~1.3 km) is longer than its bomb's throw (~1.2 km from 300 m at 150 m/s), so steering AT the target would turn the plane before the release |
+| the weapon is driven through `FireAtPointNodes.FireAtPoint` (one round, the bomb mount) — the release gate is in `FireAtPointExecutor` (§9b) | one weapon path for a point (A6, R-261) |
+| ★ `AirPlatformStrike` (resolved from `StrikeOrder`: the `Target`'s position when it names a live entity, else the `Location` on the ground there) — every `AirPlatform` | B4, R-278 |
+| ⏸ not built: `AirPlatformAttack` (Attack on an entity) — waits for the helicopter profiles (slice 6), or a helicopter's Attack would fail where today it fires · `AirPlatformHold` (a plane's orbit) | — |
+| the demo **`ua-air-strike`** (`scenarios/ua-air-strike`, check `run_air_strike` in `scripts/utility-demo-check.py`): an A-10 ordered `AirPlatformStrike` on a technical from 3.8 km — one bomb on it (≤ 25 m), a technical 125 m away untouched, the plane flies on out | ⏳ authored; the live run is pending |
+| rails: `AirAttackNodesTests.B6_ALevelBombRun_HitsThePoint` (the plane flown by a stand-in, the real `FireAtPointExecutor`: one bomb, at 300 m, its predicted impact within 15 m of the point, then out) · `B4_TheProfile_IsPickedFromTheAircraftAndItsWeapons` · `TacticalIntentResolutionSystemTests.B4_EveryAircraftsStrike_ResolvesTo_AirPlatformStrike_ALandVehicleHasNone` · `SR_R2` (+`AirPlatformStrike`) | red-proved by 3 mutants: steering at the target, no profile picked, the behaviour not registered — ⚠ the first version of the bomb rail let "steer at the target" SURVIVE (its stand-in plane arrived at 20 m); the stand-in now flies a point as `FixedWingModel.ToPoint` does (arrived within the turn radius, then circles) |
+
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 
 | id | decision | rejected |
@@ -545,5 +573,7 @@ Still open in slice 3: `SquadRecover`, the rescue mission tree, and the two scen
 | **4** | backend | `FixedWingModel` (Autonomous) + an attack-plane type · Air-domain launch velocity · the Mk-82 munition + `Bomb` category · `BombBallistics` · the Release profile | `FixedWingModelTests` · `FireProcessingSystemTests.A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot` · `BombBallisticsTests.A3_ThePredictedImpact_IsTheFlownImpact` · `AimAndFireExecutorTests.A6_TheReleaseProfile_WaitsForTheCue` |
 | **5** | behaviors | `OrderKind.Strike` + `StrikeOrder` · `AirPlatformMove / Hold / Attack / Strike` · `AirAttackProfiles` · `AirAttack` (LevelBomb first) · scenario **`ua-air-strike`** | `OrderVocabularyTests` (Strike has one DTO) · `TacticalIntentResolutionSystemTests.B4_EveryAircraft_ResolvesStrike_ToAirPlatformStrike` · `AirAttackNodesTests.B6_ALevelBombRun_HitsThePoint` |
 | **6** | backend + ui · behaviors | the pilot models + `ControlScheme.FixedWing` + the camera attitude + HUD · then GunRun / RocketRun / PopUp / RunningFire / Dive (FPV) | per profile, in `AirAttackNodesTests`; possession in `PossessionTests` |
+| **6a** | backend | 🔒 *"Approved"* (`2026-10-14`) — the air weapons the profiles need ([handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Weapons.md)): a GAU-8-class 30 mm cannon on the A-10 (fixed forward) · an attack-helicopter type (AH-1 / AH-64 class) with a 70 mm rocket pod and a chin minigun · a Hydra-70-class UNGUIDED rocket · the doors-off UH-60's door stations start with an M134 and a door gunner (Weapon Systems W-I) | the catalogue suites; ⭐ `A4`'s Air-domain launch keeps the rocket's and the shell's carrier velocity |
+| **6b** | behaviors | ★ the showcase demo **`ua-air-attack`**, five vignettes side by side: ① the A-10 level-bombs a point (slice 5) · ② the A-10 gun-runs a vehicle column · ③ the attack helicopter rocket-runs a position · ④ it fires its minigun on the move (RunningFire) · ⑤ the doors-off UH-60 orbits a target while its door gunners fire the M134s — a door gunner shot ⇒ his gun falls silent | the demo's live rail; `ua-air-strike` stays the small first proof of the bomb |
 
 Slices 2 and 4 can run side by side on backend; slice 3 needs 1–2; slice 5 needs 4.

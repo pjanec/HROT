@@ -14,6 +14,7 @@ known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/DESIGN_Entity_Interactions.md §7.5 — OWNS the team carry (R-2017): the stretcher drawn between the two carriers, a two-man weapon carried by the pair
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon deploy state the map draws (stowed / deployed) and a gunner at his weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attitude the map draws (bank, pitch, tilt in SimTransform.Rotation) and the air-assault scenarios that use §6m's riders (R-2015)
   - docs/DESIGN_Entity_Interactions.md §7.4.8-§7.4.10 — OWNS carrying as embarkation (PassengerBuffer.Modes, IsEmbarkedTag) and seats (CarrierSeats, Exposure); §6m here draws them (C10's "its pose is a later presentation item")

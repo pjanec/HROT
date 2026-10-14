@@ -4,10 +4,11 @@ updated: 2026-10-14
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
-known-conflict: STEERED 2026-10-14 (before any item was built) by STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md — WS-1 StartWith on any seat, WS-4 SeatPresets seat the crew (104 / 105 get a gunner), WS-3 + one rail. The items below are as dispatched; the steer wins where they differ.
+known-conflict: STEERED 2026-10-14 (before any item was built) by STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md — WS-1 StartWith on any seat, WS-4 SeatPresets seat the crew (104 / 105 get a gunner), WS-3 + one rail. STEERED again 2026-10-14 by STEER_Behaviors_To_Backend_Team_Carry.md — adds slice T-a, built with WS-2. The items below are as dispatched; the steers win where they differ.
 related-designs:
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — THE design (module picture §2, classes §3, sequences §4, TKB §5, rules §6, decisions §7, slices + rails §8)
   - docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md — the W-I steer (presets seat their crew)
+  - docs/blueprints/batches/STEER_Behaviors_To_Backend_Team_Carry.md — the second steer: slice T-a (team carry — a stretcher, a two-man weapon), with WS-2
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Weapon_Systems.md — the ui half (drawings, placing a weapon into a host station)
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Operations.md — the air-operations handoff; its E3 / E4 come FIRST
 -->
