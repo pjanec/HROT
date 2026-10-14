@@ -404,7 +404,7 @@ namespace Fdp.Toolkit.Combat.Executors
                     Magazine.Spend(ref weapon);
                     if (!mountEntity.IsNull) AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8
                     RoundsFired(ref channel)++;
-                    if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity);
+                    if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity, loadedAmmo);
                 }
                 if (status.RoundsFired > accounted) accounted = status.RoundsFired;
                 if (status.State == WeaponTaskState.Failed)
@@ -496,14 +496,19 @@ namespace Fdp.Toolkit.Combat.Executors
         public const float GuidedFlightMarginSeconds = 0.5f;
 
         /// <summary>
-        /// ⭐ W-12c (§5g G-2) — how long a guided round just fired at <paramref name="target"/> flies: the flat distance over the mount's
-        /// muzzle velocity (the TKB's; else the mount state's; else the engine fallback), plus <see cref="GuidedFlightMarginSeconds"/>.
-        /// ⚠ An expected value, not the detonation (R-212): a round stopped early by cover still holds the launcher for the estimate.
+        /// ⭐ W-12c (§5g G-2) — how long a guided round just fired at <paramref name="target"/> flies: the flat distance over the round's
+        /// speed, plus <see cref="GuidedFlightMarginSeconds"/>. The speed: ⭐ <c>CE-2170</c> — the MISSILE's own
+        /// (<see cref="CombatTkb.MissileOf"/>, the same lookup <c>FireProcessingSystem</c> spawns it with; <paramref name="loadedAmmo"/>, else
+        /// the mount's ammo), else the mount's muzzle velocity (the TKB's; else the mount state's; else the engine fallback). ⛔ It read the
+        /// mount first, whose BDC value is the generated range × 0.5 (a TOW: 1875 m/s against its 280) ⇒ a 2 km hold of 1.6 s for a 7.6 s
+        /// flight. ⚠ An expected value, not the detonation (R-212): a round stopped early by cover still holds the launcher for the estimate.
         /// </summary>
         public static float GuidedFlightSeconds(EntityRepository world, Entity unit, Entity target,
-                                                Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, float stateMuzzleVelocity)
+                                                Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, float stateMuzzleVelocity, long loadedAmmo = 0L)
         {
-            float speed = mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
+            long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            float speed = CombatTkb.MissileOf(world, ammo) is { SpeedMps: > 0f } missile ? missile.SpeedMps
+                        : mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
                         : stateMuzzleVelocity > 0f ? stateMuzzleVelocity
                         : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
             if (!world.HasComponent<SimTransform>(unit) || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target))

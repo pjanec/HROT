@@ -1343,6 +1343,36 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(minGap >= 59, $"rounds {minGap} frames apart: one flight is 60 frames, the cooldown only 30");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2170</c> (Air Ops handoff E1; Missiles §4a) — a TOW at 2 km holds the launcher for its real flight: the estimate
+        /// reads the MISSILE's own speed (280 m/s ⇒ 2000 / 280 + 0.5 ≈ 7.6 s), not the mount's generated muzzle speed (a BDC mount's
+        /// range × 0.5 = 1875 m/s ⇒ 1.6 s). 🔴 Red before: 1.57 s — the `Guiding` hold ended while the round still needed the sight.
+        /// The loaded round wins over the mount's own ammo (M8).
+        /// </summary>
+        [Fact]
+        public void CE2170_ATowAtTwoKm_HoldsTheLauncherForItsFlight()
+        {
+            const long Tow = 6904, Heat = 6905;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var tow = new Fdp.Interfaces.TkbTemplate("TOW", Tow);
+            tow.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto { SpeedMps = 280f, MaxFlightSeconds = 15f });
+            db.Register(tow);
+            db.Register(new Fdp.Interfaces.TkbTemplate("not a missile", Heat));
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var target = SpawnTarget(new Vector3(2000f, 0f, 0f));
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 1f);
+            var mount = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, AmmoGuid = unchecked((ulong)Tow), MuzzleVelocity = 1875f };
+
+            float hold = AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, mount, 0f);
+            Assert.True(hold >= 7f, $"the TOW holds the launcher {hold:F2} s for a 2 km flight at 280 m/s");
+            Assert.Equal(2000f / 280f + AimAndFireExecutor.GuidedFlightMarginSeconds, hold, 2);
+            Assert.Equal(hold, AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, mount with { AmmoGuid = 0 }, 0f, loadedAmmo: Tow), 3);
+            // no missile ⇒ the mount's speed, as before
+            Assert.Equal(2000f / 1875f + AimAndFireExecutor.GuidedFlightMarginSeconds,
+                AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, mount, 0f, loadedAmmo: Heat), 3);
+        }
+
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
 
         private const long M67 = 6001;
