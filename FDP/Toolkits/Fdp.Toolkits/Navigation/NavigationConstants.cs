@@ -96,6 +96,13 @@ namespace Fdp.Toolkit.Navigation
         /// </summary>
         public const byte FlagBitDestinationOnSurface = 1;
 
+        /// <summary>
+        /// ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5) — bit index in <see cref="NavigationIntent.Flags"/>: the
+        /// Brain RELEASES an aircraft's <c>Unload</c> / <c>Pickup</c> hold (it knows the rosters; the Muscle does not). A level, consumed
+        /// once per hold: after a release the next hold needs the bit cleared and set again.
+        /// </summary>
+        public const byte FlagBitReleaseHold = 2;
+
         /// <summary>The <see cref="FlagBitDestinationOnSurface"/> bit as a <see cref="MoveToParams.Flags"/> value. ⚠ A flag bit, not a property
         /// on <see cref="MoveToParams"/>: a property would add a pin to every blueprint MoveTo node (the pin schema reflects properties).</summary>
         public const byte FlagDestinationOnSurface = 1 << FlagBitDestinationOnSurface;

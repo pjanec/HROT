@@ -289,6 +289,43 @@ reference `RoutePlan` (Hrot.Core) — and the plan only reaches the Muscle becau
 | wire (R-169): `MapRoute.Waypoint` + `Kind`, `HeightAgl`, `Hold`, `HoldSeconds`, `HoldUnit` (appended); `NavigationIntent` + `RouteEntityId` (appended). The save writes the air fields only when set (enums as strings) | old scenarios and old samples read as Pass / no hold |
 | rails: `RoutePlanTranslatorTests.B1_TheAirFields_RoundTrip_AndAPlainWaypointKeepsTheDefaults` · `MapRouteTranslatorTests.B1_TheAirFields_CrossTheWire_OutAndIn` · `NavigationIntentEgressTranslatorTests.CE2171_AFollowRoute_PublishesTheRouteEntity` · ⭐ `EntityOrdersAcrossNodesTests.CE2171_AFollowRoute_OnASplitCluster_DrivesTheRoute` (CGF brain, SimHost body, a scenario route) | the integration rail is the CE-2171 confirmation: red at the base, green after |
 
+### 5b. As-built — slice 2, the helicopter (E3, `2026-10-14`)
+
+```mermaid
+stateDiagram-v2
+  [*] --> Start
+  Start --> TakingOff : on its gear
+  Start --> Flying : airborne
+  Start --> Holding : a stop at s 0, on the ground
+  TakingOff --> Flying : at the path height
+  Flying --> Landing : reached a Ground stop
+  Flying --> Holding : reached a hold or the end
+  Landing --> Holding : touchdown on the gear
+  Holding --> TakingOff : released, on the ground
+  Holding --> Flying : released, airborne
+  Holding --> Done : released, last stop
+  Done --> [*]
+```
+
+*What the picture shows that prose hid: there is ONE place a route stops (Holding) — a landing is only the way into it, and a take-off
+only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the same way, so the end of the route is just the last hold.*
+
+| as built | why / deviation |
+|---|---|
+| `AirMotionSystem.RouteSource` (the E2 `IRouteSource`, one `HrotRouteSource` shared with the ground bridge in `SimHostCoreLogicPack`) compiles the body's `AirPath` (managed, `GlobalComponentIds.AirPath = 378`, Transient) when the order, the route or its version changes — from where the body is, with an approach leg when it is > 1 m from the first waypoint | the design drew `AirRoute.Compile(RoutePlan, …)`; `Fdp.Toolkits` cannot see `RoutePlan`, so it reads the seam's `NavRouteWaypoint`s |
+| ⭐ **deviation:** `CornerRounding.Round(…, shiftOut: false)` — a plain fillet tangent to the original legs, passing a corner at R·(1/cos(φ/2) − 1) | the shift (C3) is a ground clearance rule, and with it the leg between two rounded corners KINKS (measured: curvature 0.0225 at a junction for R 60 m). Ground callers keep the default |
+| ⭐ **deviation:** a Pass waypoint with `HeightAgl` 0 flies at `Position.Z` but never below the hover height over the ground; a Ground waypoint's approach is at the hover height | the draw tool writes Z 0 (CE-2172): "as today" would fly the route along the ground |
+| straight legs sampled every 20 m so the height follows the terrain (`MotionFrame.Terrain`, `WorldQuery.Of`); the follower's climb is capped at `ClimbMps` | — |
+| speed: ±3 m/s² along the path (braking ≤ 6), slowed to √(2·a·d) for the next stop and to √(g·tan 30° / κ) for the tightest curve within its braking distance | B2 "eased, no instant velocity" |
+| attitude: pitch = −atan(a/g), roll = −atan(v²κ/g) (left turn ⇒ left side down), each ≤ 20° / 30°, eased at 40°/s, drawn through `BodyGeometry.Rotation` | B3 |
+| touchdown: Z and attitude from `BodyGeometry.RestingPose` on the gear, `Airborne = 0`; a live body WITH gear on the ground takes off again (a point move climbs straight to the hover height first; manual takes off on Vertical > 0 and sets down on its gear); a body WITHOUT gear that is down stays down (the spent drone) | `Airborne` was the drone's "spent" flag; gear separates the two meanings |
+| `DroneImpactSystem` skips a flyer in TakingOff / Landing / Landed / Unloading / Loading | a landing meets the ground and the men waiting beside it on purpose |
+| `NavigationIntent.ReleaseHold` = `Flags` bit 2: a LEVEL, consumed once per hold — after a release the next hold needs the bit cleared and set again | the Brain may leave it set; a stale release must not skip the next pickup |
+| `NavigationPhase` + `TakingOff 5 · Landing 6 · Landed 7 · Unloading 8 · Loading 9` (appended; the wire carries a byte) | the SOP rows (slice 3) read them |
+| `FlightParamsDto` + `HoverHeightM` (30) · `TurnRadiusM` (0 ⇒ top speed / turn rate); the doors-off UH-60 (404): `Gen.Locomotion` Rotorcraft + `Gen.Flight` (70 m/s, climb 8, hover 30 m, turns 60 m) | the plain UH-60 (400) stays a static body |
+| rails: `RotorcraftModelTests.B7_ARouteFromTheGround_TakesOff_FliesAndLands_OnItsGear` · `B7_AGroundWaypoint_HoldsUntilReleased_ThenTakesOff` · `B2_TheSmoothedPath_PassesEveryWaypoint_WithinTheTurnRadius` (all three red with the follower off) · `NedTkbBuilderCombatTests.B7_TheDoorsOffBlackHawk_FliesRoutes_OnItsGear` | — |
+| ⚠ not built here: a route change mid-flight restarts the follower from where the body is (the hold state is not carried over); the brain's release (slice 3, behaviors) | — |
+
 ## 6. Flight models (A1, A8, A9, B2, B3)
 
 | model | Autonomous (AI) — "faked to look believable" | Manual (player) — "controllable by a non-expert" |

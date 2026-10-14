@@ -32,5 +32,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <inheritdoc cref="BodyRadiusM"/>
         [EditUnit("m")]
         public float BodyHeightM { get; init; } = 0.3f;
+
+        // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — a route's geometry for this flyer.
+        [EditUnit("m")] [Description("The height above the ground a route flies at where a waypoint states none, and from which it lands.")]
+        public float HoverHeightM { get; init; } = 30f;
+
+        [EditUnit("m")] [Description("The radius a route's corners are rounded to; 0 = top speed / turn rate.")]
+        public float TurnRadiusM { get; init; } = 0f;
     }
 }

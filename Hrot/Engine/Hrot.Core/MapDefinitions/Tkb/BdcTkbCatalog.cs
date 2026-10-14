@@ -380,6 +380,15 @@ namespace Hrot.Map.Definitions.Tkb
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60_DoorsOff, "UH-60A Black Hawk (doors off)", "SFAPMHU-------", "#56604F",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
             builder.WithCarrier(TkbEntityTypes.Heli_UH60_DoorsOff, DoorSeats());
+            // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — it FLIES: a route takes it off its gear, rounds
+            //   its corners at 60 m, holds 30 m over the ground and sets it down on a Ground waypoint. Public figures, rounded: cruise
+            //   ~70 m/s, climb ~8 m/s; the collider is the fuselage, not the rotor disc. The plain UH-60 (400) stays a static body.
+            builder.WithFlight(TkbEntityTypes.Heli_UH60_DoorsOff, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft, new FlightParamsDto
+            {
+                MaxSpeedMps = 70f, ClimbMps = 8f, TurnRateDeg = 30f, EnduranceSeconds = 7200f,
+                ContactRadiusM = 1f, BodyRadiusM = 1.5f, BodyHeightM = 3.5f,
+                HoverHeightM = 30f, TurnRadiusM = 60f,
+            });
             DefineAircraft(builder, TkbEntityTypes.Jet_F16, "F-16C Fighting Falcon", "SFAPMFF-------", "#8A929C",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 1 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto

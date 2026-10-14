@@ -16,6 +16,12 @@ namespace Fdp.Toolkit.Motion
         public EntityRepository World;
         public ref SimTransform Transform;
         public ref SimVelocity Velocity;
+        /// <summary>⭐ Air Ops slice 2 — the terrain the body flies over (null ⇒ flat ground at 0): heights for a route, and the
+        /// ground a landing sets down on.</summary>
+        public Fdp.Toolkit.World.IWorldQuery? Terrain;
+
+        /// <summary>The ground height under (x, y).</summary>
+        public readonly float Ground(float x, float y) => Terrain?.GroundHeightAt(x, y) ?? 0f;
 
         public MotionFrame(EntityRepository world, Entity self, ref SimTransform transform, ref SimVelocity velocity)
         {
@@ -23,6 +29,7 @@ namespace Fdp.Toolkit.Motion
             Self = self;
             Transform = ref transform;
             Velocity = ref velocity;
+            Terrain = null;
         }
     }
 

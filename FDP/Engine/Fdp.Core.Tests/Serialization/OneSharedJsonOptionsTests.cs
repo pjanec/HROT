@@ -89,7 +89,7 @@ namespace Fdp.Tests.Serialization
         private static readonly Dictionary<string, (int Count, string Why)> NoOptionsExempt = new()
         {
             ["FDP/ExtDeps/NodeEdit/src/NodeEditor.Core/Bookmarks/BookmarkStore.cs"] = (2, "NodeEdit is an external library with no Fdp.Core reference; its DTO has only strings and numbers"),
-            ["Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs"] = (2, "netstandard2.0; quotes a string and compacts a JsonElement"),
+            ["Hrot/Subsystems/AI/Hrot.AiEditor.Persistence/Params/ParamsDtoAsset.cs"] = (1, "netstandard2.0; compacts a JsonElement (CE-3194 retired the string quoting)"),
             ["Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage5_Schedule.cs"] = (1, "netstandard2.0 build; serializes a JsonNode (a DOM ignores options)"),
         };
 

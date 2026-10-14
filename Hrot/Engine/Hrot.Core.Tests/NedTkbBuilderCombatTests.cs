@@ -184,6 +184,23 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal(Fdp.Core.ForceId.Hostile, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
         }
 
+        /// <summary>⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — the doors-off Black Hawk (404) FLIES routes:
+        /// a rotorcraft with <c>Gen.Flight</c> (it holds 30 m over the ground, rounds its corners at 60 m), standing on its three wheels
+        /// (what it lands on), still the eight-seat carrier. The plain UH-60 (400) stays a static body.</summary>
+        [Fact]
+        public void B7_TheDoorsOffBlackHawk_FliesRoutes_OnItsGear()
+        {
+            var db = BuildDatabase();
+            var t = db.GetByType(TkbEntityTypes.Heli_UH60_DoorsOff)!;
+            Assert.Equal(LocomotionClass.Rotorcraft, t.GetDescriptor<LocomotionDto>()!.Class);
+            var flight = t.GetDescriptor<FlightParamsDto>()!;
+            Assert.Equal((30f, 60f, 70f), (flight.HoverHeightM, flight.TurnRadiusM, flight.MaxSpeedMps));
+            Assert.Null(t.GetDescriptor<VehicleParametersDto>());                       // not ground physics
+            Assert.Equal(3, t.GetDescriptor<BodyGeometryDto>()!.GroundContacts.Count);    // its gear
+            Assert.Equal(8, t.GetDescriptor<CarrierDefDto>()!.Seats.Count);
+            Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<FlightParamsDto>());
+        }
+
         /// <summary>
         /// ⭐ B8 (M6) / CE-2168 — a NED ground type states its hull SIZE (Body.Geometry, ground-centred) and its locomotion class; a person
         /// does not get a hull. 📐 Without the height every NED hull had collider height 0: no M1 height band, and the blast rule took a
