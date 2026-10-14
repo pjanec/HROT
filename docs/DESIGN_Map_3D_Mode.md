@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,12 +8,14 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the mortars and guns (IF-G) and the fire mission; §6n here draws the tubes, the howitzers, their laid elevation and blast
+  - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the drone (type 403, its flight body); §6n here draws it as a quadcopter
   - docs/DESIGN_Entity_Interactions.md §7.5 — OWNS the team carry (R-2017): the stretcher drawn between the two carriers, a two-man weapon carried by the pair
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon deploy state the map draws (stowed / deployed) and a gunner at his weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attitude the map draws (bank, pitch, tilt in SimTransform.Rotation) and the air-assault scenarios that use §6m's riders (R-2015)
@@ -1565,6 +1567,134 @@ limp and the carrier's lean; the door seats, legs out; the jump) · `CarKinemati
 | ![carried and dragged](assets/map-3d/held-1-carried-dragged.png) | ![carried, close](assets/map-3d/held-1b-carried-close.png) |
 | ![wounded and down](assets/map-3d/held-2-wounded-down.png) | ![doors off](assets/map-3d/held-3-doors-off.png) |
 | ![the jump](assets/map-3d/held-4-jump.png) | *the forward left rider, 0.23 s after leaving his seat in a Black Hawk hovering 2 m up: crouched, about 1.7 m in the air below the door* |
+
+### 6n. CE-1085 … CE-1094 — weapon systems, launchers, mortars and guns, the drone, the attack plane — DESIGN `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"new type of missile system like NLAW or LAW or Javelin, and new type of weapons like heavy machine gun M2 and the
+minigun … mounted to a vehicle with a gunner position … located on the ground, placeable standalone with an operator, or we can carry those
+weapons by one or multiple men … two soldiers carrying a stretcher … new types of bombs and aircraft types that can drop bombs and fire the
+cannon or a mounted minigun. All those would need map 3d visualization. Pls check and suggest."* → the plan → *"The stuff before approved"*;
+the indirect-fire part (R-2018) and its barrel-elevation lean → *"Approved"* → *"Ok go"*.
+
+📐 **INVENTORY** *(graph `search_graph` `.*WeaponSystem.*` Class = 10, `.*ShapeKit.*` = 2, `.*VisualFamil.*` = 1, `.*(Trail|Blast).*` = 7 —
+none in Presentation; three Explore sweeps of `docs/` + `.dev/`; the load-bearing lines re-read by hand)*:
+
+| fact | where | so |
+|---|---|---|
+| a weapon system is an ENTITY (class `WeaponSystem` 1.1.*.50, subclasses HMG .1 · Minigun .2 · ATGM .3 · Launcher .4 · Sentry .5); a mortar is class `Mortar` 1.1.*.10, a towed gun `TowedArtillery` 1.1.*.5, an SP gun `SelfPropelledArtillery` 1.1.*.4 | `EntityClassTable.cs:130-145`, Indirect Fire IF-G | none has a visual family ⇒ an unknown purple box today |
+| its deploy state `WeaponSystemState { Deploy, Until }` is replicated to every node | `WeaponSystemComponents.cs` (WS-1) | the drawing reads it on any host — no wire |
+| a STATION weapon's transform is placed at its seat by the sim; a CARRIED one sits at the carrier's feet (carry-station place 0,0,0); a gunner in a weapon's own `Gunner` seat stands AT the weapon's origin | `EmbarkedStateSystem.CarryAndKill` (WS-2) | ⭐ station weapons draw where they are; a carried weapon and a gunner need a drawn placement (as §6m's casualty did) |
+| ⛔ `Carriage.Of` reads `ModeOf(0)` whenever the carrier's list is not empty — a man with only a weapon in his carry station (seat 1) is drawn CARRYING a casualty | `Carriage.cs:74` (CE-1081, mine) | fix: the casualty seat and the carry station are read separately |
+| a weapon system turns on its OWN turret part; its fire is the weapon entity's (`WeaponFireNotification.Shooter` = the weapon) | WS-3, `f656cb38b` | the kits articulate (§3.11) with `_poseOf`; the muzzle flash finds the weapon |
+| no replicated "which mount is in his hands"; `WeaponFireNotification { Shooter, WeaponIndex }` reaches every map host (NED ingress on the IG) | `WeaponPosture.cs` (Kind, Target, Point), `WeaponFireIngressTranslator.cs` | ⭐ the launcher in hands follows the LAST SHOT |
+| the FPV drone (403) is class `Uav` (1.2.*.50) ⇒ family Jet ⇒ a 15 m F-16; its body is 0.3 m (`Gen.Flight` body radius / height) | `BdcTkbCatalog.DefineFpvDrone`, `EntityBodyLayer3D.Resolve` | a `Drone` family for a ROTORCRAFT Uav, sized from its flight body |
+| the A-10 (405) is class `AttackAircraft` (1.2.*.2) ⇒ family Jet; its bombs count down in the replicated `WeaponAmmo` mirror | `BdcTkbCatalog.DefineAttackPlane`, CE-1079 | an attack-plane kit with pylons; the bombs drawn = rounds left |
+| a bomb release goes through the ordinary fire path ⇒ a muzzle flash at the nose | `EffectSpawnSystem.cs:63-74` | skip the flash for a `Bomb` mount |
+| a smoke trail runs STRAIGHT back to the muzzle (combat node) or along the velocity (viewer) | `ProjectileLayer.TrailOf`, `:130` | a remembered path ⇒ a curved trail on every host |
+| a rotor turns only while ≥ 5 m above its resting height | `EntityBodyLayer3D.IsAirborne`, `MotionTracker` | the rotor follows movement too, and spins up / down |
+| on the combat node a round knows its `Shooter`; a viewer's round does not | `BallisticProjectile.Shooter`, LR-3 | the gun's laid elevation is exact where combat runs, a default elsewhere (until backend's IF-1 field) |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing, grows>> Draw3D · + a second pass for carried weapons · + gunner placement }
+    class VisualFamilies { <<existing, grows>> + WeaponSystem · SpArtillery · Drone · AttackJet }
+    class WeaponKits { <<NEW static, Map3D>> KindOf(dis) WeaponKind · Stowed(kind) · Deployed(kind) · Blend(t) · GunnerSpot(kind) · OnBack(...) }
+    class WeaponKind { <<NEW enum>> Hmg · Minigun · Atgm · Launcher · Sentry · Mortar · TowedGun }
+    class ShapeKits { <<existing, grows>> + SpArtillery · Drone · AttackJet (+ pylon bombs, gun) }
+    class Carriage { <<existing, FIXED>> Of: casualty seat and carry station apart · + Manning (at his weapon) }
+    class FigureCarriage { <<existing, grows>> + Load (the weapon he carries) }
+    class BlockFigure { <<existing, grows>> + AtWeapon(kneel) · Shouldered (a tube on the shoulder) · Seated + Stand / Kneel }
+    class SeatPose { <<TKB, this lane's CE-1083, grows>> Sit · SitLegsOut · + Stand · Kneel }
+    class RecentShots { <<NEW managed singleton>> Last(shooter) (mount, at) }
+    class EffectSpawnSystem { <<existing, grows>> writes RecentShots · no flash for a Bomb · + backblast / blast }
+    class ProjectileLayer { <<existing, grows>> + RoundTrails (a remembered path) }
+    class MotionTracker { <<existing, grows>> rotor spin-up / down, tail rotor, drone rotors }
+    class WeaponSystemState { <<existing, replicated>> Deploy · Until }
+    class WeaponAmmo { <<existing, replicated>> AmmoOf(mount) }
+    EntityBodyLayer3D ..> WeaponKits
+    EntityBodyLayer3D ..> VisualFamilies
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> RecentShots : the launcher in hands
+    EntityBodyLayer3D ..> WeaponSystemState : stowed / deployed
+    EntityBodyLayer3D ..> WeaponAmmo : bombs left
+    EntityBodyLayer3D *-- MotionTracker
+    WeaponKits ..> WeaponKind
+    Carriage --> FigureCarriage
+    EffectSpawnSystem --> RecentShots
+    BlockFigure ..> SeatPose
+```
+
+*What the picture shows that prose hid:* every new look is a KIT or a POSE chosen from facts every host already has (class, deploy state,
+seats, ammo mirror, fire notifications) — the only new state is presentation memory (`RecentShots`, `RoundTrails`, the rotor's spin), and
+the only TKB change is two more seat poses in the enum this lane added.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D (each frame)
+    participant K as WeaponKits
+    participant C as Carriage
+    participant S as RecentShots
+    L->>L: pass 1, every entity
+    alt a weapon system on the ground or in a station
+        L->>K: Stowed / Deployed / Blend(deploy state, Until)
+        L->>L: drawn at its own transform, turret posed (§3.11)
+    else a weapon system carried by a man
+        L->>L: deferred to pass 2
+    else a man in a weapon's Gunner seat
+        L->>C: Of = Manning, the weapon
+        L->>K: GunnerSpot(kind), turned with the weapon's turret
+        L->>L: AtWeapon (kneeling or standing, hands on the grips)
+    else a soldier
+        L->>S: Last(him) a launcher within 4 s and aimed?
+        L->>L: Shouldered (the tube replaces the rifle), else the rifle
+    end
+    L->>L: pass 2, carried weapons
+    L->>K: OnBack(carrier as drawn) — or hidden while he shoulders it
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas, every 3-D frame] --> EBL[EntityBodyLayer3D, every map host]
+    CAN --> PL[ProjectileLayer, every map host]
+    CAN --> EL[EffectLayer, every map host]
+    WDS[WeaponDeploySystem, the weapon's owner] -->|WeaponSystemState, replicated| EBL
+    ESS[EmbarkedStateSystem, every node] -->|IsEmbarkedTag, station transforms| EBL
+    MIR[WeaponAmmoMirrorSystem, the brain] -->|WeaponAmmo, replicated| EBL
+    FIRE[FireProcessingSystem, the muscle] -->|WeaponFireNotification, NED to every host| ESP[EffectSpawnSystem, every map host]
+    ESP -->|RecentShots| EBL
+    ESP -->|flash, backblast, blast entities| EL
+    LR[LightweightRound ingress, every host] --> PL
+```
+
+*Caption:* nothing here runs on the simulation side — every input already reaches every map host; ⚠ `EffectSpawnSystem` is skipped during a
+replay (`IsReplayActive`), so in a replay the launcher stays slung and no backblast is drawn (the recorded effects still are).
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **N-1 weapon systems** (CE-1087) | one family `WeaponSystem`; the kind from the class chain (HMG, Minigun, ATGM, Launcher, Sentry; + `Mortar`, `TowedArtillery`); each kind a STOWED and a DEPLOYED kit with the same parts in the same order, blended over `Deploying` / `Packing` by `Until`; a station weapon is drawn where the sim put it; its turret and gun articulate |
+| **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` |
+| **N-3 carried** (CE-1085) | the classifier fix; a carried stowed weapon is drawn slung across the back |
+| **N-4 launcher in hands** (CE-1090) | a soldier AIMED within 4 s of firing a launcher (an ATGM mount, or a carried ATGM / Launcher weapon) holds the tube on his shoulder instead of the rifle (the carried weapon is not drawn twice); the flash leaves the tube's front; a recoilless launcher throws a BACKBLAST cone behind it; a mortar / gun throws a ground BLAST ring |
+| **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction); ⏭ backend's IF-1 replicated elevation replaces the default everywhere. SP howitzer: a tank hull, a big boxy turret, a long barrel |
+| **N-6 trails** (CE-1091) | the smoke trail follows the round's REMEMBERED path (sim time, every host), so a top-attack climb and dive shows; a shell or mortar bomb draws a faint thin streak of its last 2 s |
+| **N-7 drone** (CE-1086) | family `Drone` = a `Uav` that flies as a `Rotorcraft`: an X frame, four motor pods, four rotors spinning; sized 2·radius × 2·radius × height from `Gen.Flight` |
+| **N-8 attack plane** (CE-1092) | family `AttackJet` (class `AttackAircraft`): straight wings, two engines on the rear fuselage, twin fins, the nose gun, pylons; a bomb per round left on its `Bomb` mount (`WeaponAmmo`) |
+| **N-9 rotors** (CE-1093) | a rotor runs while airborne OR moved within the last 20 s, and spins up / down over 3 s; the tail rotor spins about its axle |
+| **N-10 bomb release** (CE-1094) | no muzzle flash for a `Bomb` mount |
+
+**Rejected — one line each:**
+- *A per-weapon `VisualFamily` (seven new families)* — the families key the icon and size fallbacks; one family + a kind keeps those tables short.
+- *Drawing the carried weapon from the figure's parts list* — the weapon is its own entity (picked, selected, killed); it stays its own draw.
+- *A replicated "active mount" for the hands* — a wire change (backend's); the last shot is on every host already. ⏭ asked of backend as an improvement.
+- *Matching a viewer's new shell to the nearest muzzle for the elevation* — two guns side by side break it (approved lean).
+- *A trail in the SIMULATION* — a look; the round's own positions over time are enough.
+
+⏭ **Built in their OWN designs, not here:** the route gizmo Z-up and the waypoint heights (air hand-off U1 / U2 — CE-2172 / CE-2173,
+[DESIGN_Air_Operations.md](designs/air-attack/DESIGN_Air_Operations.md) §5), the pilot station (U3, §6 there and
+[DESIGN_Entity_Control.md](DESIGN_Entity_Control.md)), placing a weapon into a station in the editor (weapon-systems hand-off U2, CE-2174). ⏸ **Blocked on
+other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack helicopter, door guns, minigun / GAU-8 tracer streams, Hydra
+salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
 
 ## 7. NOT VERIFIED — say so before it is built on
 
