@@ -126,6 +126,8 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.PlatformHold,          // CE-2143
             Hrot.Map.Definitions.Behavior.BehaviorNames.LandPlatformAttack,    // CE-2165 V4
             Hrot.Map.Definitions.Behavior.BehaviorNames.VehicleFightFromCover, // CE-2165 V4
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadEmbark,           // CE-2173 slice 3
+            Hrot.Map.Definitions.Behavior.BehaviorNames.LoadCasualty,          // CE-2173 slice 3
         };
 
         foreach (var name in curated)

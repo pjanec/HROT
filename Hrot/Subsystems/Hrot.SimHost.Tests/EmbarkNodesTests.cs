@@ -258,5 +258,47 @@ namespace Hrot.SimHost.Tests
             var vehicle = Vehicle(new Vector3(5f, 5f, 0f));
             Assert.True(Vector3.Distance(Embarkation.BoardingPoint(_w, vehicle), new Vector3(5f, 5f, 0f)) < Embarkation.BoardingRange(_w, vehicle));
         }
+    
+
+        // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — a carried man is SEATED, not boarded on his carrier ──
+
+        /// <summary>⭐ <c>CE-2173</c> — LoadCasualty walks the carrier to the vehicle with the man carried, puts him down beside it, then boards
+        /// HIM (the embark action with <c>Passenger</c> = the man): he ends in the vehicle's own seat, nobody carries him, and the carrier
+        /// is free to board. ✅ Red-proofs: boarding the carrier instead (Passenger left null) ⇒ the man is never aboard the vehicle ⇒ red;
+        /// skipping the put-down ⇒ the man is still on his carrier's list when he is asked aboard ⇒ red.</summary>
+        [Fact]
+        public void CE2173_LoadCasualty_PutsTheCarriedManDown_AndSeatsHimInTheVehicle()
+        {
+            var vehicle = Vehicle(new Vector3(30f, 0f, 0f));
+            var carrier = Man(new Vector3(9f, 0f, 0f), 100f);
+            var down = Man(new Vector3(10f, 0f, 0f), 20f);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_w, down, carrier, mode: CarryMode.Carried));
+            var p = new LoadCasualtyNodeParams { Vehicle = vehicle };
+
+            Assert.Equal(NodeStatus.Running, CarryNodes.LoadCasualty(ref p, carrier, _w));
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, _w.GetComponentRO<LocomotionChannel>(carrier).ActiveAction);   // walks, carrying
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);
+
+            _w.GetComponentRW<SimTransform>(carrier).Position = Embarkation.BoardingPoint(_w, vehicle);       // the walk arrives
+            _w.GetComponentRW<SimTransform>(down).Position = Embarkation.BoardingPoint(_w, vehicle);
+            Assert.Equal(NodeStatus.Running, CarryNodes.LoadCasualty(ref p, carrier, _w));
+            Assert.Equal(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);   // first: down
+            Dispatch(carrier, new PutDownExecutor());
+            Assert.True(Embarkation.LoadOf(_w, carrier).IsNull);
+
+            Assert.Equal(NodeStatus.Running, CarryNodes.LoadCasualty(ref p, carrier, _w));
+            Assert.Equal(BehaviorConstants.ActionIdEmbark, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);    // then: seat him
+            Dispatch(carrier, new EmbarkExecutor());
+            Assert.Equal(NodeStatus.Success, CarryNodes.LoadCasualty(ref p, carrier, _w));
+
+            Assert.Equal(vehicle, _w.GetComponentRO<IsEmbarkedTag>(down).VehicleEntity);                      // in the vehicle's seat
+            Assert.Equal(CarryMode.Seated, _w.GetComponentRO<IsEmbarkedTag>(down).Mode);
+            Assert.Equal(1, _w.GetComponentRO<PassengerBuffer>(vehicle).Count);
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(carrier));                                            // the carrier is still out
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);                     // the channel handed back
+
+            var none = new LoadCasualtyNodeParams { Vehicle = vehicle };
+            Assert.Equal(NodeStatus.Success, CarryNodes.LoadCasualty(ref none, Man(Vector3.Zero, 100f), _w));  // carrying nobody: done
+        }
     }
 }

@@ -21,6 +21,13 @@ namespace Fdp.Toolkit.Behavior.Executors
         /// Default: 3.0 m.
         /// </summary>
         public float MaxBoardingRange;
+
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 3 (B10, Air Operations §9) — who boards: <see cref="Entity.Null"/> ⇒ the entity running the action; else
+        /// ANOTHER man (a casualty the runner has just put down beside the vehicle — <c>LoadCasualty</c>), whose position is the one
+        /// checked against <see cref="MaxBoardingRange"/>. Appended: a zero field keeps every existing caller as it was.
+        /// </summary>
+        public Entity Passenger;
     }
 
     /// <summary>
@@ -60,7 +67,9 @@ namespace Fdp.Toolkit.Behavior.Executors
         {
             ref readonly var p = ref Unsafe.As<byte, EmbarkParams>(ref channel.Params[0]);
             if (!world.IsAlive(p.VehicleEntity) || !world.HasComponent<PassengerBuffer>(p.VehicleEntity)) { channel.Status = NodeStatus.Failure; return; }
-            if (world.HasComponent<IsEmbarkedTag>(entity) && world.GetComponentRO<IsEmbarkedTag>(entity).VehicleEntity == p.VehicleEntity)
+            var who = p.Passenger.IsNull ? entity : p.Passenger;   // ⭐ CE-2173 — self, or the casualty being loaded
+            if (!world.IsAlive(who)) { channel.Status = NodeStatus.Failure; return; }
+            if (world.HasComponent<IsEmbarkedTag>(who) && world.GetComponentRO<IsEmbarkedTag>(who).VehicleEntity == p.VehicleEntity)
             {
                 channel.Status = NodeStatus.Success;
                 return;
@@ -75,12 +84,12 @@ namespace Fdp.Toolkit.Behavior.Executors
             else
             {
                 float range = p.MaxBoardingRange > 0f ? p.MaxBoardingRange : 3f;
-                var soldierPos = world.GetComponent<SimTransform>(entity).Position;
+                var soldierPos = world.GetComponent<SimTransform>(who).Position;
                 var vehiclePos = world.GetComponent<SimTransform>(p.VehicleEntity).Position;
                 if (Vector3.Distance(soldierPos, vehiclePos) > range) { channel.Status = NodeStatus.Running; return; }
                 if (Embarkation.FreeSeat(world, p.VehicleEntity) < 0)   // ⭐ CE-2151 — no free passenger seat of the type's
                     { channel.Status = NodeStatus.Failure; return; }
-                world.Bus.Publish(new Events.EmbarkEntityCommand { Passenger = entity, Vehicle = p.VehicleEntity });
+                world.Bus.Publish(new Events.EmbarkEntityCommand { Passenger = who, Vehicle = p.VehicleEntity });
                 s.Sent = 1;
                 channel.Status = NodeStatus.Running;
             }

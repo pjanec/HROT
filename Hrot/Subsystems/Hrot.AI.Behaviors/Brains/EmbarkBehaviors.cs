@@ -105,4 +105,35 @@ namespace Hrot.AI.Behaviors.Brains
                     .Action(bb => bb.Bring, CgfNodes.Action_WriteMoveToChannel)
                     .Action(bb => bb.Leave, CarryNodes.PutDown));
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 3 (B10; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9) — <c>LoadCasualty</c>, a library behaviour
+    /// (curated C# tree): seat the man this soldier carries in a vehicle (<see cref="CarryNodes.LoadCasualty"/>), then board it himself
+    /// (<see cref="EmbarkNodes.Embark"/>). <c>SquadEmbark</c> gives it to a member who is carrying somebody.
+    /// </summary>
+    public static class LoadCasualtyBehavior
+    {
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        public struct LoadCasualtyBlackboard
+        {
+            public LoadCasualtyNodeParams Load;
+            public EmbarkNodeParams Board;
+        }
+
+        [BehaviorResolver(BehaviorNames.LoadCasualty)]
+        public static void Resolve(in LoadCasualtyParamsJsonDto authored, ref LoadCasualtyBlackboard block, EntityRepository world, Entity self)
+        {
+            var vehicle = authored.Vehicle.Resolve(world);
+            block.Load = new LoadCasualtyNodeParams { Vehicle = vehicle, Speed = authored.Speed };
+            block.Board = new EmbarkNodeParams { Vehicle = vehicle, Speed = authored.Speed };
+        }
+
+        [Behavior(BehaviorNames.LoadCasualty, Params = typeof(LoadCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+        [BTreeDefinition(BehaviorNames.LoadCasualty, Curated = true, Group = "Library/Infantry", ParamsType = typeof(LoadCasualtyBlackboard))]
+        public static BTreeBuilder<LoadCasualtyBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<LoadCasualtyBlackboard, BTreeContext>()
+                .Sequence(seq => seq
+                    .Action(bb => bb.Load, CarryNodes.LoadCasualty)
+                    .Action(bb => bb.Board, EmbarkNodes.Embark));
+    }
 }

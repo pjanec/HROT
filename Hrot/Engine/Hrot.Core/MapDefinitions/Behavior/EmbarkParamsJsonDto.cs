@@ -46,3 +46,46 @@ namespace Hrot.Map.Definitions.Behavior
         public float Speed;
     }
 }
+
+namespace Hrot.Map.Definitions.Behavior
+{
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 3 (B10, R-2015; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the authored contract of the squad
+    /// <c>SquadEmbark</c> (on the commander): every member boards <see cref="Vehicle"/>; done when all are aboard it.
+    /// </summary>
+    [ParamsDto]
+    public struct SquadEmbarkParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.SquadEmbark;
+
+        /// <summary>The vehicle to board.</summary>
+        [JsonPropertyName("vehicle")]
+        public EntityRef Vehicle;
+
+        /// <summary>Failure when somebody is still out after this long (s); 0 ⇒ 60.</summary>
+        [JsonPropertyName("timeoutSeconds")]
+        public float TimeoutSeconds;
+
+        /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the Embark node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 3 — the authored contract of the library <c>LoadCasualty</c>: walk to <see cref="Vehicle"/> with the man
+    /// carried, seat him in it, then board it.
+    /// </summary>
+    [ParamsDto]
+    public struct LoadCasualtyParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.LoadCasualty;
+
+        /// <summary>The vehicle to load into and board.</summary>
+        [JsonPropertyName("vehicle")]
+        public EntityRef Vehicle;
+
+        /// <summary>Walking speed to the vehicle (m/s); 0 ⇒ the node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+}

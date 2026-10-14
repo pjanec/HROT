@@ -1308,6 +1308,73 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
         }
 
+        // ── CE-2173 slice 3 (B10; docs/designs/air-attack/DESIGN_Air_Operations.md §9) — the squad Embark drill, the mirror of Dismount ──
+
+        private static Entity Helicopter(Squad s, Vector3 at, long networkId)
+        {
+            var v = Carrier(s, at);
+            s.Repo.AddComponent(v, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = networkId });
+            return v;
+        }
+
+        /// <summary>⭐ <c>CE-2173</c> — SquadEmbark tells every member to board the named vehicle (the library <c>Embark</c>, at Superior),
+        /// keeps running while anybody is out, and succeeds when all are aboard IT; the members' orders are released. ✅ Red-proofs:
+        /// counting "aboard ANY vehicle" (a member left in another carrier) ⇒ Success too early ⇒ red; ordering only the members still
+        /// out ⇒ a member aboard the wrong vehicle stays there ⇒ red.</summary>
+        [Fact]
+        public void CE2173_SquadEmbark_EveryMemberIsToldToBoard_DoneWhenAllAreAboardThatVehicle()
+        {
+            var s = new Squad(members: 3);
+            var heli = Helicopter(s, new Vector3(0f, 20f, 0f), 2173);
+            var other = Carrier(s, new Vector3(50f, 0f, 0f), 2);                                    // member 2 sits in ANOTHER vehicle
+            s.Order("{\"vehicle\":2173}", BehaviorNames.SquadEmbark);
+            Ticks(s, 3);
+
+            Assert.Equal(SquadEmbarkManeuver.ManeuverKind, s.Kind);
+            var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
+            Assert.All(s.Members, m => Assert.Equal(BehaviorNames.Embark, last[m].IntentId));
+            Assert.All(last.Values, o => Assert.Contains("2173", o.JsonParams));
+            Assert.All(last.Values, o => Assert.Equal(BehaviorOrigin.Superior, o.Origin));
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[1], heli));
+            Assert.Null(RunUntilFinished(s, 5));                                                     // member 2 is in the other one
+            Embarkation.Disembark(s.Repo, s.Members[2], other);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[2], heli));
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));
+            Assert.Equal(3, s.Repo.GetComponentRO<PassengerBuffer>(heli).Count);
+            Ticks(s, 2);
+            Assert.Contains(s.Clears, c => c.Entity == s.Members[0]);                                // its orders released (A5)
+        }
+
+        /// <summary>⭐ <c>CE-2173</c> — a member carrying a casualty is told <c>LoadCasualty</c> (seat him, then board), and the drill is not
+        /// done while he still carries him; somebody who never gets in fails the drill on its timeout; a vehicle that is gone fails it at
+        /// once. ✅ Red-proof: giving the carrier plain <c>Embark</c> ⇒ he would board carrying the man (nested) ⇒ red.</summary>
+        [Fact]
+        public void CE2173_SquadEmbark_ACarrierLoadsHisCasualtyFirst_AStragglerTimesOut_AGoneVehicleFails()
+        {
+            var s = new Squad(members: 2);
+            var heli = Helicopter(s, new Vector3(0f, 20f, 0f), 2174);
+            var down = s.Repo.CreateEntity();
+            s.Repo.AddComponent(down, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(s.Members[0], new PassengerBuffer());                                  // member 0 carries him
+            s.Repo.GetComponentRW<PassengerBuffer>(s.Members[0]).Passengers[0] = down;
+            s.Repo.GetComponentRW<PassengerBuffer>(s.Members[0]).Count = 1;
+            s.Order("{\"vehicle\":2174,\"timeoutSeconds\":1}", BehaviorNames.SquadEmbark);
+            Ticks(s, 3);
+            var last = s.Orders.GroupBy(o => o.Entity).ToDictionary(g => g.Key, g => g.Last());
+            Assert.Equal(BehaviorNames.LoadCasualty, last[s.Members[0]].IntentId);
+            Assert.Equal(BehaviorNames.Embark, last[s.Members[1]].IntentId);
+            Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(s, 120));                          // nobody got in within 1 s
+
+            var t = new Squad(members: 2);
+            var gone = Helicopter(t, Vector3.Zero, 2175);
+            t.Order("{\"vehicle\":2175}", BehaviorNames.SquadEmbark);
+            Ticks(t, 2);
+            t.Repo.DestroyEntity(gone);
+            Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(t, 5));
+        }
+
         // ── CE-2158 F-c — bounding overwatch: suppress on contact, cover-point bounds ───────────────────────────────────────────────
 
         private static Entity BoQuery(Squad s) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, BoundingOverwatchPlay.CoverSite);

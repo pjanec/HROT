@@ -51,6 +51,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// it sees: the library CombatPosture at that point (a <see cref="Hold"/> somewhere else). ⚠ It does not face a sector — no facing
         /// control exists for a standing soldier. A unit member gets <c>Order.Hold</c>.</summary>
         Watch = 5,
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B10, Air Operations §9) — board <see cref="MemberOrder.Target"/> (a vehicle): the library
+        /// <c>Embark</c>, or <c>LoadCasualty</c> for a soldier carrying somebody (he seats the man first); a unit member gets
+        /// <c>SquadEmbark</c> (its soldiers board, not it).</summary>
+        Embark = 6,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -419,11 +423,12 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
                 squad.Roles[i].RoleId = order.RoleId;
-                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress ? at : order.Point;
+                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress or MemberOrderKind.Embark ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
                 if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
+                else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
@@ -491,6 +496,34 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>SquadDismount</c> (a unit never boards — its soldiers do, R-272). From the commander, released when its run ends.</summary>
         public static void Dismount(EntityRepository world, Entity commander, Entity member)
             => Publish(world, commander, member, IsUnit(world, member) ? BehaviorNames.SquadDismount : BehaviorNames.Disembark, "{}");
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3 (B10) — BOARD <paramref name="vehicle"/>: a soldier gets the library <c>Embark</c>, or
+        /// <c>LoadCasualty</c> while he carries somebody (he seats the man, then boards — never boards carrying him, which would nest the
+        /// man inside him); a member that is a UNIT gets the squad <c>SquadEmbark</c>.</summary>
+        public static void Board(EntityRepository world, Entity commander, Entity member, Entity vehicle, float speed)
+        {
+            var target = Fdp.Toolkit.Replication.EntityRef.Of(world, vehicle);
+            if (IsUnit(world, member))
+            {
+                Publish(world, commander, member, BehaviorNames.SquadEmbark, JsonSerializer.Serialize(new SquadEmbarkParamsJsonDto
+                {
+                    Vehicle = target, Speed = speed,
+                }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+                return;
+            }
+            if (!Fdp.Toolkit.Behavior.Embarkation.LoadOf(world, member).IsNull)
+            {
+                Publish(world, commander, member, BehaviorNames.LoadCasualty, JsonSerializer.Serialize(new LoadCasualtyParamsJsonDto
+                {
+                    Vehicle = target, Speed = speed,
+                }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+                return;
+            }
+            Publish(world, commander, member, BehaviorNames.Embark, JsonSerializer.Serialize(new EmbarkParamsJsonDto
+            {
+                Vehicle = target, Speed = speed,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
 
         /// <summary>⭐ <c>CE-2141</c> (A4) — a member that is itself a unit (a platoon's squad): it receives ORDERS, not behaviours.</summary>
         public static bool IsUnit(EntityRepository world, Entity member)
