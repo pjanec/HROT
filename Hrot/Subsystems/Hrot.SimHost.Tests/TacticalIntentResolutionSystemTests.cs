@@ -545,5 +545,23 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("AirPlatformMove", Assert.Single(Order(repo, system, attackJet, "Move", "{}")).BehaviorName);
             Assert.Equal("PlatformMove", Assert.Single(Order(repo, system, t72, "Move", "{}")).BehaviorName);
         }
+
+        /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) — a Strike to ANY aircraft resolves to the one <c>AirPlatformStrike</c>; a land vehicle has no
+        /// Strike (refused). ✅ Red-proof: without the behaviour every aircraft's Strike is refused ⇒ red.</summary>
+        [Fact]
+        public void B4_EveryAircraftsStrike_ResolvesTo_AirPlatformStrike_ALandVehicleHasNone()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            const string strike = "{\"Location\":[0,0]}";
+            var blackHawk = Typed(repo, Dis(1, 2, 225, 21));
+            var attackJet = Typed(repo, Dis(1, 2, 222, 2));
+            var t72       = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            Assert.Equal("AirPlatformStrike", Assert.Single(Order(repo, system, blackHawk, "Strike", strike)).BehaviorName);
+            Assert.Equal("AirPlatformStrike", Assert.Single(Order(repo, system, attackJet, "Strike", strike)).BehaviorName);
+            Assert.DoesNotContain(Order(repo, system, t72, "Strike", strike), e => e.BehaviorName == "AirPlatformStrike");
+        }
     }
 }

@@ -1263,6 +1263,38 @@ def run_squad_bound_open_ground(c, timeout):
     c.ok(all((ammo(n)[0] or 0) >= (ammo0[n] or 0) for n in members), "⑦ watching, not shooting: nobody's ammo dropped")
 
 
+# ── ua-air-strike (CE-2173 slice 5; docs/designs/air-attack/DESIGN_Air_Operations.md §9c) — a plane bombs a point ─────────────
+#   The A-10 is ordered AirPlatformStrike on the Target Technical from 3.8 km out: it flies straight at the target at 300 m, its weapon
+#   brain releases ONE Mk-82 on the cue (where a bomb dropped now lands has reached the target), the bomb falls and bursts on the target,
+#   and the A-10 flies on out. The Far Technical, 125 m away, is outside the burst. ⭐ NO HTTP WRITE but play.
+
+def run_air_strike(c, timeout):
+    ids = ids_by_name()
+    plane, target, far = ids.get("A-10"), ids.get("Target Technical"), ids.get("Far Technical")
+    if not c.ok(None not in (plane, target, far), "the A-10 and both technicals are loaded"):
+        return
+    aim = position(target)
+    call("POST", "/sim/play", {})
+    dets = wait_for(lambda: (x := detonations()) and x, timeout + 60)   # ~26 s to the release, ~8 s of fall
+    if not c.ok(dets is not None, "a bomb burst (GET /combat/detonations)"):
+        return
+    d = dets[0]
+    b = d.get("burst") or [9e9, 9e9, 0]
+    miss = flat(b, aim) if aim else 9e9
+    print(f"    the burst at {b}, the target at {aim}: {miss:.1f} m off; warhead {d.get('warheadSource', '')[:60]}")
+    c.ok(miss <= 25.0, f"① the bomb burst on the target (within 25 m) — {miss:.1f} m")
+    c.ok(len(dets) == 1, f"② ONE bomb per pass — {len(dets)} bursts")
+    wait_for(lambda: (h := health(target)) is not None and h < 100, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
+    ht, hf = health(target), health(far)
+    c.ok(ht is not None and ht < 100, f"③ the target is hit — Health {ht}")
+    c.ok(hf is not None and hf >= 100, f"④ the far technical is not — Health {hf}")
+    p0 = position(plane)
+    time.sleep(3)
+    p1 = position(plane)
+    c.ok(p0 is not None and p1 is not None and flat(p1, aim) > flat(p0, aim) and p1[2] > 100,
+         f"⑤ the A-10 flies on out, still in the air — {p1}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -1287,7 +1319,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-squad-danger-crossing-contact": run_squad_danger_crossing_contact,
              "ua-squad-march-loose": run_squad_march_loose,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
-             "ua-squad-bound-open-ground": run_squad_bound_open_ground}
+             "ua-squad-bound-open-ground": run_squad_bound_open_ground,
+             # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
+             "ua-air-strike": run_air_strike}
 
 
 def main():
