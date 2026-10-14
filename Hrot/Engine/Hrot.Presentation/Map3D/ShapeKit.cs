@@ -536,17 +536,17 @@ public static class BlockFigure
         float U() { s = Mix(s); return (s >> 40) / (float)(1 << 24); }   // [0, 1)
         int part = StainParts[(int)(U() * StainParts.Length)];
         bool torso = part == TorsoIndex;
-        int side = (int)(U() * (torso ? 5 : 4));
+        int side = (int)(U() * (torso ? 6 : 4));
         float w = 0.36f + U() * 0.28f, h = w * (0.7f + U() * 0.6f);
         float a = (U() - 0.5f) * 2f * (0.5f - w / 2f) * 0.9f, b = (U() - 0.5f) * 2f * (0.5f - h / 2f) * 0.9f;   // the whole spot on its side
         const float Proud = 0.51f, Thin = 0.03f;
         (Vector3 c, Vector3 e) = torso
             ? side switch
             {
-                0 => (new Vector3(Proud, a, b), new Vector3(Thin, w, h)),     // chest
-                1 => (new Vector3(-Proud, a, b), new Vector3(Thin, w, h)),    // back
-                2 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),     // left side
-                3 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),    // right side
+                0 or 1 => (new Vector3(Proud, a, b), new Vector3(Thin, w, h)),   // chest (twice as often: the side a man is seen from)
+                2 => (new Vector3(-Proud, a, b), new Vector3(Thin, w, h)),    // back
+                3 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),     // left side
+                4 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),    // right side
                 _ => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),     // shoulders (seen from above; the chest of a man on his back)
             }
             : side switch   // a limb runs along its own x: a spot on one of the four sides along it

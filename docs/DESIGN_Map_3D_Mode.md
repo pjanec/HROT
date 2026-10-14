@@ -1794,6 +1794,11 @@ about a diagonal, and the fall blends yaw and pitch linearly, so the head would 
 frame rail `Map3DFrameRail.CE1097_V` (`face-*.png`). ⚠ `TkbEntityTypes.CivilianPedestrian` (501) is drawn as a box, not a person —
 the civilian figure is `UrbanCombatTkbCatalog.TkbCivilianPedestrian` (1001).
 
+| | |
+|---|---|
+| ![faces](assets/map-3d/face-1-front.png) | ![close](assets/map-3d/face-2-close.png) |
+| *a civilian (hair), riflemen crouched, aimed and ready (helmets in the uniform darker), a dead soldier looking up* | *close: eyes, nose, mouth, the helmet's brim over the brow* |
+
 ### 6p. CE-1098 — blood: spots on a hurt man, more as his health drops — DESIGN + AS-BUILT `2026-10-14` (ui)
 
 🔒 **User, `2026-10-14`:** *"Some red blood stains where soldier was hit would also be great … or just repeatably random spots based on
@@ -1836,7 +1841,7 @@ jumps when another appears.
 
 | decision | rule |
 |---|---|
-| **B-1 where** | on the torso (three times as often: chest, back, sides, shoulders) or a thigh, shin, upper arm or forearm; never the head or the rifle |
+| **B-1 where** | on the torso (three times as often; there the chest twice as often as the back, a side or the shoulders) or a thigh, shin, upper arm or forearm; never the head or the rifle |
 | **B-2 how many** | none unhurt, one after any hit, up to 8 at no health left (a dead man shows them all) |
 | **B-3 the same everywhere** | seeded by the network id (the entity index where there is none); spot k never changes |
 | **B-4 colour** | a fresh red or a dried darker red, half and half |
@@ -1847,6 +1852,11 @@ hit is not.
 
 **AS-BUILT** — as drawn. Rails `Map3DTests.CE1098_*` ×2 (how many; repeatable, per man, on the body), frame rail `Map3DFrameRail.CE1098_V`
 (`blood-*.png`).
+
+| | |
+|---|---|
+| ![blood front](assets/map-3d/blood-1-front.png) | ![blood above](assets/map-3d/blood-2-above.png) |
+| *health 15, 50, 85, 100 (left to right) — the more hurt, the more spots* | *from above; the dead man shows all 8 (some on the sides he lies on)* |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
