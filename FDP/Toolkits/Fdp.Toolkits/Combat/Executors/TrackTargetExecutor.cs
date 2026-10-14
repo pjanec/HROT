@@ -128,5 +128,21 @@ namespace Fdp.Toolkit.Combat
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
         }
+
+        /// <summary>⭐ <c>CE-2165</c> V4 — ends the tracking THIS node started (the channel still holds its instance), so a node that
+        /// tracks while hidden can hand the gun to its fire step or leave. Anything else on the channel is left alone.</summary>
+        public static void Stop(ref TrackTargetNodeParams p, Entity self, EntityRepository world)
+        {
+            if (p.Started != 0 && world.HasComponent<WeaponChannel>(self))
+            {
+                ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
+                if (channel.ActiveAction == CombatConstants.ActionIdTrackTarget && channel.ActionInstanceId == p.Started)
+                {
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
+                }
+            }
+            p.Started = 0;
+        }
     }
 }

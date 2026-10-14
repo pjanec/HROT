@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
+build-state: BUILDING — V1, V3, V4 built (as-built rows in §2–§4); V6, V8 to build. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -187,17 +187,26 @@ classDiagram
     Disable flags
   }
   class VehicleFightFromCoverState {
-    <<new working state>>
+    <<new working state — as built>>
     Phase
-    Vector3 HidePoint · FiringPoint · NextHide
+    Vector3 HidePoint · FiringPoint
     EqsSensorHandle HideSensor · FiringSensor
-    Entity Threat
-    double PhaseUntil · ExposedAt
-    float Budget · SeenAtFor
+    Entity Threat · long HeardId/SensorId «TopAim + D14 aim, as PeekAndFire»
+    double PhaseUntil · ExposedAt · SeenSince · WaitingSince
+    uint ExposedTick «T5»
+    float Budget
+    int ExposuresHere · Exposures
     EngageState Fire
     TrackTargetNodeParams Track
-    byte Moving · Reversing
+    byte Moving · Scoot · Waiting
   }
+  class VehicleFightFromCoverBehavior {
+    <<new, Brains — as built>>
+    VehicleFightFromCover «Library/Vehicle»
+    LandPlatformAttack «Library/Orders, resolver»
+    Parallel(1): UntilTargetDown ‖ the node
+  }
+  VehicleFightFromCoverBehavior ..> VehicleFightFromCoverNodes
   class FiringPositionMemory { <<existing UnitMemory>> heat per point }
   class PositionHeat { <<existing>> Add · IsBurned · Penalty }
   class PostureNodes { <<existing>> Keep · Drop · Fire(target) · StopFiring }
@@ -246,6 +255,21 @@ stateDiagram-v2
 | **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides) | D-L |
 | **watching**: no target ⇒ `Watching` (an observation exposure) for `WatchSeconds` | "for firing or watching" |
 | releases: stop fire, stop track, drop both sensors, stop the move, `ws = default`; `FiringPositionMemory` is kept | as PeekAndFire's `Release` |
+
+⭐ **As-built `2026-10-14` (V4) — `Hrot.AI.Behaviors/Brains/VehicleFightFromCoverNodes.cs` + `VehicleFightFromCoverBehavior.cs`; deviations, argued:**
+
+| design said | built | why |
+|---|---|---|
+| a heard launch is a `RecentSenses` cut | ⚠ read from `TargetMemory`: an ANONYMOUS slot of class `HeavyWeapon` whose `LastSeenTick ≥ ExposedTick`, within 30° of the threat | `RecentSenses` has no heard-sound kind (`SensorChange` 1–8, measured). ⚠ A shot heard inside a SEEN contact's circle refreshes THAT contact (`TargetMemory.HearContact`), so this cut sees only the launch from a window nobody saw — a seen dangerous shooter is the budget's (`Budget`) |
+| Guiding = "the weapon channel's reason" | the aimed-fire executor's own row: `ActionStatus.Weapon.Reason == Guiding` while the channel runs `AimAndFire` | the reason exists only there (`AimAndFireExecutor` W-12c writes it); the channel carries no reason |
+| `Hidden → Choose : every firing point near this hide burned` | also after `NoCoverSeconds` with NO firing-point answer (as PeekAndFire's G2) | a hide no query can fight from is as used-up as a burned one |
+| `VehicleFightFromCover = Sequence(the node)` | `Parallel(1){ UntilTargetDown ‖ the node }` for both the library tree and `LandPlatformAttack` | an ATTACK names its target: `UntilTargetDown` designates it (the ranking puts it first, so `TopAim` fights IT) and ends the order with Success when it is down — `CombatPostureBehavior`'s C-5 reading, reused (its `Resolve` fills the designation) |
+| state `NextHide · SeenAtFor · Reversing` | `SeenSince` (since when a dangerous threat has seen me); the next hide is picked at the withdraw, so no `NextHide`; `Scoot` (the resolved mode) replaces `Reversing` | fewer fields, one decision point |
+| — | ⚠ **open:** the budget is NOT floored at my own aim time (PeekAndFire's G8 floors an exposure at 2 × it). A tank slower to aim than the RPG man is fast (aim 2 s ⇒ budget 1.4 s) withdraws before it fires | the design's rule is the enemy's clock; the gun is already on him from the hide (T4 tracking), which shortens my aim — ⛔ not measured live; the demo (`ua-tank-corner`) is where it is settled |
+
+Rails: `VehicleFightFromCoverNodesTests` (`Hrot.SimHost.Tests`, beside `PeekAndFireNodesTests`, the same faked body/weapon/EQS
+harness) · `TacticalIntentResolutionSystemTests.V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` (production registry) ·
+`CuratedBehaviorRegistrarTests.SR_R2` (the two names).
 
 **The library behaviour and the order:** a curated C# BTree `VehicleFightFromCover` (`Group = "Library/Vehicle"`, scope: any armed land
 vehicle) = `Sequence(the node)`; and **`LandPlatformAttack`** (R-278: `<Class><Order>`, more specific than `PlatformAttack`) maps the
@@ -386,8 +410,8 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 | `V3_AVehicleHide_StandsOffByItsHull_AndAPersonsPointsDoNotMove` | `TerrainEqsTests` |
 | `V3_OverheadCover_SeesTheGarageDeck_NotTheOpenSky` | `TerrainEqsTests` (test-town) |
 | goldens for the three templates | `EqsFlatTerrainGoldenTests` |
-| `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · `V4_ATechnical_Scoots_ToANewHide_EveryTime` · `V4_TheBudget_IsTheAtGunnersAimTime` · `V4_ANearMiss_CutsTheExposure` · `V4_Guiding_Holds_TheFiringPoint` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
-| `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
+| ✅ `V4_TheCycle_HidesExposesFiresAndReverses_ToTheSameHide` · ✅ `V4_ATechnical_Scoots_ToANewHide_EveryTime` · ✅ `V4_TheBudget_IsTheAtGunnersAimTime` · ✅ `V4_ANearMiss_CutsTheExposure` · ✅ `V4_Guiding_Holds_TheFiringPoint` · *(as-built, also)* ✅ `V4_ATank_ExposesTwiceFromOneHide_ThenRelocates` · `V4_TheBudget_CountsOnlyASeenDangerousThreat` · `V4_ALaunchHeard_TowardTheThreat_CutsTheExposure` · `V4_NothingInSight_Watches_ThenWithdraws_OrFiresWhenHeShowsHimself` · `V4_UnderFireOrReloading_StaysHidden` · `V4_Leaving_ReleasesEverything_ButTheMemory` · `V4_NothingRemembered_Succeeds` · `V4_AutoWithdraw_ReversesATank_ScootsATechnical` | new `VehicleFightFromCoverNodesTests` (Hrot.SimHost.Tests, beside `PeekAndFireNodesTests`) |
+| ✅ `V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` | `TacticalIntentResolutionSystemTests` |
 | V5 rails (§5) | `CarKinematicsSystemTests`, `BicycleModelTests` |
 | `V8_AHeardDrone_Raises_AirThreat` · `V8_ShelterFromAir_GoesUnderTheDeck_OrKeepsMoving` · `V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc` | `ThreatEvaluationSystemTests`, new `ShelterFromAirNodesTests`, `AimAndFireExecutorTests` |
 | demos: `ua-tank-corner`, `ua-ifv-standoff`, `ua-technical-scoot`, `ua-tank-ammo`, `ua-javelin-lock`, `ua-drone-shelter` | `scripts/utility-demo-check.py` |
