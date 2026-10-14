@@ -312,6 +312,16 @@ namespace Hrot.Common.Systems
                     }
                 }
 
+                // 3.6 ⭐⭐ Weapon systems WS-4 (W-I, R-138; DESIGN_Weapon_Systems §4d) — the host's SEAT PRESETS (an M2 for its station, a
+                //   rifleman for its gunner seat) are filled ONCE, here, by the node servicing its creation: the host is marked filled
+                //   (SeatPresetsFilled, saved), so a scenario load — whose request carries that mark — never fills them again.
+                var seatPresets = Hrot.Common.EntityCreation.SeatPresets.ToFill(parentTemplate, allComponents);
+                if (seatPresets.Count > 0)
+                {
+                    fallbackComponents ??= new List<object>();
+                    fallbackComponents.Add(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 });
+                }
+
                 // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
                 if (view is EntityRepository repo)
                 {
@@ -371,6 +381,49 @@ namespace Hrot.Common.Systems
                             };
                             dtoCmd.Grants.AddRange(grants);
                             repo.Bus.PublishManaged(dtoCmd);
+                        }
+                    }
+
+                    // 4c. ⭐⭐ WS-4 (W-I) — one spawn per seat preset, beside the host (the child-blueprint pattern below): of the host's
+                    //   side, at its place, inheriting its owner, init type and transience; SeatPresetSystem boards each into its seat.
+                    if (seatPresets.Count > 0)
+                    {
+                        var force = Hrot.Common.EntityCreation.SeatPresets.ForceOf(parentTemplate, allComponents);
+                        foreach (var (seat, presetType) in seatPresets)
+                        {
+                            long presetId = _idAllocator.AllocateId();
+                            _tkbDb.TryGetByType(presetType, out var presetTemplate);
+                            ulong presetDis = presetTemplate?.DisType.Value ?? 0UL;
+                            repo.Bus.PublishManaged(new SpawnEntityCommand
+                            {
+                                NetworkId           = presetId,
+                                TkbType             = presetType,
+                                OwnerNodeId         = assignedOwner,
+                                DisType             = presetDis,
+                                InitType            = pending.Request.InitType,
+                                ReliableInitTimeout = pending.Request.ReliableInitTimeout,
+                                IsTransient         = pending.Request.IsTransient,
+                                SpawnHeight         = pending.Request.SpawnHeight,
+                                InitialTransform    = initialTransform,
+                                InitialVelocity     = initialVelocity,
+                                InitialComponents   = new List<object>
+                                {
+                                    new Fdp.Core.EntityInfo { Name = presetTemplate?.Name ?? $"preset-{seat}", ForceId = force },
+                                    new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = pending.NetworkId, Seat = (byte)seat },
+                                },
+                                RequestId           = Guid.NewGuid(),
+                            });
+                            if (_ownershipStrategy != null)
+                            {
+                                var presetGrants = _ownershipStrategy.GetInitialGrants(new GrantRequest(
+                                    new Fdp.Core.DISEntityType { Value = presetDis }, presetTemplate, assignedOwner));
+                                if (presetGrants != null && presetGrants.Count > 0)
+                                {
+                                    var presetCmd = new Fdp.Toolkit.NetworkSpawning.Events.DeferredTakeOwnershipCommand { NetworkId = presetId };
+                                    presetCmd.Grants.AddRange(presetGrants);
+                                    repo.Bus.PublishManaged(presetCmd);
+                                }
+                            }
                         }
                     }
 

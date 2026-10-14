@@ -167,6 +167,19 @@ namespace Fdp.Toolkit.Combat
             return 0;
         }
 
+        /// <summary>
+        /// ⭐ WS-4 — the entity whose <see cref="Components.WeaponState"/> is <paramref name="unit"/>'s PRIMARY weapon: the unit itself when
+        /// it carries one, else its first controlled weapon system (a bare pickup's M2 — <see cref="PrimaryMount"/>), else null (unarmed).
+        /// ⭐ The one answer to "is this unit armed, and with what?" for readers that used to look for a WeaponState on the unit itself
+        /// (the utility inputs, <c>ThreatDanger.OwnStrength</c>): a unit with its own gun reads exactly as before.
+        /// </summary>
+        public static Entity WeaponOf(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<Components.WeaponState>()) return Entity.Null;
+            if (world.HasComponent<Components.WeaponState>(unit)) return unit;
+            return IsControlledIndex(PrimaryMount(world, unit, out var weapon)) ? weapon : Entity.Null;
+        }
+
         /// <summary>The mount index <paramref name="weapon"/> has in <paramref name="unit"/>'s mount list, or −1 when the unit does not
         /// control it.</summary>
         public static int IndexOf(EntityRepository world, Entity unit, Entity weapon)

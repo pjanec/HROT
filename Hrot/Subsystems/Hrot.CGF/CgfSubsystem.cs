@@ -1062,13 +1062,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    true by construction for all three rather than two.
         _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
         _context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
+        _context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
 
         // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
         //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);

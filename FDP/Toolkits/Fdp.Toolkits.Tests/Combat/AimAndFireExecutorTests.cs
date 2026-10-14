@@ -2069,6 +2069,54 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponTaskMode.Idle, _world.GetComponent<WeaponTask>(part).Mode);   // released when done
         }
 
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-D) — <c>TrackTarget</c> on a BARE host (mount 0, the primary) slews its station weapon's turret, as AimAndFire fires
+        /// it. 📌 Found by the split-cluster rail: the technical's tree tracks before it fires, and the tracker looked for a mount on the
+        /// pickup itself — it failed every frame, so the station M2 never fired. ✅ Red-proof: the tracker without the platform routing ⇒
+        /// Failure, the M2's turret never ordered ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS_TrackTarget_OnABareHost_SlewsItsStationWeaponsTurret()
+        {
+            var (pickup, m2, _, channel, target) = Technical(rounds: 3);
+            var tracker = new TrackTargetExecutor();
+            unsafe
+            {
+                *(TrackTargetParams*)channel.Params = new TrackTargetParams { Target = target, Mount = 0 };
+            }
+            tracker.OnEnter(pickup, ref channel, _world);
+            tracker.Execute(pickup, ref channel, _world, 0.1f);
+
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            var part = TurretParts.Find(_world, m2, 0);
+            Assert.True(_world.HasComponent<WeaponTask>(part), "the M2's turret is ordered");
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(part).Mode);
+            Assert.Equal(target, _world.GetComponent<WeaponTask>(part).Target);
+            Assert.Equal(0, _world.GetComponent<WeaponTask>(part).MountIndex);   // the weapon's own mount 0
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-4 — a BARE host is armed with its station weapon for every reader that asks "is this unit armed, with what?"
+        /// (<see cref="WeaponSystems.WeaponOf"/>): the utility inputs read the M2's belt and readiness, and its own strength is not
+        /// "unarmed". 📌 Found by the split-cluster rail: the engage decision scored 0 (WeaponHasAmmo read the pickup, which has no
+        /// WeaponState), so the technical never fought. ✅ Red-proof: the inputs reading ctx.Self only ⇒ 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS_ABareHost_IsArmedWithItsStationWeapon_ForTheUtilityInputs_AndItsStrength()
+        {
+            var (pickup, m2, _, _, target) = Technical(rounds: 3);
+            Assert.Equal(m2, WeaponSystems.WeaponOf(_world, pickup));
+            var ctx = new Fdp.Toolkit.Utility.UtilityInputCtx { Repo = _world, Self = pickup, Context = target };
+            Assert.Equal(1f, Fdp.Toolkit.Utility.StandardInputs.WeaponHasAmmo(in ctx));
+            var belt = _world.GetComponent<WeaponState>(m2);   // the M2's own belt, read through the pickup
+            Assert.Equal(belt.MaxAmmo == 0 ? 0f : System.Math.Clamp((float)belt.Ammo / belt.MaxAmmo, 0f, 1f),
+                         Fdp.Toolkit.Utility.StandardInputs.AmmoFraction(in ctx), 3);
+            Assert.True(Fdp.Toolkit.Utility.StandardInputs.RoundsLeft(in ctx) > 0f);
+            Assert.Equal(1f, Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(_world, pickup), 3);
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.Of(_world, target, pickup) > Fdp.Toolkit.Perception.ThreatDanger.Unarmed,
+                "to its enemy the bare pickup is armed (its M2), not an unarmed contact");
+        }
+
         /// <summary>⭐ WS-3 (§6 CanFire, W-I) — a NeedsGunner station whose gunner seat is EMPTY: the pickup's brain holds; no round, the
         /// M2's belt untouched, its turret idle. ✅ Red-proof: CanFire without the NeedsGunner check ⇒ the empty pickup fires ⇒ red.</summary>
         [Fact]

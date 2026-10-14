@@ -43,6 +43,7 @@ namespace Hrot.SimHost.Serializers
         {
             var buffer = repo.GetComponent<PassengerBuffer>(entity);
             var passengers = new JsonArray();
+            var seats = new JsonArray();   // ⭐ WS-4 (W-I) — the seat of each, so a crew seat and a station come back as they were
 
             for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat (a slot IS a seat; holes are skipped)
             {
@@ -51,6 +52,7 @@ namespace Hrot.SimHost.Serializers
                     continue;  // skip stale/null — not in the save map
 
                 passengers.Add(resolver.Resolve(passenger));
+                seats.Add(i);
             }
 
             return new Dictionary<string, object>
@@ -59,6 +61,7 @@ namespace Hrot.SimHost.Serializers
                 {
                     ["Count"]      = buffer.Count,
                     ["Passengers"] = passengers,
+                    ["Seats"]      = seats,
                 }
             };
         }
@@ -72,14 +75,16 @@ namespace Hrot.SimHost.Serializers
 
             int count      = obj["Count"]?.GetValue<int>() ?? 0;
             var passengers = obj["Passengers"] as JsonArray;
+            var seats      = obj["Seats"] as JsonArray;   // ⭐ WS-4 — absent in an older save
 
             var intent = new InitialPassengersIntent();
 
             if (passengers != null)
             {
-                int filled = 0;
+                int filled = 0, index = -1;
                 foreach (var item in passengers)
                 {
+                    index++;
                     if (filled >= count || filled >= PassengerBuffer.Capacity) break;
 
                     var guidStr = item?.GetValue<string>();
@@ -93,9 +98,11 @@ namespace Hrot.SimHost.Serializers
 
                     long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
                     intent.PassengerNetworkIds.Add(new EntityRef(networkId));
+                    if (seats != null && index < seats.Count) intent.Seats.Add(seats[index]!.GetValue<int>());
                 }
             }
 
+            if (intent.Seats.Count != intent.PassengerNetworkIds.Count) intent.Seats.Clear();   // all seats or none
             repo.SetManagedComponent(entity, intent);
         }
 

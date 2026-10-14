@@ -24,7 +24,9 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CE-3080 (R-214) — a KILLED (⭐ CE-2155: or incapacitated) unit is no danger: its entity stays (Health 0) and still carries WeaponState, so
             //   it used to read as armed for every threat reader. Here, once, for all of them. 📄 DESIGN_Sensors_And_Doctrine §7.8a.
             if (IsOutOfTheFight(view, target)) return 0f;
-            if (!view.HasComponent<WeaponState>(target)) return Unarmed;
+            // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is as armed as its gun
+            if (!view.HasComponent<WeaponState>(target)
+                && !(view is EntityRepository r && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(r, target).IsNull)) return Unarmed;
             // ⭐ CE-2165 V1 — to a VEHICLE, danger is what the target's weapons can do to MY armour (DESIGN_Vehicle_Exposure_Cycle §2).
             if (view is EntityRepository repo && ToMe(repo, self, target, out float toMe)) return toMe;
             return 1f;
@@ -59,6 +61,11 @@ namespace Fdp.Toolkit.Perception
             if (!MyArmour(view, db, self, out var mine)) return false;
             if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, target, out var template)) return false;
             var suite = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
+            // ⭐ WS-4 — a bare host's mounts are its station weapon's (the danger is its gun, judged from where the host stands)
+            if ((suite == null || suite.Mounts.Count == 0) && view is EntityRepository host
+                && Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(host, target) is var gun && !gun.IsNull && gun != target
+                && Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, gun, out var gunTemplate))
+                suite = gunTemplate.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
             if (suite == null || suite.Mounts.Count == 0) return false;
             if (!view.HasComponent<SimTransform>(self) || !view.HasComponent<SimTransform>(target)) return false;
 
@@ -215,7 +222,10 @@ namespace Fdp.Toolkit.Perception
                 ref readonly var h = ref view.GetComponentRO<Health>(self);
                 health = h.Max > 0f ? System.Math.Clamp(h.Current / h.Max, 0f, 1f) : 0f;
             }
-            return health * (view.HasComponent<WeaponState>(self) ? 1f : Unarmed);
+            // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is armed too
+            bool armed = view.HasComponent<WeaponState>(self)
+                         || view is EntityRepository repo && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(repo, self).IsNull;
+            return health * (armed ? 1f : Unarmed);
         }
     }
 

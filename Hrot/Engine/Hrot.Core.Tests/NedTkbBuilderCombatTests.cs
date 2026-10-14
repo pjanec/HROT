@@ -127,6 +127,10 @@ namespace Hrot.Map.Common.Tests
         /// to speak of (5 mm, roof 3), 300 hp and a mobility kill below 60 %, its weapon on a pintle — the HMG all round and up to +70°
         /// (it can fire at a drone) and on the move, the ATGM ±120° and halted for the flight — a 2.2 m eye in the bed, 2 km sight,
         /// heard as a wheeled engine, DIS small wheeled utility vehicle, hostile.
+        /// ⭐⭐ WS-4 (W-F, W-I; DESIGN_Weapon_Systems §5) — re-pinned THROUGH THE PRESETS, same numbers: the weapon is no longer the pickup's
+        /// type data but the weapon system its bed station starts with (<c>SeatDto.StartWith</c>), its arc that weapon's turret ∩ the
+        /// station's limits, its pivot still 1.3 m back and 1.9 m up; and a rifleman starts in the gunner seat (the steer: a gun with
+        /// nobody to fire it never fires).
         /// </summary>
         [Fact]
         public void M9_TheTechnicals_APickupWithAPintle_ShootAndScoot()
@@ -146,12 +150,22 @@ namespace Hrot.Map.Common.Tests
                 var p = t.GetDescriptor<CombatPlatformDefDto>()!;
                 Assert.Equal((5f, 5f, 5f, 3f), (p.ArmorFront, p.ArmorSide, p.ArmorRear, p.ArmorTop));
                 Assert.Equal((300f, 0.6f), (p.MaxHealth, p.MobilityKillBelowFraction));
+                Assert.Null(t.GetDescriptor<WeaponSuiteDto>());   // ⭐ WS-4 — the pickup has no gun of its own
 
-                var turret = t.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
-                Assert.Equal(elevMax, turret.ElevationMaxDeg);
-                Assert.Equal((-traverse, traverse), (turret.TraverseMinDeg, turret.TraverseMaxDeg));
+                var seats = t.GetDescriptor<CarrierDefDto>()!.Seats;
+                var station = System.Linq.Enumerable.Single(seats, s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
+                Assert.Equal(TkbEntityTypes.Infantry_Rifleman,
+                    System.Linq.Enumerable.Single(seats, s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Gunner).StartWith);
+                var gun = db.GetByType(station.StartWith)!;
+                Assert.NotNull(gun.GetDescriptor<WeaponSystemDto>());
+                var turret = gun.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
+                Assert.Equal(elevMax, System.MathF.Min(turret.ElevationMaxDeg, station.ElevationMaxDeg ?? float.MaxValue));
+                Assert.Equal(traverse, System.MathF.Min(turret.TraverseMaxDeg, station.TraverseMaxDeg ?? float.MaxValue));
+                Assert.Equal(-traverse, System.MathF.Max(turret.TraverseMinDeg, station.TraverseMinDeg ?? float.MinValue));
+                Assert.Equal(-1.3f, station.X);                                         // the M9 pintle's pivot
+                Assert.Equal(1.9f, station.Z + turret.PivotZ, 4);
 
-                var weapon = System.Linq.Enumerable.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+                var weapon = System.Linq.Enumerable.Single(gun.GetDescriptor<WeaponSuiteDto>()!.Mounts);
                 Assert.Equal((category, onTheMove, ammo, 0), (weapon.Category, weapon.FireOnMove!.Value, weapon.AmmoGuid, weapon.TurretIndex));
                 Assert.Equal(0f, weapon.Penetration);   // the round's own (the munition template)
 
@@ -161,6 +175,50 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal((1, 1, 6), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category));
                 Assert.Equal(Fdp.Core.ForceId.Hostile, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — the catalogue: nine weapon-system types (600–608), each a
+        /// <c>Gen.WeaponSystem</c> entity of DIS class 1.1.*.50 with its gun as mount 0; the crew-served ones are manned (a Gunner seat, a
+        /// loader's for a two-man weapon) and turret-mounted, the shoulder ones carried and fired carried; the sentry gun is automatic (no
+        /// seat, a sensor). Every one has a brain (it holds unless the weapon controls itself, §6). The bare Toyota (106) has a driver, a gunner and one pintle station the gunner operates, empty.
+        /// </summary>
+        [Fact]
+        public void WS4_TheWeaponSystems_AndTheBarePickup()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, kinds, portable, manned, turret, sub) in new[]
+                     {
+                         (TkbEntityTypes.WeaponSystem_M2Hmg, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 1),
+                         (TkbEntityTypes.WeaponSystem_DshkHmg, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 1),
+                         (TkbEntityTypes.WeaponSystem_M134Minigun, MountKinds.Door | MountKinds.Pintle, WeaponPortability.Static, 1, true, 2),
+                         (TkbEntityTypes.WeaponSystem_Javelin, MountKinds.Ground | MountKinds.Carried, WeaponPortability.OneMan, 1, false, 3),
+                         (TkbEntityTypes.WeaponSystem_Nlaw, MountKinds.Ground | MountKinds.Carried, WeaponPortability.OneMan, 1, false, 4),
+                         (TkbEntityTypes.WeaponSystem_Law, MountKinds.Carried, WeaponPortability.OneMan, 1, false, 4),
+                         (TkbEntityTypes.WeaponSystem_KornetTripod, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 3),
+                         (TkbEntityTypes.WeaponSystem_TowTripod, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.TwoMan, 2, true, 3),
+                         (TkbEntityTypes.WeaponSystem_SentryGun, MountKinds.Ground | MountKinds.Pintle, WeaponPortability.Static, 0, true, 5),
+                     })
+            {
+                var t = db.GetByType(type)!;
+                var ws = t.GetDescriptor<WeaponSystemDto>()!;
+                Assert.Equal((kinds, portable), (ws.MountKinds, ws.Portable));
+                Assert.Equal(portable == WeaponPortability.OneMan, ws.FireWhileCarried);
+                Assert.Equal((1, 1, 50, sub), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category, (int)t.DisType.Subcategory));
+                Assert.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+                Assert.Equal(turret, t.GetDescriptor<TurretSuiteDto>() != null);
+                Assert.Equal(manned, t.GetDescriptor<CarrierDefDto>()?.Seats.Count ?? 0);
+                Assert.Equal(manned == 0, !ws.NeedsOperator);
+                Assert.NotNull(t.GetDescriptor<BehaviorProfileDto>());   // §6 — every one has a brain (it holds unless the weapon controls itself)
+                Assert.Equal(manned == 0, t.GetDescriptor<SensorCapabilitiesDto>() != null);   // W-E — only the automatic one sees
+            }
+
+            var pickup = db.GetByType(TkbEntityTypes.Pickup_Toyota)!;
+            var seats = pickup.GetDescriptor<CarrierDefDto>()!.Seats;
+            Assert.Equal(new[] { Fdp.Toolkit.Behavior.Components.SeatRole.Driver, Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
+                                 Fdp.Toolkit.Behavior.Components.SeatRole.Station }, System.Linq.Enumerable.Select(seats, s => s.Role));
+            Assert.Equal((MountKinds.Pintle, 1, true, 0L), (seats[2].Accepts, seats[2].OperatedBy, seats[2].NeedsGunner, seats[2].StartWith));
+            Assert.All(seats, s => Assert.Equal(0L, s.StartWith));   // bare
         }
 
         /// <summary>

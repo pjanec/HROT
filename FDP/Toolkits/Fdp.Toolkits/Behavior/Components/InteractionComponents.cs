@@ -192,6 +192,34 @@ namespace Fdp.Toolkit.Behavior.Components
         public readonly bool IsStation(int seat) => seat >= 0 && seat < PassengerBuffer.Capacity && (StationMask & (1 << seat)) != 0;
     }
 
+    /// <summary>
+    /// ⭐⭐ Weapon systems WS-4 (W-I, R-138; DESIGN_Weapon_Systems §4d, §6) — this host's seat presets (<c>SeatDto.StartWith</c>: the M2 in its
+    /// station, the gunner in its seat) have been filled, once, on the node that created it. ⭐ SAVED with the scenario, so a load never
+    /// fills them again — a seat the user emptied stays empty and no second gunner appears; a host loaded WITHOUT it (a scenario saved
+    /// before the presets existed) is filled on load. Never replicated: only the creating node reads it.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.SeatPresetsFilled)]
+    public struct SeatPresetsFilled
+    {
+        /// <summary>1 once filled.</summary>
+        public byte Filled;
+    }
+
+    /// <summary>
+    /// ⭐ WS-4 (W-I) — a preset passenger's place, written at its creation by <c>CreateEntityRequestSystem</c> and consumed by
+    /// <c>SeatPresetSystem</c> the frame its host is there: board <see cref="Seat"/> of the host whose network id is
+    /// <see cref="HostNetworkId"/>, then this is removed. Transient — the creating node only, never saved, never replicated.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.PresetSeatIntent)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct PresetSeatIntent
+    {
+        public long HostNetworkId;
+        public byte Seat;
+    }
+
     /// <summary>⭐ WS-1 — one station seat: a <see cref="CarrierStations"/> slot (angles in radians, the place in the host's frame).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct StationSeat

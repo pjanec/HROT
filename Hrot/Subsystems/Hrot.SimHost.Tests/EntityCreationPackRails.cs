@@ -281,12 +281,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(string.Empty, creation.Unserviceable(new object[]
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
-                creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem,
+                creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -296,6 +296,7 @@ namespace Hrot.SimHost.Tests
             Assert.Contains("FinalizationSystem", missingAll);
             Assert.Contains("PromotionSystem", missingAll);
             Assert.Contains("ObstacleBakeSystem", missingAll);
+            Assert.Contains("SeatPresetSystem", missingAll);
         }
 
         /// <summary>
@@ -461,7 +462,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(string.Empty, creation.Unserviceable(new object[]
             {
                 creation.RequestSystem, creation.SpawnSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
             }));
         }
 
@@ -641,6 +642,22 @@ namespace Hrot.SimHost.Tests
             Assert.True(src.Contains("creation.ObstacleBakeSystem"),
                 $"{rootPath} builds EntityCreationPack but never schedules creation.ObstacleBakeSystem: every static obstacle on " +
                 "this host would stay Constructing until the lifecycle timeout destroys it.");
+        }
+
+        /// <summary>
+        /// ⭐ Weapon systems WS-4 (W-I) — every production root that builds the pack SCHEDULES the seat-preset boarder: a host with presets
+        /// (a technical) gets its gun and gunner created beside it, and only this system boards them. 🔴 Red-proof: delete the
+        /// <c>creation.SeatPresetSystem</c> registration from any one root.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(RootsThatBuildThePack))]
+        public void EveryRootThatBuildsThePack_SchedulesTheSeatPresets(string rootPath)
+        {
+            var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(rootPath));
+            Assert.True(src.Contains("EntityCreationPack.Build"), $"{rootPath} no longer builds the pack, so this row cannot assert anything.");
+            Assert.True(src.Contains("RegisterGlobalSystem(creation.SeatPresetSystem)"),
+                $"{rootPath} builds EntityCreationPack but never schedules creation.SeatPresetSystem: a technical's gun and gunner would stand " +
+                "beside it, never boarded.");
         }
 
         private sealed class CountingTranslator : ITkbEntityTranslator

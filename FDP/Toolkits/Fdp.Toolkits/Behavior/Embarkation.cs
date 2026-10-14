@@ -131,6 +131,32 @@ namespace Fdp.Toolkit.Behavior
             return Seat(repo, passenger, vehicle, seat, mode);
         }
 
+        /// <summary>
+        /// ⭐⭐ WS-4 (W-I) — <paramref name="passenger"/> boards seat <paramref name="seat"/> of <paramref name="vehicle"/> exactly: a weapon
+        /// system only a station that accepts it, a man only a seat that is no station. ⭐ The preset path (<c>SeatPresetSystem</c>) and a
+        /// scenario load (the saved seat) — the seat is the TYPE's, not the first free one of a role. Same results as
+        /// <see cref="TryEmbark"/>; <see cref="EmbarkResult.Full"/> when that seat is taken.
+        /// </summary>
+        public static EmbarkResult TryEmbarkAt(EntityRepository repo, Entity passenger, Entity vehicle, int seat)
+        {
+            if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
+            if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
+            int aboard = SlotOf(repo, passenger, vehicle);
+            if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            int seats = Has<CarrierSeats>(repo, vehicle) ? System.Math.Min((int)repo.GetComponentRO<CarrierSeats>(vehicle).SeatCount, PassengerBuffer.Capacity)
+                                                         : PassengerBuffer.Capacity;
+            if (seat < 0 || seat >= seats) return EmbarkResult.Invalid;
+            bool station = Has<CarrierStations>(repo, vehicle) && repo.GetComponentRO<CarrierStations>(vehicle).IsStation(seat);
+            if (IsWeaponSystem(repo, passenger))
+            {
+                if (!station || (repo.GetComponentRO<CarrierStations>(vehicle).Seats[seat].Accepts
+                                 & repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(passenger).MountKinds) == 0) return EmbarkResult.Invalid;
+            }
+            else if (station) return EmbarkResult.Invalid;
+            if (!repo.GetComponentRO<PassengerBuffer>(vehicle).Passengers[seat].IsNull) return EmbarkResult.Full;
+            return Seat(repo, passenger, vehicle, seat, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated);
+        }
+
         private static EmbarkResult Seat(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode)
         {
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);

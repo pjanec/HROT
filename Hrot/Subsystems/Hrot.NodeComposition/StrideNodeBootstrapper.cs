@@ -510,13 +510,14 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
             context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
             context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
+            context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
 
             // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
             //   was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
             }.Concat(creation.NetworkSystems));
             if (unserviceable.Length > 0)
                 FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);

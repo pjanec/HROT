@@ -1787,13 +1787,14 @@ namespace Hrot.Editor
             //   that skipped it would warn forever through Unserviceable().
             _kernel.RegisterGlobalSystem(creation.PromotionSystem);
             _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
+            _kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
 
             // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
             //   design was silent.
             var unserviceable = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem,
+                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
             });
             if (unserviceable.Length > 0)
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);

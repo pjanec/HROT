@@ -112,6 +112,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
         // ⭐ Weapon systems WS-1 (R-2016) — a host's station seats; a weapon system's handling and its replicated deploy state.
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.SeatPresetsFilled>();   // ⭐ WS-4 (W-I)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty

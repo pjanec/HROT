@@ -124,5 +124,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, arr.Count);
             Assert.Equal("guid-p", arr[0]?.GetValue<string>());
         }
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-4 (W-I) — a save keeps each passenger's SEAT: a technical's gunner (seat 1) and its M2 (seat 2, the
+        /// station) come back into those seats, not into the first free one of a role (a pickup has no passenger seat at all, so the old
+        /// load refused both). A save written before seats were saved still loads, with the seats left to the boarding rules.
+        /// ✅ Red-proof: Extract without "Seats" ⇒ the intent carries no seats ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_TheSeats_SurviveASaveAndLoad()
+        {
+            var gunner = _repo.CreateEntity();
+            _repo.SetComponent(gunner, new NetworkIdentity { Value = 41L });
+            var m2 = _repo.CreateEntity();
+            _repo.SetComponent(m2, new NetworkIdentity { Value = 42L });
+            var pickup = _repo.CreateEntity();
+            var buffer = new PassengerBuffer();
+            buffer.Passengers[1] = gunner;
+            buffer.Passengers[2] = m2;
+            buffer.Count = 2;
+            _repo.SetComponent(pickup, buffer);
+            var resolver = new StubResolver();
+            resolver.Register(gunner, "guid-gunner");
+            resolver.Register(m2, "guid-m2");
+
+            var dom = new PassengerBufferTranslator().Extract(_repo, pickup, resolver);
+            var loaded = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, loaded, dom, resolver);
+
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(loaded)!;
+            Assert.Equal(new[] { 41L, 42L }, intent.PassengerNetworkIds.ConvertAll(r => r.NetworkId));
+            Assert.Equal(new[] { 1, 2 }, intent.Seats);
+
+            var older = new Dictionary<string, object> { ["PassengerBuffer"] = new JsonObject
+                { ["Count"] = 1, ["Passengers"] = new JsonArray { "guid-gunner" } } };
+            var old = _repo.CreateEntity();
+            new PassengerBufferTranslator().Inject(_repo, old, older, resolver);
+            Assert.Empty(((ISimulationView)_repo).GetManagedComponentRO<InitialPassengersIntent>(old)!.Seats);
+        }
     }
 }

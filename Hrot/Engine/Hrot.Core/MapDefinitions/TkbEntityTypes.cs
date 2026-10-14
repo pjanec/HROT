@@ -11,6 +11,21 @@ namespace Hrot.Map.Common
         public const long Technical_Hmg = 104;
         /// <summary>⭐ M9 — a pickup with a command-guided ATGM: halts for the flight, then scoots.</summary>
         public const long Technical_Atgm = 105;
+        /// <summary>⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — a bare Toyota pickup: a driver, a gunner, and one bed station
+        /// (pintle) the gunner operates. 104 / 105 are this pickup with a weapon and a gunner in its seats (W-I, SeatPresets).</summary>
+        public const long Pickup_Toyota = 106;
+
+        // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
+        public const long WeaponSystem_M2Hmg = 600;
+        public const long WeaponSystem_DshkHmg = 601;
+        public const long WeaponSystem_M134Minigun = 602;
+        public const long WeaponSystem_Javelin = 603;
+        public const long WeaponSystem_Nlaw = 604;
+        public const long WeaponSystem_Law = 605;
+        public const long WeaponSystem_KornetTripod = 606;
+        public const long WeaponSystem_TowTripod = 607;
+        /// <summary>⭐ W-E — an AUTOMATIC remote weapon station: its own sensor and brain, it fights unmanned.</summary>
+        public const long WeaponSystem_SentryGun = 608;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

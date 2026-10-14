@@ -197,6 +197,7 @@ public sealed class EntityTypeCatalogTests
         103 T-72 | dis 1.1.222.1.0.0.0 | family Tank | folder Platform/Land/Russia/Tank | icon _tank
         104 Technical (HMG) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         105 Technical (ATGM) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        106 Pickup (Toyota) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
@@ -207,6 +208,15 @@ public sealed class EntityTypeCatalogTests
         403 FPV drone | dis 1.2.0.50.0.0.0 | family Jet | folder Platform/Air/Unmanned Air Vehicle | icon -
         404 UH-60A Black Hawk (doors off) | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         405 A-10C Thunderbolt II | dis 1.2.225.2.0.0.0 | family Jet | folder Platform/Air/United States/Attack/Strike | icon -
+        600 M2 HMG | dis 1.1.0.50.1.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        601 DShK HMG | dis 1.1.0.50.1.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        602 M134 minigun | dis 1.1.0.50.2.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        603 Javelin | dis 1.1.0.50.3.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        604 NLAW | dis 1.1.0.50.4.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        605 M72 LAW | dis 1.1.0.50.4.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        606 Kornet (tripod) | dis 1.1.0.50.3.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        607 TOW (tripod) | dis 1.1.0.50.3.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
+        608 Sentry gun | dis 1.1.0.50.5.0.0 | family Unknown | folder Platform/Land/Weapon System (HROT) | icon -
         1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
         1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         2001 MilitaryAPC | dis 1.1.0.2.0.0.0 | family Afv | folder Platform/Land/Armored Fighting Vehicle | icon _afv
@@ -226,7 +236,8 @@ public sealed class EntityTypeCatalogTests
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the
-    /// unit Kind (11) and its arms, nothing else.</summary>
+    /// unit Kind (11) and its arms, nothing else. ⭐ Weapon systems WS-1 adds the land class 1.1.*.50 (DESIGN_Weapon_Systems §5),
+    /// deliberately.</summary>
     private const string DisNamesGolden = """
         1 Platform
         1.1 Land
@@ -240,6 +251,7 @@ public sealed class EntityTypeCatalogTests
         1.1.*.8 Small Tracked Utility Vehicle
         1.1.*.9 Large Tracked Utility Vehicle
         1.1.*.10 Mortar
+        1.1.*.50 Weapon System (HROT)
         1.1.*.81 Car
         1.2 Air
         1.2.*.1 Fighter/Air Defense
