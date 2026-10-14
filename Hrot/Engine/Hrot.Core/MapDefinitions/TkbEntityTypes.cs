@@ -55,6 +55,9 @@ namespace Hrot.Map.Common
         public const long Drone_Fpv  = 403;
         /// <summary>⭐ CE-1083 (DESIGN_Map_3D_Mode §6m C-3) — a UH-60 flown with its cabin doors off: eight riders sit in the doors, legs out.</summary>
         public const long Heli_UH60_DoorsOff = 404;
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §6, §8) — an A-10 class ATTACK AIRCRAFT (~150 m/s): a FixedWing flyer with four
+        /// Mk-82 bombs (munition 6022) on a Bomb mount, released by the weapon brain's Release profile.</summary>
+        public const long Jet_AttackA10 = 405;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

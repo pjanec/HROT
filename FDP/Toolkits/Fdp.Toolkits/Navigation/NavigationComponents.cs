@@ -100,6 +100,18 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>Destination reached; command finalised.</summary>
         Completed = 4,
+
+        // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5) — an aircraft on a route; appended (the wire carries a byte).
+        /// <summary>Climbing off the ground to the route.</summary>
+        TakingOff = 5,
+        /// <summary>Descending onto a Ground waypoint.</summary>
+        Landing = 6,
+        /// <summary>On its gear at a Ground waypoint (a timed hold, or the end of the route).</summary>
+        Landed = 7,
+        /// <summary>Holding at an <c>Unload</c> waypoint until its Brain releases it (<c>NavigationIntent.ReleaseHold</c>).</summary>
+        Unloading = 8,
+        /// <summary>Holding at a <c>Pickup</c> waypoint until its Brain releases it.</summary>
+        Loading = 9,
     }
 
     /// <summary>
@@ -319,6 +331,14 @@ namespace Fdp.Toolkit.Navigation
 
         /// <summary>⭐ CE-3026 — force a backend (0 Auto, 1 NavMesh, 2 RoadGraph, 3 Volumetric), from <c>MoveToParams.BackendForce</c>.</summary>
         public byte BackendForce;
+
+        /// <summary>⭐ Air Ops slice 2 — the Brain releases the aircraft's current Unload / Pickup hold (<see cref="NavigationConstants.FlagBitReleaseHold"/>).</summary>
+        public bool ReleaseHold
+        {
+            readonly get => (Flags & (1 << NavigationConstants.FlagBitReleaseHold)) != 0;
+            set => Flags = value ? (byte)(Flags | (1 << NavigationConstants.FlagBitReleaseHold))
+                                 : (byte)(Flags & ~(1 << NavigationConstants.FlagBitReleaseHold));
+        }
 
         /// <summary>⭐ CE-3128 — the order's road use, packed in <see cref="Flags"/> bits 5–7 (<see cref="NavigationConstants.FlagShiftRoadUse"/>).</summary>
         public RoadUse RoadUse

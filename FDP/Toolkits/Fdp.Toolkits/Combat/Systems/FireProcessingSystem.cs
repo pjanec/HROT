@@ -183,6 +183,21 @@ namespace Fdp.Toolkit.Combat.Systems
                 var missile = CombatTkb.MissileOf(repo, ammo);
                 if (missile != null && missile.SpeedMps > 0f && (warheadBits & WarheadRound.Arc) == 0) velocity = flight * missile.SpeedMps;
 
+                // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A4) — an AIR-domain shooter launches with its own velocity: a BOMB leaves
+                //   its rack at the carrier's velocity + 1 m/s down from the body itself and falls (Arc) — the same step BombBallistics
+                //   predicts; any other round adds the carrier's velocity to its own. ⛔ A ground shooter is unchanged.
+                if (Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter))
+                {
+                    var carrier = repo.GetComponentRO<SimVelocity>(shooter).Linear;
+                    if (firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb)
+                    {
+                        velocity = BombBallistics.Launch(carrier);
+                        warheadBits |= WarheadRound.Arc;
+                        origin = repo.GetComponentRO<SimTransform>(shooter).Position;
+                    }
+                    else velocity += carrier;
+                }
+
                 // ⭐ LR-1 (DESIGN_Visual_Effects.md §8.5, R-271) — the round's munition TYPE: the mount's ammo, or, one shot in
                 //   TracerEvery, its tracer. Only WHAT the round is changes (drawn + replicated, PR-F) — damage, penetration and
                 //   warhead stay the mount's, computed above and below from the mount.

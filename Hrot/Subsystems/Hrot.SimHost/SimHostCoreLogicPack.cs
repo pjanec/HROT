@@ -50,7 +50,9 @@ namespace Hrot.SimHost
         private readonly CombatModule                _combatModule;
         private readonly DamageAssessmentModule      _damageAssessmentModule;
         private readonly GroundKinematicsModule      _groundKinematicsModule;
-        private readonly Fdp.Toolkit.Motion.AirMotionModule _airMotionModule = new(new Fdp.Toolkit.Motion.DroneImpactSystem());   // ⭐ M7 — after the motion
+        // ⭐ CE-2171 / Air Ops slice 2 — ONE route source for the ground bridge and the air model: a route order names the route entity
+        private readonly Hrot.Map.Common.Components.HrotRouteSource _routes = new();
+        private readonly Fdp.Toolkit.Motion.AirMotionModule _airMotionModule;   // ⭐ M7 — after the motion
         private readonly NetworkEntityMap            _entityMap;
 
         // ── Navigation bridge systems ─────────────────────────────────────────
@@ -115,9 +117,10 @@ namespace Hrot.SimHost
                 roadNetwork,
                 trajectoryPool,
                 formationTemplateManager);
+            _airMotionModule        = new Fdp.Toolkit.Motion.AirMotionModule(_routes, new Fdp.Toolkit.Motion.DroneImpactSystem());   // ⭐ M7 + Air Ops slice 2
 
             // Navigation bridge systems
-            _navIntentBridge        = new NavigationIntentBridgeSystem { RouteSource = new Hrot.Map.Common.Components.HrotRouteSource() };   // ⭐ CE-2171
+            _navIntentBridge        = new NavigationIntentBridgeSystem { RouteSource = _routes };   // ⭐ CE-2171
             _routeTrajSync          = new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool);
             _personalRouteAuthoring = new PersonalRouteAuthoringSystem();
 

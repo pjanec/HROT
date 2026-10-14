@@ -80,14 +80,21 @@ namespace Hrot.Core.Tkb
         public const int Tkb762Ball = 6020;
         /// <summary>⭐ M5 — 7.62 mm tracer, one in five in the coax belt.</summary>
         public const int Tkb762Tracer = 6021;
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a Mk-82-class 500 lb free-fall bomb: an indirect area warhead (copied
+        /// from the library's nearest entry, <see cref="BombLibraryName"/>), dropped by the Release profile.</summary>
+        public const int TkbMk82Bomb = 6022;
 
         public const string Pg7vlName = "PG-7VL rocket", Pg7vrName = "PG-7VR rocket", LawName = "M72 LAW rocket", NlawName = "NLAW missile",
                             JavelinName = "Javelin missile", KornetName = "Kornet missile", FpvWarheadName = "FPV warhead",
                             TankHeatMpName = "120mm HEAT-MP round", TankHeFragName = "tank HE-FRAG round", HmgApName = "12.7mm AP round",
-                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer";
+                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb";
 
         /// <summary>⭐ M5 — the reference-library entries the new warheads are copied from (the nearest real one; the template's numbers win).</summary>
         public const string TankHeatLibraryName = "120mm HEAT", TankHeLibraryName = "125mm HE-frag";
+
+        /// <summary>⭐ Air Ops slice 4 — the library's largest INDIRECT HE entry, the nearest to a bomb it has. ⚠ 3 kg of explosive against
+        /// a real Mk-82's ~87 kg: the effect is a mortar round's until the library carries a bomb (reported, DESIGN_Air_Operations §8a).</summary>
+        public const string BombLibraryName = "120mm mortar HE";
 
         /// <summary>Registers the munition types. ⚠ Once per database (<c>TkbDatabase.Register</c> throws on a duplicate).</summary>
         public static void RegisterAll(ITkbDatabase tkb)
@@ -129,6 +136,9 @@ namespace Hrot.Core.Tkb
             Register(tkb, HmgApName, TkbHmgAp, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, null, 25f, 60f);
             Register(tkb, Ball762Name, Tkb762Ball, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
             Register(tkb, Tracer762Name, Tkb762Tracer, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
+            // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
+            Register(tkb, Mk82Name, TkbMk82Bomb, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(BombLibraryName) is { } bomb ? bomb with { Indirect = true } : null, 50f, 1200f);
         }
 
         /// <summary>⭐ M5 — an unguided rocket's flight: its speed and how long until it self-destructs.</summary>
@@ -184,10 +194,11 @@ namespace Hrot.Core.Tkb
                 [TkbTankHeatMp] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#3A3A3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [TkbTankHeFrag] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [Tkb762Tracer] = new() { Shape = MunitionShape.Bullet, Length = 0.033f, Diameter = 0.0078f, Tracer = true, TracerColorHex = "#FF6A30" },
+                [TkbMk82Bomb] = new() { Shape = MunitionShape.Bomb, Length = 2.2f, Diameter = 0.27f, ColorHex = "#4B5320" },
             };
 
-        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6021), whether or not it has a look: a round, never a body.</summary>
-        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= Tkb762Tracer;
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6022), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbMk82Bomb;
 
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>

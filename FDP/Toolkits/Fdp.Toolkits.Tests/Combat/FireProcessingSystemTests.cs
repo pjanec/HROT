@@ -217,6 +217,57 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var e in _world.Query().With<BallisticProjectile>().Build()) Assert.Equal(e, shot.Bullet);
         }
 
+        /// <summary>⭐ Air Ops slice 4 (docs/designs/air-attack/DESIGN_Air_Operations.md §8, A4) — an AIRCRAFT's bomb leaves from the body
+        /// with the carrier's velocity plus 1 m/s down and falls (Arc), whatever it was aimed at; a GROUND shooter that is moving keeps
+        /// today's round exactly (its muzzle speed along the aim line, nothing of its own velocity).</summary>
+        [Fact]
+        public void A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var plane = new Fdp.Interfaces.TkbTemplate("plane", 9405);
+            plane.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(plane);
+            var bomb = new Fdp.Interfaces.TkbTemplate("bomb", 9022);
+            bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto
+                { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true, BlastInjuryRadiusM = 20f, BlastLethalRadiusM = 8f, BlastLethalDamage = 1000f });
+            db.Register(bomb);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var carrier = new Vector3(150f, 0f, 0f);
+            var aircraft = SpawnShooter(new Vector3(0f, 0f, 300f));
+            _world.AddComponent(aircraft, new SimVelocity { Linear = carrier });
+            _world.AddComponent(aircraft, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            _world.AddComponent(aircraft, new TkbIdentity { TkbType = 9405 });
+            PublishIntent(aircraft, SpawnTarget(new Vector3(900f, 40f, 0f)));
+            _sys.Execute(_world, 0.016f);
+
+            var round = Assert.Single(Rounds());
+            AssertNear(carrier + new Vector3(0f, 0f, -Fdp.Toolkit.Combat.BombBallistics.EjectMps), _world.GetComponent<SimVelocity>(round).Linear);
+            AssertNear(new Vector3(0f, 0f, 300f), _world.GetComponent<SimTransform>(round).Position);   // from the body, not an eye
+            Assert.NotEqual(0, _world.GetComponent<BallisticProjectile>(round).Warhead & WarheadRound.Arc);   // it falls
+            _world.DestroyEntity(round);
+
+            // a ground shooter on the move: unchanged — its muzzle speed along the aim line
+            var truck = SpawnShooter(new Vector3(0f, 0f, 0f));
+            _world.AddComponent(truck, new SimVelocity { Linear = new Vector3(0f, 15f, 0f) });
+            PublishIntent(truck, SpawnTarget(new Vector3(100f, 0f, 0f)));
+            _sys.Execute(_world, 0.016f);
+            var shot = Assert.Single(Rounds());
+            var v = _world.GetComponent<SimVelocity>(shot).Linear;
+            Assert.Equal(800f, v.Length(), 2);
+            Assert.True(MathF.Abs(v.Y) < 1e-3f, $"no carrier velocity in a ground shot: {v}");
+        }
+
+        private System.Collections.Generic.List<Entity> Rounds()
+        {
+            var rounds = new System.Collections.Generic.List<Entity>();
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) rounds.Add(e);
+            return rounds;
+        }
+
         private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();

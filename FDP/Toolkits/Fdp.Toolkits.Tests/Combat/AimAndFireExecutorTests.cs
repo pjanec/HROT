@@ -1373,6 +1373,72 @@ namespace Fdp.Toolkit.Combat.Tests
                 AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, mount, 0f, loadedAmmo: Heat), 3);
         }
 
+        /// <summary>
+        /// ⭐ Air Ops slice 4 (docs/designs/air-attack/DESIGN_Air_Operations.md §8, A6) — the RELEASE profile: an aircraft on a level pass
+        /// with a bomb mount holds (<c>AwaitingRelease</c>, nothing spent) until <see cref="BombBallistics"/> says the impact reaches the
+        /// target, then releases at once — no sight, no aim clock — and a one-round action is done. A target 15 m off the track is never
+        /// released on.
+        /// </summary>
+        [Fact]
+        public unsafe void A6_TheReleaseProfile_WaitsForTheCue()
+        {
+            const long Plane = 9405;
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            const float Dt = 1f / 60f, H = 500f;
+            var v = new Vector3(150f, 0f, 0f);
+            var (impact, _) = BombBallistics.Impact(new Vector3(0f, 0f, H), BombBallistics.Launch(v), null, Dt);
+            var target = SpawnTarget(new Vector3(3000f, 0f, 0f));
+            float releaseX = 3000f - impact.X;
+
+            (Entity Plane, WeaponChannel Channel) Pass(Entity at)
+            {
+                var (shooter, channel) = SpawnShooter(new Vector3(releaseX - 600f, 0f, H), 4, 0f, at, 0f);
+                _world.AddComponent(shooter, new SimVelocity { Linear = v });
+                _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+                var p = Unsafe.Read<AimAndFireParams>(Unsafe.AsPointer(ref channel.Params[0]));
+                p.Rounds = 1;
+                Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+                _executor.OnEnter(shooter, ref channel, _world);
+                return (shooter, channel);
+            }
+
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingRelease,
+                AimAndFireExecutor.HoldOf(_world, Pass(target).Plane, target, CombatTkb.MountOf(_world, Pass(target).Plane, 0), 0));
+
+            var (plane, channel) = Pass(target);
+            float releasedAt = float.NaN; int released = 0;
+            for (int frame = 0; frame < 60 * 8; frame++)
+            {
+                Tick(plane, ref channel, Dt);
+                _world.Bus.SwapBuffers();
+                if (_world.Bus.Read<WeaponFireIntent>().Length > 0 && released++ == 0) releasedAt = _world.GetComponent<SimTransform>(plane).Position.X;
+                _world.GetComponentRW<SimTransform>(plane).Position += v * Dt;
+            }
+            Assert.Equal(1, released);
+            Assert.InRange(releasedAt, releaseX - v.X * Dt, releaseX + v.X * Dt);
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(3, _world.GetComponent<WeaponState>(plane).Ammo);
+
+            // off the track: never released
+            var aside = SpawnTarget(new Vector3(3000f, 15f, 0f));
+            var (wide, wideChannel) = Pass(aside);
+            for (int frame = 0; frame < 60 * 8; frame++)
+            {
+                Tick(wide, ref wideChannel, Dt);
+                _world.Bus.SwapBuffers();
+                Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
+                _world.GetComponentRW<SimTransform>(wide).Position += v * Dt;
+            }
+        }
+
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
 
         private const long M67 = 6001;

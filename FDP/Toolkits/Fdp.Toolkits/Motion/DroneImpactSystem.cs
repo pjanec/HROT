@@ -6,6 +6,7 @@ using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Physics.Math;
 using Fdp.Toolkit.Physics.Systems;
@@ -35,10 +36,13 @@ namespace Fdp.Toolkit.Motion
             bool colliders = repo.IsComponentTypeRegistered<PhysicsCollider>();
             bool rounds = repo.IsComponentTypeRegistered<BallisticProjectile>();
             bool health = repo.IsComponentTypeRegistered<Health>();
+            bool statuses = repo.IsComponentTypeRegistered<NavigationStatus>();
             var flyers = repo.Query().With<FlightState>().With<FlightParams>().With<SimTransform>().WithOwned<SimTransform>().With<SimVelocity>().Build();
             foreach (var d in flyers)
             {
                 if (repo.GetComponentRO<FlightState>(d).Airborne == 0) continue;
+                // ⭐ Air Ops slice 2 — a controlled take-off or landing meets the ground (and whoever waits beside it) on purpose
+                if (statuses && repo.HasComponent<NavigationStatus>(d) && IsGroundPhase(repo.GetComponentRO<NavigationStatus>(d).Phase)) continue;
                 var v = repo.GetComponentRO<SimVelocity>(d).Linear;
                 if (v.LengthSquared() < 1e-8f) continue;
                 var p1 = repo.GetComponentRO<SimTransform>(d).Position;
@@ -111,6 +115,11 @@ namespace Fdp.Toolkit.Motion
                 fs.VerticalSpeed = 0f;
             }
         }
+
+        /// <summary>The route phases that touch the ground on purpose (<see cref="RotorcraftModel"/>).</summary>
+        public static bool IsGroundPhase(NavigationPhase phase)
+            => phase is NavigationPhase.TakingOff or NavigationPhase.Landing or NavigationPhase.Landed
+                      or NavigationPhase.Unloading or NavigationPhase.Loading;
 
         /// <summary>The fraction along p0→p1 where the terrain first blocks it (bisected on <see cref="IWorldQuery.SightBlocked"/>, ~2 cm on
         /// a 30 m/s frame); the caller knows the whole segment is blocked.</summary>

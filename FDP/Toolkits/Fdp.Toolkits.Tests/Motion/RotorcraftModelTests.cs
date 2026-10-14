@@ -105,6 +105,37 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // no axis ⇒ it hovers
         }
 
+        /// <summary>⭐ B3 (slice 6, E5) — manual flight tilts as a route draws it: the nose down while it flies forward, rolled into a
+        /// strafe to the left (left side down); keys released, it holds its hover where it is and levels out.</summary>
+        [Fact]
+        public void B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover()
+        {
+            var d = Drone(new Vector3(0, 0, 50));
+            _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.Manual });
+            _w.SetComponent(d, new ManualDrive { Forward = 1 });
+            Run(60);
+            var (pitch, roll) = RotorcraftModel.TiltOf(_w.GetComponent<SimTransform>(d).Rotation);
+            Assert.Equal(-RotorcraftModel.MaxPitchDeg * MathF.PI / 180f, pitch, 2);   // full forward: the nose fully down
+            Assert.Equal(0f, roll, 2);
+            Assert.Equal(0f, RotorcraftModel.YawOf(_w.GetComponent<SimTransform>(d).Rotation), 3);   // the tilt does not turn it
+
+            _w.SetComponent(d, new ManualDrive { Lateral = 1 });
+            Run(60);
+            (pitch, roll) = RotorcraftModel.TiltOf(_w.GetComponent<SimTransform>(d).Rotation);
+            Assert.Equal(-RotorcraftModel.MaxBankDeg * MathF.PI / 180f, roll, 2);   // strafing left: left side down
+            Assert.Equal(0f, pitch, 2);
+
+            _w.SetComponent(d, new ManualDrive());
+            Run(60);
+            var held = _w.GetComponent<SimTransform>(d).Position;
+            Run(120);
+            var tf = _w.GetComponent<SimTransform>(d);
+            Assert.Equal(held, tf.Position);   // the hover hold: no drift
+            (pitch, roll) = RotorcraftModel.TiltOf(tf.Rotation);
+            Assert.Equal(0f, pitch, 3);
+            Assert.Equal(0f, roll, 3);
+        }
+
         /// <summary>⭐ M7 — a dead rotorcraft falls under gravity whatever it is told.</summary>
         [Fact]
         public void M7_ADeadRotorcraft_Falls()
@@ -133,12 +164,176 @@ namespace Fdp.Toolkit.Tests.Motion
             new LinearKinematicsSystem().Execute(_w, 1f);
             Assert.Equal(new Vector3(0, 0, 10), _w.GetComponent<SimTransform>(drone).Position);
 
-            Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
-            Assert.Throws<NotSupportedException>(() => Run(1));
+            // ⭐ Air Ops slice 4 — MD-H's FixedWing row is built (FixedWingModel): a plane is moved, not refused
+            var plane = Drone(new Vector3(0, 0, 100), LocomotionClass.FixedWing);
+            Run(1);
+            Assert.IsType<FixedWingModel>(MotionModelTable.Model(LocomotionClass.FixedWing));
+            Assert.NotEqual(new Vector3(0, 0, 100), _w.GetComponent<SimTransform>(plane).Position);
             Assert.Throws<NotSupportedException>(() => MotionModelTable.Model(LocomotionClass.Surface));
             Assert.Null(MotionModelTable.Model(LocomotionClass.Tracked));   // v1: the ground still runs CarKinematics
             Assert.Equal(MotionDomain.Air, Locomotions.DomainOf(LocomotionClass.Rotorcraft));
             Assert.Equal(MotionDomain.Ground, Locomotions.DomainOf(LocomotionClass.Amphibious));
+        }
+
+        // ── ⭐⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6, as-built §5b) — the route ─────────────
+
+        private const long HeliType = 9404;
+        private const float RestZ = 1.75f;   // the gear's tyres 1.75 m under the reference point (the UH-60's figures)
+
+        private sealed class Routes : IRouteSource
+        {
+            public readonly System.Collections.Generic.List<NavRouteWaypoint> Waypoints = new();
+            public bool TryGetTrajectory(EntityRepository repo, long routeNetworkId, out int trajectoryId) { trajectoryId = 0; return false; }
+            public bool TryGetRoute(EntityRepository repo, long routeNetworkId, System.Collections.Generic.List<NavRouteWaypoint> into, out bool loop, out int version)
+            {
+                into.Clear(); into.AddRange(Waypoints); loop = false; version = 1;
+                return into.Count > 0;
+            }
+        }
+
+        private (Entity heli, AirMotionSystem air, Routes routes) Heli(Vector3 at, bool onTheGround)
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("heli", HeliType);
+            t.AddDescriptor(new BodyGeometryDto
+            {
+                ReferencePoint = ReferencePointKind.CentreOfGravity,
+                GroundContacts =
+                {
+                    new GroundContactPoint { Name = "main left",  X = 2.6f,  Y = 1.35f, Z = -RestZ, Kind = GroundContactKind.Wheel },
+                    new GroundContactPoint { Name = "main right", X = 2.6f,  Y = -1.35f, Z = -RestZ, Kind = GroundContactKind.Wheel },
+                    new GroundContactPoint { Name = "tail",       X = -6.2f, Y = 0f,    Z = -RestZ, Kind = GroundContactKind.Wheel },
+                },
+            });
+            db.Register(t);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var e = Drone(at);
+            _w.SetComponent(e, FlightParams.From(new FlightParamsDto { MaxSpeedMps = 40f, ClimbMps = 8f, HoverHeightM = 30f, TurnRadiusM = 60f }));
+            _w.SetComponent(e, new FlightState { Airborne = (byte)(onTheGround ? 0 : 1) });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HeliType });
+            var routes = new Routes();
+            return (e, new AirMotionSystem { RouteSource = routes }, routes);
+        }
+
+        private static NavRouteWaypoint Wp(float x, float y, RouteWaypointKind kind = RouteWaypointKind.Pass, RouteHold hold = RouteHold.None)
+            => new(new Vector3(x, y, 0f), 0f, kind, 0f, hold, 0f, 0L);
+
+        private void Order(Entity e) => _w.SetComponent(e, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 900 });
+
+        /// <summary>⭐ B7 — a route from the ground: the helicopter on its gear takes off straight up to the hover height, flies the route
+        /// (the nose down as it gathers speed, rolled into the left turn) and, at the last Ground waypoint, sets down on its gear.</summary>
+        [Fact]
+        public void B7_ARouteFromTheGround_TakesOff_FliesAndLands_OnItsGear()
+        {
+            var (heli, air, routes) = Heli(new Vector3(0, 0, RestZ), onTheGround: true);
+            routes.Waypoints.AddRange(new[] { Wp(0, 0, RouteWaypointKind.Ground), Wp(300, 0), Wp(300, 300), Wp(600, 300, RouteWaypointKind.Ground) });
+            Order(heli);
+
+            var seen = new System.Collections.Generic.HashSet<NavigationPhase>();
+            float maxZ = 0f, minPitch = 0f, minRoll = 0f;
+            Vector2 firstMove = default; bool movedSideways = false;
+            for (int i = 0; i < 60 * 120; i++)
+            {
+                air.Execute(_w, Dt);
+                var tf = _w.GetComponent<SimTransform>(heli);
+                var st = _w.GetComponent<NavigationStatus>(heli);
+                seen.Add(st.Phase);
+                maxZ = MathF.Max(maxZ, tf.Position.Z);
+                var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                var left = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+                minPitch = MathF.Min(minPitch, fwd.Z);
+                minRoll = MathF.Min(minRoll, left.Z);
+                if (!movedSideways && new Vector2(tf.Position.X, tf.Position.Y).Length() > 0.5f) { movedSideways = true; firstMove = new Vector2(tf.Position.Z, 0); }
+                if (st.Result == NavigationResult.Arrived) break;
+            }
+
+            var end = _w.GetComponent<SimTransform>(heli);
+            var status = _w.GetComponent<NavigationStatus>(heli);
+            Assert.Equal((NavigationResult.Arrived, NavigationPhase.Landed), (status.Result, status.Phase));
+            Assert.True(Vector2.Distance(new Vector2(end.Position.X, end.Position.Y), new Vector2(600, 300)) < 0.5f, $"at {end.Position}");
+            Assert.InRange(end.Position.Z, RestZ - 0.01f, RestZ + 0.01f);                 // on its gear
+            Assert.Equal(0, _w.GetComponent<FlightState>(heli).Airborne);
+            Assert.InRange(maxZ, 29.5f, 30.5f);                                            // the hover height over the ground
+            Assert.True(firstMove.X >= 29f, $"it left the spot only at the route height, at Z {firstMove.X}");   // straight up first
+            Assert.Contains(NavigationPhase.TakingOff, seen);
+            Assert.Contains(NavigationPhase.Landing, seen);
+            Assert.True(minPitch < -0.05f, "the nose goes down while it gathers speed");
+            Assert.True(minRoll < -0.05f, "it rolls into the left turn (left side down)");
+        }
+
+        /// <summary>⭐ B7 — a Ground waypoint with an Unload hold: it lands and reports Unloading, and stays there until its Brain
+        /// releases it (<see cref="NavigationIntent.ReleaseHold"/>); then it takes off and flies on to the end of the route.</summary>
+        [Fact]
+        public void B7_AGroundWaypoint_HoldsUntilReleased_ThenTakesOff()
+        {
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false);
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(200, 0, RouteWaypointKind.Ground, RouteHold.Unload), Wp(400, 0) });
+            Order(heli);
+
+            int frames = 0;
+            while (_w.GetComponent<NavigationStatus>(heli).Phase != NavigationPhase.Unloading && frames++ < 60 * 60) air.Execute(_w, Dt);
+            var down = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.Equal(NavigationPhase.Unloading, _w.GetComponent<NavigationStatus>(heli).Phase);
+            Assert.True(Vector2.Distance(new Vector2(down.X, down.Y), new Vector2(200, 0)) < 0.5f, $"at {down}");
+            Assert.InRange(down.Z, RestZ - 0.01f, RestZ + 0.01f);
+            Assert.Equal(0, _w.GetComponent<FlightState>(heli).Airborne);
+
+            for (int i = 0; i < 60 * 10; i++) air.Execute(_w, Dt);                        // ten seconds: nobody released it
+            Assert.Equal(NavigationPhase.Unloading, _w.GetComponent<NavigationStatus>(heli).Phase);
+            Assert.Equal(down, _w.GetComponent<SimTransform>(heli).Position);
+
+            var intent = _w.GetComponent<NavigationIntent>(heli);
+            intent.ReleaseHold = true;
+            _w.SetComponent(heli, intent);
+            var seen = new System.Collections.Generic.HashSet<NavigationPhase>();
+            for (int i = 0; i < 60 * 60 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)
+            {
+                air.Execute(_w, Dt);
+                seen.Add(_w.GetComponent<NavigationStatus>(heli).Phase);
+            }
+            Assert.Contains(NavigationPhase.TakingOff, seen);
+            var end = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.Equal(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(heli).Result);
+            Assert.True(Vector2.Distance(new Vector2(end.X, end.Y), new Vector2(400, 0)) < 0.5f, $"at {end}");
+            Assert.Equal(1, _w.GetComponent<FlightState>(heli).Airborne);                  // a Pass end: it hovers there
+        }
+
+        /// <summary>⭐ B2 — the smoothed path: every corner an arc no tighter than the turn radius, and the helicopter that flies it passes
+        /// every waypoint within that radius — each corner at exactly the fillet's R·(1/cos(φ/2) − 1).</summary>
+        [Fact]
+        public void B2_TheSmoothedPath_PassesEveryWaypoint_WithinTheTurnRadius()
+        {
+            const float R = 60f;
+            var wps = new[] { Wp(0, 0), Wp(200, 0), Wp(250, 150), Wp(450, 100), Wp(500, 300) };
+            var path = AirRoute.Compile(new Vector3(0, 0, 30), wps, loop: false, turnRadius: R, hoverAgl: 30f, ground: null);
+            for (int j = 0; j < path.Curvature.Length; j++)
+                Assert.True(MathF.Abs(path.Curvature[j]) <= 1.05f / R, $"curvature {path.Curvature[j]} at {path.Points[j]} is tighter than 1/{R}");
+
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false);
+            routes.Waypoints.AddRange(wps);
+            Order(heli);
+            var closest = new float[wps.Length];
+            Array.Fill(closest, float.MaxValue);
+            for (int i = 0; i < 60 * 120 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)
+            {
+                air.Execute(_w, Dt);
+                var p = _w.GetComponent<SimTransform>(heli).Position;
+                for (int k = 0; k < wps.Length; k++)
+                    closest[k] = MathF.Min(closest[k], Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(wps[k].Position.X, wps[k].Position.Y)));
+            }
+            Assert.Equal(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(heli).Result);
+            for (int k = 0; k < wps.Length; k++) Assert.True(closest[k] <= R, $"waypoint {k} passed at {closest[k]:F1} m");
+            for (int k = 1; k < wps.Length - 1; k++)
+            {
+                // a plain fillet passes the corner at R·(1/cos(φ/2) − 1), φ the turn there
+                var a = Vector2.Normalize(new Vector2(wps[k].Position.X - wps[k - 1].Position.X, wps[k].Position.Y - wps[k - 1].Position.Y));
+                var b = Vector2.Normalize(new Vector2(wps[k + 1].Position.X - wps[k].Position.X, wps[k + 1].Position.Y - wps[k].Position.Y));
+                float turn = MathF.Acos(Math.Clamp(Vector2.Dot(a, b), -1f, 1f));
+                float expected = R * (1f / MathF.Cos(turn / 2f) - 1f);
+                Assert.InRange(closest[k], expected - 1f, expected + 1f);
+            }
         }
     }
 }

@@ -867,5 +867,10 @@ namespace Fdp.Core
         /// <summary><c>FlightState</c> — ⭐ M7: a flyer's airborne flag and vertical speed, written by its motion model on the Muscle.
         /// ⚠ 377 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int FlightState = 377;
+
+        /// <summary><c>AirPath</c> (managed) — ⭐ Air Ops slice 2 (DESIGN_Air_Operations §5): an aircraft's route, compiled on the Muscle
+        /// (rounded corners, heights over the terrain, its stops) and its follow state. Muscle-local, never saved or replicated.
+        /// ⚠ 378 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int AirPath = 378;
     }
 }

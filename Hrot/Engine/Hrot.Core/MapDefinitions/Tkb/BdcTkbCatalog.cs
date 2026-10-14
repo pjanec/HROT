@@ -380,6 +380,15 @@ namespace Hrot.Map.Definitions.Tkb
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60_DoorsOff, "UH-60A Black Hawk (doors off)", "SFAPMHU-------", "#56604F",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
             builder.WithCarrier(TkbEntityTypes.Heli_UH60_DoorsOff, DoorSeats());
+            // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — it FLIES: a route takes it off its gear, rounds
+            //   its corners at 60 m, holds 30 m over the ground and sets it down on a Ground waypoint. Public figures, rounded: cruise
+            //   ~70 m/s, climb ~8 m/s; the collider is the fuselage, not the rotor disc. The plain UH-60 (400) stays a static body.
+            builder.WithFlight(TkbEntityTypes.Heli_UH60_DoorsOff, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft, new FlightParamsDto
+            {
+                MaxSpeedMps = 70f, ClimbMps = 8f, TurnRateDeg = 30f, EnduranceSeconds = 7200f,
+                ContactRadiusM = 1f, BodyRadiusM = 1.5f, BodyHeightM = 3.5f,
+                HoverHeightM = 30f, TurnRadiusM = 60f,
+            });
             DefineAircraft(builder, TkbEntityTypes.Jet_F16, "F-16C Fighting Falcon", "SFAPMFF-------", "#8A929C",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 1 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
@@ -409,6 +418,7 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 });
             DefineFpvDrone(builder);   // ⭐ M7
+            DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
@@ -478,6 +488,46 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 2)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
+        }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 4 (docs/designs/air-attack/DESIGN_Air_Operations.md §6, §8) — an A-10 class attack aircraft: it FLIES (FixedWing:
+        /// cruise 150 m/s, never under its 60 m/s stall, banks to 60° ⇒ turns of ~1.3 km), flies routes 300 m over the ground, and drops
+        /// four Mk-82s (munition 6022, a Bomb mount) at the Release profile's cue. Public figures, rounded; its gear for the 3-D map (it
+        /// does not land in v1). A brain (its behaviour is the behaviour lane's, slice 5). Friendly.
+        /// </summary>
+        private static void DefineAttackPlane(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Jet_AttackA10;
+            DefineAircraft(builder, type, "A-10C Thunderbolt II", "SFAPMFA-------", "#7A8076",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 2 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 16.26f, Width = 17.53f, Height = 4.47f,
+                    BodyCentreX = 0f, BodyCentreZ = 0.5f,
+                    GroundContacts =
+                    {
+                        Wheel("nose",        4.2f,  0f,    -1.75f, 0.30f, 1.0f, retractable: true),
+                        Wheel("main left",  -0.5f,  2.6f,  -1.75f, 0.45f, 1.0f, retractable: true),
+                        Wheel("main right", -0.5f, -2.6f,  -1.75f, 0.45f, 1.0f, retractable: true),
+                    },
+                });
+            builder
+                .WithFlight(type, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing, new FlightParamsDto
+                {
+                    MaxSpeedMps = 200f, CruiseSpeedMps = 150f, StallSpeedMps = 60f, MaxBankDeg = 60f, ClimbMps = 30f, TurnRateDeg = 10f,
+                    EnduranceSeconds = 7200f, ContactRadiusM = 2f, BodyRadiusM = 2f, BodyHeightM = 4.5f, HoverHeightM = 300f,
+                })
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 600;
+                    c.EyeHeight = 1f;
+                    c.SensorRange = 5000;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, Category = WeaponCategory.Bomb });
+                })
+                .WithBehavior(type);
         }
 
         /// <summary>The UH-60's body (CE-1041): CG-referenced, resting on its tyres.</summary>

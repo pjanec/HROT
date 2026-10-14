@@ -176,6 +176,19 @@ Not built: `GroundMotionModule`'s two-model refactor (MD-H: a later slice), `Nav
 | — | `LinearKinematicsSystem` skips a body with a `Locomotion` | it integrated EVERY `SimTransform + SimVelocity` body without `VehicleState` — a drone would have moved twice |
 | — | `NedTkbBuilder.WithPhysics` states `Gen.Locomotion` (Tracked / Wheeled / Pedestrian) and — B8 (M6) — the hull's `Body.Geometry`; `MapMobility(Air / Naval)` throws; `WithFlight` states an air type | MD-A: the lossy Air / Naval → PersonalCar mapping ends |
 
+> ⭐ **`2026-10-14` (Air Ops slice 2):** `RotorcraftModel` grew a route follower (take-off, landing on the gear, holds, eased speed,
+> pitch and roll) and `MotionFrame` carries the terrain; `AirMotionSystem.RouteSource` compiles the body's `AirPath`. 📄
+> `docs/designs/air-attack/DESIGN_Air_Operations.md` §5b.
+
+> ⭐ **`2026-10-14` (Air Ops slice 4):** MD-H's **FixedWing row is built** — `FixedWingModel` (kinematic `AirPath` follower ≥ stall,
+> banked from the curvature, circles at the end); `MotionModelTable.Model(FixedWing)` no longer throws (Surface / Amphibious still do).
+> 📄 `docs/designs/air-attack/DESIGN_Air_Operations.md` §6a.
+>
+> ⭐ **`2026-10-14` (Air Ops slice 6, backend half):** the manual side of both air models. `FixedWingModel.Manual` is the mouse-aim pilot
+> on the same `ManualDrive` axes: `Yaw` = the look, `Vertical` = the climb angle, `Forward` = throttle. It makes a coordinated, self-banking
+> turn and cannot stall. `RotorcraftModel.Manual` keeps its direct axes and gains the route's tilt and an explicit hover hold. No wire change.
+> 📄 Air Ops §6b.
+
 ### 5a. The ownership decision — CE-3199 ✅ DECIDED `2026-10-14` (R-3005): option (A), one Muscle role
 
 🔒 User, `2026-10-14`: *"lets drop the whole MuscleXXX (ground, air...) and use one single Muscle role, so all positions are owned by it,

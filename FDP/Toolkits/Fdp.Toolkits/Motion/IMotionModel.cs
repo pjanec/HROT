@@ -16,6 +16,12 @@ namespace Fdp.Toolkit.Motion
         public EntityRepository World;
         public ref SimTransform Transform;
         public ref SimVelocity Velocity;
+        /// <summary>⭐ Air Ops slice 2 — the terrain the body flies over (null ⇒ flat ground at 0): heights for a route, and the
+        /// ground a landing sets down on.</summary>
+        public Fdp.Toolkit.World.IWorldQuery? Terrain;
+
+        /// <summary>The ground height under (x, y).</summary>
+        public readonly float Ground(float x, float y) => Terrain?.GroundHeightAt(x, y) ?? 0f;
 
         public MotionFrame(EntityRepository world, Entity self, ref SimTransform transform, ref SimVelocity velocity)
         {
@@ -23,6 +29,7 @@ namespace Fdp.Toolkit.Motion
             Self = self;
             Transform = ref transform;
             Velocity = ref velocity;
+            Terrain = null;
         }
     }
 
@@ -51,12 +58,14 @@ namespace Fdp.Toolkit.Motion
     public static class MotionModelTable
     {
         private static readonly IMotionModel Rotorcraft = new RotorcraftModel();
+        private static readonly IMotionModel FixedWing = new FixedWingModel();   // ⭐ Air Ops slice 4
 
         /// <summary>The model of <paramref name="c"/>; null for a ground class (CarKinematics moves it in v1).</summary>
         /// <exception cref="NotSupportedException">a class whose model is not built yet.</exception>
         public static IMotionModel? Model(LocomotionClass c) => c switch
         {
             LocomotionClass.Rotorcraft => Rotorcraft,
+            LocomotionClass.FixedWing => FixedWing,
             LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Unknown => null,
             _ => throw new NotSupportedException(
                 $"no motion model for {c} yet (DESIGN_Motion_Domains.md MD-H: FixedWing / Surface / Amphibious are table rows until built)"),

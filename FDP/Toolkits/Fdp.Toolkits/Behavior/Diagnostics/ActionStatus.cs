@@ -48,6 +48,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         TooClose,
         /// <summary>⭐ D-L (§4) — this weapon does not fire on the move (an ATGM, a mortar) and the unit is moving: the weapon holds.</summary>
         HoldMoving,
+        /// <summary>⭐ Air Ops slice 4 — a bomb waits for its release cue (BombBallistics): Progress = seconds to release.</summary>
+        AwaitingRelease,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -123,6 +125,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.OutOfArc           => "out of arc",
             ActionReason.TooClose           => "hold: too close",
             ActionReason.HoldMoving         => "hold: moving",
+            ActionReason.AwaitingRelease    => "release: waiting for the cue",
             _                               => "",
         };
 

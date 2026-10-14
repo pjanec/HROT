@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Combat
         public static IWeaponBrainProfile For(WeaponCategory category) => category switch
         {
             WeaponCategory.SmallArms or WeaponCategory.Grenade or WeaponCategory.Mortar => PerShot,
+            WeaponCategory.Bomb => PerShot,   // ⭐ Air Ops slice 4 — the Release profile: the per-shot path, held by its cue (AimAndFireExecutor.HoldOf)
             WeaponCategory.Atgm => Guided,
             _ => Turret,   // TankGun, Autocannon, MachineGun (a hull one names no turret), Unknown
         };
@@ -65,6 +66,7 @@ namespace Fdp.Toolkit.Combat
         /// mortar, a grenade); every other weapon (small arms, MG, autocannon, an untagged mount) keeps firing while the trigger is held.
         /// </summary>
         public static bool FiresPerPress(WeaponCategory category)
-            => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade;
+            => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade
+                         or WeaponCategory.Bomb;
     }
 }

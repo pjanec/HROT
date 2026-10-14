@@ -36,9 +36,12 @@ namespace Fdp.Toolkit.Navigation
         /// Rounds <paramref name="points"/> (with optional per-point <paramref name="traversals"/>) for <paramref name="radius"/> into
         /// <paramref name="outPoints"/> / <paramref name="outTraversals"/> (cleared first). <paramref name="navmesh"/> null ⇒ every shift
         /// has room. Returns how many corners were rounded.
+        /// <para>⭐ Air Ops slice 2 — <paramref name="shiftOut"/> false skips C3 (the shift is a GROUND clearance rule): a plain fillet
+        /// tangent to the original legs, so consecutive arcs join their shared leg without a kink. An aircraft's path
+        /// (<c>AirRoute.Compile</c>) uses it; every ground caller keeps the default.</para>
         /// </summary>
         public static int Round(IReadOnlyList<Vector3> points, byte[]? traversals, float radius, INavmeshProvider? navmesh, uint layerMask,
-                                List<Vector3> outPoints, List<byte> outTraversals)
+                                List<Vector3> outPoints, List<byte> outTraversals, bool shiftOut = true)
         {
             outPoints.Clear(); outTraversals.Clear();
             int n = points.Count;
@@ -56,7 +59,7 @@ namespace Fdp.Toolkit.Navigation
             for (int i = 1; i < n - 1; i++)
             {
                 Vector3 p0 = points[i - 1], v = points[i], p1 = points[i + 1];
-                if (Trav(i) != 0 || !TryRound(p0, v, p1, radius, minTurn, maxTurn, navmesh, layerMask, outPoints))
+                if (Trav(i) != 0 || !TryRound(p0, v, p1, radius, minTurn, maxTurn, navmesh, layerMask, outPoints, shiftOut))
                 {
                     outPoints.Add(v);
                     outTraversals.Add(Trav(i));
@@ -70,7 +73,7 @@ namespace Fdp.Toolkit.Navigation
         }
 
         private static bool TryRound(Vector3 p0, Vector3 v, Vector3 p1, float radius, float minTurn, float maxTurn,
-                                     INavmeshProvider? navmesh, uint layerMask, List<Vector3> outPoints)
+                                     INavmeshProvider? navmesh, uint layerMask, List<Vector3> outPoints, bool shiftOut)
         {
             var a = Xy(v - p0); var b = Xy(p1 - v);
             float la = a.Length(), lb = b.Length();
@@ -87,12 +90,15 @@ namespace Fdp.Toolkit.Navigation
             // C4 — room for the shift on the request's layer: full, ½, ¼, else keep the vertex as planned.
             Vector3 shifted = v;
             float shiftFraction = 0f;
-            foreach (float fraction in Fractions)
+            if (shiftOut)
             {
-                var c = v - new Vector3(inner * (shift * fraction), 0f);
-                if (HasRoom(navmesh, c, layerMask)) { shifted = c; shiftFraction = fraction; break; }
+                foreach (float fraction in Fractions)
+                {
+                    var c = v - new Vector3(inner * (shift * fraction), 0f);
+                    if (HasRoom(navmesh, c, layerMask)) { shifted = c; shiftFraction = fraction; break; }
+                }
+                if (shiftFraction == 0f) return false;
             }
-            if (shiftFraction == 0f) return false;
 
             // C3 / C5 — the arc of radius R tangent to P0→V' and V'→P1, its tangent length clamped to half of each leg. ⚠ The
             //   neighbours stay put, so shifting V tilts both legs and the turn at V' grows: with the full shift the shift is

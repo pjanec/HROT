@@ -15,11 +15,18 @@ namespace Fdp.Toolkit.Motion
     [UpdateInPhase(SystemPhase.PostSimulation)]
     public sealed class AirMotionSystem : IEcsModuleSystem
     {
+        /// <summary>⭐ Air Ops slice 2 — the routes a <c>FollowRoute</c> intent names (<see cref="NavigationIntent.RouteEntityId"/>); the
+        /// host supplies it (Hrot.Core's route source). Null ⇒ a route order hovers, awaiting a path.</summary>
+        public IRouteSource? RouteSource { get; init; }
+
+        private readonly System.Collections.Generic.List<NavRouteWaypoint> _waypoints = new();
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Locomotion>()) return;
             bool intents = repo.IsComponentTypeRegistered<NavigationIntent>();
             bool drives = repo.IsComponentTypeRegistered<ManualDrive>();
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);
             var query = repo.Query().With<Locomotion>().With<SimTransform>().WithOwned<SimTransform>().With<SimVelocity>().Build();
             foreach (var e in query)
             {
@@ -28,13 +35,48 @@ namespace Fdp.Toolkit.Motion
                 var model = MotionModelTable.Model(cls);
                 if (model == null) continue;
 
-                var frame = new MotionFrame(repo, e, ref repo.GetComponentRW<SimTransform>(e), ref repo.GetComponentRW<SimVelocity>(e));
                 var intent = intents && repo.HasComponent<NavigationIntent>(e) ? repo.GetComponentRO<NavigationIntent>(e) : default;
+                if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain, cls);
+                var frame = new MotionFrame(repo, e, ref repo.GetComponentRW<SimTransform>(e), ref repo.GetComponentRW<SimVelocity>(e)) { Terrain = terrain };
                 if (intent.Mode == NavigationMode.Manual && drives && repo.HasComponent<ManualDrive>(e))
                     model.Manual(ref frame, in repo.GetComponentRO<ManualDrive>(e), deltaTime);
                 else
                     model.Autonomous(ref frame, in intent, deltaTime);
             }
+        }
+
+        /// <summary>⭐ Air Ops slice 2 — (re)compiles the body's <see cref="AirPath"/> when the order, the route or its version changed
+        /// (<see cref="AirRoute.Compile"/>, from where the body is); keeps it while they hold.</summary>
+        private void EnsurePath(EntityRepository repo, Entity e, in NavigationIntent intent, Fdp.Toolkit.World.IWorldQuery? terrain,
+                                LocomotionClass cls)
+        {
+            if (RouteSource == null || intent.RouteEntityId == 0) return;
+            if (!RouteSource.TryGetRoute(repo, intent.RouteEntityId, _waypoints, out bool loop, out int version)) return;
+            bool table = repo.TryGetTable(typeof(AirPath), out _);
+            if (table && repo.HasManagedComponent<AirPath>(e))
+            {
+                var have = ((ISimulationView)repo).GetManagedComponentRO<AirPath>(e);
+                if (have.IntentId == intent.IntentId && have.RouteEntityId == intent.RouteEntityId && have.RouteVersion == version) return;
+            }
+            if (!table) repo.RegisterManagedComponent<AirPath>();
+            // ⭐ Air Ops slice 4 (B9) — planes do not land or hover in v1: a Ground waypoint is flown over, a hold is ignored (warned)
+            if (cls == LocomotionClass.FixedWing)
+                for (int i = 0; i < _waypoints.Count; i++)
+                {
+                    var w = _waypoints[i];
+                    if (!AirRoute.IsStop(in w)) continue;
+                    Fdp.Core.Logging.FdpLog<AirMotionSystem>.Warn(
+                        "[AIR] route {0} waypoint {1}: a plane does not land or hold (v1) — flown over", intent.RouteEntityId, i);
+                    _waypoints[i] = w with { Kind = RouteWaypointKind.Pass, Hold = RouteHold.None };
+                }
+            var p = repo.IsComponentTypeRegistered<FlightParams>() && repo.HasComponent<FlightParams>(e)
+                ? repo.GetComponentRO<FlightParams>(e) : FlightParams.From(new FlightParamsDto());
+            var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,
+                terrain == null ? null : terrain.GroundHeightAt);
+            path.IntentId = intent.IntentId;
+            path.RouteEntityId = intent.RouteEntityId;
+            path.RouteVersion = version;
+            repo.SetManagedComponent(e, path);
         }
     }
 
@@ -46,9 +88,12 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     public sealed class AirMotionModule
     {
-        public AirMotionModule(params IEcsModuleSystem[] after)
+        public AirMotionModule(params IEcsModuleSystem[] after) : this(null, after) { }
+
+        /// <summary>⭐ Air Ops slice 2 — with the routes a <c>FollowRoute</c> names (<see cref="AirMotionSystem.RouteSource"/>).</summary>
+        public AirMotionModule(IRouteSource? routes, params IEcsModuleSystem[] after)
         {
-            var list = new System.Collections.Generic.List<IEcsModuleSystem> { new AirMotionSystem() };
+            var list = new System.Collections.Generic.List<IEcsModuleSystem> { new AirMotionSystem { RouteSource = routes } };
             if (after != null) list.AddRange(after);
             PostSimulationSystems = list;
         }

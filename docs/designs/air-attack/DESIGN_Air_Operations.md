@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING (slice 3 first half built, §9a) — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015)
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip, §10 decisions, §11 slices and rails — §1 is the measured ground.
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4 and the backend half of 6 BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -290,6 +290,43 @@ reference `RoutePlan` (Hrot.Core) — and the plan only reaches the Muscle becau
 | wire (R-169): `MapRoute.Waypoint` + `Kind`, `HeightAgl`, `Hold`, `HoldSeconds`, `HoldUnit` (appended); `NavigationIntent` + `RouteEntityId` (appended). The save writes the air fields only when set (enums as strings) | old scenarios and old samples read as Pass / no hold |
 | rails: `RoutePlanTranslatorTests.B1_TheAirFields_RoundTrip_AndAPlainWaypointKeepsTheDefaults` · `MapRouteTranslatorTests.B1_TheAirFields_CrossTheWire_OutAndIn` · `NavigationIntentEgressTranslatorTests.CE2171_AFollowRoute_PublishesTheRouteEntity` · ⭐ `EntityOrdersAcrossNodesTests.CE2171_AFollowRoute_OnASplitCluster_DrivesTheRoute` (CGF brain, SimHost body, a scenario route) | the integration rail is the CE-2171 confirmation: red at the base, green after |
 
+### 5b. As-built — slice 2, the helicopter (E3, `2026-10-14`)
+
+```mermaid
+stateDiagram-v2
+  [*] --> Start
+  Start --> TakingOff : on its gear
+  Start --> Flying : airborne
+  Start --> Holding : a stop at s 0, on the ground
+  TakingOff --> Flying : at the path height
+  Flying --> Landing : reached a Ground stop
+  Flying --> Holding : reached a hold or the end
+  Landing --> Holding : touchdown on the gear
+  Holding --> TakingOff : released, on the ground
+  Holding --> Flying : released, airborne
+  Holding --> Done : released, last stop
+  Done --> [*]
+```
+
+*What the picture shows that prose hid: there is ONE place a route stops (Holding) — a landing is only the way into it, and a take-off
+only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the same way, so the end of the route is just the last hold.*
+
+| as built | why / deviation |
+|---|---|
+| `AirMotionSystem.RouteSource` (the E2 `IRouteSource`, one `HrotRouteSource` shared with the ground bridge in `SimHostCoreLogicPack`) compiles the body's `AirPath` (managed, `GlobalComponentIds.AirPath = 378`, Transient) when the order, the route or its version changes — from where the body is, with an approach leg when it is > 1 m from the first waypoint | the design drew `AirRoute.Compile(RoutePlan, …)`; `Fdp.Toolkits` cannot see `RoutePlan`, so it reads the seam's `NavRouteWaypoint`s |
+| ⭐ **deviation:** `CornerRounding.Round(…, shiftOut: false)` — a plain fillet tangent to the original legs, passing a corner at R·(1/cos(φ/2) − 1) | the shift (C3) is a ground clearance rule, and with it the leg between two rounded corners KINKS (measured: curvature 0.0225 at a junction for R 60 m). Ground callers keep the default |
+| ⭐ **deviation:** a Pass waypoint with `HeightAgl` 0 flies at `Position.Z` but never below the hover height over the ground; a Ground waypoint's approach is at the hover height | the draw tool writes Z 0 (CE-2172): "as today" would fly the route along the ground |
+| straight legs sampled every 20 m so the height follows the terrain (`MotionFrame.Terrain`, `WorldQuery.Of`); the follower's climb is capped at `ClimbMps` | — |
+| speed: ±3 m/s² along the path (braking ≤ 6), slowed to √(2·a·d) for the next stop and to √(g·tan 30° / κ) for the tightest curve within its braking distance | B2 "eased, no instant velocity" |
+| attitude: pitch = −atan(a/g), roll = −atan(v²κ/g) (left turn ⇒ left side down), each ≤ 20° / 30°, eased at 40°/s, drawn through `BodyGeometry.Rotation` | B3 |
+| touchdown: Z and attitude from `BodyGeometry.RestingPose` on the gear, `Airborne = 0`; a live body WITH gear on the ground takes off again (a point move climbs straight to the hover height first; manual takes off on Vertical > 0 and sets down on its gear); a body WITHOUT gear that is down stays down (the spent drone) | `Airborne` was the drone's "spent" flag; gear separates the two meanings |
+| `DroneImpactSystem` skips a flyer in TakingOff / Landing / Landed / Unloading / Loading | a landing meets the ground and the men waiting beside it on purpose |
+| `NavigationIntent.ReleaseHold` = `Flags` bit 2: a LEVEL, consumed once per hold — after a release the next hold needs the bit cleared and set again | the Brain may leave it set; a stale release must not skip the next pickup |
+| `NavigationPhase` + `TakingOff 5 · Landing 6 · Landed 7 · Unloading 8 · Loading 9` (appended; the wire carries a byte) | the SOP rows (slice 3) read them |
+| `FlightParamsDto` + `HoverHeightM` (30) · `TurnRadiusM` (0 ⇒ top speed / turn rate); the doors-off UH-60 (404): `Gen.Locomotion` Rotorcraft + `Gen.Flight` (70 m/s, climb 8, hover 30 m, turns 60 m) | the plain UH-60 (400) stays a static body |
+| rails: `RotorcraftModelTests.B7_ARouteFromTheGround_TakesOff_FliesAndLands_OnItsGear` · `B7_AGroundWaypoint_HoldsUntilReleased_ThenTakesOff` · `B2_TheSmoothedPath_PassesEveryWaypoint_WithinTheTurnRadius` (all three red with the follower off) · `NedTkbBuilderCombatTests.B7_TheDoorsOffBlackHawk_FliesRoutes_OnItsGear` | — |
+| ⚠ not built here: a route change mid-flight restarts the follower from where the body is (the hold state is not carried over); the brain's release (slice 3, behaviors) | — |
+
 ## 6. Flight models (A1, A8, A9, B2, B3)
 
 | model | Autonomous (AI) — "faked to look believable" | Manual (player) — "controllable by a non-expert" |
@@ -304,6 +341,29 @@ reference `RoutePlan` (Hrot.Core) — and the plan only reaches the Muscle becau
 | turning radius: plane `v² / (g·tan MaxBank)` (150 m/s at 60° ≈ 1.3 km); helicopter a fixed `TurnRadiusM` (~60 m) | the route's arcs and the run-in geometry use the same number |
 | the first plane type is an **attack aircraft** (A-10 / Su-25 class, ~150 m/s), not the F-16 | map scale: an F-16 needs several km to turn |
 | the station: a `ControlScheme.FixedWing`; the camera follows the body's attitude (both flyers); the HUD per scheme (speed, height, heading; bomb cue later) | Entity Control M-4 answered; the camera today is yaw-only (`PossessionStation.cs:262-269`) |
+
+### 6a. As-built — the plane (E4, `2026-10-14`)
+
+| as built | why / deviation |
+|---|---|
+| `FixedWingModel` (MD-H's row in `MotionModelTable`, no longer "fail loudly"): a route = the SAME `AirPath` a helicopter flies, compiled at cruise² / (g·tan max bank) (`FlightParams.TurnRadius`), flown kinematically at the route's / the intent's / the cruise speed clamped to [stall, top] and eased ±5 m/s²; roll −atan(v²κ/g) ≤ max bank, eased at 60°/s; pitch = its climb (capped by `ClimbMps`) | A1 / B2 |
+| the end of a route: a left-hand circle of the turn radius beside the last point, entered with the frame's leftover travel (Arrived, still flying) · a point (`MoveTo`): turn to it at the steepest bank, circle it once there · no order: straight and level | B9: planes never stop |
+| a Ground waypoint or a hold on a plane's route is flown over / ignored, with a warning, when `AirMotionSystem` compiles the path | B9 (v1: no runways) |
+| ~~`Manual` = straight and level at cruise until slice 6~~ ⛔ SUPERSEDED by §6b (E5 built the mouse-aim pilot) | — |
+| `FlightParamsDto` + `StallSpeedMps` · `CruiseSpeedMps` · `MaxBankDeg`; the attack plane **405 "A-10C Thunderbolt II"**: FixedWing, cruise 150 / stall 60 / top 200 m/s, bank 60° (≈ 1.3 km turns), routes 300 m over the ground, 600 hp, four Mk-82 on a `Bomb` mount, gear for the 3-D map | §6 "an attack aircraft, not the F-16" |
+| rails: `FixedWingModelTests.A1_APlane_FliesItsRoute_BanksInTheTurns_AndNeverStalls` · `B9_AGroundWaypoint_IsFlownOver_NotLandedOn` · `A1_APlane_ToldAPoint_TurnsToIt_AndCirclesIt` · `NedTkbBuilderCombatTests.A1_TheAttackPlane_IsAFixedWing_WithFourBombs`; `RotorcraftModelTests.CE2168_*` re-pinned (FixedWing is moved now, Surface still fails loudly) | ⚠ the speed floor is checked on displacement per frame to 1 %: a turning frame's chord across a 15°-sampled arc is that much shorter than the distance flown |
+
+### 6b. As-built — the pilots, backend half of slice 6 (E5, `2026-10-14`)
+
+| as built | why / deviation |
+|---|---|
+| `FixedWingModel.Manual` — **mouse-aim** on the existing `ManualDrive` axes (no wire change): `Yaw` = the absolute heading looked along · `Vertical` ∈ [−1, 1] × the climb angle (≤ 25°, and ≤ asin(climb rate / speed)), the nose eased at 20°/s · `Forward` = throttle: 0 ⇒ cruise, +1 ⇒ top, −1 ⇒ stall, eased ±5 m/s² | B3: a non-expert flies the plane by looking where to go |
+| the turn is **coordinated**: the pilot asks for a turn rate of (heading error ÷ 1.5 s), up to the steepest bank; the bank is eased at 60°/s, and the yaw follows the bank (g·tan bank / v); the wings level as the error closes, and the yaw never passes the look | "the model banks itself, levels out when centred" |
+| it cannot stall: the speed is clamped to [stall, top] whatever the throttle and the nose say | B3 |
+| ⚠ no ground floor: a plane flown into the terrain meets it through `DroneImpactSystem`, which bursts mount 0 (the A-10's Mk-82 rack) — a crash, reported as a finding | not designed; the design asks only "cannot stall" |
+| `RotorcraftModel.Manual` — today's direct axes (Forward / Lateral × top speed, `Yaw` absolute, `Vertical` × climb) **plus the tilt a route draws**: the nose down ∝ forward speed (≤ 20°), rolled ∝ strafe (≤ 30°) and into the turn (atan(v·ω/g)), eased at 40°/s; no axis ⇒ it holds its hover where it is (no drift) and levels | B3 "today's controls + hover hold + the same tilt"; no acceleration limit was added, because the drone's possession rails pin the direct response |
+| `RotorcraftModel.TiltOf(q)` — the pitch and roll of a `BodyGeometry.Rotation`, shared with `FixedWingModel` (its roll reading is corrected for pitch: left.Z = sin roll · cos pitch) | one reader of the attitude |
+| rails: `FixedWingModelTests.B3_TheMouseAimPilot_TurnsToTheLook_BanksItself_AndLevelsOut` · `B3_ThrottleBack_AndNoseUp_NeverStalls` · `RotorcraftModelTests.B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover` | the station half (`ControlScheme.FixedWing`, camera attitude, HUD) is ui's |
 
 ## 7. Orders and the one attack behaviour (B4, B5)
 
@@ -343,6 +403,42 @@ reference `RoutePlan` (Hrot.Core) — and the plan only reaches the Muscle becau
 | `BombBallistics.Impact / Cue` step the SAME gravity at the SAME `dt` as `BallisticsSystem` (no drag) ⇒ the predicted impact is the real one | A3: one predictor; drag later keeps them identical |
 | the weapon brain's **Release** profile: the grant waits while `secondsToRelease > 0` or the cross-track miss > the tolerance (10 m); then one bomb per pass | A6 / R-261: the behaviour flies, the weapon releases — the same for a player who holds the trigger |
 | slice 1: unguided, exact AI release. Later: a GPS bomb = a new `GuidanceKind.Coordinate` in `GuidedRoundSystem` (predict the impact each frame, push sideways ≤ 1.5 g against the miss, gravity kept) — for the player's imprecise release; the laser (the designator as the round's "gunner") later still | the user: the laser is out of the first slice |
+
+### 8a. As-built — the bomb and the release (E4, `2026-10-14`)
+
+```mermaid
+sequenceDiagram
+  participant AF as AimAndFireExecutor (weapon brain)
+  participant BB as BombBallistics
+  participant FP as FireProcessingSystem
+  participant BS as BallisticsSystem
+  participant LK as LinearKinematicsSystem
+  loop each frame on the run-in
+    AF->>BB: ReleaseCue(body, velocity, target)
+    BB-->>AF: impact reached the target? (seconds ≤ ½ dt, > −0.5 s, |cross| ≤ 10 m)
+    AF-->>AF: no ⇒ AwaitingRelease (nothing spent)
+  end
+  AF->>FP: WeaponFireIntent (no sight, no aim clock)
+  FP->>FP: Air-domain + Bomb ⇒ v = carrier + 1 m/s down, from the body, Arc
+  loop the fall
+    BS->>BS: v.Z −= g·dt
+    LK->>LK: p += v·dt
+  end
+  BS->>BS: ground crossing ⇒ burst (Area)
+```
+
+*What the picture shows that prose hid: the predictor and the flight are the same two steps in the same order (gravity, then the move)
+— that is the whole reason the predicted impact IS the flown one; and the release gate sits in the weapon brain, before the fire path
+that every other weapon uses.*
+
+| as built | why / deviation |
+|---|---|
+| `WeaponCategory.Bomb = 8`; munition **6022 "Mk-82 bomb"**: the library's `120mm mortar HE` warhead, `Indirect` | ⚠ **finding:** the library has no bomb — its largest indirect HE is 3 kg of explosive against a Mk-82's ~87 kg, so the burst is a mortar round's until the library carries a bomb entry (B6 said "copied from the nearest entry"; reported, not invented) |
+| `FireProcessingSystem`: an **Air-domain** shooter (`Locomotions.InAir`) — a Bomb leaves FROM THE BODY at the carrier's velocity + 1 m/s down (`BombBallistics.Launch`) and falls (Arc); any other round adds the carrier's velocity. A ground shooter is unchanged (A4, rail) | A4 |
+| `BombBallistics.Impact / Cue / ReleaseNow` step gravity then the move at the sim's dt, exactly `BallisticsSystem` → `LinearKinematicsSystem` (the SimHost's order) | A3: rail flies a real bomb through `BallisticsSystem`: the burst lands within the burst stand-off of the prediction |
+| the **Release** profile = the per-shot path (`WeaponBrainProfiles.For(Bomb)`), held by `AimAndFireExecutor.HoldOf` → `ActionReason.AwaitingRelease` (appended; aimed, not amber) until the cue; then released with no seen-now gate, no aim clock, no body twist, no friendly-line check. Release window: seconds ≤ ½ dt and > −0.5 s (a missed pass does not drop late), cross-track ≤ 10 m. One bomb per pass = the action's round count (or its cooldown). `FiresPerPress(Bomb)` = true | A6; ⚠ deviation: the window is half a second, not one frame, so a brain ticking slower than the sim still releases |
+| rails: `BombBallisticsTests.A3_ThePredictedImpact_IsTheFlownImpact` (2 cases) · `A6_TheCue_SaysNow_WhenTheImpactReachesTheTarget` · `FireProcessingSystemTests.A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot` · `AimAndFireExecutorTests.A6_TheReleaseProfile_WaitsForTheCue` | — |
+| ⚠ not built here: `FireAtPointExecutor` (a strike on a POINT) has no release gate yet — the behaviour lane's `AirAttack` LevelBomb (slice 5) decides which executor it drives; the gate is one call (`ReleaseCue`'s `BombBallistics.ReleaseNow`) | reported to behaviors |
 
 ## 9. The air assault and the rescue round trip (B8, B10, B11)
 

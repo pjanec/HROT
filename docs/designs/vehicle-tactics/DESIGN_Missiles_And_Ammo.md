@@ -357,3 +357,8 @@ beside the round it steers — no new wire topic, one new field on one existing 
 | `DL_AnAtgm_HoldsFireWhileMoving_AnHmg_FiresAtDoubleSpread` | `AimAndFireExecutorTests` |
 | `WL5_W12c_AnAtgm_FiresOneRoundPerFlight` stays green | `AimAndFireExecutorTests` |
 | ⚠ CE-2166's fix (one drain per frame) re-times every cooldown rail — fix it FIRST, separately | `AimAndFireExecutorTests`, `WeaponInteractionDispatcherTests` |
+
+> ⭐ **`2026-10-14` (Air Ops slice 4 — 📄 `docs/designs/air-attack/DESIGN_Air_Operations.md` §8a):** `WeaponCategory.Bomb` and a
+> fourth weapon-brain behaviour, the **Release** profile: the per-shot path held in `AimAndFireExecutor.HoldOf` (`ActionReason
+> .AwaitingRelease`) until `BombBallistics` says the impact reaches the target; munition 6022 (Mk-82). An Air-domain shooter launches
+> with its carrier's velocity (`FireProcessingSystem`); ground shooters unchanged.
