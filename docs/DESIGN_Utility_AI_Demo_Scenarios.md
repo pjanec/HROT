@@ -963,7 +963,7 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 
 Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly.
 
-#### 10.7b OpenGround — the first kind after v1 *(`CE-3081`, backend, `2026-10-14`; for behaviors' `CE-2161` (the live D3 "Bound" demo); build-state: READY-TO-BUILD → see the as-built line at the end)*
+#### 10.7b OpenGround — the first kind after v1 *(`CE-3081`, backend, `2026-10-14`; for behaviors' `CE-2161` (the live D3 "Bound" demo); build-state: BUILT `2026-10-14`, as drawn — the as-built line at the end)*
 
 > 🔒 **Dispatched** by the behaviours lane ([`HANDOFF_Behaviors_To_Backend_OpenGround`](blueprints/batches/HANDOFF_Behaviors_To_Backend_OpenGround.md),
 > frozen at `4a9b037f5`) — user, `2026-10-14`: *"Each behavior needs to be demoed in some scenario"*. §10.7: *"a run with no cover
@@ -1047,6 +1047,13 @@ sensor and only the reader's choice differs.*
 ⚠ Known limits: the 8-area cap is shared — on a long route of many open runs a far crossing can fall outside the first 8 until the
 unit walks closer (the list is re-made from the unit each solve); a terrain with NO road graph still answers nothing (the solve's
 existing early return — a desert's open ground needs that lifted: follow-up, not this batch).
+
+✅ **AS-BUILT `2026-10-14`** — as drawn, plus: the sensors route (`GET /entities/{id}/sensors`) shows `settings.kinds`; the shipped
+`DangerCrossingBp`'s baked sensor decl gained the `Kinds` settings field (3 nodes; `ShippedSensorDeclsTests` pins decl = registry).
+Rails: `DangerAlongRouteClassifierTests.CE3081_*` ×5 (incl. the real test-town loose-march leg — ONE open run of ~103 m),
+`DangerAreaSensorSystemTests.CE3081_OpenGround_ReachesOnlyASensorThatAsksForIt`, `EqsDistributedTests.CE3081_OpenGround_AcrossHosts_*`
+(simhost,cgf); red-proved (detection + Brain filter off ⇒ 6/6 red). Gates: `Fdp.Toolkits.Tests` 3228/0; integration danger-area set
+(across hosts ×2, `CE3079` crossing twin, `DangerAreaNodesTests`) 11/0 — no v1 answer moved.
 
 #### 10.5b ✅ AS-BUILT — B6 (`CE-3079`, backend), `2026-10-06`: the demo PASSES live, with no HTTP write
 
