@@ -804,6 +804,18 @@ replicates pitch and roll (`GeoSpatialIngressTranslator` restores the heading on
 **Rejected — one line each:** *a stick on the keyboard (pitch / roll keys)* — U3 and B3 chose mouse-aim for a non-expert; *a new frame field
 for pitch* — `Vertical` already means it to the model; *the camera locked to the nose* — the aim would be locked too.
 
+**AS-BUILT (`CE-1095`, `2026-10-14`, ui)** — built as the three diagrams above draw it; no box moved. Details they do not carry:
+
+| as-built detail | why |
+|---|---|
+| `MapCamera3D.Roll` (FDP `Fdp.Presentation`, cross-lane): `Up` is rotated about `Forward`; `Detached` resets it to 0 | the camera had no roll; one property, every map host gets it |
+| the bank is `RotorcraftModel.TiltOf(rotation).Roll` for BOTH flyers | the existing decomposition of a body's attitude — no second one |
+| `Hud.Lines(…, scheme)`: a flyer's `FlightLine` and its own keys line; the person / vehicle lines unchanged | the scheme picks the lines, so a person's HUD cannot grow flight fields |
+| P-3's deviation (the view's PITCH stays the look's) is as argued above | — |
+
+📐 **Rail** `PossessionStationTests.CE1095_*` (the scheme, the frame's axes, the camera's roll, the HUD line) — red-proved twice (the view does
+not bank; the plane is a Person).
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |

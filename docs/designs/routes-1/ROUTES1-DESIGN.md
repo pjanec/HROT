@@ -504,6 +504,20 @@ sequenceDiagram
 hold* — v1 takes the network id; the map pick (`IMapPickAdapter`) is a follow-up once a Pickup scenario needs it; *committing on the panel's
 close* — Escape would still lose the edit.
 
+**AS-BUILT (`CE-1096` + `CE-2172`, `2026-10-14`, ui)** — built as the two diagrams above draw them. Details they do not carry:
+
+| as-built detail | why |
+|---|---|
+| the panel's namespace is `Hrot.UI.Common.Panels` (file in `Hrot.Presentation/Panels`); `Draw(beforeBegin, afterBegin)` keeps a standalone window for the IG's own loop, which styles it with `IgPanelColors.Push`/`Pop` | the IG standalone draws panels outside the window manager; one panel serves both |
+| `CommitEdits()` = the gizmo's existing `WriteBackAndPublish` | the same write a drag's end makes — no second publish path |
+| combo changes commit at once; text / number fields commit on `IsItemDeactivatedAfterEdit` | a commit per keystroke would publish half-typed values |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos through one helper, `RouteGizmo.PointOf(view, wp)` = ground + `HeightAgl` when it is above 0, else `Position` | `RouteGizmo` and `AuthoredRouteGizmo` had the same Y-north reading; one helper keeps them from drifting |
+| the Pickup unit is a numeric network id (v1) | the map pick stays the follow-up named above |
+
+📐 **Rails** `RouteWaypointGizmoTests.CE2172_*` (Z-up, a drag keeps the height) and `CE1096_*` (the selection survives the release, a panel edit
+reaches the route) — each red-proved; IG `WaypointEditorPanelTests` and `IgWindowsDumpTheirModelsTests` re-pointed at the shared panel. Seen in the
+3-D map: `ws-7-route-heights` (§6n of the 3-D map design).
+
 ---
 
 ## 12. Deletion Flow
