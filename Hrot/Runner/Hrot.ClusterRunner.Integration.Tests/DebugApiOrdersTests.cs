@@ -456,4 +456,90 @@ public sealed class DebugApiOrdersTests
         h.PumpFrames(200);   // no more frames: the possession ended, its weapon action with it
         Assert.Equal(afterBurst, r.GetComponentRO<WeaponState>(unit).Ammo);
     }
+
+    /// <summary>A possessed rifleman for operator fire: a one-round magazine with a 0.5 s reload (a harness frame is 5 ms), HoldFire (the operator overrides it).</summary>
+    private static Entity Gunner(EditorHarness h, int ammo = 30)
+    {
+        var unit = Walker(h, UnitId);
+        var r = h.Repo;
+        if (!r.IsComponentTypeRegistered<WeaponState>()) r.RegisterComponent<WeaponState>();
+        if (!r.IsComponentTypeRegistered<WeaponChannel>()) r.RegisterComponent<WeaponChannel>();
+        if (!r.IsComponentTypeRegistered<Roe>()) r.RegisterComponent<Roe>();
+        r.AddComponent(unit, new WeaponState { Ammo = ammo, MaxAmmo = ammo, MagazineSize = 1, MagazineRounds = 1, ReloadSeconds = 0.5f, MuzzleVelocity = 800f });
+        r.AddComponent(unit, new WeaponChannel());
+        r.AddComponent(unit, new Roe { Fire = RoeFire.HoldFire });
+        if (!r.IsComponentTypeRegistered<ActorCapabilityState>()) r.RegisterComponent<ActorCapabilityState>();
+        r.AddComponent(unit, new ActorCapabilityState { Capabilities = ActorCapabilities.CanShoot });
+        return unit;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1078 (docs/DESIGN_Entity_Control.md §8e D-1) — through the real possession and operator behaviour: a trigger PRESS (the
+    /// frame's shot counter moving) fires exactly ONE round with no trigger held, and a counter that stays put fires nothing more; a press
+    /// made while the weapon reloads is NOT lost — it fires when the weapon is ready; RMB (the cancel counter) drops a waiting shot.
+    /// 🔒 User, 2026-10-14: "when i press fire trigger the tank tries aiming to the clicked target and fire once the barrel is aimed".
+    /// </summary>
+    [Fact]
+    public void CE1078_APress_FiresOneRound_APressDuringAReloadWaitsForIt_AndRmbDropsAWaitingShot()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Gunner(h);
+        var r = h.Repo;
+        Assert.Null(svc.PostPossess(UnitId).error);
+        h.PumpFrames(4);
+        uint seq = 1;
+        void Send(int frames, int shot, int cancel = 0)
+        {
+            for (int i = 0; i < frames; i++, seq++)
+            {
+                svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["aim"] = new JsonArray(50f, 0f, 1f), ["shot"] = shot, ["cancel"] = cancel });
+                h.PumpFrames(1);
+            }
+        }
+
+        Send(20, shot: 0);
+        Assert.Equal(30, r.GetComponentRO<WeaponState>(unit).Ammo);    // no press, no round
+        Send(60, shot: 1);
+        Assert.Equal(29, r.GetComponentRO<WeaponState>(unit).Ammo);    // one press, one round — the counter staying at 1 fires no more
+        Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "the one-round magazine is reloading");
+        for (int i = 0; i < 300 && r.GetComponentRO<WeaponState>(unit).Ammo > 28; i++) Send(1, shot: 2);   // pressed DURING the reload
+        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // it waited for the reload and fired
+        Assert.True(r.GetComponentRO<WeaponState>(unit).ReloadSecondsRemaining > 0f, "reloading again after that round");
+        Send(1, shot: 3);                                                // pressed during this reload …
+        Send(300, shot: 3, cancel: 1);                                   // … and RMB before it is done
+        Assert.Equal(28, r.GetComponentRO<WeaponState>(unit).Ammo);    // the waiting shot was dropped
+    }
+
+    /// <summary>
+    /// ⭐ CE-1078 (D-1) — a SINGLE-SHOT weapon (here the unit's TKB names a grenade) ignores a held trigger: only a press throws, one per
+    /// press; the automatic rifle of <see cref="CE3172_OperatorFire_ShootsAtTheAimPoint_OverridingHoldFire_AndStopsOnRelease"/> still
+    /// streams while held.
+    /// </summary>
+    [Fact]
+    public void CE1078_ASingleShotWeapon_IgnoresAHeldTrigger_OnlyAPressFires()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var unit = Gunner(h);
+        var r = h.Repo;
+        r.GetComponentRW<WeaponState>(unit).MagazineSize = 0;          // no magazine: only the press decides
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var thrower = new Fdp.Interfaces.TkbTemplate("Thrower", 9300);
+        thrower.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade } } });
+        db.Register(thrower);
+        r.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) r.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        if (r.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)) r.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
+        else r.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9300 });
+
+        Assert.Null(svc.PostPossess(UnitId).error);
+        h.PumpFrames(4);
+        uint seq = 1;
+        for (int i = 0; i < 120; i++, seq++) { svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["aim"] = new JsonArray(20f, 0f, 0f), ["trigger"] = true }); h.PumpFrames(1); }
+        Assert.Equal(30, r.GetComponentRO<WeaponState>(unit).Ammo);    // held, never pressed: nothing thrown
+        for (int i = 0; i < 120; i++, seq++) { svc.PostControl(UnitId, new JsonObject { ["seq"] = seq, ["aim"] = new JsonArray(20f, 0f, 0f), ["trigger"] = true, ["shot"] = 1 }); h.PumpFrames(1); }
+        Assert.Equal(29, r.GetComponentRO<WeaponState>(unit).Ammo);    // one press, one throw, however long it is held
+    }
 }

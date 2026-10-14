@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: S1-C was a geometric flank point in the first draft (same day) — measured unsafe (off-mesh moves fail forever) and replaced by an EQS query — first on the lead assault member, then on the LEADER with slot 0 = that member (a leader may own EQS queries like any unit). DESIGN_Operations_Behaviour_Catalogue.md §4/§7 say the embark/eject executors are "not registered on CGF" — eject IS registered there (CgfLogicPack.cs:184); embark is registered nowhere (§5 here)
 known-conflict: none
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS SquadEmbark, the squad SOP's Ride / dismount-on-Unloading rows and the rescue mission tree (R-2015) — beside §5a's SquadDismount
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the ua-* demo programme and scripts/utility-demo-check.py; its §10.3 ua-danger-crossing is the single-soldier demo whose route §7.8.4's squad demo reuses
   - ../../DESIGN_Injury_States.md — OWNS the injury states (CE-2155) that L4 casualty care waits for
   - docs/DESIGN_Orders_Params_Entity_Classes.md — D2 (CE-2141, §7): the order behaviours InfantrySquadMove / Hold / Attack are front doors to this file's plays; every drill's orders to its members are RELEASED when the commander's run ends (not at a pause); a unit member gets Order.* (A4)

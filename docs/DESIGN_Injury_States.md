@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13
-build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b (wounded speed/aim) open
+build-state: BUILT (I-a) — I1–I6 approved 2026-10-13 (R-2011); behaviors lane; CE-2155; I-b wounded SPEED built 2026-10-14 (ui, CE-1082: WoundedSpeedFactor 0.6, DESIGN_Map_3D_Mode §6m); wounded AIM still open
 current-answer: §8 I-a as built · §3 classes · §4 sequence · §5 modules · §6 decisions (leans) · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/DESIGN_Map_3D_Mode.md §6m — DRAWS the wounded limp and the incapacitated figure, and builds slice I-b (WoundedSpeedFactor 0.6)
   - OVERVIEW_Behaviour_Building_Blocks.md — §8a OWNS the one-table summary of what a behaviour can rely on from these states
   - DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS the RULING (R-263): four human states + bleed-out, the vehicle damage states; this file is the human half's build design
   - DESIGN_Entity_Interactions.md — §7.4.8 OWNS the person carrier (CE-2152), the first consumer: only an incapacitated soldier may be carried (R-2009 C3)
@@ -136,7 +137,7 @@ a civilian and a soldier would bleed alike; D1 lists civilians as casualties too
 | slice | what | rails |
 |---|---|---|
 | **I-a** (`CE-2155`, ✅ BUILT 2026-10-13 — §8) | `Gen.Injury` + translator + `InjuryThresholds`; `Injury` rules; `ApplyHitCapabilities` strips at incapacitated; `BleedOutSystem`; I4's two readers; soldier templates declare it | a hit below the band strips move and fire but leaves him alive · bleed-out reaches 0 in `BleedOutSeconds` on the owner only · a replica reads the same state · an incapacitated contact has danger 0 · no `Gen.Injury` ⇒ unchanged behaviour |
-| **I-b** | wounded speed / aim factors (I5) | — |
+| **I-b** | wounded speed / aim factors (I5) | ⭐ SPEED built `2026-10-14` (ui, CE-1082): `Gen.Injury.WoundedSpeedFactor` (0.6, user-approved) → `InjuryThresholds` → `Injury.SpeedFactor`, multiplied in `CarKinematicsSystem` beside stance and carry (it scales the TOP speed). AIM still open. 📄 DESIGN_Map_3D_Mode.md §6m |
 
 ## 8. I-a as built *(`2026-10-13`, behaviors, `CE-2155`)*
 

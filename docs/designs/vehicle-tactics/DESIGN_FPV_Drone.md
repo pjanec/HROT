@@ -5,8 +5,9 @@ build-state: BUILDING — the Muscle half built (§6, backend B11); owned by the
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
-known-conflict: none.
+known-conflict: none. ⚠ §2's FpvAttackNodes / FpvAttackParams / FpvAttackState are SUPERSEDED by B5 (R-2015): the drone's attack is AirAttack's Dive profile (DESIGN_Air_Operations.md §7); the phases and DroneTargetDecision carry over.
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the drone's ATTACK now: AirAttack's Dive profile (B5, R-2015) replaces §2's FpvAttackNodes; this file keeps the Muscle half
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (on the MuscleGround node, R-3005), autonomous AND manual (FPS possession)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (item M7, decision D-E)
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS R-263 D2 ("point-mass flight + acoustic signature + battery … follow a planned 3d path and … attack autonomously") and AIR-1…AIR-4; this file is AIR-2's first slice (FPV: search, select, pursue, dive)

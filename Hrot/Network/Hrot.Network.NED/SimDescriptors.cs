@@ -226,6 +226,16 @@ namespace Hrot.NED.Descriptors
         public int Mag1;
         public int Mag2;
         public int Mag3;
+        // ⭐ CE-1079 (appended) — the breech per mount, its rounds, and the reload/switch bits (DESIGN_Entity_Control §8e)
+        public long Load0;
+        public long Load1;
+        public long Load2;
+        public long Load3;
+        public int LoadRounds0;
+        public int LoadRounds1;
+        public int LoadRounds2;
+        public int LoadRounds3;
+        public byte Busy;
     }
 
     // ⭐ CE-3110 I-2b (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7.1c) — a vehicle's passengers, the vehicle's owner (Brain group) →

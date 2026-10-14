@@ -7,6 +7,7 @@ stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAc
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the air path (AirRoute: corner rounding to a turn radius), NavigationIntent.RouteEntityId + ReleaseHold, and the air NavigationPhase values (R-2015)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — PROPOSES one motion module + ownership role per domain (ground / air / naval) behind an IMotionModel seam — ⚠ known-conflict with this doc's §7.1 (Naval / Flying as modes inside CarKinematics)
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — a flyer is moved by NavigationIntent (3-D FinalDestination) through PointMassFlightSystem; the bridge skips it
   - FDP/Docs/projects/toolkits/FDP.Toolkit.CarKinem.md — OWNS the trajectory follower (pure pursuit on the path, CE-3115) that drives the corners §5.2b rounds (C7)

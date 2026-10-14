@@ -267,23 +267,37 @@ namespace Fdp.Toolkit.Combat.Executors
 
             var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
             var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);
+            long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);   // ⭐ M8 — what is loaded
+            // ⭐ CE-1079 (§8e D-3) — the operator's round switch holds the weapon like a reload, on both paths
+            bool switching = AmmoChoice.Switching(world, mountEntity);
             if (profile.UsesTurretTask(world, entity, mountDto))
             {
                 TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
-                           profile.RoundsInFlight, mountDto, dt, mountEntity, AmmoChoice.LoadedAmmo(world, mountEntity));   // ⭐ M8 — what is loaded
+                           profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, switching ? ActionReason.Reloading : null);
                 return;
             }
 
-            if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, p.Point); return; }
-            if (p.Trigger == 0)
+            // ⭐ CE-1078 (§8e D-1) — a locked shot aims at its unit (followed as it moves); else the station's point
+            var point = !p.Target.IsNull && world.IsAlive(p.Target) && world.HasComponent<SimTransform>(p.Target)
+                ? AimPoint.Middle(world, p.Target, out _, out _) : p.Point;
+            if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, point); return; }
+            if (switching) { SayAt(world, entity, ActionReason.Reloading, point); return; }
+            // ⭐ CE-1078 — in operator mode Rounds is a CAP on the action's rounds (one locked shot = fired + 1), never an end
+            bool capped = p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds;
+            if (p.Trigger == 0 || capped)
             {
                 Magazine.StartIfEmpty(ref weapon);   // ⭐ CE-2166 — the cooldown drains in the dispatcher, not here too
-                SayAt(world, entity, ActionReason.Aiming, p.Point);
+                SayAt(world, entity, ActionReason.Aiming, point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false);
-            if (reason == ActionReason.Firing) RoundsFired(ref channel)++;
-            SayAt(world, entity, reason, p.Point);
+            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false,
+                                                          ammo: loadedAmmo);
+            if (reason == ActionReason.Firing)
+            {
+                RoundsFired(ref channel)++;
+                AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ CE-1079 — the loaded type's count, as the other paths keep it
+            }
+            SayAt(world, entity, reason, point);
         }
 
         private static void SayAt(EntityRepository world, Entity unit, ActionReason reason, Vector3 point)
@@ -363,13 +377,15 @@ namespace Fdp.Toolkit.Combat.Executors
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
             // ⭐ CE-3172 S4d — operator fire aims at a POINT that moves every frame; only a new mount (or an idle task) is a new
             //   order, so the rounds in flight keep counting while the operator sweeps.
-            bool atPoint = p.Operator != 0;
-            bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != (atPoint ? Entity.Null : p.Target)
+            // ⭐ CE-1078 (§8e D-1) — an operator may LOCK a shot on a unit (Target set): the muscle then follows the unit, as for the AI.
+            bool op = p.Operator != 0;
+            bool atPoint = op && p.Target.IsNull;
+            bool fresh = current.Mode == WeaponTaskMode.Idle || current.Target != p.Target
                       || current.MountIndex != (byte)mountIndex;
             // ⭐⭐ M4 (D-D: "the lock IS the aim time") — a turret mount that DECLARES an aim time locks before its first grant: the
             //   target seen continuously that long, the clock restarting on lost sight or a new target. The aim clock carries it (Ready
             //   = locked); once locked the same clock carries the guided-flight hold, as before. A mount with no AimSeconds never locks.
-            float lockSeconds = !atPoint && mountDto is { AimSeconds: > 0f } ? mountDto.AimSeconds : 0f;
+            float lockSeconds = !op && mountDto is { AimSeconds: > 0f } ? mountDto.AimSeconds : 0f;   // C-2: the operator has no aim time
             if (lockSeconds > 0f && (fresh && current.Target != p.Target || aimState.Target != p.Target))
                 aimState = aimState.Restarted(p.Target, aimState.Stance);
             bool locking = lockSeconds > 0f && aimState.Ready == 0;
@@ -399,7 +415,8 @@ namespace Fdp.Toolkit.Combat.Executors
                     return;
                 }
             }
-            if (p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
+            // ⭐ CE-1078 — for the OPERATOR, Rounds is a cap (the grant below stops at it); the action never ends on it
+            if (!op && p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds)
             {
                 ReleaseTurrets(world, entity);
                 channel.Status = NodeStatus.Success;
@@ -408,8 +425,8 @@ namespace Fdp.Toolkit.Combat.Executors
             }
 
             // ⭐ CE-3172 S4d (C-2) — the operator is the eyes and overrides the ROE: the trigger is the only gate
-            bool seen = atPoint ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
-            bool roe = atPoint || RoePermitsFire(world, entity);
+            bool seen = op ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            bool roe = op || RoePermitsFire(world, entity);
             Magazine.StartIfEmpty(ref weapon);
             bool loaded = Magazine.Ready(weapon) && held != ActionReason.Reloading;   // ⭐ M8 — a round switch holds the grants like a reload
             if (locking)
@@ -431,7 +448,7 @@ namespace Fdp.Toolkit.Combat.Executors
             var next = new WeaponTask
             {
                 Mode = grant > accounted ? WeaponTaskMode.Engage : WeaponTaskMode.Track,
-                Target = atPoint ? Entity.Null : p.Target,
+                Target = p.Target,
                 Point = atPoint ? p.Point : default,
                 MountIndex = (byte)mountIndex,
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
@@ -442,7 +459,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (fresh || !current.Equals(next)) world.SetComponent(part, next);
 
             channel.Status = NodeStatus.Running;
-            if (atPoint)
+            if (op)
             {
                 SayAt(world, entity, !loaded ? ActionReason.Reloading : p.Trigger == 0 ? ActionReason.Aiming
                     : mine && status.State == WeaponTaskState.Slewing ? ActionReason.Slewing : ActionReason.Firing, p.Point);

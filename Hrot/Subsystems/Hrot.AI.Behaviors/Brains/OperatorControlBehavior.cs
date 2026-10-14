@@ -34,6 +34,15 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>The frame last handed to the body.</summary>
             public uint Seq;
+            /// <summary>⭐ CE-1078 / CE-1079 (DESIGN_Entity_Control §8e) — the press counters already acted on.</summary>
+            public byte ShotSeq, CancelSeq, AmmoSeq;
+            /// <summary>⭐ CE-1078 — 1 while a locked shot waits for its round to leave.</summary>
+            public byte Pending;
+            /// <summary>⭐ CE-1078 — the locked shot's unit (null = <see cref="PendingPoint"/>).</summary>
+            public Entity PendingTarget;
+            public System.Numerics.Vector3 PendingPoint;
+            /// <summary>⭐ CE-1078 — the weapon action's round count at which the locked shot has left (counted when it was locked).</summary>
+            public int Cap;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -62,6 +71,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             if (!world.IsComponentTypeRegistered<ManualDrive>()) world.RegisterComponent<ManualDrive>();
+            uint lastSeq = ws.Seq;
             var drive = default(ManualDrive);
             if (world.IsComponentTypeRegistered<OperatorInput>() && world.HasComponent<OperatorInput>(self))
             {
@@ -82,7 +92,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Seq = drive.Seq;
             if (world.HasComponent<ManualDrive>(self)) world.SetComponent(self, drive);
             else world.AddComponent(self, drive);
-            OperateWeapon(world, self);
+            OperateWeapon(world, self, ref ws, lastSeq);
             return NodeStatus.Running;
         }
 
@@ -95,17 +105,23 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>
         /// ⭐ <c>CE-3172</c> S4d (M-8) — the operator's weapon: the unit's weapon channel runs <c>AimAndFire</c> in OPERATOR mode,
-        /// aimed at the frame's point, firing while its trigger is held (<c>AimAndFireExecutor</c> keeps ammunition, magazine,
-        /// cooldown and the friendly line; it skips seen-now, aim time and the ROE — C-2). Started once, then steered in place each
-        /// frame. Stamped with this run's id, so <c>ChannelArbitrationSystem</c> stops it the moment the possession ends.
+        /// aimed at the frame's point (<c>AimAndFireExecutor</c> keeps ammunition, magazine, cooldown and the friendly line; it skips
+        /// seen-now, aim time and the ROE — C-2). Started once, then steered in place each frame. Stamped with this run's id, so
+        /// <c>ChannelArbitrationSystem</c> stops it the moment the possession ends.
+        /// <para>⭐⭐ CE-1078 (§8e D-1) — the LATCH: a new trigger press (<see cref="OperatorInput.ShotSeq"/>) locks ONE shot on the unit
+        /// under the crosshair (or the point) and caps the action's rounds at one more; the weapon slews and fires when it bears, then
+        /// follows the crosshair again. RMB (<see cref="OperatorInput.CancelSeq"/>) drops it. A held trigger keeps firing only an
+        /// automatic weapon (<see cref="WeaponBrainProfiles.FiresPerPress"/>). ⭐ CE-1079 (D-2/D-3) — <c>F</c>
+        /// (<see cref="OperatorInput.AmmoSeq"/>) moves the selected weapon to its next round, costing one reload.</para>
         /// </summary>
-        private static unsafe void OperateWeapon(EntityRepository world, Entity self)
+        private static unsafe void OperateWeapon(EntityRepository world, Entity self, ref ManualControlState ws, uint lastSeq)
         {
             if (!world.HasComponent<WeaponChannel>(self) || !world.IsComponentTypeRegistered<OperatorInput>()
                 || !world.HasComponent<OperatorInput>(self)) return;
             var input = world.GetComponentRO<OperatorInput>(self);
             ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
             ref var p = ref System.Runtime.CompilerServices.Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]);
+            bool restarted = false;
             if (channel.ActiveAction != CombatConstants.ActionIdAimAndFire || p.Operator == 0 || channel.Status != NodeStatus.Running)
             {
                 if (world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
@@ -113,13 +129,60 @@ namespace Hrot.AI.Behaviors.Brains
                 unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
                 channel.ActiveAction = CombatConstants.ActionIdAimAndFire;
                 channel.Status = NodeStatus.Running;
+                restarted = true;
             }
-            p = new AimAndFireParams
+            // a new action counts its rounds from 0 (OnEnter), so a waiting shot needs one round of the NEW count
+            int fired = restarted ? 0 : AimAndFireExecutor.RoundsFiredOf(ref channel);
+            if (restarted && ws.Pending != 0) ws.Cap = 1;
+
+            // a new station's frames start again from 1, and its counters from 0
+            if (input.Seq < lastSeq) { ws.ShotSeq = ws.CancelSeq = ws.AmmoSeq = 0; ws.Pending = 0; }
+            if (input.CancelSeq != ws.CancelSeq) { ws.CancelSeq = input.CancelSeq; ws.Pending = 0; }
+            if (input.ShotSeq != ws.ShotSeq)
             {
-                Operator = 1, Trigger = input.Trigger, Mount = input.Mount, Point = input.AimPoint,
-                CooldownSeconds = OperatorCooldownSeconds,
-            };
+                ws.ShotSeq = input.ShotSeq;
+                ws.Pending = 1;
+                ws.PendingTarget = ShotTargetOf(world, self, input.ShotTarget);
+                ws.PendingPoint = input.AimPoint;
+                ws.Cap = fired + 1;
+            }
+            int ammoSteps = (byte)(input.AmmoSeq - ws.AmmoSeq);
+            if (ammoSteps > 0)
+            {
+                ws.AmmoSeq = input.AmmoSeq;
+                var mountEntity = WeaponMountQuery.MountEntity(world, self, input.Mount);
+                if (world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity))
+                    AmmoChoice.Cycle(world, mountEntity, ammoSteps, world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity).ReloadSeconds);
+            }
+            if (ws.Pending != 0 && (fired >= ws.Cap || !ws.PendingTarget.IsNull && !Standing(world, ws.PendingTarget)))
+                ws.Pending = 0;   // the round left — or the unit it was locked on is gone
+
+            var category = CombatTkb.MountOf(world, self, input.Mount)?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown;
+            bool held = input.Trigger != 0 && !WeaponBrainProfiles.FiresPerPress(category);
+            p = ws.Pending != 0
+                ? new AimAndFireParams
+                {
+                    Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Point = ws.PendingPoint, Rounds = ws.Cap,
+                    CooldownSeconds = OperatorCooldownSeconds,
+                }
+                : new AimAndFireParams
+                {
+                    Operator = 1, Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = input.AimPoint,
+                    CooldownSeconds = OperatorCooldownSeconds,
+                };
         }
+
+        /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>
+        private static Entity ShotTargetOf(EntityRepository world, Entity self, long networkId)
+        {
+            if (networkId == 0 || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return Entity.Null;
+            return world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!.TryGetEntity(networkId, out var e)
+                   && e != self && world.IsAlive(e) ? e : Entity.Null;
+        }
+
+        private static bool Standing(EntityRepository world, Entity unit)
+            => world.IsAlive(unit) && (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(unit)
+                                       || world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(unit).Current > 0f);
 
         /// <summary>⭐ <c>CE-2135</c> (P3, B3b-1) — the operator's behaviour takes nothing: its block is internal (the possession sends
         /// <c>"{}"</c>, <c>Possession.cs</c>), so it names <see cref="NoParams"/> and this resolver starts the block clean (the Disembark shape).</summary>

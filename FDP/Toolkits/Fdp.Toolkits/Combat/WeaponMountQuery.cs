@@ -65,5 +65,21 @@ namespace Fdp.Toolkit.Combat
 
             return count;
         }
+
+        /// <summary>
+        /// The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount child
+        /// otherwise; the owner when no such child exists. ⭐ CE-1079 — public so the operator behaviour finds the mount whose round
+        /// it cycles (it was <c>FireAtPointExecutor</c>'s private helper; that one now calls this).
+        /// </summary>
+        public static Entity MountEntity(EntityRepository world, Entity owner, int index)
+        {
+            if (index == 0 || !world.IsComponentTypeRegistered<WeaponMountInfo>()) return owner;
+            Span<Entity> mounts = stackalloc Entity[8];
+            int n = EnumerateMounts(world, owner, mounts);
+            for (int i = 0; i < n; i++)
+                if (world.HasComponent<WeaponMountInfo>(mounts[i]) && world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex == index)
+                    return mounts[i];
+            return owner;
+        }
     }
 }

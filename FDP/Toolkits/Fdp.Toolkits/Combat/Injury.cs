@@ -39,6 +39,18 @@ namespace Fdp.Toolkit.Combat
             return InjuryState.Ok;
         }
 
+        /// <summary>
+        /// ⭐ CE-1082 (slice I-b, I5; docs/DESIGN_Map_3D_Mode.md §6m C-2) — the share of his healthy top speed <paramref name="entity"/> moves
+        /// at: <see cref="InjuryThresholds.WoundedSpeedFactor"/> while WOUNDED (0 = unset = 1), else 1. Incapacitated men do not move at all
+        /// (their <c>CanMove</c> is stripped), so it is not their factor.
+        /// </summary>
+        public static float SpeedFactor(ISimulationView view, Entity entity)
+        {
+            if (StateOf(view, entity) != InjuryState.Wounded) return 1f;
+            float f = view.GetComponentRO<InjuryThresholds>(entity).WoundedSpeedFactor;
+            return f > 0f ? f : 1f;
+        }
+
         /// <summary>Down but alive: cannot move or fire, bleeding out, may be carried (R-2009 C3).</summary>
         public static bool IsIncapacitated(ISimulationView view, Entity entity)
             => view.IsAlive(entity) && StateOf(view, entity) == InjuryState.Incapacitated;

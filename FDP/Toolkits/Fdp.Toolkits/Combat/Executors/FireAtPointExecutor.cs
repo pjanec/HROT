@@ -73,7 +73,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// not (the round is held, nothing spent). The caller has checked the ammunition.
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
-            ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc)
+            ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L)
         {
             // ⭐ CE-2166 — read, never drained here: WeaponDispatcherSystem drains every weapon and mount once a frame
             if (weapon.CooldownSecondsRemaining > 0f) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Cooldown;
@@ -94,6 +94,7 @@ namespace Fdp.Toolkit.Combat.Executors
             world.Bus.Publish(new WeaponFireIntent
             {
                 Shooter = unit, Target = Entity.Null, WeaponIndex = mountIndex, AtPoint = true, TargetPoint = point,
+                AmmoGuid = ammo,   // ⭐ CE-1079 — the loaded round (0 = the mount's own)
             });
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = cooldownSeconds;
@@ -126,16 +127,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
         /// <summary>The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount
         /// child otherwise (<see cref="WeaponMountQuery"/>, as <see cref="AimAndFireExecutor"/> finds it).</summary>
-        private static Entity MountEntity(EntityRepository world, Entity owner, int index)
-        {
-            if (index == 0 || !world.IsComponentTypeRegistered<WeaponMountInfo>()) return owner;
-            System.Span<Entity> mounts = stackalloc Entity[8];
-            int n = WeaponMountQuery.EnumerateMounts(world, owner, mounts);
-            for (int i = 0; i < n; i++)
-                if (world.HasComponent<WeaponMountInfo>(mounts[i]) && world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex == index)
-                    return mounts[i];
-            return owner;
-        }
+        private static Entity MountEntity(EntityRepository world, Entity owner, int index) => WeaponMountQuery.MountEntity(world, owner, index);
     }
 }
 

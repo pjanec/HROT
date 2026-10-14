@@ -183,5 +183,27 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public void AnUnreadableBand_IsRefusedAtSpawn()
             => Assert.Throws<InvalidOperationException>(() => Soldier(100f, new InjuryDefDto { WoundedBelow = 0.2f, IncapacitatedBelow = 0.5f }));
+
+        /// <summary>⭐ CE-1082 (slice I-b) — the TKB's <c>WoundedSpeedFactor</c> (default 0.6) is stamped beside the band, and
+        /// <c>Injury.SpeedFactor</c> applies it only while WOUNDED (ok, incapacitated and dead men are 1 — the down do not move at all).</summary>
+        [Fact]
+        public void CE1082_TheWoundedSpeedFactor_IsStamped_AndAppliesOnlyWhileWounded()
+        {
+            var thresholds = Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator.Thresholds(new Fdp.Toolkit.Tkb.Domain.InjuryDefDto());
+            Assert.Equal(0.6f, thresholds.WoundedSpeedFactor);
+            using var w = new EntityRepository();
+            w.RegisterComponent<Health>();
+            w.RegisterComponent<InjuryThresholds>();
+            float At(float health)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new Health { Current = health, Max = 100f });
+                w.AddComponent(e, thresholds);
+                return Injury.SpeedFactor(w, e);
+            }
+            Assert.Equal(1f, At(90f));     // ok
+            Assert.Equal(0.6f, At(50f));   // wounded
+            Assert.Equal(1f, At(20f));     // incapacitated: he does not move at all (CanMove is stripped)
+        }
     }
 }

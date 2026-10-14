@@ -22,5 +22,9 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Seconds an incapacitated person takes to bleed from <see cref="IncapacitatedBelow"/> to death. 0 = never bleeds out.</summary>
         public float BleedOutSeconds { get; init; } = 120f;
+
+        /// <summary>⭐ CE-1082 (Injury slice I-b; docs/DESIGN_Map_3D_Mode.md §6m C-2) — a WOUNDED person's top speed as a share of his
+        /// healthy one. 🔒 User, 2026-10-14: "when soldier is wounded his motion pattern could be degraded" — 0.6, approved.</summary>
+        public float WoundedSpeedFactor { get; init; } = 0.6f;
     }
 }

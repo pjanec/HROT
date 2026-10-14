@@ -59,5 +59,12 @@ namespace Fdp.Toolkit.Combat
             WeaponCategory.Atgm => Guided,
             _ => Turret,   // TankGun, Autocannon, MachineGun (a hull one names no turret), Unknown
         };
+
+        /// <summary>
+        /// ⭐ CE-1078 (DESIGN_Entity_Control §8e D-1) — an OPERATOR fires this weapon once per trigger press (a tank gun, an ATGM, a
+        /// mortar, a grenade); every other weapon (small arms, MG, autocannon, an untagged mount) keeps firing while the trigger is held.
+        /// </summary>
+        public static bool FiresPerPress(WeaponCategory category)
+            => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade;
     }
 }
