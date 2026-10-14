@@ -906,6 +906,69 @@ public sealed class Map3DTests
         Assert.Equal(1, EntityBodyLayer3D.BombsLeft(world, plane, db));
     }
 
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1, F-4) — every pose's head is skin, tagged with the side its face is on:
+    /// upright, crouched, prone, crawling, seated and at a weapon its front; on his back (dead, downed, dragged) up; draped over a shoulder
+    /// down. No other part is a head. A fall turns the face over halfway.</summary>
+    [Fact]
+    public void CE1097_EveryHead_IsSkin_WithItsFaceSide_AndAFallTurnsItOverHalfway()
+    {
+        foreach (bool soldier in new[] { true, false })
+        {
+            var poses = new List<(string Name, KitPart[] Parts, FaceOn Face)>();
+            foreach (var stance in new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone })
+                foreach (var posture in new[] { WeaponPostureKind.AtEase, WeaponPostureKind.Ready, WeaponPostureKind.Aimed })
+                    poses.Add(($"{stance}/{posture}", BlockFigure.Parts(stance, soldier, posture), FaceOn.Front));
+            poses.Add(("crawl", BlockFigure.CrawlPose(soldier, 1f), FaceOn.Front));
+            poses.Add(("seated", BlockFigure.Seated(false, soldier), FaceOn.Front));
+            poses.Add(("at a weapon", BlockFigure.AtWeapon(true, soldier), FaceOn.Front));
+            poses.Add(("dead", BlockFigure.Dead(soldier), FaceOn.Up));
+            poses.Add(("downed", BlockFigure.Downed(soldier), FaceOn.Up));
+            poses.Add(("dragged", BlockFigure.Towed(soldier), FaceOn.Up));
+            poses.Add(("draped", BlockFigure.Draped(soldier), FaceOn.Down));
+            foreach (var (name, parts, face) in poses)
+            {
+                Assert.Equal(face, parts[BlockFigure.HeadIndex].Face);
+                Assert.Equal(ColourRole.Skin, parts[BlockFigure.HeadIndex].Colour);
+                Assert.Single(parts, p => p.Face != FaceOn.None);   // only the head ($name)
+            }
+        }
+        var standing = BlockFigure.Parts(StanceId.Standing, true);
+        Assert.Equal(FaceOn.Front, BlockFigure.Fall(standing, 0.4f, true)[BlockFigure.HeadIndex].Face);
+        Assert.Equal(FaceOn.Up, BlockFigure.Fall(standing, 0.6f, true)[BlockFigure.HeadIndex].Face);
+    }
+
+    /// <summary>⭐ CE-1097 (§6o F-2, F-3, F-4) — WHERE the face is drawn: on a standing soldier the eyes are in front of his head and the helmet
+    /// on top of it; on a dead one (on his back) the eyes look UP and the helmet is at the far end of his head from his body; draped over a
+    /// shoulder his eyes look DOWN. A soldier's helmet is his uniform a step darker (green stays green); a civilian has hair, no helmet.</summary>
+    [Fact]
+    public void CE1097_TheFaceIsOnItsSide_TheHelmetOnTop_InTheUniformDarker()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        Vector3 Centre(KitPart head, FaceShade shade)
+            => Vector3.Transform(Vector3.Zero, BlockFigure.FaceDetail(BlockFigure.FaceParts(true).First(d => d.Shade == shade), head.Face, head.BodyTransform(size)));
+        Vector3 HeadCentre(KitPart head) => Vector3.Transform(Vector3.Zero, head.BodyTransform(size));
+
+        var up = BlockFigure.Parts(StanceId.Standing, true)[BlockFigure.HeadIndex];
+        Assert.True(Centre(up, FaceShade.Eye).X > HeadCentre(up).X + 0.09f, "a standing man's eyes are on the front of his head");
+        Assert.True(Centre(up, FaceShade.Helmet).Z > HeadCentre(up).Z + 0.07f, "his helmet is on top");
+        Assert.True(Centre(up, FaceShade.Mouth).Z < Centre(up, FaceShade.Eye).Z, "the mouth is under the eyes");
+
+        var dead = BlockFigure.Dead(true)[BlockFigure.HeadIndex];
+        Assert.True(Centre(dead, FaceShade.Eye).Z > HeadCentre(dead).Z + 0.09f, "a dead man on his back looks up");
+        Assert.True(Centre(dead, FaceShade.Helmet).X > HeadCentre(dead).X + 0.07f, "his helmet is at the end of his head, away from his body");
+
+        var draped = BlockFigure.Draped(true)[BlockFigure.HeadIndex];
+        Assert.True(Centre(draped, FaceShade.Eye).Z < HeadCentre(draped).Z - 0.09f, "draped over a shoulder he looks down");
+
+        Assert.Contains(BlockFigure.FaceParts(true), d => d.Shade == FaceShade.Helmet);
+        Assert.DoesNotContain(BlockFigure.FaceParts(false), d => d.Shade == FaceShade.Helmet);
+        Assert.Contains(BlockFigure.FaceParts(false), d => d.Shade == FaceShade.Hair);
+        var uniform = EntityBodyLayer3D.DefaultColour(VisualFamily.Person);
+        var helmet = EntityBodyLayer3D.FaceColour(FaceShade.Helmet, uniform);
+        Assert.True(helmet.G < uniform.G && helmet.G > helmet.R && helmet.G > helmet.B, "a green uniform's helmet is a darker green");
+        Assert.Equal(EntityBodyLayer3D.Skin, EntityBodyLayer3D.PartColour(ColourRole.Skin, uniform, wreck: false));
+    }
+
     /// <summary>⭐ CE-1081 (C-1) — the CARRIED man lies across his carrier's shoulders: his middle at the shoulders' height, crosswise (his
     /// head off to the carrier's LEFT and hanging lower), not standing inside the carrier as the sim's position alone would draw him.</summary>
     [Fact]

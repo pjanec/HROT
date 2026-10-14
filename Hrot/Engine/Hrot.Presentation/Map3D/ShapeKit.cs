@@ -12,8 +12,23 @@ public enum PartShape : byte { Box, Cylinder, Cone }
 /// <summary>Which body axis a cylinder or cone runs along (x = forward, y = left, z = up).</summary>
 public enum PartAxis : byte { X, Y, Z }
 
-/// <summary>Which colour a part takes: the entity's colour, or a fixed material shade.</summary>
-public enum ColourRole : byte { Body, Dark, Glass, Metal }
+/// <summary>Which colour a part takes: the entity's colour, or a fixed material shade. ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1) —
+/// <see cref="Skin"/>: a figure's head.</summary>
+public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin }
+
+/// <summary>
+/// ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-4) — which side of a block figure's HEAD box is his face (the face is drawn on it):
+/// <see cref="Front"/> the box's +x side, the top of the head +z (upright, prone, seated); <see cref="Up"/> the +z side, the top of the
+/// head +x (on his back); <see cref="Down"/> the −z side, the top of the head +x (draped over a shoulder). <see cref="None"/>: not a head.
+/// </summary>
+public enum FaceOn : byte { None, Front, Up, Down }
+
+/// <summary>⭐ CE-1097 (§6o F-2, F-3) — the shade a face detail is drawn in.</summary>
+public enum FaceShade : byte { Eye, Nose, Mouth, Helmet, Hair }
+
+/// <summary>⭐ CE-1097 (§6o) — one detail of a face, a box in the HEAD box's own unit frame (−0.5..0.5 on each axis; x = out of the
+/// face, y = his left, z = the top of his head), before <see cref="BlockFigure.FaceFrame"/> turns it onto the side the face is on.</summary>
+public readonly record struct FacePart(Vector3 Centre, Vector3 Extent, FaceShade Shade);
 
 /// <summary>
 /// ⭐ CE-1033 — which articulated assembly a part belongs to. A <see cref="Turret"/> part turns with the turret's azimuth about the
@@ -81,9 +96,11 @@ public readonly record struct KitPivots(Vector2 Turret, Vector2 GunTrunnionXZ);
 /// where a limb swings from when it is not its own top — a forearm swings from the shoulder with its upper arm. ⭐ WL-6c —
 /// <paramref name="KneePivot"/> marks a SHIN: it first bends back about its knee by <see cref="MotionPose.KneeFlexL"/> / <c>R</c>, then swings
 /// with its thigh from the hip.</para>
+/// <para>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — <paramref name="Face"/> marks a figure's HEAD and which side of it is the face.</para>
 public readonly record struct KitPart(
     PartShape Shape, Vector3 Centre, Vector3 Extent, ColourRole Colour, PartAxis Axis = PartAxis.Z, float PitchDegrees = 0f,
-    float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null)
+    float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null,
+    FaceOn Face = FaceOn.None)
 {
     /// <summary>The part's transform in BODY space (metres, before the entity's own rotation and position), unarticulated.</summary>
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
@@ -450,6 +467,46 @@ public static class BlockFigure
                              bool upper = false)
         => new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / S, new Vector3(ex, ey, ez) / S, c, Role: role, Upper: upper);
 
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — a figure's HEAD: a skin-coloured box whose <paramref name="face"/> side carries
+    /// the face (<see cref="FaceParts"/>), drawn on it by the renderer.</summary>
+    private static KitPart Head(float cx, float cy, float cz, float ex, float ey, float ez, FaceOn face, bool upper = false)
+        => P(cx, cy, cz, ex, ey, ez, ColourRole.Skin, upper: upper) with { Face = face };
+
+    // ── ⭐ CE-1097 (§6o F-2, F-3) — the face, in the head box's unit frame (x out of the face, y his left, z the top of his head) ──────
+
+    private static readonly FacePart[] Features =
+    [
+        new(new(0.52f, 0.21f, 0.04f), new(0.06f, 0.17f, 0.14f), FaceShade.Eye),      // eyes, a little proud of the face
+        new(new(0.52f, -0.21f, 0.04f), new(0.06f, 0.17f, 0.14f), FaceShade.Eye),
+        new(new(0.56f, 0f, -0.11f), new(0.14f, 0.13f, 0.18f), FaceShade.Nose),
+        new(new(0.52f, 0f, -0.31f), new(0.06f, 0.36f, 0.07f), FaceShade.Mouth),
+    ];
+
+    /// <summary>A soldier's helmet: over the top of his head, a little wider than it and its brim over his brow.</summary>
+    private static readonly FacePart[] SoldierFace =
+        [.. Features, new(new(-0.02f, 0f, 0.37f), new(1.16f, 1.16f, 0.42f), FaceShade.Helmet)];
+
+    /// <summary>A civilian's hair, close over the top and back of his head.</summary>
+    private static readonly FacePart[] CivilianFace =
+        [.. Features, new(new(-0.06f, 0f, 0.41f), new(1.06f, 1.06f, 0.24f), FaceShade.Hair)];
+
+    /// <summary>⭐ CE-1097 — the details drawn on a figure's head: the features, and a soldier's helmet or a civilian's hair.</summary>
+    public static IReadOnlyList<FacePart> FaceParts(bool soldier) => soldier ? SoldierFace : CivilianFace;
+
+    /// <summary>⭐ CE-1097 (§6o F-4) — turns the face's frame (x out of the face, z the top of the head) onto the side of the head box
+    /// the face is on: <see cref="FaceOn.Up"/> x → +z, z → +x; <see cref="FaceOn.Down"/> x → −z, z → +x (both proper rotations).</summary>
+    public static Matrix4x4 FaceFrame(FaceOn on) => on switch
+    {
+        FaceOn.Up => new Matrix4x4(0f, 0f, 1f, 0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 1f),
+        FaceOn.Down => new Matrix4x4(0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 1f),
+        _ => Matrix4x4.Identity,
+    };
+
+    /// <summary>⭐ CE-1097 — where face detail <paramref name="d"/> is drawn: a unit box sized and placed in the head box's frame, turned onto
+    /// the face's side, then carried by the head part's own transform <paramref name="head"/> (its lean, twist, blend and fall).</summary>
+    public static Matrix4x4 FaceDetail(in FacePart d, FaceOn on, Matrix4x4 head)
+        => Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre) * FaceFrame(on) * head;
+
     /// <summary>A box from <paramref name="a"/> to <paramref name="b"/> (metres), <paramref name="w"/> wide and <paramref name="h"/>
     /// tall across — an arm segment or the rifle.</summary>
     private static KitPart Limb(Vector3 a, Vector3 b, float w, float h, ColourRole c, PartRole role = PartRole.Hull, Vector3? pivot = null)
@@ -509,7 +566,7 @@ public static class BlockFigure
     [
         .. Legs(new(0f, 0.11f, 0.90f), new(0f, 0.11f, 0.02f), new(0f, -0.11f, 0.90f), new(0f, -0.11f, 0.02f), swings: true),
         P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),                       // torso
-        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),                       // head
+        Head(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),                      // head
     ];
 
     /// <summary>⭐ WL-6c — how much lower the athletic fighting stance carries the hips (m): knees bent, weight forward.</summary>
@@ -523,7 +580,7 @@ public static class BlockFigure
     [
         .. Legs(new(-0.02f, 0.12f, 0.80f), new(0.24f, 0.15f, 0.02f), new(-0.02f, -0.12f, 0.80f), new(-0.20f, -0.16f, 0.02f), swings: true),
         P(0f, 0f, 1.18f - AthleticDrop, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-        P(0.02f, 0f, 1.60f - AthleticDrop, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.02f, 0f, 1.60f - AthleticDrop, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     /// <summary>⭐ WL-6c — the COMBAT GLIDE's legs (an aimed soldier on the move): hips as low as the athletic stance, both feet under
@@ -543,7 +600,7 @@ public static class BlockFigure
         .. Leg(new(-0.05f, 0.12f, 0.50f), new(0.40f, 0.12f, 0.02f), true, swings: false, bend: Vector3.UnitZ),   // support knee up
         .. KneelingLeg(new(-0.05f, -0.12f, 0.50f), new(-0.40f, -0.12f, 0.07f)),                                  // firing-side knee down
         P(-0.02f, 0f, 0.76f, 0.26f, 0.40f, 0.52f, ColourRole.Body, upper: true),
-        P(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     /// <summary>A leg kneeling: the knee forward and down on the ground, the shin lying back from it to the foot. The shin is built
@@ -572,14 +629,14 @@ public static class BlockFigure
     [
         .. Legs(new(0f, 0.12f, 0.90f - CrouchRunDrop), new(0.06f, 0.12f, 0.02f), new(0f, -0.12f, 0.90f - CrouchRunDrop), new(0.06f, -0.12f, 0.02f), swings: true),
         P(0.02f, 0f, 1.18f - CrouchRunDrop, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-        P(0.02f, 0f, 1.60f - CrouchRunDrop, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.02f, 0f, 1.60f - CrouchRunDrop, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     private static readonly KitPart[] ProneBody =
     [
         .. Legs(new(-0.20f, 0.12f, 0.09f), new(-1.06f, 0.14f, 0.07f), new(-0.20f, -0.12f, 0.09f), new(-1.06f, -0.14f, 0.07f), swings: false),
         P(0.04f, 0f, 0.13f, 0.60f, 0.42f, 0.24f, ColourRole.Body),
-        P(0.48f, 0f, 0.17f, 0.24f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.48f, 0f, 0.17f, 0.24f, 0.20f, 0.21f, FaceOn.Front),
     ];
 
     /// <summary>Where the shoulders are, per stance (metres; left is +y).</summary>
@@ -727,7 +784,7 @@ public static class BlockFigure
     [
         .. Legs(new(-0.17f, 0.12f, 0.08f), new(-1.02f, 0.32f, 0.07f), new(-0.17f, -0.12f, 0.08f), new(-1.02f, -0.32f, 0.07f), swings: false),
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.08f), new(0.36f, 0.48f, 0.06f), new(0.30f, 0.76f, 0.06f), PartRole.Hull),
         .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
     ];
@@ -753,7 +810,7 @@ public static class BlockFigure
         .. Legs(new(-0.10f, 0.11f, 0.02f), new(-0.32f, 0.13f, -0.80f), new(-0.10f, -0.11f, 0.02f), new(-0.32f, -0.13f, -0.80f), swings: false,
                 bend: new Vector3(-1f, 0f, 0f)),
         P(0.22f, 0f, 0.06f, 0.60f, 0.40f, 0.24f, ColourRole.Body),                 // torso, lying across
-        P(0.62f, 0f, -0.12f, 0.22f, 0.20f, 0.24f, ColourRole.Body),                // head, hanging
+        Head(0.62f, 0f, -0.12f, 0.22f, 0.20f, 0.24f, FaceOn.Down),                 // head, hanging
         .. Arm(new(0.48f, 0.21f, 0.02f), new(0.56f, 0.22f, -0.28f), new(0.58f, 0.18f, -0.58f), PartRole.Hull),
         .. Arm(new(0.48f, -0.21f, 0.02f), new(0.56f, -0.22f, -0.28f), new(0.58f, -0.18f, -0.58f), PartRole.Hull),
     ];
@@ -769,7 +826,7 @@ public static class BlockFigure
     [
         .. Legs(new(-0.17f, 0.11f, 0.08f), new(-1.02f, 0.15f, 0.07f), new(-0.17f, -0.11f, 0.08f), new(-1.02f, -0.15f, 0.07f), swings: false),
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.13f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.13f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.12f), new(0.52f, 0.20f, 0.40f), new(0.74f, 0.10f, 0.75f), PartRole.Hull),
         .. Arm(new(0.28f, -0.21f, 0.12f), new(0.52f, -0.20f, 0.40f), new(0.74f, -0.10f, 0.75f), PartRole.Hull),
     ];
@@ -868,7 +925,7 @@ public static class BlockFigure
         [
             .. legs,
             P(-0.02f, 0f, 0.28f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-            P(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+            Head(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
         ];
         if (!soldier)
             return [.. body, .. Arm(shoulderL, new(0.12f, 0.30f, 0.28f), new(0.30f, 0.16f, 0.05f), PartRole.Hull),
@@ -887,7 +944,7 @@ public static class BlockFigure
         .. Leg(new(-0.17f, 0.12f, 0.08f), new(-1.02f, 0.22f, 0.07f), true, swings: false),
         .. Leg(new(-0.17f, -0.12f, 0.08f), new(-0.62f, -0.14f, 0.07f), false, swings: false, bend: Vector3.UnitZ),   // knee up
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.10f), new(0.14f, 0.30f, 0.20f), new(0.08f, 0.02f, 0.27f), PartRole.Hull),        // hand on his chest
         .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
     ];
@@ -919,6 +976,7 @@ public static class BlockFigure
                 YawDegrees = a[i].YawDegrees + (b[i].YawDegrees - a[i].YawDegrees) * t,
                 PitchDegrees = a[i].PitchDegrees + (b[i].PitchDegrees - a[i].PitchDegrees) * t,
                 Role = PartRole.Hull,
+                Face = t < 0.5f ? a[i].Face : b[i].Face,   // ⭐ CE-1097 (§6o F-4) — the face turns over halfway through a fall
             };
         return blended;
     }
@@ -1009,7 +1067,7 @@ public static class BlockFigure
             .. Leg(CrawlHipL, Ankle(pullL, 1f), true, swings: false, bend: new Vector3(0.3f, 1f, 0.1f)),
             .. Leg(CrawlHipR, Ankle(pullR, -1f), false, swings: false, bend: new Vector3(0.3f, -1f, 0.1f)),
             P(0.04f, 0f, 0.14f, 0.60f, 0.42f, 0.24f, ColourRole.Body) with { YawDegrees = shimmy },
-            P(0.50f, 0f, 0.20f, 0.24f, 0.20f, 0.21f, ColourRole.Body) with { YawDegrees = shimmy * 1.5f },
+            Head(0.50f, 0f, 0.20f, 0.24f, 0.20f, 0.21f, FaceOn.Front) with { YawDegrees = shimmy * 1.5f },
             .. Arm(ProneShoulderL + new Vector3(0f, 0f, 0.01f), elbowL, handL, PartRole.Hull),
             .. Arm(ProneShoulderR + new Vector3(0f, 0f, 0.01f), elbowR, handR, PartRole.Hull),
         ];

@@ -1735,6 +1735,61 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack helicopter, door guns, minigun / GAU-8 tracer streams, Hydra
 salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
 
+### 6o. CE-1097 — a face: skin, eyes, nose and mouth, a soldier's helmet — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"give the soldiers some face, now it is just a green expressionless cube, there should be some skin color and
+symbolic eyes and nose and mouth and green helmet on the top"*.
+
+📐 **INVENTORY** *(graph `search_graph .*(BlockFigure|ShapeKit|PartColour|KitPart).*` = 7; grep `BlockFigure.|ColourRole.|PartColour(` = 5
+files)*: the head is ONE `ColourRole.Body` box in every pose (`BlockFigure`, `ShapeKit.cs` — standing, athletic, crouched, crouched run,
+prone, crawl, dead, downed, draped, towed, seated); `EntityBodyLayer3D` is the ONLY renderer of the kits; every pose keeps one part ORDER
+(`HeadIndex` 5, `WeaponIndex` 10) that the blends, the first-person eye and the muzzle tip rely on. ⛔ No design in `docs/` or `.dev/`
+covers a face (searched `helmet`, `face`, `skin`; the TKB `Accessory` idea is a data idea, not a drawing).
+
+```mermaid
+classDiagram
+    direction LR
+    class KitPart { <<existing, grows>> + Face FaceOn }
+    class FaceOn { <<NEW enum>> None · Front · Up · Down }
+    class ColourRole { <<existing, grows>> + Skin }
+    class BlockFigure { <<existing, grows>> every pose's head Skin with its FaceOn · FaceParts · FaceFrame }
+    class FacePart { <<NEW>> Centre · Extent in the head box · Shade }
+    class FaceShade { <<NEW enum>> Eye · Nose · Mouth · Helmet · Hair }
+    class EntityBodyLayer3D { <<existing, grows>> draws the face on the head part · FaceDetailsDrawn }
+    KitPart --> FaceOn
+    BlockFigure ..> FacePart
+    FacePart --> FaceShade
+    EntityBodyLayer3D ..> BlockFigure
+    EntityBodyLayer3D ..> KitPart
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    participant H as the head part
+    L->>H: BodyTransform, with lean, twist, stance blend
+    L->>L: draw the head box in skin
+    L->>F: FaceFrame of the head's FaceOn, FaceParts soldier or civilian
+    L->>L: draw each face part in the head box's frame, then the head's transform
+```
+
+*Caption:* the face is drawn ON the head part, in the head box's own frame, so it follows every lean, twist, stance blend and fall for
+free, and the shared part order does not move (no new kit part). The only new fact a pose states is WHICH side of its head box is the face.
+
+| decision | rule |
+|---|---|
+| **F-1 skin** | every head is `ColourRole.Skin`, one fixed tone |
+| **F-2 the features** | two dark eyes, a nose a shade darker than the skin and a dark red mouth, standing a little proud of the face so they read at a distance |
+| **F-3 the helmet** | a soldier wears a helmet over the top of the head, a little wider than it, in his UNIFORM colour a step darker — green for the default soldier; a civilian has dark hair instead |
+| **F-4 which side is the face** | `FaceOn` on the head part: `Front` (upright, prone, seated), `Up` (on his back — dead, downed, dragged), `Down` (draped over a shoulder); a fall or blend switches it halfway |
+| **F-5 the first-person head** | the face is not drawn for the possessed unit's own head (it is not drawn now) |
+
+**Rejected — one line each:** *new kit parts for the eyes and helmet* — every pose's part order (the blends, `HeadIndex`, `WeaponIndex`)
+would move; *a fixed olive helmet* — from above the helmet is most of what is seen of a man, and a fixed colour would hide his side;
+*rotating the head box in the lying poses instead of a tag* — face-up with the top of the head away from the body needs a turn of 180°
+about a diagonal, and the fall blends yaw and pitch linearly, so the head would spin as he falls.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

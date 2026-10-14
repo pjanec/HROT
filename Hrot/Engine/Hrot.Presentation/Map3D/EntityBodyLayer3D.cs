@@ -68,7 +68,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = 0;
         _carried.Clear();
         _shouldering.Clear();
         _figureFrames.Clear();
@@ -201,10 +201,12 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     _eyes[e] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
                     if (e == FirstPerson) continue;
                 }
-                var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose, motion) * kitToBody * body);
+                var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
+                var model = HrotToRaylib.ModelFromHrot(placed);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
                 PartsDrawn++;
+                if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader);   // ⭐ CE-1097 (§6o)
             }
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
@@ -462,6 +464,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public int GunnersDrawn { get; private set; }
     /// <summary>⭐ CE-1090 — soldiers drawn with a launcher on the shoulder by the last frame (rails).</summary>
     public int ShoulderedDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — the face details (eyes, nose, mouth, helmet or hair) drawn this frame.</summary>
+    public int FaceDetailsDrawn { get; private set; }
 
     /// <summary>
     /// ⭐ CE-1092 (N-8) — how many bombs an attack plane still carries (at most its pylons): its bomb mount's rounds from the replicated
@@ -748,6 +753,32 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private void DrawSkid(float x0, float x1, float y, float z, Matrix4x4 body, LitShader shader, Color colour)
         => DrawPart(_cube, Matrix4x4.CreateScale(x1 - x0 + 0.6f, 0.12f, 0.1f) * Matrix4x4.CreateTranslation((x0 + x1) / 2f, y, z + 0.05f), colour, body, shader);
 
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — the face on a figure's head: each detail is a box in the head box's own unit
+    /// frame, turned onto the side the face is on (<see cref="BlockFigure.FaceFrame"/>) and then placed by the head's own transform
+    /// (<paramref name="head"/>), so it follows every lean, twist, blend and fall.</summary>
+    private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader)
+    {
+        foreach (var d in BlockFigure.FaceParts(soldier))
+        {
+            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform)), HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)));
+            FaceDetailsDrawn++;
+        }
+    }
+
+    /// <summary>⭐ CE-1097 (§6o F-1) — the skin; the features a shade of it or dark.</summary>
+    public static readonly Color Skin = new(206, 168, 132, 255);
+
+    /// <summary>⭐ CE-1097 (§6o F-2, F-3) — a face detail's colour: the helmet is the uniform a step darker (so the side still reads from
+    /// above, where the helmet is most of what is seen of a man).</summary>
+    public static Color FaceColour(FaceShade shade, Color uniform) => shade switch
+    {
+        FaceShade.Eye => new Color(28, 24, 22, 255),
+        FaceShade.Nose => new Color(184, 142, 108, 255),
+        FaceShade.Mouth => new Color(132, 52, 48, 255),
+        FaceShade.Hair => new Color(62, 44, 32, 255),
+        _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
+    };
+
     private void DrawPart(Mesh mesh, Matrix4x4 local, Color colour, Matrix4x4 body, LitShader shader)
     {
         Raylib.DrawMesh(mesh, shader.Tinted(colour), HrotToRaylib.ModelFromHrot(local * body));
@@ -925,6 +956,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     private static Color Shade(ColourRole role, Color body) => role switch
     {
+        ColourRole.Skin => Skin,   // ⭐ CE-1097 (§6o F-1)
         ColourRole.Dark => Dark,
         ColourRole.Glass => Glass,
         ColourRole.Metal => Metal,
