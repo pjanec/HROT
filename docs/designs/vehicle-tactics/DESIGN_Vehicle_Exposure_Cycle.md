@@ -61,8 +61,9 @@ classDiagram
     +Of(view, self, target) float  «a VEHICLE self: danger to me»
     +OfSlot(view, self, mem, slot) float
     +OfClass(byte) float  «+ Rotor = 7 ⇒ 1»
-    +ToMe(EntityRepository, self, target) float  «new»
+    +ToMe(EntityRepository, self, target, out danger) bool  «new — BUILT»
     +ArmedHarmless = 0.1  «new floor»
+    +InRange(range, distance) float  «new: 1 → 0 over range…1.2×range»
   }
   class CombatTkb { <<existing>> PlatformOf · MountOf · TurretOf }
   class ArmorModel { <<existing, grows — Armour Hit Model §2>> FacingOf (3-D) · ArmourFor(face, penetrator) · HitDamage }
@@ -76,7 +77,7 @@ classDiagram
 
 | rule | why |
 |---|---|
-| ⭐ **the danger to a VEHICLE self** (`VehicleCover.IsVehicle(self)` and a `CombatPlatformDefDto`) = max over the target's mounts of `HitDamage(his best round vs me, on the face it would hit)` × `InRange` ÷ my max health, clamped to [`ArmedHarmless`, 1] for an armed target; a person self keeps armed 1 / unarmed 0.3 | V1; a soldier's 5 mm vest must not make riflemen harmless to riflemen (§1 ⚠) |
+| ⭐ **the danger to a VEHICLE self** (`VehicleCover.IsVehicle(self)` and a `CombatPlatformDefDto` with armour) = max over the target's mounts of `ArmorModel.PenetrationChance(his round vs me, on the face it would hit)` × `InRange`, clamped to [`ArmedHarmless` 0.1, 1] for an armed target — the person scale's *armed = he can hurt me = 1*; an UNKNOWN round (penetration ≤ 0) ignores armour ⇒ 1, as `HitDamage` does; a person self keeps armed 1 / unarmed 0.3 | V1; a soldier's 5 mm vest must not make riflemen harmless to riflemen (§1 ⚠). ⚠ **AS-BUILT `2026-10-14` — deviates from the first draft** (`HitDamage` ÷ my max health, ⛔ SUPERSEDED): that put a side-on RPG at 400 / 2500 = **0.16**, under every ABSOLUTE threshold — the `Sentry` order's `ThreatsAtLeast.MinDanger` default 0.5 (`TacticsTreesTests.cs:686`, `Sentry.btree.json`) would not count the RPG man as a threat to a tank, the opposite of the requirement. Damage-per-hit stays the WEAPON brain's business (`AmmoChoice`, Missiles §2), not the danger's |
 | the face: `ArmorModel.FacingOf(myTransform, hisPosition)` — 3-D, so a man on a roof close in reads my Top; a `TopAttack` munition at ≥ its top-attack range reads Top | Armour Hit Model D-A; Missiles §3 |
 | `InRange` = 1 within his mount's `Range`, falling to 0 at 1.2 × `Range`; 0 below a missile's `MinRangeM` | stand-off falls out of the danger (programme §3) |
 | a drone (`DIS domain 2` with a warhead mount) = its warhead on my Top | M7 |
@@ -363,9 +364,9 @@ fix inside the existing kinematics; the behaviour and the danger stay on the Bra
 
 | rail | suite |
 |---|---|
-| `V1_ToATank_TheRpgManIsDangerous_TheRiflemanIsNearlyHarmless_AndARifleman_StillFindsTheRiflemanArmed` | `StandardInputReaderTests` |
-| `V1_DangerToMe_FallsToZero_BeyondHisRange_AndAboveMeReadsMyRoof` | new `ThreatDangerTests` |
-| `V1_TopThreat_PicksTheAtGunner_ForAVehicle` | `TacticsTreesTests` |
+| ✅ `V1_ToATank_TheAtGunnerIsTheThreat_TheRiflemanIsNearlyHarmless_AndToASoldier_BothAreArmed` *(as-built: here, not `StandardInputReaderTests` — the reader is a one-line pass-through of `ThreatDanger.Of`)* | new `ThreatDangerTests` |
+| ✅ `V1_BeyondHisRange_TheDangerFades_AndUnarmedOrKilledAreUnchanged` · `V1_InRange_IsOneInside_FadesLinearly_AndZeroBeyondTheFade` — ⏳ *"above me reads my roof"* waits on backend B3 (`Facing.Top`) | new `ThreatDangerTests` |
+| ✅ `V1_TopThreat_PicksTheAtGunner_ForAVehicle` *(as-built: in the ranking decision's own suite, not `TacticsTreesTests` — `TopThreat` IS `ThreatRankingDecision`)* | `StarterPackIntegrationTests` |
 | `V3_AVehicleHide_StandsOffByItsHull_AndAPersonsPointsDoNotMove` | `TerrainEqsTests` |
 | `V3_OverheadCover_SeesTheGarageDeck_NotTheOpenSky` | `TerrainEqsTests` (test-town) |
 | goldens for the three templates | `EqsFlatTerrainGoldenTests` |

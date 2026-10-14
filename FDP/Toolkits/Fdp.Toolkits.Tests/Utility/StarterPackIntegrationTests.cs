@@ -289,6 +289,61 @@ namespace Fdp.Toolkit.Tests
             Assert.True(ranked[0].Score > ranked[1].Score);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2165</c> V1 (DESIGN_Vehicle_Exposure_Cycle §2) — a TANK ranks the RPG man above a NEARER rifleman: the rifle
+        /// cannot penetrate its side (danger 0.1), the RPG can (1). A SOLDIER in the same spot ranks the nearer rifleman first —
+        /// to him both are simply armed. The far RPG man is seeded FIRST so a tie broken by order cannot pass.
+        /// </summary>
+        [Fact]
+        public void V1_TopThreat_PicksTheAtGunner_ForAVehicle()
+        {
+            const long RpgManType = 9101, RiflemanType = 9102;
+            static Fdp.Interfaces.TkbTemplate Armed(string name, long type, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount)
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, type);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100, ArmorFront = 5 });
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { mount } });
+                return t;
+            }
+            _world.Repo.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            _world.UseTkb(UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate(),
+                Armed("RPG man", RpgManType, new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300, Penetration = 300, DamagePerHit = 400 }),
+                Armed("Rifleman", RiflemanType, new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 500, Penetration = 5, DamagePerHit = 10 }));
+
+            Entity Contact(long type, float x)
+            {
+                var e = _world.Repo.CreateEntity();
+                _world.Repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.Identity });
+                _world.Repo.AddComponent(e, new WeaponState { Ammo = 4, MaxAmmo = 4 });
+                _world.SetType(e, type);
+                return e;
+            }
+            Entity Self(long type, global::CarKinem.Core.VehicleClass cls)
+            {
+                var self = _world.SpawnAgent(1.0f, 1.0f);
+                // facing +Y: both contacts (on +X) are on its SIDE (250 mm on the T-72)
+                _world.Repo.GetComponentRW<SimTransform>(self).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+                _world.Repo.AddComponent(self, new global::CarKinem.Core.VehicleParams { Class = cls });
+                _world.SetType(self, type);
+                return self;
+            }
+            var rpg = Contact(RpgManType, 250f);
+            var rifle = Contact(RiflemanType, 60f);
+
+            long Top(Entity self)
+            {
+                _world.SeedContact(self, rpg,   250f, threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+                _world.SeedContact(self, rifle, 60f,  threatBoost: 1f, contactHealth01: 1f, hasLos: true);
+                _world.Scorer.Evaluate(_world.Repo, self, ThreatRankingDecision.Id);
+                var ranked = _world.Repo.GetComponentRO<UtilityResultBuffer>(self).GetSpanRO();
+                Assert.True(ranked[0].Score > ranked[1].Score, $"a real margin, not a tie ({ranked[0].Score} vs {ranked[1].Score})");
+                return ranked[0].CandidateHandle;
+            }
+
+            Assert.Equal((long)rpg.PackedValue, Top(Self(UtilityTestWorld.TankType, global::CarKinem.Core.VehicleClass.Tank)));
+            Assert.Equal((long)rifle.PackedValue, Top(Self(UtilityTestWorld.InfantryType, global::CarKinem.Core.VehicleClass.Pedestrian)));
+        }
+
         // SC-P1-06-5: Assigned target bias promotes leader choice
         [Fact]
         public void Assigned_Target_Bias_Promotes_Leader_Choice()

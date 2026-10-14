@@ -82,6 +82,9 @@ namespace Fdp.Toolkit.Utility
         /// Creates a scorer bound to <paramref name="registry"/>.
         /// The registry is used by instance overloads; static overloads do not need it.
         /// </summary>
+        /// <summary>The registry this scorer reads decisions from (<see cref="UtilityDecisionCatalog.ScorerOverShared"/> checks it).</summary>
+        public UtilityRegistry Registry => _registry;
+
         public UtilityScorer(UtilityRegistry registry)
         {
             _registry = registry;

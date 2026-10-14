@@ -103,7 +103,7 @@ namespace Fdp.Toolkit.Utility
             get
             {
                 UtilityDecisionCatalog.EnsureRegistered();
-                return _scorer ??= new UtilityScorer(UtilityDecisionCatalog.Shared);
+                return UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
             }
         }
     }
