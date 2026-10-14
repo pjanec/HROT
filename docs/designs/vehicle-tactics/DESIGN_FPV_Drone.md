@@ -214,9 +214,14 @@ Rails (§5): ✅ `RotorcraftModelTests.M7_ARotorcraft_FliesToA3DPoint_AndReports
 `CE2168_OnlyAirBodies_…` · `DroneImpactSystemTests.M7_ADive_OnATank_HitsItsRoof_AndKillsTheDrone`, `M7_ADroneFlyingPastOrOver_MeetsNothing` ·
 `SoundEmissionSystemTests.M7_AHoveringDrone_IsHeard_AsRotor` · `VisionBroadphaseTests.M7_ADroneOverhead_IsInTheBroadphase` ·
 `NavigationIntentBridgeSystemTests.M7_TheBridge_SkipsAFlyer` · `SimHostCoreLogicPackTests` (air motion then impact in the pack) ·
-`NedTkbBuilderCombatTests.M7_TheFpvDrone_…`. ⛔ Not built: `M7_ADive_UnderADeck_MeetsTheSlab` (needs a terrain world; the system uses
-`SightBlocked`, unmeasured on a deck) · `M7_APossessedDrone_FollowsTheStation_…` (the possession chain carries `Vertical`; a cross-node
-rail waits on CE-3199) · the demo `ua-drone-shelter` (behaviour lane).
+`NedTkbBuilderCombatTests.M7_TheFpvDrone_…` · ✅ (backend, handoff 2 C2) `DroneImpactSystemTests.M7_ADive_UnderADeck_MeetsTheSlab` — a
+walkable SLAB over a parked tank stops the dive (the warhead goes off on the deck, the tank untouched, the wreck rests on the deck); ⚠ as
+built it was RED on a 0.1 s frame: bodies were tested before the terrain, so one segment crossing the deck AND entering the hull's band
+behind it hit the hull ⇒ `DroneImpactSystem` now takes whichever is FIRST along the segment (the terrain's first blocked fraction,
+bisected on `SightBlocked`; the ground contact; the body's entry) · ✅ (handoff 2 C3) `EntityOrdersAcrossNodesTests.M7_APossessedDrone_FollowsTheStation_AcrossNodes`
+— SimHost possesses a drone whose brain is on CGF; the frames' `Vertical` crosses as `ControlFrameInteractionPayload`, comes back as
+dtManualDrive, and SimHost (the one Muscle role, R-3005) climbs it 20 → 22 m in 17 frames, then flies it forward; release resumes the
+brain. ⛔ Not built: the demo `ua-drone-shelter` (behaviour lane).
 
 ## ⛔ HISTORY
 
