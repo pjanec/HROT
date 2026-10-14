@@ -352,6 +352,10 @@ public static class BlockFigure
 {
     private static readonly Vector3 S = new(0.35f, 0.55f, 1.8f);
 
+    /// <summary>⭐ CE-1073 — the head's place in every figure's parts (the shared order above: four leg parts, the torso, the head).
+    /// The first-person camera reads the eyes from it; a rail holds the order for every stance, posture and fall.</summary>
+    public const int HeadIndex = 5;
+
     // Metres for a 1.8 m figure, converted to fractions of (0.35, 0.55, 1.8) below.
     private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull,
                              bool upper = false)

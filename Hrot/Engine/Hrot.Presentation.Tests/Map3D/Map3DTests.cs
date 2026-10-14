@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
@@ -177,11 +178,129 @@ public sealed class Map3DTests
         if (shift) input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftShift);
         if (ctrl)  input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftControl);
         Frame(cam, input, 0.1f);                            // the press frame
+        // ⭐ CE-1072 — the fly EASES in (FlyEaseSeconds), so the speed is read once it has settled, over the last frame
+        for (int i = 0; i < 20; i++) Frame(cam, input, 0.1f);
         var eye = cam.Eye;
 
         Frame(cam, input, 0.1f);
 
         Assert.Equal(metresPerSecond * 0.1f, Vector3.Distance(eye, cam.Eye), 1);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to the 12 % step it used to JUMP.
+    /// 🔒 User, 2026-10-14: "the scroll button based camera moving forwards and backwards jumps with each click instead of being a
+    /// smooth flight".
+    /// </summary>
+    [Fact]
+    public void CE1072_AWheelClick_GlidesToItsStep_OverSeveralFrames_InsteadOfJumping()
+    {
+        var cam = FlyCamera();                              // distance 100
+        var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
+        Frame(cam, input);
+        input.MouseWheelMove = 0f;
+        Assert.Equal(100f, cam.Distance, 3);                // the click frame: nothing jumped
+        Frame(cam, input);
+        Assert.InRange(cam.Distance, 88.01f, 99.9f);        // the next frame: on the way, not there
+        float previous = cam.Distance;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.True(cam.Distance < previous);
+        Assert.Equal(88f, cam.Distance, 1);                 // where the old jump landed
+
+        input.MouseWheelMove = -1f;                         // and back out the same way
+        Frame(cam, input);
+        input.MouseWheelMove = 0f;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        Assert.Equal(100f, cam.Distance, 0);
+    }
+
+    /// <summary>⭐ CE-1072 — at the pivot the wheel keeps FLYING forward (the look-at point travels with the eye), Unity-style,
+    /// instead of stopping at the closest distance.</summary>
+    [Fact]
+    public void CE1072_AtThePivot_TheWheelKeepsFlyingForward()
+    {
+        var cam = FlyCamera();
+        cam.Pose = new CameraPose(Vector3.Zero, cam.MinDistance, MapCamera3D.NorthUpYaw, -0.3f);
+        var eye = cam.Eye;
+        var forward = cam.Forward;
+        var input = new FakeInput { MousePosition = new Vector2(600, 400), MouseWheelMove = 1f };
+        for (int i = 0; i < 3; i++) Frame(cam, input);      // three clicks
+        input.MouseWheelMove = 0f;
+        for (int i = 0; i < 60; i++) Frame(cam, input);
+        var flown = cam.Eye - eye;
+        Assert.Equal(cam.MinDistance, cam.Distance, 3);
+        Assert.True(flown.Length() > 3f, $"flew only {flown.Length():F2} m");
+        Assert.True(Vector3.Dot(Vector3.Normalize(flown), forward) > 0.999f, "along the view");
+    }
+
+    /// <summary>⭐ CE-1072 — W eases in and out over a few frames: the first frame moves less than a settled frame, and letting go
+    /// does not stop dead.</summary>
+    [Fact]
+    public void CE1072_TheFly_EasesInAndOut()
+    {
+        var cam = FlyCamera();
+        var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        Frame(cam, input);                                  // arms the look
+        input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+        var e0 = cam.Eye; Frame(cam, input); float first = Vector3.Distance(e0, cam.Eye);
+        for (int i = 0; i < 30; i++) Frame(cam, input);
+        var e1 = cam.Eye; Frame(cam, input); float settled = Vector3.Distance(e1, cam.Eye);
+        input.Keys.Clear();
+        var e2 = cam.Eye; Frame(cam, input); float coasting = Vector3.Distance(e2, cam.Eye);
+        Assert.True(first < settled * 0.5f, $"first {first:F3} m vs settled {settled:F3} m");
+        Assert.InRange(coasting, 0.001f, settled * 0.95f);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1073 (§6l) — the head is part <see cref="BlockFigure.HeadIndex"/> of EVERY figure (each stance, soldier or not, each
+    /// posture, the dead): the first-person eye is read from it, so a reordered pose would put the camera in a leg.
+    /// </summary>
+    [Fact]
+    public void CE1073_EveryFigurePose_KeepsTheHead_AtHeadIndex()
+    {
+        var metres = new Vector3(0.35f, 0.55f, 1.8f);
+        // the head is one 0.20 × 0.21 × 0.24 m box in every pose — lying down (prone, dead) it is the same box on its side
+        string Box(KitPart p)
+        {
+            var m = p.Extent * metres;
+            return string.Join(" ", new[] { m.X, m.Y, m.Z }.Select(v => v.ToString("0.00")).OrderBy(v => v));
+        }
+        var head = BlockFigure.Parts(StanceId.Standing, soldier: false)[BlockFigure.HeadIndex];
+        Assert.Equal(1.60f / 1.8f, head.Centre.Z, 3);
+        Assert.Equal("0.20 0.21 0.24", Box(head));
+        foreach (StanceId stance in new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone })
+            foreach (bool soldier in new[] { false, true })
+                foreach (WeaponPostureKind posture in System.Enum.GetValues<WeaponPostureKind>())
+                {
+                    var parts = BlockFigure.Parts(stance, soldier, posture);
+                    Assert.True(parts.Length > BlockFigure.HeadIndex);
+                    Assert.True(Box(head) == Box(parts[BlockFigure.HeadIndex]), $"{stance}/{soldier}/{posture}");
+                }
+        // the dead man's head is a touch smaller (0.22 m) — still a head-sized box: no side under 0.18 m or over 0.26 m (a torso or a limb fails)
+        var dead = BlockFigure.Fall(BlockFigure.Parts(StanceId.Standing, true), 1f, true)[BlockFigure.HeadIndex].Extent * metres;
+        Assert.All(new[] { dead.X, dead.Y, dead.Z }, v => Assert.InRange(MathF.Abs(v), 0.18f, 0.26f));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1073 — the eye goes WITH the drawn head: a running lean carries it forward and down, a crouch lowers it, prone puts it
+    /// near the ground. 🔒 User, 2026-10-14: "When moving forward the character leans a bit forward basically putting his head in front
+    /// of the FPS camera so i see nothing".
+    /// </summary>
+    [Fact]
+    public void CE1073_TheEye_FollowsTheDrawnHead_LeanCrouchProne()
+    {
+        var size = new Vector3(0.35f, 0.55f, 1.8f);
+        Vector3 Eye(StanceId stance, MotionPose motion)
+            => EntityBodyLayer3D.EyeLocal(BlockFigure.Parts(stance, true)[BlockFigure.HeadIndex], size, default,
+                                         ArticulationPose.Neutral, motion, Matrix4x4.Identity);
+        var upright = Eye(StanceId.Standing, MotionPose.Still with { HipZ = 0.5f });
+        Assert.InRange(upright.Z, 1.55f, 1.75f);
+        Assert.InRange(upright.X, 0.05f, 0.15f);              // the face, ahead of the reference point
+        var leaning = Eye(StanceId.Standing, MotionPose.Still with { HipZ = 0.5f, Lean = 0.35f });
+        Assert.True(leaning.X > upright.X + 0.2f, $"a run's lean carries the eye forward: {upright} -> {leaning}");
+        Assert.True(leaning.Z < upright.Z, "and down");
+        Assert.True(Eye(StanceId.Crouched, MotionPose.Still with { HipZ = BlockFigure.HipFraction(StanceId.Crouched) }).Z < 1.3f);
+        Assert.True(Eye(StanceId.Prone, MotionPose.Still).Z < 0.6f);
     }
 
     [Fact]

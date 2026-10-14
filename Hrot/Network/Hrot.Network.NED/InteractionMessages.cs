@@ -65,6 +65,8 @@ namespace Hrot.NED.Messages
         public float AimX;
         public float AimY;
         public float AimZ;
+        /// <summary>⭐ CE-1074 — the operator's stance request (StanceId + 1; 0 = none).</summary>
+        public byte Stance;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =

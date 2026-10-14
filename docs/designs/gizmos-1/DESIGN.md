@@ -7,6 +7,7 @@ related-designs:
     the extracted triage); §10 menus reused unchanged. ../../DESIGN_Godot_3D_Viewer.md is the DEFERRED Godot terminal.
   - ../../DESIGN_Stride_Node_Modes.md — owns §8, the 3-D subset of this stream Stride draws (DebugPrimitiveRenderer3D).
   - ../../DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: a struct-inspector field edit commits at once (§11.8 below), and which map layers are on by default
+  - ../../DESIGN_Map_3D_Mode.md §6l — CE-1071/1072: the live measurement that found the full frame (§11.11) and the 3-D camera's smoothness
 -->
 
 # FDP Declarative Gizmo & Presentation Framework -- Design
@@ -1041,3 +1042,43 @@ schema-level initial values.
 | State machine key is `(NetworkId, GizmoTypeId)` | Guarantees isolation per gizmo instance; two inspectors on the same entity track focus independently even if they share the same schema type |
 | `GizmoUiState.GizmoInstanceId` == `StructSchemaHash` | Reuses existing hash convention; avoids a new ID allocation scheme |
 | `DataDrivenGizmoSystem.RouteInteractionEvents` gains `StructUpdate` case | Entity-bound gizmos can now receive inspector mutations over DDS; previously only `GlobalGizmoManager` gizmos received `OnStructUpdate` calls |
+### 11.11 The layer mask at emit, and what overflow may not drop — `CE-1071` AS-BUILT `2026-10-14` (ui)
+
+```mermaid
+sequenceDiagram
+    participant LC as LayerControlGizmo
+    participant B as DebugPrimitiveBuffer
+    participant P as producers (Navmesh, Cover, SpatialGrid, …)
+    participant T as terminal / 3-D triage
+    LC->>B: SetActiveLayers(mask) — the same mask it emits
+    LC->>B: EmitRaw(LayerControlMask)
+    P->>B: IsLayerActive(layer)? false ⇒ skip the work
+    P->>B: DrawLine(layer hidden) ⇒ refused (SuppressedCount), no slot taken
+    P->>B: DrawLine(layer visible) ⇒ stored, or dropped when full
+    Note over B: a protected primitive arriving when full (mask, menus, input capture, panel) replaces the latest plain one
+    T->>B: GetFrame() — the mask, the menus and the tool bindings are always in it
+```
+
+*What the picture shows that prose hid:* the buffer used to keep whatever came FIRST, and the meta primitives come LAST (the global
+gizmo manager runs after the projectors), so a full frame lost exactly the primitives that make it work.
+
+| 📐 measured `2026-10-14`, live editor (`ua-fire-and-movement`, a rifleman possessed) | before | after |
+|---|---|---|
+| primitives / dropped per frame | 4 096 / 400–700, rising with every shot | 238–361 / 0 |
+| hidden Navmesh / Cover / SpatialGrid in the frame | 2 255 lines · 612 spheres + 612 lines · 602 lines | refused at emit, not computed |
+| the `LayerControlMask`, the View menu, the RTS tool's `InputCaptureBinding` | dropped ⇒ the 3-D triage drew EVERY hidden layer; View lost *2-D / 3-D Map* and *RTS Command Mode*; the RTS tool got no click | present every frame |
+| the 3-D draw (software GL) | ~195 ms — 62 % of it gizmos, 35 % Raylib spheres | ~45–65 ms |
+
+| ⭐ rule | why |
+|---|---|
+| ⭐⭐ one authority, applied earlier: the buffer refuses by the mask the `LayerControlGizmo` emits (AQ28: the `LayerControlMask` is the only layer filter) | the 2-D renderer and the 3-D triage still apply the mask primitive; the buffer only stops hidden layers from taking room. A host with no layer control never sets a mask ⇒ nothing is refused |
+| ⭐ `IDebugDrawBuilder.IsLayerActive(layer)` (default true) | a producer skips work nobody will draw — the cover gizmo's live vehicle-cover query, the navmesh walk |
+| ⭐ protected = `LayerControlMask`, `InputCaptureBinding`, `ContextMenuBinding`, `MainMenuBinding`, `StructInspector`; never refused, never dropped | they are how a frame is controlled; a `SpatialAnchor` is neither refused nor evicted (its shapes would dangle) |
+
+**Rejected — one line each:**
+- *A bigger buffer* — moves the cliff; the hidden layers still cost their emit and, without the mask, their 3-D draw.
+- *Emitting the mask first (a frame header)* — saves the mask but not the menus and the tool bindings, which come from many gizmos.
+- *Filtering in each producer only* — every new producer would have to remember; the buffer rule covers all of them.
+
+📐 Rails: `Fdp.Diagnostics.Contracts.Tests/DebugPrimitiveBufferLayerTests` ×4 · `RtsCommandToolTests.CE1075_*` (a full frame still
+carries the armed tool's capture binding). 📄 [`DESIGN_Map_3D_Mode.md` §6l](../../DESIGN_Map_3D_Mode.md) (the measurement that found it).

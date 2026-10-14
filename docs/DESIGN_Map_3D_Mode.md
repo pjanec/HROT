@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l). ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,7 +8,7 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
@@ -24,6 +24,7 @@ related-designs:
   - PLAN_3D_World_And_Realism.md — the programme index (roadmap A1…E2 across this design, effects, turret, aircraft, sound).
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — R-265: WHO moves crouched and how fast (the crouched run §6j draws)
   - DESIGN_Building_Interiors.md §3j — OWNS the door ENTITY, its state and its leaf geometry; §6k here only draws it (a hinged slab)
+  - designs/gizmos-1/DESIGN.md §11.11 — CE-1071: the frame buffer refuses hidden layers at emit and never drops its meta primitives
   - DESIGN_Terrain_Combat_Tuning.md §5d — CE-1065: which gizmo layers and families are ON by default (most off — the 3-D clutter), and the live layer panel
   - DESIGN_Map_North_Up.md — CE-1040: the 2-D map north-up at its camera seam, so the 2-D ↔ 3-D swap keeps orientation.
   - DESIGN_Visual_Effects.md — muzzle fire, explosions and impact decals as TKB-typed temporary entities; the 3-D map draws them
@@ -1361,6 +1362,64 @@ sequenceDiagram
 - `EntityPresentationGizmoTests.CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol`.
 - `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…4`: shut, open, the shut one destroyed, the open one shut and locked).
 - CE-1069: `Map3DTests.CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour`, and `DebugTraceGizmoTests.CE1069_EveryDoorStillDrawsItsStateLine_On2D`, which pins the 2-D open / shut / locked / destroyed picture now that the door entity has no symbol.
+
+### 6l. CE-1071 … CE-1073 — smooth flying, a frame that does not overflow, the eye in the head — AS-BUILT `2026-10-14` (ui)
+
+> 🔒 **User, `2026-10-14`:** *"when i switch to 3d map view and use the wsad camera flying and RMB mouse look, it is far from smooth, even
+> on minimalistic scenes … especially the scroll button based camera moving forwards and backwards jumps with each click instead of being
+> a smooth flight. When i switch to FPS mode … every next shot makes the whole experience way worse … till almost complete freeze. When
+> moving forward the character leans a bit forward basically putting his head in front of the FPS camera so i see nothing — the camera
+> should rather be bound to character's head/eyes position wise."*
+
+📐 **Measured, not guessed — the live editor under Xvfb**, driven by real X input (XTest) and timed by the new opt-in frame log
+(`HROT_FRAME_STATS=1`, `Hrot.ClusterRunner/Presentation/FrameStats.cs`: frame mean / p50 / p95 / max and the update / draw / UI split),
+profiled with `dotnet-trace` while firing:
+
+| finding | where | fix |
+|---|---|---|
+| 🔴 the frame was FULL: 4 096 primitives, 400–700 dropped, rising with every shot; the drops took the layer mask (so the 3-D triage drew EVERY hidden layer — 612 cover spheres, 2 255 draped navmesh lines), the View menu and the RTS tool's input capture | `DebugPrimitiveBuffer` | ⭐ `CE-1071` — hidden layers refused at emit, meta primitives never dropped (📄 [gizmos-1 §11.11](designs/gizmos-1/DESIGN.md)) |
+| 🔴 62 % of a 3-D frame went to gizmos; 13 % to `MapCamera3D.Viewport` asking the window, once PER PRIMITIVE (`ZoomAt`) | profile | ⭐ `CE-1072` — the viewport read once a frame |
+| 🔴 a wheel click set the distance at once (12 %) — a jump | `MapCamera3D.HandleInput` | ⭐ `CE-1072` — the click owes eye travel; `Update` glides it out (τ = `WheelGlideSeconds` 0.12 s); past the pivot the look-at point flies too |
+| ⚠ W/A/S/D went from 0 to full speed in one frame | same | ⭐ `CE-1072` — eased (τ = `FlyEaseSeconds` 0.08 s) |
+| 🔴 in first person the hidden cursor's position wandered: over a docked panel ImGui claimed the mouse and the view froze; the gizmo terminal also took every shot as a map click | `RaylibInputProvider`, `DebugGizmoLayer` | ⭐ `CE-1072` — a locked cursor is never "captured" and ImGui ignores the mouse meanwhile; a camera driver holds the map's input (the terminal skips) |
+| 🔴 the eye was a fixed height above the reference point; a run's forward lean put the drawn head in front of it | `FpsCameraDriver.Update` | ⭐ `CE-1073` — the eyes of the DRAWN head (part `BlockFigure.HeadIndex`), kept in the body frame and put on the unit's CURRENT pose; that head is not drawn; the mouse look shows in the same frame |
+
+```mermaid
+sequenceDiagram
+    participant C as MapCanvas (each frame)
+    participant K as MapCamera3D
+    participant D as FpsCameraDriver
+    participant B as EntityBodyLayer3D
+    C->>K: Update(dt) — the viewport re-read once, a wheel glide step (free camera)
+    K->>D: Update — eye = unit pose ⊗ B.TryGetEyeLocal(unit)
+    C->>K: HandleInput — wheel adds travel, W/A/S/D eased (free) · look, keys, frame, Place again (driver)
+    C->>B: Draw3D — figures, head part HeadIndex ⇒ the eye (body frame), FirstPerson's head skipped
+```
+
+*What the picture shows that prose hid:* the driver's `Update` runs BEFORE the input of the same frame — so the look was a frame late until
+`HandleInput` placed the camera again — and the eye read in `Update` comes from the PREVIOUS draw, which is why it is kept in the body's
+frame and put on the current transform (a running man moves ~8 cm a frame).
+
+| after, same machine and scenario | |
+|---|---|
+| primitives / dropped | 238–361 / **0**, firing included |
+| 3-D draw (software GL) | ~45–65 ms, was ~195 ms |
+| View menu | *Tactical Map Layers… · 2-D / 3-D Map · RTS Command Mode* back |
+| first person | eye in the drawn head standing, crouched and prone (screenshots below) |
+
+![FPS, standing — the eye in the drawn head](assets/map-3d/fps-eye-standing.png)
+
+⚠ **Stated:** the absolute times are a software renderer's (no GPU in the container); the shares and the drop counts are what carry over.
+The free camera's feel was not seen with a real mouse — the wheel glide and the eased fly are railed by their numbers.
+
+**Rejected — one line each:**
+- *Smoothing the mouse look* — adds lag to the one input that must not have it.
+- *A bigger primitive buffer* — moves the cliff (gizmos-1 §11.11).
+- *Keeping the eye above the reference point and hiding the whole upper body* — the eye would still not crouch or crawl with the figure.
+
+📐 Rails: `Map3DTests.CE1072_*` ×3 (the wheel glides, keeps flying at the pivot, the fly eases) + `CE1044_FlySpeed_*` (re-read once the ease
+has settled — the speeds are unchanged) · `Map3DTests.CE1073_*` ×2 (the head is part `HeadIndex` in every pose; the eye follows a lean, a
+crouch and prone) · `PossessionStationTests.CE1073_*` (the eye on the current pose, the head hidden while held, the look the same frame).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

@@ -218,6 +218,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 _isEditing = !_isEditing;
 
             // Emit authoritative layer control mask (consumed by DebugPrimitiveRenderer2D).
+            // ⭐ CE-1071 — and hand the same mask to the buffer, which then refuses hidden-layer primitives at emit (one authority,
+            //   applied earlier: hidden layers no longer fill the frame and push the mask, menus and tool bindings out of it).
+            draw.SetActiveLayers(in _activeLayers);
             var maskPrim = DebugPrimitive.MakeLayerControlMask(_activeLayers);
             draw.EmitRaw(in maskPrim);
 

@@ -28,6 +28,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, IDebugDrawBuilder draw)
         {
+            if (!draw.IsLayerActive(DebugTraceLayers.SpatialGrid)) return;   // ⭐ CE-1071 — a hidden layer costs nothing
             bool showTiles  = _settings.Read(GizmoSettingsRegistry.ComputeHash(SpatialGridGizmoSettings.ShowTilesKey)).BoolValue;
             bool showCounts = _settings.Read(GizmoSettingsRegistry.ComputeHash(SpatialGridGizmoSettings.ShowCountsKey)).BoolValue;
 

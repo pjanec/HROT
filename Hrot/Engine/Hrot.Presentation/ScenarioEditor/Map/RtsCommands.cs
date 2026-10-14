@@ -149,13 +149,18 @@ namespace Hrot.ScenarioEditor.Map
 
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
+            // ⭐ CE-1075 — the terminal packs the held modifiers into the button's high bits (MapMouseButton.ShiftMask …): a
+            //   Shift-click arrived as Left|ShiftMask and matched neither branch, so "Shift adds" never added. The mask IS the Shift.
+            bool shift = _shift || (button & MapMouseButton.ShiftMask) != 0;
+            button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
             var xy = new Vector2(worldPos.X, worldPos.Y);
-            if (button == MapMouseButton.Left && !isPressed) _commands.Select(xy, _shift);
+            if (button == MapMouseButton.Left && !isPressed) _commands.Select(xy, shift);
             else if (button == MapMouseButton.Right && isPressed) _commands.Command(xy);
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
         {
+            key &= ~(MapKeyboardKey.ShiftMask | MapKeyboardKey.CtrlMask | MapKeyboardKey.AltMask);   // ⭐ CE-1075 — as for the mouse
             if (key is MapKeyboardKey.LeftShift or MapKeyboardKey.RightShift) _shift = isPressed;
             else if (key == MapKeyboardKey.Escape && isPressed) _onRemove();
         }

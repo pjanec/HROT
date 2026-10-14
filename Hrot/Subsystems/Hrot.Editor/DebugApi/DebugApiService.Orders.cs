@@ -161,7 +161,8 @@ namespace Hrot.Editor.DebugApi
             => Answer(networkId, Orders().Unpossess(networkId));
 
         /// <summary><c>POST /entities/{networkId}/control</c> — one control frame for the possessed unit:
-        /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z]}</c> (all optional but <c>seq</c>; newest seq wins).</summary>
+        /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z], stance}</c> (all optional but <c>seq</c>; newest seq wins;
+        /// ⭐ CE-1074 <c>stance</c> = "standing" | "crouched" | "prone", absent = keep).</summary>
         public (JsonNode? result, int status, string? error, string? hint) PostControl(long networkId, JsonNode? body)
         {
             if (body?["seq"] is not JsonNode seqNode || !uint.TryParse(seqNode.ToString(), out uint seq))
@@ -176,6 +177,10 @@ namespace Hrot.Editor.DebugApi
                 Gait = (byte)(Float(body, "gait") ?? 0f),
                 Trigger = (byte)((body?["trigger"]?.ToString() is "true" or "1") ? 1 : 0),
                 Mount = (byte)(Float(body, "mount") ?? 0f),
+                Stance = body?["stance"]?.ToString().ToLowerInvariant() switch
+                {
+                    "standing" or "stand" => 1, "crouched" or "crouch" => 2, "prone" => 3, _ => 0,
+                },
             };
             if (body?["aim"] is JsonArray aim && aim.Count >= 2)
                 frame.AimPoint = new System.Numerics.Vector3(Float(aim, 0), Float(aim, 1), aim.Count > 2 ? Float(aim, 2) : 0f);

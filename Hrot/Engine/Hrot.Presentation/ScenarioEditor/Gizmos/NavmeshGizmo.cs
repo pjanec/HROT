@@ -32,6 +32,7 @@ public sealed class NavmeshGizmo : IGlobalStatelessGizmo
 
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
+        if (!draw.IsLayerActive(DebugTraceLayers.Navmesh)) return;   // ⭐ CE-1071 — a hidden layer costs nothing
         if (view is not EntityRepository repo || !repo.HasSingletonManaged<INavmeshProvider>()) return;
         if (repo.GetSingletonManaged<INavmeshProvider>() is not INavmeshDebugGeometry geometry) return;
         var choice = NavmeshLayerSetting.Of(_settings);

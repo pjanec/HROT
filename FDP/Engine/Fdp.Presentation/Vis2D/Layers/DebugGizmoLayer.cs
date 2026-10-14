@@ -228,6 +228,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
             // ⭐ CE-1040 (N2) — and in 2-D too: the terminal's own fallback is Raylib.GetScreenToWorld2D, which knows nothing of
             //   the north-up flip, so EVERY gizmo press / hover / drag / right-click goes through the camera's conversion.
             var live = CurrentCamera?.Invoke() ?? _mapCamera;
+            // ⭐ CE-1072 — a camera DRIVER (the first-person view) holds the map's input (CE-3174: "a driver holds the map's input"):
+            //   the terminal polls the mouse itself, so without this every shot fired in first person was also a map click — a
+            //   rubber band on the selection, a canvas menu on a right click.
+            if (live is Fdp.Toolkit.Vis3D.MapCamera3D { Driver: not null })
+            {
+                _typedKeys.Clear();
+                return;
+            }
             if (live != null)
                 _innerTerminal.HandleInput(
                     _buffer.GetFrame(), _buffer.InternMap, _camera, OnInteraction,

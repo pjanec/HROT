@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
+using Fdp.Toolkit.Diagnostics.Gizmos.Events;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D.Abstractions;
@@ -144,6 +145,43 @@ public sealed class RtsCommandToolTests : IDisposable
 
         gizmo.OnKeyEvent(MapKeyboardKey.Escape, isPressed: true);
         Assert.True(removed);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1075 / CE-1071 — END TO END on the backend half: View ▸ RTS Command Mode arms the tool, it takes the input focus and puts
+    /// its capture binding in the frame, and a mouse event on the map's bus reaches it (the path a real click takes after the
+    /// terminal). 🔒 User, 2026-10-14: "In RTS mode the key shortcut do not work, not even mouse click do anything". 🔴 Two defects
+    /// broke it: the frame was FULL and the binding was dropped (so the terminal never routed a click — CE-1071), and a Shift-click
+    /// arrived as <c>Left | ShiftMask</c>, which matched no branch (CE-1075). The older rails called the gizmo directly and saw neither.
+    /// </summary>
+    [Fact]
+    public void CE1075_AClick_ReachesTheArmedTool_ThroughTheMapsBus_EvenWithAFullFrame_AndShiftClickAdds()
+    {
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 64 });
+        mi.MenuOrders.PickService = () => _pick;
+        Assert.True(mi.Actions.TryGetHandler(GlobalActionIds.ToggleRtsCommand, out var toggle));
+        toggle!(_w, Entity.Null);
+
+        for (int i = 0; i < 200; i++)                                         // a frame far over capacity
+            mi.Buffer.DrawLine(Vector3.Zero, Vector3.UnitX, new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(1, 2, 3, 255));
+        mi.GlobalManager.Execute(_w, 0.016f);
+        Assert.Contains(mi.Buffer.GetFrame().ToArray(), p => p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.InputCaptureBinding);
+
+        void Click(MapMouseButton button, Vector3 at)
+        {
+            mi.InteractionBus.Publish(new GizmoMouseEvent { Button = button, IsPressed = false, WorldPos = at });
+            mi.InteractionBus.SwapBuffers();
+            mi.GlobalManager.Execute(_w, 0.016f);
+        }
+
+        Click(MapMouseButton.Left, new Vector3(1, 1, 0));
+        var replace = Assert.Single(Read<SelectionChangeRequest>());
+        Assert.Equal(SelectionChangeMode.Replace, replace.Mode);
+        Assert.Equal(a, Assert.Single(replace.Entities));
+
+        Click(MapMouseButton.Left | MapMouseButton.ShiftMask, new Vector3(1, 1, 0));   // what the terminal sends for a Shift-click
+        Assert.Equal(SelectionChangeMode.Add, Assert.Single(Read<SelectionChangeRequest>()).Mode);
     }
 
     [Fact]

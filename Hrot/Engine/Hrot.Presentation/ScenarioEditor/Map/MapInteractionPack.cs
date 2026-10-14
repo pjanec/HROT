@@ -453,7 +453,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
             //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
             //   leaves. Here, so no map host can lack it.
-            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider);
+            var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
             canvas.AddLayer(possession);
             return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession);
         }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
@@ -272,6 +273,28 @@ namespace Hrot.SimHost.Tests.Gizmos
             bus.Publish(new OpenLayerEditorEvent());
             Frame();
             Assert.True(HasPanel(buffer), "one menu click did not reopen the panel after its [X]");
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-1071 (docs/designs/gizmos-1/DESIGN.md §11.11) — the layer control hands the buffer the SAME mask it emits, so a hidden
+        /// layer (the navmesh, off by default since CE-1065) is refused at emit and a visible one is kept; the mask primitive is still in
+        /// the frame for the terminals. 📐 Without it, hidden layers filled the frame and pushed the mask, menus and tool bindings out.
+        /// </summary>
+        [Fact]
+        public void CE1071_TheLayerControl_HandsItsMaskToTheBuffer_HiddenLayersAreRefusedAtEmit()
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            var gizmo = new LayerControlGizmo(3L, new FdpEventBus(), new ComponentEditServiceBuilder().Build());
+            gizmo.UpdateAndDraw(new EntityRepository(), 0f, buffer);
+            Assert.False(buffer.IsLayerActive(DebugTraceLayers.Navmesh));
+            Assert.True(buffer.IsLayerActive(0));
+
+            buffer.DrawLine(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, new Rgba32(1, 2, 3, 255), layer: DebugTraceLayers.Navmesh);
+            buffer.DrawLine(System.Numerics.Vector3.Zero, System.Numerics.Vector3.UnitX, new Rgba32(1, 2, 3, 255), layer: 0);
+            var frame = buffer.GetFrame().ToArray();
+            Assert.Equal(1, buffer.SuppressedCount);
+            Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.Line);
+            Assert.Single(frame, p => p.Shape == DebugPrimitiveShape.LayerControlMask);
         }
 
         private static bool HasPanel(DebugPrimitiveBuffer buffer)

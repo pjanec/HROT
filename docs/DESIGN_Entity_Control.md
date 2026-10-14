@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-11
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -865,6 +865,44 @@ at standing height, an M1 across the street under the crosshair, the HUD with he
 ⏭ ~~**Still open in S4:** ~~S4d operator fire~~ (built, §13.1); S4e the `ManualDrive` + `PossessedBy` descriptors and the `Possess` / `Release` / `ControlFrame` interaction
 cases (until then possession works where the station, brain and muscle share a world — the editor). M-5 (the navmesh wall check)
 did not land: the muscle's manual branch has no navmesh reach today — it stays its own row.
+
+### 13.5 AS-BUILT — the operator's stance, the RTS tool live, first-person input (`CE-1074`, `CE-1075`, `2026-10-14`, ui)
+
+> 🔒 **User, `2026-10-14`:** *"I will need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key
+> press). In RTS mode the key shortcut do not work, not even mouse click do anything."*
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant O as EntityOrders.Control
+    participant P as PossessionSystem (brain)
+    participant C as OperatorControl (behaviour)
+    participant S as StanceRequest
+    D->>D: C pressed ⇒ wanted stance = next(standing → crouched → prone → standing)
+    D->>O: OperatorControlFrameEvent { …, Stance = StanceId + 1 } every frame
+    O->>P: the bus (the R-221 interaction case ControlFrame off-node, Stance in its payload)
+    P->>P: OperatorInput.Stance (newest seq)
+    C->>S: Set(unit, stance, 0.4 s) — a version bump only on a change
+```
+
+*What the picture shows that prose hid:* the stance rides the SAME frame as the stick — no new event, no new route — and reaches the body
+through the brain's one stance writer (`StanceRequest`, CE-2121), so the hit model, the fire chain and perception read it the tick it
+is asked for (Buildings §3f).
+
+| as-built detail | why |
+|---|---|
+| `Stance` = `StanceId + 1`, 0 = no request — on the event, `OperatorInput` and the wire payload (`ControlFrameInteractionPayload.Stance`) | an HTTP or older frame that does not mention it keeps the stance the unit has |
+| the station starts the cycle from the stance the unit HAS when first driven (`LogicalStance.Of`) and sends the wanted one every frame | a frame lost or a late joiner cannot leave it half-way; `StanceRequest.Set` is idempotent |
+| HTTP `POST /entities/{id}/control` takes `"stance": "standing" | "crouched" | "prone"` | the AI player gets the same control |
+| the HUD shows `STANCE …` and `C stance` | |
+| 🔴→⭐ **the RTS tool received NO input in the editor** — its `InputCaptureBinding` was dropped from a FULL frame, so the terminal never routed a click or key to it (and the View menu lost its entries the same way) | fixed at the buffer, `CE-1071` (📄 [gizmos-1 §11.11](designs/gizmos-1/DESIGN.md)); ⭐ measured live: an XTest click on empty ground now publishes the tool's `SelectionChangeRequest` |
+| 🔴→⭐ a Shift-click reached the tool as `Left \| ShiftMask` and matched no branch (`CE-1075`) | the gizmo masks the modifiers, as `SelectionInteractionSystem` and `EntityPlacementGizmo` already did; the mask IS the Shift |
+| ⭐ a camera DRIVER holds the map's input: the gizmo terminal no longer polls the mouse under it, and the editor's hover card is off | every FPS shot was also a map click (a rubber band on the selection), and the card at the locked cursor was the possessed man's own |
+| ⚠ the RTS tool's RMB is also the 3-D camera's look button | a right-drag both looks and commands; not changed — a question for the user (`CE-1075` row) |
+
+📐 Rails: `DebugApiOrdersTests.CE1074_*` (networkless editor: crouched, kept, prone, standing — one version bump per change) ·
+`PossessionStationTests.CE1074_*` (C cycles, every frame carries it, the HUD says it) · `RtsCommandToolTests.CE1075_*` (the armed tool
+keeps its binding in a full frame and a bus click reaches it; Shift-click adds).
 
 ## 8. Known limits and defects found while designing
 

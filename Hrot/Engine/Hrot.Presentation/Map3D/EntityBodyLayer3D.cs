@@ -133,12 +133,20 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var kitToBody = geometry == null
                 ? Matrix4x4.Identity
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
-            foreach (var part in parts)
+            for (int pi = 0; pi < parts.Length; pi++)
             {
+                var part = parts[pi];
                 if (geometry != null && part.Role == PartRole.Gear) continue;
                 // ⭐ CE-1070 — a figure's rifle (its one Metal part): remember where its muzzle end was drawn, for the muzzle flash
                 if (look.Family == VisualFamily.Person && part.Colour == ColourRole.Metal)
                     _weaponTips[e] = WeaponTip(part, size, pivots, pose, motion, kitToBody * body);
+                // ⭐ CE-1073 (§6l) — a figure's head: remember its eyes (in the body's frame) for the first-person camera, and do not
+                //   draw the head of the unit seen FROM it (the camera sits inside it)
+                if (look.Family == VisualFamily.Person && pi == BlockFigure.HeadIndex)
+                {
+                    _eyes[e] = EyeLocal(part, size, pivots, pose, motion, kitToBody);
+                    if (e == FirstPerson) continue;
+                }
                 var model = HrotToRaylib.ModelFromHrot(part.BodyTransform(size, pivots, pose, motion) * kitToBody * body);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
@@ -165,6 +173,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         _tipsGone.Clear();
         foreach (var k in _weaponTips.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
         foreach (var k in _tipsGone) _weaponTips.Remove(k);
+        _tipsGone.Clear();
+        foreach (var k in _eyes.Keys) if (!_drawn.Contains(k)) _tipsGone.Add(k);
+        foreach (var k in _tipsGone) _eyes.Remove(k);
         _postures.EndFrame(_drawn);
     }
 
@@ -294,6 +305,29 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private readonly DoorSwing _doors = new();
     private readonly Dictionary<Entity, (Vector3 Tip, Vector3 Forward)> _weaponTips = new();
     private readonly List<Entity> _tipsGone = new();
+    private readonly Dictionary<Entity, Vector3> _eyes = new();
+
+    /// <summary>⭐ CE-1073 — the unit the camera is looking OUT of (first person): its head is not drawn. Null: none.</summary>
+    public Entity FirstPerson { get; set; } = Entity.Null;
+
+    /// <summary>⭐ CE-1073 — where the eyes are in a head part's own unit box: the front face, a little above its middle.</summary>
+    public static readonly Vector3 EyeInHead = new(0.45f, 0f, 0.1f);
+
+    /// <summary>
+    /// ⭐ CE-1073 (docs/DESIGN_Map_3D_Mode.md §6l) — the eyes of a figure's head part as drawn (stance, lean, run and crawl included),
+    /// in the BODY's frame (before its position and heading), so a first-person camera can place them on the unit's CURRENT
+    /// transform. 🔒 User, 2026-10-14: "the camera should rather be bound to character's head/eyes position wise, not just fixed above
+    /// the reference point". Pure — the rail runs it without a GL context.
+    /// </summary>
+    public static Vector3 EyeLocal(in KitPart head, Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion, Matrix4x4 kitToBody)
+        => Vector3.Transform(EyeInHead, head.BodyTransform(size, pivots, pose, motion) * kitToBody);
+
+    /// <summary>⭐ CE-1073 — the eyes of <paramref name="e"/> in its body frame, as its figure was last drawn. False when it was not
+    /// drawn as a figure.</summary>
+    public bool TryGetEyeLocal(Entity e, out Vector3 local) => _eyes.TryGetValue(e, out local);
+
+    /// <summary>The rails' stand-in for a drawn frame (a figure's eyes without a GL context).</summary>
+    internal void RememberEyeLocal(Entity e, Vector3 local) => _eyes[e] = local;
 
     /// <summary>
     /// ⭐ CE-1070 (docs/DESIGN_Visual_Effects.md §6c) — where the hand-held weapon of a figure drawn in the last frame ends, and which
