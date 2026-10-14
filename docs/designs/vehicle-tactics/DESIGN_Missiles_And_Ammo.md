@@ -292,6 +292,28 @@ Approximate public figures; tuning starts here (programme §2 sources).
 Mounts: M1 / T-72 main gun loadout APFSDS + HEAT-MP + HE (e.g. 20 / 10 / 10) + a coax MG (7.62, hull-fixed to the turret) · the RPG man
 (`Insurgent`, 2003): RPG with 4 rockets + a rifle · an AT team type with Javelin or NLAW · technicals (Exposure Cycle §6).
 
+### 5a. As-built `2026-10-14` (backend, handoff B8 — M5, with M6's data)
+
+§5 adds no class and no sequence; it is data on the classes §2–§4 built. Everything in the table is built; deviations, argued:
+
+| design said | built | why |
+|---|---|---|
+| a munition's numbers per §5 | each new type (6010–6019) states a generic `AmmoWeaponBallisticsDto` (pen, damage), a `WarheadDto` copied from the NEAREST library entry (`PG-7V HEAT` for the rockets, the NLAW and the FPV warhead, `TOW-2 HEAT` for Javelin and Kornet, `120mm HEAT`, `125mm HE-frag`; tandem set where §5 says Tandem) and a `MissileDto` | one source for the fragment / blast numbers; the names match no library entry, so nothing is picked up by name |
+| TOW 6008, PG-7V 6009 "exist" | both gain a `MissileDto`: TOW command, 280 m/s, 15 s, min 65 m; PG-7V unguided 300 m/s, 4.5 s | 📐 the TOW flew at the NED builder's `range × 0.5` = 1875 m/s; their penetration and damage stay on the mounts (LR-1) |
+| NLAW "yes (shallow overfly)" top attack | ⚠ **flies DIRECT** | the overfly attack fires DOWN as it passes over; §3's climb/cruise/dive at a 30°/s turn needs a ~380 m radius, longer than its 20–800 m range ⇒ a downward-fuze model is needed — **CE-3198** |
+| a coax MG "7.62" | two new types **6020 / 6021** (7.62 × 51 ball, tracer 1 in 5) — §5's table had no 7.62 round, and R-271 wants every mount's ammo typed; on the turret beside the gun, 200-round belt, 6 s to change, MG ⇒ fires on the move | the T-72's PKT (7.62 × 54R) shares the type |
+| tank loadout "e.g. 20 / 10 / 10" | M1 20 / 10 / 12, T-72 18 / 9 / 12 — **sums equal the old ammunition** (42, 39); the T-72's HEAT is 6017 (the 120 mm one) | no rounds appear or vanish; one HEAT type until a 125 mm one is needed |
+| the RPG man | `Insurgent` (2003): RPG 4 rockets (was 1), lay 2 s, reload 6 s, `FireOnMove = false`, mount 0 as before; rifle on mount 1 | mount 0 stays the RPG so every scenario that named it keeps working |
+| "an AT team type with Javelin or NLAW" | **both**: `JavelinTeam` (2006: 2 missiles, 4 s lock, 20 s reload) and `NlawGunner` (2007: 2 tubes, 2.5 s, 3 s), each + a rifle, sight = the launcher's range | round-out: one helper (`AntiTank`), two rows. Their mounts state no penetration — the munition's own is read |
+| the TOW's "1.5 · 15 · 7" | `AimSeconds = 1.5` (the turret path's lock, §4a); reload left to the mount's 2 / min | the rate already spaces the shots by 30 s |
+| M6: explicit health + top + CE | M1 3000 / top 60 / front CE 900, side CE 450 · T-72 2500 / 40 / 700 / 350 · Bradley 500 / 30 / 150 / 80 · `MilitaryAPC` (2001) armour 30 / 20 / 15 / top 10 (was none), health 500 · eye heights M1 2.5, Bradley 2.7, T-72 2.2 m | every stated health EQUALS the old front × 5, so no fight moves on it. ⚠ The APC change is a combat change: a rifle (5 mm) no longer scratches it; an RPG still does full damage |
+
+Plumbing: `SimCombatDef` gains `ArmorTop`, the four `…Ce`, `MaxHealth`, `MobilityKillBelowFraction`, `EyeHeight`; `WeaponMount` gains `Loadout`,
+`FireOnMove`, `AimSeconds`, `MagazineSize`, `ReloadSeconds`; `NedTkbBuilder.WithCombat` copies them (a stated health is no longer recorded as
+Generated). Rails: `NedTkbBuilderCombatTests.M5_M6_TheTanks_…` (+ `Stage0_M1_…` re-pinned: health Explicit, eye 2.5) ·
+`UrbanCombatCatalogRails.M5_M6_TheRpgMan_TheAntiTankTeams_AndTheArmouredApc` (+ count 7 → 9) · `EffectTests.M5_TheNewMunitions_…` (+ `LR1_…`
+re-pinned: Javelin and NLAW join the explosive set).
+
 ## 6. Who runs it
 
 ```mermaid

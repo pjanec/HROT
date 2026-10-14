@@ -209,15 +209,24 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ Stage 0 — the formulas live in EngineFallbacks and every derived number is RECORDED, so /tkb/resolve
             //   reports it as Generated(formula, inputs) rather than as if an author had stated it.
             var generated = new TkbGeneratedValuesDto();
-            generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
-                ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
-                : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
+            // ⭐ M6 (D-F) — a type that STATES its health keeps it; the front × 5 derivation is only the fallback (and only then recorded)
+            if (combatDef.MaxHealth <= 0f)
+                generated.Formulas[ParameterNames.MaxHealth] = combatDef.ArmorFront > 0f
+                    ? $"armourFront × {EngineFallbacks.HealthPerArmourMm} (armourFront = {combatDef.ArmorFront})"
+                    : $"no armour ⇒ {EngineFallbacks.HealthWithoutArmour}";
             template.AddDescriptor(new CombatPlatformDefDto
             {
-                MaxHealth  = EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
+                MaxHealth  = combatDef.MaxHealth > 0f ? combatDef.MaxHealth : EngineFallbacks.HealthFromArmour(combatDef.ArmorFront),
+                MobilityKillBelowFraction = combatDef.MobilityKillBelowFraction,
                 ArmorFront = combatDef.ArmorFront,
                 ArmorSide  = combatDef.ArmorSide,
                 ArmorRear  = combatDef.ArmorRear,
+                // ⭐ M6 — the roof and the shaped-charge column (0 ⇒ the rear / the kinetic value, ArmorModel.ArmourFor)
+                ArmorTop     = combatDef.ArmorTop,
+                ArmorFrontCe = combatDef.ArmorFrontCe,
+                ArmorSideCe  = combatDef.ArmorSideCe,
+                ArmorRearCe  = combatDef.ArmorRearCe,
+                ArmorTopCe   = combatDef.ArmorTopCe,
             });
 
             // Derived capability DTO for the general TKB pipeline.
@@ -255,6 +264,12 @@ namespace Hrot.Map.Definitions.Tkb
                         AmmoGuid          = unchecked((ulong)wm.AmmoTkb),        // ⭐ LR-1 (R-271)
                         TracerAmmoGuid    = unchecked((ulong)wm.TracerAmmoTkb),
                         TracerEvery       = wm.TracerEvery,
+                        // ⭐ M5 — the loadout, firing on the move, the aim / lock time and the magazine
+                        Loadout           = wm.Loadout?.ConvertAll(l => new AmmoLoadDto { AmmoGuid = unchecked((ulong)l.AmmoTkb), Rounds = l.Rounds }) ?? new(),
+                        FireOnMove        = wm.FireOnMove,
+                        AimSeconds        = wm.AimSeconds,
+                        MagazineSize      = wm.MagazineSize,
+                        ReloadSeconds     = wm.ReloadSeconds,
                     });
                 }
                 template.AddDescriptor(suite);
@@ -268,6 +283,7 @@ namespace Hrot.Map.Definitions.Tkb
                     VisionRange        = combatDef.SensorRange,
                     HearingRange       = combatDef.SensorRange * 1.5f,
                     FieldOfViewDegrees = 360f,
+                    EyeHeightStanding  = combatDef.EyeHeight,   // ⭐ M5 — a vehicle sees from its sight (0 ⇒ a standing man's)
                 });
             }
 

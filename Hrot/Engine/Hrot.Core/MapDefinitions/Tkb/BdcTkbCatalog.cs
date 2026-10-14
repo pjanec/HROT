@@ -17,6 +17,19 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ CE-1017 S0 — SISO-REF-010 Russia.</summary>
         public const ushort Russia = Hrot.Core.Tkb.CountryTable.Russia;
 
+        /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §2, §5) — a tank gun's loadout: its APFSDS, the HEAT-MP and the HE-FRAG.</summary>
+        private static List<(long, int)> TankLoadout(long apfsds, int kinetic, int heat, int he)
+            => new() { (apfsds, kinetic), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeatMp, heat), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankHeFrag, he) };
+
+        /// <summary>⭐ M5 — a tank's coaxial machine gun: on the turret beside the gun, a 200-round belt (6 s to change), 1 in 5 traces;
+        /// it fires on the move (a machine gun, D-L).</summary>
+        private static WeaponMount Coax(System.Numerics.Vector3 muzzle) => new()
+        {
+            WeaponType = "7.62mm_coax", Ammunition = 2000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30, DispersionMils = 3f,
+            Category = WeaponCategory.MachineGun, TurretIndex = 0, MuzzleOffset = muzzle, MagazineSize = 200, ReloadSeconds = 6f,
+            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+        };
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -50,6 +63,11 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 600; // mm RHA
                     c.ArmorSide = 350;
                     c.ArmorRear = 200;
+                    // ⭐ M6 (DESIGN_Armour_Hit_Model §2, D-F) — the roof, the composite front against a shaped charge, and the health
+                    //   STATED (the value front × 5 gave it, so no fight moves on that number)
+                    c.ArmorTop = 60; c.ArmorFrontCe = 900; c.ArmorSideCe = 450;
+                    c.MaxHealth = 3000;
+                    c.EyeHeight = 2.5f;   // ⭐ M5 — the gunner's sight / the commander's hatch
                     c.Weapons.Add(new WeaponMount
                     {
                         WeaponType = "120mm_M256",
@@ -61,7 +79,11 @@ namespace Hrot.Map.Definitions.Tkb
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
                         MuzzleOffset = new System.Numerics.Vector3(5.3f, 0f, 0f),   // ⭐ E4 — the 120 mm L/44 barrel from its trunnion
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds,   // ⭐ LR-1 (R-271)
+                        // ⭐ M5 (DESIGN_Missiles_And_Ammo §2) — the 42 rounds as a loadout the weapon brain picks from: APFSDS for armour,
+                        //   HEAT-MP, HE-FRAG for men and soft targets
+                        Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds, 20, 10, 12),
                     });
+                    c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial M240
                     c.SensorRange = 8000;
                 })
                 // ⭐ WL-1 (DESIGN_Weapon_Layers W-9) — the turret: pivot aft of centre, −10…+20° gun, 40°/s traverse.
@@ -98,6 +120,10 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 100;
                     c.ArmorSide = 60;
                     c.ArmorRear = 40;
+                    // ⭐ M6 — aluminium + spaced steel: the roof, the spaced front against a shaped charge, the health as before (100 × 5)
+                    c.ArmorTop = 30; c.ArmorFrontCe = 150; c.ArmorSideCe = 80;
+                    c.MaxHealth = 500;
+                    c.EyeHeight = 2.7f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT,   // ⭐ LR-1
                         Category = WeaponCategory.Autocannon, TurretIndex = 0,   // ⭐ WL-1 — the 25 mm and the TOW share one turret
@@ -105,6 +131,7 @@ namespace Hrot.Map.Definitions.Tkb
 
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2, Penetration = 800, DamagePerHit = 2000,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile,   // ⭐ LR-1
+                        AimSeconds = 1.5f,   // ⭐ M5 (§5) — the gunner's lay before the launch; the TOW then flies command-guided (MissileDto)
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
                     c.SensorRange = 5000;
@@ -171,10 +198,16 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 500;
                     c.ArmorSide = 250;
                     c.ArmorRear = 150;
+                    // ⭐ M6 — the roof, Kontakt ERA on the front and sides against a shaped charge, the health as before (500 × 5)
+                    c.ArmorTop = 40; c.ArmorFrontCe = 700; c.ArmorSideCe = 350;
+                    c.MaxHealth = 2500;
+                    c.EyeHeight = 2.2f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds,   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
-                        MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f) });   // ⭐ E4 — the 125 mm L/48 barrel
+                        MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f),   // ⭐ E4 — the 125 mm L/48 barrel
+                        Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds, 18, 9, 12) });   // ⭐ M5 — the 39 as a loadout
+                    c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial PKT (7.62 × 51 stands in)
                     c.SensorRange = 6000;
                 })
                 .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,

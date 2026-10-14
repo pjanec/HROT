@@ -52,6 +52,23 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <inheritdoc cref="TracerAmmoTkb"/>
         public int TracerEvery { get; set; }
+
+        /// <summary>⭐ M5 (DESIGN_Missiles_And_Ammo §2) — the rounds this mount carries, by munition type: the weapon brain picks one
+        /// per target (<c>AmmoChoice</c>). Empty = the mount's one round (<see cref="AmmoTkb"/>). Copied onto <c>WeaponMountDto.Loadout</c>.</summary>
+        public List<(long AmmoTkb, int Rounds)> Loadout { get; set; }
+
+        /// <summary>⭐ M5 / D-L — may it fire while the unit moves; null = by category (an ATGM or a mortar stands). <c>WeaponMountDto.FireOnMove</c>.</summary>
+        public bool? FireOnMove { get; set; }
+
+        /// <summary>⭐ M5 — the aim (or lock) time, s; 0 = the engine fallback. <c>WeaponMountDto.AimSeconds</c>.</summary>
+        public float AimSeconds { get; set; }
+
+        /// <summary>⭐ M5 — rounds per magazine / belt (0 = no magazine) and the change time, s. <c>WeaponMountDto.MagazineSize</c> /
+        /// <c>ReloadSeconds</c>.</summary>
+        public int MagazineSize { get; set; }
+
+        /// <inheritdoc cref="MagazineSize"/>
+        public float ReloadSeconds { get; set; }
     }
     
     /// <summary>
@@ -75,7 +92,28 @@ namespace Hrot.Map.Definitions.Tkb
         /// Rear armor thickness in mm RHA equivalent.
         /// </summary>
         public float ArmorRear { get; set; }
-        
+
+        /// <summary>⭐ M6 (DESIGN_Armour_Hit_Model §2) — the roof, mm RHA; 0 ⇒ the rear value.</summary>
+        public float ArmorTop { get; set; }
+
+        /// <summary>⭐ M6 — each face against a SHAPED CHARGE (composite, ERA), mm RHA; 0 ⇒ that face's kinetic value.</summary>
+        public float ArmorFrontCe { get; set; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorSideCe { get; set; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorRearCe { get; set; }
+        /// <inheritdoc cref="ArmorFrontCe"/>
+        public float ArmorTopCe { get; set; }
+
+        /// <summary>⭐ M6 (D-F) — the hit points, stated; 0 ⇒ the front × 5 fallback (<c>EngineFallbacks.HealthFromArmour</c>).</summary>
+        public float MaxHealth { get; set; }
+
+        /// <summary>⭐ M6 — light vehicles opt into a mobility kill below this fraction of health (0 = none). <c>CombatPlatformDefDto</c>.</summary>
+        public float MobilityKillBelowFraction { get; set; }
+
+        /// <summary>⭐ M5 — where the crew sees from, m above the ground (the sight / the commander's hatch); 0 ⇒ a standing man's.</summary>
+        public float EyeHeight { get; set; }
+
         /// <summary>
         /// Weapon systems mounted on vehicle.
         /// </summary>
