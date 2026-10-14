@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: §4a — the guided-flight hold reads the mount's muzzle speed, not SpeedMps (CE-2170, open).
 known-conflict: none.
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the free-fall bomb, the Air-domain launch velocity, BombBallistics and the weapon brain's Release profile (R-2015); a GPS bomb becomes a GuidanceKind here later
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (items M4, M5, M8; decisions D-D, D-I, D-L)
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267, W-11), W-6 "the profile picks the ammo with the SAME ArmorModel" and W-12d "one AmmoGuid per mount until a mount declares a second round"; this file is W-6 / W-12d built, and the guided-weapon timing rule (WL-5) turned into guidance
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — where a round lands (3-D arrival, Top face, penetrator kind); a top-attack missile reaches the roof through it by geometry alone
