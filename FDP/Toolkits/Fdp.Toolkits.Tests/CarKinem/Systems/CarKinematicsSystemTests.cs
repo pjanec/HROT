@@ -1089,6 +1089,38 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2163</c> — a soldier who stands and FIRES does not walk backwards. Every frame a fresh round leaves his muzzle 1 m in
+        /// front of him at 800 m/s (as <c>FireProcessingSystem</c> spawns it: a collider, so the ballistics can carry it). After 3 s of
+        /// fire he is where he stood. 🔴 Red-proof: with rounds in the collider hash (before CE-2163) the avoidance shell shoved him
+        /// back on every shot — live, a man who only suppressed crept ~5 m a minute away from the enemy.
+        /// </summary>
+        [Fact]
+        public void CE2163_AStandingSoldier_WhoFires_IsNotPushedBackByHisOwnRounds()
+        {
+            var (repo, e) = AimedStander(new Vector3(20f, 0f, 1f));   // aimed ahead (east), the way he faces
+            repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            repo.AddComponent(e, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            Entity round = Entity.Null;
+            for (int i = 0; i < 180; i++)
+            {
+                if (!round.IsNull) repo.DestroyEntity(round);
+                round = repo.CreateEntity();
+                repo.AddComponent(round, new SimTransform { Position = new Vector3(1f, 0f, 1.4f), Rotation = Quaternion.Identity });
+                repo.AddComponent(round, new SimVelocity { Linear = new Vector3(800f, 0f, 0f) });
+                repo.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = e });
+                repo.AddComponent(round, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.05f, CollisionLayer = 2 });
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+            }
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(new Vector2(at.X, at.Y).Length() < 0.01f, $"he moved {at.X:F2} m along his facing while firing");
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3195</c> (W-14c) — a BRIEF aim inside the twist barely turns him (a snap shot), and when the posture is no
         /// longer Aimed he stops turning.</summary>
         [Fact]

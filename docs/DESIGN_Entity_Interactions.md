@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (§7.4.10 C-b — the carrier's actions built; squad care in Squad Tactics §7.4 awaits K1–K6)
+updated: 2026-10-14 (§7.2a CE-2163 — a round in flight is hidden from every candidate door)
 build-state: BUILDING — I-1 built 2026-10-08; §7 (embarkation) is a separate task, CE-3110
 current-answer: §7.4.10 C-b the carrier's actions (built; the squad's use is Squad Tactics §7.4) · §7.4.9 C-a as built · §7.4.8 the person carrier detailed (C5–C10 approved, R-2011) · §7.4 carrying is a type fact (R-274, approved 2026-10-13 R-2009 — READY-TO-BUILD) · §7.3 I-2d (the AI nodes, BUILT 2026-10-12) · §7.1 embarkation measured status + build plan (2026-10-11) · §7.1a/§7.1b I-2a details + as built (2026-10-12) · §7.1c/§7.1d I-2b design + as built (2026-10-12) · §7.2a/§7.2b I-2c design + as built (2026-10-12) · §2 the classes, §3 the sequence, §4 the modules, §5 the decisions, §6 the slices, §7 embarkation (I-2)
 stale-below: nothing
@@ -457,7 +457,7 @@ classDiagram
   class VehicleKinematicsTkbTranslator { <<existing, + stamp>> Open ⇒ OpenPassengerCabin }
   class Embarkation { <<existing>> Board: Exposed = vehicle has OpenPassengerCabin }
   class EmbarkedStateSystem { <<existing, + carry + kill>> owner of the position: carry · owner of the health: lethal DamageAssessedEvent when the vehicle is destroyed }
-  class PhysicalPresence { <<existing, widened>> IsHidden = UnitEntity OR enclosed passenger · ExcludeHidden REMOVED }
+  class PhysicalPresence { <<existing, widened>> IsHidden = UnitEntity OR enclosed passenger OR round in flight (CE-2163) · ExcludeHidden REMOVED }
   class SpatialHashSystem { <<existing, + door>> collider hash skips IsHidden }
   class CarKinematicsSystem { <<existing>> skips embarked · avoidance ignores embarked neighbours }
   class AreaEffectSystem { <<existing, + door>> blast skips IsHidden }
@@ -542,6 +542,15 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 | the vehicle destroyed ⇒ a lethal damage event for each live passenger whose Health this node owns, none for one it does not own | `EmbarkedStateSystemTests` (FDP) |
 | an Open type stamps `OpenPassengerCabin`; boarding it sets `Exposed` | `VehicleKinematicsTkbTranslatorTests`, `EmbarkationTests` (FDP) |
 | every host registers the embarkation components | `HrotSharedComponentRegistry` rail (SimHost.Tests) |
+
+> ⭐ **CE-2163 (2026-10-14, backend):** a ROUND IN FLIGHT (`BallisticProjectile`) is hidden too — it carries a `PhysicsCollider` so the
+> ballistics can move it, but it searches the doors, it is never a candidate in them. 📌 Measured live (`ua-fire-and-movement-pairs`, a
+> per-frame avoidance trace on SimHost): every shot put a fresh round **1.000 m in front of the muzzle at ~800 m/s** in the collider hash,
+> inside the shooter's 1.6 m anti-overlap shell ⇒ `RVOAvoidance` shoved him back at −6 m/s for that frame, and a man who only suppressed
+> crept ~5 m a minute away from the enemy (fire and movement lost about a fifth of its gain). The same one line also takes rounds out of
+> the EQS radius/area candidates, the LOS occluder lists, the blast and the perception grid, and stops them filling the fixed neighbour
+> buffers (32 for avoidance, 64 for near misses). The maps call `IsEnclosedPassenger`, not `IsHidden`, so a visible round still draws.
+> Rails: `SpatialHashSystemTests.CE2163_ARoundInFlight_IsNotInTheColliderHash` · `CarKinematicsSystemTests.CE2163_AStandingSoldier_WhoFires_IsNotPushedBackByHisOwnRounds` (red-proved).
 
 > ⭐ **CE-1058 (2026-10-12, ui):** the MAPS follow the same rule — a hidden passenger has no 3-D body, box, 2-D symbol or card (`PhysicalPresence.IsEnclosedPassenger`); an exposed rider is drawn. 📄 DESIGN_Map_3D_Mode.md §3.5 as-built (`EntityBodyLayer3D` row).
 
