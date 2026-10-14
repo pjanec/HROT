@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-02
+updated: 2026-10-14
 build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S8 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E4/E6 routed edits ✅ (CE-3003), E8 crash reclaim ✅ multi-process (+10.2 s, no message), E7 ✅ after §5.8 (the brain names each EQS sensor's solver, R-179; live 48/48 results); S8 ✅ (CE-523 damage on SimHost/IG-created entities, F-5 ingress skip incl. the F7 handover race, CE-3001).
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
 related-designs:
-  - docs/designs/motion-models/DESIGN_Motion_Domains.md — proposes roles MuscleAir / MuscleNaval with their own kinematic groups (MD-B) ⚠ CONFLICTS with "a component sits in exactly one box" (§5): SimTransform would sit in MuscleGround AND MuscleAir — open as CE-3199, options + lean in Motion Domains §5a
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS the motion domains (one module per domain); R-3005 (CE-3199, its §5a): every domain's body is owned by THIS design's one MuscleGround group — no MuscleAir / MuscleNaval role
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §7 BUILDS CE-514: the owner-side centroid of a composite unit (R-272 (behaviors)), and the body-less unit's exclusion from sensing
   - docs/DESIGN_Entity_Interactions.md — an actor's ACTION on an entity it does not own (open a door, board a vehicle) travels to the owner as a typed command; each handler gates on this design's descriptor ownership
   - docs/DESIGN_Sensors_And_Doctrine.md — §7.7 OWNS dtBrainIntent (CE-3048): the Brain group's AI-intent descriptor (SopState, Roe) and the hand-over that starts it on the gaining node — the declarative projection that keeps R-165's 'never sent' intact.
@@ -86,6 +86,9 @@ with the creator. LOCAL components are in no group (each node writes its own cop
 | `VehicleParams` | INIT only — but part of `dtWorldPos` (R-170: the descriptor moves whole) | `dtWorldPos` (mapped) |
 | `NavigationStatus` | `NavigationExecutionSystem.cs:124-282`, `NavigationIntentBridgeSystem.cs:365` | `dtNavigationStatus` (53) |
 | `FrustrationTicks` | `NavigationExecutionSystem.cs:127-273` | — |
+| `FlightState`, `FlightParams` *(R-3005, `2026-10-14`)* | `AirMotionSystem` / `RotorcraftModel` (a flyer's never-sent state); `FlightParams` INIT only | — *(linked to `dtWorldPos`)* |
+
+⭐ **R-3005 (CE-3199):** there is ONE Muscle role — `MuscleGround` keeps its name and moves every body, ground or air; its group applies to a template with `VehicleParametersDto` **or** `FlightParamsDto` (`HrotOwnershipGroups.HasKinematics`). `Locomotion` is TKB classification on every node and sits in no group.
 
 ### 1.2b Perception-execution-written (SIM writers in the Perception role — today co-hosted on SimHost / Stride)
 

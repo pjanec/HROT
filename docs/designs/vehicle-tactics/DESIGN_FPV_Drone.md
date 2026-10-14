@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — the Muscle half built (§6, backend B11); MuscleAir ownership open (CE-3199); the Brain half is the behaviour lane's
+build-state: BUILDING — the Muscle half built (§6, backend B11); owned by the one Muscle role MuscleGround (R-3005, CE-3199); the Brain half is the behaviour lane's
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
 known-conflict: none.
 related-designs:
-  - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (role MuscleAir), autonomous AND manual (FPS possession)
+  - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (on the MuscleGround node, R-3005), autonomous AND manual (FPS possession)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (item M7, decision D-E)
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS R-263 D2 ("point-mass flight + acoustic signature + battery … follow a planned 3d path and … attack autonomously") and AIR-1…AIR-4; this file is AIR-2's first slice (FPV: search, select, pursue, dive)
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the drone detonates through that chain; its dive arrives from above ⇒ the Top face
@@ -61,7 +61,7 @@ classDiagram
     ContactRadiusM = 0.8
   }
   class FlightParams { <<new ECS component, from the TKB, every node>> copy of FlightParamsDto }
-  class FlightState { <<new ECS component, MuscleAir group>> Airborne · VerticalSpeed }
+  class FlightState { <<new ECS component, MuscleGround group>> Airborne · VerticalSpeed }
   class IMotionModel { <<new interface — Motion Domains MD-C>> Autonomous(frame, intent, dt) · Manual(frame, drive, dt) }
   class RotorcraftModel {
     <<new IMotionModel — Motion Domains MD-H>>
@@ -69,7 +69,7 @@ classDiagram
     Manual: ManualDrive Forward · Lateral · Yaw · Vertical
     hover · a dead rotorcraft falls
   }
-  class AirMotionModule { <<new — role MuscleAir>> AirMotionSystem: MotionModelTable → RotorcraftModel }
+  class AirMotionModule { <<new — on the MuscleGround node>> AirMotionSystem: MotionModelTable → RotorcraftModel }
   class DroneImpactSystem {
     <<new, Muscle, AirMotionModule, after AirMotionSystem>>
     swept segment vs terrain and colliders
@@ -116,7 +116,7 @@ possessing operator. The kill is the existing damage chain.*
 | rule | why |
 |---|---|
 | a drone is a TKB air type (DIS domain 2, id 403 "FPV drone"): `Gen.Locomotion = Rotorcraft`, `FlightParamsDto`, a collider (r 0.3 m, h 0.3 m), `Health` 10, a weapon mount = the warhead (munition 6016, range = `ContactRadiusM`), an acoustic signature (class `Rotor` = 7, ~300 m), a visual sensor (~1500 m) | R-263: point-mass + acoustic + battery; one entity like any other — seen, heard, ranked, shot, possessed |
-| it is owned by role **MuscleAir** (its kinematic group: `SimTransform, SimVelocity, FlightState`) and moved only on that node | MD-B; "motion needs to stay on muscle node" |
+| it is owned by the ONE Muscle role, **`MuscleGround`** (its group: `SimTransform, SimVelocity, FlightState`, …), and moved only on that node | R-3005 (amends MD-B); "motion needs to stay on muscle node" |
 | **autonomous**: the behaviour issues `MoveTo` to 3-D points; `RotorcraftModel.Autonomous` turns ≤ `TurnRateDeg`, climbs ≤ `ClimbMps`, speed → min(`TargetSpeed`, `MaxSpeedMps`); arrival within 2 m sets `NavigationStatus`, so `LocomotionMoveTo.Status` works unchanged | MD-D, MD-E (straight legs, v1) |
 | **manual (FPS possession)**: the station's rotorcraft scheme (W/S forward, A/D lateral, mouse yaw, Space / C vertical) → `OperatorControlFrameEvent` → `PossessionSystem` → `OperatorControl` → `ManualDrive { Forward, Lateral, Yaw, Vertical }` → `RotorcraftModel.Manual` | MD-D; the existing possession chain (Motion Domains §3 sequence) |
 | the bridge skips an entity whose locomotion is not Ground-domain (no ground path request for a flyer) | §1 |
@@ -131,9 +131,9 @@ possessing operator. The kill is the existing damage chain.*
 sequenceDiagram
   participant B as FpvAttack (CGF)
   participant N as NavigationIntent (wire)
-  participant A as AirMotionSystem + RotorcraftModel (MuscleAir)
+  participant A as AirMotionSystem + RotorcraftModel (MuscleGround)
   participant S as Drone's own sensors
-  participant I as DroneImpactSystem (MuscleAir)
+  participant I as DroneImpactSystem (MuscleGround)
   participant D as DamageCalculation / AreaEffect
   B->>N: MoveTo(W1 at CruiseAltitude, SearchSpeed)
   N->>A: FinalDestination (3-D), TargetSpeed
@@ -162,7 +162,7 @@ graph TD
     MT["MoveToExecutor → NavigationIntent"]
     PO["PossessionSystem → OperatorControl → ManualDrive"]
   end
-  subgraph AIR["Muscle node holding role MuscleAir (by default the SimHost)"]
+  subgraph AIR["Muscle node holding MuscleGround (the SimHost)"]
     AM["AirMotionModule: AirMotionSystem (RotorcraftModel) → DroneImpactSystem"]
   end
   subgraph SIM["SimHost (Perception + damage)"]
@@ -177,8 +177,8 @@ graph TD
   AM -->|DetonationNotification| DMG -->|DamageAssessedEvent| HA
 ```
 
-*What the picture shows: the drone's motion and impact live in the Air domain's module on whichever Muscle node holds MuscleAir — the
-SimHost by default (MD-B), a dedicated air node in a split deployment.*
+*What the picture shows: the drone's motion and impact live in the Air domain's module on the node holding the one Muscle role,
+`MuscleGround` — the SimHost (R-3005: no dedicated air node).*
 
 ## 5. Rails — in the features' own suites
 
@@ -190,7 +190,7 @@ SimHost by default (MD-B), a dedicated air node in a split deployment.*
 | `M7_AHoveringDrone_IsHeard_AsRotor` · `M7_ADroneOverhead_IsInTheBroadphase` | `SoundEmissionSystemTests` · `VisionBroadphaseTests` |
 | `M7_FpvAttack_FliesTheRoute_Searches_PicksTheTankOverTheRifleman_AndDives` · `M7_TheBattery_EndsTheFlight` | new `FpvAttackNodesTests` |
 | `M7_TheBridge_SkipsAFlyer` | `NavigationIntentBridgeSystemTests` |
-| `M7_TheAirModule_RunsWhereMuscleAirIsHeld` (SimHost, editor) | `SimHostCoreLogicPackTests` · `EditorCapabilitiesTests` |
+| `M7_TheAirModule_RunsOnTheMuscleNode` (SimHost, editor) | `SimHostCoreLogicPackTests` · `EditorCapabilitiesTests` |
 | a TKB rail for type 403 | `NedTkbBuilderCombatTests` |
 | demo `ua-drone-shelter` | `scripts/utility-demo-check.py` |
 
@@ -204,7 +204,7 @@ the bridge skipping a non-ground mover. Deviations, argued:
 
 | design said | built | why |
 |---|---|---|
-| owned by role `MuscleAir` | ⛔ **not built — CE-3199** ([Motion Domains §5a](../motion-models/DESIGN_Motion_Domains.md)) | the ownership table puts a component in one group only. ⇒ the drone moves where its CREATOR runs the Air module (the editor; in-process rails) |
+| owned by role ~~`MuscleAir`~~ | ✅ **owned by `MuscleGround`** — R-3005 (CE-3199, [Motion Domains §5a](../motion-models/DESIGN_Motion_Domains.md)): one Muscle role; `HasKinematics` applies to `Gen.Flight`; rail `HrotOwnershipGroupsTests.CE3199_…` | the user dropped per-domain roles |
 | a collider r 0.3, h 0.3 | ✅ stamped by `FlightTkbTranslator` from `Gen.Flight`'s body size | no ground physics gives a flyer one |
 | impact: terrain via `SightBlocked`, colliders within 10 m | ✅ + the ground under it (`GroundHeightAt`); a body's band grown by the contact radius; once met, `Airborne = 0` (spent: one detonation), the model then holds it still | a drone at speed would cross a hull in one frame; `Airborne` is the "spent" flag both systems read |
 | a lethal `DamageAssessedEvent` on the drone | ✅ 10 × its max health | the existing chain kills it on its `Health` owner |
