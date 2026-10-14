@@ -389,7 +389,9 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     GizmoTypeId = gizmoTypeId,
                     PayloadJson = json,
                 });
-            });
+            },
+            // ⭐ CE-1066 — the panel's [X]: routed to its gizmo by anchor, like the struct update (and egressed to a remote one)
+            (networkId, gizmoTypeId) => _eventBus?.Publish(new GizmoInspectorClosedEvent { AnchorId = networkId, GizmoTypeId = gizmoTypeId }));
         }
 
         /// <summary>

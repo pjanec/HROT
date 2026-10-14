@@ -991,7 +991,13 @@ State transitions:
 | `ImGui.IsWindowFocused(RootAndChildWindows)` returns `true` while in `Viewing` | Viewing → Editing | None (begin blocking updates) |
 | Window loses focus (`!isFocused`) while in `Editing` | Editing → Viewing | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` to commit changes |
 | ⭐ **CE-1065 (`2026-10-14`)**: the operator EDITS a field (a checkbox click) | → Editing (stays) | Invoke `onStructUpdate(networkId, gizmoTypeId, json)` in the same frame (`CommitIfEdited`) — each click takes effect at once. 📄 `DESIGN_Terrain_Combat_Tuning.md` §5d D |
+| ⭐ **CE-1066 (`2026-10-14`)**: the operator clicks the window's [X] (floating or docked) | → removed; hidden ≤ `CloseGraceFrames` (30) | Invoke `onClosed(networkId, gizmoTypeId)` → the terminal layer publishes `GizmoInspectorClosedEvent`, routed by anchor (`GlobalGizmoManager`, `DataDrivenGizmoSystem`) to `IGizmoInteractionHandler.OnInspectorClosed()`; over DDS it is `GizmoInteractionEventKind.InspectorClosed = 7` with `PickAnchorId` + `PickGizmoTypeId`. The window hides locally until its gizmo stops emitting it. 📄 `DESIGN_Terrain_Combat_Tuning.md` §5d F |
 | ⛔ SUPERSEDED by the row above: ~~Operator clicks "Apply" while in `Editing`~~ | ~~Editing → Viewing~~ | the Apply button is removed; its gizmo (the layer control) closed the panel on it, so every second checkbox needed the menu again |
+
+⭐ **CE-1066 — the window's stable ImGui ID** is `StructInsp_{GizmoTypeId}` (the class hash, the same every run, so imgui.ini puts a
+docked panel back in its slot after a restart); `_{NetworkId}` is appended only for an unstamped type (0) or when two panels of one
+type are open in the same frame. ⛔ It used to be `StructInsp_{NetworkId}_{GizmoTypeId}`, and a global gizmo's NetworkId is a
+per-run counter. The visible title is the schema's name made readable ("LayerControlDto" → "Layer Control").
 
 Note: the key is `(NetworkId, GizmoTypeId)` rather than `NetworkId` alone so that two gizmo
 inspectors on the same entity track focus independently, even if they happen to share the same

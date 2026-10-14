@@ -242,6 +242,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             //   here made every second toggle a trip back through View ▸ Tactical Map Layers…. The menu entry toggles it shut.
         }
 
+        /// <summary>⭐ CE-1066 — the panel's [X]: stop emitting it (the View menu entry opens it again).</summary>
+        public void OnInspectorClosed() => _isEditing = false;
+
         // No-op stubs for IGizmoInteractionHandler methods not used by this gizmo.
         // Menu actions arrive as OpenLayerEditorEvent via the action registry, not OnMenuAction.
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos) { }

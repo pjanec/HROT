@@ -786,7 +786,7 @@ graph TD
 | the layer | bit `Navmesh = 10`, `FirstUntoggledLayer = 11`, off by default; ground outlines 1 px, doorway outlines 2 px in `DoorLeafGizmo.ColorOf` (now public, the one door-colour table) |
 | rails | `RecastNavmeshFactoryTests.CE3133_*` (3: every polygon in engine space with its door · once per navmesh, fresh after a rebake · the node navmesh forwards), `NavmeshGizmoTests` (4), `LayerControlGizmoTests` (toggle + the choice's round trip) |
 
-## 5d. A quiet map by default — layer defaults, family scopes and a live layer panel *(`CE-1065`, ui, `2026-10-14`; R-1000; build-state: BUILT — as built at the end of this section)*
+## 5d. A quiet map by default — layer defaults, family scopes and a live layer panel *(`CE-1065`, `CE-1066`, ui, `2026-10-14`; R-1000; build-state: BUILT — as built at the end of this section)*
 
 🔒 **User, `2026-10-14`:** *"I am now overwhelmed with the amount of gizmos shown on the scene, especially in the 3d map. I would like to turn most of them off by default or make them less intrusive, blocking the real scene content."* · *"check how the layer dialog with checkboxes for each layer … could be made responding to each checkbox click immediately, ie not needing Apply butoon which closes the dialog which makes it annoying to open it again from the menu to try another checkbox."*
 
@@ -835,6 +835,10 @@ sequenceDiagram
   U->>A: clicks "Fire traces" (no reopen)
   U->>A: View, Tactical Map Layers... again
   Note over G: panel closes
+  U->>A: (or, CE-1066) clicks the panel's [X]
+  A->>L: onClosed(anchor, type), window hidden while it travels
+  L->>M: GizmoInspectorClosedEvent (AnchorId)
+  M->>G: OnInspectorClosed(), panel no longer emitted
 ```
 
 ```mermaid
@@ -878,7 +882,8 @@ classDiagram
 | **A** OFF by default: AiHelpers, FireTraces, Blast, Hearing; ON: Entities, Perception (its families scoped, B), Doors, Paths (selected), Roads, Labels | everything off (the map would show no roads and no unit cards: the 3-D map's roads ARE the road gizmo, §6f of the 3-D design) |
 | **B** EVERY gizmo family starts on the selected and pinned units: Perception and Contacts join the five that already did. ⛔ SUPERSEDES §5b B's "Perception, Contacts = All" | keep them on All (a cone and contact lines on every unit is the clutter) |
 | **C** two NEW toggles, OFF: `UnitDetails` (heading arrow + degree label + stance label) and `SpatialGrid` (the spatial hash tiles) | hard-coding them off (no way back; the grid's `ShowTiles` setting has no UI) · leaving them on layer 0 (only "Entities off" could hide them, which also hides the units) |
-| **D** the struct inspector COMMITS EACH FIELD EDIT at once; the Apply button goes; the layer gizmo no longer closes on an update; the View menu entry still toggles the panel | keep Apply and stop closing (still a click per change) · a close [X] that tells the gizmo (a new interaction-event kind: a wire change through the NED egress/ingress translators for a panel that the menu already closes) |
+| **D** the struct inspector COMMITS EACH FIELD EDIT at once; the Apply button goes; the layer gizmo no longer closes on an update; the View menu entry still toggles the panel | keep Apply and stop closing (still a click per change) · ⛔ ~~no close [X]~~ — SUPERSEDED by F the same day (user: *"Approved go ahead"*) |
+| **F** *(`CE-1066`)* the panel gets a close **[X]** (floating and docked): the adapter calls `onClosed`, the terminal layer publishes `GizmoInspectorClosedEvent` (8063), routed by anchor to `IGizmoInteractionHandler.OnInspectorClosed()` (default no-op; the layer control and the tuning console close); over DDS it is ONE new kind value `InspectorClosed = 7` on the existing `GizmoInteractionBatch`, reusing `PickAnchorId` + `PickGizmoTypeId` (no new field). The window ID is the gizmo type (stable across runs ⇒ a docked panel keeps its slot) and the title is readable ("Layer Control") | a close that only hides the window locally (the gizmo keeps emitting it ⇒ the menu toggle would need two clicks to reopen) · reusing the struct-update kind with a marker payload (a hidden protocol inside JSON) |
 | **E** the placement ghost and both pickers at HALF size (ghost sphere 15 → 7.5 m, entity picker 12 → 6 m, location picker 14 → 7 m) — world metres, so 3-D sees the same | screen pixels (the 2-D size would change with zoom differently from today) |
 
 ### ✅ As built *(ui, `2026-10-14`)*
@@ -890,18 +895,21 @@ classDiagram
 | scopes B | `GizmoFamilies.DefaultScope` returns `SelectedOrPinned`; the panel's `…SelectedOnly` defaults follow |
 | live panel D | `ImGuiPropertyTreeAdapter.DrawEditNode` returns whether a field changed; `CommitIfEdited` sends it in the same frame and stays `Editing`; "Changes apply as you click." replaces Apply; `LayerControlGizmo.OnStructUpdate` keeps `_isEditing` |
 | sizes E | `EntityPlacementGizmo`, `EntityPickerGizmo`, `FdpLocationPickerGizmo` constants |
+| close F *(`CE-1066`)* | `ImGuiPropertyTreeAdapter` (`Begin(title, ref open)`, `onClosed`, `_closing` hidden ≤ 30 frames, `MakeWindowTitle` / `FriendlyName`); `GizmoInspectorClosedEvent` (`Fdp.Toolkits`, registered in `InteractionEventRegistry`); `IGizmoInteractionHandler.OnInspectorClosed`; routing in `GlobalGizmoManager` + `DataDrivenGizmoSystem`; `DebugGizmoLayer.DrawStructInspector` (both) + `DebugPrimitiveRenderer2D` + `GizmoViewerFrontend`; NED egress / ingress `InspectorClosed`; `LayerControlGizmo` / `TuningConsoleGizmo.OnInspectorClosed` |
 
 ⚠ **Left, named:**
 - In 3-D, labels still draw on top of everything (`LabelOverlay3D`, no occlusion), and an un-anchored ring with height is still a wire sphere. The defaults hide most of them, but drawing them less loudly in 3-D is its own change.
 - The card stack (Labels) stays on for every unit, because the user asked for cards (U19). There is no distance or zoom culling for cards.
 - A family scope a user saved to disk overrides the new default.
 - The GizmoMap.Viewer (external terminal) gets the live panel too: same adapter.
+- ⚠ **Found building F, pre-existing (`CE-1067`):** a panel shown by a REMOTE terminal for a GLOBAL gizmo (the layer control: its anchor is a tool id, not an entity) does not reach it. The NED ingress drops any batch whose anchor is not an entity in its world (`GizmoInteractionIngressTranslator.cs:120`, behaviour ②), so a remote struct update was dropped before F, and a remote close is dropped the same way. Local panels, every map host's own, are unaffected.
 
 **Rails:**
 - `LayerControlGizmoTests.CE1065_AnUpdate_AppliesTheMask_AndThePanelStaysOpen`, through the real manager route.
 - `CE3117_…` and `CE3120_…` updated to the new defaults.
 - `GizmoPresentationTests.CE1065_AnEdit_CommitsAtOnce_AndTheWindowStaysEditing`.
 - `EntityPlacementGizmoTests.CE1065_TheGhost_IsHalfTheOldSize` and `EntityPickerGizmoTests.CE1065_TheCrosshair_IsHalfTheOldSize`.
+- F: `GizmoPresentationTests.CE1066_TheClose_TellsTheGizmoOnce_AndHidesThePanelUntilItStops` and `CE1066_TheStableId_IsTheGizmoType_AndTheTitleIsReadable`; `LayerControlGizmoTests.CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt`; `GizmoInteractionTranslatorTests.CE1066_APanelsClose_RoundTripsAsInspectorClosed`.
 
 ## 6. Slices
 

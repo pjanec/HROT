@@ -72,6 +72,24 @@ namespace Hrot.Network.NED.Gizmos
             // Forward StructInspector Apply mutations back to SimHost.
             foreach (var evt in _interactionBus.ReadManaged<GizmoStructUpdateEvent>())
                 WriteStructUpdate(evt.AnchorId, evt.GizmoTypeId, evt.PayloadJson);
+
+            // ⭐ CE-1066 — a StructInspector panel closed with its [X], back to the gizmo that owns it
+            if (_interactionBus.IsRegistered<GizmoInspectorClosedEvent>())
+                foreach (ref readonly var evt in _interactionBus.Read<GizmoInspectorClosedEvent>())
+                    WriteInspectorClosed(evt.AnchorId, evt.GizmoTypeId);
+        }
+
+        private void WriteInspectorClosed(long anchorId, uint gizmoTypeId)
+        {
+            _writer!.Write(new GizmoInteractionBatch
+            {
+                SourceNodeId    = _nodeId,
+                SequenceNumber  = _sequenceNumber++,
+                Kind            = GizmoInteractionEventKind.InspectorClosed,
+                PickAnchorId    = anchorId,
+                PickGizmoTypeId = gizmoTypeId,
+            });
+            SentSampleCount++;
         }
 
         // 🔴 §6.7 — `private long NetworkIdOf(Entity)` DELETED with the map it read.

@@ -245,6 +245,35 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(HasPanel(buffer), "the menu entry did not close the panel");
         }
 
+        // ⭐ CE-1066 — the panel's [X]: the terminal publishes GizmoInspectorClosedEvent, the manager routes it by anchor (no focus
+        // holder needed), the panel stops; the menu entry then OPENS it again with one click (it does not need two).
+        [Fact]
+        public void CE1066_ThePanelsClose_ReachesTheGizmo_AndOneMenuClickReopensIt()
+        {
+            var bus = new FdpEventBus();
+            Hrot.Common.Interactions.InteractionEventRegistry.RegisterAll(bus);
+            var edit = new ComponentEditServiceBuilder().Build();
+            var buffer = new DebugPrimitiveBuffer();
+            var manager = new Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager(buffer, bus);
+            long id = Fdp.Toolkit.Diagnostics.Gizmos.Systems.GlobalGizmoManager.NewId();
+            manager.Register(id, new LayerControlGizmo(id, bus, edit));
+            var repo = new EntityRepository();
+            void Frame() { bus.SwapBuffers(); buffer.Clear(); manager.Execute(repo, 0f); }
+
+            bus.Publish(new OpenLayerEditorEvent());
+            Frame();
+            Assert.True(HasPanel(buffer));
+
+            bus.Publish(new Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoInspectorClosedEvent { AnchorId = id });
+            Frame();   // routes the close (the panel is emitted before the routing step)…
+            Frame();   // …the frame after has none
+            Assert.False(HasPanel(buffer), "the [X] did not close the panel");
+
+            bus.Publish(new OpenLayerEditorEvent());
+            Frame();
+            Assert.True(HasPanel(buffer), "one menu click did not reopen the panel after its [X]");
+        }
+
         private static bool HasPanel(DebugPrimitiveBuffer buffer)
         {
             foreach (var p in buffer.GetFrame())

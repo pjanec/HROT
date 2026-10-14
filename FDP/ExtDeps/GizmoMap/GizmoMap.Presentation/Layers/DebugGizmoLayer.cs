@@ -465,9 +465,9 @@ namespace GizmoMap.Presentation
                 onMenuAction?.Invoke(new GizmoPickToken { AnchorId = anchorId }, actionId));
         }
 
-        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null)
+        public void DrawStructInspector(Action<long, uint, string>? onStructUpdate = null, Action<long, uint>? onClosed = null)
         {
-            _renderer.DrawStructInspector(onStructUpdate);
+            _renderer.DrawStructInspector(onStructUpdate, onClosed);
         }
 
         /// <summary>
