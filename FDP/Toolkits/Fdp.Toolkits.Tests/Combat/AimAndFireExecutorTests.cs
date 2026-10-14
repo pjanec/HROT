@@ -573,8 +573,8 @@ namespace Fdp.Toolkit.Combat.Tests
 
             Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // 0.8 s — aimed
             Assert.Equal(0, Step(shooter, ref channel, 0.1f));                        // cooldown 0.2 s …
-            Assert.Equal(0, Step(shooter, ref channel, 0.1f));
-            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … then the next round, no new aim
+            Assert.Equal(1, Step(shooter, ref channel, 0.1f));                        // … 0.2 s later the next round, no new aim
+            // ⭐ CE-2166 re-pinned: it was 0.3 s — the rail drove the executor alone, whose own drain lagged the dispatcher's by a frame
             Assert.Equal(3, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
@@ -643,7 +643,8 @@ namespace Fdp.Toolkit.Combat.Tests
         /// 0 keeps firing (today's behaviour).</summary>
         [Theory]
         [InlineData(3, 3, NodeStatus.Success)]
-        [InlineData(0, 4, NodeStatus.Running)]   // 8 steps, a round every second step (cooldown 0.05 s drains in one)
+        [InlineData(0, 8, NodeStatus.Running)]   // 8 steps, a round every step: a 0.05 s cooldown is gone by the next 0.1 s frame (⭐ CE-2166
+                                                  //   re-pinned from 4 — the rail drove the executor alone; through the dispatcher it was every step)
         public unsafe void B7_RoundsEndsTheActionAfterThatMany(int rounds, int expectedFired, NodeStatus expectedStatus)
         {
             var target = SpawnTarget(new Vector3(10f, 0f, 0f));
@@ -1208,7 +1209,8 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(remembered + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres), intents[0].TargetPoint);
             Assert.Equal(29, _world.GetComponent<WeaponState>(unit).Ammo);
             Assert.Equal(4, _world.GetComponent<WeaponState>(grenade).Ammo);   // nothing thrown
-            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
+            // set on the shot, then the frame's one drain (⭐ CE-2166 — the dispatcher's) takes the 0.1 s off
+            Assert.Equal(0.5f * AimAndFireExecutor.BlindCooldownFactor - 0.1f, _world.GetComponent<WeaponState>(unit).CooldownSecondsRemaining, 3);
             Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
