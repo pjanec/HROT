@@ -29,8 +29,12 @@ namespace Fdp.Toolkit.Motion
         public const float DefaultArrivalRadiusM = 2f;
         public const float Gravity = 9.81f;
 
-        /// <summary>Along-path acceleration and braking, m/s² — a helicopter eases into and out of its speed.</summary>
+        /// <summary>Acceleration and braking, m/s², where the type states none (<c>Gen.Flight AccelMps2</c>, R-3007) — a helicopter eases
+        /// into and out of its speed; an FPV drone states its own (15).</summary>
         public const float AccelMps2 = 3f;
+
+        /// <summary>The type's acceleration (R-3007), else <see cref="AccelMps2"/>.</summary>
+        public static float Accel(in FlightParams p) => p.AccelMps2 > 0f ? p.AccelMps2 : AccelMps2;
         /// <summary>The bank a route's curves are flown at most — it sets the speed for a curve: v² κ ≤ g tan(bank).</summary>
         public const float MaxBankDeg = 30f;
         public const float MaxPitchDeg = 20f;
@@ -83,9 +87,17 @@ namespace Fdp.Toolkit.Motion
             var flat = new Vector2(to.X, to.Y);
             if (flat.LengthSquared() > 1e-6f) yaw = TurnToward(yaw, MathF.Atan2(flat.Y, flat.X), p.TurnRateDeg, dt);
             float speed = MathF.Min(intent.TargetSpeed > 0f ? intent.TargetSpeed : p.MaxSpeedMps, p.MaxSpeedMps);
-            // a point mass flies along its nose; it does not overshoot a point closer than one frame's travel
-            float along = MathF.Min(speed, flat.Length() / MathF.Max(dt, 1e-4f));
-            float vz = Math.Clamp(to.Z / MathF.Max(dt, 1e-4f), -p.ClimbMps, p.ClimbMps);
+            // a point mass flies along its nose; it does not overshoot a point closer than one frame's travel. ⭐ R-3007 — it eases
+            //   into its speed and brakes for the point at the type's acceleration (√(2·a·d)), climbing and descending likewise
+            float a = Accel(in p), step = a * dt, inv = 1f / MathF.Max(dt, 1e-4f);
+            var now = f.Velocity.Linear;
+            float alongWant = MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * a * flat.Length())), flat.Length() * inv);
+            float hNow = new Vector2(now.X, now.Y).Length();
+            float along = MathF.Min(hNow + Math.Clamp(alongWant - hNow, -step, step), flat.Length() * inv);
+            float vzWant = Math.Clamp(to.Z * inv, -p.ClimbMps, p.ClimbMps);
+            vzWant = MathF.Sign(vzWant) * MathF.Min(MathF.Abs(vzWant), MathF.Sqrt(2f * a * MathF.Abs(to.Z)));
+            float vz = now.Z + Math.Clamp(vzWant - now.Z, -step, step);
+            if (MathF.Abs(vz) > MathF.Abs(to.Z) * inv) vz = to.Z * inv;
             Fly(ref f, yaw, new Vector3(MathF.Cos(yaw) * along, MathF.Sin(yaw) * along, vz), dt);
             Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Following, 0f);
         }
@@ -102,19 +114,28 @@ namespace Fdp.Toolkit.Motion
             }
             float before = YawOf(f.Transform.Rotation);
             float yaw = TurnToward(before, d.Yaw, p.TurnRateDeg, dt);
-            float fwd = Math.Clamp(d.Forward, -1f, 1f) * p.MaxSpeedMps, lat = Math.Clamp(d.Lateral, -1f, 1f) * p.MaxSpeedMps;
-            var v = new Vector3(MathF.Cos(yaw) * fwd - MathF.Sin(yaw) * lat, MathF.Sin(yaw) * fwd + MathF.Cos(yaw) * lat,
-                                Math.Clamp(d.Vertical, -1f, 1f) * p.ClimbMps);
+            float fwdWant = Math.Clamp(d.Forward, -1f, 1f) * p.MaxSpeedMps, latWant = Math.Clamp(d.Lateral, -1f, 1f) * p.MaxSpeedMps;
+            var want = new Vector3(MathF.Cos(yaw) * fwdWant - MathF.Sin(yaw) * latWant, MathF.Sin(yaw) * fwdWant + MathF.Cos(yaw) * latWant,
+                                   Math.Clamp(d.Vertical, -1f, 1f) * p.ClimbMps);
+            // ⭐ R-3007 — the axes ask for a velocity; the body reaches it at the type's acceleration (a UH-60 3 m/s², an FPV drone 15).
+            //   Keys released ⇒ it brakes to a hover and holds it there (the hover hold)
+            var v = f.Velocity.Linear;
+            float step = Accel(in p) * dt;
+            var dh = new Vector2(want.X - v.X, want.Y - v.Y);
+            if (dh.Length() > step) dh *= step / dh.Length();
+            v = new Vector3(v.X + dh.X, v.Y + dh.Y, v.Z + Math.Clamp(want.Z - v.Z, -step, step));
+            // the body-frame speeds the tilt is drawn from
+            float fwd = MathF.Cos(yaw) * v.X + MathF.Sin(yaw) * v.Y, lat = -MathF.Sin(yaw) * v.X + MathF.Cos(yaw) * v.Y;
             // ⭐ Air Ops slice 6 (E5, §6 B3) — the same tilt a route draws: the nose down as it flies forward, the roll into a strafe
-            //   and into the turn; level again in the hover the released keys leave it in (the hover hold: no axis ⇒ it stays put)
+            //   and into the turn; level again in the hover the released keys leave it in
             float yawRate = MathF.IEEERemainder(yaw - before, 2f * MathF.PI) / MathF.Max(dt, 1e-4f);
             float top = MathF.Max(p.MaxSpeedMps, 1f);
             float pitchTarget = -MaxPitchDeg * MathF.PI / 180f * fwd / top;
             float rollTarget = -MaxBankDeg * MathF.PI / 180f * lat / top - MathF.Atan(fwd * yawRate / Gravity);
             var (pitchNow, rollNow) = TiltOf(f.Transform.Rotation);
-            float maxPitch = MaxPitchDeg * MathF.PI / 180f, maxRoll = MaxBankDeg * MathF.PI / 180f, step = TiltRateDeg * MathF.PI / 180f * dt;
-            float pitch = pitchNow + Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - pitchNow, -step, step);
-            float roll = rollNow + Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - rollNow, -step, step);
+            float maxPitch = MaxPitchDeg * MathF.PI / 180f, maxRoll = MaxBankDeg * MathF.PI / 180f, tiltStep = TiltRateDeg * MathF.PI / 180f * dt;
+            float pitch = pitchNow + Math.Clamp(Math.Clamp(pitchTarget, -maxPitch, maxPitch) - pitchNow, -tiltStep, tiltStep);
+            float roll = rollNow + Math.Clamp(Math.Clamp(rollTarget, -maxRoll, maxRoll) - rollNow, -tiltStep, tiltStep);
             Fly(ref f, yaw, v, dt);
             f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, pitch, roll));
             // a body with gear that comes down onto the ground sets down on it (no crash for a gentle landing)
@@ -211,11 +232,12 @@ namespace Fdp.Toolkit.Motion
             float vt = here.Speed > 0f ? here.Speed : (intent.TargetSpeed > 0f ? intent.TargetSpeed : p.MaxSpeedMps);
             vt = MathF.Min(vt, p.MaxSpeedMps);
             float lateral = Gravity * MathF.Tan(MaxBankDeg * MathF.PI / 180f);
-            float look = path.SpeedNow * path.SpeedNow / (2f * AccelMps2) + 5f;
+            float accelMax = Accel(in p);
+            float look = path.SpeedNow * path.SpeedNow / (2f * accelMax) + 5f;
             float kAhead = AirRoute.MaxCurvature(path, path.Progress, path.Progress + look);
             if (kAhead > 1e-5f) vt = MathF.Min(vt, MathF.Sqrt(lateral / kAhead));
-            if (hasStop) vt = MathF.Min(vt, MathF.Sqrt(2f * AccelMps2 * MathF.Max(0f, next.S - path.Progress)));
-            float dv = Math.Clamp(vt - path.SpeedNow, -2f * AccelMps2 * dt, AccelMps2 * dt);
+            if (hasStop) vt = MathF.Min(vt, MathF.Sqrt(2f * accelMax * MathF.Max(0f, next.S - path.Progress)));
+            float dv = Math.Clamp(vt - path.SpeedNow, -2f * accelMax * dt, accelMax * dt);
             float accel = dv / MathF.Max(dt, 1e-4f);
             path.SpeedNow = MathF.Max(0f, path.SpeedNow + dv);
             path.Progress += path.SpeedNow * dt;

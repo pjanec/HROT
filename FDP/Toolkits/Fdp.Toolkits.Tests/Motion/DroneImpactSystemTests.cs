@@ -60,12 +60,12 @@ namespace Fdp.Toolkit.Tests.Motion
             return t;
         }
 
-        private Entity Drone(Vector3 at, Vector3 velocity)
+        private Entity Drone(Vector3 at, Vector3 velocity, bool munition = true)
         {
             var d = _w.CreateEntity();
             _w.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(d, new SimVelocity { Linear = velocity });
-            _w.AddComponent(d, FlightParams.From(new FlightParamsDto()));
+            _w.AddComponent(d, FlightParams.From(new FlightParamsDto { DetonatesOnImpact = munition }));
             _w.AddComponent(d, new FlightState { Airborne = 1 });
             _w.AddComponent(d, new PhysicsCollider { Radius = 0.3f, Height = 0.3f });
             _w.AddComponent(d, new Health { Current = 10, Max = 10 });
@@ -100,6 +100,22 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(Vector3.Zero, _w.GetComponentRO<SimVelocity>(drone).Linear);
 
             Assert.Empty(Step().Detonations);   // spent: once
+        }
+
+        /// <summary>⭐ R-3007 — an aircraft that is NOT a munition (an A-10 with its bombs on the first mount, a helicopter) crashes into
+        /// the same tank: it is destroyed and comes to rest, but nothing bursts — its weapons do not go off, the tank is not hit.</summary>
+        [Fact]
+        public void R3007_AnAircraftThatIsNotAMunition_Crashes_WithoutABurst()
+        {
+            var tank = Tank(new Vector3(100, 0, 0));
+            var crash = Drone(new Vector3(100, 0, 2.4f + 0.2f), new Vector3(15, 0, -26), munition: false);
+
+            var (dets, dmg) = Step();
+            Assert.Empty(dets);
+            Assert.Contains(dmg, d => d.HitEntity == crash && d.TotalDamage >= 10f);   // destroyed
+            Assert.DoesNotContain(dmg, d => d.HitEntity == tank);
+            Assert.Equal(0, _w.GetComponentRO<FlightState>(crash).Airborne);
+            Assert.Equal(Vector3.Zero, _w.GetComponentRO<SimVelocity>(crash).Linear);
         }
 
         /// <summary>⭐ M7 — a drone flying past beside a hull, or over it above its roof, meets nothing.</summary>

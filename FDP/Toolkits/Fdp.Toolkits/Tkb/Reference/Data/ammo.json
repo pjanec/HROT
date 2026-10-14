@@ -19,6 +19,7 @@
     "M67 grenade":     { "type": "frag",   "calibreMm": 64,   "massG": 400,   "velocity": 15,   "explosiveKg": 0.24, "fuzeDelayS": 4.5, "indirect": true },
     "60mm mortar HE":  { "type": "he",     "calibreMm": 60,   "massG": 1700,  "velocity": 210,  "explosiveKg": 0.4, "indirect": true },
     "81mm mortar HE":  { "type": "he",     "calibreMm": 81,   "massG": 4200,  "velocity": 260,  "explosiveKg": 0.95, "indirect": true },
-    "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0, "indirect": true }
+    "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0, "indirect": true },
+    "Mk-82 bomb":      { "type": "he",     "calibreMm": 273,  "massG": 227000, "velocity": 150, "explosiveKg": 94,  "indirect": true }
   }
 }

@@ -80,8 +80,8 @@ namespace Hrot.Core.Tkb
         public const int Tkb762Ball = 6020;
         /// <summary>⭐ M5 — 7.62 mm tracer, one in five in the coax belt.</summary>
         public const int Tkb762Tracer = 6021;
-        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a Mk-82-class 500 lb free-fall bomb: an indirect area warhead (copied
-        /// from the library's nearest entry, <see cref="BombLibraryName"/>), dropped by the Release profile.</summary>
+        /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a Mk-82-class 500 lb free-fall bomb: an indirect area warhead (the
+        /// library's own <c>"Mk-82 bomb"</c> entry, CE-3201: 94 kg TNT-equivalent in a 227 kg case), dropped by the Release profile.</summary>
         public const int TkbMk82Bomb = 6022;
 
         public const string Pg7vlName = "PG-7VL rocket", Pg7vrName = "PG-7VR rocket", LawName = "M72 LAW rocket", NlawName = "NLAW missile",
@@ -91,10 +91,6 @@ namespace Hrot.Core.Tkb
 
         /// <summary>⭐ M5 — the reference-library entries the new warheads are copied from (the nearest real one; the template's numbers win).</summary>
         public const string TankHeatLibraryName = "120mm HEAT", TankHeLibraryName = "125mm HE-frag";
-
-        /// <summary>⭐ Air Ops slice 4 — the library's largest INDIRECT HE entry, the nearest to a bomb it has. ⚠ 3 kg of explosive against
-        /// a real Mk-82's ~87 kg: the effect is a mortar round's until the library carries a bomb (reported, DESIGN_Air_Operations §8a).</summary>
-        public const string BombLibraryName = "120mm mortar HE";
 
         /// <summary>Registers the munition types. ⚠ Once per database (<c>TkbDatabase.Register</c> throws on a duplicate).</summary>
         public static void RegisterAll(ITkbDatabase tkb)
@@ -138,7 +134,7 @@ namespace Hrot.Core.Tkb
             Register(tkb, Tracer762Name, Tkb762Tracer, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
             Register(tkb, Mk82Name, TkbMk82Bomb, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
-                     LibraryWarhead(BombLibraryName) is { } bomb ? bomb with { Indirect = true } : null, 50f, 1200f);
+                     LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
         }
 
         /// <summary>⭐ M5 — an unguided rocket's flight: its speed and how long until it self-destructs.</summary>

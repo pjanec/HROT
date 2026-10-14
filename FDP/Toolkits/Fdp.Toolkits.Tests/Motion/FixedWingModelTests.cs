@@ -183,7 +183,7 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(MathF.PI / 2, RotorcraftModel.YawOf(tf.Rotation), 2);       // on the look
             Assert.InRange(Roll(tf.Rotation), -1f * MathF.PI / 180f, 1f * MathF.PI / 180f);   // wings level again
             Assert.Equal(500f, tf.Position.Z, 1);
-            Assert.Equal(Cruise, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);
+            Assert.Equal(Cruise, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // throttle 0 keeps the speed (R-3007)
         }
 
         /// <summary>⭐ B3 — it cannot stall: throttle fully back and the nose held up for a minute, it slows to its stall speed and no
@@ -212,6 +212,29 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.SetComponent(plane, new ManualDrive { Yaw = 0f, Forward = 1f });
             for (int i = 0; i < 60 * 60; i++) _air.Execute(_w, Dt);
             Assert.Equal(200f, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);
+        }
+
+        /// <summary>⭐ R-3007 — the throttle is HELD: W speeds the plane up at its acceleration, released it keeps the speed it reached
+        /// (any speed between stall and top), S slows it — never under the stall speed.</summary>
+        [Fact]
+        public void R3007_TheThrottle_IsHeld_AnySpeedBetweenStallAndTop()
+        {
+            var plane = Plane(new Vector3(0, 0, 500), Cruise);
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.Manual });
+            _w.AddComponent(plane, new ManualDrive { Forward = 1f });
+            for (int i = 0; i < 60 * 4; i++) _air.Execute(_w, Dt);
+            Assert.Equal(Cruise + 4f * FixedWingModel.AccelMps2, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // 150 → 170
+
+            _w.SetComponent(plane, new ManualDrive());
+            for (int i = 0; i < 60 * 20; i++) _air.Execute(_w, Dt);
+            Assert.Equal(170f, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // released: it keeps 170
+
+            _w.SetComponent(plane, new ManualDrive { Forward = -1f });
+            for (int i = 0; i < 60 * 10; i++) _air.Execute(_w, Dt);
+            Assert.Equal(120f, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // 10 s at 5 m/s²
+            _w.SetComponent(plane, new ManualDrive { Forward = -0.5f });
+            for (int i = 0; i < 60 * 60; i++) _air.Execute(_w, Dt);
+            Assert.Equal(Stall, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // half the push, still floored at the stall
         }
     }
 }

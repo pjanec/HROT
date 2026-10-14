@@ -22,8 +22,11 @@ namespace Fdp.Toolkit.Motion
     {
         /// <summary>How fast the bank follows its target (deg/s).</summary>
         public const float RollRateDeg = 60f;
-        /// <summary>Along-path acceleration (m/s²).</summary>
+        /// <summary>Acceleration (m/s²) where the type states none (<c>Gen.Flight AccelMps2</c>, R-3007).</summary>
         public const float AccelMps2 = 5f;
+
+        /// <summary>The type's acceleration (R-3007), else <see cref="AccelMps2"/>.</summary>
+        public static float Accel(in FlightParams p) => p.AccelMps2 > 0f ? p.AccelMps2 : AccelMps2;
         public const float MaxPitchDeg = 25f;
 
         public LocomotionClass Class => LocomotionClass.FixedWing;
@@ -50,7 +53,7 @@ namespace Fdp.Toolkit.Motion
         /// <summary>
         /// ⭐⭐ Air Ops slice 6 (E5, §6 B3) — the MOUSE-AIM pilot on the existing <see cref="ManualDrive"/> axes: <c>Yaw</c> = the heading the
         /// camera looks along, <c>Vertical</c> ∈ [−1, 1] = the climb angle asked for (× <see cref="MaxPitchDeg"/>, the climb rate caps it),
-        /// <c>Forward</c> ∈ [−1, 1] = the throttle (0 cruise, +1 top, −1 the stall speed). The plane flies itself: it banks toward the look
+        /// <c>Forward</c> ∈ [−1, 1] = the throttle, HELD (R-3007): + speeds it up, − slows it, 0 keeps the speed it has. The plane flies itself: it banks toward the look
         /// (a coordinated turn — the bank IS the turn), levels its wings as the nose comes onto the look, and never flies under its stall
         /// speed whatever it is told.
         /// </summary>
@@ -61,12 +64,12 @@ namespace Fdp.Toolkit.Motion
             if (!Alive(f)) { Fall(ref f, dt); return; }
             SetAirborne(ref f);
 
-            // the throttle: a speed between stall and top, eased like a route's
-            float throttle = Math.Clamp(d.Forward, -1f, 1f), cruise = Math.Clamp(Cruise(in p), Stall(in p), Top(in p));
-            float want = throttle >= 0f ? cruise + throttle * (Top(in p) - cruise) : cruise + throttle * (cruise - Stall(in p));
+            // ⭐ R-3007 — the throttle is HELD: W speeds it up toward its top speed, S slows it toward its stall speed (at the type's
+            //   acceleration × how far the axis is pushed), released it keeps the speed it has — any speed between stall and top
+            float throttle = Math.Clamp(d.Forward, -1f, 1f);
             float now = f.Velocity.Linear.Length();
-            if (now <= 0.1f) now = want;   // possessed already flying
-            float speed = Math.Clamp(now + Math.Clamp(want - now, -AccelMps2 * dt, AccelMps2 * dt), Stall(in p), Top(in p));
+            if (now <= 0.1f) now = Math.Clamp(Cruise(in p), Stall(in p), Top(in p));   // possessed already flying
+            float speed = Math.Clamp(now + throttle * Accel(in p) * dt, Stall(in p), Top(in p));
 
             // the turn: a bank toward the look that fades as the nose comes onto it; the yaw follows the bank (coordinated)
             float yaw = RotorcraftModel.YawOf(f.Transform.Rotation);
@@ -87,6 +90,9 @@ namespace Fdp.Toolkit.Motion
 
             var dir = new Vector3(MathF.Cos(yaw) * MathF.Cos(pitch), MathF.Sin(yaw) * MathF.Cos(pitch), MathF.Sin(pitch));
             Pose(ref f, f.Transform.Position + dir * speed * dt, yaw, pitch, roll, dt);
+            // the held speed is the velocity's own length: write it exactly, not as a position difference (float rounding at
+            //   kilometre coordinates would bleed the held speed away frame by frame)
+            f.Velocity.Linear = dir * speed;
         }
 
         /// <summary>The mouse-aim pilot turns at a rate of (heading error ÷ this), up to its steepest bank — a soft approach to the look.</summary>
@@ -185,7 +191,7 @@ namespace Fdp.Toolkit.Motion
             float want = routeSpeed > 0f ? routeSpeed : intent.TargetSpeed > 0f ? intent.TargetSpeed : Cruise(in p);
             want = Math.Clamp(want, Stall(in p), Top(in p));
             if (now <= 0.1f) now = want;   // a plane starts the order already flying
-            return Math.Clamp(now + Math.Clamp(want - now, -AccelMps2 * dt, AccelMps2 * dt), Stall(in p), Top(in p));
+            return Math.Clamp(now + Math.Clamp(want - now, -Accel(in p) * dt, Accel(in p) * dt), Stall(in p), Top(in p));
         }
 
         private static void Bank(AirPath path, in FlightParams p, float target, float dt)

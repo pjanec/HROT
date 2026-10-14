@@ -224,6 +224,11 @@ bisected on `SightBlocked`; the ground contact; the body's entry) · ✅ (handof
 dtManualDrive, and SimHost (the one Muscle role, R-3005) climbs it 20 → 22 m in 17 frames, then flies it forward; release resumes the
 brain. ⛔ Not built: the demo `ua-drone-shelter` (behaviour lane).
 
+> ⭐ **`2026-10-14` (R-3007, `CE-3202` — 📄 `DESIGN_Air_Operations.md` §6b):** `DroneImpactSystem` bursts the first mount ONLY for a flyer
+> whose `Gen.Flight DetonatesOnImpact` is set — this drone (type 403). Any other aircraft that meets something crashes: destroyed, at rest,
+> no burst. The drone also states its own acceleration (`AccelMps2` 15 m/s²): its manual flight reaches what the axes ask at that rate
+> and brakes to a hover when they are released.
+
 > ⭐ **`2026-10-14` (Air Ops slice 2 — 📄 `DESIGN_Air_Operations.md` §5b):** `Airborne = 0` now has two meanings, told apart by GEAR:
 > a body WITH ground contacts (`Body.Geometry`) is standing on them and takes off again; one WITHOUT (this drone) is spent and stays
 > down. `DroneImpactSystem` skips a flyer whose `NavigationStatus.Phase` is TakingOff / Landing / Landed / Unloading / Loading — a

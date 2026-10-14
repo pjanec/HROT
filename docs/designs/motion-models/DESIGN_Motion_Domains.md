@@ -188,6 +188,9 @@ Not built: `GroundMotionModule`'s two-model refactor (MD-H: a later slice), `Nav
 > on the same `ManualDrive` axes: `Yaw` = the look, `Vertical` = the climb angle, `Forward` = throttle. It makes a coordinated, self-banking
 > turn and cannot stall. `RotorcraftModel.Manual` keeps its direct axes and gains the route's tilt and an explicit hover hold. No wire change.
 > 📄 Air Ops §6b.
+>
+> ⭐ **`2026-10-14` (R-3007):** `Gen.Flight` + `AccelMps2` (per type; 0 ⇒ the model's own: rotorcraft 3, plane 5) and `DetonatesOnImpact`
+> (only a munition-flyer bursts on impact). Manual rotorcraft flight now eases to the axes' velocity at that rate; the plane's throttle is held.
 
 ### 5a. The ownership decision — CE-3199 ✅ DECIDED `2026-10-14` (R-3005): option (A), one Muscle role
 

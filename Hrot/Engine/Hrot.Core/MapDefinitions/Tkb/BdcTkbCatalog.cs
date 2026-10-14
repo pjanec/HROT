@@ -387,7 +387,7 @@ namespace Hrot.Map.Definitions.Tkb
             {
                 MaxSpeedMps = 70f, ClimbMps = 8f, TurnRateDeg = 30f, EnduranceSeconds = 7200f,
                 ContactRadiusM = 1f, BodyRadiusM = 1.5f, BodyHeightM = 3.5f,
-                HoverHeightM = 30f, TurnRadiusM = 60f,
+                HoverHeightM = 30f, TurnRadiusM = 60f, AccelMps2 = 3f,   // R-3007: a heavy helicopter eases into its speed
             });
             DefineAircraft(builder, TkbEntityTypes.Jet_F16, "F-16C Fighting Falcon", "SFAPMFF-------", "#8A929C",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 1 },
@@ -470,7 +470,8 @@ namespace Hrot.Map.Definitions.Tkb
         private static void DefineFpvDrone(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Drone_Fpv;
-            var flight = new FlightParamsDto();
+            // ⭐ R-3007 — the drone IS its warhead (meeting something bursts it); it is nimble: 15 m/s² against a helicopter's 3
+            var flight = new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = true };
             builder
                 .DefineVehicle(type, "FPV drone")
                 .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })

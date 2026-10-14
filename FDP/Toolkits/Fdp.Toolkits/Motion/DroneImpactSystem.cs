@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Motion
     /// ⭐⭐ M7 (docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md §2, §3) — a flyer MEETS what it flies into: each frame its swept segment
     /// (where it was → where it is, from its velocity) against every body's collider — the M1 cylinder (circle + height band) grown by the
     /// flyer's <c>ContactRadiusM</c> — and the terrain (<see cref="IWorldQuery.SightBlocked"/>, the ground). A LIVE flyer that meets
-    /// something publishes the <see cref="DetonationNotification"/> of its warhead mount (mount 0: its munition's penetration and damage,
+    /// something — when it IS a munition (<see cref="FlightParams.DetonatesOnImpact"/>, R-3007; any other aircraft just crashes) — publishes the <see cref="DetonationNotification"/> of its warhead mount (mount 0: its munition's penetration and damage,
     /// <see cref="CombatTkb.RoundOf"/>; the travel = its velocity, so a dive arrives on the Top face) and a lethal
     /// <see cref="DamageAssessedEvent"/> on itself — the rest is the existing damage chain. A DEAD one comes to rest on the ground. Whoever
     /// flies it, AI or an operator. Runs on the node that moves it (after <see cref="AirMotionSystem"/>).
@@ -91,7 +91,9 @@ namespace Fdp.Toolkit.Motion
                 if (hit.IsNull && at.Z < groundZ) at.Z = groundZ;
                 if (alive)
                 {
-                    var mount = CombatTkb.MountOf(repo, d, 0);
+                    // ⭐ R-3007 — only a flyer that IS a munition (an FPV drone, Gen.Flight DetonatesOnImpact) bursts its warhead; any
+                    //   other aircraft that meets the ground or a body crashes: destroyed, no burst (an A-10 does not set off its bombs)
+                    var mount = repo.GetComponentRO<FlightParams>(d).DetonatesOnImpact != 0 ? CombatTkb.MountOf(repo, d, 0) : null;
                     if (mount != null && mount.AmmoGuid != 0)
                     {
                         long ammo = unchecked((long)mount.AmmoGuid);

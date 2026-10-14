@@ -133,6 +133,24 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.Null(ball.Warhead);
         }
 
+        /// <summary>⭐ CE-3201 (R-3007) — the library carries a BOMB: the Mk-82's 94 kg of explosive in a 227 kg case bursts far wider than
+        /// the largest mortar round's 3 kg (blast ∝ W^⅓, fragment reach ∝ casing^⅓), on an impact fuze, dropped (indirect). Loose bands.</summary>
+        [Fact]
+        public void CE3201_TheMk82_IsABomb_NotAMortarRound()
+        {
+            Assert.True(Lib.TryGetAmmo("Mk-82 bomb", out var bomb));
+            Assert.True(Lib.TryGetAmmo("120mm mortar HE", out var mortar));
+            var b = bomb.Warhead!.Dto;
+            var m = mortar.Warhead!.Dto;
+            Assert.Equal(FuzeKind.Impact, b.Fuze);
+            Assert.True(b.Indirect);
+            Assert.InRange(b.BlastLethalRadiusM, 8f, 10f);      // 2 · 94^⅓ ≈ 9.1 m
+            Assert.InRange(b.BlastInjuryRadiusM, 25f, 30f);     // 6 · 94^⅓ ≈ 27 m
+            Assert.InRange(b.FragmentRadiusM, 130f, 160f);      // 28 · 133^⅓ ≈ 143 m
+            Assert.True(b.BlastLethalRadiusM > 2f * m.BlastLethalRadiusM, $"bomb {b.BlastLethalRadiusM} m vs mortar {m.BlastLethalRadiusM} m");
+            Assert.True(b.FragmentRadiusM > 2f * m.FragmentRadiusM);
+        }
+
         /// <summary>⭐ Stage 6 (W-1) — the warhead chain: the type's own <c>Gen.Warhead</c> → the library by the type's NAME → none;
         /// <c>ResolveAll</c> lists it for a munition (DIS kind 2), so <c>GET /tkb/resolve</c> reports what the area effect uses.</summary>
         [Fact]

@@ -49,5 +49,12 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         [EditUnit("deg")] [Description("A plane's steepest bank; it sets the turn radius at cruise.")]
         public float MaxBankDeg { get; init; } = 0f;
+
+        // ⭐ Air Ops follow-up (user, 2026-10-14, R-3007) — how fast it changes speed, and whether meeting something sets off its warhead.
+        [EditUnit("m/s²")] [Description("How fast it speeds up and slows down — on a route, to a point and under a pilot; 0 = the model's own (rotorcraft 3, plane 5).")]
+        public float AccelMps2 { get; init; } = 0f;
+
+        [Description("It IS a munition (an FPV drone): meeting a body or the ground bursts its first weapon mount. Otherwise a crash only destroys it.")]
+        public bool DetonatesOnImpact { get; init; } = false;
     }
 }

@@ -38,13 +38,13 @@ namespace Fdp.Toolkit.Tests.Motion
 
         public void Dispose() => _w.Dispose();
 
-        private Entity Drone(Vector3 at, LocomotionClass cls = LocomotionClass.Rotorcraft)
+        private Entity Drone(Vector3 at, LocomotionClass cls = LocomotionClass.Rotorcraft, float accel = 0f)
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity());
             _w.AddComponent(e, new Locomotion { Class = cls });
-            _w.AddComponent(e, FlightParams.From(new FlightParamsDto()));   // 30 m/s, climb 8, 120°/s
+            _w.AddComponent(e, FlightParams.From(new FlightParamsDto { AccelMps2 = accel }));   // 30 m/s, climb 8, 120°/s, 3 m/s² unless stated
             _w.AddComponent(e, new FlightState { Airborne = 1 });
             _w.AddComponent(e, new NavigationIntent());
             _w.AddComponent(e, new NavigationStatus());
@@ -77,15 +77,16 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // it hovers there
         }
 
-        /// <summary>⭐ M7 / MD-D — manual: Vertical climbs, Forward flies along the nose, Yaw turns it (≤ 120°/s), nothing ⇒ hover.</summary>
+        /// <summary>⭐ M7 / MD-D — manual: Vertical climbs, Forward flies along the nose, Yaw turns it (≤ 120°/s), nothing ⇒ it brakes to a
+        /// hover and holds it. ⭐ R-3007: the axes ask for a velocity the body reaches at its type's acceleration (here 60 m/s²).</summary>
         [Fact]
         public void M7_ARotorcraft_Hovers_ClimbsAndYaws_UnderManualDrive()
         {
-            var d = Drone(new Vector3(0, 0, 20));
+            var d = Drone(new Vector3(0, 0, 20), accel: 60f);
             _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.Manual });
             _w.SetComponent(d, new ManualDrive { Vertical = 1 });
             Run(60);
-            Assert.Equal(28f, _w.GetComponent<SimTransform>(d).Position.Z, 1);   // 8 m/s for a second
+            Assert.Equal(20f + 8f - 8f * 8f / (2f * 60f), _w.GetComponent<SimTransform>(d).Position.Z, 1);   // 8 m/s, reached in 0.13 s
 
             _w.SetComponent(d, new ManualDrive { Yaw = MathF.PI / 2 });
             Run(30);
@@ -97,12 +98,38 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.SetComponent(d, new ManualDrive { Yaw = MathF.PI / 2, Forward = 1 });
             Run(60);
             var after = _w.GetComponent<SimTransform>(d).Position;
-            Assert.Equal(30f, after.Y - before.Y, 0);   // along the nose (+Y), at top speed
+            Assert.InRange(after.Y - before.Y, 22.4f, 22.9f);   // along the nose (+Y): top speed in half a second (22.5 m; 22.75 stepped per frame)
             Assert.Equal(0f, after.X - before.X, 1);
 
             _w.SetComponent(d, new ManualDrive { Yaw = MathF.PI / 2 });
-            Run(10);
-            Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // no axis ⇒ it hovers
+            Run(40);
+            Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // no axis ⇒ it braked to a hover
+        }
+
+        /// <summary>⭐ R-3007 — each type speeds up and brakes at ITS OWN acceleration: after a second of full forward an FPV drone
+        /// (15 m/s²) flies at 15 m/s, a UH-60 (3 m/s²) at 3; keys released, each brakes at that rate to a hover and holds it.</summary>
+        [Fact]
+        public void R3007_ADroneAndAHelicopter_ChangeSpeed_AtTheirOwnAcceleration()
+        {
+            var drone = Drone(new Vector3(0, 0, 50), accel: 15f);
+            var heli = Drone(new Vector3(0, 100, 50), accel: 3f);
+            foreach (var e in new[] { drone, heli })
+            {
+                _w.SetComponent(e, new NavigationIntent { Mode = NavigationMode.Manual });
+                _w.SetComponent(e, new ManualDrive { Forward = 1 });
+            }
+            Run(60);
+            Assert.Equal(15f, _w.GetComponent<SimVelocity>(drone).Linear.Length(), 1);
+            Assert.Equal(3f, _w.GetComponent<SimVelocity>(heli).Linear.Length(), 1);
+
+            foreach (var e in new[] { drone, heli }) _w.SetComponent(e, new ManualDrive());
+            Run(30);
+            Assert.Equal(7.5f, _w.GetComponent<SimVelocity>(drone).Linear.Length(), 1);   // braking at 15 m/s²
+            Assert.Equal(1.5f, _w.GetComponent<SimVelocity>(heli).Linear.Length(), 1);    // at 3 m/s²
+            Run(60);
+            var held = (_w.GetComponent<SimTransform>(drone).Position, _w.GetComponent<SimTransform>(heli).Position);
+            Run(60);
+            Assert.Equal(held, (_w.GetComponent<SimTransform>(drone).Position, _w.GetComponent<SimTransform>(heli).Position));   // the hover hold
         }
 
         /// <summary>⭐ B3 (slice 6, E5) — manual flight tilts as a route draws it: the nose down while it flies forward, rolled into a
@@ -110,7 +137,7 @@ namespace Fdp.Toolkit.Tests.Motion
         [Fact]
         public void B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover()
         {
-            var d = Drone(new Vector3(0, 0, 50));
+            var d = Drone(new Vector3(0, 0, 50), accel: 60f);
             _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.Manual });
             _w.SetComponent(d, new ManualDrive { Forward = 1 });
             Run(60);
@@ -120,7 +147,7 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(0f, RotorcraftModel.YawOf(_w.GetComponent<SimTransform>(d).Rotation), 3);   // the tilt does not turn it
 
             _w.SetComponent(d, new ManualDrive { Lateral = 1 });
-            Run(60);
+            Run(90);
             (pitch, roll) = RotorcraftModel.TiltOf(_w.GetComponent<SimTransform>(d).Rotation);
             Assert.Equal(-RotorcraftModel.MaxBankDeg * MathF.PI / 180f, roll, 2);   // strafing left: left side down
             Assert.Equal(0f, pitch, 2);

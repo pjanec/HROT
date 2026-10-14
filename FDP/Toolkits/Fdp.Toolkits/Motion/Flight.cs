@@ -27,6 +27,9 @@ namespace Fdp.Toolkit.Motion
         public float StallSpeedMps;
         public float CruiseSpeedMps;
         public float MaxBankDeg;
+        /// <summary>⭐ R-3007 — how fast it changes speed (0 ⇒ the model's own); whether meeting something bursts its warhead (1 = an FPV drone).</summary>
+        public float AccelMps2;
+        public byte DetonatesOnImpact;
 
         public static FlightParams From(FlightParamsDto d) => new()
         {
@@ -34,6 +37,7 @@ namespace Fdp.Toolkit.Motion
             EnduranceSeconds = d.EnduranceSeconds, ContactRadiusM = d.ContactRadiusM,
             HoverHeightM = d.HoverHeightM, TurnRadiusM = d.TurnRadiusM,
             StallSpeedMps = d.StallSpeedMps, CruiseSpeedMps = d.CruiseSpeedMps, MaxBankDeg = d.MaxBankDeg,
+            AccelMps2 = d.AccelMps2, DetonatesOnImpact = d.DetonatesOnImpact ? (byte)1 : (byte)0,
         };
 
         /// <summary>The radius a route is rounded to: <see cref="TurnRadiusM"/>; else a plane's cruise² / (g·tan max bank) (DESIGN_Air_Operations
