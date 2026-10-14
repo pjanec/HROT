@@ -75,6 +75,16 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1074 — the stance the operator wants, as <c>StanceId + 1</c> (1 standing, 2 crouched, 3 prone); 0 = no request
         /// (a frame that does not care keeps whatever stance the unit has).</summary>
         public byte Stance;
+        /// <summary>⭐ CE-1078 (DESIGN_Entity_Control §8e D-1) — the operator's trigger PRESSES, counted (wraps): a new value locks one
+        /// shot on <see cref="ShotTarget"/> (or the aim point). A counter, not a level, so a click inside one brain tick — or two frames
+        /// coalesced on the wire — is never lost (the brain keeps only the newest frame).</summary>
+        public byte ShotSeq;
+        /// <summary>⭐ CE-1078 — RMB presses, counted: a new value cancels the locked shot.</summary>
+        public byte CancelSeq;
+        /// <summary>⭐ CE-1079 (D-2) — <c>F</c> presses, counted: each one moves the selected weapon to its next round.</summary>
+        public byte AmmoSeq;
+        /// <summary>⭐ CE-1078 / CE-1080 — the network id of the unit under the crosshair at the last press (0 = the ground point).</summary>
+        public long ShotTarget;
         public bool IsRemote;
     }
 
@@ -110,6 +120,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         public Vector3 AimPoint;
         /// <summary>⭐ CE-1074 — the operator's stance request (<see cref="OperatorControlFrameEvent.Stance"/>; 0 = none).</summary>
         public byte Stance;
+        /// <summary>⭐ CE-1078 / CE-1079 — the frame's press counters and the shot's target (<see cref="OperatorControlFrameEvent"/>).</summary>
+        public byte ShotSeq, CancelSeq, AmmoSeq;
+        public long ShotTarget;
     }
 
     /// <summary>
@@ -155,6 +168,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                     {
                         Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
                         Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
+                        ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
                     else repo.AddComponent(f.Unit, input);

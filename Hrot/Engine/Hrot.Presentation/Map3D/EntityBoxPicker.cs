@@ -43,6 +43,7 @@ public sealed class EntityBoxPicker : IPicker3D
         float best = maxDistance;
         foreach (var e in _query!)
         {
+            if (e == _bodies.FirstPerson) continue;   // ⭐ CE-1080 — the eye is inside the operator's own body: never pick it
             if (!_bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half)) continue;
             if (!RayBox.Intersect(origin, direction, centre, rotation, half, out float t) || t > best) continue;
             best = t;

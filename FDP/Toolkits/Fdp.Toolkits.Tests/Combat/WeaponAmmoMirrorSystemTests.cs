@@ -37,5 +37,38 @@ namespace Fdp.Toolkit.Combat.Tests
             a = w.GetComponentRO<WeaponAmmo>(unit);
             Assert.Equal((29, 9), (a.Ammo0, a.Mag0));
         }
+
+        /// <summary>⭐ CE-1079 (docs/DESIGN_Entity_Control.md §8e) — the HUD's breech: the loaded round, how many of it are left, and the
+        /// LOADING bit while a reload or a round switch runs; a mount with no loadout says so (0, −1).</summary>
+        [Fact]
+        public void CE1079_TheMirror_CarriesTheBreech_ItsRounds_AndTheLoadingBit()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<WeaponState>();
+            w.RegisterComponent<BehaviorState>();
+            w.RegisterComponent<AmmoLoadout>();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new BehaviorState());
+            w.SetAuthority<BehaviorState>(unit, true);
+            w.AddComponent(unit, new WeaponState { Ammo = 9, MaxAmmo = 9 });
+            w.AddComponent(unit, new AmmoLoadout { Count = 2, Ammo0 = 6006, Rounds0 = 5, Ammo1 = 6018, Rounds1 = 4, Loaded = 1, SwitchRemaining = 3f });
+            var mirror = new WeaponAmmoMirrorSystem();
+
+            mirror.Execute(w, 0.016f);
+            var a = w.GetComponentRO<WeaponAmmo>(unit);
+            Assert.Equal((6018L, 4, true), (a.LoadedOf(0), a.LoadedRoundsOf(0), a.IsBusy(0)));
+
+            w.GetComponentRW<AmmoLoadout>(unit).SwitchRemaining = 0f;
+            mirror.Execute(w, 0.016f);
+            Assert.False(w.GetComponentRO<WeaponAmmo>(unit).IsBusy(0));
+            w.GetComponentRW<WeaponState>(unit).ReloadSecondsRemaining = 2f;
+            mirror.Execute(w, 0.016f);
+            Assert.True(w.GetComponentRO<WeaponAmmo>(unit).IsBusy(0));   // a reload is LOADING too
+
+            w.RemoveComponent<AmmoLoadout>(unit);
+            mirror.Execute(w, 0.016f);
+            a = w.GetComponentRO<WeaponAmmo>(unit);
+            Assert.Equal((0L, -1), (a.LoadedOf(0), a.LoadedRoundsOf(0)));
+        }
     }
 }

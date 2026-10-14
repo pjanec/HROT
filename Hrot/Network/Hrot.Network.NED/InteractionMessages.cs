@@ -68,6 +68,11 @@ namespace Hrot.NED.Messages
         public float Vertical;   // ⭐ CE-2168 (MD-D) — the station's climb axis, carried to the brain with the frame (appended)
         /// <summary>⭐ CE-1074 — (appended after CE-2168's Vertical) the operator's stance request (StanceId + 1; 0 = none).</summary>
         public byte Stance;
+        /// <summary>⭐ CE-1078 / CE-1079 (appended) — the press counters and the shot's target network id (DESIGN_Entity_Control §8e).</summary>
+        public byte ShotSeq;
+        public byte CancelSeq;
+        public byte AmmoSeq;
+        public long ShotTarget;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =

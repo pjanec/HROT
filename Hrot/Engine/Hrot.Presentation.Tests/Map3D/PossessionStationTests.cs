@@ -31,8 +31,10 @@ public sealed class PossessionStationTests
         public HashSet<int> Keys { get; } = new();
         public HashSet<int> Pressed { get; } = new();
         public bool LeftDown { get; set; }
+        public bool LeftPressed { get; set; }    // ⭐ CE-1078
+        public bool RightPressed { get; set; }
         public bool? Locked { get; private set; }
-        public bool IsMouseButtonPressed(MapMouseButton b) => false;
+        public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
         public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left && LeftDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
@@ -257,9 +259,122 @@ public sealed class PossessionStationTests
             w.AddComponent(unit, ammo);
             var lines = PossessionStation.Hud.Lines(w, unit, mount: 1, vehicle: false, hullLocked: false);
             Assert.Equal("HEALTH 80/100", lines[0]);
-            Assert.Equal("  WEAPON 0  27/30  [7]", lines[1]);
-            Assert.Equal("> WEAPON 1  2/4", lines[2]);
+            Assert.Equal("  1 WEAPON  27/30  [7]", lines[1]);   // ⭐ CE-1079 — numbered as its key; no TKB here, so no kind or round name
+            Assert.Equal("> 2 WEAPON  2/4", lines[2]);
             Assert.Contains("Esc release", lines[3]);
+        }
+    }
+
+    /// <summary>A picker that answers a unit 30 m ahead (network id 77) — the crosshair resting on it.</summary>
+    private sealed class UnitAhead : IPicker3D
+    {
+        public PickFilter Kind => PickFilter.Entities;
+        public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
+        {
+            hit = new PickResult(origin + direction * 30f + new Vector3(0f, 0f, -1f), PickKind.Entity, 30f, 77);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1078 / CE-1079 / CE-1080 (docs/DESIGN_Entity_Control.md §8e) — the station's side: a LMB PRESS counts a shot and locks the
+    /// unit under the crosshair (its id, and the aim point is where the ray meets its box — not its feet); RMB counts a cancel and drops
+    /// the lock; F counts an ammo press; 1-4 pick a weapon that exists; the lock clears when the selected weapon's count drops. Counters,
+    /// not levels: every frame carries them, so a coalesced or lost frame never loses a press.
+    /// </summary>
+    [Fact]
+    public void CE1078_APress_CountsAShot_LocksTheUnderCrosshairUnit_RmbCancels_FCountsAmmo_NumbersPickAWeapon()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var ammo = new WeaponAmmo { Count = 2 };
+            ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
+            ammo.Set(1, new WeaponState { Ammo = 200, MaxAmmo = 200 });
+            w.AddComponent(unit, ammo);
+            var (_, sw, _) = Map();
+            sw.Camera3D.Pickers.Add(new UnitAhead());
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+
+            OperatorControlFrameEvent Frame(Input input)
+            {
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            }
+
+            var f = Frame(new Input { LeftPressed = true, LeftDown = true });
+            Assert.Equal((1, 77L, 0), (f.ShotSeq, f.ShotTarget, f.CancelSeq));
+            Assert.InRange(Vector3.Distance(f.AimPoint, sw.Camera3D.Eye + sw.Camera3D.Forward * 30f), 0f, 0.01f);   // the box hit, not the picker's feet point
+            Assert.True(driver.ShotPending);
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, true, false, null, driver.ShotPending), l => l.StartsWith("LOCKED"));
+
+            f = Frame(new Input());                               // no press: the counter holds, so a lost frame loses nothing
+            Assert.Equal(1, f.ShotSeq);
+            var spent = w.GetComponentRO<WeaponAmmo>(unit);
+            spent.Ammo0 = 39;                                     // the round left
+            w.SetComponent(unit, spent);
+            Frame(new Input());
+            Assert.False(driver.ShotPending);
+
+            Frame(new Input { LeftPressed = true });
+            f = Frame(new Input { RightPressed = true });
+            Assert.Equal((2, 1), (f.ShotSeq, f.CancelSeq));
+            Assert.False(driver.ShotPending);
+
+            var keys = new Input();
+            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.F);
+            keys.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
+            f = Frame(keys);
+            Assert.Equal((1, 1), (f.AmmoSeq, f.Mount));
+            var four = new Input();
+            four.Pressed.Add((int)Raylib_cs.KeyboardKey.Four);    // only two weapons: no fourth
+            Assert.Equal(1, Frame(four).Mount);
+            var one = new Input();
+            one.Pressed.Add((int)Raylib_cs.KeyboardKey.One);
+            Assert.Equal(0, Frame(one).Mount);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1079 (§8e) — the HUD names the weapon and its round from the TKB: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP
+    /// LOADING</c> — the kind, the round in the breech and how many of it, the total, what <c>F</c> cycles to, and LOADING during a switch.
+    /// 🔒 User, 2026-10-14: "for each weapon selecting ammo and see in the HUD what is selected".
+    /// </summary>
+    [Fact]
+    public void CE1079_TheHud_NamesTheWeapon_TheRoundInItsBreech_WhatFCyclesTo_AndLoading()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 500 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var tank = new Fdp.Interfaces.TkbTemplate("Tank", 500);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, AmmoGuid = 501,
+                    Loadout = { new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = 501, Rounds = 20 }, new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = 502, Rounds = 22 } } },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, AmmoGuid = 503 },
+            } });
+            db.Register(tank);
+            db.Register(new Fdp.Interfaces.TkbTemplate("120mm APFSDS", 501));
+            db.Register(new Fdp.Interfaces.TkbTemplate("120mm HEAT-MP round", 502));
+            db.Register(new Fdp.Interfaces.TkbTemplate("7.62x51 ball", 503));
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var ammo = new WeaponAmmo { Count = 2 };
+            ammo.Set(0, new WeaponState { Ammo = 41, MaxAmmo = 42 }, new AmmoLoadout { Count = 2, Ammo0 = 501, Rounds0 = 19, Ammo1 = 502, Rounds1 = 22, SwitchRemaining = 4f });
+            ammo.Set(1, new WeaponState { Ammo = 2000, MaxAmmo = 2000, MagazineSize = 200, MagazineRounds = 200 });
+            w.AddComponent(unit, ammo);
+
+            var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: true, hullLocked: false);
+            Assert.Equal("> 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP  LOADING", lines[1]);
+            Assert.Equal("  2 MG  7.62x51 ball  2000/2000  [200]", lines[2]);
+            Assert.Contains("F ammo", lines[^1]);
         }
     }
 }

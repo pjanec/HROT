@@ -12,6 +12,7 @@ related-designs:
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — where a round lands (3-D arrival, Top face, penetrator kind); a top-attack missile reaches the roof through it by geometry alone
   - docs/DESIGN_Building_Interiors.md — OWNS R-217 (penetration looked up on the launcher × ammo pair) — keyed by the LOADED ammo from now
   - docs/DESIGN_Terrain_Combat_Tuning.md — OWNS the ammo reference library; §5's rounds join it
+  - docs/DESIGN_Entity_Control.md §8e — OWNS the operator's round choice (the F key → AmmoChoice.Cycle, same one-reload cost) and the HUD's loaded round (WeaponAmmo grows)
   - docs/DESIGN_Peek_And_Fire.md — OWNS the aim time D3 (R-234) that is a fire-and-forget missile's lock
 -->
 

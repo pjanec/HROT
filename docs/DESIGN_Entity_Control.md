@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button)
+updated: 2026-10-14
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILDING (§8e design, CE-1078..1080)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e (the operator's weapons: click = one shot, weapon/ammo keys, HUD)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -16,6 +16,7 @@ related-designs:
   - docs/DESIGN_Entity_Interactions.md — OWNS the one interaction topic (R-221); possession adds three union cases
   - docs/designs/tactical-intent/DESIGN.md — OWNS the intent pipeline (any node publishes, the owner resolves) every order here rides
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261); operator fire enters at the behaviour layer
+  - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS the ammo loadout, AmmoChoice and the one-reload switch (D-I) that the operator's F key cycles (§8e)
   - docs/DESIGN_Map_3D_Mode.md — OWNS MapCamera3D, Picker3D and the scenario camera entity (R-260) the FPS view drives and must not overwrite
   - docs/UX/UX_Feature_Tool_Model.md — OWNS ToolController / exclusive focus (R-144) the RTS and FPS tools register through
   - docs/designs/ai-debug-api/DESIGN.md + docs/MCP_Integration.md — OWN the HTTP debug API the order routes extend
@@ -624,6 +625,111 @@ attach — so there is no host on which FPS could be silently missing.
 
 ⚠ **Deferred, stated:** a vehicle's turret-mounted eye (the view from the turret pose) — v1 puts the eye on the hull; the hull-locked
 `V` view steers with the mouse as M-3 says. The `(V)` screenshot acceptance needs a windowed run.
+
+## 8e. S6 DETAIL — the operator's weapons: a click is one shot, weapon and ammo keys, the HUD (`CE-1078` · `CE-1079` · `CE-1080`, designed `2026-10-14`, ui)
+
+🔒 **User, `2026-10-14`:** *"when possessing the tank i would expect the turret to try to follow the FPS camera aiming direction and when
+i press fire trigger the tank tries aiming to the clicked target and fire once the barrel is aimed … When possessing the soldier having
+grenades and rifle, i need to switch the weapon/ammo to use when firing, defaulting to the main weapon; same for tanks - switching between
+MG/cannon weapon and for each weapon selecting ammo and see in the HUD what is selected, cycling weapon/ammo using dedicated keys."* —
+the leans below: *"approved"*.
+
+📐 **INVENTORY** *(queries: `search_graph .*(Ammo|Round)(Choice|Select|Loadout|Request).*` → 0 production hits; `.*(Weapon|Mount)(Select|Choice|Cycle).*` →
+`WeaponChoice`, `WeaponSelectionDecision` — the AI's mount choice only; grep `PickFilter.Terrain` in the station → 1)*:
+
+| fact | where | so |
+|---|---|---|
+| trigger up ⇒ the turret task is `Track` at the crosshair point — the turret already follows the look | `AimAndFireExecutor.TurretPath` (operator `atPoint`), rail `CE3172` | ⭐ CE-1078 builds on it; no new turret code |
+| rounds are granted only WHILE the trigger is held, and the muscle fires only `OnTarget` ⇒ a click shorter than the slew fires nothing | `AimAndFireExecutor.cs:421-433`, `WeaponTaskDispatcherSystem.cs:84` | ⛔ the defect CE-1078 fixes |
+| the brain keeps only the NEWEST frame | `PossessionSystem` (`f.Seq <= …Seq ⇒ skip`) | ⛔ a press and release inside one brain tick vanish ⇒ presses travel as COUNTERS |
+| the crosshair picks terrain only | `FpsCameraDriver.AimPoint` | ⛔ aiming at a tank aims at the ground behind it (CE-1080) |
+| the wheel cycles mounts; mount 0 is the default | `FpsCameraDriver.Mount`, `NextMount` | ✅ kept |
+| a mount's rounds: `AmmoLoadout` (≤ 4 types, `Loaded`, `SwitchRemaining` = one reload); only the AI's `AmmoChoice.Choose` switches | `AmmoChoice.cs:108-123` | ⭐ CE-1079 adds the operator's switch beside it (same reload cost — D-I) |
+| the HUD mirror carries totals and magazines, no round type | `WeaponAmmo` (`dtWeaponAmmo`) | ⭐ grows (Missiles & Ammo §1 already said it would) |
+| `AimAndFireParams` is full (32 bytes) and the operator mode leaves `Target` and `Rounds` unused | `AimAndFireParams.cs` | ⭐ they keep their meaning: the shot's target, and a round cap |
+
+```mermaid
+classDiagram
+    direction LR
+    class FpsCameraDriver { <<existing, grows>> keys 1-4 · F ammo · LMB press = ShotSeq++ and ShotTarget · RMB = CancelSeq++ · pick All, not the own body }
+    class OperatorControlFrameEvent { <<existing, grows>> + ShotSeq · CancelSeq · AmmoSeq (bytes, wrap) · ShotTarget (network id) }
+    class ControlFrameInteractionPayload { <<wire, appended>> + the same four }
+    class OperatorInput { <<existing, grows>> + the same four }
+    class OperatorControlBehavior { <<existing, grows>> the LATCH: a new ShotSeq locks target or point, caps the rounds at fired + 1 · AmmoSeq cycles the round · single-shot weapons ignore a held trigger }
+    class ManualControlState { <<existing, grows>> seen counters · Pending · PendingTarget · PendingPoint · Cap · ActionId }
+    class AimAndFireExecutor { <<existing, grows>> operator: aim at Target when set · Rounds = a cap, never Success · a round switch holds }
+    class AmmoChoice { <<existing, grows>> + Cycle(world, mountEntity, steps, reloadS) · Switching(world, mountEntity) }
+    class WeaponBrainProfiles { <<existing, grows>> + FiresPerPress(category) }
+    class WeaponAmmo { <<existing, grows>> + Load0..3 (the loaded round) · LoadRounds0..3 · Busy (reload / switch bits) }
+    class EntityBoxPicker { <<existing>> skips the first-person unit }
+    class PossessionStation_Hud { <<existing, grows>> names · loaded round · state · the locked target · the barrel marker }
+    FpsCameraDriver --> OperatorControlFrameEvent
+    OperatorControlFrameEvent ..> ControlFrameInteractionPayload : off-node
+    OperatorControlFrameEvent --> OperatorInput : PossessionSystem
+    OperatorControlBehavior ..> OperatorInput : reads
+    OperatorControlBehavior *-- ManualControlState
+    OperatorControlBehavior --> AimAndFireExecutor : AimAndFireParams
+    OperatorControlBehavior ..> AmmoChoice : Cycle
+    OperatorControlBehavior ..> WeaponBrainProfiles : FiresPerPress
+    AimAndFireExecutor ..> AmmoChoice : Switching, LoadedAmmo
+    WeaponAmmo <.. PossessionStation_Hud : reads
+```
+
+*What the picture shows that prose hid:* nothing new crosses the brain/muscle line — the latch lives in the OPERATOR BEHAVIOUR (brain), the
+executor only learns two meanings it already had room for (a target, a round cap), and the turret muscle is untouched.
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant P as PossessionSystem (brain)
+    participant O as OperatorControl (brain)
+    participant X as AimAndFireExecutor (brain)
+    participant M as WeaponTaskDispatcher (muscle)
+    D->>D: LMB press, pick under the crosshair (a unit or the ground)
+    D->>P: frame ShotSeq+1, ShotTarget, Trigger, AimPoint
+    P->>O: OperatorInput (newest frame, counters inside)
+    O->>O: ShotSeq moved, so Pending, target or point locked, Cap = fired + 1
+    loop until the round leaves
+        O->>X: Operator, Target = locked, Trigger 1, Rounds = Cap
+        X->>M: WeaponTask Engage at the target, grant 1
+        M->>M: slew, fire when OnTarget
+        M-->>X: WeaponTaskStatus RoundsFired
+    end
+    X-->>O: RoundsFired reaches Cap
+    O->>O: Pending cleared
+    O->>X: Target none, Point = crosshair, Trigger = held and automatic
+    X->>M: WeaponTask Track at the crosshair (the turret follows the look again)
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas each frame] -->|Camera.HandleInput| FPS[FpsCameraDriver]
+    FPS -->|EntityOrders.Control| BUS[the bus / the interaction topic off-node]
+    BUS --> PS[PossessionSystem, Input phase, every brain host]
+    PS --> OC[OperatorControl BTree, the possessed unit's root behaviour]
+    OC -->|WeaponChannel params| WD[WeaponDispatcherSystem, brain]
+    WD --> X[AimAndFireExecutor]
+    X -->|EntityWeaponTask| MU[WeaponTaskDispatcherSystem, muscle]
+    WAM[WeaponAmmoMirrorSystem, brain] -->|dtWeaponAmmo| HUD[PossessionStation HUD]
+```
+
+*Caption:* every box already runs each frame on the hosts that run possession today (§8c) — the change adds no system, so there is no host
+on which the latch or the ammo switch could silently not tick.
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **D-1 click semantics** | a PRESS locks one shot on what is under the crosshair (a unit is followed as it moves; else the ground point) and fires once the weapon bears; then the turret follows the look again. A new press replaces it; RMB cancels it. Held trigger: automatic weapons (small arms, MG, autocannon, untagged) keep firing at the crosshair; single-shot weapons (tank gun, ATGM, mortar, grenade) fire once per press |
+| **D-2 keys** | wheel or `1`–`4` = weapon (mount 0 = the main one, the default) · `F` = the next round of the selected weapon · RMB = cancel the locked shot |
+| **D-3 switch cost** | one reload — the AI's rule (D-I); the HUD says `LOADING` |
+| **D-4 crosshair** | picks units too (never the own body); the aim point is where the ray meets the unit's box |
+
+**Rejected — one line each:**
+- *A separate operator turret system* — the turret task already slews then fires (WL-3).
+- *Fire at once wherever the barrel points* — what the user asked to avoid.
+- *The trigger as a level the brain edge-detects* — the brain keeps only the newest frame; a short click is lost (counters survive coalescing and the wire).
+- *The latch in the station* — the station cannot see when the round left; the brain can, by the executor's own round count.
+- *The AI's `AmmoChoice.Choose` for the operator* — the user chooses the round; `Cycle` shares the switch and its cost.
+- *A new params field* — 32 bytes are full; `Target` and `Rounds` already mean "who" and "how many".
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

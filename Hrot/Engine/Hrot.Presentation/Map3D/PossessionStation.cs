@@ -118,27 +118,67 @@ namespace Hrot.UI.Common.Map3D
         public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
         public Entity? PickEntity(Vector2 worldPos) => null;
 
-        /// <summary>The HUD: a crosshair, health, ammunition per mount (the selected one marked) and the keys.</summary>
+        /// <summary>The HUD: a crosshair, health, the weapons (the selected one marked, its round), the locked shot and the keys.
+        /// ⭐ CE-1078 — plus a bracket on the locked target and a ring where the gun points, so the operator sees the turret catch up.</summary>
         public void DrawOverlay(RenderContext ctx)
         {
             if (_driver == null || _world() is not { } w) return;
-            var size = _view.Camera3D.Viewport;
+            var camera = _view.Camera3D;
+            var size = camera.Viewport;
             int cx = (int)(size.X / 2), cy = (int)(size.Y / 2);
             Raylib.DrawLine(cx - 10, cy, cx - 3, cy, Color.White);
             Raylib.DrawLine(cx + 3, cy, cx + 10, cy, Color.White);
             Raylib.DrawLine(cx, cy - 10, cx, cy - 3, Color.White);
             Raylib.DrawLine(cx, cy + 3, cx, cy + 10, Color.White);
+            if (_driver.ShotPending && OnScreen(camera, LockedWorldPoint(w, _driver), out var locked))
+                Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
+            if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
+                Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
             int y = (int)size.Y - 24;
-            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance);
+            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending);
             for (int i = lines.Length - 1; i >= 0; i--, y -= 20)
                 Raylib.DrawText(lines[i], 12, y, 18, Color.RayWhite);
+        }
+
+        /// <summary>⭐ CE-1078 — where the locked shot is: its unit's middle while it stands, else the locked point.</summary>
+        private static Vector3 LockedWorldPoint(EntityRepository w, FpsCameraDriver d)
+            => d.LockedTarget != 0 && w.HasSingletonManaged<NetworkEntityMap>()
+               && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(d.LockedTarget, out var e) && w.IsAlive(e) && w.HasComponent<SimTransform>(e)
+                ? Fdp.Toolkit.Combat.AimPoint.Middle(w, e, out _, out _) : d.LockedPoint;
+
+        /// <summary>
+        /// ⭐ CE-1078 — where the selected weapon's turret points: along its posed barrel (the hull's heading + <see cref="TurretPose"/>),
+        /// as far out as the crosshair's point. Null for a weapon on no turret. ⚠ The pose carries the ballistic elevation, so at long
+        /// range the ring sits a little above the target when the gun is laid.
+        /// </summary>
+        public static Vector3? BarrelPoint(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
+        {
+            if (!w.IsComponentTypeRegistered<TurretPose>() || !w.HasComponent<SimTransform>(unit)) return null;
+            var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, mount);
+            if (dto is not { TurretIndex: >= 0 } || Fdp.Toolkit.Combat.CombatTkb.TurretOf(w, unit, dto.TurretIndex) is not { } turret) return null;
+            var part = Fdp.Toolkit.Combat.TurretParts.Find(w, unit, dto.TurretIndex);
+            if (part.IsNull || !w.HasComponent<TurretPose>(part)) return null;
+            var hull = w.GetComponentRO<SimTransform>(unit);
+            var pose = w.GetComponentRO<TurretPose>(part);
+            var pivot = Fdp.Toolkit.Combat.BallisticAim.PivotOf(hull, turret);
+            float ce = MathF.Cos(pose.Elevation);
+            var local = new Vector3(ce * MathF.Cos(pose.Azimuth), ce * MathF.Sin(pose.Azimuth), MathF.Sin(pose.Elevation));
+            return pivot + Vector3.Transform(local, hull.Rotation) * MathF.Max(5f, Vector3.Distance(pivot, aimAt));
+        }
+
+        private static bool OnScreen(MapCamera3D camera, Vector3 world, out Vector2 screen)
+        {
+            screen = default;
+            if (Vector3.Dot(world - camera.Eye, camera.Forward) <= 0.1f) return false;   // behind the eye
+            screen = camera.WorldToScreen(world);
+            return float.IsFinite(screen.X) && float.IsFinite(screen.Y);
         }
 
         /// <summary>The HUD's text, apart from drawing (the rails read it).</summary>
         public static class Hud
         {
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
-                                         Fdp.Toolkit.Tkb.Domain.StanceId? stance = null)
+                                         Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 if (w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(unit))
@@ -149,17 +189,65 @@ namespace Hrot.UI.Common.Map3D
                 if (w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(unit))
                 {
                     var a = w.GetComponentRO<WeaponAmmo>(unit);
-                    for (int m = 0; m < Math.Max((int)a.Count, 1); m++)
-                    {
-                        int mag = a.MagazineOf(m);
-                        lines.Add($"{(m == mount ? ">" : " ")} WEAPON {m}  {a.AmmoOf(m)}/{a.MaxOf(m)}{(mag >= 0 ? $"  [{mag}]" : "")}");
-                    }
+                    for (int m = 0; m < Math.Max((int)a.Count, 1); m++) lines.Add(WeaponLine(w, unit, a, m, m == mount));
                 }
+                if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
                 if (!vehicle && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
                 lines.Add(vehicle
-                    ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  LMB fire  wheel weapon  Esc release"
-                    : "W/A/S/D move  mouse look  Shift run  C stance  LMB fire  wheel weapon  Esc release");
+                    ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  LMB fire  RMB cancel  1-4 weapon  F ammo  Esc release"
+                    : "W/A/S/D move  mouse look  Shift run  C stance  LMB fire  RMB cancel  1-4 weapon  F ammo  Esc release");
                 return lines.ToArray();
+            }
+
+            /// <summary>
+            /// ⭐ CE-1079 (§8e) — one weapon: <c>&gt; 1 CANNON  120mm APFSDS 19  41/42  F: HEAT-MP / tank HE-FRAG  LOADING</c> — its number
+            /// key, its kind, the round in its breech (and how many of that round), its total, the other rounds <c>F</c> cycles to (the
+            /// selected weapon only), and LOADING while it reloads or switches.
+            /// </summary>
+            public static string WeaponLine(EntityRepository w, Entity unit, in WeaponAmmo a, int m, bool selected)
+            {
+                var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, m);
+                var line = new System.Text.StringBuilder();
+                line.Append(selected ? "> " : "  ").Append(m + 1).Append(' ').Append(KindOf(dto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown));
+                long loaded = a.LoadedOf(m) != 0 ? a.LoadedOf(m) : unchecked((long)(dto?.AmmoGuid ?? 0UL));
+                if (RoundName(w, loaded) is { } round)
+                {
+                    line.Append("  ").Append(round);
+                    if (a.LoadedRoundsOf(m) >= 0) line.Append(' ').Append(a.LoadedRoundsOf(m));
+                }
+                int mag = a.MagazineOf(m);
+                line.Append("  ").Append(a.AmmoOf(m)).Append('/').Append(a.MaxOf(m));
+                if (mag >= 0) line.Append("  [").Append(mag).Append(']');
+                if (selected && dto?.Loadout is { Count: > 1 } loadout)
+                {
+                    var others = new System.Collections.Generic.List<string>();
+                    foreach (var l in loadout)
+                        if (unchecked((long)l.AmmoGuid) != loaded && RoundName(w, unchecked((long)l.AmmoGuid)) is { } name) others.Add(name);
+                    if (others.Count > 0) line.Append("  F: ").Append(string.Join(" / ", others));
+                }
+                if (a.IsBusy(m)) line.Append("  LOADING");
+                return line.ToString();
+            }
+
+            /// <summary>⭐ CE-1079 — a weapon's kind, as the HUD names it.</summary>
+            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
+            {
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => "RIFLE",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => "MG",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => "AUTOCANNON",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun => "CANNON",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm => "MISSILE",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => "MORTAR",
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade => "GRENADE",
+                _ => "WEAPON",
+            };
+
+            /// <summary>⭐ CE-1079 — a round's name from the TKB (its munition template; a trailing " round" dropped), or null.</summary>
+            public static string? RoundName(EntityRepository w, long ammo)
+            {
+                if (ammo == 0 || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
+                if (!w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(ammo, out var t) || t == null) return null;
+                return t.Name.EndsWith(" round", StringComparison.Ordinal) ? t.Name[..^6] : t.Name;
             }
         }
     }
@@ -194,6 +282,9 @@ namespace Hrot.UI.Common.Map3D
         private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
         private Vector3 _eye;                              // ⭐ CE-1073 — where the eye was placed this frame
         private bool _eyeKnown;
+        private byte _shotSeq, _cancelSeq, _ammoSeq;       // ⭐ CE-1078 / CE-1079 — presses, counted (DESIGN_Entity_Control §8e)
+        private long _shotTarget;
+        private int _ammoAtPress;
 
         internal FpsCameraDriver(PossessionStation station, Func<EntityRepository?> world, Entity unit, long netId)
         {
@@ -205,6 +296,20 @@ namespace Hrot.UI.Common.Map3D
 
         public Entity Unit { get; }
         public int Mount { get; private set; }
+
+        /// <summary>⭐ CE-1078 — a shot locked by the last press has not left yet, as this station sees it (the mount's count has not
+        /// dropped since the press; RMB clears it). The HUD's LOCKED.</summary>
+        public bool ShotPending { get; private set; }
+
+        /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
+        public long LockedTarget => _shotTarget;
+
+        /// <summary>⭐ CE-1078 — where the last press locked (the unit's box hit, or the ground).</summary>
+        public Vector3 LockedPoint { get; private set; }
+
+        /// <summary>⭐ CE-1078 / CE-1080 — what the crosshair rests on this frame: the point, and the unit's network id (0 = none).</summary>
+        public Vector3 AimAt { get; private set; }
+        public long AimTarget { get; private set; }
         public bool HullLocked { get; private set; }
         public bool IsVehicle => Scheme == ControlScheme.Vehicle;
 
@@ -287,6 +392,10 @@ namespace Hrot.UI.Common.Map3D
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             float wheel = input.MouseWheelMove;
             if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
+            // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; F moves the selected weapon to its next round
+            for (int k = 0; k < 4; k++)
+                if (input.IsKeyPressed((MapKeyboardKey)((int)KeyboardKey.One + k)) && k < MountCount()) Mount = k;
+            if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.F)) unchecked { _ammoSeq++; }
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (!vehicle && _world() is { } sw)
             {
@@ -294,6 +403,21 @@ namespace Hrot.UI.Common.Map3D
                 if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.C)) _stance = NextStance(_stance.Value);
             }
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
+
+            // ⭐ CE-1078 / CE-1080 (§8e D-1, D-4) — the crosshair sees units too; a PRESS locks one shot on what it rests on, RMB drops it
+            (var aimAt, long aimTarget) = Aim(camera);
+            AimAt = aimAt;
+            AimTarget = aimTarget;
+            if (input.IsMouseButtonPressed(MapMouseButton.Left))
+            {
+                unchecked { _shotSeq++; }
+                _shotTarget = aimTarget;
+                LockedPoint = aimAt;
+                _ammoAtPress = AmmoOf(Mount);
+                ShotPending = true;
+            }
+            if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
+            if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
 
             var frame = new OperatorControlFrameEvent
             {
@@ -306,8 +430,9 @@ namespace Hrot.UI.Common.Map3D
                 Gait = run ? (byte)0 : (byte)1,
                 Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
-                AimPoint = AimPoint(camera),
+                AimPoint = aimAt,
                 Stance = !vehicle && _stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074
+                ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
             };
             _station.Send(_netId, frame);
             return true;
@@ -319,20 +444,32 @@ namespace Hrot.UI.Common.Map3D
             _locked = null;
         }
 
-        /// <summary>Where the crosshair rests: the terrain under the screen centre, else <see cref="AimReach"/> along the look.</summary>
-        private static Vector3 AimPoint(MapCamera3D camera)
+        /// <summary>
+        /// Where the crosshair rests: ⭐ CE-1080 (§8e D-4) — the nearest of the terrain and the units' boxes under the screen centre (never
+        /// the operator's own body — <see cref="EntityBoxPicker"/> skips it); a unit gives the point where the ray meets its box and its
+        /// network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
+        /// </summary>
+        public static (Vector3 Point, long Target) Aim(MapCamera3D camera)
         {
-            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.Terrain);
-            return hit.Kind != PickKind.None && float.IsFinite(hit.Distance) && hit.Distance <= AimReach
-                ? hit.Point : camera.Eye + camera.Forward * AimReach;
+            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.All);
+            if (hit.Kind == PickKind.None || !float.IsFinite(hit.Distance) || hit.Distance > AimReach)
+                return (camera.Eye + camera.Forward * AimReach, 0L);
+            return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);
         }
 
         private int NextMount(int mount, int step)
         {
-            int count = _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
-                ? Math.Max(1, (int)w.GetComponentRO<WeaponAmmo>(Unit).Count) : 1;
+            int count = MountCount();
             return ((mount + step) % count + count) % count;
         }
+
+        private int MountCount()
+            => _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
+                ? Math.Max(1, (int)w.GetComponentRO<WeaponAmmo>(Unit).Count) : 1;
+
+        private int AmmoOf(int mount)
+            => _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
+                ? w.GetComponentRO<WeaponAmmo>(Unit).AmmoOf(mount) : 0;
 
         /// <summary>⭐ CE-1074 — the stance after <paramref name="s"/> in the cycle standing → crouched → prone → standing.</summary>
         public static Fdp.Toolkit.Tkb.Domain.StanceId NextStance(Fdp.Toolkit.Tkb.Domain.StanceId s) => s switch

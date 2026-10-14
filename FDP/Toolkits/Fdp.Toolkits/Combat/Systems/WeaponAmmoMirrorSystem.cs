@@ -21,13 +21,14 @@ namespace Fdp.Toolkit.Combat.Systems
                 || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
             if (!repo.IsComponentTypeRegistered<WeaponAmmo>()) repo.RegisterComponent<WeaponAmmo>();
             bool mounts = repo.IsComponentTypeRegistered<WeaponMountInfo>();
+            bool loads = repo.IsComponentTypeRegistered<AmmoLoadout>();   // ⭐ CE-1079 — the breech, for the HUD
             Span<Entity> children = stackalloc Entity[8];
 
             foreach (var unit in repo.Query().With<WeaponState>().With<BehaviorState>().Build())
             {
                 if (!repo.HasAuthority<BehaviorState>(unit)) continue;
                 var ammo = new WeaponAmmo { Count = 1 };
-                ammo.Set(0, repo.GetComponentRO<WeaponState>(unit));
+                ammo.Set(0, repo.GetComponentRO<WeaponState>(unit), LoadOf(repo, unit, loads));
                 if (mounts)
                 {
                     int n = WeaponMountQuery.EnumerateMounts(repo, unit, children);
@@ -36,7 +37,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         if (!repo.HasComponent<WeaponMountInfo>(children[i]) || !repo.HasComponent<WeaponState>(children[i])) continue;
                         int index = repo.GetComponentRO<WeaponMountInfo>(children[i]).MountIndex;
                         if (index <= 0 || index >= WeaponAmmo.MaxMounts) continue;
-                        ammo.Set(index, repo.GetComponentRO<WeaponState>(children[i]));
+                        ammo.Set(index, repo.GetComponentRO<WeaponState>(children[i]), LoadOf(repo, children[i], loads));
                         ammo.Count = (byte)Math.Max(ammo.Count, index + 1);
                     }
                 }
@@ -47,5 +48,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 else repo.AddComponent(unit, ammo);
             }
         }
+
+        private static AmmoLoadout? LoadOf(EntityRepository repo, Entity mount, bool registered)
+            => registered && repo.HasComponent<AmmoLoadout>(mount) ? repo.GetComponentRO<AmmoLoadout>(mount) : null;
     }
 }

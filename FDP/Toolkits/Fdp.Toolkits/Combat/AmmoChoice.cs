@@ -127,6 +127,40 @@ namespace Fdp.Toolkit.Combat
             => world.IsComponentTypeRegistered<AmmoLoadout>() && world.HasComponent<AmmoLoadout>(mountEntity)
                 ? world.GetComponentRO<AmmoLoadout>(mountEntity).LoadedAmmo : 0L;
 
+        /// <summary>
+        /// ⭐ CE-1079 (DESIGN_Entity_Control §8e D-2/D-3) — the OPERATOR's round choice: move the breech <paramref name="steps"/> types
+        /// on (skipping types with no rounds left, wrapping). A different round costs one reload, as the AI's switch does (D-I);
+        /// <c>ChosenFor</c> is cleared so an AI that takes the unit back chooses afresh. False when the mount has no loadout, or no
+        /// other type has rounds.
+        /// </summary>
+        public static bool Cycle(EntityRepository world, Entity mountEntity, int steps, float reloadSeconds)
+        {
+            if (steps <= 0 || !world.IsComponentTypeRegistered<AmmoLoadout>() || !world.HasComponent<AmmoLoadout>(mountEntity)) return false;
+            ref var load = ref world.GetComponentRW<AmmoLoadout>(mountEntity);
+            if (load.Count < 2) return false;
+            int at = load.Loaded;
+            for (int step = 0; step < steps; step++)
+            {
+                int next = at;
+                for (int k = 1; k <= load.Count; k++)
+                {
+                    int i = (at + k) % load.Count;
+                    if (load.RoundsAt(i) > 0) { next = i; break; }
+                }
+                at = next;
+            }
+            if (at == load.Loaded) return false;
+            load.Loaded = (byte)at;
+            load.ChosenFor = Entity.Null;
+            load.SwitchRemaining = MathF.Max(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(reloadSeconds), float.Epsilon);
+            return true;
+        }
+
+        /// <summary>⭐ CE-1079 — a round switch is running on <paramref name="mountEntity"/> (the weapon holds, like a reload).</summary>
+        public static bool Switching(EntityRepository world, Entity mountEntity)
+            => world.IsComponentTypeRegistered<AmmoLoadout>() && world.HasComponent<AmmoLoadout>(mountEntity)
+               && world.GetComponentRO<AmmoLoadout>(mountEntity).SwitchRemaining > 0f;
+
         /// <summary>One round of the loaded type leaves (call beside <see cref="Magazine.Spend"/>).</summary>
         public static void SpendLoaded(EntityRepository world, Entity mountEntity)
         {

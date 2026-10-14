@@ -1502,6 +1502,92 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        // ── ⭐ CE-1078 / CE-1079 (docs/DESIGN_Entity_Control.md §8e) — a press locks ONE shot; the operator's round switch ───────────
+
+        private static unsafe void AskOperatorShot(ref WeaponChannel channel, Entity target, Vector3 point, int cap, float cooldown = 0.2f)
+            => Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]),
+                   new AimAndFireParams { Operator = 1, Trigger = 1, Target = target, Point = point, Rounds = cap, CooldownSeconds = cooldown });
+
+        /// <summary>
+        /// ⭐⭐ CE-1078 (D-1) — a LOCKED shot on a unit 90° off the gun: the turret task names the UNIT (the muscle follows it), no
+        /// round leaves while it slews, exactly ONE leaves once it bears (the cap), and the action keeps running for the next press.
+        /// 🔒 User, 2026-10-14: "when i press fire trigger the tank tries aiming to the clicked target and fire once the barrel is aimed".
+        /// </summary>
+        [Fact]
+        public void CE1078_ALockedShot_TurnsTheTurretToTheUnit_FiresOneRoundOnceItBears_AndTheActionRunsOn()
+        {
+            var (shooter, turret, channel, target) = TurretedTank(rounds: 0, cooldown: 0.2f, ammo: 10);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            AskOperatorShot(ref channel, target, new Vector3(60f, 0f, 1f), cap: 1);
+            _executor.OnEnter(shooter, ref channel, _world);
+            int shots = 0, first = -1;
+            for (int f = 0; f < 600; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                muscle.Execute(_world, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.Equal(target, shot.Target);
+                    Assert.False(shot.AtPoint);
+                    shots++;
+                    if (first < 0) first = f;
+                }
+            }
+            Assert.Equal(1, shots);
+            Assert.True(first > 10, $"the round left at frame {first}, before a 90° traverse");
+            Assert.Equal(target, _world.GetComponent<WeaponTask>(turret).Target);
+            Assert.Equal(9, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(1, AimAndFireExecutor.RoundsFiredOf(ref channel));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ CE-1078 — per shot too: in operator mode <c>Rounds</c> CAPS the rounds (a press = one) and never ends the action;
+        /// a locked unit is aimed at (its middle), not the point the press was made at.</summary>
+        [Fact]
+        public void CE1078_PerShot_ALockedShot_IsOneRoundAtTheUnit_AndTheActionRunsOn()
+        {
+            var target = SpawnTarget(new Vector3(30f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
+            AskOperatorShot(ref channel, target, new Vector3(5f, 40f, 0f), cap: 1);
+            _executor.OnEnter(shooter, ref channel, _world);
+            int shots = 0;
+            for (int f = 0; f < 60; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.InRange(shot.TargetPoint.X, 29f, 31f);   // at the unit, not at (5, 40)
+                    shots++;
+                }
+            }
+            Assert.Equal(1, shots);
+            Assert.Equal(9, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>⭐ CE-1079 (D-3) — the operator's round switch holds the trigger like a reload; once it is done the round that
+        /// leaves is the LOADED one (the per-shot path now carries it too) and its type's count drops.</summary>
+        [Fact]
+        public void CE1079_ARoundSwitch_HoldsTheOperatorsTrigger_ThenTheLoadedRoundLeaves()
+        {
+            _world.RegisterComponent<AmmoLoadout>();
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
+            var load = new AmmoLoadout { Count = 2, Ammo0 = 6010, Rounds0 = 5, Ammo1 = 6011, Rounds1 = 5, Loaded = 1, SwitchRemaining = 1f };
+            _world.AddComponent(shooter, load);
+            AskOperator(ref channel, new Vector3(40f, 0f, 0f), trigger: 1);
+            _executor.OnEnter(shooter, ref channel, _world);
+            for (int f = 0; f < 30; f++) { Tick(shooter, ref channel, 1f / 60f); _world.Bus.SwapBuffers(); Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray()); }
+
+            _world.GetComponentRW<AmmoLoadout>(shooter).SwitchRemaining = 0f;
+            Tick(shooter, ref channel, 1f / 60f);
+            _world.Bus.SwapBuffers();
+            var round = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal(6011L, round.AmmoGuid);
+            Assert.Equal(4, _world.GetComponentRO<AmmoLoadout>(shooter).Rounds1);
+        }
+
             // ── ⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14a) — a person's round waits for his body ─────────────────────
 
         /// <summary>The shooter becomes a PERSON (pedestrian kinematics) with a weapon posture; optionally embarked.</summary>

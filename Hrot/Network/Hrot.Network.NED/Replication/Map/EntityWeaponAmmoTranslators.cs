@@ -58,6 +58,9 @@ namespace Hrot.Map.Common.Replication.Egress
             Ammo0 = a.Ammo0, Ammo1 = a.Ammo1, Ammo2 = a.Ammo2, Ammo3 = a.Ammo3,
             Max0 = a.Max0, Max1 = a.Max1, Max2 = a.Max2, Max3 = a.Max3,
             Mag0 = a.Mag0, Mag1 = a.Mag1, Mag2 = a.Mag2, Mag3 = a.Mag3,
+            Load0 = a.Load0, Load1 = a.Load1, Load2 = a.Load2, Load3 = a.Load3,   // ⭐ CE-1079
+            LoadRounds0 = a.LoadRounds0, LoadRounds1 = a.LoadRounds1, LoadRounds2 = a.LoadRounds2, LoadRounds3 = a.LoadRounds3,
+            Busy = a.Busy,
         };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
@@ -113,6 +116,9 @@ namespace Hrot.Map.Common.Replication.Ingress
                 Ammo0 = d.Ammo0, Ammo1 = d.Ammo1, Ammo2 = d.Ammo2, Ammo3 = d.Ammo3,
                 Max0 = d.Max0, Max1 = d.Max1, Max2 = d.Max2, Max3 = d.Max3,
                 Mag0 = d.Mag0, Mag1 = d.Mag1, Mag2 = d.Mag2, Mag3 = d.Mag3,
+                Load0 = d.Load0, Load1 = d.Load1, Load2 = d.Load2, Load3 = d.Load3,   // ⭐ CE-1079
+                LoadRounds0 = d.LoadRounds0, LoadRounds1 = d.LoadRounds1, LoadRounds2 = d.LoadRounds2, LoadRounds3 = d.LoadRounds3,
+                Busy = d.Busy,
             });
         }
 

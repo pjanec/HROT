@@ -161,8 +161,10 @@ namespace Hrot.Editor.DebugApi
             => Answer(networkId, Orders().Unpossess(networkId));
 
         /// <summary><c>POST /entities/{networkId}/control</c> — one control frame for the possessed unit:
-        /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z], stance}</c> (all optional but <c>seq</c>; newest seq wins;
-        /// ⭐ CE-1074 <c>stance</c> = "standing" | "crouched" | "prone", absent = keep).</summary>
+        /// <c>{seq, forward, lateral, steer, yaw, gait, trigger, aim:[x,y,z], stance, shot, cancel, ammo, shotTarget}</c> (all optional
+        /// but <c>seq</c>; newest seq wins; ⭐ CE-1074 <c>stance</c> = "standing" | "crouched" | "prone", absent = keep; ⭐ CE-1078 / CE-1079
+        /// <c>shot</c> / <c>cancel</c> / <c>ammo</c> = the station's press COUNTERS (a new value is a press; DESIGN_Entity_Control §8e),
+        /// <c>shotTarget</c> = the network id of the unit the last shot press locked on).</summary>
         public (JsonNode? result, int status, string? error, string? hint) PostControl(long networkId, JsonNode? body)
         {
             if (body?["seq"] is not JsonNode seqNode || !uint.TryParse(seqNode.ToString(), out uint seq))
@@ -182,6 +184,10 @@ namespace Hrot.Editor.DebugApi
                 {
                     "standing" or "stand" => 1, "crouched" or "crouch" => 2, "prone" => 3, _ => 0,
                 },
+                ShotSeq = (byte)(Float(body, "shot") ?? 0f),
+                CancelSeq = (byte)(Float(body, "cancel") ?? 0f),
+                AmmoSeq = (byte)(Float(body, "ammo") ?? 0f),
+                ShotTarget = long.TryParse(body?["shotTarget"]?.ToString(), out long shotTarget) ? shotTarget : 0L,
             };
             if (body?["aim"] is JsonArray aim && aim.Count >= 2)
                 frame.AimPoint = new System.Numerics.Vector3(Float(aim, 0), Float(aim, 1), aim.Count > 2 ? Float(aim, 2) : 0f);

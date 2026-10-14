@@ -95,7 +95,10 @@ namespace Hrot.SimHost.Tests
         {
             var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };
             ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 27, MaxAmmo = 30, MagazineSize = 10, MagazineRounds = 7 });
-            ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 2, MaxAmmo = 4 });
+            // ⭐ CE-1079 — the breech crosses too: the loaded round, its count, the LOADING bit (the whole struct is compared below)
+            ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 2, MaxAmmo = 4 },
+                     new Fdp.Toolkit.Combat.Components.AmmoLoadout { Count = 2, Ammo0 = 6006, Rounds0 = 1, Ammo1 = 6018, Rounds1 = 1, Loaded = 1, SwitchRemaining = 2f });
+            Assert.Equal((6018L, 1, true), (ammo.Load1, ammo.LoadRounds1, ammo.IsBusy(1)));
             var sample = EntityWeaponAmmoEgressTranslator.ToSample(66L, ammo);
             var (station, unit, map) = Node(66L);
             using (station)
