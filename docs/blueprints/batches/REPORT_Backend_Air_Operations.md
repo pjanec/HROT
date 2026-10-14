@@ -120,3 +120,26 @@ Cross-lane edits:
 - behaviors' `CatalogTests` (E2);
 - the presentation re-pins (E4);
 - the `Hrot.Blueprints` FollowRoute node (`CgfNodes.cs`, E2): the brain's route wait. This is the CE-2171 fix, which the handoff assigned to me.
+
+## Follow-up decisions (user, `2026-10-14`) — R-3007, `bea99b2dd`
+
+🔒 *"Accepting your lean for the aircraft crash. Accepting adding the MK82 bomb."* · *"keep json, accel yes, throttle yes"*
+
+| decision | built | rail |
+|---|---|---|
+| a crash is not a warhead (`CE-3202`) | `Gen.Flight DetonatesOnImpact`: only the FPV drone (403) bursts mount 0 on impact; any other aircraft is destroyed and comes to rest | `DroneImpactSystemTests.R3007_AnAircraftThatIsNotAMunition_Crashes_WithoutABurst` |
+| the Mk-82 is a library line (`CE-3201`, keep JSON) | `ammo.json` `"Mk-82 bomb"` (he, 273 mm, 227 kg, 94 kg TNT-eq, indirect): blast lethal ≈ 9.1 m, injury ≈ 27 m, fragments ≈ 143 m | `ReferenceLibraryTests.CE3201_TheMk82_IsABomb_NotAMortarRound` |
+| per-type acceleration | `Gen.Flight AccelMps2` (FPV 15, UH-60 3; 0 ⇒ rotorcraft 3, plane 5) on routes, point moves (brakes √(2·a·d)) and manual flight; keys released ⇒ brake to a hover and hold | `RotorcraftModelTests.R3007_ADroneAndAHelicopter_ChangeSpeed_AtTheirOwnAcceleration` |
+| the plane's throttle is held | + speeds up, − slows, 0 keeps the speed (any speed in [stall, top]); the held speed is written as the velocity itself — measured: deriving it from position differences bled 0.2 m/s in 30 s at km coordinates | `FixedWingModelTests.R3007_TheThrottle_IsHeld_AnySpeedBetweenStallAndTop` |
+
+Re-pinned on purpose: `RotorcraftModelTests.M7_…_UnderManualDrive` and `B3_AHelicopter_…` (the instant manual response is retired; they now
+state a 60 m/s² test drone). No wire change: `FlightParams` is built from the TKB on every node.
+
+| gate (`--no-build`, the TEST project built) | result | delta |
+|---|---|---|
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests` | 3328 / 0 / 1 | +4 rails; the skip pre-exists |
+| `dotnet test Hrot/Engine/Hrot.Core.Tests` | 242 / 0 / 0 | the catalogue changes (FPV / UH-60 flight data, 6022's warhead) keep its rails green |
+| `dotnet test Hrot/Engine/Hrot.Presentation.Tests` | 598 / 0 / 12 | unchanged |
+| `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests` | 1364 / 0 / 6 | unchanged |
+| ⭐ integration: `… Hrot.ClusterRunner.Integration.Tests --filter "EntityOrdersAcrossNodesTests\|DistributedBrainMuscleIntegrationTests"` | 8 / 0 / 1 | the drone's cross-node possession (`M7_APossessedDrone_…`) green under the eased manual response |
+| docs | `tracker-counts.py --check` ✅ · `rulings-check.py` 201/201 · `design-digest.py --check` ✅ · mermaid ✅ | ids allocated: **CE-3202**, **R-3007** |
