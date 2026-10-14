@@ -15,8 +15,8 @@ namespace Fdp.Toolkit.Utility
 
     /// <summary>
     /// ⭐⭐ <c>CE-2159</c> D3 (R-2014; 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.7.7) — the squad leader's choice of HOW
-    /// to cross the area ahead: the <see cref="Fdp.Toolkit.Squad.StarterPack.ManeuverSelectStarterDecision"/>'s considerations as an
-    /// OPTION decision (that one is a <c>ManeuverSelect</c>, which <c>UtilityScorer.ChooseOption</c> does not score), with one change —
+    /// to cross the area ahead: the considerations of the retired <c>ManeuverSelectStarterDecision</c> (a <c>ManeuverSelect</c> decision,
+    /// which <c>UtilityScorer.ChooseOption</c> does not score — superseded by this one and removed `2026-10-14`) as an OPTION decision, with one change —
     /// Cross weighs "not open ground" instead of "a street", so an intersection, choke point or crest is crossed rather than scoring
     /// nothing. ctx.Self is the COMMANDER; the area is the one it has acquired (<c>SquadCognitiveState.ActiveFeatureId</c>).
     /// </summary>

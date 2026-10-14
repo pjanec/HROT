@@ -1224,6 +1224,38 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2158</c> (EQS §17.6.1, the per-lifetime epoch) — END TO END: a one-shot <c>ScoreDelta</c> query made through
+    /// <c>EqsChildSensor.Ensure</c>, answered, ended and RE-MADE IN THE SAME FRAME on the same part id is answered again. Nothing on
+    /// the wire marks that end (the egress de-duplicates an equal config; the topic keeps one sample per key) — only the lifetime in
+    /// the epoch does. 🔴 Red before: both lifetimes were <c>StampOwner(1, run)</c>, the egress sent nothing, and the answer, equal to
+    /// the last, was never published.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE2158_AOneShotQueryRemadeInTheSameFrame_IsAnsweredAgain()
+    {
+        using var rig = new LifecycleRig();
+        var registry = new SimpleEqsTemplateRegistry();
+        registry.Register(new EqsQueryTemplate { BlueprintId = ConstantScoreTemplate, Generator = new ConstantScoreGenerator(), MaxCandidates = 4 });
+        rig.Sim.SetSingletonManaged<IEqsTemplateRegistry>(registry);
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity parent);
+        var config = new EqsSensor
+        {
+            BlueprintId = ConstantScoreTemplate, Epoch = 1, SearchRadius = 25f,
+            PublishPolicy = (byte)EqsPublishPolicy.ScoreDelta, ScoreDeltaThreshold = 0.5f,
+        };
+
+        var first = EqsChildSensor.Ensure(rig.Cgf, parent, siteId: 0x2158, in config);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(first), timeoutFrames: 3000), "The first lifetime must be answered.");
+        int part = rig.Cgf.GetComponentRO<PartMetadata>(first).InstanceId;
+
+        rig.Cgf.DestroyEntity(first);                                                  // ended …
+        var second = EqsChildSensor.Ensure(rig.Cgf, parent, siteId: 0x2158, in config); // … and re-made, same frame
+        Assert.Equal(part, rig.Cgf.GetComponentRO<PartMetadata>(second).InstanceId);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(second), timeoutFrames: 3000),
+            $"The next lifetime on part {part}, re-made in the same frame, must be answered (epoch {rig.Cgf.GetComponentRO<EqsSensor>(second).Epoch:X}).");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2158</c> (EQS §17.6.1) — a NEW lifetime starts as a fresh carrier did EVEN WHEN THE SOLVER NEVER SAW THE END:
     /// ① the end's Suspended sample and the next lifetime's config arrive in ONE batch (the ingress keeps the newest), or ② the
     /// carrier was suspended by the last poll and the solver has not run since. Either way the carrier's evaluation state goes.

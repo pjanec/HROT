@@ -1061,9 +1061,25 @@ end was applied and the next lifetime applied before the solver ran. Then, under
 to the last one. ⭐ **Fixed in the ingress** (cross-lane, `Hrot.Network.NED`): a live config that follows an ended one (in the batch,
 or on a suspended carrier) removes the carrier's `SensorEvalState` — the next lifetime starts as a fresh carrier did. Rail
 `EqsDistributedTests.CE2158_ANewLifetime_TheSolverNeverSawEnd_StartsWithoutTheLastLifetimesEvalState` (red-proved; `CE486_*`, `CE492_*`
-unchanged). ⚠ **Still open — needs an owner's call:** a lifetime ended and re-made in ONE frame publishes no Suspended sample at all,
-so nothing on the wire marks the boundary; only a per-lifetime epoch would (`EqsChildSensor.Ensure` stamps `StampOwner(1, run)` for
-every lifetime). Lean: a per-lifetime low half in `Ensure` (backend's wire contract). The consumer rule above stays until then.
+unchanged).
+
+✅ **Same-frame re-make closed `2026-10-14` — an epoch per LIFETIME** *(user-approved; cross-lane, `Fdp.Toolkits` EQS)*. A lifetime
+ended and re-made in ONE frame publishes no Suspended sample at all (the config egress de-duplicates an equal config; the topic keeps
+one sample per key), so the ingress fix above cannot see the boundary. ⭐ `EqsChildSensor.Ensure` now stamps a per-part lifetime
+number into the epoch, so consecutive lifetimes on one part id never share an epoch:
+
+| bits | carries | written by |
+|---|---|---|
+| 16–31 | the owning run (§1 D5 ②) | `StampOwner` |
+| 8–15 | the lifetime of this part id — 0 for the first sensor, +1 per re-make, wraps at 256 | `StampLifetime` ← `NextLifetime` (per world, per `(parent, part)`) |
+| 0–7 | the refresh count | `NextEpoch` (`Refresh`) — ⚠ was 16 bits, now 8 |
+
+⭐ **Wire:** no schema change. `Epoch` is a non-key `uint` that every consumer compares only for equality. The one extra sample is
+the config of a same-frame re-make, which the de-dup used to swallow (the bug). The first lifetime on a part stamps exactly as before.
+Rails: `EqsChildSensorTests.Ensure_ASensorRemadeOnTheSamePart_GetsANewEpoch_TheFirstStampsAsBefore_CE2158`,
+`EqsDistributedTests.CE2158_AOneShotQueryRemadeInTheSameFrame_IsAnsweredAgain`. ⚠ The counter is process memory, not world state:
+it does not rewind with a snapshot. That is harmless, because only *different from the last lifetime* matters. The consumer rule
+above (`AlwaysPush` for one-shot) stays as belt-and-braces.
 
 ### 17.7 As-built *(`2026-09-30`)* — what the build found that the design above did not know
 

@@ -352,7 +352,7 @@ FDP/Toolkits/Fdp.Toolkits/Squad/
     Mappers/
         ForceManeuverMapper.cs           -- ITacticalOrderMapper for mission override
     StarterPack/
-        ManeuverSelectStarterDecision.cs -- worked example ManeuverSelect decision
+        (ManeuverSelectStarterDecision.cs -- retired 2026-10-14; superseded by Utility/StarterPack/SquadCrossingDecision.cs)
     Maneuvers/
         DangerAreaCrossingManeuver.cs    -- §8.1 danger-area crossing
         BoundingOverwatchManeuver.cs     -- §8.2 bounding overwatch (open-field + urban)
@@ -373,7 +373,7 @@ FDP/Toolkits/Fdp.Toolkits.Tests/Squad/
     AssignmentSlotLayoutTests.cs         -- AssignmentSlot 16 B size check
     SquadPhase0IntegrationTests.cs       -- P0 integration gate
     Phase2IntegrationTests.cs            -- P2 perception-merge + sensor gate
-    Phase3IntegrationTests.cs            -- P3 maneuver-selection gate
+    (Phase3IntegrationTests.cs           -- retired 2026-10-14 with the starter decision; see SquadManeuverTests.CE2159_*)
     DangerAreaProviderTests.cs
     DedicatedScriptParityTests.cs        -- P6 dedicated-script / PlatoonHillAttack parity
     SquadHsmShellTests.cs
