@@ -240,6 +240,7 @@ public sealed class EntityTypeCatalogTests
         1.1.*.8 Small Tracked Utility Vehicle
         1.1.*.9 Large Tracked Utility Vehicle
         1.1.*.10 Mortar
+        1.1.*.50 Weapon System (HROT)
         1.1.*.81 Car
         1.2 Air
         1.2.*.1 Fighter/Air Defense
