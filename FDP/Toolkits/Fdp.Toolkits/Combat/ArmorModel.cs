@@ -159,10 +159,43 @@ namespace Fdp.Toolkit.Combat
         /// round, no ammo, or no TKB database in this world. The ONE lookup the flight (<c>FireProcessingSystem</c>) and the burst's
         /// friendly-line exemption (<c>FireAtPointExecutor</c>, an indirect warhead flies over friends) both read.</summary>
         public static WarheadDto? WarheadOf(EntityRepository world, WeaponMountDto? mount)
+            => WarheadOf(world, mount != null ? unchecked((long)mount.AmmoGuid) : 0L);
+
+        /// <summary>⭐ M8 — the warhead of the munition type <paramref name="ammo"/> (a loaded round of a loadout), or null.</summary>
+        public static WarheadDto? WarheadOf(EntityRepository world, long ammo)
         {
-            long ammo = mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
-            if (ammo == 0 || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
             return Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(world.GetSingletonManaged<ITkbDatabase>(), ammo).Warhead;
+        }
+
+        /// <summary>
+        /// ⭐ M8 (D-I) — the penetration (mm RHA) and damage per hit of ONE round of <paramref name="ammo"/> fired from
+        /// <paramref name="mount"/>. The mount's own round (<paramref name="ammo"/> 0 or its <c>AmmoGuid</c>) reads exactly what it read
+        /// before (<see cref="PenetrationOf"/>, <c>DamagePerHit</c>). ANOTHER round of a loadout reads its own numbers: the R-217 pair
+        /// lookup for that ammo with the mount's own penetration NOT used as a fallback (it belongs to the mount's default round), and its
+        /// <see cref="AmmoWeaponBallisticsDto.Damage"/> (this weapon, then generic), else the mount's <c>DamagePerHit</c>.
+        /// </summary>
+        public static (float Penetration, float Damage) RoundOf(EntityRepository world, WeaponMountDto? mount, long ammo)
+        {
+            if (mount == null) return (0f, 0f);
+            if (ammo == 0 || ammo == unchecked((long)mount.AmmoGuid))
+                return (mount.DamagePerHit > 0f ? PenetrationOf(world, mount) : 0f, mount.DamagePerHit);
+            var db = world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+            var asLoaded = mount with { AmmoGuid = unchecked((ulong)ammo), Penetration = 0f };
+            float pen = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, asLoaded).Value;
+            float dmg = mount.DamagePerHit;
+            if (db != null && db.TryGetByType(ammo, out var a) && a != null)
+            {
+                float generic = 0f;
+                foreach (var (type, _, data) in a.GetAllDescriptors())
+                {
+                    if (type != typeof(AmmoWeaponBallisticsDto) || data is not AmmoWeaponBallisticsDto b || b.Damage <= 0f) continue;
+                    if (b.WeaponGuid != 0 && unchecked((ulong)b.WeaponGuid) == mount.WeaponGuid) { generic = b.Damage; break; }
+                    if (b.WeaponGuid == 0 && generic <= 0f) generic = b.Damage;
+                }
+                if (generic > 0f) dmg = generic;
+            }
+            return (pen, dmg);
         }
 
         /// <summary>⭐ M3 — what the munition <paramref name="ammo"/> (a TKB type id) defeats armour with: its warhead's

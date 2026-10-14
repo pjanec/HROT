@@ -194,6 +194,26 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(3, Status(turret).RoundsFired);
         }
 
+        /// <summary>⭐ M8 — the TURRET path carries the loaded round: the round the weapon brain wrote on the task
+        /// (<see cref="WeaponTask.AmmoGuid"/>, riding <c>EntityWeaponTask</c>) is the round on the fire intent the muscle publishes.</summary>
+        [Fact]
+        public void M8_TheLoadedRound_ReachesTheMuscle_OnTheTurretPath()
+        {
+            _world.RegisterComponent<WeaponMuscleState>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireIntent>();
+            var (_, turret) = Tank(1);
+            _world.AddOrSet(turret, new WeaponTask { Mode = WeaponTaskMode.Engage, Point = new Vector3(100, 0, 2), RoundsGranted = 1,
+                                                     CooldownSeconds = 0.5f, Epoch = 1, AmmoGuid = 9003 });
+            long fired = 0;
+            for (int f = 0; f < 60 * 4 && fired == 0; f++)
+            {
+                _muscle.Execute(_world, Dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<Fdp.Toolkit.Combat.Events.WeaponFireIntent>()) fired = shot.AmmoGuid;
+            }
+            Assert.Equal(9003, fired);
+        }
+
         private static (float, float) Round((float A, float E) v) => (MathF.Round(v.A, 3) + 0f, MathF.Round(v.E, 3) + 0f);
     }
 

@@ -44,6 +44,10 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>⭐ <c>CE-1032</c> — the aim point when <see cref="AtPoint"/>.</summary>
         public System.Numerics.Vector3 TargetPoint;
+
+        /// <summary>⭐ M8 (D-I) — the munition type of the LOADED round (the weapon brain's choice from the mount's loadout);
+        /// <b>0 = the mount's own <c>AmmoGuid</c></b>, as before. <c>FireProcessingSystem</c> fires this round.</summary>
+        public long AmmoGuid;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────

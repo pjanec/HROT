@@ -803,6 +803,82 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(WeaponPostureKind.Ready, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Reloading));
         }
 
+        // ── ⭐ M8 (DESIGN_Missiles_And_Ammo §2) — the round per target, a switch costs one reload ─────────────────────────────
+
+        /// <summary>A tank-gun shooter (TKB type 9100, <see cref="M8Rounds.TankGun"/>) with its loadout component, aimed at a rifleman.</summary>
+        private (Entity Shooter, WeaponChannel Channel, Entity Target) LoadedTank(Fdp.Toolkit.Tkb.Domain.WeaponMountDto gun, float reloadSeconds)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<Health>();
+            _world.RegisterComponent<AmmoLoadout>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            M8Rounds.Register(db);
+            var clone = new Fdp.Interfaces.TkbTemplate("APFSDS-B", 9004);
+            clone.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { PenetrationMm = 600, Damage = 1100 });
+            db.Register(clone);
+            var type = new Fdp.Interfaces.TkbTemplate("Tank", M8Rounds.TankGunType);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { gun } });
+            db.Register(type);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var target = SpawnTarget(new Vector3(300, 0, 0));
+            _world.AddComponent(target, new Health { Current = 100, Max = 100 });
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, AmmoLoadout.From(gun.Loadout).Total, 0f, target, 1f);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = M8Rounds.TankGunType });
+            _world.GetComponentRW<WeaponState>(shooter).ReloadSeconds = reloadSeconds;
+            _world.AddComponent(shooter, AmmoLoadout.From(gun.Loadout));
+            EnterAimed(shooter, ref channel);
+            return (shooter, channel, target);
+        }
+
+        /// <summary>The frame and the round of the first shot (−1 / 0 when none within <paramref name="frames"/>).</summary>
+        private (int Frame, long Ammo) FirstShot(Entity shooter, ref WeaponChannel channel, int frames)
+        {
+            const float dt = 1f / 60f;
+            for (int f = 0; f < frames; f++)
+            {
+                Tick(shooter, ref channel, dt);
+                WeaponDispatcherSystem.DrainSwitch(ref _world.GetComponentRW<AmmoLoadout>(shooter), dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>()) return (f, shot.AmmoGuid);
+            }
+            return (-1, 0);
+        }
+
+        /// <summary>
+        /// ⭐⭐ M8 (D-I) — against a rifleman the tank gun switches APFSDS → HE (it also sprays the room): the switch costs ONE reload
+        /// (4 s here — no round before it, the action says Reloading), then the HE round leaves, carried on the fire intent, and the
+        /// HE count drops. A TIE (two rounds of equal value and area) keeps the loaded round: it fires at once, no switch.
+        /// </summary>
+        [Fact]
+        public void M8_ASwitch_CostsOneReload_ATie_KeepsTheLoadedRound()
+        {
+            var (shooter, channel, _) = LoadedTank(M8Rounds.TankGun(), reloadSeconds: 4f);
+            var (frame, ammo) = FirstShot(shooter, ref channel, 60 * 6);
+            Assert.InRange(frame, 4 * 60 - 2, 4 * 60 + 2);
+            Assert.Equal(M8Rounds.He, ammo);
+            var load = _world.GetComponentRO<AmmoLoadout>(shooter);
+            Assert.Equal(M8Rounds.He, load.LoadedAmmo);
+            Assert.Equal(9, load.RoundsAt(2));     // HE 10 → 9
+            Assert.Equal(20, load.RoundsAt(0));    // APFSDS untouched
+            Assert.Equal(39, _world.GetComponentRO<WeaponState>(shooter).Ammo);
+        }
+
+        /// <inheritdoc cref="M8_ASwitch_CostsOneReload_ATie_KeepsTheLoadedRound"/>
+        [Fact]
+        public void M8_ATie_KeepsTheLoadedRound_AndFiresAtOnce()
+        {
+            var gun = M8Rounds.TankGun() with { Loadout = new()
+            {
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = unchecked((ulong)M8Rounds.Apfsds), Rounds = 5 },
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = 9004, Rounds = 5 },
+            } };
+            var (shooter, channel, _) = LoadedTank(gun, reloadSeconds: 4f);
+            var (frame, ammo) = FirstShot(shooter, ref channel, 60);
+            Assert.Equal(0, frame);
+            Assert.Equal(M8Rounds.Apfsds, ammo);
+        }
+
         // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one

@@ -582,6 +582,49 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(CombatConstants.DefaultBulletDamage, bullets[plain].Damage);
         }
 
+        /// <summary>
+        /// ⭐⭐ M8 (D-I) — a mount with NO loadout fires its one round exactly as before (the intent names none: the mount's
+        /// <c>AmmoGuid</c>, penetration and damage); the intent's LOADED round is fired with ITS numbers — HE-FRAG: 50 mm, 600, and its
+        /// warhead (the round is an area round).
+        /// </summary>
+        [Fact]
+        public void M8_AMountWithNoLoadout_FiresItsOneRound_AsBefore_AndTheLoadedRound_IsFiredWithItsNumbers()
+        {
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            M8Rounds.Register(db);
+            var t = new Fdp.Interfaces.TkbTemplate("Tank", M8Rounds.TankGunType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { M8Rounds.TankGun(withLoadout: false) } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var asBefore = SpawnShooter(Vector3.Zero);
+            _world.AddComponent(asBefore, new TkbIdentity { TkbType = M8Rounds.TankGunType });
+            var loaded = SpawnShooter(new Vector3(0, 50, 0));
+            _world.AddComponent(loaded, new TkbIdentity { TkbType = M8Rounds.TankGunType });
+            var target = SpawnTarget(new Vector3(100, 0, 0));
+
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = asBefore, Target = target });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = loaded,   Target = target, AmmoGuid = M8Rounds.He });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            var bullets = new System.Collections.Generic.Dictionary<Entity, BallisticProjectile>();
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build())
+            {
+                var bp = _world.GetComponent<BallisticProjectile>(e);
+                bullets[bp.Shooter] = bp;
+            }
+            Assert.Equal(M8Rounds.Apfsds, bullets[asBefore].Ammo);
+            Assert.Equal(600f,  bullets[asBefore].Penetration);
+            Assert.Equal(1100f, bullets[asBefore].Damage);
+            Assert.Equal(0, bullets[asBefore].Warhead & WarheadRound.Area);
+            Assert.Equal(M8Rounds.He, bullets[loaded].Ammo);
+            Assert.Equal(50f,  bullets[loaded].Penetration);
+            Assert.Equal(600f, bullets[loaded].Damage);
+            Assert.NotEqual(0, bullets[loaded].Warhead & WarheadRound.Area);
+        }
+
         /// <summary>⭐ LR-1 + LR-2 (Hrot docs/DESIGN_Visual_Effects.md §8.5, R-271) — a mount with a tracer MIX fires its tracer munition
         /// one shot in <c>TracerEvery</c>; the tracer round (its munition has a look) becomes a lightweight replicated entity —
         /// <c>TkbIdentity</c> = the munition + <c>LightweightRound</c>; an ordinary ball round gets neither. The mix changes WHAT the round

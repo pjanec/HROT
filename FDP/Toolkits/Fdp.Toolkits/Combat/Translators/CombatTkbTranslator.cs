@@ -90,7 +90,10 @@ namespace Fdp.Toolkit.Combat.Translators
                 var primary = suite.Mounts[0];
                 // Primary mount: WeaponState stays on the owner entity (back-compat with actuators).
                 if (repo.IsComponentTypeRegistered<WeaponState>() && !repo.HasComponent<WeaponState>(entity))
+                {
                     repo.AddComponent(entity, Loaded(primary));
+                    AddLoadout(repo, entity, primary);
+                }
 
                 // Additional mounts (index 1+): each gets a child entity.
                 if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.IsComponentTypeRegistered<PartMetadata>())
@@ -109,6 +112,7 @@ namespace Fdp.Toolkit.Combat.Translators
                         var mount = suite.Mounts[i];
                         var child = repo.CreateEntity();
                         repo.AddComponent(child, Loaded(mount));
+                        AddLoadout(repo, child, mount);
                         repo.AddComponent(child, new WeaponMountInfo
                         {
                             MountIndex     = i,
@@ -127,13 +131,22 @@ namespace Fdp.Toolkit.Combat.Translators
             }
         }
     
+        /// <summary>⭐ M8 (D-I) — the mount's <see cref="AmmoLoadout"/> when its TKB mount declares one (the first round loaded).</summary>
+        private static void AddLoadout(EntityRepository repo, Entity mountEntity, WeaponMountDto mount)
+        {
+            if (mount.Loadout is not { Count: > 0 } || !repo.IsComponentTypeRegistered<AmmoLoadout>() || repo.HasComponent<AmmoLoadout>(mountEntity)) return;
+            repo.AddComponent(mountEntity, AmmoLoadout.From(mount.Loadout));
+        }
+
         /// <summary>A mount's <see cref="WeaponState"/> at spawn: the total load, and — ⭐ <c>CE-3136</c> P-5 — its first magazine full.</summary>
         private static WeaponState Loaded(WeaponMountDto mount)
         {
+            // ⭐ M8 — a mount with a loadout carries the sum of its rounds (the loadout says how many of each)
+            int total = mount.Loadout is { Count: > 0 } ? AmmoLoadout.From(mount.Loadout).Total : mount.InitialAmmunition;
             var w = new WeaponState
             {
-                Ammo           = mount.InitialAmmunition,
-                MaxAmmo        = mount.InitialAmmunition,
+                Ammo           = total,
+                MaxAmmo        = total,
                 MuzzleVelocity = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity)
             };
             Magazine.Load(ref w, mount.MagazineSize, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ReloadSecondsOrFallback(mount.ReloadSeconds));

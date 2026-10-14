@@ -113,10 +113,21 @@ namespace Fdp.Toolkit.Combat.Executors
             //   aims, times and fires them. The profile decides (W-5); the per-shot path below is unchanged for the rest.
             var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
             var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);   // ⭐ W-12b
+            // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the ROUND for this engagement, beside the mount: chosen once per target from
+            //   the mount's loadout with the one ArmorModel (AmmoChoice); a different round costs one reload, and the weapon holds
+            //   meanwhile. A mount with no loadout never switches. The behaviour never names a round (R-261).
+            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, entity, p.Target, weapon.ReloadSeconds);
+            long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);
             if (profile.UsesTurretTask(world, entity, mountDto))
             {
                 TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
-                           profile.RoundsInFlight, mountDto, dt);
+                           profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, switching);
+                return;
+            }
+            if (switching)
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Reloading, p.Target, 0f, weapon.ReloadSeconds);
                 return;
             }
 
@@ -165,7 +176,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   instead of holding. They strike the cover he hides behind and stamp UnderFire on him (a near miss — AQ85 E).
             if (!seen && p.BlindFire != 0)
             {
-                FireBlind(entity, ref channel, world, in p, mountIndex, mountDto, ref weapon);
+                FireBlind(entity, ref channel, world, in p, mountIndex, mountDto, ref weapon, mountEntity, loadedAmmo);
                 return;
             }
 
@@ -220,9 +231,11 @@ namespace Fdp.Toolkit.Combat.Executors
                 Shooter     = entity,
                 Target      = p.Target,
                 WeaponIndex = mountIndex,
+                AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round (0 = the mount's own)
             });
 
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
+            AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8 — and that type's count
             weapon.CooldownSecondsRemaining = p.CooldownSeconds;
 
             int fired = ++RoundsFired(ref channel);
@@ -252,7 +265,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (profile.UsesTurretTask(world, entity, mountDto))
             {
                 TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
-                           profile.RoundsInFlight, mountDto, dt);
+                           profile.RoundsInFlight, mountDto, dt, mountEntity, AmmoChoice.LoadedAmmo(world, mountEntity));   // ⭐ M8 — what is loaded
                 return;
             }
 
@@ -288,7 +301,8 @@ namespace Fdp.Toolkit.Combat.Executors
         /// never fires blind (that is the throw's decision, W-12e). It counts as a round of this action.
         /// </summary>
         private static void FireBlind(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
-                                      int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon)
+                                      int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon,
+                                      Entity mountEntity, long loadedAmmo)
         {
             channel.Status = NodeStatus.Running;
             if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
@@ -316,8 +330,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
                 TargetPoint = point,
+                AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round
             });
             Magazine.Spend(ref weapon);
+            AmmoChoice.SpendLoaded(world, mountEntity);
             weapon.CooldownSecondsRemaining = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
             int fired = ++RoundsFired(ref channel);
             if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
@@ -332,7 +348,8 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         private static void TurretPath(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                        int mountIndex, Entity part, ref WeaponState weapon,
-                                       int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f)
+                                       int roundsInFlight = 0, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto = null, float dt = 0f,
+                                       Entity mountEntity = default, long loadedAmmo = 0L, bool switching = false)
         {
             // ⭐ W-12c (§5g G-2/G-3) — a guided mount's hold: the estimated flight of the last round it saw fired. The aim clock is
             //   free on this path (the muscle aims), so it carries the hold.
@@ -356,6 +373,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 for (int n = status.RoundsFired - accounted; n > 0 && weapon.Ammo > 0; n--)
                 {
                     Magazine.Spend(ref weapon);
+                    if (!mountEntity.IsNull) AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8
                     RoundsFired(ref channel)++;
                     if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity);
                 }
@@ -380,7 +398,7 @@ namespace Fdp.Toolkit.Combat.Executors
             bool seen = atPoint ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
             bool roe = atPoint || RoePermitsFire(world, entity);
             Magazine.StartIfEmpty(ref weapon);
-            bool loaded = Magazine.Ready(weapon);
+            bool loaded = Magazine.Ready(weapon) && !switching;   // ⭐ M8 — a round switch holds the grants like a reload
             int grant = accounted;
             if (seen && roe && loaded)
             {
@@ -400,6 +418,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
                 CooldownSeconds = p.CooldownSeconds,
                 Epoch = epoch,
+                AmmoGuid = unchecked((ulong)loadedAmmo),   // ⭐ M8 — the loaded round (0 = the mount's own); it rides EntityWeaponTask
             };
             if (fresh || !current.Equals(next)) world.SetComponent(part, next);
 

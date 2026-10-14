@@ -95,5 +95,24 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ LR-1 — one tracer in this many shots (5 = the common 1-in-5 mix); 0 = none.</summary>
         public int TracerEvery { get; init; }
+
+        /// <summary>
+        /// ⭐ M8 (D-I; docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §2) — the ROUNDS this mount carries by type (a tank gun:
+        /// APFSDS, HEAT-MP, HE). <b>Empty = the one-round mount</b>: <see cref="AmmoGuid"/> and <see cref="InitialAmmunition"/>, as before.
+        /// With a loadout the total carried is the sum of its <c>Rounds</c> and the weapon brain picks the round per target (<c>AmmoChoice</c>);
+        /// the first entry is loaded at spawn. Up to 4 types.
+        /// </summary>
+        public List<AmmoLoadDto> Loadout { get; init; } = new();
+    }
+
+    /// <summary>⭐ M8 — one munition type in a mount's <see cref="WeaponMountDto.Loadout"/> and how many rounds of it.</summary>
+    public record AmmoLoadDto
+    {
+        /// <summary>The TKB type of the munition.</summary>
+        [AmmoRef]
+        public ulong AmmoGuid { get; init; }
+
+        /// <summary>Rounds of it carried at spawn.</summary>
+        public int Rounds { get; init; }
     }
 }

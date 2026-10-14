@@ -846,5 +846,10 @@ namespace Fdp.Core
         /// commander, what its squad drill is doing (phase, history, orders, gates, care) for the debug route. Transient. ⚠ 372 measured free
         /// on backend, ui and behaviors 2026-10-13.</summary>
         public const int SquadDrillTrace = 372;
+
+        /// <summary><c>AmmoLoadout</c> — ⭐ M8 (D-I, docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §2): the rounds a mount carries
+        /// by type, the loaded one and the switch running; on the mount entity, Brain. ⚠ 373 measured free on backend, ui and behaviors
+        /// 2026-10-14.</summary>
+        public const int AmmoLoadout = 373;
     }
 }

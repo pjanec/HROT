@@ -60,27 +60,34 @@ classDiagram
   }
   class AmmoLoadDto { <<new TKB record>> AmmoGuid ; Rounds }
   class AmmoLoadout {
-    <<new ECS component, Brain group, on the mount entity>>
-    fixed long Ammo[4]
-    fixed int Rounds[4]
+    <<new ECS component 373, on the mount entity, Brain>>
+    long Ammo0..3
+    int Rounds0..3
     byte Count
     byte Loaded
     float SwitchRemaining
+    Entity ChosenFor
   }
   class AmmoChoice {
     <<new static, Fdp.Toolkits Combat>>
-    +Best(world, mount, target) long
+    +Choose(world, mountEntity, mount, shooter, target, reloadS) bool switching
+    +Best(world, load, mount, shooter, target) int
     +ValueOf(world, ammo, mount, shooter, target) float
+    +ExpectedDamage(world, shooter, target, mount, ammo) float
+    +ArmourFacing(world, shooter, target, ammo) float
+    +LoadedAmmo(world, mountEntity) long
+    +SpendLoaded(world, mountEntity)
   }
   class AimAndFireExecutor {
     <<existing, grows>>
     EngagementMount()  «kept»
-    EngagementAmmo()  «new: once per engagement, beside the mount»
+    calls AmmoChoice.Choose beside EngagementMount
   }
-  class Magazine { <<existing, grows>> Spend also decrements AmmoLoadout.Rounds[Loaded] }
+  class Magazine { <<existing, unchanged>> AmmoChoice.SpendLoaded runs beside each Spend }
+  class WeaponDispatcherSystem { <<existing, grows>> +DrainSwitch(ref AmmoLoadout, dt) }
   class CombatTkb {
     <<existing, grows>>
-    +PenetrationOf(world, mount, long ammo) float  «new overload»
+    +RoundOf(world, mount, long ammo) (penetration, damage)  «new»
     +WarheadOf(world, long ammo) WarheadDto  «new overload»
   }
   class WeaponFireIntent { <<event, existing, grows>> AmmoGuid «new» }
@@ -129,6 +136,27 @@ sequenceDiagram
   MD->>FP: WeaponFireIntent { AmmoGuid }
   FP->>FP: penetration, warhead, damage of the LOADED round
 ```
+
+### 2a. As-built `2026-10-14` (backend, handoff B6)
+
+The design carries **11 classes** and **1 sequence** for M8; all are built (the class diagram above is updated in place). Deviations, argued:
+
+| design said | built | why |
+|---|---|---|
+| `AmmoLoadout` with `fixed` arrays | named fields `Ammo0..3` / `Rounds0..3` (the `WeaponAmmo` pattern) **+ `ChosenFor`** | no unsafe code in a replicable component; `ChosenFor` makes "once per engagement" hold on EVERY path (a named mount never runs `EngagementMount`) |
+| `EngagementAmmo()` in the executor | `AmmoChoice.Choose(…)` called beside `EngagementMount` | the choice, the switch and the "once per target" rule live in one static the effectiveness input also reads |
+| `ValueOf` = expected damage ÷ max health | ✅, **plus a tie-break on the AREA damage** | capped at 1, every round kills a man ⇒ a tie, and a tie keeps the loaded round — "HE wins against men" could never happen. With the area tie-break HE wins against men and technicals, APFSDS against tanks (`M8_TheTankGun_…`) |
+| `CombatTkb.PenetrationOf(world, mount, ammo)` | **`CombatTkb.RoundOf(world, mount, ammo)` → (penetration, damage)** | a round has its own damage too (`AmmoWeaponBallisticsDto.Damage`); another round of a loadout does NOT fall back to the mount's own `Penetration` (that number belongs to the mount's default round) |
+| `Magazine.Spend` decrements the loadout | `AmmoChoice.SpendLoaded` beside each `Spend` (per-shot, blind, turret path) | `Magazine` stays free of ECS access |
+| the switch | `SwitchRemaining` drained by `WeaponDispatcherSystem.DrainSwitch`, beside the reload; the per-shot path holds with `Reloading`, the turret path withdraws the grant (as for a reload) | one drain, every frame, fired or not (the CE-2166 lesson) |
+| `WeaponEffectivenessVsTarget` reads the best round + resolved penetration | ✅ through `AmmoChoice.ExpectedDamage` (incl. the HE area at distance 0) | ONE expected-damage formula for the choice and the AI estimate (R-212 A1) |
+| — | operator fire and blind fire also carry the loaded round; `FireAtPoint` and the hidden-target throw do not | grenade and mortar mounts have no loadout |
+
+Wire: `WeaponFireRequest.AmmoGuid` (the only new wire field, R-169); `EntityWeaponTask.AmmoGuid` existed and is now written. Component id **373**
+(registered in `CombatComponentRegistry`, so CGF, SimHost and the editor). Rails: `AmmoChoiceTests.M8_*` (2) · `AimAndFireExecutorTests.M8_ASwitch_…` +
+`M8_ATie_…` · `FireProcessingSystemTests.M8_AMountWithNoLoadout_…` · `WeaponTaskDispatcherTests.M8_TheLoadedRound_ReachesTheMuscle_OnTheTurretPath` ·
+`WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` · `StandardInputReaderTests.M8_Effectiveness_…`. ⚠ No built-in type carries a
+loadout yet — that is B8's data (M5).
 
 ## 3. Guided rounds (M4, D-D)
 
