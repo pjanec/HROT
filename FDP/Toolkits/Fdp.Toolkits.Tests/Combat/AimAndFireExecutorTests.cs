@@ -1894,6 +1894,259 @@ namespace Fdp.Toolkit.Combat.Tests
             Face(shooter, 180f);
             Assert.Equal(1, BurstStep(shooter));
         }
+
+        // ── ⭐⭐ Weapon systems WS-3 (W-D, W-E, W-H, W-I; docs/designs/weapons/DESIGN_Weapon_Systems.md §4a, §4c, §6) ─────────────────
+
+        private const long WsM2Type = 9950, WsPickupType = 9951, WsSentryType = 9952;
+
+        private void RegisterWeaponSystems()
+        {
+            void Reg<T>() where T : unmanaged { if (!_world.IsComponentTypeRegistered<T>()) _world.RegisterComponent<T>(); }
+            Reg<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            Reg<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            Reg<TurretPose>();
+            Reg<WeaponTask>();
+            Reg<WeaponTaskStatus>();
+            Reg<WeaponMuscleState>();
+            Reg<PassengerBuffer>();
+            Reg<IsEmbarkedTag>();
+            Reg<CarrierSeats>();
+            Reg<CarrierStations>();
+            Reg<OpenPassengerCabin>();
+            Reg<PersonCarrier>();
+            Reg<ActorCapabilityState>();
+            Reg<Health>();
+            Reg<WeaponSystemParams>();
+            Reg<WeaponSystemState>();
+        }
+
+        /// <summary>The TKB of the WS-3 rails: an M2 (its own pintle turret and mount 0), a bare pickup (driver, gunner, a bed station the
+        /// gunner operates, NeedsGunner), and a sentry gun (automatic, or manual when <paramref name="sentryAutomatic"/> is false).</summary>
+        private void WeaponSystemTypes(bool sentryAutomatic = true)
+        {
+            RegisterWeaponSystems();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var (name, id, ws) in new[]
+            {
+                ("M2", WsM2Type, new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto
+                    { MountKinds = Fdp.Toolkit.Tkb.Domain.MountKinds.Ground | Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle }),
+                ("Sentry", WsSentryType, new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto { NeedsOperator = !sentryAutomatic }),
+            })
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, id);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto
+                    { PivotZ = 0.3f, TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -10f, ElevationMaxDeg = 60f,
+                      TraverseRateDegPerSec = 180f, ElevationRateDegPerSec = 90f } } });
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                    { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, TurretIndex = 0 } } });
+                t.AddDescriptor(ws);
+                db.Register(t);
+            }
+            var pickup = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
+            pickup.AddDescriptor(PickupSeats());
+            db.Register(pickup);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        }
+
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto PickupSeats() => new()
+        {
+            Exposure = PassengerExposure.Open,
+            Seats =
+            {
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Driver },
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Gunner },
+                new Fdp.Toolkit.Tkb.Domain.SeatDto
+                {
+                    Role = SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
+                    X = -1.5f, Z = 1.4f,
+                },
+            },
+        };
+
+        /// <summary>A weapon-system entity of <paramref name="type"/> at <paramref name="at"/>: its own WeaponState and turret part.</summary>
+        private Entity WeaponSystemOf(long type, Vector3 at)
+        {
+            var w = _world.CreateEntity();
+            _world.AddComponent(w, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(w, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            _world.AddComponent(w, new WeaponState { Ammo = 50, MuzzleVelocity = 800f });
+            var t = _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.GetByType(type);
+            new WeaponSystemTkbTranslator().Inject(_world, w, t);
+            TurretParts.Ensure(_world, w, 0);
+            return w;
+        }
+
+        private Entity WsSoldier(Vector3 at)
+        {
+            var s = _world.CreateEntity();
+            _world.AddComponent(s, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(s, new Health { Current = 100f, Max = 100f });
+            _world.AddComponent(s, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            return s;
+        }
+
+        /// <summary>A unit (no weapon of its own) with an AimAndFire channel at <paramref name="target"/>, mount Auto.</summary>
+        private unsafe (Entity Unit, WeaponChannel Channel) WsUnit(Entity unit, Entity target, int rounds)
+        {
+            var channel = new WeaponChannel { Status = NodeStatus.Running };
+            var p = new AimAndFireParams { Target = target, CooldownSeconds = 0.1f, Rounds = rounds, Mount = AimAndFireParams.MountAuto };
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            _world.AddComponent(unit, channel);
+            channel = _world.GetComponent<WeaponChannel>(unit);
+            return (unit, channel);
+        }
+
+        /// <summary>The technical: a bare pickup at the origin facing east, an M2 in its bed station, a gunner (when <paramref name="gunner"/>)
+        /// in its Gunner seat, a target 100 m to its left; the pickup's channel aims at it.</summary>
+        private (Entity Pickup, Entity M2, Entity Gunner, WeaponChannel Channel, Entity Target) Technical(int rounds, bool gunner = true)
+        {
+            WeaponSystemTypes();
+            var pickup = _world.CreateEntity();
+            _world.AddComponent(pickup, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = WsPickupType });
+            var pt = new Fdp.Interfaces.TkbTemplate("Pickup", WsPickupType);
+            pt.AddDescriptor(PickupSeats());
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, pickup, pt);
+            var m2 = WeaponSystemOf(WsM2Type, new Vector3(-1.5f, 0f, 1.4f));
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, m2, pickup));
+            var man = Entity.Null;
+            if (gunner)
+            {
+                man = WsSoldier(Vector3.Zero);
+                Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied,
+                    Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, man, pickup, SeatRole.Gunner));
+            }
+            var target = SpawnTarget(new Vector3(0f, 100f, 1f));
+            var (_, channel) = WsUnit(pickup, target, rounds);
+            return (pickup, m2, man, channel, target);
+        }
+
+        /// <summary>Runs <paramref name="seconds"/> of brain + muscle for <paramref name="unit"/>; the rounds that left, by shooter.</summary>
+        private int WsRun(Entity unit, ref WeaponChannel channel, float seconds, Entity expectShooter, Action<int>? atFrame = null)
+        {
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            const float dt = 1f / 60f;
+            int shots = 0;
+            for (int f = 0; f < seconds * 60 && channel.Status == NodeStatus.Running; f++)
+            {
+                atFrame?.Invoke(f);
+                _executor.Execute(unit, ref channel, _world, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.Equal(expectShooter, shot.Shooter);
+                    Assert.Equal(0, shot.WeaponIndex);   // the weapon's own mount 0
+                    shots++;
+                }
+            }
+            return shots;
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-D, W-H; §4a) — the pickup's weapon brain fires its STATION weapon: the bare pickup has no weapon of its own, its
+        /// mount list holds the M2 its station carries (the one controller is the host), and the rounds leave the M2 — its own mount 0,
+        /// its own turret part (granted and slewed there, not on the pickup), its own belt. ✅ Red-proof: <see cref="WeaponSystems.Controlled"/>
+        /// returning nothing ⇒ the pickup has nothing to fire (Failure, 0 rounds) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS_ThePickupFiresItsStationHmg_OnTheHmgsTurret()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 3);
+            Assert.False(_world.HasComponent<WeaponState>(pickup));
+            Span<Entity> mounts = stackalloc Entity[8];
+            Assert.Equal(1, WeaponMountQuery.EnumerateFiringMounts(_world, pickup, mounts));
+            Assert.Equal(m2, mounts[0]);
+            _executor.OnEnter(pickup, ref channel, _world);
+
+            int shots = WsRun(pickup, ref channel, 4f, expectShooter: m2);
+
+            Assert.Equal(NodeStatus.Success, channel.Status);
+            Assert.Equal(3, shots);
+            Assert.Equal(47, _world.GetComponent<WeaponState>(m2).Ammo);   // the M2's belt
+            var part = TurretParts.Find(_world, m2, 0);
+            Assert.NotEqual(0f, _world.GetComponent<TurretPose>(part).Azimuth);   // the M2's turret slewed to the target on its left
+            Assert.Equal(WeaponTaskMode.Idle, _world.GetComponent<WeaponTask>(part).Mode);   // released when done
+        }
+
+        /// <summary>⭐ WS-3 (§6 CanFire, W-I) — a NeedsGunner station whose gunner seat is EMPTY: the pickup's brain holds; no round, the
+        /// M2's belt untouched, its turret idle. ✅ Red-proof: CanFire without the NeedsGunner check ⇒ the empty pickup fires ⇒ red.</summary>
+        [Fact]
+        public void WS_AStationWeapon_WithAnEmptyGunnerSeat_DoesNotFire()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 3, gunner: false);
+            _executor.OnEnter(pickup, ref channel, _world);
+            Assert.Equal(0, WsRun(pickup, ref channel, 3f, expectShooter: m2));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(50, _world.GetComponent<WeaponState>(m2).Ammo);
+            var part = TurretParts.Find(_world, m2, 0);
+            Assert.False(_world.HasComponent<WeaponTask>(part) && _world.GetComponent<WeaponTask>(part).Mode != WeaponTaskMode.Idle);   // never ordered
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-I, STEER_…_Crew_Presets) — the gunner is an ordinary man: killing him SILENCES the gun (the turret is released at
+        /// once, so no granted round leaves after his death), and it fires again once another soldier boards the Gunner seat.
+        /// ✅ Red-proof: the executor without the weapon-system hold ⇒ rounds keep leaving after the death ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS_AStationWeapon_FallsSilent_WhenItsGunnerDies()
+        {
+            var (pickup, m2, gunner, channel, _) = Technical(rounds: 0);
+            _executor.OnEnter(pickup, ref channel, _world);
+            Assert.True(WsRun(pickup, ref channel, 3f, expectShooter: m2) > 0, "the manned M2 fires");
+
+            _world.GetComponentRW<Health>(gunner).Current = 0f;
+            Assert.Equal(0, WsRun(pickup, ref channel, 3f, expectShooter: m2));
+            Assert.Equal(NodeStatus.Running, channel.Status);   // the action holds, it does not end
+            Assert.False(WeaponSystems.CanFire(_world, m2, out var why));
+            Assert.Equal(WeaponHold.NoGunner, why);
+
+            Assert.True(Fdp.Toolkit.Behavior.Embarkation.Disembark(_world, gunner, pickup));   // the body is taken out
+            var second = WsSoldier(Vector3.Zero);
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied,
+                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, second, pickup, SeatRole.Gunner));
+            Assert.True(WsRun(pickup, ref channel, 3f, expectShooter: m2) > 0, "a new gunner in the seat: it fires again");
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-E; §4c) — an AUTOMATIC weapon system nobody operates is its own controller: its own brain fires its mount 0. A
+        /// MANUAL one nobody mans has no controller: its brain holds (W-D — a brain on the weapon never fights its operator's).
+        /// ✅ Red-proof: ControllerOf returning the weapon for a manual one too ⇒ the manual sentry fires ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void WS_AnAutomaticTurret_FiresOnItsOwn_AManualOneDoesNot(bool automatic)
+        {
+            WeaponSystemTypes(sentryAutomatic: automatic);
+            var sentry = WeaponSystemOf(WsSentryType, Vector3.Zero);
+            var target = SpawnTarget(new Vector3(60f, 20f, 1f));
+            var (_, channel) = WsUnit(sentry, target, rounds: 3);
+            _executor.OnEnter(sentry, ref channel, _world);
+
+            int shots = WsRun(sentry, ref channel, 3f, expectShooter: sentry);
+
+            Assert.Equal(automatic ? sentry : Entity.Null, WeaponSystems.ControllerOf(_world, sentry));
+            Assert.Equal(automatic ? 3 : 0, shots);
+        }
+
+        /// <summary>
+        /// ⭐ WS-3 (§6) — the M2 fires the round, but the PICKUP shakes it: its spread doubles while the pickup drives, and its sight line
+        /// starts at the pickup's eye (HitModel.BodyOf) — so a technical's numbers do not move when its gun became an entity.
+        /// ✅ Red-proof: Sigma reading the shooter itself ⇒ the M2 (no velocity of its own) never counts as moving ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS_AStationWeapon_ShakesWithItsHost()
+        {
+            var (pickup, m2, _, _, _) = Technical(rounds: 1);
+            if (!_world.IsComponentTypeRegistered<SimVelocity>()) _world.RegisterComponent<SimVelocity>();
+            if (!_world.IsComponentTypeRegistered<UnderFire>()) _world.RegisterComponent<UnderFire>();
+            var mount = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { DispersionMils = 4f };
+            Assert.Equal(pickup, HitModel.BodyOf(_world, m2));
+            Assert.Equal(pickup, HitModel.BodyOf(_world, pickup));   // not a weapon system: itself
+            float still = HitModel.Sigma(_world, m2, mount, 0d);
+            _world.AddComponent(pickup, new SimVelocity { Linear = new Vector3(10f, 0f, 0f) });
+            Assert.Equal(still * HitModel.MovingFactor, HitModel.Sigma(_world, m2, mount, 0d), 5);
+        }
     }
 }
-

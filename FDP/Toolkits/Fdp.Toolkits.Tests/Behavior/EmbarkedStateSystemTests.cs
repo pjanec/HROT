@@ -194,6 +194,42 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(new Vector3(91, 50, 0), _world.GetComponentRO<SimTransform>(theirs).Position);
         }
 
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-2 (R-2016; docs/designs/weapons/DESIGN_Weapon_Systems.md §6) — a weapon in a STATION seat stands at the
+        /// seat's place, facing the seat's way, in the host's frame — as the host drives and turns (a plain passenger still rides at the
+        /// reference point). The pickup's bed station: 1.5 m behind, 1.4 m up, facing aft. ✅ Red-proof: CarryAndKill without the station
+        /// branch ⇒ the M2 sits at the pickup's reference point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS2_AStationWeapon_StandsAtItsStation_AsThePickupDrivesAndTurns()
+        {
+            RegisterCombat();
+            _world.RegisterComponent<CarrierStations>();
+            var pickup = Vehicle(new Vector3(100, 0, 0));
+            var stations = new CarrierStations { StationMask = 0b10 };
+            stations.Seats[1] = new StationSeat { Accepts = 2, X = -1.5f, Z = 1.4f, Facing = MathF.PI };
+            _world.AddComponent(pickup, stations);
+            var m2 = Soldier(new Vector3(0, 0, 0));   // any entity whose position this node owns
+            var rider = Soldier(new Vector3(0, 0, 0));
+            var b = new PassengerBuffer();
+            b.Passengers[0] = rider;
+            b.Passengers[1] = m2;
+            b.Count = 2;
+            _world.SetComponent(pickup, b);
+            _system.Execute(_world, 0f);
+
+            static void Near(Vector3 want, Vector3 got) => Assert.True(Vector3.Distance(want, got) < 1e-4f, $"{want} vs {got}");
+            Near(new Vector3(98.5f, 0, 1.4f), _world.GetComponentRO<SimTransform>(m2).Position);
+            Near(-Vector3.UnitX, Vector3.Transform(Vector3.UnitX, _world.GetComponentRO<SimTransform>(m2).Rotation));   // facing aft (west)
+            Near(new Vector3(100, 0, 0), _world.GetComponentRO<SimTransform>(rider).Position);
+
+            var north = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // the pickup turns to face north (+Y)
+            _world.SetComponent(pickup, new SimTransform { Position = new Vector3(120, 10, 0), Rotation = north });
+            _system.Execute(_world, 0f);
+            Near(new Vector3(120, 8.5f, 1.4f), _world.GetComponentRO<SimTransform>(m2).Position);
+            Near(-Vector3.UnitY, Vector3.Transform(Vector3.UnitX, _world.GetComponentRO<SimTransform>(m2).Rotation));   // still aft: south
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271: "if vehicle gets destroyed, all inside die") — the vehicle's Health reaching 0 makes the node
         /// that owns a passenger's Health publish ONE lethal damage event for it (into the one Health writer); a passenger whose Health
         /// another node owns gets none from here; the body stays aboard.</summary>

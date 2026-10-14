@@ -50,6 +50,14 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         HoldMoving,
         /// <summary>⭐ Air Ops slice 4 — a bomb waits for its release cue (BombBallistics): Progress = seconds to release.</summary>
         AwaitingRelease,
+        /// <summary>⭐ Weapon systems WS-3 (W-D) — the chosen weapon system is not this unit's to fire (another controls it, or nobody
+        /// mans it): the weapon holds.</summary>
+        NotControlled,
+        /// <summary>⭐ WS-3 (W-I) — the weapon system's gunner (its station's operating seat, or its own gunner seat) is empty, down or
+        /// dead: the gun is silent until somebody boards the seat.</summary>
+        NoGunner,
+        /// <summary>⭐ WS-3 (W-C) — the weapon system is stowed, deploying or packing.</summary>
+        NotDeployed,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>

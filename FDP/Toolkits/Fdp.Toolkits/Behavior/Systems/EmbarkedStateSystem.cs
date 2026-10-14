@@ -116,8 +116,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref readonly var v = ref repo.GetComponentRO<SimTransform>(vehicle);
                     ref var t = ref repo.GetComponentRW<SimTransform>(p);
-                    t.Position = v.Position - Forward(v.Rotation) * (person ? Behind(repo, vehicle, tag.Mode) : 0f);   // ⭐ CE-2152 C10
-                    t.Rotation = v.Rotation;
+                    if (StationOf(repo, vehicle, tag.Seat) is { } station)
+                    {
+                        // ⭐⭐ Weapon systems WS-2 (R-2016, DESIGN_Weapon_Systems §6) — a weapon in a STATION stands at the seat's place and
+                        //   faces its way, in the host's frame (sim, not only drawn): its muzzle and its arc are where the station is.
+                        t.Position = v.Position + Vector3.Transform(new Vector3(station.X, station.Y, station.Z), v.Rotation);
+                        t.Rotation = v.Rotation * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, station.Facing);
+                    }
+                    else
+                    {
+                        t.Position = v.Position - Forward(v.Rotation) * (person ? Behind(repo, vehicle, tag.Mode) : 0f);   // ⭐ CE-2152 C10
+                        t.Rotation = v.Rotation;
+                    }
                     if (velocities && repo.HasComponent<SimVelocity>(vehicle) && repo.HasComponent<SimVelocity>(p))
                         repo.GetComponentRW<SimVelocity>(p) = repo.GetComponentRO<SimVelocity>(vehicle);   // dead reckoning elsewhere
                 }
@@ -134,6 +144,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                     Killed++;
                 }
             }
+        }
+
+        /// <summary>⭐ WS-2 — seat <paramref name="seat"/> of <paramref name="vehicle"/> when it is a station (a type fact), else null.</summary>
+        private static StationSeat? StationOf(EntityRepository repo, Entity vehicle, int seat)
+        {
+            if (!repo.IsComponentTypeRegistered<CarrierStations>() || !repo.HasComponent<CarrierStations>(vehicle)) return null;
+            ref readonly var stations = ref repo.GetComponentRO<CarrierStations>(vehicle);
+            return stations.IsStation(seat) ? stations.Seats[seat] : null;
         }
 
         /// <summary>⭐ CE-2152 (R-2011 C9) — the type's passengers survive its destruction (<c>Gen.Carrier.DiesWithCarrier = false</c>).</summary>

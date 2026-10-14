@@ -97,8 +97,30 @@ namespace Fdp.Toolkit.Combat.Executors
             //   dry), not per shot: a per-frame flip started a new turret epoch and lost a round the muscle had fired (§5e).
             Entity mountEntity = entity;
             int mountIndex = p.Mount == AimAndFireParams.MountAuto ? EngagementMount(world, entity, ref channel, p.Target, out mountEntity)
-                           : p.Mount == 0 ? 0
+                           : p.Mount == 0 ? WeaponSystems.PrimaryMount(world, entity, out mountEntity)   // ⭐ WS-3 — a bare host's primary is its station weapon
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
+            if (!world.HasComponent<WeaponState>(mountEntity))
+            {
+                // ⭐ WS-3 — nothing to fire with (a bare host whose station is empty): a failure, never an exception
+                ReleaseTurrets(world, entity);
+                channel.Status = NodeStatus.Failure;
+                Say(world, entity, ActionReason.Failed, p.Target);
+                return;
+            }
+            // ⭐⭐ Weapon systems WS-3 (W-D, R-2016; DESIGN_Weapon_Systems §4a, §6) — a weapon system this unit controls (its station's
+            //   M2, the Javelin it carries, the tripod it mans) fires AS ITSELF: its own mount 0, its own turret part, its own muzzle.
+            //   This brain keeps the decision, the sight, the ROE and the status. A weapon system — controlled, or a sentry's own brain —
+            //   fires only while its one controller is this unit and it may fire (CanFire: the gunner, the deploy state, the arc).
+            int platformMount = mountIndex;
+            Entity platform = WeaponSystems.IsControlledIndex(mountIndex) ? mountEntity : entity;
+            if (platform != entity) platformMount = 0;
+            if (WeaponSystems.IsWeaponSystem(world, platform) && SystemHold(world, entity, platform, p.Target) is { } systemHold)
+            {
+                ReleaseTurrets(world, entity);
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, systemHold, p.Target);
+                return;
+            }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0)
             {
@@ -111,20 +133,20 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ WL-3 (DESIGN_Weapon_Layers §5e, W-1/W-4) — a turreted mount is fought through its turret's WeaponTask: this
             //   weapon brain keeps the gates (target, rounds, ammo, magazine, ROE, seen-now) and GRANTS rounds; the weapon muscle
             //   aims, times and fires them. The profile decides (W-5); the per-shot path below is unchanged for the rest.
-            var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
+            var mountDto = CombatTkb.MountOf(world, platform, platformMount);
             var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);   // ⭐ W-12b
             // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the ROUND for this engagement, beside the mount: chosen once per target from
             //   the mount's loadout with the one ArmorModel (AmmoChoice); a different round costs one reload, and the weapon holds
             //   meanwhile. A mount with no loadout never switches. The behaviour never names a round (R-261).
-            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, entity, p.Target, weapon.ReloadSeconds);
+            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, platform, p.Target, weapon.ReloadSeconds);
             long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);
             // ⭐⭐ M4 / D-L (DESIGN_Missiles_And_Ammo §3–§4) — the weapon brain's two new holds, on BOTH paths, before a round is
             //   granted: a missile below its minimum range (it cannot arm or turn in time), and a weapon that does not fire on the
             //   move while its unit moves (an ATGM, a mortar — HitModel.IsMoving, the same test that doubles the spread).
             ActionReason? hold = switching ? ActionReason.Reloading : HoldOf(world, entity, p.Target, mountDto, loadedAmmo);
-            if (profile.UsesTurretTask(world, entity, mountDto))
+            if (profile.UsesTurretTask(world, platform, mountDto))
             {
-                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
+                TurretPath(entity, ref channel, world, in p, platformMount, TurretParts.Find(world, platform, mountDto!.TurretIndex), ref weapon,
                            profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, hold);
                 return;
             }
@@ -165,7 +187,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 if (aim.Ready == 0)
                 {
                     aim.Elapsed += dt;
-                    if (bomb || aim.Elapsed >= AimSecondsFor(world, entity, mountIndex)) aim.Ready = 1;
+                    if (bomb || aim.Elapsed >= AimSecondsFor(world, platform, platformMount)) aim.Ready = 1;
                 }
             }
 
@@ -175,7 +197,7 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 channel.Status = NodeStatus.Running;
                 if (!seen && p.BlindFire != 0) Say(world, entity, ActionReason.BlindFire, p.Target, RoundsFired(ref channel), p.Rounds);
-                else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, platform, platformMount);
                 else Say(world, entity, ActionReason.Cooldown, p.Target, weapon.CooldownSecondsRemaining);
                 return;
             }
@@ -184,14 +206,14 @@ namespace Fdp.Toolkit.Combat.Executors
             //   instead of holding. They strike the cover he hides behind and stamp UnderFire on him (a near miss — AQ85 E).
             if (!seen && p.BlindFire != 0)
             {
-                FireBlind(entity, ref channel, world, in p, mountIndex, mountDto, ref weapon, mountEntity, loadedAmmo);
+                FireBlind(entity, ref channel, world, in p, platformMount, mountDto, ref weapon, mountEntity, loadedAmmo, platform);
                 return;
             }
 
             if (!seen || aim.Ready == 0)
             {
                 channel.Status = NodeStatus.Running;
-                SayAim(world, entity, p.Target, seen, in aim, mountIndex);
+                SayAim(world, entity, p.Target, seen, in aim, platform, platformMount);
                 return;
             }
 
@@ -217,7 +239,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
-            if (!bomb && LineOfFire.BlockedByFriendly(world, entity, p.Target))
+            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
@@ -236,9 +258,9 @@ namespace Fdp.Toolkit.Combat.Executors
 
             world.Bus.Publish(new WeaponFireIntent
             {
-                Shooter     = entity,
+                Shooter     = platform,        // ⭐ WS-3 — a controlled weapon system's round leaves its own muzzle
                 Target      = p.Target,
-                WeaponIndex = mountIndex,
+                WeaponIndex = platformMount,
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round (0 = the mount's own)
             });
 
@@ -264,18 +286,28 @@ namespace Fdp.Toolkit.Combat.Executors
         {
             channel.Status = NodeStatus.Running;
             Entity mountEntity = entity;
-            int mountIndex = p.Mount == 0 || p.Mount == AimAndFireParams.MountAuto ? 0 : MountByIndex(world, entity, p.Mount, out mountEntity);
+            int mountIndex = p.Mount == 0 || p.Mount == AimAndFireParams.MountAuto ? WeaponSystems.PrimaryMount(world, entity, out mountEntity)
+                           : MountByIndex(world, entity, p.Mount, out mountEntity);
             if (!world.HasComponent<WeaponState>(mountEntity)) return;
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
+            // ⭐ WS-3 — an operator firing a controlled weapon system fires it as itself (its mount 0, turret, muzzle), when it may fire
+            Entity platform = entity;
+            if (WeaponSystems.IsControlledIndex(mountIndex)) { platform = mountEntity; mountIndex = 0; }
+            if (WeaponSystems.IsWeaponSystem(world, platform) && SystemHold(world, entity, platform, Entity.Null) is { } systemHold)
+            {
+                ReleaseTurrets(world, entity);
+                SayAt(world, entity, systemHold, p.Point);
+                return;
+            }
 
-            var mountDto = CombatTkb.MountOf(world, entity, mountIndex);
+            var mountDto = CombatTkb.MountOf(world, platform, mountIndex);
             var profile = WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown);
             long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);   // ⭐ M8 — what is loaded
             // ⭐ CE-1079 (§8e D-3) — the operator's round switch holds the weapon like a reload, on both paths
             bool switching = AmmoChoice.Switching(world, mountEntity);
-            if (profile.UsesTurretTask(world, entity, mountDto))
+            if (profile.UsesTurretTask(world, platform, mountDto))
             {
-                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, entity, mountDto!.TurretIndex), ref weapon,
+                TurretPath(entity, ref channel, world, in p, mountIndex, TurretParts.Find(world, platform, mountDto!.TurretIndex), ref weapon,
                            profile.RoundsInFlight, mountDto, dt, mountEntity, loadedAmmo, switching ? ActionReason.Reloading : null);
                 return;
             }
@@ -293,7 +325,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 SayAt(world, entity, ActionReason.Aiming, point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false,
+            var reason = FireAtPointExecutor.ShootAtPoint(world, platform, mountIndex, ref weapon, point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false,
                                                           ammo: loadedAmmo);
             if (reason == ActionReason.Firing)
             {
@@ -324,7 +356,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         private static void FireBlind(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                       int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon,
-                                      Entity mountEntity, long loadedAmmo)
+                                      Entity mountEntity, long loadedAmmo, Entity shooter)
         {
             channel.Status = NodeStatus.Running;
             if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
@@ -342,12 +374,12 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
             //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
-            if (LineOfFire.BlockedByFriendly(world, entity, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
+            if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
             world.Bus.Publish(new WeaponFireIntent
             {
-                Shooter     = entity,
+                Shooter     = shooter,   // ⭐ WS-3 — the controlled weapon system itself, else the unit
                 Target      = Entity.Null,
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
@@ -549,6 +581,15 @@ namespace Fdp.Toolkit.Combat.Executors
         public static void ReleaseTurrets(EntityRepository world, Entity unit)
         {
             if (!world.IsComponentTypeRegistered<WeaponTask>() || !world.IsComponentTypeRegistered<TurretPose>()) return;
+            ReleaseOwnTurrets(world, unit);
+            // ⭐ WS-3 — and the turrets of the weapon systems it controls (the M2 in its bed stops following too)
+            System.Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
+            int n = WeaponSystems.Controlled(world, unit, controlled);
+            for (int k = 0; k < n; k++) ReleaseOwnTurrets(world, controlled[k]);
+        }
+
+        private static void ReleaseOwnTurrets(EntityRepository world, Entity unit)
+        {
             for (int i = 0; i < TurretParts.MaxTurrets; i++)
             {
                 var part = TurretParts.Find(world, unit, i);
@@ -573,10 +614,25 @@ namespace Fdp.Toolkit.Combat.Executors
             WeaponPostureOf.Report(world, unit, reason, target);   // ⭐ WL-6 (DESIGN_Weapon_Layers W-13b) — the weapon posture
         }
 
-        private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, int mountIndex)
+        private static void SayAim(EntityRepository world, Entity unit, Entity target, bool seen, in AimState aim, Entity shooter, int mountIndex)
         {
             if (!seen) Say(world, unit, ActionReason.HoldNotSeen, target);
-            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, AimSecondsFor(world, unit, mountIndex));
+            else Say(world, unit, ActionReason.Aiming, target, aim.Elapsed, AimSecondsFor(world, shooter, mountIndex));
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-D, §6) — why the weapon system <paramref name="weapon"/> may not fire for <paramref name="unit"/> now: another (or
+        /// nobody) controls it, its gunner is gone, it is not deployed, or <paramref name="target"/> is outside its station's arc. Null = fire.
+        /// </summary>
+        public static ActionReason? SystemHold(EntityRepository world, Entity unit, Entity weapon, Entity target)
+        {
+            if (WeaponSystems.ControllerOf(world, weapon) != unit) return ActionReason.NotControlled;
+            if (!WeaponSystems.CanFire(world, weapon, out var why))
+                return why == WeaponHold.NoGunner ? ActionReason.NoGunner : why == WeaponHold.NotDeployed ? ActionReason.NotDeployed : ActionReason.NotControlled;
+            if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+                && !WeaponSystems.InStationArc(world, weapon, world.GetComponentRO<SimTransform>(target).Position))
+                return ActionReason.OutOfArc;
+            return null;
         }
 
         /// <summary>⭐ <c>CE-3136</c> P-3 — the aim timer, in the channel state after the target (bytes 8–23 of 32).</summary>
@@ -657,6 +713,14 @@ namespace Fdp.Toolkit.Combat.Executors
         private static int MountByIndex(EntityRepository world, Entity owner, int index, out Entity mount)
         {
             mount = owner;
+            // ⭐ WS-3 — a controlled weapon system's index names the weapon itself (its own WeaponState)
+            if (WeaponSystems.IsControlledIndex(index))
+            {
+                var controlled = WeaponSystems.ControlledAt(world, owner, index);
+                if (controlled.IsNull || !world.HasComponent<WeaponState>(controlled)) return 0;
+                mount = controlled;
+                return index;
+            }
             if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return 0;
             System.Span<Entity> mounts = stackalloc Entity[8];
             int n = WeaponMountQuery.EnumerateMounts(world, owner, mounts);

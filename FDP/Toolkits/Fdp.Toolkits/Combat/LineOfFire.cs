@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Combat
 
             foreach (var e in world.Query().With<PhysicsCollider>().With<SimTransform>().With<EntityInfo>().Build())
             {
-                if (e == shooter || e == target) continue;
+                if (e == shooter || e == target || RidesWith(world, shooter, e)) continue;
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
                 float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
                 if (r <= 0f) continue;
@@ -55,6 +55,22 @@ namespace Fdp.Toolkit.Combat
                 if (Vector2.DistanceSquared(closest, ap) < r * r) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ Weapon systems WS-3 — <paramref name="e"/> rides with <paramref name="shooter"/>: the vehicle it is aboard, a passenger of it, or
+        /// a fellow passenger of its vehicle (the pickup, its gunner, the M2 in its bed). They move as one body and are never "on the line":
+        /// a station weapon stands off its host's reference point, where the crew rides.
+        /// </summary>
+        private static bool RidesWith(EntityRepository world, Entity shooter, Entity e)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) return false;
+            Entity shooterHost = world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter)
+                ? world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter).VehicleEntity : Entity.Null;
+            if (!shooterHost.IsNull && e == shooterHost) return true;
+            if (!world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) return false;
+            var host = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e).VehicleEntity;
+            return host == shooter || (!shooterHost.IsNull && host == shooterHost);
         }
     }
 }

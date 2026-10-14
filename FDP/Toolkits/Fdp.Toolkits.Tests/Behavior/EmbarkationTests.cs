@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
@@ -27,6 +28,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+            _world.RegisterComponent<CarrierSeats>();
+            _world.RegisterComponent<CarrierStations>();
+            _world.RegisterComponent<OpenPassengerCabin>();
+            _world.RegisterComponent<PersonCarrier>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
             _world.RegisterEvent<EmbarkEntityCommand>();
             _world.RegisterEvent<DisembarkEntityCommand>();
             _world.RegisterEvent<EjectPassengersCommand>();
@@ -57,6 +66,101 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         private ActorCapabilities Caps(Entity e) => _world.GetComponent<ActorCapabilityState>(e).Capabilities;
+
+        /// <summary>An entity of a TKB type carrying <paramref name="descriptors"/>, through the real carrier / weapon-system / injury
+        /// translators.</summary>
+        private Entity OfType(Fdp.Toolkit.Tkb.Domain.CarrierDefDto? carrier = null, Fdp.Toolkit.Tkb.Domain.WeaponSystemDto? weapon = null,
+            Fdp.Toolkit.Tkb.Domain.InjuryDefDto? injury = null)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Rotation = Quaternion.Identity });
+            var t = new TkbTemplate("T", 990L);
+            if (carrier != null) t.AddDescriptor(carrier);
+            if (weapon != null) t.AddDescriptor(weapon);
+            if (injury != null) t.AddDescriptor(injury);
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, e, t);
+            new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(_world, e, t);
+            new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator().Inject(_world, e, t);
+            return e;
+        }
+
+        private Entity Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds kinds,
+            Fdp.Toolkit.Tkb.Domain.WeaponPortability portable = Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static)
+            => OfType(weapon: new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto { MountKinds = kinds, Portable = portable });
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-2 (W-B, R-2016; docs/designs/weapons/DESIGN_Weapon_Systems.md §6) — a weapon system boards a STATION seat whose
+        /// <c>Accepts</c> shares one of its mount kinds, and only a station: an M2 (ground | pintle) takes the pickup's bed station, a man never
+        /// does (nor asks for it by role), a second HMG finds it taken, a pintle-only weapon is refused from a door-only host, a door minigun
+        /// takes the door. ✅ Red-proof: TryEmbark without the weapon branch ⇒ the M2 takes no seat (Full) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS2_AWeaponBoards_AStationThatAcceptsIt_NeverASeatForAMan()
+        {
+            var pickup = OfType(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+            {
+                Exposure = PassengerExposure.Open,
+                Seats =
+                {
+                    new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Driver },
+                    new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Gunner },
+                    new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle, OperatedBy = 1 },
+                },
+            });
+            var m2 = Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Ground | Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle);
+
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, m2, pickup));
+            Assert.Equal(m2, _world.GetComponentRO<PassengerBuffer>(pickup).Passengers[2]);
+            Assert.Equal(2, _world.GetComponentRO<IsEmbarkedTag>(m2).Seat);
+            Assert.Equal(EmbarkResult.Full, Embarkation.TryEmbark(_world, Soldier(Vector3.Zero), pickup));   // no passenger seat
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, Soldier(Vector3.Zero), pickup, SeatRole.Station));
+            Assert.Equal(EmbarkResult.Full, Embarkation.TryEmbark(_world, Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle), pickup));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, Soldier(Vector3.Zero), pickup, SeatRole.Gunner));
+
+            var heli = OfType(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+            {
+                Seats = { new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Door } },
+            });
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle), heli));
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Door), Vehicle(Vector3.Zero)));   // no stations at all
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Door), heli));
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-2 (W-G, R-2016) — a soldier (a person carrier: one casualty seat + one carry station accepting <c>Carried</c>) carries a
+        /// PORTABLE weapon system and keeps his fire; a static one (a sentry gun) is refused, and a man who is down carries nothing. With a
+        /// casualty on his shoulder too he cannot fire; setting the casualty down gives it back although he still carries the weapon.
+        /// ✅ Red-proof: Board stripping CanShoot for a weapon too ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS2_ASoldierCarriesAPortableWeapon_NotAStaticOne_AndStillFights()
+        {
+            Entity Man(float health)
+            {
+                var e = OfType(carrier: Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier(), injury: new Fdp.Toolkit.Tkb.Domain.InjuryDefDto());
+                _world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+                _world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+                return e;
+            }
+            var soldier = Man(100f);
+            var javelin = Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Ground | Fdp.Toolkit.Tkb.Domain.MountKinds.Carried,
+                Fdp.Toolkit.Tkb.Domain.WeaponPortability.OneMan);
+            var sentry = Weapon(Fdp.Toolkit.Tkb.Domain.MountKinds.Ground | Fdp.Toolkit.Tkb.Domain.MountKinds.Carried);
+
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, sentry, soldier));
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, javelin, Man(10f)));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, javelin, soldier));
+            Assert.Equal(CarryMode.Carried, _world.GetComponentRO<IsEmbarkedTag>(javelin).Mode);
+            Assert.Equal(1, _world.GetComponentRO<IsEmbarkedTag>(javelin).Seat);   // the carry station, beside the casualty seat
+            Assert.True((Caps(soldier) & ActorCapabilities.CanShoot) != 0);
+
+            var casualty = Man(20f);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, soldier));
+            Assert.True((Caps(soldier) & ActorCapabilities.CanShoot) == 0);
+            Assert.True(Embarkation.Disembark(_world, casualty, soldier));
+            Embarkation.ReleaseCarrier(_world, soldier);
+            Assert.True((Caps(soldier) & ActorCapabilities.CanShoot) != 0);
+        }
 
         /// <summary>Boarding writes all three facts — the vehicle's list, the passenger's tag naming its vehicle, CanMove/CanShoot
         /// gone — and boarding twice is not two seats.</summary>

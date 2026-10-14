@@ -67,6 +67,20 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
+        /// ⭐⭐ Weapon systems WS-3 (W-D, R-2016; DESIGN_Weapon_Systems §3) — the mounts the WEAPON BRAIN fights with: the unit's own
+        /// (<see cref="EnumerateMounts"/>) followed by the weapon systems it controls (<see cref="WeaponSystems.Controlled"/> — its station
+        /// weapons, the one it carries, the one it mans). A controlled weapon's mount index is
+        /// <see cref="WeaponSystems.ControlledMountBase"/> + its place in that list; it fires as itself, on its own mount 0.
+        /// <para>⚠ A sibling of <see cref="EnumerateMounts"/>, not a widening of it: that one also counts a type's own mount children
+        /// (<c>CombatTkbTranslator</c> creates and prunes them by it), which a boarded weapon must never join.</para>
+        /// </summary>
+        public static int EnumerateFiringMounts(EntityRepository repo, Entity owner, Span<Entity> dest)
+        {
+            int n = EnumerateMounts(repo, owner, dest);
+            return n >= dest.Length ? n : n + WeaponSystems.Controlled(repo, owner, dest.Slice(n));
+        }
+
+        /// <summary>
         /// The entity holding mount <paramref name="index"/>'s <see cref="WeaponState"/>: the owner for mount 0, the mount child
         /// otherwise; the owner when no such child exists. ⭐ CE-1079 — public so the operator behaviour finds the mount whose round
         /// it cycles (it was <c>FireAtPointExecutor</c>'s private helper; that one now calls this).

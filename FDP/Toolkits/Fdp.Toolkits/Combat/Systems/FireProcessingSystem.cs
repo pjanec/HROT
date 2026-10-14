@@ -113,7 +113,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   the middle of the target's silhouette, both for the LOGICAL stance (§3f — one profile for being seen and being
                 //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
                 //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
-                shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, shooter, HitModel.LogicalStance(repo, shooter));
+                // ⭐ WS-3 — a carried / station weapon system aims from its carrier's eye (HitModel.BodyOf; itself otherwise)
+                var sightBody = HitModel.BodyOf(repo, shooter);
+                if (sightBody != shooter) shooterPos = repo.GetComponent<SimTransform>(sightBody).Position;
+                shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, sightBody, HitModel.LogicalStance(repo, sightBody));
                 if (!evt.AtPoint)
                 {
                     // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)

@@ -311,5 +311,76 @@ namespace Fdp.Toolkit.Combat.Tests
             new TurretTkbTranslator().Inject(_repo, owner, Turrets(1));
             Assert.True(TurretParts.Ensure(_repo, owner, 0).IsNull);
         }
+
+        // ── ⭐⭐ Weapon systems WS-3 (W-D, W-E, W-H; docs/designs/weapons/DESIGN_Weapon_Systems.md §6) ─────────────────────────────
+
+        private void RegisterWeaponSystems()
+        {
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            _repo.RegisterComponent<WeaponSystemParams>();
+            _repo.RegisterComponent<WeaponSystemState>();
+        }
+
+        private Entity OfType(CarrierDefDto? carrier = null, WeaponSystemDto? weapon = null)
+        {
+            var e = _repo.CreateEntity();
+            var t = new TkbTemplate("T", 77);
+            if (carrier != null) t.AddDescriptor(carrier);
+            if (weapon != null) t.AddDescriptor(weapon);
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_repo, e, t);
+            new WeaponSystemTkbTranslator().Inject(_repo, e, t);
+            if (weapon != null) _repo.AddComponent(e, new WeaponState { Ammo = 10 });
+            return e;
+        }
+
+        private Entity[] FiringMounts(Entity unit)
+        {
+            Span<Entity> dest = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateFiringMounts(_repo, unit, dest);
+            return dest.Slice(0, n).ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-3 (W-D) — ONE controller per weapon system, and its mount list shows it: the pickup lists the M2 in its station (the host
+        /// controls it, W-H); the soldier in a tripod's Gunner seat lists the tripod (and it is no longer the tripod's own); an automatic
+        /// weapon nobody operates is its own (its own mount 0, nobody else's list); a manual one nobody mans is NOBODY's. Own mounts stay
+        /// <see cref="WeaponMountQuery.EnumerateMounts"/>' — a boarded weapon never joins them (the translator counts its children by it).
+        /// ✅ Red-proof: ControllerOf ignoring the gunner seat ⇒ the manned tripod is nobody's ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS3_EachWeaponSystem_HasOneController_AndOnlyItListsIt()
+        {
+            RegisterWeaponSystems();
+            var pickup = OfType(new CarrierDefDto { Seats =
+            {
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner },
+                new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 0 },
+            } });
+            var m2 = OfType(weapon: new WeaponSystemDto { MountKinds = MountKinds.Pintle | MountKinds.Ground });
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_repo, m2, pickup));
+            Assert.Equal(pickup, WeaponSystems.ControllerOf(_repo, m2));
+            Assert.Equal(new[] { m2 }, FiringMounts(pickup));
+            Span<Entity> own = stackalloc Entity[8];
+            Assert.Equal(0, WeaponMountQuery.EnumerateMounts(_repo, pickup, own));
+
+            var tripod = OfType(new CarrierDefDto { Seats = { new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner } } },
+                new WeaponSystemDto { NeedsOperator = false });
+            Assert.Equal(tripod, WeaponSystems.ControllerOf(_repo, tripod));   // automatic, unmanned: its own
+            Assert.Equal(new[] { tripod }, FiringMounts(tripod));
+            var soldier = _repo.CreateEntity();
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied,
+                Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_repo, soldier, tripod, Fdp.Toolkit.Behavior.Components.SeatRole.Gunner));
+            Assert.Equal(soldier, WeaponSystems.ControllerOf(_repo, tripod));   // manned: the gunner's
+            Assert.Equal(new[] { tripod }, FiringMounts(soldier));
+
+            var manual = OfType(weapon: new WeaponSystemDto());   // NeedsOperator, nobody
+            Assert.Equal(Entity.Null, WeaponSystems.ControllerOf(_repo, manual));
+            Assert.Equal(-1, WeaponSystems.IndexOf(_repo, soldier, manual));
+        }
     }
 }

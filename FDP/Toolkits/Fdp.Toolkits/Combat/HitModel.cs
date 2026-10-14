@@ -48,12 +48,26 @@ namespace Fdp.Toolkit.Combat
             if (mils <= 0f) return 0f;
             float sigma = mils / 1000f;
 
-            if (IsMoving(repo, shooter))
+            var body = BodyOf(repo, shooter);   // ⭐ WS-3 — a station / carried weapon system shakes with its carrier
+            if (IsMoving(repo, body))
                 sigma *= MovingFactor;
-            if (repo.HasComponent<UnderFire>(shooter) && now - repo.GetComponentRO<UnderFire>(shooter).LastTime < UnderFireSeconds)
+            if (repo.HasComponent<UnderFire>(body) && now - repo.GetComponentRO<UnderFire>(body).LastTime < UnderFireSeconds)
                 sigma *= UnderFireFactor;
-            sigma *= StanceFactor(LogicalStance(repo, shooter));
+            sigma *= StanceFactor(LogicalStance(repo, body));
             return sigma;
+        }
+
+        /// <summary>
+        /// ⭐ Weapon systems WS-3 (DESIGN_Weapon_Systems §6) — the body a round's spread is judged on: for a WEAPON SYSTEM aboard a host (an
+        /// M2 in a pickup's station, a Javelin on a soldier) its host — the pickup moves and is fired at, the soldier kneels — and the
+        /// shooter itself otherwise. The weapon entity fires the round; its carrier's motion, fire and stance shake it.
+        /// </summary>
+        public static Entity BodyOf(EntityRepository repo, Entity shooter)
+        {
+            if (!WeaponSystems.IsWeaponSystem(repo, shooter) || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                || !repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter)) return shooter;
+            var host = repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter).VehicleEntity;
+            return repo.IsAlive(host) ? host : shooter;
         }
 
         /// <summary>The stance factor on σ.</summary>
