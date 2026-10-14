@@ -19,6 +19,21 @@ public static class DoorLeaf3D
     /// <summary>How long a door takes to swing fully open or shut (s, sim time).</summary>
     public const float SwingSeconds = 0.8f;
 
+    /// <summary>⭐ CE-1069 — the leaf's wood.</summary>
+    public static readonly Raylib_cs.Color Wood = new(124, 86, 52, 255);
+
+    /// <summary>
+    /// ⭐ CE-1069 (🔒 user, 2026-10-14: "Maybe we can indicate locked unlocked by color in 3d?") — the leaf's colour by state: wood,
+    /// and a LOCKED door's wood tinted half-way to the 2-D door layer's locked purple (<c>DoorLeafGizmo.ColorOf</c>) — one colour
+    /// language on both maps. Closed and open are plain wood (the swing shows which).
+    /// </summary>
+    public static Raylib_cs.Color ColourOf(TerrainDoorState state)
+    {
+        if (state != TerrainDoorState.Locked) return Wood;
+        var tint = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.ColorOf(TerrainDoorState.Locked);
+        return new Raylib_cs.Color((byte)((Wood.R + tint.R) / 2), (byte)((Wood.G + tint.G) / 2), (byte)((Wood.B + tint.B) / 2), (byte)255);
+    }
+
     /// <summary>The swing angle a state asks for; null for a destroyed door (nothing is drawn).</summary>
     public static float? TargetAngle(TerrainDoorState state) => state switch
     {

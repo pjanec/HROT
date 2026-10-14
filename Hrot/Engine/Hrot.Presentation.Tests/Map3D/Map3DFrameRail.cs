@@ -1151,6 +1151,16 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "door-3-destroyed.png"));
         Assert.Equal(1, bodies.DoorsDrawn);   // the destroyed one is not drawn
+
+        // ⭐ CE-1069 — the open door is shut and LOCKED: it swings shut over sim time and its wood takes the locked tint
+        world.SetComponent(doors[1], new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Locked });
+        sw.Camera3D.Pose = Facing(1);
+        for (int k = 1; k <= 30; k++)
+        {
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 1.0 + k / 30.0 });
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "door-4-locked.png"));
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>

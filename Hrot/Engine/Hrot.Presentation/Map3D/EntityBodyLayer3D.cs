@@ -291,8 +291,6 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private readonly DeathFall _fall = new();
     private readonly DoorSwing _doors = new();
 
-    /// <summary>⭐ CE-1068 — a door leaf's wood.</summary>
-    private static readonly Color DoorColour = new(124, 86, 52, 255);
 
     /// <summary>⭐ CE-1068 (§6k) — door entity <paramref name="e"/>'s leaf, swung toward its state's angle on sim time; nothing for a
     /// destroyed door or a host with no terrain to place it in.</summary>
@@ -302,7 +300,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         _drawn.Add(e);
         var (centre, rotation, half) = DoorLeaf3D.Box(leaf, _doors.Angle(e, target, simTime));
         var model = Matrix4x4.CreateScale(half * 2f) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(centre);
-        Raylib.DrawMesh(_cube, shader.Tinted(DoorColour), HrotToRaylib.ModelFromHrot(model));
+        Raylib.DrawMesh(_cube, shader.Tinted(DoorLeaf3D.ColourOf(state)), HrotToRaylib.ModelFromHrot(model));   // ⭐ CE-1069 — locked tinted
         PartsDrawn++;
         DoorsDrawn++;
         if (hasSelection && world.HasComponent<Hrot.IG.Components.SelectionState>(e))

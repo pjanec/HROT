@@ -1069,6 +1069,20 @@ public sealed class Map3DTests
         Assert.Null(DoorLeaf3D.TargetAngle(TerrainDoorState.Destroyed));
     }
 
+    /// <summary>⭐ CE-1069 — a LOCKED door is told apart in 3-D by colour: its wood tinted half-way to the 2-D door layer's locked
+    /// purple (one colour language on both maps); shut and open are plain wood (the swing shows which).</summary>
+    [Fact]
+    public void CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour()
+    {
+        Assert.Equal(DoorLeaf3D.Wood, DoorLeaf3D.ColourOf(TerrainDoorState.Closed));
+        Assert.Equal(DoorLeaf3D.Wood, DoorLeaf3D.ColourOf(TerrainDoorState.Open));
+        var locked = DoorLeaf3D.ColourOf(TerrainDoorState.Locked);
+        var purple = Hrot.ScenarioEditor.Gizmos.DoorLeafGizmo.ColorOf(TerrainDoorState.Locked);
+        Assert.NotEqual(DoorLeaf3D.Wood, locked);
+        Assert.Equal((DoorLeaf3D.Wood.B + purple.B) / 2, locked.B);
+        Assert.True(locked.B > DoorLeaf3D.Wood.B + 30, $"visibly purple: {locked.R},{locked.G},{locked.B}");
+    }
+
     /// <summary>⭐ CE-1068 — the leaf SWINGS on sim time (a quarter turn in <see cref="DoorLeaf3D.SwingSeconds"/>), a pause holds
     /// it, and a door first seen just stands in its state.</summary>
     [Fact]

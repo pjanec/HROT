@@ -1263,7 +1263,7 @@ classDiagram
 - `Map3DFrameRail.CE1064_ACrouchedFigure_StillAndRunning` (Xvfb screenshots `crouch-1…4`).
 - `Map3DTests` whole.
 
-### 6k. CE-1068 — doors as they really are: a hinged leaf, gone when destroyed — AS-BUILT `2026-10-14` (ui)
+### 6k. CE-1068 / CE-1069 — doors as they really are: a hinged leaf, locked tinted, gone when destroyed — AS-BUILT `2026-10-14` (ui)
 
 🔒 *User, 2026-10-14: "The building doors are visualized as weird pink boxes in 3d map and likely also in 2d map (in 2d there was nice
 simple gizmo and the pink box is undesired - doors should not be shown as unknown entity). I would like to see doors in 3d map as in
@@ -1293,6 +1293,7 @@ classDiagram
     IsDoor(world, e) bool
     TryLeaf(world, e, out leaf, out state) bool
     Box(leaf, angle) centre, rotation, half
+    ColourOf(state) wood, locked tinted
   }
   class DoorSwing {
     <<new>>
@@ -1311,9 +1312,11 @@ classDiagram
     a TerrainObjectKey entity: anchor + pick box, no symbol
   }
   class DoorLeafGizmo {
-    <<exists, changed>>
-    lines target Map2D only
+    <<exists>>
+    the 2-D door picture: one line per state
+    ColorOf(state) shared with the 3-D tint
   }
+  DoorLeaf3D ..> DoorLeafGizmo : ColourOf reads ColorOf(Locked)
   class TerrainWorld { <<exists>> DoorLeaves, DoorIndexOf(key) }
   EntityBodyLayer3D --> DoorLeaf3D
   EntityBodyLayer3D *-- DoorSwing
@@ -1345,8 +1348,8 @@ sequenceDiagram
 | the swing | eased on SIM time, a quarter turn in 0.8 s; first seen = in its state; a pause freezes it (R-143, like `PostureBlend`) | snap (an open order would pop) · replicating an angle (the state is the fact; the picture times itself) |
 | where it is drawn | the body layer, beside the entities, because a door IS an entity: one box for drawing, picking and the selection outline | a separate door layer (a second pick path for the same entity) |
 | 2-D | no symbol for a terrain object (anchor and pick box kept: a door is selectable, §3j 5b); the door layer's line stays the 2-D picture | hiding the door entity entirely (its commands hang off the selection) |
-| the 2-D door line in 3-D | `Map2D` only: the slab shows the state | both (a line on the slab's foot) |
-| locked vs closed in 3-D | drawn the same (a real locked door looks shut) | a tint (a debug cue, the 2-D layer has it) |
+| the 2-D door line in 3-D | ⛔ **CORRECTED by CE-1069:** it stays — the 3-D pass draws `Map2D` primitives too (§7, `Map3DGizmoTests`), so retargeting it changed nothing; the line lies at the slab's foot and the Doors toggle hides it | a '2-D only' target (none exists; redefining `Map2D` would also drop the contact lines from 3-D) |
+| locked vs closed in 3-D | ⭐ **CE-1069** (🔒 user: *"Maybe we can indicate locked unlocked by color in 3d?"*): a locked leaf's wood is tinted half-way to the 2-D door layer's locked purple (`DoorLeaf3D.ColourOf` reads `DoorLeafGizmo.ColorOf`) — one colour language on both maps; shut and open stay plain wood | ⛔ ~~drawn the same~~ (SUPERSEDED, the user asked for it) · a separate 3-D palette (two legends for one fact) |
 
 ⚠ **Left, named:**
 - A host with door entities but no terrain draws no door (there is no leaf to place).
@@ -1356,7 +1359,8 @@ sequenceDiagram
 **Rails:**
 - `Map3DTests.CE1068_ADoorLeaf_TurnsOnItsHinge_AndADestroyedDoorIsNotDrawn`, `CE1068_ADoorSwings_OnSimTime_AndIsFirstSeenInItsState` and `CE1068_ADoorEntity_HasNoKit_AndIsPickedByItsLeaf`.
 - `EntityPresentationGizmoTests.CE1068_ADoor_HasAnAnchorAndAPickBox_ButNoSymbol`.
-- `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…3`).
+- `Map3DFrameRail.CE1068_Doors_ShutOpenAndDestroyed` (Xvfb screenshots `door-1…4`: shut, open, the shut one destroyed, the open one shut and locked).
+- CE-1069: `Map3DTests.CE1069_ALockedDoor_IsTintedWithTheTwoDLockedColour`, and `DebugTraceGizmoTests.CE1069_EveryDoorStillDrawsItsStateLine_On2D`, which pins the 2-D open / shut / locked / destroyed picture now that the door entity has no symbol.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
