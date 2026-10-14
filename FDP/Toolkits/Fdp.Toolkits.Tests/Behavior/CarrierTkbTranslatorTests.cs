@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<CarrierSeats>();
             _world.RegisterComponent<OpenPassengerCabin>();
             _world.RegisterComponent<IsEmbarkedTag>();
+            _world.RegisterComponent<CarrierStations>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -35,6 +36,42 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = _world.CreateEntity();
             new CarrierTkbTranslator().Inject(_world, e, t);
             return e;
+        }
+
+        /// <summary>⭐ Weapon systems WS-1 (R-2016, DESIGN_Weapon_Systems §3, §5) — a host's STATION seat is stamped with what it accepts, the
+        /// seat that operates it, its arc (radians) and the place its weapon stands; it is no passenger seat (a plain boarding never takes
+        /// it); a type without a station gets no <see cref="CarrierStations"/>.</summary>
+        [Fact]
+        public void WS1_AStationSeat_IsStamped_WithWhatItAccepts_WhoOperatesIt_ItsArcAndPlace()
+        {
+            var pickup = Spawn(new CarrierDefDto
+            {
+                Exposure = PassengerExposure.Open,
+                Seats =
+                {
+                    new SeatDto { Role = SeatRole.Driver },
+                    new SeatDto { Role = SeatRole.Gunner },
+                    new SeatDto
+                    {
+                        Role = SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
+                        TraverseMinDeg = -150f, TraverseMaxDeg = 150f, X = -1.5f, Y = 0f, Z = 1.4f, FacingDegrees = 180f,
+                    },
+                },
+            });
+            var st = _world.GetComponentRO<CarrierStations>(pickup);
+            Assert.Equal(0b100, st.StationMask);
+            Assert.True(st.IsStation(2));
+            Assert.False(st.IsStation(1));
+            var s = st.Seats[2];
+            Assert.Equal(((byte)MountKinds.Pintle, (sbyte)1, (byte)1, (byte)1), (s.Accepts, s.OperatedBy, s.NeedsGunner, s.HasArc));
+            Assert.Equal(-150f * MathF.PI / 180f, s.TraverseMin, 4);
+            Assert.Equal(MathF.PI / 2f, s.ElevationMax, 4);   // unstated ⇒ the full range
+            Assert.Equal((-1.5f, 1.4f, MathF.PI), (s.X, s.Z, s.Facing));
+            Assert.Equal(SeatRole.Station, _world.GetComponentRO<CarrierSeats>(pickup).Roles[2]);
+
+            Assert.Equal(0, Embarkation.CapacityOf(_world, pickup));   // no passenger seat
+            Assert.Equal(EmbarkResult.Full, Embarkation.TryEmbark(_world, _world.CreateEntity(), pickup));   // the station is not a seat for a man
+            Assert.False(_world.HasComponent<CarrierStations>(Spawn(CarrierDefDto.PassengerSeats(4))));
         }
 
         /// <summary>⭐ R-2009 B3 — a type that does not declare Gen.Carrier (a soldier) carries nobody: no list, no seats, capacity 0.

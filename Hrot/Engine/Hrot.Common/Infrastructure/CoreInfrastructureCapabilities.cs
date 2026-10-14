@@ -134,13 +134,14 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem _passengerSide = new();
         private readonly Fdp.Toolkit.Terrain.DoorCommandSystem            _doors         = new();
         private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem   _embarkation   = new();
+        private readonly Fdp.Toolkit.Combat.WeaponDeploySystem            _deploy        = new();   // ⭐ Weapon systems WS-1 (W-C)
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -153,6 +154,7 @@ public static class CoreInfrastructureCapabilities
             input.Add(_passengerSide);
             simulation.Add(_doors);
             simulation.Add(_embarkation);
+            simulation.Add(_deploy);
         }
     }
 }

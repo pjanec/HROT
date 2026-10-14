@@ -135,6 +135,14 @@ namespace Hrot.Core.Tkb
             yield return C("LargeTrackedUtilityVehicle", "Large Tracked Utility Vehicle", "1.1.*.9");
             yield return C("Mortar", "Mortar", "1.1.*.10");
             yield return C("Car", "Car", "1.1.*.81");
+            // ⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §5) — a weapon that is an entity: Category 50
+            //   (HROT; free on land), subcategories by kind.
+            yield return C("WeaponSystem", "Weapon System (HROT)", "1.1.*.50");
+            yield return C("HmgWeaponSystem", "Heavy Machine Gun (HROT)", "1.1.*.50.1");
+            yield return C("MinigunWeaponSystem", "Minigun (HROT)", "1.1.*.50.2");
+            yield return C("AtgmWeaponSystem", "ATGM Launcher (HROT)", "1.1.*.50.3");
+            yield return C("LauncherWeaponSystem", "Rocket Launcher (HROT)", "1.1.*.50.4");
+            yield return C("SentryWeaponSystem", "Sentry Gun (HROT)", "1.1.*.50.5");
 
             // Air platforms: groups, then categories
             yield return C("Helicopter", "Helicopter", "1.2.*.20-25");

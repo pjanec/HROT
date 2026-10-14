@@ -73,6 +73,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.WeaponAmmo);
         // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).
         brain.SetBit(GlobalComponentIds.PassengerBuffer);
+        // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state: its brain's WeaponDeploySystem writes it (dtWeaponSystemState).
+        brain.SetBit(GlobalComponentIds.WeaponSystemState);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

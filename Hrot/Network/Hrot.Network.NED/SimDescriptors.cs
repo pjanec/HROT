@@ -81,6 +81,25 @@ namespace Hrot.NED.Descriptors
         public string Key;
     }
 
+    // ⭐ Weapon systems WS-1 (W-C, R-136; docs/designs/weapons/DESIGN_Weapon_Systems.md §2) — a weapon system's deploy state (Stowed ·
+    //   Deploying · Deployed · Packing), published by the node owning dtWeaponSystemState (its brain group) on change and applied on every
+    //   other node (the drawing and the fire gate read it). Reliable + TransientLocal + KeepLast(1) keyed by entity, like the door: a late
+    //   joiner gets every weapon's current state.
+    [DdsTopic("EntityWeaponSystemState")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeaponSystemState
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>WeaponDeploy</c>: 0 Stowed · 1 Deploying · 2 Deployed · 3 Packing.</summary>
+        public byte Deploy;
+
+        /// <summary>Sim time (s) a Deploying / Packing ends.</summary>
+        public double Until;
+    }
+
     // ⭐ WL-1b (CE-1049) — a turret's pose (its part child's TurretPose), published by the node owning dtTurretPose (the Muscle) and
     //   applied on every other node's turret part, so a viewer — IG included — sees the turret turn. 📄 docs/DESIGN_Weapon_Layers.md
     //   §5b, W-9, W-10. Keyed (hull network id, part id = 2000 + turret index) — the EQS sensor key shape (EqsSensorConfigTopic).

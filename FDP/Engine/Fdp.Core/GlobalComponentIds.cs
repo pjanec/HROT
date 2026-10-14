@@ -872,5 +872,17 @@ namespace Fdp.Core
         /// (rounded corners, heights over the terrain, its stops) and its follow state. Muscle-local, never saved or replicated.
         /// ⚠ 378 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int AirPath = 378;
+
+        /// <summary><c>WeaponSystemParams</c> — ⭐ Weapon systems WS-1 (DESIGN_Weapon_Systems §3): how a weapon-system entity is handled, from
+        /// the TKB's <c>Gen.WeaponSystem</c>; every node, never saved or replicated. ⚠ 379 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int WeaponSystemParams = 379;
+
+        /// <summary><c>WeaponSystemState</c> — ⭐ WS-1: a weapon system's deploy state (Stowed · Deploying · Deployed · Packing), written by
+        /// its owner, replicated (<c>dtWeaponSystemState</c>), saved. ⚠ 380 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int WeaponSystemState = 380;
+
+        /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
+        /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int CarrierStations = 381;
     }
 }

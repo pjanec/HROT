@@ -101,6 +101,9 @@ namespace Fdp.Toolkit.Behavior.Components
         Driver = 1,
         Gunner = 2,
         Commander = 3,
+        /// <summary>⭐ Weapon systems WS-1 (R-2016) — holds a WEAPON SYSTEM (its <c>Accepts</c> must fit the weapon's mount kinds), never a
+        /// person; a plain boarding never takes it.</summary>
+        Station = 4,
     }
 
     /// <summary>Inline array of 8 <see cref="SeatRole"/> values for <see cref="CarrierSeats"/> (one per <see cref="PassengerBuffer"/> slot).</summary>
@@ -165,6 +168,54 @@ namespace Fdp.Toolkit.Behavior.Components
         public float CarryBehindMetres;
         /// <summary>How far behind the carrier a dragged casualty is held (m).</summary>
         public float DragBehindMetres;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §3, §6) — a host type's STATION seats
+    /// (<see cref="SeatRole.Station"/>), stamped by <c>CarrierTkbTranslator</c> from <c>Gen.Carrier</c> on every node beside
+    /// <see cref="CarrierSeats"/>: what each station accepts, which seat operates it, its arc, and where the weapon stands. ⭐ A type
+    /// fact (never saved, never replicated) — present only on a type that declares a station.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.CarrierStations)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct CarrierStations
+    {
+        /// <summary>Bit i = seat i is a station.</summary>
+        public byte StationMask;
+
+        /// <summary>The station data per seat (meaningful where <see cref="StationMask"/> has the bit).</summary>
+        [ScenarioIgnore]
+        public StationSeatSlots Seats;
+
+        /// <summary>Is seat <paramref name="seat"/> a station?</summary>
+        public readonly bool IsStation(int seat) => seat >= 0 && seat < PassengerBuffer.Capacity && (StationMask & (1 << seat)) != 0;
+    }
+
+    /// <summary>⭐ WS-1 — one station seat: a <see cref="CarrierStations"/> slot (angles in radians, the place in the host's frame).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StationSeat
+    {
+        /// <summary><c>Fdp.Toolkit.Tkb.Domain.MountKinds</c> it accepts.</summary>
+        public byte Accepts;
+        /// <summary>The seat whose occupant operates it; −1 = the host itself.</summary>
+        public sbyte OperatedBy;
+        /// <summary>1 when its weapon fires only while <see cref="OperatedBy"/> is occupied.</summary>
+        public byte NeedsGunner;
+        /// <summary>1 when it states its own arc (<see cref="TraverseMin"/>…<see cref="ElevationMax"/>).</summary>
+        public byte HasArc;
+        public float TraverseMin, TraverseMax, ElevationMin, ElevationMax;
+        /// <summary>Where the weapon stands, metres in the host's frame (x forward, y left, z up), and which way it faces (radians, CCW).</summary>
+        public float X, Y, Z, Facing;
+    }
+
+    /// <summary>Inline array of 8 <see cref="StationSeat"/> values (one per <see cref="PassengerBuffer"/> slot).</summary>
+    [InlineArray(PassengerBuffer.Capacity)]
+    public struct StationSeatSlots
+    {
+#pragma warning disable IDE0044 // backing field required by InlineArray
+        private StationSeat _element;
+#pragma warning restore IDE0044
     }
 
     /// <summary>⭐ <c>CE-3110</c> I-2c — a carrier type's passenger exposure in the TKB (<c>CarrierDefDto.Exposure</c> since CE-2151; was

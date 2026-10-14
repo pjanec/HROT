@@ -86,6 +86,32 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>True when the seat declares a place.</summary>
         public bool HasPlace => X != 0f || Y != 0f || Z != 0f;
+
+        // ⭐⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §3, §5) — a STATION seat holds a weapon system.
+
+        /// <summary>A <see cref="SeatRole.Station"/>'s mount kinds: a weapon boards it only when the weapon's <c>MountKinds</c> share one.</summary>
+        public MountKinds Accepts { get; init; }
+
+        /// <summary>A station's operating seat: the index of the host's seat whose occupant works the weapon (its Gunner); −1 = the host
+        /// itself (W-H: the host's gunner seat operates its station weapon).</summary>
+        public int OperatedBy { get; init; } = -1;
+
+        /// <summary>A station's weapon fires only while its <see cref="OperatedBy"/> seat is occupied (§6 <c>CanFire</c>).</summary>
+        public bool NeedsGunner { get; init; }
+
+        /// <summary>A station's own arc, degrees from the host's forward (counter-clockwise +); null = the weapon's own turret limits only.</summary>
+        public float? TraverseMinDeg { get; init; }
+        /// <inheritdoc cref="TraverseMinDeg"/>
+        public float? TraverseMaxDeg { get; init; }
+
+        /// <summary>A station's own elevation limits, degrees (up +); null = the weapon's own.</summary>
+        public float? ElevationMinDeg { get; init; }
+        /// <inheritdoc cref="ElevationMinDeg"/>
+        public float? ElevationMaxDeg { get; init; }
+
+        /// <summary>⭐ W-I (STEER_…_Crew_Presets) — a TKB type the seat starts with when the host is placed (<c>SeatPresets</c>, once, on the
+        /// creating node): a weapon system for a <see cref="SeatRole.Station"/>, a soldier for a crew seat. 0 = empty.</summary>
+        public long StartWith { get; init; }
     }
 
     /// <summary>⭐ CE-1083 — how a rider sits in a seat (the 3-D map's figure).</summary>

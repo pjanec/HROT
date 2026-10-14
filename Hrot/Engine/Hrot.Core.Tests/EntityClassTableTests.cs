@@ -58,6 +58,19 @@ namespace Hrot.Map.Common.Tests
             Assert.True(unnamed.Count == 0, string.Join(", ", unnamed));
         }
 
+        /// <summary>⭐ Weapon systems WS-1 (R-2016, DESIGN_Weapon_Systems §5) — a weapon system is Kind 1 · Domain 1 · Category 50 on land,
+        /// its kind the subcategory; the air FPV drone's Category 50 stays a Jet.</summary>
+        [Fact]
+        public void WS1_AWeaponSystem_IsLandCategory50_ItsKindTheSubcategory()
+        {
+            var hmg = new DISEntityType { Kind = 1, Domain = 1, Country = CountryTable.UnitedStates, Category = 50, Subcategory = 1 };
+            Assert.Equal(new[] { "Platform", "LandPlatform", "WeaponSystem", "HmgWeaponSystem" },
+                         EntityClassTable.Default.Chain(hmg).Select(c => c.Name));
+            Assert.Equal("SentryWeaponSystem", EntityClassTable.Default.MostSpecific(hmg with { Subcategory = 5 })!.Name);
+            Assert.Equal("WeaponSystem", EntityClassTable.Default.MostSpecific(hmg with { Subcategory = 0 })!.Name);
+            Assert.NotEqual("WeaponSystem", EntityClassTable.Default.MostSpecific(hmg with { Domain = 2 })!.Name);
+        }
+
         /// <summary>The chain runs general → specific; a grouping class (a list) sits between its level and its member.</summary>
         [Fact]
         public void CE2138_TheChain_RunsGeneralToSpecific()

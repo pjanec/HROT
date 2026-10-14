@@ -110,6 +110,10 @@ public static class HrotSharedComponentRegistry
         //   unregistered PassengerBuffer. (EmbarkationComponentRegistry still registers them too; registration is idempotent.)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();   // ⭐ CE-2151 — a carrier type's seats (Gen.Carrier)
+        // ⭐ Weapon systems WS-1 (R-2016) — a host's station seats; a weapon system's handling and its replicated deploy state.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();   // ⭐ CE-2152 — a person type that carries / drags a casualty
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();   // I-2c (R-271) — the open-cabin vehicle type

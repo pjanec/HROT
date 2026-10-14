@@ -136,6 +136,32 @@ namespace Fdp.Toolkit.Tkb.Tests.Domain
             Assert.Equal(w, JsonSerializer.Deserialize<WarheadDto>(JsonSerializer.Serialize(w, o), o));
         }
 
+        /// <summary>⭐ Weapon systems WS-1 (R-2016, DESIGN_Weapon_Systems §5) — <c>Gen.WeaponSystem</c> and the station seat's fields (with
+        /// W-I's <c>StartWith</c>) round-trip through JSON; a plain seat keeps its old meaning (no station fields, operated by the host).</summary>
+        [Fact]
+        public void WS1_TheWeaponSystemDescriptor_AndTheStationSeatFields_RoundTrip()
+        {
+            Assert.Equal("Gen.WeaponSystem", typeof(WeaponSystemDto).GetCustomAttribute<TkbDescriptorAttribute>()!.HierarchicalName);
+            var o = FdpJsonOptionsRegistry.DefaultRelaxed;
+            var ws = new WeaponSystemDto
+            {
+                NeedsOperator = false, Portable = WeaponPortability.TwoMan, CarrySpeedFactor = 0.5f, FireWhileCarried = true,
+                DeploySeconds = 12f, PackSeconds = 8f, MountKinds = MountKinds.Ground | MountKinds.Pintle,
+            };
+            Assert.Equal(ws, JsonSerializer.Deserialize<WeaponSystemDto>(JsonSerializer.Serialize(ws, o), o));
+
+            var station = new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
+                TraverseMinDeg = -120f, TraverseMaxDeg = 120f, ElevationMinDeg = -10f, ElevationMaxDeg = 60f, StartWith = 3001L,
+                X = -1.5f, Z = 1.2f, FacingDegrees = 180f,
+            };
+            Assert.Equal(station, JsonSerializer.Deserialize<SeatDto>(JsonSerializer.Serialize(station, o), o));
+
+            var plain = new SeatDto();
+            Assert.Equal((MountKinds.None, -1, false, (float?)null, 0L), (plain.Accepts, plain.OperatedBy, plain.NeedsGunner, plain.TraverseMinDeg, plain.StartWith));
+        }
+
         // ---- Negative: no ECS base class or MessagePackObject ----
 
         [Fact]

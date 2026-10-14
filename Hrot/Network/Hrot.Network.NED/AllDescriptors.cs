@@ -87,6 +87,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list, the vehicle's owner (Brain group) → every node, which derives the
         //   passenger's side from it. 📄 docs/DESIGN_Entity_Interactions.md §7.1c
         dtPassengerBuffer             = 131,
+        // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state, its owner (Brain group) → every node.
+        //   📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §2, §6
+        dtWeaponSystemState           = 132,
         // etc., all known descriptor types here
     }
 

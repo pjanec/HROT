@@ -111,6 +111,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list (its owner → every node; each derives the passenger's side).
             yield return new EntityPassengersEgressTranslator(participant);
             yield return new EntityPassengersIngressTranslator(participant, entityMap);
+            // ⭐ Weapon systems WS-1 (W-C) — a weapon system's deploy state (its owner → every node).
+            yield return new EntityWeaponSystemStateEgressTranslator(participant);
+            yield return new EntityWeaponSystemStateIngressTranslator(participant, entityMap);
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);

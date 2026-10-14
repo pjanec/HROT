@@ -349,6 +349,17 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ Weapon systems WS-1 (R-2016) — a WEAPON SYSTEM: an entity of its own (<c>Gen.WeaponSystem</c>), placed, mounted,
+        /// carried, deployed, manned. Its gun is the type's own <see cref="WithCombat"/> mount 0, its pintle <see cref="WithTurrets"/>.</summary>
+        public NedTkbBuilder WithWeaponSystem(long tkbId, Fdp.Toolkit.Tkb.Domain.WeaponSystemDto weaponSystem)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(weaponSystem ?? throw new ArgumentNullException(nameof(weaponSystem)));
+            return this;
+        }
+
         /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
         public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
         {
