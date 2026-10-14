@@ -150,10 +150,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 }
             }
 
-            // Drain cooldown continuously each frame; fire only after cooldown reaches zero.
+            // Fire only after the cooldown reaches zero. ⭐ CE-2166 — WeaponDispatcherSystem drains it, once a frame for every weapon
+            //   and mount (it already did): this drained it AGAIN while an aim ran, so a 10 s cooldown fired every ~5 s.
             if (weapon.CooldownSecondsRemaining > 0f)
             {
-                weapon.CooldownSecondsRemaining -= dt;
                 channel.Status = NodeStatus.Running;
                 if (!seen && p.BlindFire != 0) Say(world, entity, ActionReason.BlindFire, p.Target, RoundsFired(ref channel), p.Rounds);
                 else if (!seen || aim.Ready == 0) SayAim(world, entity, p.Target, seen, in aim, mountIndex);
@@ -183,6 +183,16 @@ namespace Fdp.Toolkit.Combat.Executors
                 Magazine.StartIfEmpty(ref weapon);
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
+                return;
+            }
+
+            // ⭐⭐ CE-3195 (R-3003, W-14a) — a person fires only within his twist of his heading: beyond it the round is held (Running,
+            //   nothing spent) and the posture stays Aimed, so the Muscle's gait turns him. The aim clock keeps running — the shot
+            //   leaves the moment he is round (a quick shot at a target that appears behind him).
+            if (BodyAim.TargetPoint(world, p.Target, out var targetAt) && BodyAim.HoldsFire(world, entity, targetAt))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Turning, p.Target);
                 return;
             }
 
@@ -249,12 +259,11 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, p.Point); return; }
             if (p.Trigger == 0)
             {
-                if (weapon.CooldownSecondsRemaining > 0f) weapon.CooldownSecondsRemaining -= dt;
-                Magazine.StartIfEmpty(ref weapon);
+                Magazine.StartIfEmpty(ref weapon);   // ⭐ CE-2166 — the cooldown drains in the dispatcher, not here too
                 SayAt(world, entity, ActionReason.Aiming, p.Point);
                 return;
             }
-            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false);
+            var reason = FireAtPointExecutor.ShootAtPoint(world, entity, mountIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: false, obeyArc: false);
             if (reason == ActionReason.Firing) RoundsFired(ref channel)++;
             SayAt(world, entity, reason, p.Point);
         }
@@ -294,6 +303,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 Say(world, entity, ActionReason.Reloading, p.Target, weapon.ReloadSeconds - weapon.ReloadSecondsRemaining, weapon.ReloadSeconds);
                 return;
             }
+            // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
+            //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
+            if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (LineOfFire.BlockedByFriendly(world, entity, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 

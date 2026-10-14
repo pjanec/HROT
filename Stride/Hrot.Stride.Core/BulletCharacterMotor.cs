@@ -208,6 +208,26 @@ public sealed class BulletCharacterMotor
             // FDP horizontal plane is X=East, Y=North (Z=up). Heading yaw is about FDP up (Z).
             float hx = scaledFdpVelocity.X, hy = scaledFdpVelocity.Y;
             float horizSpeed = MathF.Sqrt(hx * hx + hy * hy);
+            // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14f) — an AIMED person faces his aim, not his travel: the same rule
+            //   as the ECS gait (HumanGait.FacingTurn — snap beyond the twist, smooth inside it), whether or not he moves.
+            if (Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(repo, entity, out var aimAt))
+            {
+                var tfNow = repo.GetComponentRO<SimTransform>(entity);
+                var toAim = new Vector2(aimAt.X - tfNow.Position.X, aimAt.Y - tfNow.Position.Y);
+                if (toAim.LengthSquared() > 0.01f)
+                {
+                    // his heading = the body's yaw less the model offset (the inverse of what the travel facing below writes)
+                    var bodyFdp = FdpStrideTransform.ToFdpRotation(_bodyService.GetBodyState(bodyRef.BodyHandle).Rotation);
+                    var f3 = Vector3.Transform(Vector3.UnitX, bodyFdp);
+                    float headingNow = MathF.Atan2(f3.Y, f3.X) - FacingYawOffsetDeg * (MathF.PI / 180f);
+                    var fwd = new Vector2(MathF.Cos(headingNow), MathF.Sin(headingNow));
+                    global::CarKinem.Controllers.HumanGait.FacingTurn(ref fwd, Vector2.Normalize(toAim), deltaTime);
+                    float aimYaw = MathF.Atan2(fwd.Y, fwd.X) + FacingYawOffsetDeg * (MathF.PI / 180f);
+                    _bodyService.SetCharacterFacing(bodyRef.BodyHandle, FdpStrideTransform.ToStrideRotation(
+                        System.Numerics.Quaternion.CreateFromAxisAngle(new Vector3(0f, 0f, 1f), aimYaw)));
+                    horizSpeed = 0f;   // handled: the travel facing below does not apply
+                }
+            }
             if (horizSpeed >= FacingMinSpeed)
             {
                 float headingRad = MathF.Atan2(hy, hx);                  // FDP yaw about Z (up)

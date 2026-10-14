@@ -622,7 +622,7 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             if (n <= 0) return Array.Empty<EqsResult>();
             var list = buf.Take(n).ToArray();
             void Phase(IEqsTest[]? tests) { if (tests != null) foreach (var x in tests) x.ExecuteBatch(Entity.Null, ref sensor, _repo, list); }
-            Phase(t.FilterCheap); Phase(t.FilterExpensive);
+            EqsFilters.Run(in t, Entity.Null, ref sensor, _repo, list);   // ⭐ the solver's own filter pipeline (CE-3143), incl. CE-2164's soft filters
             list = list.Where(r => r.EntityId != -1L).ToArray();
             Phase(t.ScoreCheap);
             list = list.OrderByDescending(r => r.Score).Take(16).ToArray();
@@ -713,6 +713,52 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.All(top, r => Assert.False(SeenBy(town, new Vector3(360, 175, 0), r, 1.1f)));
             float selfDist = Vector2.Distance(new(300, 80), new(360, 175));
             Assert.True(Vector2.Distance(new(top[0].PositionX, top[0].PositionY), new(360, 175)) > selfDist);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2164</c> (R-3004) — on test-town where the live squad broke contact (the squad at (146,65), the hostile at (202,156),
+        /// 60 m): NO point is hidden from him, and the retreat still answers — the top point is farther from him than the self.
+        /// 🔴 Red-proof: with <c>KeepAllWhenFilteredOut</c> off it answered nothing and the squad held in the open being shot.
+        /// </summary>
+        [Fact]
+        public void CE2164_FindSafeRetreatPoint_OnOpenGround_StillAnswers_AwayFromTheThreat()
+        {
+            var town = TestTown();
+            _repo.SetSingletonManaged(town);
+            var sensor = new EqsSensor { SearchRadius = 60f, ContextSlot0 = At(146, 65), ContextSlot1 = At(202, 156) };
+            var template = FindSafeRetreatPoint.Build(new EqsTemplateBuilder());
+
+            var buf = new EqsResult[template.MaxCandidates];
+            int n = template.Generator.Generate(Entity.Null, ref sensor, _repo, buf);
+            Assert.True(n > 0);
+            Assert.All(buf.Take(n), r => Assert.True(SeenBy(town, new Vector3(202, 156, 0), r, 1.1f), "the premise: open ground"));
+
+            var top = Run(template, sensor);
+
+            Assert.NotEmpty(top);
+            float selfDist = Vector2.Distance(new(146, 65), new(202, 156));
+            Assert.True(Vector2.Distance(new(top[0].PositionX, top[0].PositionY), new(202, 156)) > selfDist + 20f,
+                $"the retreat goes away from the threat: ({top[0].PositionX},{top[0].PositionY})");
+        }
+
+        /// <summary>⭐ <c>CE-2164</c> (R-3004) — the grid covers the radius it is asked for: a 60 m search in a 128-point span reaches
+        /// beyond 50 m (it stopped at ~28 m: 5 m rings, nearest first, rings 1–5 filled the span).</summary>
+        [Fact]
+        public void CE2164_GridGenerator_FitsTheWholeRadiusIntoItsSpan()
+        {
+            _repo.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
+            var sensor = new EqsSensor { SearchRadius = 60f, ContextSlot0 = At(0, 0) };
+            var buf = new EqsResult[128];
+
+            int n = new GridGenerator { Spacing = 5f }.Generate(Entity.Null, ref sensor, _repo, buf);
+
+            Assert.True(n > 90, $"{n} points");
+            float far = buf.Take(n).Max(r => new Vector2(r.PositionX, r.PositionY).Length());
+            Assert.InRange(far, 50f, 60f);
+            // and a span that fits the 5 m grid keeps the 5 m grid
+            sensor.SearchRadius = 10f;
+            n = new GridGenerator { Spacing = 5f }.Generate(Entity.Null, ref sensor, _repo, buf);
+            Assert.Contains(buf.Take(n), r => MathF.Abs(r.PositionX - 5f) < 0.01f && MathF.Abs(r.PositionY) < 0.01f);
         }
 
         /// <summary>A flank on B sees B and lies off the B→self line.</summary>

@@ -27,6 +27,8 @@ namespace Hrot.AI.Behaviors.Brains
         public float MaxLagMetres;
         /// <summary>⭐ <c>CE-2159</c> X-a — 1 = the march owns the commander's danger-area sensor to <see cref="Objective"/>.</summary>
         public byte DangerAreas;
+        /// <summary>⭐ <c>CE-2161</c> — 1 = the danger-area sensor also asks for OPEN GROUND (CE-3081 A5), so D3 can choose Bound.</summary>
+        public byte OpenGround;
     }
 
     /// <summary>
@@ -55,6 +57,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ArrivalRadius = authored.ArrivalRadius > 0f ? authored.ArrivalRadius : 5f,
                 MaxLagMetres  = authored.MaxLagMetres > 0f ? authored.MaxLagMetres : 10f,
                 DangerAreas   = authored.DangerAreas ? (byte)1 : (byte)0,
+                OpenGround    = authored.OpenGround ? (byte)1 : (byte)0,
             };
             block.State = default;
         }
@@ -211,6 +214,11 @@ namespace Hrot.AI.Behaviors.Brains
         private static void WatchRoute(in SquadMarchParams p, in SquadPlayState ws, in SquadPlayContext ctx)
         {
             var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(p.Objective);
+            // ⭐ CE-2161 — open ground too, when the order asks (the crossings alone otherwise: CE-3081 A5)
+            if (p.OpenGround != 0)
+                settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround
+                               | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
+                               | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection;
             var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
             if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);
             else if (ws.Reissue != 0) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);

@@ -204,6 +204,10 @@
               {
                 "Name": "RouteHandle",
                 "TypeId": "System.UInt32"
+              },
+              {
+                "Name": "Kinds",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds"
               }
             ],
             "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",
@@ -450,6 +454,10 @@
                 {
                   "Name": "RouteHandle",
                   "TypeId": "System.UInt32"
+                },
+                {
+                  "Name": "Kinds",
+                  "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds"
                 }
               ],
               "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",
@@ -620,6 +628,10 @@
               {
                 "Name": "RouteHandle",
                 "TypeId": "System.UInt32"
+              },
+              {
+                "Name": "Kinds",
+                "TypeId": "global::Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds"
               }
             ],
             "SettingsDefaultFqn": "Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.Default",

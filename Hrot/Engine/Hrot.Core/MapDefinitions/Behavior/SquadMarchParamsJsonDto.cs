@@ -43,5 +43,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// (Squad Tactics §7.7.6). Off by default.</summary>
         [JsonPropertyName("DangerAreas")]
         public bool DangerAreas;
+
+        /// <summary>⭐ <c>CE-2161</c> (CE-3081, docs/DESIGN_Utility_AI_Demo_Scenarios.md §10.7b A5) — with <see cref="DangerAreas"/>, OPEN
+        /// GROUND is a danger area too (an off-road run of ≥ 20 m with no cover in the corridor): the squad's crossing choice (D3) bounds
+        /// over it by overwatch. Off by default — on most routes every field would become a drill.</summary>
+        [JsonPropertyName("OpenGround")]
+        public bool OpenGround;
     }
 }

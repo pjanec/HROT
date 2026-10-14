@@ -965,6 +965,98 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 
 Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly.
 
+#### 10.7b OpenGround — the first kind after v1 *(`CE-3081`, backend, `2026-10-14`; for behaviors' `CE-2161` (the live D3 "Bound" demo); build-state: BUILT `2026-10-14`, as drawn — the as-built line at the end)*
+
+> 🔒 **Dispatched** by the behaviours lane ([`HANDOFF_Behaviors_To_Backend_OpenGround`](blueprints/batches/HANDOFF_Behaviors_To_Backend_OpenGround.md),
+> frozen at `4a9b037f5`) — user, `2026-10-14`: *"Each behavior needs to be demoed in some scenario"*. §10.7: *"a run with no cover
+> within the corridor"*.
+
+**INVENTORY** *(graph CLI + grep, `2026-10-14`)* — the classifier `DangerAlongRouteClassifier` (pure; one caller,
+`DangerAlongRouteSolve.Solve`; 7 rails) · the cover map `ICoverProvider` (`TerrainCoverProvider`, set per terrain by
+`TerrainResidency`, read by `CoverPointsGenerator` on the same solver node) — a point per 2.5 m round every solid piece, with the
+stance its height protects (`StanceFor`: ≥ 1.5 m stand · ≥ 0.9 crouch · ≥ 0.45 prone · lower none) · the Brain-side apply
+`DangerAreaSensorSystem.Apply` · the settings `DangerAreaSettings` (on the Brain child as `DangerAreaSensor.Settings`; NOT on the
+config wire — only the corridor and the route point ride `EqsSensor`) · readers of `DangerAreaDescriptor.Kind`: only
+`SquadCrossingDecision` (`KindIs(OpenGround)`); the single-unit crossing behaviours take ANY area as a crossing.
+
+```mermaid
+classDiagram
+  class DangerAlongRouteClassifier {
+    <<existing, pure>>
+    +Classify(route, roads, terrain, cover, corridor, areas) int
+    +MinOpenRun 20 m
+    -OpenAt(cover, p, corridor) bool
+  }
+  class ICoverProvider {
+    <<existing>>
+    GetCoverPointsInRadius(center, radius, results)
+  }
+  class TerrainCoverProvider { <<existing>> StanceFor(height) }
+  class DangerAlongRouteSolve { <<existing>> Solve() passes the node's ICoverProvider }
+  class DangerAreaSettings {
+    <<existing, Brain child>>
+    CorridorHalfWidth
+    +Kinds : DangerAreaKinds
+  }
+  class DangerAreaKinds { <<NEW flags>> 0 = the v1 crossings · OpenGround · StreetCrossing · Intersection }
+  class DangerAreaSensorSystem { <<existing, Brain>> Apply() keeps only the kinds the sensor asked for }
+  ICoverProvider <|.. TerrainCoverProvider
+  DangerAlongRouteSolve --> DangerAlongRouteClassifier
+  DangerAlongRouteSolve ..> ICoverProvider : the node's singleton
+  DangerAlongRouteClassifier ..> ICoverProvider : cover within the corridor
+  DangerAreaSettings --> DangerAreaKinds
+  DangerAreaSensorSystem ..> DangerAreaSettings : Kinds
+```
+
+*What the picture shows that the prose hid: no new type on the solver, no new wire — the classifier gains one input (the cover map
+the cover query already reads) and the Brain gains one filter (the sensor's own settings), so a sensor that does not ask for
+OpenGround sees exactly what it saw before.*
+
+```mermaid
+sequenceDiagram
+  participant S as DangerAlongRouteSolve (solver node)
+  participant C as DangerAlongRouteClassifier
+  participant M as ICoverProvider
+  participant B as DangerAreaSensorSystem (Brain)
+  S->>C: route, road graph, cover map, corridor
+  loop every 1 m along the route
+    C->>C: on a road band? (unchanged: road runs of 40 m or less are crossings)
+    C->>M: off the roads: cover points within the corridor?
+    M-->>C: none that protects a crouching man: OPEN
+  end
+  C-->>S: crossings + open runs of 20 m or more, in route order (8 max)
+  S-->>B: DangerAreaResult (unchanged wire)
+  B->>B: keep the kinds the sensor's Settings.Kinds asks for (0 = the crossings)
+```
+
+*What the picture shows: the kind filter sits where the settings live (the Brain), so the answer on the wire is the same for every
+sensor and only the reader's choice differs.*
+
+| who calls it each frame | unchanged |
+|---|---|
+| `EqsSolverSystem` → `DangerAlongRouteSolve` → the classifier | the solver node's existing branch (§10.7) |
+| `DangerAreaSensorSystem.Apply` | the Brain's existing system (`EqsResultUpdateCapability`) |
+
+| # | question | ⭐ decision | rests on | rejected — one line each |
+|---|---|---|---|---|
+| **A1** | what counts as cover | a **cover point** of the terrain's cover map within `CorridorHalfWidth` of the route sample that protects at least a **crouching** man (`StanceHeight` ≥ 1, kind Cover) | the cover map IS the engine's definition of cover (`TerrainCoverProvider.StanceFor`); the squad judges a point crouched (Squad Tactics §7.6.2: *"the 0.5 m Low Wall is NO cover for the query"*) — the Low Wall's points are prone-only, so it stays open here too | traces across the corridor (the handoff's lean) — a SECOND cover rule beside the map; parked vehicles — live cover the map does not hold (the generator adds them per query); not here |
+| **A2** | shortest open run | **20 m** (`MinOpenRun`) | a gap between buildings is a street's job | 40 m — the crossings' cap, a different question |
+| **A3** | a sample both on a road and open | **the road wins**: only off-road samples can be open, so every StreetCrossing / Intersection answer is unchanged | the fence: *"Do not change the two v1 kinds' output"* | — |
+| **A4** | handles and `FeatureId` | as the crossings: near / far handle `StandOff` (4 m) outside the run; `FeatureId` = the run's EXIT on the 10 m grid with road mask 0 (a road run's mask is never 0) | §10.7 FeatureId rule; `TacticalFeatureHandles` reads the same fields | a hash of the run's start — the start moves as the unit walks in |
+| **A5** *(new)* | who receives OpenGround | **opt-in per sensor**: `DangerAreaSettings.Kinds` (0 = the v1 crossings, so every zero-filled writer — scenarios, TKB, the shipped blueprints — is unchanged); the Brain drops the kinds not asked for | 📐 almost every test-town route has ≥ 20 m of open ground, and the single-unit crossing behaviours take ANY area as a crossing — default-on would move `ua-danger-crossing`, `ua-squad-danger-crossing` and their rails | default-on — moves the v1 demos; the kinds on the config wire — a wire change for a choice the Brain can make; filtering on the solver — needs that wire |
+| **A6** *(new)* | no cover map on the node | no OpenGround (it cannot be judged); the crossings as before | an editor or test world without a terrain | treating "unknown" as open |
+
+⚠ Known limits: the 8-area cap is shared — on a long route of many open runs a far crossing can fall outside the first 8 until the
+unit walks closer (the list is re-made from the unit each solve); a terrain with NO road graph still answers nothing (the solve's
+existing early return — a desert's open ground needs that lifted: follow-up, not this batch).
+
+✅ **AS-BUILT `2026-10-14`** — as drawn, plus: the sensors route (`GET /entities/{id}/sensors`) shows `settings.kinds`; the shipped
+`DangerCrossingBp`'s baked sensor decl gained the `Kinds` settings field (3 nodes; `ShippedSensorDeclsTests` pins decl = registry).
+Rails: `DangerAlongRouteClassifierTests.CE3081_*` ×5 (incl. the real test-town loose-march leg — ONE open run of ~103 m),
+`DangerAreaSensorSystemTests.CE3081_OpenGround_ReachesOnlyASensorThatAsksForIt`, `EqsDistributedTests.CE3081_OpenGround_AcrossHosts_*`
+(simhost,cgf); red-proved (detection + Brain filter off ⇒ 6/6 red). Gates: `Fdp.Toolkits.Tests` 3228/0; integration danger-area set
+(across hosts ×2, `CE3079` crossing twin, `DangerAreaNodesTests`) 11/0 — no v1 answer moved.
+
 #### 10.5b ✅ AS-BUILT — B6 (`CE-3079`, backend), `2026-10-06`: the demo PASSES live, with no HTTP write
 
 | §10.3 / §10.5 said | as built |

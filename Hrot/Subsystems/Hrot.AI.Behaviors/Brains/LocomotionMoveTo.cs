@@ -82,8 +82,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// False when the unit has no locomotion channel.</summary>
         /// <remarks>⭐ <c>AQ88</c> B (R-265) — <paramref name="gait"/> sets the body the move is made in (<see cref="TacticalGait"/>); a
         /// unit that cannot carry a stance just moves.</remarks>
+        /// <remarks>⭐ <c>CE-2167</c> (V5) — <paramref name="reverseAllowed"/>: a vehicle may BACK to the destination (it keeps facing its
+        /// way — out of a firing position and back into the hide, Exposure Cycle §4–§5); a person turns and walks as before.</remarks>
         public static unsafe bool Issue(EntityRepository world, Entity self, Vector3 destination, float speed, float arrivalRadius,
-                                        MoveGait gait = MoveGait.Tactical)
+                                        MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return false;
             if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
@@ -98,7 +100,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Destination    = destination,
                 ArrivalRadius  = arrivalRadius,
                 Speed          = speed,
-                ReverseAllowed = 0,
+                ReverseAllowed = reverseAllowed ? (byte)1 : (byte)0,
             };
             fixed (byte* dst = channel.Params)
             {

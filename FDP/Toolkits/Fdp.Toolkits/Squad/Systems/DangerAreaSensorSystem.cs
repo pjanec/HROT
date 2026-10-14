@@ -58,13 +58,20 @@ namespace Fdp.Toolkit.Squad.Systems
                 if (!repo.HasComponent<EqsSensor>(child) || !repo.HasComponent<DangerAreaCognitiveBuffer>(child)) continue;
                 if (evt.Epoch != repo.GetComponentRO<EqsSensor>(child).Epoch) continue;   // a stale answer — for an older route
 
+                // ⭐ CE-3081 (§10.7b A5) — keep only the kinds this sensor asked for (0 = the v1 crossings); the answer on the wire is
+                //   the same for every sensor.
+                var wanted = repo.IsComponentTypeRegistered<DangerAreaSensor>() && repo.HasComponent<DangerAreaSensor>(child)
+                    ? repo.GetComponentRO<DangerAreaSensor>(child).Settings.Kinds : DangerAreaKinds.Crossings;
                 ref var buffer = ref repo.GetComponentRW<DangerAreaCognitiveBuffer>(child);
                 var span = buffer.GetSpanRW();
-                int n = Math.Min(Math.Min(evt.Count, evt.Areas.Length), span.Length);
-                for (int i = 0; i < n; i++)
+                int count = Math.Min(evt.Count, evt.Areas.Length);
+                int n = 0;
+                for (int i = 0; i < count && n < span.Length; i++)
                 {
-                    span[i] = evt.Areas[i];
-                    span[i].ThreatRating = 0f;   // rated below, from the Brain's memory
+                    if (!DangerAreaKindsOf.Wants(wanted, evt.Areas[i].Kind)) continue;
+                    span[n] = evt.Areas[i];
+                    span[n].ThreatRating = 0f;   // rated below, from the Brain's memory
+                    n++;
                 }
                 buffer.Count = n;
                 buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;

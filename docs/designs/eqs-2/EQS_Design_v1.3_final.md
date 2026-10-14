@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09
+updated: 2026-10-14 (§19.6a CE-2164 — a retreat always answers)
 build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01) · §19 — the terrain EQS slice BUILT (2026-10-03)
 current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
@@ -1332,6 +1332,62 @@ milliseconds for a town.
 
 ⛔ Not in this slice: `FindNearestAlly` / `FindAllyForFormation` (no consumer named), Tag / DisType tests, accurate LOS rework,
 influence maps (§1 future).
+
+### 19.6a A retreat always answers *(`CE-2164`, R-3004, `2026-10-14` — build-state: BUILT)*
+
+```mermaid
+classDiagram
+  class EqsQueryTemplate { <<existing, + field>> KeepAllWhenFilteredOut : bool }
+  class EqsFilters { <<existing, the ONE filter pipeline (CE-3143)>> Run() — all rejected and the flag set ⇒ give every candidate back }
+  class GridGenerator { <<existing, widened>> spacing = max(Spacing, radius·√(π / span)) }
+  class DistanceScoreTest { <<existing, rescaled>> from another slot: scale max(0, d−R)…d+R (d = the self's own distance) }
+  class FindSafeRetreatPoint { <<existing template>> KeepAllWhenFilteredOut = true }
+  class EqsSolverSystem { <<existing>> solver }
+  class EqsSensorGizmo { <<existing>> the map's verdict }
+  class BreakContactPlay { <<existing, behaviors>> squad retreat }
+  class FallBack { <<existing, EqsTacticsNodes>> a soldier's retreat }
+  FindSafeRetreatPoint --> GridGenerator
+  FindSafeRetreatPoint --> DistanceScoreTest : slot 1, far
+  FindSafeRetreatPoint ..> EqsQueryTemplate : sets the flag
+  EqsSolverSystem --> EqsFilters
+  EqsSensorGizmo --> EqsFilters
+  BreakContactPlay ..> FindSafeRetreatPoint
+  FallBack ..> FindSafeRetreatPoint
+```
+*What the picture shows that prose hid: the soft filter lives in the ONE pipeline both the solver and the map call, so the map's
+green/red verdict stays what the AI concluded; and both retreats (the squad's and the soldier's) read the one template.*
+
+```mermaid
+sequenceDiagram
+  participant S as EqsSolverSystem
+  participant G as GridGenerator
+  participant F as EqsFilters.Run
+  participant X as score phases
+  S->>G: generate (radius 60, span 128)
+  G-->>S: 128 points, ~9.4 m apart, out to ~60 m
+  S->>F: filter (hidden from slot 1)
+  F->>F: all rejected? and KeepAllWhenFilteredOut ⇒ restore every candidate
+  F-->>S: candidates
+  S->>X: Distance(slot 1, far) · ThreatExposure ×3 · PathCost (unreachable dropped)
+  X-->>S: the least exposed, farthest, reachable point
+```
+
+📌 **Why — measured live (`ua-squad-danger-crossing-hold`, a temporary solver trace):** both slots resolved on the solving SimHost; 128
+grid points, **0 hidden** from the hostile; with the cap lifted, **430 points over the full 60 m, 0 hidden** — test-town has nothing
+between the squad and the hostiles. The empty answer made `BreakContact` fail (Squad Tactics S2-F *"no answer ⇒ Failure ⇒ hold"*) and
+the squad stood in the open, shot a man at a time; a soldier's `FallBack` froze the same way. AQ88 §5 C (R-265) meant *"the unit never
+freezes"* but kept the hard filter, so its open-ground answer existed only when SOME point hid from the top threat.
+🔒 User, `2026-10-14`, on this lean (soft filter when nothing passes + the grid fits its radius): *"Approved"*.
+
+| decision | built | rejected (one line each) |
+|---|---|---|
+| where the open-ground answer lives | the one retreat template, via a generic template flag in the one filter pipeline | a second, unfiltered query in `BreakContact` only — the soldier's `FallBack` still freezes, and two retreats for one concept (R-259) · re-siting the demo — it passes while every open-ground retreat still freezes |
+| when the filter softens | only when it rejects EVERY candidate | always soft — a visible point could outrank a hidden one by distance |
+| the grid | spacing widens to fit the span (5 m stays 5 m when it fits) | a bigger span — more cost per query for every retreat |
+| "farther from the threat" | from another slot, the distance is scaled over the range the candidates can have (`max(0, d−R)…d+R`); from the self (every other template) unchanged, 0…R | 📌 found building it: 0…R from the THREAT clamped every point to 1 when the threat stood beyond the radius (107 m vs 60 m live) ⇒ the retreat took the nearest point (13 m gained, not ~60) |
+
+⚠ **Consequence, stated:** `CombatPostureDecision`'s `Flee` reads this template's top score (`EqsTopScore`); on open ground it was 0
+(empty) and is now the best point's score. Rails `TerrainEqsTests.CE2164_*` (red-proved: flag off ⇒ the open-ground rail fails).
 
 ### 19.7 As-built *(`2026-10-03`)* — what the build found that §19.0–19.6 did not know
 

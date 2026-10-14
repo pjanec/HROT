@@ -377,7 +377,7 @@ sequenceDiagram
 | **S2-C** | the leader's standing orders | `BasicSquadSop`, a JSON SOP asset (the twin of `BasicInfantrySop`): UnderFire fresh → React `ReactToContact` (UnderFire); Contact fresh → React `ReactToContact` (Contact); no idle row | SOPs are recipes an author copies and edits in the editor, as `BasicInfantrySop` is. ⚠ ONE SOP slot per entity ⇒ a soldier-leader given the squad SOP no longer runs its own soldier reactions — it is the squad's brain; splitting body and command is out of S2's scope |
 | **S2-D** | the choice | NEW `SquadContactResponseDecision` (the option kind `PostureSelect` — as built, §4.7): Assault = our strength high × their share low; BreakContact = their share high; Hold = a floor | the existing `ManeuverSelectStarterDecision` answers another question, reads a dead provider and cannot be named by a tree |
 | **S2-E** | when to decide | ONCE, after `DecideAfterSeconds` (3 s) of holding and returning fire — NEW shared node `ChooseOptionOnce` (keeps the first winner) | `ChooseOption` re-scores every tick; a flip mid-drill would restart the drill (new partition, new query) |
-| **S2-F** | breaking contact | `BreakContactPlay` over `BoundingOverwatchManeuver`: the leader's own `FindSafeRetreatPoint` query (slot 0 = a live member, slot 1 = the top threat); each bound goes STRAIGHT to the answer; ends when both elements are within `ArrivalRadius`; no answer ⇒ Failure (the tree falls back to Hold) | bounding's geometric steps can land off the walkable area (S1 measured: such moves fail forever); the answer is walkable and hidden from the threat |
+| **S2-F** | breaking contact | `BreakContactPlay` over `BoundingOverwatchManeuver`: the leader's own `FindSafeRetreatPoint` query (slot 0 = a live member, slot 1 = the top threat); each bound goes STRAIGHT to the answer; ends when both elements are within `ArrivalRadius`; no answer ⇒ Failure (the tree falls back to Hold) — ⛔ SUPERSEDED for open ground `2026-10-14` (R-3004, CE-2164): the retreat query no longer answers nothing when no point is hidden — it ranks the whole set (least exposed, farthest, reachable), so the squad bounds away instead of holding in the open ([EQS §19.6a](../eqs-2/EQS_Design_v1.3_final.md)); "no answer" now means only "no grid point at all" | bounding's geometric steps can land off the walkable area (S1 measured: such moves fail forever); the answer is walkable and hidden from the threat |
 | **S2-G** | two drills on one squad | the runner remembers its own manoeuvre kind; on a tick where the squad's `ManeuverKind` is NOT its own (another drill ran while it was paused) it RE-TAKES the squad: re-partitions, restores its own kind and its last phase, re-issues | measured defect (§4.0): the resumed drill otherwise reads the other drill's phase — `Aborted` collides with its own abort id |
 | **S2-H** | round-out | `BreakContact` and `SquadHold` are also Library/Squad behaviours an operator or mission can order | the reaction's options are drills a commander is ordered to do anyway; each is one attribute + one params contract |
 
@@ -1395,6 +1395,17 @@ open-ground rail red); the street case is every `CE2159_DangerCrossing_*` rail, 
 is a `StreetCrossing` (measured), so the demo's path is unchanged; open ground is a rail only (no scenario yet produces an `OpenGround`
 area).
 
+⭐ **`CE-2161` — the live Bound demo, BUILT `2026-10-14` (by backend, at the user's ask; CE-3081 OpenGround).** The march's
+`OpenGround` flag (with `DangerAreas`) asks the commander's route sensor for OpenGround as well as the crossings
+(`DangerAreaSettings.Kinds`, Utility demos §10.7b A5) — off by default, because D3 picks Bound on open ground even with NO threat
+(Cross weighs NOT open ground ⇒ 0; Hold needs a threat; Bound's logistic threat factor is small, never 0), so a march with it on
+bounds across every field ≥ 20 m. Scenario `ua-squad-bound-open-ground`: the squad in Shed Row's south cover (y 104), marching to
+(175, 60) across test-town's open field. **Live PASS** (`utility-demo-check.py ua-squad-bound-open-ground --launch`, sim 95 s): the
+field listed as OpenGround 18 m ahead (near (81, 100), far (175, 60)), D3 → `BoundingOverwatch`, 17 bounds with both halves never
+moving together, the last bound's element 1–6 m past the far side, the march then gathers every man within 10 m of it, no rounds
+fired. Rail `SquadManeuverTests.CE2161_TheMarch_AsksForOpenGround_OnlyWhenTheOrderSaysSo`. ⚠ The field's far side is the march's
+objective here (no cover on test-town's south-west to end the field earlier).
+
 ### 7.8 The demos — one per drill, each checked over HTTP *(behaviors, `2026-10-13`; build-state: DESIGN — not built; the scenario slices R-e, F-e, X-d)*
 
 ⭐ **The rule for all three:** a demo is DONE when its checker in `scripts/utility-demo-check.py` passes against a fresh
@@ -1497,7 +1508,7 @@ open ground and trees; one hostile at the objective, out of sight until the squa
 | ⑤ | it closes the distance | positions | after 4 rushes the squad's centre is ≥ 30 m nearer the hostiles |
 | ⑥ | never both halves up | positions every 0.5 s | as ① above |
 
-⛔ Pairs (F-d) get no demo of their own: the same checks, per pair, once F-d is built.
+⛔ ~~Pairs (F-d) get no demo of their own~~ — SUPERSEDED `2026-10-14`: `ua-fire-and-movement-pairs` (F-d, `Pairs` on) has its own checks (rushes · ≤ 2 up · the other buddy fires · A→B hand-over · closes the distance) and PASSES 5/5, the centre 67 m nearer in 120 s, after **CE-2163** (a man's own rounds sat in the collider hash 1 m before his muzzle and pushed him back on every shot — [DESIGN_Entity_Interactions.md §7.2a](../../DESIGN_Entity_Interactions.md)). ⚠ ⑥ as built: halves are the drill's ELEMENTS and the measure is the longest overlap ≤ 1.5 s — as `ua-bounding-overwatch`'s ① (it grouped by name order and summed every overlap — 2.4 s live; by the drill's elements the overlap is 0.0 s, `ua-fire-and-movement` PASS 6/6 twice, 84–88 m nearer in 90 s).
 
 #### 7.8.4 `ua-squad-danger-crossing` (X-d; needs X-a … X-c)
 

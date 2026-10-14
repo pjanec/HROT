@@ -238,5 +238,27 @@ namespace Fdp.Toolkit.Tests.Squad
             var child = DangerAreaChildSensor.Ensure(_repo, unit, 1, DangerAreaSettings.Default);   // OwnMove
             Assert.Equal(1, SolveAndTick(child, new DangerAreaSensorSystem()).Count);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3081</c> (§10.7b A5) — the solve finds OpenGround on either side of Cross Street once the node has a cover map; a
+        /// sensor that does not ask for it keeps only the crossing (what every existing behaviour sees), one that asks for it keeps all
+        /// three in route order. 🔴 Red-proof: drop the Brain filter and the default sensor's slot 0 becomes the open run.
+        /// </summary>
+        [Fact]
+        public void CE3081_OpenGround_ReachesOnlyASensorThatAsksForIt()
+        {
+            _repo.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(TestTown()));
+            var plain = DangerAreaChildSensor.Ensure(_repo, Unit(new Vector3(100, 300, 0)), 1, DangerAreaSettings.ToPoint(new Vector3(300, 300, 0)));
+            var buffer = SolveAndTick(plain, new DangerAreaSensorSystem());
+            Assert.Equal(1, buffer.Count);
+            Assert.Equal(DangerAreaKind.StreetCrossing, buffer.GetSpanRO()[0].Kind);
+
+            var wants = DangerAreaSettings.ToPoint(new Vector3(300, 300, 0));
+            wants.Kinds = DangerAreaKinds.OpenGround | DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
+            var open = DangerAreaChildSensor.Ensure(_repo, Unit(new Vector3(100, 300, 0)), 2, wants);
+            var all = SolveAndTick(open, new DangerAreaSensorSystem());
+            Assert.Equal(new[] { DangerAreaKind.OpenGround, DangerAreaKind.StreetCrossing, DangerAreaKind.OpenGround },
+                all.GetSpanRO().Slice(0, all.Count).ToArray().Select(a => a.Kind));
+        }
     }
 }

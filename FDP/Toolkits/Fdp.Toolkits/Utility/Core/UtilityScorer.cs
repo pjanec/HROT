@@ -31,7 +31,10 @@ namespace Fdp.Toolkit.Utility
     /// </summary>
     public static unsafe class UtilityInputReaderStore
     {
-        private static readonly Dictionary<ushort, nint> _readers = new();
+        // ⭐ CE-3196 — concurrent: readers are registered from more than one thread (test classes run in parallel, each calling
+        //   RegisterAll); a plain Dictionary written concurrently corrupted itself ("Operations that change non-concurrent collections
+        //   must have exclusive access") and failed 61 SimHost squad tests in one run. Reads stay lock-free.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<ushort, nint> _readers = new();
 
         /// <summary>
         /// Registers a reader function for the given input ID.

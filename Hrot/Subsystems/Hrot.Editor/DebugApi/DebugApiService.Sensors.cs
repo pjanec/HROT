@@ -98,6 +98,7 @@ namespace Hrot.Editor.DebugApi
                         ["corridorHalfWidth"] = Round(st.CorridorHalfWidth),
                         ["maxAreas"]          = st.MaxAreas,
                         ["refreshSeconds"]    = Round(st.RefreshSeconds),
+                        ["kinds"]             = st.Kinds.ToString(),   // ⭐ CE-3081 — "Crossings" (0) = the v1 crossings
                     };
                 }
             }

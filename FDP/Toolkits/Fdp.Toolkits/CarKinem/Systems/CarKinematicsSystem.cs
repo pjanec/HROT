@@ -315,12 +315,25 @@ namespace CarKinem.Systems
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
 
+            // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person (his weapon brain's replicated WeaponPosture)
+            //   turns his body to the aim — snapping beyond his twist, smoothly inside it — and moves along his way independently of
+            //   it (sidestep, back-pedal), instead of walking where he faces. 📌 He used to fire at a target behind his back.
+            bool aimedPerson = false;
+            Vector2 toAim = default;
+            Vector2 movedBefore = new Vector2(vel.Linear.X, vel.Linear.Y);
+            if (@params.Class == VehicleClass.Pedestrian
+                && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(repo, entity, out var aimAt))
+            {
+                toAim = new Vector2(aimAt.X - pos2D.X, aimAt.Y - pos2D.Y);
+                aimedPerson = toAim.LengthSquared() > 0.01f;
+            }
+
             // Calculate desired velocity
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
             // Apply collision avoidance
             Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
-                desiredVelocity, pos2D, fwd2D * state.Speed, 
+                desiredVelocity, pos2D, aimedPerson ? movedBefore : fwd2D * state.Speed,
                 spatialGrid, @params, repo);
             
             // Speed control
@@ -362,7 +375,9 @@ namespace CarKinem.Systems
 
             float finalTargetSpeed = MathF.Min(targetSpeedAfterAvoidance, maxCorneringSpeed) * speedSign;
             if (person)
-                finalTargetSpeed = HumanGait.SpeedTarget(fwd2D, avoidanceVelocity, targetSpeedAfterAvoidance);   // far off ⇒ turn first
+                finalTargetSpeed = aimedPerson
+                    ? targetSpeedAfterAvoidance * HumanGait.FacingSpeedFactor(fwd2D, avoidanceVelocity)   // ⭐ CE-3195 W-14d — no turn-first
+                    : HumanGait.SpeedTarget(fwd2D, avoidanceVelocity, targetSpeedAfterAvoidance);   // far off ⇒ turn first
 
             if (finalTargetSpeed < 0f)
                 finalTargetSpeed = MathF.Max(finalTargetSpeed, -@params.MaxSpeedRev);
@@ -378,13 +393,23 @@ namespace CarKinem.Systems
             
             // Integrate: a person's gait, else the bicycle model
             float yawRate;
-            if (person)
+            Vector2 planarOut = default;
+            if (person && aimedPerson)
+            {
+                // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
+                Vector2 travel = avoidanceVelocity.LengthSquared() > 1e-6f ? Vector2.Normalize(avoidanceVelocity)
+                               : movedBefore.LengthSquared() > 1e-6f ? Vector2.Normalize(movedBefore) : fwd2D;
+                yawRate = HumanGait.IntegrateFacing(ref pos2D, ref fwd2D, ref state, travel, Vector2.Normalize(toAim), accel, dt, out planarOut);
+            }
+            else if (person)
             {
                 yawRate = HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, avoidanceVelocity, targetSpeedAfterAvoidance > 0.01f, accel, dt);
             }
             else
             {
-                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
+                BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase,
+                    nav.ReverseAllowed == 1 ? @params.MaxSpeedRev : 0f,   // ⭐ CE-2167 (V5) — reverse when allowed
+                    @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);   // 0 = an unknown profile (CE-103): no cap
                 yawRate = (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle);
             }
 
@@ -410,14 +435,19 @@ namespace CarKinem.Systems
                 if (person && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var walked) && walked.IsLooped == 0)
                     nav.ProgressS = HumanGait.Progress(in walked, nav.ProgressS, pos2D);
                 else
-                    nav.ProgressS += state.Speed * dt * MathF.Max(0f, Vector2.Dot(fwd2D, progressTangent ?? targetHeading));
+                {
+                    // ⭐ CE-2167 (V5) — the way it MOVES, not the way it faces: a vehicle backing along its path makes progress too
+                    //   (it froze: the forward vector points against the tangent while reversing).
+                    var travel = state.Speed < 0f ? -fwd2D : fwd2D;
+                    nav.ProgressS += MathF.Abs(state.Speed) * dt * MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                }
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
             {
                 nav.ProgressS += state.Speed * dt;
             }
             
-            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, fwd2D * state.Speed, yawRate, person, dt);
+            FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D, aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed, yawRate, person, dt);
         }
 
         /// <summary>

@@ -70,6 +70,73 @@ namespace CarKinem.Controllers
             return dt > 0f ? turned / dt : 0f;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (R-3003, docs/DESIGN_Weapon_Layers.md W-14a) — how far off his heading a person may aim and fire (rad, 75°):
+        /// the upper-body twist. The drawn twist (<c>EntityBodyLayer3D</c>) and the fire arc (<c>BodyAim</c>) both read this one value.
+        /// </summary>
+        public const float MaxAimTwist = 75f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14c) — inside <see cref="MaxAimTwist"/> an aimed body follows its aim at this rate per radian off
+        /// (1/s: 63 % of the way in 1 s, 95 % in 3 s) — a snap shot barely turns him, a lasting aim brings him round.</summary>
+        public const float AlignGain = 1f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14c) — within this of the aim (rad, 3°) the body does not turn.</summary>
+        public const float AlignDeadband = 3f * MathF.PI / 180f;
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14d) — moving while aimed, full speed within this of his heading (rad, 45°) …</summary>
+        public const float FacingFullSpeedAngle = MathF.PI / 4f;
+
+        /// <summary>… and <see cref="ManualMotion.BackAndStrafeFactor"/> from this off (rad, 90°: sidestep, back-pedal).</summary>
+        public const float FacingSlowSpeedAngle = MathF.PI / 2f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14c) — turn an AIMED person's heading <paramref name="fwd"/> toward <paramref name="toAim"/>: at
+        /// <see cref="TurnRate"/> while the aim is beyond <see cref="MaxAimTwist"/> (he must turn to shoot), else at
+        /// <see cref="AlignGain"/> × the angle (a smooth lag), not at all within <see cref="AlignDeadband"/>. Returns the angle turned (rad).
+        /// </summary>
+        public static float FacingTurn(ref Vector2 fwd, Vector2 toAim, float dt)
+        {
+            if (dt <= 0f || toAim.LengthSquared() < 1e-6f) return 0f;
+            float error = SignedAngle(fwd, toAim);
+            float off = MathF.Abs(error);
+            if (off <= AlignDeadband) return 0f;
+            float rate = off > MaxAimTwist ? TurnRate : MathF.Min(TurnRate, AlignGain * off);
+            float most = rate * dt;
+            float turned = Math.Clamp(error, -most, most);
+            float c = MathF.Cos(turned), s = MathF.Sin(turned);
+            fwd = VectorMath.SafeNormalize(new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c), fwd);
+            return turned;
+        }
+
+        /// <summary>⭐ <c>CE-3195</c> (W-14d) — the share of his speed a person keeps moving along <paramref name="travel"/> while his body
+        /// faces <paramref name="fwd"/>: 1 within <see cref="FacingFullSpeedAngle"/>, <see cref="ManualMotion.BackAndStrafeFactor"/> from
+        /// <see cref="FacingSlowSpeedAngle"/>, linear between.</summary>
+        public static float FacingSpeedFactor(Vector2 fwd, Vector2 travel)
+        {
+            if (travel.LengthSquared() < 1e-6f) return 1f;
+            float off = MathF.Abs(SignedAngle(fwd, travel));
+            float t = Math.Clamp((off - FacingFullSpeedAngle) / (FacingSlowSpeedAngle - FacingFullSpeedAngle), 0f, 1f);
+            return 1f - (1f - ManualMotion.BackAndStrafeFactor) * t;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3195</c> (W-14d/e) — one step of an AIMED person: the body turns by <see cref="FacingTurn"/> toward
+        /// <paramref name="toAim"/> whether or not he walks, and he moves along <paramref name="travel"/> (a unit direction, NOT his
+        /// heading — back-pedal, sidestep) at the speed <paramref name="accel"/> leads to. <paramref name="planar"/> is the world velocity.
+        /// Returns the yaw rate (rad/s).
+        /// </summary>
+        public static float IntegrateFacing(ref Vector2 pos, ref Vector2 fwd, ref VehicleState state, Vector2 travel, Vector2 toAim,
+            float accel, float dt, out Vector2 planar)
+        {
+            float turned = FacingTurn(ref fwd, toAim, dt);
+            state.Speed = MathF.Max(0f, state.Speed + (accel * MathF.Max(dt, 0f)));
+            planar = travel * state.Speed;
+            pos += planar * MathF.Max(dt, 0f);
+            state.SteerAngle = 0f;
+            state.Accel = accel;
+            return dt > 0f ? turned / dt : 0f;
+        }
+
         /// <summary>A path corner counts as reached within this (m) — then he heads for the next one.</summary>
         public const float CornerReach = 0.25f;
 

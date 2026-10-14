@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 foreach (var mount in _mounts)
                 {
                     ref var ws = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mount);
-                    if (ws.CooldownSecondsRemaining > 0f) ws.CooldownSecondsRemaining -= deltaTime;
+                    DrainCooldown(ref ws, deltaTime);
                     Fdp.Toolkit.Combat.Magazine.Tick(ref ws, deltaTime);   // ⭐ CE-3136 P-5 — a reload runs whether or not the mount fires
                 }
             }
@@ -67,10 +67,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (repo.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(entity))
                 {
                     ref var weaponState = ref repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(entity);
-                    if (weaponState.CooldownSecondsRemaining > 0f)
-                    {
-                        weaponState.CooldownSecondsRemaining -= deltaTime;
-                    }
+                    DrainCooldown(ref weaponState, deltaTime);
                     // ⭐ CE-3136 P-5 (D9) — the reload runs here, every frame, so it finishes while the unit is hidden (B8)
                     Fdp.Toolkit.Combat.Magazine.Tick(ref weaponState, deltaTime);
                 }
@@ -113,6 +110,16 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //   once, Ready ⇒ AtEase after WeaponPostureOf.LowerAfterSeconds). A running action's executor reports it instead.
                 else Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2166</c> — THE one drain of a weapon's per-shot cooldown, once a frame, for every weapon and mount, whether or not it
+        /// fires. ⛔ The executors only READ it: they drained it again while an aim or point-fire ran, so a 10 s cooldown fired every
+        /// ~5 s (📄 docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §1).
+        /// </summary>
+        public static void DrainCooldown(ref Fdp.Toolkit.Combat.Components.WeaponState ws, float deltaTime)
+        {
+            if (ws.CooldownSecondsRemaining > 0f) ws.CooldownSecondsRemaining -= deltaTime;
         }
     }
 }
