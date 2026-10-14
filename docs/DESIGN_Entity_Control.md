@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILDING (§8e design, CE-1078..1080)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e (the operator's weapons: click = one shot, weapon/ammo keys, HUD)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -1050,6 +1050,42 @@ class has no Attack has no A).
 Ctrl, an unknown key or a busy tool, yes in RTS mode; the key layer forwards and is silent in first person; the shortcut text and a
 disabled item) · `RtsCommandToolTests.CE1077_*` (a drag orders nothing, a jittery click orders at the press point) ·
 `MapSelfCheckTests` (the new system is declared and scheduled).
+
+### 13.7 AS-BUILT — the operator's weapons: a click is one shot, weapon and ammo keys, the HUD (`CE-1078`, `CE-1079`, `CE-1080`, `2026-10-14`, ui)
+
+⭐ **Built as §8e draws it** — the class, sequence and module diagrams there are the as-built; no box moved. The details the diagrams do not
+carry:
+
+| as-built detail | why |
+|---|---|
+| the latch lives in `OperatorControlBehavior.ManualControlState` (`ShotSeq`/`CancelSeq`/`AmmoSeq` seen, `Pending`, `PendingTarget`, `PendingPoint`, `Cap`) | the behaviour sees the executor's round count (`AimAndFireExecutor.RoundsFiredOf`), so it knows when the locked round LEFT — the station only guesses (the mount's count dropping) for its HUD |
+| a weapon action restarted while a shot waits (an out-of-arc failure, a new possession) re-arms the cap at 1 | the new action counts its rounds from 0 (`OnEnter`); keeping the old cap would let several rounds go |
+| a frame `Seq` that goes BACKWARDS (a new station took the unit) zeroes the seen counters | each station's counters start at 0; without it a take-over would read as presses |
+| operator `Rounds` = a CAP: `TurretPath` caps the grant (its existing `p.Rounds` line) and skips the `Success` end; the per-shot path refuses a round past it | the field already meant "how many rounds" (32 bytes are full — §8e rejected a new field) |
+| operator `Target` set ⇒ `WeaponTask.Target` = the unit (the muscle aims at `AimPoint.Middle`, follows it as it moves); the epoch moves when the locked unit changes | the AI's own path — `fresh` now compares `p.Target` for both |
+| the operator has no aim time / lock (`lockSeconds` only for `!op`) | C-2, unchanged |
+| `FireAtPointExecutor.ShootAtPoint(…, ammo)` now stamps `WeaponFireIntent.AmmoGuid`; operator per-shot rounds also `SpendLoaded` | ⚠ §2a of Missiles & Ammo said operator fire "carries the loaded round" — true only on the turret path; the per-shot path now does too |
+| `WeaponMountQuery.MountEntity` is public; `FireAtPointExecutor`'s private copy routes to it | one lookup for "the entity holding mount N's WeaponState" |
+| `WeaponAmmo` + wire `EntityWeaponAmmo` grew `Load0..3`, `LoadRounds0..3`, `Busy` (appended) | the HUD on another node has no `AmmoLoadout` (Missiles & Ammo §1 — the mirror was always meant to carry the loaded round) |
+| the crosshair: `FpsCameraDriver.Aim` picks `PickFilter.All`; `EntityBoxPicker` skips `EntityBodyLayer3D.FirstPerson` | measured: a ray from inside the own hull meets it on the way OUT (`RayBox` returns the exit distance), nearer than anything — the rail proves the own tank would win |
+| HUD: `> 1 CANNON  120mm APFSDS 19  41/42  F: 120mm HEAT-MP  LOADING` — numbered as its key; names from the TKB (a trailing " round" dropped; no `/max` when the weapon states none); an orange box on the locked target; a yellow ring where the selected turret's gun points | ⚠ the ring follows the pose, which carries the ballistic elevation, so at long range it sits a little above a laid gun |
+| 🔴→⭐ the HUD moved from the window's bottom-left corner to UNDER THE CROSSHAIR (`PossessionStation.HudOrigin`: 0.07 of the height below it, ending 0.05 of the width right of it), on a dark backing; the keys on two lines | measured live (a 2200×1200 window): the editor draws the map FIRST and ImGui after (`Program.cs`), so its docked left column and bottom log covered the corner HUD — it was never visible in the editor (the §13.3 (V) frame was a bare canvas); the crosshair sits right of the open map's centre, so a block centred on it was cut by the right panels |
+| keys: `1`–`4` only select a weapon that exists; `F`, LMB press, RMB press are counters on the frame (`OperatorControlFrameEvent`, `ControlFrameInteractionPayload` appended, the HTTP control route's `shot` / `cancel` / `ammo` / `shotTarget`) | |
+
+✅ **Seen live `2026-10-14`** (editor under Xvfb, a 2200×1200 window, XTest input; `tt-nav-los`, possessing the M1 "Hostile B"): the gun ring
+settles on the crosshair after a 167° turn of the look (the turret follows); a click right after a 90° turn fires ONE round about 1.4 s later
+(42 → 41, APFSDS 20 → 19) and nothing more; `F` cycles APFSDS → HEAT-MP → HE-FRAG → APFSDS with LOADING during each switch; `2` selects the
+coax. ⚠ Two of eleven injected `F` presses were not seen (each was the first key after XTest pointer moves); 5 of 5 in a row were.
+
+![FPS HUD on the M1](assets/entity-control/fps-2-tank-hud.png)
+
+📐 **Rails** *(each in its feature's suite)*: `AimAndFireExecutorTests.CE1078_*` ×2 + `CE1079_*` (a locked shot turns the turret to the unit and
+fires one round once it bears; per-shot one round at the unit; a round switch holds, then the loaded round leaves) · `AmmoChoiceTests.CE1079_*`
+(next type with rounds, skip empty, wrap, one reload, the AI's choice forgotten) · `WeaponAmmoMirrorSystemTests.CE1079_*` (the breech, its rounds,
+LOADING) · `PossessionStationTests.CE1078_*` + `CE1079_*` ×2 (counters, lock, RMB, F, 1-4; the HUD line; the HUD's place) ·
+`Map3DPickingTests.CE1080_*` (the crosshair sees the unit, never the own hull, aims at the box hit) · `InteractionTransportTests.CE3172_*` and
+`PossessionReplicationTests.CE3174_*` extended (the new frame and ammo fields cross) · `DebugApiOrdersTests.CE1078_*` ×2 (through the real
+possession: one press one round, a press during a reload waits, RMB drops it; a grenade ignores a held trigger).
 
 ## 8. Known limits and defects found while designing
 

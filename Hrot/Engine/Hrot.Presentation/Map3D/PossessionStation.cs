@@ -143,8 +143,17 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The HUD's text size and line pitch (px).</summary>
         public const int HudFontSize = 18, HudLineHeight = 20;
 
+        /// <summary>⭐ CE-1079 — the HUD's top, as a share of the view's height below the crosshair: close enough that the editor's bottom
+        /// log panel (measured live, the open map ends ~0.22 of the height below the centre in a 2200×1200 window) does not cover it.</summary>
+        public const float HudBelowCrosshair = 0.07f;
+
+        /// <summary>⭐ CE-1079 — how far right of the crosshair the HUD block ends, as a share of the view's width.</summary>
+        public const float HudPastCrosshair = 0.05f;
+
         /// <summary>
-        /// ⭐ CE-1079 — where the HUD block starts: centred under the crosshair, a fifth of the view below it. ⚠ Not a screen corner: the
+        /// ⭐ CE-1079 — where the HUD block starts: just under the crosshair (<see cref="HudBelowCrosshair"/> of the view below it), ENDING
+        /// a little right of it (<see cref="HudPastCrosshair"/> of the width) — in the editor the crosshair sits right of the open map's
+        /// centre (its left panel column is wider than its right one), so a block centred on it was cut by the right panels. ⚠ Not a screen corner: the
         /// editor draws the map UNDER its docked panels (the map first, ImGui after — <c>Program.cs</c>), and its left column and bottom
         /// log cover the window's corners, so a corner HUD was hidden (measured live, a 2200×1200 window). The crosshair is where the view
         /// is open by construction.
@@ -152,9 +161,9 @@ namespace Hrot.UI.Common.Map3D
         public static (int X, int Y) HudOrigin(Vector2 viewport, int lineCount, int width)
         {
             int cx = (int)(viewport.X / 2f), cy = (int)(viewport.Y / 2f);
-            int y = cy + (int)(viewport.Y * 0.18f);
+            int y = cy + (int)(viewport.Y * HudBelowCrosshair);
             y = Math.Min(y, (int)viewport.Y - lineCount * HudLineHeight - 8);   // a short view still shows every line
-            return (cx - width / 2, y);
+            return (Math.Max(8, cx + (int)(viewport.X * HudPastCrosshair) - width), y);
         }
 
         private static int MaxWidth(string[] lines)
@@ -218,8 +227,9 @@ namespace Hrot.UI.Common.Map3D
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
                 if (!vehicle && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
                 lines.Add(vehicle
-                    ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  LMB fire  RMB cancel  1-4 weapon  F ammo  Esc release"
-                    : "W/A/S/D move  mouse look  Shift run  C stance  LMB fire  RMB cancel  1-4 weapon  F ammo  Esc release");
+                    ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
+                    : "W/A/S/D move  mouse look  Shift run  C stance  Esc release");
+                lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo");   // ⭐ CE-1078 / CE-1079
                 return lines.ToArray();
             }
 
@@ -240,7 +250,8 @@ namespace Hrot.UI.Common.Map3D
                     if (a.LoadedRoundsOf(m) >= 0) line.Append(' ').Append(a.LoadedRoundsOf(m));
                 }
                 int mag = a.MagazineOf(m);
-                line.Append("  ").Append(a.AmmoOf(m)).Append('/').Append(a.MaxOf(m));
+                line.Append("  ").Append(a.AmmoOf(m));
+                if (a.MaxOf(m) > 0) line.Append('/').Append(a.MaxOf(m));   // a weapon with no stated maximum shows its count only
                 if (mag >= 0) line.Append("  [").Append(mag).Append(']');
                 if (selected && dto?.Loadout is { Count: > 1 } loadout)
                 {

@@ -378,14 +378,15 @@ public sealed class PossessionStationTests
         }
     }
 
-    /// <summary>⭐ CE-1079 — the HUD sits centred UNDER the crosshair, not in a window corner: the editor draws the map beneath its docked
+    /// <summary>⭐ CE-1079 — the HUD sits UNDER the crosshair, not in a window corner: the editor draws the map beneath its docked
     /// panels, whose left column and bottom log cover the corners (a corner HUD was invisible, measured live in a 2200×1200 window); in a
     /// short view every line still fits.</summary>
     [Fact]
-    public void CE1079_TheHud_IsCentredUnderTheCrosshair_AndFitsAShortView()
+    public void CE1079_TheHud_SitsUnderTheCrosshair_AndFitsAShortView()
     {
         var (x, y) = PossessionStation.HudOrigin(new Vector2(2200f, 1200f), lineCount: 6, width: 600);
-        Assert.Equal((800, 600 + 216), (x, y));                      // centred, a fifth of the view below the crosshair
+        Assert.Equal((1100 + 110 - 600, 600 + 84), (x, y));          // just under the crosshair, ending a little right of it
+        Assert.Equal(8, PossessionStation.HudOrigin(new Vector2(400f, 300f), 6, 600).X);   // never off the left edge
         var (_, ys) = PossessionStation.HudOrigin(new Vector2(800f, 300f), lineCount: 6, width: 600);
         Assert.True(ys + 6 * PossessionStation.HudLineHeight <= 300, $"the last line ends at {ys + 6 * PossessionStation.HudLineHeight}");
     }
