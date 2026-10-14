@@ -9,7 +9,7 @@ known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount part
   registers WeaponMountInfo and CombatTkbTranslator.cs:92-122 creates them on CGF. DESIGN_Decision_Layer.md :1330 calls
   AimAndFireExecutor "the only weapon-channel executor" — stale since FireAtPointExecutor (DESIGN_Building_Interiors.md §3k).
 related-designs:
-  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — urban tank tactics: names targets, asks for track-while-hidden; proposes a coax MG + HE round for tanks (V2)
+  - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — urban vehicle tactics: names targets, asks for track-while-hidden; M8 gives a mount an ammo loadout (APFSDS + HEAT + HE) chosen by W-6's rule (unblocks W-12d); D-L adds a per-mount FireOnMove; M9 technicals (pintle HMG / ATGM mounts)
   - blueprints/Architect_Question_89_Suppress_And_Close.md — AQ89 (R-269): Suppress at a hidden target asks this file's weapon brain for BLIND fire; bravery/obedience (CombatTemperament) decides the close-to-throw
   - DESIGN_Map_3D_Mode.md — §3.11 M23–M26 (R-255): the turret is a part child with a TurretPose, the weapon side aims it, it
     replicates as a multi-instance descriptor. THIS file decides which weapon layer on which node does the aiming. ⭐ W-13 (R-272):

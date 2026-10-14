@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14 (round 2: V1–V7 leans APPROVED; scope widened to every combat vehicle, realistic RPG / LAW / NLAW / Javelin and FPV drones; new items M1–M7, V8; new decisions D-A…D-H not yet approved)
+updated: 2026-10-14 (round 3: D-A…D-H APPROVED; tank ammo loadout (AP + HEAT + HE), technicals (pickup + HMG / ATGM) with shoot-and-scoot on the move; new items M8, M9; new decisions D-I…D-L not yet approved)
 build-state: DESIGN — 🔒 user, 2026-10-14: "No building, still designing."
-current-answer: §4 (the programme) and §5 (the open decisions D-A…D-H, each with a lean) — §1 is the measured ground (do not re-derive), §2 the threats and how a vehicle defeats each, §3 the behaviour.
+current-answer: §4 (the programme) and §5 (decisions: D-A…D-H approved, D-I…D-L open with leans) — §1 is the measured ground (do not re-derive), §2 the threats and how a vehicle defeats each, §3 the behaviour.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -31,8 +31,11 @@ related-designs:
   rpg might still penetrate thinner armour at the back or top. And rpg is not the only threat, lets count with missile systems like law or
   javelin. And also with small copter drone attacks which are so popular and deadly these days, making tanks an easy prey. No building,
   still designing."*
+- *"D-A to D-H approved. Tank should be given antitank piercing rounds as well, not just high explosive rounds. We need vehicles equipped
+  with heavy machine gun (like popular white toyota pickup) and missile weapon system on it (as a weapon mount) so they could basically use
+  same shoot and scoot tactics, not being stationary."*
 
-**Scope:** every combat vehicle — main battle tank, infantry fighting vehicle, armoured personnel carrier, armoured car — and the threats
+**Scope:** every combat vehicle — main battle tank, infantry fighting vehicle, armoured personnel carrier, armoured car, **technical (an armed pickup)** — and the threats
 that kill them: small arms and MGs (light vehicles only), unguided AT rockets, guided AT missiles, attack drones.
 
 ## 1. What exists — measured `2026-10-14` (do not re-derive)
@@ -82,6 +85,10 @@ away before the face is chosen. Top attack is one field and one angle away, not 
 | `ThreatDanger.Of(view, self, target)` = armed 1 / unarmed 0.3 — `self` is unused | `ThreatDanger.cs:21-28` |
 | `WeaponEffectivenessVsTarget` = MY mount vs HIS armour + facing + hit chance — "danger to me" is the same maths swapped (⚠ it reads the mount's penetration, not the resolved round's) | `StandardInputs.cs:398-434` |
 | cover points 0.75 m off walls (man-sized); exposure judged from a soldier's eye | `TerrainCoverProvider.cs:22-23,70` |
+| **firing on the move is allowed**: a moving shooter (> 0.5 m/s) gets dispersion × 2; nothing in the fire path demands a halt (the hill-attack run halts by its own choice) | `HitModel.cs:20-46` |
+| a mount sits on a turret (`TurretIndex` ≥ 0) or is fixed to the hull (−1); one `AmmoGuid` per mount; `WeaponTask.AmmoGuid` exists, never written | `WeaponSuiteDto.cs:27,74`, `WeaponTask.cs:59-60` |
+| ammo choice is DESIGNED and waits on data: W-6 *"the profile picks the ammo with the SAME `ArmorModel`"*, W-12d *"one `AmmoGuid` per mount … until a mount declares a second round"* | `DESIGN_Weapon_Layers.md:178,219` |
+| no pickup / technical type; the `PersonalCar` and `Truck` kinematic presets exist (car 25 m/s, 4.5 × 2 m) | `VehicleClass.cs:8-55` |
 
 ### 1.3 Above the vehicle — drones and overhead cover
 
@@ -110,6 +117,12 @@ Figures are public, approximate and disputed between sources; they are tuning st
 | **Javelin** (fire-and-forget, top attack) | ~760 tandem | **the top** (direct mode close in / under cover) | **lock before launch** (seconds), 65 / 150 – 2500 m, ~14 s to 2 km | ⭐ deny the lock: never stay seen by him that long; once launched, nothing (APS / smoke are later) |
 | **FPV drone** (often an RPG warhead) | ~300–500 | **the top / the rear deck** | a pilot, ~100+ km/h, km range | hear it early → **overhead cover**; keep moving; shoot it if seen (MG); cages / jammers later |
 | drop-grenade drone | fragmentation | the top | hovers over the target | overhead cover; keep moving |
+| **technical** with an HMG (12.7 / 14.5 mm) | ~20–30 (AP) — deadly to APCs, armoured cars, light IFV sides; harmless to an MBT | the face toward it | sight, fires on the move | an MBT kills it first with HE or MG at range; a light vehicle hides from it like from an AT gun |
+| **technical** with an ATGM (wire / beam-riding class) | ~800–1200 tandem | the face toward it | halts and keeps sight for the flight | break sight during the flight; rank it first (it is an AT team that drives) |
+
+**The technicals' own tactic** — *shoot and scoot*: no armour, so speed and surprise are the protection. Drive out of a hide, fire a burst
+(the HMG on the move) or one missile (halted for the flight), and **drive off to a DIFFERENT hide**, never back to the same corner; one
+position, one engagement. Mirror of the tank's cycle with the withdrawal turned forward.
 
 📌 Sources: [Javelin (Wikipedia)](https://en.wikipedia.org/wiki/FGM-148_Javelin) · [Javelin (CSIS)](https://missilethreat.csis.org/missile/fgm-148-javelin/) ·
 [RPG-7 (Wikipedia)](https://en.wikipedia.com/wiki/RPG7) · [drones vs top armour (Plasan)](https://plasan.com/drone-threats-and-top-attack-protection-does-modern-armor-defeats-fpv-and-loitering-munitions/) ·
@@ -154,6 +167,22 @@ elevate fires at a SEEN drone.*
 | **launch seen → break sight**: a wire-guided missile in flight is defeated by reversing into the hide | M4 command guidance |
 | **air threat → shelter**: the nearest point with overhead cover reachable on the vehicle layer; else keep moving (no exposure cycle while a drone hunts) | M7, V8 |
 | **light vehicles**: the same node — their danger profile already includes rifles and MGs, so they hide more and stand off further | V1 |
+| ⭐ **withdraw mode — REVERSE or SCOOT**: an armoured-front vehicle backs into the hide it came from (front to the threat); a vehicle whose front is no better than its side (a technical, an armoured car) **drives forward to the NEXT hide**, a different one, and may turn its back — speed, not armour, protects it | D-J |
+| **burn after N**: a firing point is burned after N exposures — a technical after 1 (one position, one engagement), a tank after 2 | `FiringPositionMemory` heat, per-type N |
+| **fire on the move**: a weapon fires while driving when its mount allows it (HMG, autocannon, a stabilised tank gun — dispersion × 2, already in `HitModel`); a command-guided missile halts the launcher for its flight; a fire-and-forget missile halts only for its lock | D-L |
+| **ammo is the weapon brain's choice, never the behaviour's**: the behaviour names the target, the brain picks AP against armour, HE against men and buildings (R-261, W-6) | D-I |
+
+```mermaid
+graph LR
+  H1["hide A"] -->|drive out| F1["firing point 1"]
+  F1 -->|"REVERSE (armoured front)"| H1
+  F1 -->|"SCOOT forward (technical)"| H2["hide B"]
+  H2 -->|drive out| F2["firing point 2"]
+  F2 -->|SCOOT| H3["hide C"]
+```
+
+*What the picture shows: the two withdraw modes differ only in WHERE the withdrawal ends — the same hide, reversing, or the next hide, driving
+forward. One node, one parameter derived from the type's armour (D-J).*
 
 ## 4. The programme
 
@@ -180,6 +209,8 @@ elevate fires at a SEEN drone.*
 | **M4** | backend | **missiles**: per-munition lifetime and real speed; three guidance kinds as munition data — unguided (RPG, LAW), command (TOW: hits only while the gunner keeps sight), fire-and-forget (Javelin, NLAW: lock = the existing `AimSeconds`, then steers to the locked entity) — plus `TopAttack` and `MinRange` | D-D |
 | **M5** | backend (data) | munitions: PG-7V / VL / VR, M72-class LAW, NLAW, Javelin, an FPV warhead, a drop grenade; weapons with real aim, reload, dispersion, rounds carried; the RPG man with a rifle and 3–4 rockets; tank coax MG + HE; vehicle eye heights | §2 numbers |
 | **M6** | backend (data) | vehicles: MBT, IFV, APC, armoured car with per-face kinetic / shaped-charge / top values and an explicit health (not front × 5); light vehicles opt into mobility kill | D-F |
+| **M8** 🆕 | backend | **ammo loadout per mount + the weapon brain's choice**: a mount lists its rounds with counts (tank gun: APFSDS + HEAT-MP + HE; coax MG); the profile picks by the SAME `ArmorModel` (W-6) — the highest expected damage on the target's face, HE by its expected area damage against men, buildings and soft vehicles; switching the loaded round costs one `ReloadSeconds`; `WeaponTask.AmmoGuid` carries it (no wire change, W-12d) | D-I |
+| **M9** 🆕 | backend (data) | **technicals**: a pickup type (`PersonalCar` / `Truck` preset, ~25 m/s, no armour, low health, mobility kill on a penetrating hit, open cab) in three fits — **HMG** (12.7 / 14.5 mm on a pintle = a fast-slewing turret part, elevation to ~+70°, so it can also fire at drones), **ATGM** (a command-guided launcher on a turret part with limited traverse), and both; usable by either side | D-K, D-L |
 | **M7** | backend + behaviors | **a minimal FPV drone**: a TKB air type on `LinearKinematicsSystem` (point-mass: speed, climb, turn), a rotor sound class, a small collider with a height, a warhead it detonates on contact (itself as shooter); its behaviour: fly a 3-D route → search → select (threat ranking) → pursue → dive on the top / rear; the overhead broadphase fix (`VisionBroadphase.cs:86`) | D-E; R-263 D2 (AIR-2's first slice) |
 
 **Demos (V7):**
@@ -190,12 +221,25 @@ elevate fires at a SEEN drone.*
 | `ua-ifv-standoff` | test-town | a 25 mm IFV kills RPG men from beyond their range; up close an RPG kills it |
 | `ua-javelin-lock` | basic-desert or test-town | the tank's short exposures deny a Javelin team its lock; a long exposure is punished from above |
 | `ua-drone-shelter` | test-town (garage deck) | an FPV drone hunts a tank; the tank hears it and backs under the deck; a tank in the open is hit on the roof |
+| `ua-technical-scoot` | test-town | an HMG technical and an ATGM technical shoot and scoot (a new hide every time, the HMG firing on the move, the ATGM halted for its flight); the tank ranks the ATGM technical first, kills it with HE, and breaks sight when it launches |
+| `ua-tank-ammo` | basic-desert or test-town | one tank, three targets: an enemy tank (APFSDS), a technical (HEAT or HE), an infantry team in a building (HE) — the weapon brain switches rounds, paying one reload per switch |
 
-**Order:** M1 → M2 → M3 (the hit chain) · V1 · M5 / M6 data · V3 → V4 (+V5) → V6 → `ua-tank-corner`, `ua-ifv-standoff` · M4 →
-`ua-javelin-lock` · M7 → V8 → `ua-drone-shelter`. **Later:** ERA / cage / slat numbers, active protection, smoke, jammers and
+**Order:** M1 → M2 → M3 (the hit chain) · V1 · M5 / M6 / M8 / M9 data · V3 → V4 (+V5) → V6 → `ua-tank-corner`, `ua-ifv-standoff`,
+`ua-tank-ammo`, `ua-technical-scoot` · M4 → `ua-javelin-lock` · M7 → V8 → `ua-drone-shelter`. **Later:** ERA / cage / slat numbers, active protection, smoke, jammers and
 electronic warfare, hull-vs-turret armour, R-263 damage states, pairs and infantry cooperation, gun-elevation stand-off, loitering munitions.
 
-## 5. Open decisions (round 2) — each with a lean
+## 5. Decisions
+
+🔒 User, `2026-10-14`: **"D-A to D-H approved."** — the round-2 rows below are DECIDED as leaned. **D-I…D-L (round 3) are open.**
+
+| id | question | lean (round 3, open) | blast radius / what would change it |
+|---|---|---|---|
+| **D-I** | ammo choice | **a loadout per mount, chosen by the weapon brain with the one `ArmorModel` (W-6)**; HE valued by its expected area damage; a switch costs one reload; the behaviour never names a round | backend weapon brain + TKB; W-12d is unblocked by this data. ⛔ not a behaviour-level ammo node — R-261 keeps it in the weapon layer |
+| **D-J** | reverse or scoot | **derived from the type**: front armour ≥ 2 × side ⇒ REVERSE to the same hide; else SCOOT forward to the next hide; a behaviour param overrides | one rule in the V4 node; an MBT and an IFV reverse, a technical and an armoured car scoot |
+| **D-K** | the technical's gunner | **vehicle-level for now** — no separate gunner person; the open cab makes the vehicle weak to rifles through its armour of ~0; a killable exposed gunner (= firepower kill) comes with R-263's damage states and the carrier's per-seat exposure (R-2009) | data only now |
+| **D-L** | firing on the move | **per mount: `FireOnMove`** (HMG, autocannon, stabilised tank gun: yes, with the existing dispersion × 2); command-guided missiles halt for the flight, fire-and-forget only for the lock | weapon brain + V4 |
+
+**Round 2 (approved):**
 
 | id | question | lean | blast radius / what would change it |
 |---|---|---|---|
@@ -209,4 +253,4 @@ electronic warfare, hull-vs-turret armour, R-263 damage states, pairs and infant
 | **D-H** | counter-drone means in v1 | **shelter, keep moving, shoot it if seen**; jammers (they need a radio-link model), active protection, smoke later | V8 only |
 
 ⚠ Before building (user: "still designing"): `classDiagram` + `sequenceDiagram` per item; read `PeekAndFireNodes`, `HillAttackTankNodes`,
-`BallisticsSystem`, `DamageCalculationSystem` end to end (assumed here, not read); a backend handoff for M1–M7 once D-A…D-H are decided.
+`BallisticsSystem`, `DamageCalculationSystem` end to end (assumed here, not read); a backend handoff for M1–M9 once D-I…D-L are decided.
