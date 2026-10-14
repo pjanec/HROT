@@ -942,7 +942,7 @@ graph TD
 
 *What the picture shows: the radius reaches the solver on the co-hosted path every production host uses today (SimHost and the
 editor host the solver beside the Muscle, §W6). The dashed red edge is the scale-out DDS request: it does not carry the radius,
-so a separate solver node plans un-rounded paths until the wire field exists (a wire change — not taken here, R-169's spirit).*
+so a separate solver node plans un-rounded paths until the wire field exists (a wire change — not taken here, R-169's spirit; tracked as `CE-3200`).*
 
 | decision | lean (built) | why · what would change it |
 |---|---|---|

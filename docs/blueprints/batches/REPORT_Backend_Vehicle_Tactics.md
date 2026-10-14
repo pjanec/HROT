@@ -56,7 +56,7 @@ tt-convoy-ambush: the in-process `CE1056_AConvoyIsAmbushed` rail is in the integ
 | | decision | built | sha |
 |---|---|---|---|
 | **CE-3199** (who owns a flyer's position) | 🔒 *"use one single Muscle role, so all positions are owned by it"* · *"keep MuscleGround"* — **R-3005** | `MuscleGround` applies to a template with `Gen.Flight`; `FlightParams`/`FlightState` in its group. No `MuscleAir`, no rename, no wire | `c5d5b7689` |
-| **CE-3029** (vehicles cut corners) | 🔒 *"round each corner in the planned path to fit the vehicle's turning radius"* — **R-3006** | corners rounded in the solver for WheelBase / tan(MaxSteer) + (measured necessary) the follower's lookahead capped across a curve. Live `tt-nav-los`: **1.77 m** from Block A (was 0.16–0.7). ⚠ the scale-out DDS path request does not carry the radius | `b25c01e35` + this |
+| **CE-3029** (vehicles cut corners) | 🔒 *"round each corner in the planned path to fit the vehicle's turning radius"* — **R-3006** | corners rounded in the solver for WheelBase / tan(MaxSteer) + (measured necessary) the follower's lookahead capped across a curve. Live `tt-nav-los`: **1.77 m** from Block A (was 0.16–0.7). ⚠ the scale-out DDS path request does not carry the radius — filed `CE-3200` | `b25c01e35` + this |
 
 ## Findings (ids allocated: CE-3197, CE-3198, CE-3199)
 
