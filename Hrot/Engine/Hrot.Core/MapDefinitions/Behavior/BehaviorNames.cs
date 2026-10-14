@@ -129,6 +129,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2173</c> (B4, R-278) — MOVE for any aircraft: fly to the point at cruise height above the ground (Air Operations §7).</summary>
         public const string AirPlatformMove = "AirPlatformMove";
 
+        /// <summary>⭐ <c>CE-2173</c> slice 5 (B4, R-278) — STRIKE for any aircraft: the one air attack on the order's point, the profile
+        /// picked from the aircraft and its weapons (Air Operations §7, §9c).</summary>
+        public const string AirPlatformStrike = "AirPlatformStrike";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

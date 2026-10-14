@@ -1,0 +1,107 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a2173500-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          300,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 7951
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformStrike",
+        "Params": "{\"Location\":[300,600],\"Target\":7952}",
+        "Origin": "Superior"
+      }
+    },
+    "a2173500-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          600,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7952
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "Target Technical",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2173500-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          640,
+          420,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7953
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "Far Technical",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}
