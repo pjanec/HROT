@@ -526,6 +526,104 @@ namespace Fdp.Toolkit.Spatial.Eqs.Tests
             Assert.Equal(0, c[0].FlagsMeaningful);
         }
 
+        // ── CE-2165 V3: beyond the threats' reach (DESIGN_Vehicle_Exposure_Cycle §3) ─────────────────────
+
+        private const long TankType = 103, SoldierType = 2002, RpgManType = 9101, RiflemanType = 9102;
+
+        /// <summary>A TKB: a T-72 (500 / 250 / 150 mm), a soldier (no armour), an RPG man (300 m, 300 mm), a rifleman (500 m, 5 mm).</summary>
+        private static Fdp.Toolkit.Tkb.TkbDatabase VehicleTkb()
+        {
+            static Fdp.Interfaces.TkbTemplate Armed(string name, long type, float range, float pen)
+            {
+                var t = new Fdp.Interfaces.TkbTemplate(name, type);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = range, Penetration = pen, DamagePerHit = 100 } } });
+                return t;
+            }
+            var tank = new Fdp.Interfaces.TkbTemplate("T-72", TankType);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 150 });
+            var soldier = new Fdp.Interfaces.TkbTemplate("Soldier", SoldierType);
+            soldier.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(tank); db.Register(soldier);
+            db.Register(Armed("RPG man", RpgManType, 300, 300)); db.Register(Armed("Rifleman", RiflemanType, 500, 5));
+            return db;
+        }
+
+        private Entity Typed(float x, float y, long type, VehicleClass? cls = null)
+        {
+            if (!_repo.IsComponentTypeRegistered<TkbIdentity>()) _repo.RegisterComponent<TkbIdentity>();
+            if (!_repo.IsComponentTypeRegistered<VehicleParams>()) _repo.RegisterComponent<VehicleParams>();
+            var e = At(x, y);
+            _repo.AddComponent(e, new TkbIdentity { TkbType = type });
+            if (cls != null) _repo.AddComponent(e, new VehicleParams { Class = cls.Value });
+            return e;
+        }
+
+        private unsafe EqsSensor Knowing(Entity self, params Entity[] threats)
+        {
+            var contacts = new SensorContactList();
+            foreach (var t in threats) SensorContactList.UpdateSighting(ref contacts, (long)t.PackedValue, 1);
+            for (int i = 0; i < contacts.Count; i++) contacts.State[i] = (byte)SensorContactState.Acquired;
+            _repo.AddComponent(self, contacts);
+            return new EqsSensor { ContextSlot0 = self };
+        }
+
+        /// <summary>
+        /// ⭐ A TANK scores a point by its distance from the RPG man over his 300 m reach (his 300 mm beats its 150 mm rear) — 1 out of
+        /// reach, ½ half-way, 0 on top of him — and IGNORES the rifleman, whose 5 mm hurts no face of it. A SOLDIER counts both: the
+        /// mean of the RPG's 1 and the rifleman's 223.6 / 500. The TKB comes through the injected SOURCE, not the world.
+        /// </summary>
+        [Fact]
+        public void V3_BeyondThreatRange_ATankFleesTheAtReach_AndIgnoresTheRifle_ASoldierCountsBoth()
+        {
+            var db = VehicleTkb();
+            var rpg = Typed(0, 100, RpgManType);
+            var rifle = Typed(100, 0, RiflemanType);
+            var test = new BeyondThreatRangeTest { Tkb = () => db };
+
+            var tank = Typed(0, 0, TankType, VehicleClass.Tank);
+            var sensor = Knowing(tank, rpg, rifle);
+            var c = new[] { Point(0, -200), Point(0, 250), Point(0, 100) };
+            test.ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(1f, c[0].Score, 3);
+            Assert.Equal(0.5f, c[1].Score, 3);
+            Assert.Equal(0f, c[2].Score, 3);
+
+            var soldier = Typed(0, 0, SoldierType, VehicleClass.Pedestrian);
+            var asSoldier = Knowing(soldier, rpg, rifle);
+            var s = new[] { Point(0, -200) };
+            test.ExecuteBatch(Entity.Null, ref asSoldier, _repo, s);
+            Assert.Equal((1f + MathF.Sqrt(100 * 100 + 200 * 200) / 500f) / 2f, s[0].Score, 3);
+        }
+
+        /// <summary>⭐ No TKB — no source and none on the view (a solver snapshot before the host hands one over) — scores nothing.</summary>
+        [Fact]
+        public void V3_BeyondThreatRange_WithNoTkb_ScoresNothing()
+        {
+            var tank = Typed(0, 0, TankType, VehicleClass.Tank);
+            var sensor = Knowing(tank, Typed(0, 100, RpgManType));
+            var c = new[] { Point(0, -200) };
+            new BeyondThreatRangeTest().ExecuteBatch(Entity.Null, ref sensor, _repo, c);
+            Assert.Equal(0f, c[0].Score);
+        }
+
+        /// <summary>⭐ The host hands its TKB source to every TKB-reading test of every registered template, in every phase it sits in.</summary>
+        [Fact]
+        public void V3_InjectTkb_ReachesEveryTkbAwareTestOfEveryTemplate()
+        {
+            var registry = new EqsTemplateRegistry();
+            var a = new BeyondThreatRangeTest();
+            var b = new BeyondThreatRangeTest();
+            registry.Register(Guid.NewGuid(), new EqsQueryTemplate { Generator = new GridGenerator(), ScoreExpensive = new IEqsTest[] { new DistanceScoreTest(), a } }, "A");
+            registry.Register(Guid.NewGuid(), new EqsQueryTemplate { Generator = new GridGenerator(), ScoreCheap = new IEqsTest[] { b } }, "B");
+            Func<Fdp.Interfaces.ITkbDatabase?> source = () => null;
+
+            BeyondThreatRangeTest.InjectTkb(registry, source);
+
+            Assert.Same(source, a.Tkb);
+            Assert.Same(source, b.Tkb);
+        }
+
         // ── scoring tests ────────────────────────────────────────────────────────────────────
 
         [Fact]

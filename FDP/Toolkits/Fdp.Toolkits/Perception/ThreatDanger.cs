@@ -47,16 +47,23 @@ namespace Fdp.Toolkit.Perception
         public static bool ToMe(EntityRepository world, Entity self, Entity target, out float danger)
         {
             danger = 1f;
-            if (self.IsNull || !world.IsAlive(self) || !Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, self)) return false;
-            var mine = Fdp.Toolkit.Combat.CombatTkb.PlatformOf(world, self);
-            if (mine == null || (mine.ArmorFront <= 0f && mine.ArmorSide <= 0f && mine.ArmorRear <= 0f)) return false;
-            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, target, out var template)) return false;
+            if (world == null || !world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return false;
+            return ToMe(world, world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(), self, target, out danger);
+        }
+
+        /// <summary>⭐ <c>CE-2165</c> V3 — <see cref="ToMe(EntityRepository, Entity, Entity, out float)"/> on ANY view with the TKB handed
+        /// in (the EQS solver's snapshot carries none — it reads the live one through <c>CombatTkb.Live</c>). The one implementation.</summary>
+        public static bool ToMe(ISimulationView view, Fdp.Interfaces.ITkbDatabase? db, Entity self, Entity target, out float danger)
+        {
+            danger = 1f;
+            if (!MyArmour(view, db, self, out var mine)) return false;
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, target, out var template)) return false;
             var suite = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
             if (suite == null || suite.Mounts.Count == 0) return false;
-            if (!world.HasComponent<SimTransform>(self) || !world.HasComponent<SimTransform>(target)) return false;
+            if (!view.HasComponent<SimTransform>(self) || !view.HasComponent<SimTransform>(target)) return false;
 
-            var myTransform = world.GetComponentRO<SimTransform>(self);
-            var hisPosition = world.GetComponentRO<SimTransform>(target).Position;
+            var myTransform = view.GetComponentRO<SimTransform>(self);
+            var hisPosition = view.GetComponentRO<SimTransform>(target).Position;
             float distance = System.Numerics.Vector3.Distance(myTransform.Position, hisPosition);
             float armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(mine, Fdp.Toolkit.Combat.ArmorModel.FacingOf(in myTransform, hisPosition));
 
@@ -65,13 +72,58 @@ namespace Fdp.Toolkit.Perception
             {
                 float inRange = InRange(mount.Range, distance);
                 if (inRange <= 0f) continue;
-                // ⚠ an UNKNOWN round (penetration ≤ 0) ignores armour, exactly as ArmorModel.HitDamage does — never harmless.
-                float penetration = Fdp.Toolkit.Combat.CombatTkb.PenetrationOf(world, mount);
-                float canHurtMe = penetration <= 0f ? 1f : Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(penetration, armour);
-                best = System.Math.Max(best, canHurtMe * inRange);
+                best = System.Math.Max(best, CanHurt(db, mount, armour) * inRange);
             }
             danger = System.Math.Clamp(best, ArmedHarmless, 1f);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2165</c> V3 — how FAR <paramref name="target"/> can hurt <paramref name="self"/>: the longest <c>Range</c> of his mounts
+        /// whose round can hurt me at all — for an ARMOURED vehicle self, one that penetrates my thinnest armoured face (the same
+        /// <see cref="CanHurt"/> as <see cref="ToMe(ISimulationView, Fdp.Interfaces.ITkbDatabase?, Entity, Entity, out float)"/>); for any
+        /// other self, every mount. 0 when none can, or when no range is known (a mount of range 0 states none).
+        /// </summary>
+        public static float ReachAgainst(ISimulationView view, Fdp.Interfaces.ITkbDatabase? db, Entity self, Entity target)
+        {
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, target, out var template)) return 0f;
+            var suite = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>();
+            if (suite == null) return 0f;
+            float thinnest = MyArmour(view, db, self, out var mine) ? Thinnest(mine) : 0f;
+            float reach = 0f;
+            foreach (var mount in suite.Mounts)
+                if (mount.Range > reach && (thinnest <= 0f || CanHurt(db, mount, thinnest) > 0f)) reach = mount.Range;
+            return reach;
+        }
+
+        /// <summary>The chance <paramref name="mount"/>'s round defeats <paramref name="armour"/> mm; ⚠ an UNKNOWN round (penetration ≤ 0)
+        /// ignores armour, exactly as <c>ArmorModel.HitDamage</c> does — never harmless.</summary>
+        private static float CanHurt(Fdp.Interfaces.ITkbDatabase? db, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, float armour)
+        {
+            float penetration = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.MountPenetration(db, mount).Value;
+            return penetration <= 0f ? 1f : Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(penetration, armour);
+        }
+
+        /// <summary>True when <paramref name="self"/> is a VEHICLE whose TKB declares armour (a soldier's vest is not a vehicle's armour).</summary>
+        private static bool MyArmour(ISimulationView view, Fdp.Interfaces.ITkbDatabase? db, Entity self, out Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto mine)
+        {
+            mine = null!;
+            if (self.IsNull || !view.IsAlive(self) || !Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(view, self)) return false;
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(view, db, self, out var template)) return false;
+            var platform = template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto>();
+            if (platform == null || (platform.ArmorFront <= 0f && platform.ArmorSide <= 0f && platform.ArmorRear <= 0f)) return false;
+            mine = platform;
+            return true;
+        }
+
+        /// <summary>The thinnest armoured face of <paramref name="platform"/> (faces of 0 mm are not armoured and do not count).</summary>
+        private static float Thinnest(Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto platform)
+        {
+            float t = float.MaxValue;
+            if (platform.ArmorFront > 0f) t = System.Math.Min(t, platform.ArmorFront);
+            if (platform.ArmorSide  > 0f) t = System.Math.Min(t, platform.ArmorSide);
+            if (platform.ArmorRear  > 0f) t = System.Math.Min(t, platform.ArmorRear);
+            return t == float.MaxValue ? 0f : t;
         }
 
         /// <summary>1 inside <paramref name="range"/> (0 = unknown ⇒ always in range), fading linearly to 0 at <see cref="RangeFadeFactor"/> × it.</summary>
