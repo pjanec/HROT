@@ -1420,7 +1420,8 @@ def run_air_attack(c, timeout):
     settled = ring[len(ring) // 3:]
     c.ok(settled and 250 <= min(settled) and max(settled) <= 550,
          f"⑤ the UH-60 orbits the truck — {min(settled or [0]):.0f}…{max(settled or [0]):.0f} m ({len(settled)} samples)")
-    tail = track[len(track) // 3:]
+    # the attack's own window: on the circle, until 30 s after the gunner fell (after a target survives 3 turns it holds, by design)
+    tail = [(t, pu) for t, pu in track[len(track) // 3:] if down_at is None or t <= down_at + 30]
     speeds = sorted(flat(p1, p0) / (t1 - t0) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0)
     slow = speeds[len(speeds) // 10] if speeds else 0.0
     c.ok(slow > 20, f"⑤ … never hovering (W4) — 10th-percentile speed {slow:.1f} m/s over ≥ 1 s")

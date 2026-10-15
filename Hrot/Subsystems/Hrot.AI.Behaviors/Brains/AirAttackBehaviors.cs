@@ -638,15 +638,23 @@ namespace Hrot.AI.Behaviors.Brains
             return TargetLead.Point(sp, sv, RoundSpeed(world, self, mount), tp, tv);
         }
 
-        /// <summary>A straight round's speed from <paramref name="mount"/>: the missile's own, else the mount's muzzle velocity, else the
-        /// engine's fallback (the order <c>AimAndFireExecutor.GuidedFlightSeconds</c> reads them in).</summary>
+        /// <summary>A straight round's speed from <paramref name="mount"/> — the order FireProcessingSystem flies it at (`:156-158`): the
+        /// missile's own, else (an aircraft's mount 1+) the mount's muzzle velocity, else the FIRING entity's <c>WeaponState</c> muzzle
+        /// velocity (a door gun 32 + k is its weapon system, on its own mount 0), else the mount's, else the engine's fallback.
+        /// 📐 Measured live (ua-air-attack ⑤): the M134 flies at its WeaponState's 500 m/s while the lead assumed the 800 m/s fallback ⇒
+        /// every round passed ~3 m over the truck.</summary>
         private static float RoundSpeed(EntityRepository world, Entity self, byte mount)
         {
-            var m = MountDto(world, self, mount);   // ⭐ slice 6d — a door gun's own mount
-            if (m == null) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
-            return CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is { SpeedMps: > 0f } missile ? missile.SpeedMps
-                 : m.MuzzleVelocity > 0f ? m.MuzzleVelocity
-                 : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+            if (mount == AirAttackProfiles.None) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+            bool controlled = WeaponSystems.IsControlledIndex(mount);
+            var firing = controlled ? WeaponSystems.ControlledAt(world, self, mount) : self;
+            int index = controlled ? 0 : mount;
+            var m = firing.IsNull ? null : CombatTkb.MountOf(world, firing, index);
+            if (m != null && CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is { SpeedMps: > 0f } missile) return missile.SpeedMps;
+            if (index > 0 && m is { MuzzleVelocity: > 0f }) return m.MuzzleVelocity;
+            if (!firing.IsNull && world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(firing) && world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(firing).MuzzleVelocity > 0f)
+                return world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(firing).MuzzleVelocity;
+            return m is { MuzzleVelocity: > 0f } ? m.MuzzleVelocity : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
         }
 
         /// <summary>⭐ Slice 6c — moves the RUNNING fire action's aim point (the executor reads its params every tick), so a ripple or a
