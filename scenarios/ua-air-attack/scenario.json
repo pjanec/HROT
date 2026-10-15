@@ -13,7 +13,7 @@
    "SimTransform": {
     "Position": [
      -4000,
-     -3000,
+     -550,
      300
     ],
     "Rotation": [
@@ -35,7 +35,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[52.49303933,13.41972299],\"TargetKind\":\"Fortification\"}",
+    "Params": "{\"Location\":[52.51505724,13.39910786],\"TargetKind\":\"Fortification\"}",
     "Origin": "Superior"
    },
    "Health": {
@@ -47,7 +47,7 @@
    "SimTransform": {
     "Position": [
      -4000,
-     0,
+     -150,
      300
     ],
     "Rotation": [
@@ -80,8 +80,8 @@
   "a2173600-0000-4000-8000-000000000003": {
    "SimTransform": {
     "Position": [
-     1000,
-     0,
+     500,
+     -150,
      0
     ],
     "Rotation": [
@@ -112,8 +112,8 @@
   "a2173600-0000-4000-8000-000000000004": {
    "SimTransform": {
     "Position": [
-     1040,
-     0,
+     540,
+     -150,
      0
     ],
     "Rotation": [
@@ -144,8 +144,8 @@
   "a2173600-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
-     -3000,
-     3000,
+     500,
+     4000,
      60
     ],
     "Rotation": [
@@ -167,7 +167,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[52.54695872,13.41974103],\"TargetKind\":\"Vehicles\"}",
+    "Params": "{\"Location\":[52.5235944,13.4123666],\"TargetKind\":\"Vehicles\"}",
     "Origin": "Superior"
    },
    "Health": {
@@ -178,8 +178,8 @@
   "a2173600-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [
-     1000,
-     3000,
+     500,
+     400,
      0
     ],
     "Rotation": [
@@ -210,8 +210,8 @@
   "a2173600-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [
-     -1500,
-     6000,
+     -350,
+     3500,
      100
     ],
     "Rotation": [
@@ -244,8 +244,8 @@
   "a2173600-0000-4000-8000-000000000008": {
    "SimTransform": {
     "Position": [
-     0,
-     6000,
+     -350,
+     300,
      0
     ],
     "Rotation": [

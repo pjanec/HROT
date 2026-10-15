@@ -1376,7 +1376,7 @@ def run_air_attack(c, timeout):
         return
     guns, gunners = _crew()
     print(f"    the door guns {sorted(guns)}, the door gunners by seat {gunners}")
-    bomb_point, apache_point, orbit_at = (1000.0, -3000.0), (1000.0, 3000.0), position(otruck)
+    bomb_point, apache_point, orbit_at = (-400.0, -550.0), (500.0, 400.0), position(otruck)   # every target inside the collider grid (±750 m)
     call("POST", "/sim/play", {})
     shots = {}   # seq → shot (the SimHost's shot log is a ring of 64: collect it as it fills)
     apache_closest, ring, bearings, track = 9e9, [], [], []
@@ -1420,8 +1420,8 @@ def run_air_attack(c, timeout):
     settled = ring[len(ring) // 3:]
     c.ok(settled and 250 <= min(settled) and max(settled) <= 550,
          f"⑤ the UH-60 orbits the truck — {min(settled or [0]):.0f}…{max(settled or [0]):.0f} m ({len(settled)} samples)")
-    # the attack's own window: on the circle, until 30 s after the gunner fell (after a target survives 3 turns it holds, by design)
-    tail = [(t, pu) for t, pu in track[len(track) // 3:] if down_at is None or t <= down_at + 30]
+    # the attack's own window: ON the circle (not the run-in), until 30 s after the gunner fell (after a target survives 3 turns it holds, by design)
+    tail = [(t, pu) for t, pu in track if 250 <= flat(pu, orbit_at) <= 550 and (down_at is None or t <= down_at + 30)]
     speeds = sorted(flat(p1, p0) / (t1 - t0) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0)
     slow = speeds[len(speeds) // 10] if speeds else 0.0
     c.ok(slow > 20, f"⑤ … never hovering (W4) — 10th-percentile speed {slow:.1f} m/s over ≥ 1 s")
@@ -1431,7 +1431,8 @@ def run_air_attack(c, timeout):
     misses = sorted(flat(x["end"], orbit_at) for x in door if x.get("end") and orbit_at)
     hits = sum(1 for x in door if x.get("hit") == otruck)
     print(f"    the door-gun rounds: {len(door)}, {hits} hit the truck; their ends from it: median {misses[len(misses) // 2] if misses else 0:.1f} m")
-    for x in sorted(door, key=lambda x: x.get("seq") or 0)[:2] + sorted(g, key=lambda x: x.get("seq") or 0)[:2]:
+    ds = sorted(door, key=lambda x: x.get("seq") or 0)
+    for x in ds[len(ds) // 2:len(ds) // 2 + 2] + sorted(g, key=lambda x: x.get("seq") or 0)[:2]:   # mid-orbit door shots
         print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "penetration", "damage")})
     stops = [(round(t0, 1), round(flat(p1, p0) / (t1 - t0), 1)) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0]
     print(f"    the UH-60's speed over its orbit (t, m/s), slowest: {sorted(stops, key=lambda v: v[1])[:5]}")
