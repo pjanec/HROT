@@ -40,6 +40,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>The most decals alive at once (VE-H).</summary>
     public const int DecalCap = 256;
 
+    /// <summary>⭐ CE-1113 (§6v AD-V6) — the highest a burst may be above the ground and still scorch it (m).</summary>
+    public const float DecalMaxBurstHeight = 2f;
+
     private readonly List<(double BornAt, Entity Entity)> _decals = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
@@ -108,7 +111,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 if (!hitABody)
                 {
                     float gz = ground?.GroundHeightAt(point.X, point.Y) ?? 0f;
-                    Spawn(cmd, tkb, set.Decal, new Vector3(point.X, point.Y, gz), null, now);
+                    // ⭐ CE-1113 (DESIGN_Map_3D_Mode.md §6v AD-V6) — a burst in the AIR (a SAM's proximity fuze) scorches nothing below it
+                    if (point.Z - gz <= DecalMaxBurstHeight) Spawn(cmd, tkb, set.Decal, new Vector3(point.X, point.Y, gz), null, now);
                 }
             }
         }

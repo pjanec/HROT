@@ -175,6 +175,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 float deployed = DeploymentOf(world, e, simTime);
                 var kit = WeaponKits.Blend(look.Weapon, deployed);
                 (parts, pivots) = (kit.Parts, kit.Pivots);
+                // ⭐ CE-1112 (§6v AD-V5) — in a vehicle's station (a technical's bed) it stands on the vehicle: no jacks, no wheels
+                if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                    && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) parts = WeaponKits.Mounted(look.Weapon, parts);
                 if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon), simTime);
             }
             else
@@ -474,8 +477,16 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
             }
             case CarriageKind.Manning when world.HasComponent<SimTransform>(carriage.Holder)
-                                          && GunnerFrame(world, carriage, size, simTime, out var frame, out bool kneel):
+                                          && GunnerFrame(world, carriage, size, simTime, out var frame, out var pose):
                 body = frame;
+                // ⭐ CE-1112 (§6v AD-V4) — a gun with seats (the ZU-23): he SITS on it, his hips at the seat
+                if (pose is Fdp.Toolkit.Tkb.Domain.SeatPose.Sit or Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut)
+                {
+                    _drops.Riding(e, body.Translation.Z, simTime);
+                    _fall.Alive(e, StanceId.Crouched, simTime);
+                    return BlockFigure.Seated(pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
+                }
+                bool kneel = pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
                 _fall.Alive(e, kneel ? StanceId.Crouched : StanceId.Standing, simTime);
                 return BlockFigure.AtWeapon(kneel, soldier);
             case CarriageKind.Downed:
@@ -656,7 +667,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active))
             {
                 var held = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, e, active);
-                if (!held.IsNull && WeaponKits.TypeOf(world, tkb, held).Kind is WeaponKind.Launcher or WeaponKind.Atgm) return true;
+                if (!held.IsNull && WeaponKits.IsShoulderFired(WeaponKits.TypeOf(world, tkb, held).Kind)) return true;
             }
             else if (WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, active))) return true;
         }
@@ -664,16 +675,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (shots.FiredWithin(e, now, WeaponKits.ShoulderSeconds, out int mount)
             && WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, mount))) return true;
         return !carriage.Load.IsNull && shots.FiredWithin(carriage.Load, now, WeaponKits.ShoulderSeconds, out _)
-               && WeaponKits.TypeOf(world, tkb, carriage.Load).Kind is WeaponKind.Launcher or WeaponKind.Atgm;
+               && WeaponKits.IsShoulderFired(WeaponKits.TypeOf(world, tkb, carriage.Load).Kind);
     }
 
     /// <summary>
     /// ⭐ CE-1088 (N-2) — where a man in a weapon's own seat is drawn: at its seat's place when the seat declares one, else at the weapon
     /// kind's gunner spot (scaled to the weapon's size), turned with its traverse about its pivot. False for a weapon nobody mans on foot.
     /// </summary>
-    internal bool GunnerFrame(EntityRepository world, in FigureCarriage carriage, Vector3 manSize, double now, out Matrix4x4 frame, out bool kneel)
+    internal bool GunnerFrame(EntityRepository world, in FigureCarriage carriage, Vector3 manSize, double now, out Matrix4x4 frame,
+                              out Fdp.Toolkit.Tkb.Domain.SeatPose pose)
     {
-        frame = default; kneel = false;
+        frame = default; pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Stand;
         var weapon = carriage.Holder;
         if (!world.HasComponent<TkbIdentity>(weapon)) return false;
         var look = LookOf(world.GetComponentRO<TkbIdentity>(weapon).TkbType, _tkb());
@@ -682,7 +694,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (carriage.Seat is { HasPlace: true } seat)
         {
             frame = Carriage.InSeat(weaponBody, seat);
-            kneel = seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
+            pose = seat.Pose;
             return true;
         }
         if (look.Family != VisualFamily.WeaponSystem || WeaponKits.GunnerSpot(look.Weapon) is not { } spot) return false;
@@ -693,7 +705,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         frame = Matrix4x4.CreateRotationZ(spot.Facing) * Matrix4x4.CreateTranslation(spot.At * scale)
                 * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot)
                 * weaponBody;
-        kneel = spot.Kneel;
+        pose = spot.Pose;
         return true;
     }
 

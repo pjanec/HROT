@@ -143,6 +143,9 @@ namespace Hrot.Core.Tkb
             yield return C("AtgmWeaponSystem", "ATGM Launcher (HROT)", "1.1.*.50.3");
             yield return C("LauncherWeaponSystem", "Rocket Launcher (HROT)", "1.1.*.50.4");
             yield return C("SentryWeaponSystem", "Sentry Gun (HROT)", "1.1.*.50.5");
+            // ⭐ CE-1112 (docs/DESIGN_Map_3D_Mode.md §6v AD-V1) — backend's air defence (CE-2187 / CE-2190, Weapon Systems §5c)
+            yield return C("ManpadsWeaponSystem", "MANPADS (HROT)", "1.1.*.50.6");
+            yield return C("AaGunWeaponSystem", "Anti-Aircraft Gun (HROT)", "1.1.*.50.7");
 
             // Air platforms: groups, then categories
             yield return C("Helicopter", "Helicopter", "1.2.*.20-25");

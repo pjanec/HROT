@@ -735,6 +735,8 @@ public sealed class Map3DTests
         Assert.Equal(WeaponKind.Atgm, WeaponKits.KindOf(Dis(50, 3)));
         Assert.Equal(WeaponKind.Launcher, WeaponKits.KindOf(Dis(50, 4)));
         Assert.Equal(WeaponKind.Sentry, WeaponKits.KindOf(Dis(50, 5)));
+        Assert.Equal(WeaponKind.Manpads, WeaponKits.KindOf(Dis(50, 6)));        // ⭐ CE-1112 — Stinger / Igla
+        Assert.Equal(WeaponKind.AaGun, WeaponKits.KindOf(Dis(50, 7)));          // ⭐ CE-1112 — ZU-23-2
         Assert.Equal(WeaponKind.Hmg, WeaponKits.KindOf(Dis(50)));                // a plain weapon system
         Assert.Equal(WeaponKind.Mortar, WeaponKits.KindOf(Dis(10)));
         Assert.Equal(WeaponKind.TowedGun, WeaponKits.KindOf(Dis(5)));
@@ -782,8 +784,9 @@ public sealed class Map3DTests
             float azimuth = 0f;
             var layer = new EntityBodyLayer3D(() => world, () => db, (_, _) => new ArticulationPose(azimuth, 0f));
             var man = ShapeKits.DefaultSize(VisualFamily.Person);
-            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var frame, out bool kneel));
-            Assert.True(kneel);
+            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var frame, out var pose));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel, pose);
+            bool kneel = true;
             var at = Vector3.Transform(Vector3.Zero, frame);
             Assert.InRange(at.X, 98.9f, 99.2f);   // ~0.95 m behind the pintle
             Assert.InRange(at.Y, 49.9f, 50.1f);
@@ -799,6 +802,54 @@ public sealed class Map3DTests
             var turnedAt = Vector3.Transform(Vector3.Zero, turned);
             Assert.InRange(turnedAt.Y, 48.9f, 49.2f);
             Assert.InRange(turnedAt.X, 99.9f, 100.1f);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1112 (§6v AD-V2 … AD-V4) — backend's air defence drawn: the catalogue's launchers 613 / 614 are MANPADS and the 615 a
+    /// ZU-23 (by their class rows, not as HMGs); the ZU-23's gunner SITS on its left seat (hips at the seat) and turns with it; a MANPADS is
+    /// shoulder-fired and throws a backblast like the other tubes; the ZU-23 is not.
+    /// </summary>
+    [Fact]
+    public void CE1112_TheMANPADS_AndTheZu23_DrawAsThemselves_AndTheZu23sGunnerSits()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            var builtIn = BuiltIn();
+            Assert.Equal(WeaponKind.Manpads, WeaponKits.KindOf(builtIn.GetByType(TkbEntityTypes.WeaponSystem_Stinger)!.DisType));
+            Assert.Equal(WeaponKind.Manpads, WeaponKits.KindOf(builtIn.GetByType(TkbEntityTypes.WeaponSystem_Igla)!.DisType));
+            Assert.Equal(WeaponKind.AaGun, WeaponKits.KindOf(builtIn.GetByType(TkbEntityTypes.WeaponSystem_Zu23)!.DisType));
+            Assert.True(WeaponKits.IsShoulderFired(WeaponKind.Manpads));
+            Assert.False(WeaponKits.IsShoulderFired(WeaponKind.AaGun));
+            // AD-V5 — mounted in a vehicle's station it loses its ground carriage (3 jacks, 2 wheels); other kinds keep every part
+            Assert.Equal(17 - 5, WeaponKits.Mounted(WeaponKind.AaGun, WeaponKits.Kit(WeaponKind.AaGun, true).Parts).Length);
+            Assert.Equal(WeaponKits.Kit(WeaponKind.Hmg, true).Parts.Length, WeaponKits.Mounted(WeaponKind.Hmg, WeaponKits.Kit(WeaponKind.Hmg, true).Parts).Length);
+
+            ((TkbDatabase)db).Register(new TkbTemplate("Test ZU-23", 990011) { DisType = Dis(50, 7) });
+            var gun = WeaponSystem(world, new Vector3(100f, 50f, 0f));
+            world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 990011 });
+            var gunner = Man(world, new Vector3(100f, 50f, 0f));
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = gun, Exposed = 1, Seat = 0 });
+            var carriage = Carriage.Of(world, gunner, db);
+
+            float azimuth = 0f;
+            var layer = new EntityBodyLayer3D(() => world, () => db, (_, _) => new ArticulationPose(azimuth, 0f));
+            var man = ShapeKits.DefaultSize(VisualFamily.Person);
+            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var frame, out var pose));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.Sit, pose);
+            var hips = Vector3.Transform(Vector3.Zero, frame);
+            var size = WeaponKits.DefaultSize(WeaponKind.AaGun);
+            var seat = Vector3.Transform(Vector3.Zero, WeaponKits.Kit(WeaponKind.AaGun, true).Parts[14].BodyTransform(size)) + new Vector3(100f, 50f, 0f);
+            Assert.InRange(hips.X - seat.X, -0.05f, 0.05f);                // over the left seat
+            Assert.InRange(hips.Y - seat.Y, -0.05f, 0.05f);
+            Assert.InRange(hips.Z - seat.Z, 0f, 0.15f);                    // sitting on it, not in it
+
+            azimuth = MathF.PI / 2f;                                        // the gun traverses left: he goes round with it
+            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var turned, out _));
+            var turnedAt = Vector3.Transform(Vector3.Zero, turned);
+            Assert.InRange(turnedAt.X, 100f - 0.50f, 100f - 0.40f);         // his left (+y) offset is now behind (−x)
+            Assert.InRange(turnedAt.Y, 50f - 0.60f, 50f - 0.50f);
         }
     }
 

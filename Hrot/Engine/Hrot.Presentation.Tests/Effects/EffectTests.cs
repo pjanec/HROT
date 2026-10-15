@@ -131,6 +131,24 @@ public sealed class EffectTests
         Assert.Equal(0f, world.GetComponentRO<SimTransform>(decal.Entity).Position.Z); // on the ground under the hit (VE-I step 1)
     }
 
+    /// <summary>⭐ CE-1113 (DESIGN_Map_3D_Mode.md §6v AD-V6) — a burst in the AIR (a SAM's proximity fuze 400 m up, no target) draws its
+    /// explosion where it burst and scorches nothing below; one just above the ground still does.</summary>
+    [Fact]
+    public void CE1113_ABurstInTheAir_ExplodesThere_AndLeavesNoDecalOnTheGround()
+    {
+        var (world, _) = World();
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 50, HitY = 20, HitZ = 400f, Damage = 1100f });
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 90, HitY = 20, HitZ = 1.5f, Damage = 1100f });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+
+        var fx = Effects(world);
+        var explosions = fx.Where(f => f.Type == EffectTkbCatalog.ExplosionLarge).ToArray();
+        Assert.Equal(2, explosions.Length);
+        Assert.Contains(explosions, f => world.GetComponentRO<SimTransform>(f.Entity).Position.Z == 400f);   // drawn where it burst
+        var decal = Assert.Single(fx, f => f.Type == EffectTkbCatalog.DecalLarge);                         // only the low one scorches
+        Assert.Equal(90f, world.GetComponentRO<SimTransform>(decal.Entity).Position.X);
+    }
+
     [Fact]
     public void E2_EffectsAgeOnSimulationTime_ExpireAtTheirDuration_AndAPausedSimFreezesThem()
     {

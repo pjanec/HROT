@@ -36,7 +36,8 @@ namespace Hrot.Map.Definitions.Tkb
         /// <paramref name="gunner"/> — <c>SeatDto.StartWith</c>, filled once on the creating node by <c>SeatPresets</c>).</summary>
         /// <param name="icon">an icon with embedded art (the HMMWV's until a pickup icon is drawn — CE1017's icon rail).</param>
         private static void Pickup(NedTkbBuilder builder, long type, string name, string icon, long weapon = 0, long gunner = 0,
-                                   float traverseDeg = 0f, float elevationMinDeg = 0f, float elevationMaxDeg = 0f)
+                                   float traverseDeg = 0f, float elevationMinDeg = 0f, float elevationMaxDeg = 0f,
+                                   float stationZ = PintleZ, SeatDto? gunnerSeat = null)
         {
             bool arc = traverseDeg > 0f;
             builder
@@ -66,13 +67,13 @@ namespace Hrot.Map.Definitions.Tkb
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver },
                         // ⭐ CE-1108 — kneeling in the bed behind his pintle (the place is his feet; read only by the 3-D drawing): without
                         //   a place he was drawn at the pickup's reference point, inside the body
-                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = gunner,
-                                      X = -2.0f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel },
+                        gunnerSeat ?? new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = gunner,
+                                                    X = -2.0f, Z = BedFloorZ, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel },
                         // the bed pintle: the weapon's own pivot ends 1.9 m up, 1.3 m behind the reference point (the M9 pintle's place)
                         new SeatDto
                         {
                             Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
-                            X = -1.3f, Z = PintleZ, StartWith = weapon,
+                            X = -1.3f, Z = stationZ, StartWith = weapon,
                             TraverseMinDeg = arc ? -traverseDeg : null, TraverseMaxDeg = arc ? traverseDeg : null,
                             ElevationMinDeg = arc ? elevationMinDeg : null, ElevationMaxDeg = arc ? elevationMaxDeg : null,
                         },
@@ -116,6 +117,8 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ WS-4 — the bed station's height: a weapon's pintle pivot (<see cref="WeaponPivotZ"/>) above it ends at the M9 pintle's 1.9 m.</summary>
         private const float WeaponPivotZ = 0.3f, PintleZ = 1.9f - WeaponPivotZ;
+        /// <summary>⭐ CE-1112 — a pickup's bed floor above its reference point (m): where a man in the bed kneels and a ground gun stands.</summary>
+        private const float BedFloorZ = 0.85f;
 
         /// <summary>
         /// ⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — a WEAPON SYSTEM type: an entity of its own (Gen.WeaponSystem) whose gun is
@@ -594,7 +597,13 @@ namespace Hrot.Map.Definitions.Tkb
                 weapon: TkbEntityTypes.WeaponSystem_M134Minigun, gunner: TkbEntityTypes.Infantry_Rifleman);
             // ⭐ CE-2190 (DESIGN_Weapon_Systems §5c, AD5) — the ZU-23-2 in the same bed (its own −10…+90°, all round)
             Pickup(builder, TkbEntityTypes.Technical_Zu23, "Technical (ZU-23-2)", "hmmwv",
-                weapon: TkbEntityTypes.WeaponSystem_Zu23, gunner: TkbEntityTypes.Infantry_Rifleman);
+                weapon: TkbEntityTypes.WeaponSystem_Zu23, gunner: TkbEntityTypes.Infantry_Rifleman,
+                // ⭐ CE-1112 (ui, DESIGN_Map_3D_Mode.md §6v AD-V5 — a cross-lane edit to this preset's data, read only by the 3-D drawing):
+                //   the ZU-23 stands ON the bed floor (not at an HMG's pintle height — its own trunnions are 1 m up), and its gunner SITS on
+                //   the gun's left seat (WeaponKits.GunnerSpot(AaGun): 0.55 m behind its pivot, 0.45 m left, hips 0.95 m up)
+                stationZ: BedFloorZ,
+                gunnerSeat: new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman,
+                                          X = -1.3f - 0.55f, Y = 0.45f, Z = BedFloorZ + 0.95f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit });
             
             // Infantry Rifleman
             builder

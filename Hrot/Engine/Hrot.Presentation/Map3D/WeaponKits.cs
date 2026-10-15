@@ -22,6 +22,10 @@ public enum WeaponKind : byte
     Mortar,
     /// <summary>A towed howitzer on two wheels with split trails (105 mm).</summary>
     TowedGun,
+    /// <summary>⭐ CE-1112 (§6v AD-V2) — a shoulder-fired anti-aircraft missile tube with a grip stock (Stinger, Igla).</summary>
+    Manpads,
+    /// <summary>⭐ CE-1112 (§6v AD-V3) — a twin-barrel anti-aircraft gun on a two-wheel carriage (ZU-23-2).</summary>
+    AaGun,
 }
 
 /// <summary>
@@ -47,6 +51,8 @@ public static class WeaponKits
                 case "SentryWeaponSystem": return WeaponKind.Sentry;
                 case "Mortar": return WeaponKind.Mortar;
                 case "TowedArtillery": return WeaponKind.TowedGun;
+                case "ManpadsWeaponSystem": return WeaponKind.Manpads;     // ⭐ CE-1112
+                case "AaGunWeaponSystem": return WeaponKind.AaGun;         // ⭐ CE-1112
             }
         return WeaponKind.Hmg;
     }
@@ -60,6 +66,8 @@ public static class WeaponKits
         WeaponKind.Sentry => new Vector3(1.0f, 0.8f, 1.3f),
         WeaponKind.Mortar => new Vector3(1.2f, 0.6f, 1.1f),
         WeaponKind.TowedGun => new Vector3(6.0f, 2.0f, 1.8f),
+        WeaponKind.Manpads => new Vector3(1.55f, 0.18f, 0.22f),
+        WeaponKind.AaGun => new Vector3(4.6f, 2.4f, 1.6f),
         _ => new Vector3(1.65f, 0.9f, 0.75f),
     };
 
@@ -114,17 +122,33 @@ public static class WeaponKits
     }
 
     /// <summary>⭐ N-2 — where the gunner of a <paramref name="kind"/> is (metres from the weapon's origin in its frame, turned with its
-    /// traverse), which way he faces (radians from the weapon's forward), and whether he kneels. Null: nobody mans it on foot.</summary>
-    public static (Vector3 At, float Facing, bool Kneel)? GunnerSpot(WeaponKind kind) => kind switch
+    /// traverse), which way he faces (radians from the weapon's forward), and his pose: KNEEL / STAND (the place is his feet) or ⭐ CE-1112
+    /// (§6v AD-V4) SIT (the place is his hips, on the weapon's own seat). Null: nobody mans it on foot.</summary>
+    public static (Vector3 At, float Facing, Fdp.Toolkit.Tkb.Domain.SeatPose Pose)? GunnerSpot(WeaponKind kind) => kind switch
     {
-        WeaponKind.Hmg => (new Vector3(-0.95f, 0f, 0f), 0f, true),            // behind the spade grips
-        WeaponKind.Minigun => (new Vector3(-0.75f, 0f, 0f), 0f, false),        // standing behind it
-        WeaponKind.Atgm => (new Vector3(-0.80f, -0.15f, 0f), 0f, true),        // kneeling behind the sight
-        WeaponKind.Launcher => (new Vector3(-0.30f, 0.30f, 0f), 0f, true),
-        WeaponKind.Mortar => (new Vector3(-0.15f, 0.55f, 0f), -0.35f, true),   // beside the tube, at the sight
-        WeaponKind.TowedGun => (new Vector3(-0.90f, 0.85f, 0f), 0f, false),    // left of the breech
+        WeaponKind.Hmg => (new Vector3(-0.95f, 0f, 0f), 0f, Kneel),            // behind the spade grips
+        WeaponKind.Minigun => (new Vector3(-0.75f, 0f, 0f), 0f, Stand),        // standing behind it
+        WeaponKind.Atgm => (new Vector3(-0.80f, -0.15f, 0f), 0f, Kneel),       // kneeling behind the sight
+        WeaponKind.Launcher => (new Vector3(-0.30f, 0.30f, 0f), 0f, Kneel),
+        WeaponKind.Manpads => (new Vector3(-0.30f, 0.30f, 0f), 0f, Kneel),
+        WeaponKind.Mortar => (new Vector3(-0.15f, 0.55f, 0f), -0.35f, Kneel),  // beside the tube, at the sight
+        WeaponKind.TowedGun => (new Vector3(-0.90f, 0.85f, 0f), 0f, Stand),    // left of the breech
+        WeaponKind.AaGun => (new Vector3(-0.55f, 0.45f, 0.95f), 0f, Sit),      // ⭐ CE-1112 — on the left seat, at the sight
         _ => null,                                                              // a sentry gun mans itself
     };
+
+    private const Fdp.Toolkit.Tkb.Domain.SeatPose Kneel = Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel, Stand = Fdp.Toolkit.Tkb.Domain.SeatPose.Stand,
+                                                   Sit = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit;
+
+    /// <summary>⭐ CE-1112 (§6v AD-V5) — a weapon MOUNTED in a vehicle's station stands on the vehicle, not on its own carriage: the
+    /// ground-only parts of its kit (the ZU-23's jacks and wheels) are left out.</summary>
+    public static KitPart[] Mounted(WeaponKind kind, KitPart[] parts)
+        => kind == WeaponKind.AaGun && parts.Length == AaGunParts ? [parts[0], .. parts.AsSpan(AaGunFirstUpperPart)] : parts;
+
+    private const int AaGunParts = 17, AaGunFirstUpperPart = 6;   // 1–3 the jacks, 4–5 the wheels
+
+    /// <summary>⭐ CE-1112 (§6v AD-V2) — a weapon fired from the SHOULDER: held there while its bearer aims, throwing a backblast.</summary>
+    public static bool IsShoulderFired(WeaponKind kind) => kind is WeaponKind.Launcher or WeaponKind.Atgm or WeaponKind.Manpads;
 
     /// <summary>The traverse pivot of a kind's deployed kit, metres in its frame (the gunner turns about it with the weapon).</summary>
     public static Vector3 TraversePivot(WeaponKind kind, Vector3 size)
@@ -183,7 +207,7 @@ public static class WeaponKits
         {
             VisualFamily.SpArtillery => FiringBlast.Ground,
             VisualFamily.WeaponSystem when kind == WeaponKind.TowedGun => FiringBlast.Ground,
-            VisualFamily.WeaponSystem when kind is WeaponKind.Launcher or WeaponKind.Atgm => FiringBlast.Backblast,
+            VisualFamily.WeaponSystem when IsShoulderFired(kind) => FiringBlast.Backblast,
             VisualFamily.Person when IsLauncher(tkb, mount) => FiringBlast.Backblast,
             _ => FiringBlast.None,
         };
@@ -311,6 +335,58 @@ public static class WeaponKits
         }, default);
     }
 
+    /// <summary>⭐ CE-1112 (§6v AD-V2) — a Stinger / Igla: a slim tube, its grip stock and sight under it, the battery unit under the front,
+    /// the folded antenna on top; lying the same stowed and deployed (it is fired from the shoulder).</summary>
+    private static ShapeKit Manpads(bool deployed)
+    {
+        var s = DefaultSize(WeaponKind.Manpads);
+        return new ShapeKit(new[]
+        {
+            Tube(s, 0f, 0f, 0.11f, 1.52f, 0.09f, ColourRole.Body),                     // the launch tube
+            Block(s, -0.12f, 0f, 0.04f, 0.30f, 0.06f, 0.08f, ColourRole.Dark),          // the grip stock under it
+            Upright(s, 0.30f, 0f, 0.04f, 0.08f, 0.07f, ColourRole.Dark),               // the battery / coolant unit
+            Block(s, 0.05f, 0.07f, 0.15f, 0.14f, 0.05f, 0.08f, ColourRole.Glass),       // the sight on its left
+            Block(s, 0.20f, 0f, 0.17f, 0.30f, 0.12f, 0.02f, ColourRole.Dark),           // the folded antenna
+            Tube(s, 0.75f, 0f, 0.11f, 0.04f, 0.11f, ColourRole.Dark),                   // front cap
+        }, default);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1112 (§6v AD-V3) — the ZU-23-2: two barrels with flash hiders over a cradle, an ammunition box and a seat each side, on a turret
+    /// ring. STOWED on its two wheels, barrels level forward; DEPLOYED lowered onto three jacks with the wheels lifted. Same 17 parts.
+    /// </summary>
+    private static ShapeKit AaGun(bool deployed)
+    {
+        var s = DefaultSize(WeaponKind.AaGun);
+        float up = deployed ? 0f : 0.15f;                                    // the carriage rides higher on its wheels for towing
+        PartRole turret = deployed ? PartRole.Turret : PartRole.Hull, gun = deployed ? PartRole.Gun : PartRole.Hull;
+        var front = deployed ? new Vector3(1.45f, 0f, 0.02f) : new Vector3(1.00f, 0f, 0.40f);   // jacks down / folded along the carriage
+        var rearL = deployed ? new Vector3(-1.25f, 1.05f, 0.02f) : new Vector3(-0.80f, 0.30f, 0.40f);
+        var rearR = deployed ? new Vector3(-1.25f, -1.05f, 0.02f) : new Vector3(-0.80f, -0.30f, 0.40f);
+        float wheelZ = deployed ? 0.70f : 0.36f;                             // lifted / on the ground
+        var axle = new Vector3(0f, 0f, 0.45f + up);
+        return new ShapeKit(new[]
+        {
+            Block(s, 0f, 0f, 0.45f + up, 1.70f, 1.10f, 0.22f, ColourRole.Body),                                    // carriage platform
+            Strut(s, axle + new Vector3(0.6f, 0f, 0f), front, 0.10f, 0.10f, ColourRole.Dark),                       // front jack
+            Strut(s, axle + new Vector3(-0.5f, 0.35f, 0f), rearL, 0.10f, 0.10f, ColourRole.Dark),                   // rear jacks
+            Strut(s, axle + new Vector3(-0.5f, -0.35f, 0f), rearR, 0.10f, 0.10f, ColourRole.Dark),
+            new KitPart(PartShape.Cylinder, new Vector3(0f, 0.95f, wheelZ) / s, new Vector3(0f, 0.20f, 0.72f) / s, ColourRole.Dark, PartAxis.Y),
+            new KitPart(PartShape.Cylinder, new Vector3(0f, -0.95f, wheelZ) / s, new Vector3(0f, 0.20f, 0.72f) / s, ColourRole.Dark, PartAxis.Y),
+            Upright(s, 0f, 0f, 0.65f + up, 0.18f, 0.90f, ColourRole.Metal, turret),                                // turret ring
+            Block(s, 0.05f, 0f, 0.98f + up, 1.10f, 0.40f, 0.30f, ColourRole.Body, gun),                            // cradle and receivers
+            Tube(s, 1.90f, 0.11f, 1.02f + up, 2.60f, 0.06f, ColourRole.Metal, gun),                               // left barrel
+            Tube(s, 1.90f, -0.11f, 1.02f + up, 2.60f, 0.06f, ColourRole.Metal, gun),                              // right barrel
+            Tube(s, 3.25f, 0.11f, 1.02f + up, 0.18f, 0.10f, ColourRole.Dark, gun),                                // flash hiders
+            Tube(s, 3.25f, -0.11f, 1.02f + up, 0.18f, 0.10f, ColourRole.Dark, gun),
+            Block(s, 0.05f, 0.36f, 1.05f + up, 0.36f, 0.22f, 0.30f, ColourRole.Body, gun),                         // ammunition boxes
+            Block(s, 0.05f, -0.36f, 1.05f + up, 0.36f, 0.22f, 0.30f, ColourRole.Body, gun),
+            Block(s, -0.55f, 0.45f, 0.86f + up, 0.32f, 0.30f, 0.06f, ColourRole.Dark, turret),                     // seats
+            Block(s, -0.55f, -0.45f, 0.86f + up, 0.32f, 0.30f, 0.06f, ColourRole.Dark, turret),
+            Block(s, -0.25f, 0.30f, 1.28f + up, 0.14f, 0.10f, 0.16f, ColourRole.Glass, gun),                       // sight
+        }, Pivots(s, 0f, 0f, 0.05f, 1.02f));
+    }
+
     private static ShapeKit Sentry(bool deployed)
     {
         var s = DefaultSize(WeaponKind.Sentry);
@@ -374,6 +450,7 @@ public static class WeaponKits
     private static ShapeKit[] Build(bool deployed) =>
     [
         Hmg(deployed), Minigun(deployed), Atgm(deployed), Launcher(deployed), Sentry(deployed), Mortar(deployed), TowedGun(deployed),
+        Manpads(deployed), AaGun(deployed),
     ];
 }
 
