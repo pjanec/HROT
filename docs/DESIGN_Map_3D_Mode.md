@@ -2272,7 +2272,7 @@ embarked in a vehicle's station draws without its ground carriage (the ZU-23's j
 | ![](assets/map-3d/ad-1-zu23-stinger.png) | ![](assets/map-3d/ad-2-manpads-gunners.png) | ![](assets/map-3d/ad-3-technical.png) |
 |---|---|---|
 
-### 6w. CE-1119 — airborne drawn: the fast rope, the round and ram-air canopies, a pose for every descent phase — DESIGN `2026-10-16` (ui)
+### 6w. CE-1119 — airborne drawn: the fast rope, the round and ram-air canopies, a pose for every descent phase — DESIGN + AS-BUILT `2026-10-16` (ui)
 
 📄 Owning design: [Airborne Insertion](designs/airborne/DESIGN_Airborne_Insertion.md) item **U-1** (approved with it, R-1003); this section is
 the drawing's own design. 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. Backend built the engine half (B-1…B-5, §7a / §7b there).
@@ -2364,6 +2364,25 @@ would draw a jumper as a standing man falling.
 **Rejected — one line each:** *drawing the canopy as its own entity* — no such entity exists and it would need a spawn on every node for a
 purely visual part; *a rope component* — the anchors and the roping phase already say where every rope is; *posing from the motion model's
 inputs (toggle u, brake b)* — they are not replicated; the bank (on the wire) and the phase carry what a viewer sees.
+
+**As-built `2026-10-16`** — matches the diagrams. `DescentDraw` (`Map3D/DescentDraw.cs`: `PoseOf`, `Before`, `Figure`, `Opening`, `Collapse`,
+`Canopy`, `Rope`, `Stick`), the seven poses in `Map3D/BlockFigureDescent.cs` (`BlockFigure.Descending`, `BlendDescent`), and in
+`EntityBodyLayer3D` `DescentFigure` (before `HeldFigure`), `DrawCanopy` and pass 3 `DrawRopes`. Where it went further than the table:
+
+| as built | why |
+|---|---|
+| ⚠ the poses live in a NESTED class (`BlockFigure.DescentPoses`) | C# does not order static initialisers across the files of a partial class: built as plain fields they read `S` and the shoulders as zeros (found by the rope rail — the hands drew at his feet) |
+| a canopy coming down SHRINKS and drops `CollapsedBehind` (6 m) behind him over the landing, then lies as a low heap at the end of a strip of fabric — never a full-size dome on the ground | the first frame drew a 10 m flat disc (a pond) and a dome hovering over the rolled man |
+| a cut rope lies in a loose S from where it hung, with a small heap at its end | a heap under the rope read as a pedestal under the men who had just come down it |
+| the jump tracker is fed whenever he has a `Descent`, even in a rope's `Landed` (no figure then) | the hold's last frame has him on the surface, so its end is a step of nothing |
+| `Falling` (anchor lost) draws the arch; a man killed under his canopy keeps the descent figure and canopy until he is down | no slumped-under-canopy pose yet — noted, not built |
+
+Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the canopy's size / lines / collapse, the rope) and the frame rail
+`Map3DFrameRail.CE1119_V` (2 ropes hanging while roping, every phase drawn, canopies counted, the ropes cut when the hold ends, no jump):
+
+| ![](assets/map-3d/airborne-1-ropes.png) | ![](assets/map-3d/airborne-2-the-stick.png) |
+|---|---|
+| ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
 
 ## 7. NOT VERIFIED — say so before it is built on
 

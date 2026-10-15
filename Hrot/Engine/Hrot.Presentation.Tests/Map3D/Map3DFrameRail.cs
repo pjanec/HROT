@@ -1744,6 +1744,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<StanceIntent>();
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
         world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         var tkb = Map3DTests.BuiltIn();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         const double Now = 100.0;
@@ -1758,21 +1759,26 @@ public sealed class Map3DFrameRail
         world.AddComponent(heli, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground + 12f), Rotation = Quaternion.Identity });
         world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60_DoorsOff });
         world.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus { Phase = Fdp.Toolkit.Navigation.NavigationPhase.Roping });
-        Entity Man(long type, Vector3 at, Quaternion facing, Fdp.Toolkit.Motion.Descent descent)
+        Entity Man(long type, Vector3 at, Quaternion facing, Fdp.Toolkit.Motion.Descent? descent)
         {
             var m = world.CreateEntity();
             world.AddComponent(m, new SimTransform { Position = at, Rotation = facing });
             world.AddComponent(m, new TkbIdentity { TkbType = type });
             world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
-            world.AddComponent(m, descent);
+            if (descent is { } dsc) world.AddComponent(m, dsc);
             return m;
         }
+        // the two SF men first SEATED in the cabin (seen riding at its height), then out on the ropes
         var roper = new List<Entity>();
+        var onRope = new List<(Vector3 At, Quaternion Facing, Fdp.Toolkit.Motion.Descent D)>();
         for (int k = 0; k < 2; k++)
         {
             Assert.True(Fdp.Toolkit.Motion.DescentRules.TryAnchor(world, new Fdp.Toolkit.Motion.Descent { Anchor = heli, AnchorIndex = (byte)k }, out var top, out _, out _));
-            roper.Add(Man(TkbEntityTypes.Infantry_SfOperator, top - new Vector3(0f, 0f, 4f + 4f * k) - new Vector3(0f, 0f, 1.9f), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, k == 0 ? MathF.PI / 2f : -MathF.PI / 2f),
-                          new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli, AnchorIndex = (byte)k, PhaseSince = Now - 1.0 }));
+            var m = Man(TkbEntityTypes.Infantry_SfOperator, world.GetComponentRO<SimTransform>(heli).Position, Quaternion.Identity, null);
+            world.AddComponent(m, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Exposed = 1, Seat = (byte)(2 + k) });
+            roper.Add(m);
+            onRope.Add((top - new Vector3(0f, 0f, 4f + 4f * k) - new Vector3(0f, 0f, 1.9f), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, k == 0 ? MathF.PI / 2f : -MathF.PI / 2f),
+                        new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli, AnchorIndex = (byte)k, PhaseSince = Now - 1.0 }));
         }
 
         // the stick, in a line to the north of the helicopter, each in its phase
@@ -1816,6 +1822,15 @@ public sealed class Map3DFrameRail
         sw.Set(true, animate: false);
 
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 6f), 30f, MathF.PI * 1.45f, -0.18f);   // from the south, the helicopter and its ropes
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now - 0.3 });
+        frame.Step(canvas.Draw);                      // seated in the cabin: the jump tracker sees them ride at its height
+        for (int k = 0; k < 2; k++)
+        {
+            world.RemoveComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(roper[k]);
+            world.SetComponent(roper[k], new SimTransform { Position = onRope[k].At, Rotation = onRope[k].Facing });
+            world.AddComponent(roper[k], onRope[k].D);
+        }
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "airborne-1-ropes.png"));
@@ -1849,7 +1864,7 @@ public sealed class Map3DFrameRail
         frame.Screenshot(Path.Combine(shots, "airborne-4-ropes-cut.png"));
         Assert.Equal(0, bodies.RopesDrawn);
         Assert.Equal(2, bodies.CutRopesDrawn);
-        Assert.Equal(0, bodies.JumpsDrawn);
+        Assert.Equal(0, bodies.JumpsDrawn);   // on the ground 0.4 s after they were seen seated 12 m up: their descent, not a jump
     }
 
     /// <summary>
