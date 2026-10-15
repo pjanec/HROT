@@ -307,7 +307,7 @@ namespace Fdp.ModuleHost
         /// <para>
         /// Safe to call from background threads. Uses the same reflection-based generic
         /// invocation pattern found in <c>EntityRepository.SyncFrom</c>.
-        /// Silently skips types that are already registered globally.
+        /// Silently skips types this world already registered (⭐ CE-3205 — this world, not the process).
         /// </para>
         /// </summary>
         private void EnsureComponentsRegistered(IEcsModule module)
@@ -317,8 +317,10 @@ namespace Fdp.ModuleHost
 
             foreach (var type in requiredComponents)
             {
-                if (ComponentTypeRegistry.GetId(type) >= 0)
-                    continue; // Already registered globally — nothing to do.
+                // ⭐ CE-3205 — registered in THIS world, not merely known to the process-wide registry: another world in the same
+                //   process (--mode all, a test host) may have registered the type while this one never did.
+                if (_liveWorld.TryGetTable(type, out _))
+                    continue;
 
                 // Register the component on the live EntityRepository via reflection.
                 // Once registered here, EntityRepository.SyncFrom auto-propagates it
