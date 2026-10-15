@@ -4,9 +4,10 @@ updated: 2026-10-15 (§3c air defence: IR seeker, proximity fuze, flares / chaff
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
-known-rot: none (§4a's CE-2170 row is fixed, 2026-10-14).
+known-rot: §3c's DispenseCountermeasureIntent / DispenseCountermeasure message (dt 134) and its translators are SUPERSEDED (2026-10-15, R-1002) — the release travels as a fire both ways, BS-1-DESIGN §5.4b; §3c's decoy, seduction and counts stand.
 known-conflict: none.
 related-designs:
+  - docs/designs/brain-split/BS-1-DESIGN.md — OWNS the fire event and its wire message; §5.4b (CE-1111, R-1002): a flare / chaff RELEASE is a fire with an expendable munition, no countermeasure message
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the mortar and howitzer rounds and their charges (IF-A, IF-B)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the launchers as entities (Javelin, NLAW, LAW, Kornet, TOW as weapon systems; 2006 / 2007 as presets, R-2016); the rounds and guidance stay here
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the free-fall bomb, the Air-domain launch velocity, BombBallistics and the weapon brain's Release profile (R-2015); a GPS bomb becomes a GuidanceKind here later
