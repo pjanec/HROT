@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-15
 build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -513,6 +513,31 @@ collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack 
 | **W2** enough, not most | per munition a relative **cost** (TKB, backend); the choice = the CHEAPEST weapon whose expected effect on the target reaches the need (an entity: `ValueOf`; a point: the kind's weapon class), else the most effective | the strongest round always (a bomb on a rifleman) · cost only (a gun on a bunker) |
 | **W3** collateral | a weapon is out when a friend or a `Neutral` stands within its warhead's injury radius of the aim point (Mk-82 ≈ 27 m), re-checked each pass; `DangerClose` on the order overrides, as for artillery | a target-kind flag (collateral is who is near NOW, not what the target is) |
 | **W4** a helicopter's Attack | fire from a **battle position**: an EQS point that sees the target from beyond every known threat's reach (`BeyondThreatRange`, V3), reached low; unmask, fire, remask, move to another before firing again (A9's pop-up, for any weapon that outranges the threats); RunningFire only when no such point exists; never hover where it is | hover and shoot from where it is (today's `PlatformAttack` fallback — a stationary helicopter in RPG range) |
+
+### 7c. Air targets — what can hit an aircraft today, measured `2026-10-15` (CE-2179)
+
+🔒 **User, `2026-10-15`:** *"soldiers should be able to attack air targets, like the rpg to helicopters (can be from buildings for
+example), bullets agains low flying aircraft and drones"* · *"measure the unknowns"*. 📐 Probe: every aircraft type through the production
+translator set (`TkbTranslatorSet.Base()`, `HrotEnvironment.CreateTkb()`), its collider and health read back.
+
+| type | collider layer · radius · height | health | a bullet ray can meet it |
+|---|---|---|---|
+| UH-60 (400) | **none** (no flight descriptor) | **none** | ⛔ |
+| FPV drone (403) | 2 · 0.3 · 0.3 | 10 | ⛔ |
+| doors-off UH-60 (404) | 0 · 1.5 · 3.5 | **none** | ⛔ |
+| A-10 (405) | 2 · 2.0 · 4.5 | 600 | ⛔ |
+| AH-64 class (406) | 2 · 1.2 · 3.0 | 800 | ⛔ |
+| rifleman · M1 (for comparison) | 3 | 25 · 3000 | ✅ |
+
+| finding | code | consequence |
+|---|---|---|
+| 🔴 **no bullet or unguided rocket can hit any aircraft.** A round's ray masks out `BulletCollisionLayer` = 2; `CombatTkbTranslator` ORs its combat layer — also **2** — onto the collider; a ground type also has the entity layer 1 (`VehicleKinematicsTkbTranslator`) and so stays hittable, a flyer (`FlightTkbTranslator`, layer 0) ends on 2 alone | `CombatConstants.cs:74`, `BallisticsSystem.cs:215`, `CombatTkbTranslator.cs:25,72`, `Flight.cs:90`, `RaycastSolverSystem.cs:153` | ⇒ **CE-2182** (backend). ⚠ the V8 counter-drone fire (Vehicle Exposure Cycle §8) has never been able to hit its drone |
+| ✅ the hit test itself works in 3-D: a vehicle-class collider is met only inside its height band (feet … feet + height) | `RaycastSolverSystem.cs:158-165` (M1) | once the layer is fixed, a round at a flying hull hits it |
+| ✅ blast and fragments DO reach an aircraft that has health: `AreaEffectSystem` walks every live `Health` entity, 3-D distance to its body points | `AreaEffectSystem.cs:101-113` | an air-burst or a near ground burst under a low helicopter hurts it; the two UH-60s (no health) are immune |
+| ✅ soldiers see and remember aircraft, and their fire picks one: the threat ranking has no air filter; `PostureNodes.Fire` aims at the top threat; a person's aim has no elevation limit | `ThreatRankingDecision.cs`, `PostureNodes.cs:430-466`, `BodyAim.cs` | the targeting half of "soldiers attack air targets" exists |
+| ⛔ no lead: a round is aimed where the target IS — a 60 m/s helicopter at 300 m is ~24 m on by the time a bullet arrives | `Fdp.Toolkits/Combat` (the only lead is guided dive geometry) | a soldier hits only a hovering or slow aircraft; the lead is the same led point as B13, in the aim path |
+| ⛔ a killed aircraft does not fall: death strips CanMove ⇒ the move ends (intent None, `LocomotionDispatcherSystem.cs:56-71`) ⇒ a helicopter HOVERS where it died (`RotorcraftModel.cs:53`), a plane flies straight on (`FixedWingModel.cs:49`) | — | needs a fall: a killed flyer loses lift, falls, and crashes through the existing `DroneImpactSystem` (an aircraft meeting the ground is destroyed, `DroneImpactSystem.cs:95`), killing its riders (embarkation I-2c) |
+| ⚠ the plain UH-60 (400) has no flight model and no health; the doors-off UH-60 (404) flies but has no health | `BdcTkbCatalog.cs` (`DefineAircraft` adds no combat platform) | both need a health and armour entry before anything can down them |
 
 ## 8. The bomb (A3, A4, A6, B6)
 
