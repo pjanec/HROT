@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
 
@@ -36,6 +37,13 @@ namespace Hrot.UI.Common.Audio
         /// <summary>How fast the distant battle's level settles (s).</summary>
         public const float RumbleSeconds = 12f;
 
+        /// <summary>The town hum is heard within this distance of buildings (m); full at <see cref="TownFull"/> buildings in it.</summary>
+        public const float TownRadius = 200f;
+        public const int TownFull = 12;
+
+        /// <summary>A body boarding or leaving a vehicle is heard (a door shut) this close (m).</summary>
+        public const float BoardingHearing = 40f;
+
         private readonly Func<ITkbDatabase?> _tkb;
         private readonly SoundMixer _mixer;
         private readonly Random _jitter = new(7);
@@ -47,6 +55,12 @@ namespace Hrot.UI.Common.Audio
         private int _ownMagazines = -1;
         private float _rumble;
         private float _recentNear;
+        private byte[]? _doors;
+        private TerrainWorld? _doorWorld;
+        private readonly HashSet<Entity> _aboard = new();
+        private bool _aboardKnown;
+        private TerrainWorld? _townWorld;
+        private Vector3 _townAt = new(float.NaN);
 
         public SoundSources(Func<ITkbDatabase?> tkb, SoundMixer mixer)
         {
@@ -60,6 +74,11 @@ namespace Hrot.UI.Common.Audio
         public int MoversHeard { get; private set; }
         public int Cracks { get; private set; }
         public float RumbleLevel => _rumble;
+        public int DoorsHeard { get; private set; }
+        public int BoardingsHeard { get; private set; }
+
+        /// <summary>How built-up it is around the ear, 0…1 — the town bed's level (re-measured when the ear moves 25 m).</summary>
+        public float TownLevel { get; private set; }
 
         /// <summary>The ambient beds' level (AU-9 "ambient" is applied by the mixer's category volume).</summary>
         public bool Ambient { get; set; } = true;
@@ -77,6 +96,9 @@ namespace Hrot.UI.Common.Audio
             Movers(world, tkb, own, ear, dt, output);
             Rounds(world, own, ear, now);
             Own(world, own, now, dt, output);
+            Doors(world, ear, now);
+            Boarding(world, own, ear, now);
+            Town(world, ear);
             Beds(ear, dt, output);
         }
 
@@ -85,6 +107,7 @@ namespace Hrot.UI.Common.Audio
         {
             _lastBurst.Clear(); _lastPos.Clear(); _lastRound.Clear(); _cracked.Clear();
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
+            _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
 
         private float Volume(SoundDto s) => Spatializer.Db(s.VolumeDb) * _mixer.CategoryVolume[(int)s.Category];
@@ -299,6 +322,92 @@ namespace Hrot.UI.Common.Audio
             Bed(tkb, output, -1, SoundTkbCatalog.Wind, 1f);
             Bed(tkb, output, -2, SoundTkbCatalog.Birds, MathF.Max(0f, 1f - 2f * _recentNear));   // birds go quiet under fire
             Bed(tkb, output, -3, SoundTkbCatalog.BattleRumble, _rumble);
+            Bed(tkb, output, -4, SoundTkbCatalog.Town, TownLevel * MathF.Max(0.3f, 1f - _recentNear));   // a town goes quieter under fire, never silent
+        }
+
+        /// <summary>A door whose state changed (DESIGN_Building_Interiors.md §3j's <see cref="DoorState"/>, as this view sees it): a door
+        /// sound where it is — opening or shutting at full level, a lock turning on a closed door at half. A door blown in is heard by its
+        /// blast. The first frame only learns the states.</summary>
+        private void Doors(EntityRepository w, in Ear ear, double now)
+        {
+            if (DoorStates.Of(w) is not { } states || !w.HasSingletonManaged<TerrainWorld>() || w.GetSingletonManaged<TerrainWorld>() is not { } terrain)
+            { _doors = null; return; }
+            if (_doors == null || !ReferenceEquals(_doorWorld, terrain) || _doors.Length != states.Count)
+            {
+                _doors = new byte[states.Count];
+                for (int i = 0; i < _doors.Length; i++) _doors[i] = (byte)states[i];
+                _doorWorld = terrain;
+                return;
+            }
+            var s = SoundTkbCatalog.SoundOf(_tkb(), SoundTkbCatalog.Door);
+            for (int i = 0; i < _doors.Length; i++)
+            {
+                var now_ = states[i];
+                var was = (TerrainDoorState)_doors[i];
+                if (now_ == was) continue;
+                _doors[i] = (byte)now_;
+                if (now_ == TerrainDoorState.Destroyed || was == TerrainDoorState.Destroyed || s == null || i >= terrain.Doors.Count) continue;
+                var def = terrain.Doors[i];
+                var at = new Vector3(def.Center, def.SillZ + 1f);
+                float d = Vector3.Distance(at, ear.Position);
+                float level = (was == TerrainDoorState.Open) != (now_ == TerrainDoorState.Open) ? 1f : 0.5f;
+                float g = Spatializer.Gain(d, s.ReferenceM, s.RangeM > 0f ? s.RangeM : 60f) * Volume(s) * level;
+                if (g <= 1e-3f) continue;
+                _mixer.Request(SoundTkbCatalog.Door, at, true, g, Jitter(s), s.Priority, now, Spatializer.Delay(d));
+                DoorsHeard++;
+            }
+        }
+
+        /// <summary>A body that boarded or left a vehicle (<c>IsEmbarkedTag</c> came or went) within <see cref="BoardingHearing"/>: a
+        /// vehicle door, where he is. The possessed unit's own boarding plays centred.</summary>
+        private void Boarding(EntityRepository w, Entity own, in Ear ear, double now)
+        {
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) { _aboard.Clear(); _aboardKnown = false; return; }
+            var aboard = new HashSet<Entity>();
+            foreach (var e in w.Query().With<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>().Build()) aboard.Add(e);
+            if (_aboardKnown)
+            {
+                var s = SoundTkbCatalog.SoundOf(_tkb(), SoundTkbCatalog.Door);
+                foreach (var e in aboard) if (!_aboard.Contains(e)) Board(w, e, own, ear, now, s);
+                foreach (var e in _aboard) if (!aboard.Contains(e) && w.IsAlive(e)) Board(w, e, own, ear, now, s);
+            }
+            _aboard.Clear();
+            _aboard.UnionWith(aboard);
+            _aboardKnown = true;
+        }
+
+        private void Board(EntityRepository w, Entity e, Entity own, in Ear ear, double now, SoundDto? s)
+        {
+            if (s == null || !w.HasComponent<SimTransform>(e)) return;
+            bool mine = e == own;
+            var at = w.GetComponentRO<SimTransform>(e).Position;
+            float d = mine ? 0f : Vector3.Distance(at, ear.Position);
+            if (d >= BoardingHearing) return;
+            float g = Spatializer.Gain(d, s.ReferenceM, BoardingHearing) * Volume(s);
+            if (g <= 1e-3f) return;
+            _mixer.Request(SoundTkbCatalog.Door, at, !mine, g, Jitter(s), mine ? SoundTkbCatalog.PriorityOwn : s.Priority, now, mine ? 0.0 : Spatializer.Delay(d));
+            BoardingsHeard++;
+        }
+
+        /// <summary>How built-up it is: the buildings (placed buildings and building prisms) within <see cref="TownRadius"/> of the ear.</summary>
+        private void Town(EntityRepository w, in Ear ear)
+        {
+            if (!w.HasSingletonManaged<TerrainWorld>() || w.GetSingletonManaged<TerrainWorld>() is not { } terrain) { TownLevel = 0f; _townWorld = null; return; }
+            if (ReferenceEquals(terrain, _townWorld) && Vector3.DistanceSquared(_townAt, ear.Position) < 25f * 25f) return;
+            _townWorld = terrain;
+            _townAt = ear.Position;
+            TownLevel = Built(terrain, new Vector2(ear.Position.X, ear.Position.Y));
+        }
+
+        /// <summary>0…1: the buildings within <see cref="TownRadius"/> of <paramref name="at"/>, full at <see cref="TownFull"/>.</summary>
+        public static float Built(TerrainWorld terrain, Vector2 at)
+        {
+            const float r2 = TownRadius * TownRadius;
+            int n = 0;
+            foreach (var b in terrain.Buildings) if (Vector2.DistanceSquared(b.Position, at) < r2) n++;
+            foreach (var p in terrain.Prisms)
+                if (p.Kind == TerrainPrismKind.Building && Vector2.DistanceSquared((p.Min + p.Max) * 0.5f, at) < r2) n++;
+            return MathF.Min(1f, n / (float)TownFull);
         }
 
         private void Bed(ITkbDatabase? tkb, IAudioOutput output, long key, long clip, float level)

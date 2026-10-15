@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: BUILDING — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); slices A0–A3 being built
-current-answer: §1 the diagrams, §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices.
-stale-below: nothing.
-known-rot: none.
+build-state: BUILT (A0–A3, 2026-10-15) — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); A4 later
+current-answer: §1 the diagrams (as built), §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices, §8 AS BUILT and its deviations.
+stale-below: nothing — what the build changed is in §8 with the earlier wording quoted there.
+known-rot: none (§8 lists where the build refined §2 / §6 / AU-8).
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS what the AI HEARS (AcousticSignatureDto ranges, SoundSourceClass, SoundEmissionSystem, R-205); this file PLAYS sound to the operator and reuses those ranges and classes so the two agree (AU-4)
@@ -46,21 +46,29 @@ Write design please."*
 ```mermaid
 classDiagram
     direction LR
-    class PossessionStation { <<existing>> Enter Leave FirstPerson }
-    class AudioLayer { <<NEW IMapLayer>> Active Listener Update }
-    class SoundSources { <<NEW>> FromEvents FromMovers Ambient }
-    class SoundMixer { <<NEW>> Voices Budget Priority Delay }
-    class Spatializer { <<NEW pure>> Gain Pan Pitch DelaySeconds }
-    class IAudioOutput { <<NEW seam>> Load Play Stop SetGainPanPitch }
-    class RaylibAudioOutput { <<NEW>> raudio }
-    class NullAudioOutput { <<NEW>> tests and headless }
-    class SoundTkbCatalog { <<NEW Hrot.Core>> sound types 7301+ SoundsFor ClassDefault }
-    class SoundDto { <<NEW TKB descriptor>> Files Volume Range Loop PitchJitter Category Priority }
+    class PossessionStation { <<existing>> InFps Unit }
+    class AudioLayer { <<NEW IMapLayer>> State Update Keys DrawOverlay }
+    class AudioSettings { <<NEW>> Master Muted Categories Load Save }
+    class SoundSources { <<NEW>> Shot Burst Movers Rounds Own Doors Boarding Town Beds }
+    class SoundEvents { <<NEW per world>> Shots Bursts Listen Release }
+    class EffectSpawnSystem { <<existing>> reads fire and detonation }
+    class SoundMixer { <<NEW>> Request Hold Update 32 voices }
+    class Spatializer { <<NEW pure>> Gain Pan Doppler Delay NearShare }
+    class IAudioOutput { <<NEW seam>> Define Play Loop Set Stop Tick }
+    class RaylibAudioOutput { <<NEW>> raudio aliases and WAV streams }
+    class NullAudioOutput { <<NEW>> records plays }
+    class SoundSynthesizer { <<NEW>> the generated placeholders }
+    class SoundTkbCatalog { <<NEW Hrot.Core>> types 7301+ ShotFor DetonationFor MovingFor }
+    class SoundDto { <<NEW TKB descriptor>> Files Synth VolumeDb ReferenceM RangeM Loop Category Priority }
     class AcousticSignatureDto { <<existing>> ranges and classes }
-    class EffectTkbCatalog { <<existing>> the pattern }
-    PossessionStation ..> AudioLayer : on / off and the ear
+    class EffectTkbCatalog { <<existing>> flash and fireball size }
+    PossessionStation ..> AudioLayer : the unit held and the ear
+    AudioLayer --> AudioSettings
     AudioLayer --> SoundSources
     AudioLayer --> SoundMixer
+    AudioLayer ..> SoundSynthesizer : a clip with no file
+    EffectSpawnSystem ..> SoundEvents : fills while listening
+    SoundSources ..> SoundEvents : drains
     SoundMixer ..> Spatializer
     SoundMixer --> IAudioOutput
     RaylibAudioOutput ..|> IAudioOutput
@@ -68,11 +76,13 @@ classDiagram
     SoundSources ..> SoundTkbCatalog
     SoundTkbCatalog ..> SoundDto
     SoundSources ..> AcousticSignatureDto : range and class
-    SoundTkbCatalog ..> EffectTkbCatalog : same shape
+    SoundTkbCatalog ..> EffectTkbCatalog : sound follows the effect size
 ```
 
-*Caption:* the only new seam is `IAudioOutput`; everything that decides WHAT is heard and HOW LOUD is pure C# above it (`SoundSources`,
-`SoundMixer`, `Spatializer`) and is railed through the null output. Swapping raylib for OpenAL later (A4) replaces one class.
+*Caption (as built):* the only new seam is `IAudioOutput`; everything that decides WHAT is heard and HOW LOUD is pure C# above it (`SoundSources`,
+`SoundMixer`, `Spatializer`) and is railed through the null output. Swapping raylib for OpenAL later (A4) replaces one class. What the picture
+shows that prose hid: shots and bursts do NOT come from a second bus reader — the existing `EffectSpawnSystem` (which already resolves the
+round, the mount and the muzzle) drops them into a per-world `SoundEvents` queue, and only while a layer listens (§8 D2).
 
 ```mermaid
 graph TD
@@ -84,10 +94,14 @@ graph TD
       MIX --> OUT[RaylibAudioOutput NEW<br/>or NullAudioOutput]
     end
     subgraph what it reads - nothing new on the wire
-      EV[WeaponFireNotification · DetonationNotification<br/>the bus every map host already reads] --> SRC
-      MV[SimTransform · SimVelocity · FlightState<br/>AcousticSignature] --> SRC
-      FP[the possessed unit's own state<br/>ammo, reload, stance - the FPS HUD] --> SRC
+      EV[WeaponFireNotification · DetonationNotification<br/>the bus every map host already reads] --> ES[EffectSpawnSystem existing]
+      ES -->|only while listening| SE[SoundEvents NEW]
+      SE --> SRC
+      MV[SimTransform deltas · FlightState · Locomotion<br/>AcousticSignature] --> SRC
+      FP[the possessed unit: WeaponAmmo magazines, Health] --> SRC
+      DR[DoorState + TerrainObjectKey · IsEmbarkedTag<br/>TerrainWorld buildings] --> SRC
       TK[TKB: SoundDto, class defaults] --> SRC
+      UF[audio.json in the per-user folder] --> AL
     end
 ```
 
@@ -118,15 +132,15 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> Opening: the station holds a unit
-    Opening --> Active: device open, bank loaded
-    Opening --> Silent: no device - headless, CI, no sound card
+    Idle --> Active: the station holds a unit - device open, clips defined, settings applied
+    Idle --> Silent: the station holds a unit - no device, headless, CI, no sound card
     Active --> Idle: the unit lost - every voice stopped
     Silent --> Idle: the unit lost
     Active --> Active: each frame - sources, mix, play
 ```
 
-*Caption:* `Silent` is a real state, not an error — a machine with no sound device runs FPS exactly as before (AU-6).
+*Caption:* `Silent` is a real state, not an error — a machine with no sound device runs FPS exactly as before (AU-6). As built, opening is
+synchronous inside the first `Update`, so the earlier `Opening` state does not exist (§8).
 
 ## 2. What the operator should hear (the scope)
 
@@ -199,3 +213,30 @@ A small volume panel in the FPS HUD's menu (AU-9) and a mute key; the ambient be
 | **A2** the world moving | movement loops, bullet passes, impacts (then from `HitMarks`), the own-unit sounds | ★ a passing tank's engine rises and falls with the Doppler; ★ a round over the head cracks |
 | **A3** ambience and settings | the ambient beds, the battle rumble, the volume panel, mute | ★ the bed changes with the scenario; settings persist per operator |
 | **A4** later | occlusion through walls (WQ-E's `Trace(Sound)` ⇒ a low-pass and −dB), urban vs open reverb, front / back (HRTF) — switching `IAudioOutput` to OpenAL Soft if raudio's filters are not enough; the Stride IG reusing the same TKB sounds | measured when chosen |
+
+## 8. AS BUILT — A0–A3, `2026-10-15` (R-1004, built autonomously)
+
+| slice | built | rails (`Hrot.Presentation.Tests/Audio/AudioTests.cs`) |
+|---|---|---|
+| **A0** | `IAudioOutput`, `RaylibAudioOutput` (one-shots as `LoadSoundAlias`, loops as WAV music streams from native memory), `NullAudioOutput` (records), `SoundSynthesizer` | every sound type has a normalised, repeatable placeholder whose loops join; the real raylib output opens or declines cleanly (opt-in `HROT_AUDIO_SMOKE=1`) |
+| **A1** | `AudioLayer` on every map host (`MapInteractionPack`), `SoundMixer`, `Spatializer`, `SoundTkbCatalog` 7301+, `SoundDto` / `SoundSetDto` | gain 0 at the range, pan by side, Doppler by sense, delay = d / 343; the budget keeps the strongest; a shot heard after its sound travels, from its side, his own at once and centred; the layer sleeps until a unit is held |
+| **A2** | movers (acoustic signature, else the locomotion class), bullet cracks, impacts, reload, breathing, doors, boarding | a tank coming is higher than one going; a round past the ear cracks once; a door is heard where it is; a boarding as a vehicle door |
+| **A3** | wind, birds (quieter under fire), town (by buildings), battle rumble (shots out of earshot); F6 / F7 / F8 / F9 / F10 panel; `AudioSettings` per operator | a far battle rumbles; the town hum by its buildings; the volumes reach the mixer and persist in his own file |
+
+| # | deviation from the text above | why |
+|---|---|---|
+| **D1** | AU-8 *"generated placeholders made by a script in the repo"* → generated **in code at load** (`SoundSynthesizer`); no audio file is committed. A file named by `SoundDto.Files` in `Hrot/Engine/Hrot.Presentation/assets/audio/` (copied beside the exe) replaces it; licence table [`assets/audio/LICENSES.md`](../../../Hrot/Engine/Hrot.Presentation/assets/audio/LICENSES.md); `HROT_EXPORT_SOUNDS=<dir>` writes them as WAV to listen to | no binaries in git, nothing to regenerate, deterministic |
+| **D2** | §1 *"`SoundSources` reads the fire / detonation events"* → `EffectSpawnSystem` adds them to a per-world `SoundEvents` queue (`ConditionalWeakTable`), only while a layer listens | the spawner already resolves round, mount and muzzle; a second reader would re-derive them (one implementation) |
+| **D3** | AU-4 *"the type's `AcousticSignatureDto` ranges"* → used when the type names them; **most built-in types name none**, so a mover falls back to its locomotion class (`SoundSources.MovingDefault`: steps 60 m, wheeled 400 m, tracked 800 m, rotor 2.5 km, jet 4 km) and a shot / burst to its size (800 / 1500 / 3000 m; 700 / 2000 / 4000 m) | without it almost nothing would be heard |
+| **D4** | §5 ids 7201+ → **7301+** | 7201 is `MapCameraTkb.Type` (found by the duplicate-registration throw) |
+| **D5** | §6 *"a small volume panel in the FPS HUD's menu"* → keys (F6 / F7 master, F8 mute, F9 left-then-right test, F10 a raylib-drawn panel: ↑ ↓ row, ← → change); saved to `<LocalApplicationData>/HROT/audio.json` (Windows `%LocalAppData%`, Linux `~/.local/share`) beside `imgui.ini` but in its own file, so the layout reset never overwrites it | the FPS HUD has no menu; the per-user folder already exists (`LayoutPaths.UserDirectory`) |
+| **D6** | §2 ambient *"insects (night)"* and *"the bed's choice from the scenario's … time of day"* → ⛔ **not wired: the engine has no time of day** (graph: 0 nodes for `TimeOfDay` / `DayTime` / `Daylight` / `IsNight`; grep: only this file). The `Insects` clip is defined and unused; the beds follow the terrain (town by buildings within 200 m) and the fighting | nothing to read; a time-of-day source is its own design |
+| **D7** | own footsteps *"by gait"* → his own mover loop, centred and at 0.6 | no gait event; the loop already follows his speed |
+| **D8** | impacts *"later from `HitMarks`"* → from the detonation's hit-a-body flag (soft on a body, hard otherwise) | `HitMarks` is not built yet (backend R-3010) |
+| **D9** | §2 *"doors, boarding"* → a terrain door by its `DoorState` change (a lock turning at half level, a door blown in heard by its blast); boarding by `IsEmbarkedTag` coming or going within 40 m, both with the door clip | — |
+| **D10** | raudio's pan convention (1 = left, read from raudio 5.0) is **assumed, not heard** — `HROT_AUDIO_PAN_FLIP=1` flips it; F9 is the check | ⚠ the A0 acceptance *"a click heard on Windows and Linux"* needs the user's ears |
+
+⭐ **Running the real output in a container with no sound card:** point ALSA at a null sink — a file containing
+`</usr/share/alsa/alsa.conf>` and `pcm.!default { type null }`, then `ALSA_CONFIG_PATH=<that file> HROT_AUDIO_SMOKE=1 dotnet test … --filter CE1120_TheRaylibOutput`.
+Measured: the device opens (miniaudio | ALSA), every clip loads, the loop streams, it closes.
+
