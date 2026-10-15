@@ -45,6 +45,7 @@ known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIE
 known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is a BUILT SUBSET — §2.1 says exactly what it already
   does and what this generalises; ⛔ this document does not re-decide any of it.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2 puts the push behind one IFileTransferProvider (a node share or DDS) and reuses THIS doc's (length, mtime) diff as the receiver's "already cached?" check; it adds no second freshness rule.
   - docs/blueprints/RESUME_Assets_And_Occurrences.md — ⭐ THE COORDINATOR RESUMPTION for this programme.
     Read it FIRST if you are picking this up cold: it says what is dispatchable, what B2 must carry, and
     the six traps three review rounds paid for. ⚠ A state snapshot, not canon — verify against git.

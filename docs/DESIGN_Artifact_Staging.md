@@ -16,6 +16,7 @@ known-rot: TWO things this design assumed that the build measured false, both in
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2: the staged artifacts reach a node through a transfer provider (share or DDS) instead of a File.Copy into a shared tree; the NAS layout here is unchanged.
   - docs/DESIGN_Cluster_Load_Phase.md — §10 owns what a scenario naming NO terrain does on every node (unload, CE-3075); §9.7 here is the staging half that makes CGF see "none".
   - docs/DESIGN_Asset_Management.md — ⭐⭐ THE GENERAL CASE this document is the one-artifact-kind slice
     of. It REUSES this document's (length, mtime) skip verbatim and generalises the flat single-file
