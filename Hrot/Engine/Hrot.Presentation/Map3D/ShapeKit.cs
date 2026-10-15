@@ -23,8 +23,9 @@ public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin }
 /// </summary>
 public enum FaceOn : byte { None, Front, Up, Down }
 
-/// <summary>⭐ CE-1097 (§6o F-2, F-3) — the shade a face detail is drawn in.</summary>
-public enum FaceShade : byte { Eye, Nose, Mouth, Helmet, Hair }
+/// <summary>⭐ CE-1097 (§6o F-3) — the shade a head detail is drawn in. ⭐ CE-1101 (§6r) — the eyes, nose and mouth are painted by the
+/// shader now (<see cref="BodySurface"/>); only the helmet and the hair are boxes.</summary>
+public enum FaceShade : byte { Helmet, Hair }
 
 /// <summary>⭐ CE-1097 (§6o) — one detail of a face, a box in the HEAD box's own unit frame (−0.5..0.5 on each axis; x = out of the
 /// face, y = his left, z = the top of his head), before <see cref="BlockFigure.FaceFrame"/> turns it onto the side the face is on.</summary>
@@ -478,23 +479,16 @@ public static class BlockFigure
 
     // ── ⭐ CE-1097 (§6o F-2, F-3) — the face, in the head box's unit frame (x out of the face, y his left, z the top of his head) ──────
 
-    private static readonly FacePart[] Features =
-    [
-        new(new(0.52f, 0.21f, 0.04f), new(0.06f, 0.17f, 0.14f), FaceShade.Eye),      // eyes, a little proud of the face
-        new(new(0.52f, -0.21f, 0.04f), new(0.06f, 0.17f, 0.14f), FaceShade.Eye),
-        new(new(0.56f, 0f, -0.11f), new(0.14f, 0.13f, 0.18f), FaceShade.Nose),
-        new(new(0.52f, 0f, -0.31f), new(0.06f, 0.36f, 0.07f), FaceShade.Mouth),
-    ];
-
     /// <summary>A soldier's helmet: over the top of his head, a little wider than it and its brim over his brow.</summary>
     private static readonly FacePart[] SoldierFace =
-        [.. Features, new(new(-0.02f, 0f, 0.37f), new(1.16f, 1.16f, 0.42f), FaceShade.Helmet)];
+        [new(new(-0.02f, 0f, 0.37f), new(1.16f, 1.16f, 0.42f), FaceShade.Helmet)];
 
     /// <summary>A civilian's hair, close over the top and back of his head.</summary>
     private static readonly FacePart[] CivilianFace =
-        [.. Features, new(new(-0.06f, 0f, 0.41f), new(1.06f, 1.06f, 0.24f), FaceShade.Hair)];
+        [new(new(-0.06f, 0f, 0.41f), new(1.06f, 1.06f, 0.24f), FaceShade.Hair)];
 
-    /// <summary>⭐ CE-1097 — the details drawn on a figure's head: the features, and a soldier's helmet or a civilian's hair.</summary>
+    /// <summary>⭐ CE-1097 — the boxes drawn on a figure's head: a soldier's helmet or a civilian's hair (⭐ CE-1101 — the features are the
+    /// shader's).</summary>
     public static IReadOnlyList<FacePart> FaceParts(bool soldier) => soldier ? SoldierFace : CivilianFace;
 
     /// <summary>⭐ CE-1097 (§6o F-4) — turns the face's frame (x out of the face, z the top of the head) onto the side of the head box

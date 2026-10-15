@@ -1009,17 +1009,35 @@ public sealed class Map3DTests
         Assert.True(friend.Bottom.G < olive.G && friend.Bottom.G > friend.Bottom.R, "his trousers are the uniform's green, darker");
         Assert.Equal((CamoPattern.Woodland, CamoPattern.Fleck, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
 
+        // ⭐ CE-1101 (§6r) — the pattern is the SHADER's: no patch boxes; its tones differ by side — fleck reads paler than woodland
         var d = new List<PartDetail>();
         Outfits.Details(friend, 9, d);
-        Assert.Equal(Outfits.WoodlandPatches, d.Count);
-        float woodlandSize = d.Average(p => MathF.Min(p.Extent.X, MathF.Min(p.Extent.Y, p.Extent.Z)));   // the patch's own size (it goes through its part)
-        Assert.All(d, p => Assert.NotEqual(BlockFigure.HeadIndex, p.Part));
-        Outfits.Details(hostile, 9, d);
-        Assert.Equal(Outfits.FleckPatches, d.Count);
-        float fleckSize = d.Average(p => MathF.Min(p.Extent.X, MathF.Min(p.Extent.Y, p.Extent.Z)));
-        Assert.True(woodlandSize > 1.6f * fleckSize, $"woodland patches ({woodlandSize}) are larger than fleck ({fleckSize})");
-        Outfits.Details(neutral, 9, d);
         Assert.Empty(d);
+        Outfits.Details(hostile, 9, d);
+        Assert.Empty(d);
+        static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
+        Assert.True(Light(Outfits.CamoTones(CamoPattern.Fleck)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's fleck reads paler");
+        Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
+        Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
+    }
+
+    /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
+    /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
+    [Fact]
+    public void CE1101_FacesVaryManByMan_AndOnlyGrownMenWearBeards()
+    {
+        var men = Enumerable.Range(1, 80).Select(s => Outfits.FaceOf(s, 200, woman: false, child: false)).ToArray();
+        Assert.Contains(men, f => f.Beard == BeardKind.Beard);
+        Assert.Contains(men, f => f.Beard == BeardKind.Moustache);
+        Assert.Contains(men, f => f.Beard == BeardKind.None);
+        Assert.True(men.Select(f => f.EyeColour).Distinct().Count() >= 4, "eye colours vary");
+        Assert.True(men.Max(f => f.EyeSpacing) - men.Min(f => f.EyeSpacing) > 0.05f, "eye spacing varies");
+        Assert.True(men.Max(f => f.MouthHalfWidth) - men.Min(f => f.MouthHalfWidth) > 0.05f, "mouths vary");
+        Assert.All(men, f => Assert.InRange(f.EyeSpacing + 0.085f, 0f, 0.5f));   // an eye stays on the face
+        Assert.All(Enumerable.Range(1, 80), s => Assert.Equal(BeardKind.None, Outfits.FaceOf(s, 1001, woman: true, child: false).Beard));
+        Assert.All(Enumerable.Range(1, 80), s => Assert.Equal(BeardKind.None, Outfits.FaceOf(s, 1003, woman: false, child: true).Beard));
+        Assert.Equal(Outfits.FaceOf(5, 200, false, false), Outfits.FaceOf(5, 200, false, false));
+        Assert.Equal(Outfits.FaceOf(5, 200, false, false), Outfits.For(5, 200, soldier: true, child: false, null, Fdp.Core.ForceId.Friend).Face);
     }
 
     /// <summary>⭐ CE-1100 (docs/DESIGN_Map_3D_Mode.md §6q O-6) — personal cars of a type with no colour are not all the family blue: each car
@@ -1108,18 +1126,22 @@ public sealed class Map3DTests
         Vector3 Centre(KitPart head, FaceShade shade)
             => Vector3.Transform(Vector3.Zero, BlockFigure.FaceDetail(BlockFigure.FaceParts(true).First(d => d.Shade == shade), head.Face, head.BodyTransform(size)));
         Vector3 HeadCentre(KitPart head) => Vector3.Transform(Vector3.Zero, head.BodyTransform(size));
+        // ⭐ CE-1101 (§6r) — the features are PAINTED on the side BodySurface.AxesOf names (in the head part's own frame)
+        Vector3 FaceSide(KitPart head) => Vector3.TransformNormal(BodySurface.AxesOf(head.Face).Face, head.BodyTransform(size));
 
         var up = BlockFigure.Parts(StanceId.Standing, true)[BlockFigure.HeadIndex];
-        Assert.True(Centre(up, FaceShade.Eye).X > HeadCentre(up).X + 0.09f, "a standing man's eyes are on the front of his head");
+        Assert.True(FaceSide(up).X > 0.09f, "a standing man's face is the front of his head");
         Assert.True(Centre(up, FaceShade.Helmet).Z > HeadCentre(up).Z + 0.07f, "his helmet is on top");
-        Assert.True(Centre(up, FaceShade.Mouth).Z < Centre(up, FaceShade.Eye).Z, "the mouth is under the eyes");
+        Assert.Equal((Vector3.UnitX, Vector3.UnitZ), BodySurface.AxesOf(FaceOn.Front));
 
         var dead = BlockFigure.Dead(true)[BlockFigure.HeadIndex];
-        Assert.True(Centre(dead, FaceShade.Eye).Z > HeadCentre(dead).Z + 0.09f, "a dead man on his back looks up");
+        Assert.True(FaceSide(dead).Z > 0.09f, "a dead man on his back looks up");
         Assert.True(Centre(dead, FaceShade.Helmet).X > HeadCentre(dead).X + 0.07f, "his helmet is at the end of his head, away from his body");
 
         var draped = BlockFigure.Draped(true)[BlockFigure.HeadIndex];
-        Assert.True(Centre(draped, FaceShade.Eye).Z < HeadCentre(draped).Z - 0.09f, "draped over a shoulder he looks down");
+        Assert.True(FaceSide(draped).Z < -0.09f, "draped over a shoulder he looks down");
+        Assert.Single(BlockFigure.FaceParts(true));    // the helmet only: the eyes, nose and mouth are the shader's
+        Assert.Single(BlockFigure.FaceParts(false));   // the hair only
 
         Assert.Contains(BlockFigure.FaceParts(true), d => d.Shade == FaceShade.Helmet);
         Assert.DoesNotContain(BlockFigure.FaceParts(false), d => d.Shade == FaceShade.Helmet);

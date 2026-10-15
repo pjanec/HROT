@@ -1471,7 +1471,9 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "face-1-front.png"));
-        Assert.InRange(bodies.FaceDetailsDrawn, 5 * 5 - 1, 5 * 5);   // five heads, each four features and a helmet or hair (⭐ CE-1099 — a civilian may be bald)
+        Assert.True(LitShader.Shared.IsValid, "the shader with the body surface compiled");   // ⭐ CE-1101 — else Raylib draws unlit, silently
+        Assert.Equal(5, bodies.FacesPainted);                    // ⭐ CE-1101 (§6r) — five faces painted by the shader
+        Assert.InRange(bodies.FaceDetailsDrawn, 4, 5);           // and a helmet or hair box each (a civilian may be bald)
 
         // close on the standing riflemen
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 1.1f, ground + 1.55f), 1.6f, MathF.PI, -0.05f);
@@ -1607,7 +1609,10 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "dress-1-front.png"));
-        Assert.True(bodies.DetailsDrawn >= 2 * Outfits.WoodlandPatches + 2 * Outfits.FleckPatches, $"details {bodies.DetailsDrawn}");
+        Assert.True(LitShader.Shared.IsValid, "the shader with the body surface compiled");
+        Assert.Equal(4 * 9, bodies.CamoPainted);                  // ⭐ CE-1101 (§6r) — two friends and two hostiles: legs, torso, arms painted
+        Assert.Equal(10 + 3 + 5, bodies.FacesPainted);            // every head has its face
+        Assert.InRange(bodies.DetailsDrawn, 0, 3 * 13);            // no camouflage boxes: only ties, shirts, skirts and long hair
 
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.6f, spot.Y - 0.5f, ground + 1.1f), 4.6f, MathF.PI, -0.10f);
         frame.Step(canvas.Draw);

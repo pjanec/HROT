@@ -1931,6 +1931,61 @@ lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (
 | *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
 | ![above](assets/map-3d/dress-3-above.png) | |
 
+### 6r. CE-1101 — camouflage and faces drawn by the SHADER, not by boxes — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Isnt the camouflage build from geometry? Isnt this performance unfriendly? Wouldnt a procedurally generated
+texture work better?"* · *"Same for the human faces a guess texture can add same variety and remove unnecessary geometries"*.
+⛔ **SUPERSEDES** §6q's camouflage PATCHES (O-4's drawing, and its rejected line *"a real texture … patches need no shader change"*) and
+§6o's face FEATURE boxes (F-2). The helmet, the hair and the outfit details (tie, skirt, long hair) stay boxes: they change the outline.
+
+| the change rests on | code — how it is | design basis |
+|---|---|---|
+| every patch and feature was its own draw call | ✅ `EntityBodyLayer3D` draws each with its own `DrawMesh` (no instancing): a soldier was 11 parts + 5 face + 18 / 30 patches | §6q counted none of it |
+| the shader sampled no texture | ✅ `LitShader.cs`: no texture coordinates in, colour = vertex × material | M5: one shader for the 3-D map |
+| a part's own frame reaches the shader | ✅ the mesh's local axes are HROT axes behind a fixed basis change (`HrotToRaylib.ModelFromHrot`: raylib-local → HROT-local is `(x, −z, y)`), and a part's size is the length of each model-matrix column | — |
+| a texture on the cube would stretch | the cube's texture coordinates run 0–1 on every face; a limb face is 0.12 × 0.44 m | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class LitShader { <<existing FDP, grows>> UseSurface glsl · passes each fragment its part-local unit position, metres and normal · default surface returns the colour }
+    class BodySurface { <<NEW Hrot.Presentation>> Glsl · Woodland · Fleck · Face · Plain · uniforms set only on change }
+    class FaceLook { <<NEW>> EyeSpacing · MouthWidth · Beard · Brow · EyeColour · Lips }
+    class Outfit { <<existing, grows>> + Face FaceLook }
+    class EntityBodyLayer3D { <<existing, shrinks>> sets the surface per part · no patches, no feature boxes }
+    LitShader ..> BodySurface : the host's surface function
+    EntityBodyLayer3D ..> BodySurface
+    Outfit --> FaceLook
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant S as BodySurface
+    participant G as the GPU
+    L->>S: a uniform part of a soldier: his pattern, its tones, his seed
+    L->>G: draw the part, one call
+    G->>G: each fragment: noise in the part's own metres picks a tone
+    L->>S: his head: the face side, his face look, hair, eyes, lips
+    L->>G: draw the head, one call
+    L->>S: anything else: plain
+```
+
+*Caption:* the pattern is computed per fragment from the part's OWN frame in metres, so a patch is the same size on a torso and a forearm, it
+moves with the limb, and it covers every side; a soldier is back to ~16 draw calls. With the surface plain the shader's output is unchanged,
+so the terrain and every other body draw exactly as before.
+
+| decision | rule |
+|---|---|
+| **S-1 where the code lives** | `LitShader` (FDP) stays generic: a host registers ONE surface function (`UseSurface`); the body patterns are Hrot's (`BodySurface`) |
+| **S-2 camouflage** | 3-D value noise in the part's metres, three tones over the uniform: woodland large (a ~0.18 m feature), fleck small and sparse, seeded per man |
+| **S-3 faces** | on the head's face side (its `FaceOn`): eye whites with a coloured iris, brows in the hair colour, a nose shade, a mouth; per man the eye spacing, mouth width, brow weight, eye colour, lips, and a moustache or a beard for some men |
+| **S-4 what stays geometry** | the helmet, the hair, a skirt, a tie, long hair, the blood spots (≤ 8, only on the hurt) |
+
+**Rejected — one line each:** *a small image on the cube's texture coordinates* — it stretches on limbs and needs the shader changed anyway;
+*a texture projected by world position* — the pattern would slide over a walking man; *keep the boxes and skip them far away* — the layer does
+not know the camera, and a crowd close up pays in full.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

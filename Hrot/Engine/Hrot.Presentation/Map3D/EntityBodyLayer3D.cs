@@ -92,7 +92,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 ? q.Without<Fdp.Toolkit.Replication.Components.LightweightRound>() : q).Build();
         }
         EnsureMeshes();
+        LitShader.UseSurface(BodySurface.Glsl);   // ⭐ CE-1101 (§6r) — the shader paints camouflage and faces
         var shader = LitShader.Shared;
+        _surface.BeginFrame(shader);
+        FacesPainted = CamoPainted = 0;
         var tkb = _tkb();
 
         // ⭐ CE-1033 S4 — the moving parts run on SIMULATION time (R-143); a host with no sim clock falls back to the frame time.
@@ -197,9 +200,11 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
             Outfit? outfit = null;
             var headFace = FaceOn.Front;
+            float camoSeed = 0f;
             if (look.Family == VisualFamily.Person)
             {
                 long seed = SeedOf(world, e, hasNet);
+                camoSeed = Outfits.CamoSeed(seed);
                 outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e));
                 Outfits.Details(outfit.Value, seed, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
@@ -234,7 +239,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 var model = HrotToRaylib.ModelFromHrot(placed);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
                 var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+                Paint(shader, outfit, pi, part.Face, camoSeed);   // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face
                 Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
+                _surface.Plain(shader);
                 PartsDrawn++;
                 if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
                 for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
@@ -269,6 +276,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             }
             BodiesDrawn++;
         }
+        _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
         DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
         UpdateLaid(world, simTime);
         _motion.EndFrame(_drawn);
@@ -809,12 +817,37 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// frame, turned onto the side the face is on (<see cref="BlockFigure.FaceFrame"/>) and then placed by the head's own transform
     /// (<paramref name="head"/>), so it follows every lean, twist, blend and fall.</summary>
     /// ⭐ CE-1099 (§6q) — in his <paramref name="outfit"/>'s skin and hair; no hair when he has none.
+    /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r) — what the shader paints on part <paramref name="index"/> of a man in
+    /// <paramref name="outfit"/>: his face on his head, his side's camouflage on a soldier's uniform (legs, torso, arms), else nothing.</summary>
+    private void Paint(LitShader shader, Outfit? outfit, int index, FaceOn face, float camoSeed)
+    {
+        if (outfit is not { } o) { _surface.Plain(shader); return; }
+        if (face != FaceOn.None)
+        {
+            _surface.Face(shader, face, o.Face, o.Hair);
+            FacesPainted++;
+        }
+        else if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
+        {
+            var (t1, t2, t3) = Outfits.CamoTones(o.Camo);
+            _surface.Camouflage(shader, o.Camo == CamoPattern.Woodland ? SurfaceKind.Woodland : SurfaceKind.Fleck, t1, t2, t3, camoSeed);
+            CamoPainted++;
+        }
+        else _surface.Plain(shader);
+    }
+
+    private readonly BodySurface _surface = new();
+
+    /// <summary>⭐ CE-1101 (§6r) — heads painted with a face, and uniform parts painted with camouflage, by the last frame (rails).</summary>
+    public int FacesPainted { get; private set; }
+    public int CamoPainted { get; private set; }
+
     private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader, Outfit? outfit = null)
     {
         foreach (var d in BlockFigure.FaceParts(soldier))
         {
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
-            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Skin, outfit?.Hair)),
+            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Hair)),
                             HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)));
             FaceDetailsDrawn++;
         }
@@ -856,22 +889,18 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             && ParseHex(world.GetComponentRO<VisualData>(e).ColorHex) != null;
     }
 
-    private readonly List<PartDetail> _details = new(Outfits.FleckPatches + 4);
+    private readonly List<PartDetail> _details = new(8);
 
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
 
-    /// <summary>⭐ CE-1097 (§6o F-1) — the skin; the features a shade of it or dark.</summary>
+    /// <summary>⭐ CE-1097 (§6o F-1) — the skin (the default tone; a man's own comes from his outfit, CE-1099).</summary>
     public static readonly Color Skin = new(206, 168, 132, 255);
 
-    /// <summary>⭐ CE-1097 (§6o F-2, F-3) — a face detail's colour: the helmet is the uniform a step darker (so the side still reads from
-    /// above, where the helmet is most of what is seen of a man).</summary>
-    /// ⭐ CE-1099 (§6q) — with a man's own <paramref name="skin"/> (the nose a shade of it) and <paramref name="hair"/> when given.
-    public static Color FaceColour(FaceShade shade, Color uniform, Color? skin = null, Color? hair = null) => shade switch
+    /// <summary>⭐ CE-1097 (§6o F-3) — a head box's colour: the helmet is the uniform a step darker (so the side still reads from above,
+    /// where the helmet is most of what is seen of a man); the hair his own (CE-1099) when given. ⭐ CE-1101 — the features are painted.</summary>
+    public static Color FaceColour(FaceShade shade, Color uniform, Color? hair = null) => shade switch
     {
-        FaceShade.Eye => new Color(28, 24, 22, 255),
-        FaceShade.Nose => skin is { } s ? new Color((byte)(s.R * 0.88f), (byte)(s.G * 0.86f), (byte)(s.B * 0.84f), (byte)255) : new Color(184, 142, 108, 255),
-        FaceShade.Mouth => new Color(132, 52, 48, 255),
         FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
     };

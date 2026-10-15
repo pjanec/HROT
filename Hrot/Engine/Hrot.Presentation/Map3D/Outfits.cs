@@ -19,7 +19,15 @@ public enum CamoPattern : byte { None, Woodland, Fleck }
 /// </summary>
 public readonly record struct Outfit(
     Color Top, Color Sleeve, Color Bottom, Color Shin, Color Skin, Color Hair, HairStyle HairStyle, Legwear Legwear,
-    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier);
+    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default);
+
+/// <summary>⭐ CE-1101 (§6r S-3) — a moustache or a beard, or none.</summary>
+public enum BeardKind : byte { None, Moustache, Beard }
+
+/// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — how one man's face is painted by the shader (<see cref="BodySurface"/>): where
+/// his eyes sit (their distance from the middle, in the head box's unit frame), how wide his mouth is, how heavy his brows are, the colour
+/// of his eyes and lips, and a moustache or beard.</summary>
+public readonly record struct FaceLook(float EyeSpacing, float MouthHalfWidth, float BrowHalfHeight, BeardKind Beard, Color EyeColour, Color Lips);
 
 /// <summary>⭐ CE-1099 (§6q) — a box drawn on figure part <paramref name="Part"/> (the shared part order), in that part's unit frame;
 /// <paramref name="Turned"/> details (a tie, a skirt, long hair) are first turned onto the side the man faces (<see cref="BlockFigure.FaceFrame"/>,
@@ -51,10 +59,29 @@ public static class Outfits
     private static readonly Color Shirt = new(238, 238, 236, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
     private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
-    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy: a hostile reads paler
+    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy: a hostile reads paler
+    private static readonly Color[] EyeColours = [new(60, 40, 28, 255), new(96, 64, 36, 255), new(70, 110, 160, 255), new(80, 120, 80, 255), new(110, 116, 120, 255)];
+    private static readonly Color[] LipColours = [new(132, 52, 48, 255), new(150, 70, 66, 255), new(118, 60, 56, 255), new(170, 60, 70, 255)];
 
-    /// <summary>How many camouflage patches each pattern lays on a man.</summary>
-    public const int WoodlandPatches = 18, FleckPatches = 30;
+    /// <summary>⭐ CE-1101 (§6r S-2) — the three tones the shader paints a pattern in (over the uniform): woodland brown, black and light
+    /// green; fleck sand, olive and red-brown.</summary>
+    public static (Color, Color, Color) CamoTones(CamoPattern pattern) => pattern == CamoPattern.Fleck
+        ? (Fleck[0], Fleck[1], Fleck[2]) : (Woodland[0], Woodland[1], Woodland[2]);
+
+    /// <summary>⭐ CE-1101 — where a man's pattern starts in the noise (metres of offset), so no two men wear the same cloth cut.</summary>
+    public static float CamoSeed(long seed) => (new Draw(seed, 0xC4A0).Next()) * 97f;
+
+    /// <summary>⭐ CE-1101 (§6r S-3) — the face of the man seeded <paramref name="seed"/>: the eyes 0.17–0.25 from the middle, a mouth
+    /// 0.11–0.19 wide each side, brows of three weights, five eye colours, four lip colours, and for a grown man sometimes a moustache or a
+    /// beard. Drawn from its own stream, so the clothes do not move when the face does.</summary>
+    public static FaceLook FaceOf(long seed, long type, bool woman, bool child)
+    {
+        var r = new Draw(seed, type ^ 0xFACE);
+        float eyes = 0.17f + r.Next() * 0.08f, mouth = 0.11f + r.Next() * 0.08f, brow = 0.018f + r.Pick(3) * 0.008f;
+        float roll = r.Next();
+        var beard = woman || child ? BeardKind.None : roll < 0.15f ? BeardKind.Moustache : roll < 0.30f ? BeardKind.Beard : BeardKind.None;
+        return new FaceLook(eyes, mouth, brow, beard, EyeColours[r.Pick(EyeColours.Length)], LipColours[r.Pick(LipColours.Length)]);
+    }
 
     /// <summary>
     /// ⭐ CE-1099 — the outfit of the man seeded <paramref name="seed"/> (his network id) of TKB type <paramref name="type"/>.
@@ -71,7 +98,8 @@ public static class Outfits
             var uniform = own ?? new Color(96, 110, 72, 255);
             var trousers = Scale(uniform, 0.85f);
             var camo = side switch { ForceId.Friend => CamoPattern.Woodland, ForceId.Hostile => CamoPattern.Fleck, _ => CamoPattern.None };
-            return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, camo, child, true);
+            return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, camo, child, true,
+                              FaceOf(seed, type, woman: false, child));
         }
 
         bool woman = r.Chance(0.5f);
@@ -82,7 +110,7 @@ public static class Outfits
         {
             var cloth = Suits[r.Pick(Suits.Length)];
             return new Outfit(cloth, cloth, cloth, cloth, skin, hair, style, Legwear.Trousers, true, Ties[r.Pick(Ties.Length)],
-                              CamoPattern.None, false, false);
+                              CamoPattern.None, false, false, FaceOf(seed, type, woman, false));
         }
 
         // O-1 — the top: his type's colour, a little lighter or darker; else an everyday colour (a child's brighter)
@@ -94,7 +122,8 @@ public static class Outfits
                  : Legwear.Trousers;
         var bottom = legs == Legwear.Skirt && r.Chance(0.5f) ? Tops[r.Pick(Tops.Length)] : Bottoms[r.Pick(Bottoms.Length)];
         var shin = legs == Legwear.Trousers ? bottom : skin;
-        return new Outfit(top, shortSleeves ? skin : top, bottom, shin, skin, hair, style, legs, false, default, CamoPattern.None, child, false);
+        return new Outfit(top, shortSleeves ? skin : top, bottom, shin, skin, hair, style, legs, false, default, CamoPattern.None, child, false,
+                          FaceOf(seed, type, woman, child));
     }
 
     /// <summary>
@@ -114,7 +143,7 @@ public static class Outfits
 
     /// <summary>
     /// ⭐ CE-1099 — the details of outfit <paramref name="o"/> into <paramref name="into"/> (cleared first): a suit's shirt and tie, a skirt,
-    /// long hair, or a soldier's camouflage patches. Repeatable from <paramref name="seed"/>.
+    /// long hair. ⭐ CE-1101 — no camouflage patches any more: the shader paints the pattern (<see cref="BodySurface"/>).
     /// </summary>
     public static void Details(in Outfit o, long seed, List<PartDetail> into)
     {
@@ -128,33 +157,7 @@ public static class Outfits
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.86f), new(1.25f, 1.08f, 0.76f), o.Bottom, Turned: true));
         if (o.HairStyle == HairStyle.Long)   // down the back of the head to the shoulders
             into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
-        if (o.Camo == CamoPattern.None) return;
-        bool woodland = o.Camo == CamoPattern.Woodland;
-        var palette = woodland ? Woodland : Fleck;
-        int n = woodland ? WoodlandPatches : FleckPatches;
-        for (int k = 0; k < n; k++)
-        {
-            var r = new Draw(seed, 0x5EED + k);
-            int part = CamoParts[r.Pick(CamoParts.Length)];
-            bool torso = part == BlockFigure.TorsoIndex;
-            float w = woodland ? 0.40f + r.Next() * 0.30f : 0.20f + r.Next() * 0.14f;
-            float h = MathF.Min(0.9f, w * (0.6f + r.Next() * 0.8f));
-            // ⚠ measured: a patch on ONE side mostly faced away from the camera ⇒ a patch goes THROUGH its part (it shows on two opposite
-            //   sides), and a woodland patch on a limb wraps it as a band (it shows from every side)
-            float a = (r.Next() - 0.5f) * 2f * (0.5f - w / 2f), b = (r.Next() - 0.5f) * 2f * (0.5f - h / 2f);
-            const float Through = 1.04f;
-            (Vector3 c, Vector3 e) = torso
-                ? r.Pick(3) switch
-                {
-                    0 => (new Vector3(0f, a, b), new Vector3(Through, w, h)),   // chest and back
-                    1 => (new Vector3(a, 0f, b), new Vector3(w, Through, h)),   // both sides
-                    _ => (new Vector3(a, b, 0f), new Vector3(w, h, Through)),   // shoulders (and under)
-                }
-                : woodland
-                    ? (new Vector3(a, 0f, 0f), new Vector3(w, Through, Through))   // a band round the limb
-                    : r.Chance(0.5f) ? (new Vector3(a, 0f, b), new Vector3(w, Through, h)) : (new Vector3(a, b, 0f), new Vector3(w, h, Through));
-            into.Add(new PartDetail(part, c, e, palette[r.Pick(palette.Length)]));
-        }
+        // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
     }
 
     // ── ⭐ CE-1100 (§6q O-6) — a personal car's paint ────────────────────────────────────────────────────────────────────────────
@@ -183,9 +186,6 @@ public static class Outfits
         }
         return CarPaints[0].Paint;
     }
-
-    /// <summary>The parts a camouflage patch may be on: the torso twice as often, then every leg and arm part (never the head or rifle).</summary>
-    private static readonly int[] CamoParts = [BlockFigure.TorsoIndex, BlockFigure.TorsoIndex, 0, 1, 2, 3, 6, 7, 8, 9];
 
     private static Color Scale(Color c, float f)
         => new((byte)Math.Clamp(c.R * f, 0f, 255f), (byte)Math.Clamp(c.G * f, 0f, 255f), (byte)Math.Clamp(c.B * f, 0f, 255f), (byte)255);
