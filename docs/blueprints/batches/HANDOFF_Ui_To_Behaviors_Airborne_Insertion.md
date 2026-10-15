@@ -1,5 +1,5 @@
 <!--STATUS
-state: ⛔ ON HOLD — NOT DISPATCHED (user, 2026-10-15: "do not start building yet"). Do NOT start; a later commit lifts the hold and stamps the dispatch sha.
+state: LIVE — DISPATCHED at the commit that adds this file (2026-10-15); scope frozen there.
 updated: 2026-10-15
 current-answer: the whole file.
 stale-below: nothing.
@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — behaviors: airborne insertion — the drills, the jumper, the pilot, and three demos
 
-**For:** `behaviors`. **From:** `ui`. ⛔ **ON HOLD — not dispatched; do not start** (user: *"do not start building yet"*). When the hold is lifted, the dispatch sha is stamped here and the scope freezes there (R-106 applies). Ids from your
+**For:** `behaviors`. **From:** `ui`. ⭐ Dispatched at the commit that adds this file; scope frozen there (R-106 applies). Ids from your
 `CE-2xxx` block; the ui row tracking this is **CE-1118**.
 
 🔒 **User, `2026-10-15`:** *"approved. i will need a demo scenario for a squad of paratrooper jumping out of helicopter and regrouping on the

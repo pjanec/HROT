@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: DESIGN (approved, R-1003) — ⛔ BUILDING ON HOLD (user, 2026-10-15: "do not start building yet"); the handoffs to backend / behaviors are held, not dispatched; slice 3 DESIGN
+build-state: READY-TO-BUILD — slice 1 (fast-rope + parachute) and slice 2 (the ejecting pilot) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
 current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §8 the three demos.
 stale-below: nothing.
 known-rot: none.
