@@ -86,6 +86,7 @@ classDiagram
 | a heard contact keeps `OfClass`; class 7 `Rotor` = 1 | R-207; a drone is heard before it is seen |
 | `self` unknown to the TKB, or a view that is not an `EntityRepository` ⇒ today's rule | the solver snapshot has no TKB (§1) |
 | every caller in §1 picks it up unchanged — `TopThreat` now ranks the RPG man (and the ATGM technical) above the rifleman for a tank | one place (R-194, R-201); `UtilityTestWorld` is updated with it |
+| 📐 **measured `2026-10-15` (`CE-3138`, backend)** — `DangerAreaSensorSystem.ThreatOn` on CGF: a T-72 watcher 110 m off an Abrams's FRONT reads danger **0.50**, exactly the crossing sensor's `ThreatenedAt` (0.5) ⇒ whether an Abrams holds at a street a T-72 watches head-on is decided at the threshold edge. ⚠ Recorded, not changed: a tuning question for this programme's owner | `EqsDistributedTests.DangerAlongRoute_AcrossHosts_…` (its unit is now a rifleman) |
 
 ## 3. Hull-sized points, overhead cover and the templates (V3)
 
