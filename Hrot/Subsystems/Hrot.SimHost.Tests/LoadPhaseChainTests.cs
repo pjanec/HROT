@@ -274,27 +274,29 @@ public sealed class LoadPhaseChainTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TheWorldBoundary_ClearsTheWorldBeforeAnyStepCommits_CE2101(bool boundary)
+    public async Task TheWorldBoundary_ClearsTheWorldBeforeAnyStepPrepares_CE2101(bool boundary)
     {
         var world = new EntityRepository();
         world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         var stale = world.CreateEntity();
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
         map.Register(1000, stale);
-        int seenAtCommit = -1;
+        int seenAtPrepare = -1, seenAtCommit = -1;
         var chain = LoadPhaseChain.FromRoles(
             NodeRole.Map2D,
-            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase) { OnCommit = w => seenAtCommit = w!.EntityCount }, new FakeStep(LoadPart.Terrain) },
+            new ILoadPartProvider[]
+            {
+                new FakeStep(LoadPart.KnowledgeBase) { OnPrepare = () => seenAtPrepare = world.EntityCount, OnCommit = w => seenAtCommit = w!.EntityCount },
+                new FakeStep(LoadPart.Terrain),
+            },
             world, entityMap: map);
 
-        chain.Commit(new ExecuteNodeOpIntent
-        {
-            Operation     = NodeOpType.PrepareLive,
-            TransactionId = Guid.NewGuid(),
-            DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: ClusterState.LoadingLive, IsWorldBoundary: boundary),
-        }, null);
+        var load = BoundaryLoad(boundary);
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
 
-        Assert.Equal(boundary ? 0 : 1, seenAtCommit);              // the step saw the cleared world
+        Assert.Equal(boundary ? 0 : 1, seenAtPrepare);             // ⭐ the step PREPARED on the cleared world
+        Assert.Equal(boundary ? 0 : 1, seenAtCommit);
         Assert.Equal(!boundary, world.IsAlive(stale));
         Assert.Equal(!boundary, map.TryGetEntity(1000, out _));
         if (boundary)
@@ -303,6 +305,46 @@ public sealed class LoadPhaseChainTests
             Assert.False(fresh.Equals(stale), "the stale handle must not alias the next entity (generation moved on)");
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ CE-2101 × P4 — an entity that arrives DURING the load window (a faster node's committed entity, replicated in
+    /// while this node's off-thread step still works) belongs to the NEW world and survives this node's Commit.
+    /// 🔴 Red before the fix: the clear ran at Commit and destroyed it — on a SimHost a queued blueprint application then
+    /// threw "Entity is not alive" (TimeControlIntegrationTests CE3068, 3 of 12 runs).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task TheWorldBoundary_KeepsAnEntityThatArrivesDuringTheLoadWindow_CE2101_P4()
+    {
+        var world = new EntityRepository();
+        var stale = world.CreateEntity();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), blocking },
+            world, entityMap: map, hostLabel: "TestHost");
+
+        var load = BoundaryLoad(true);
+        var prepare = chain.PrepareAsync(load, CancellationToken.None);
+        Assert.True(blocking.Started.Wait(5_000));
+        Assert.False(world.IsAlive(stale));                 // ⭐ the previous run is gone as soon as the load starts
+
+        var arrived = world.CreateEntity();                  // the window: a replica of a faster node's new world
+        map.Register(1000, arrived);
+
+        blocking.Release.SetResult();
+        await prepare;
+        chain.Commit(load, null);
+
+        Assert.True(world.IsAlive(arrived), "an entity of the new world must survive the Commit");
+        Assert.True(map.TryGetEntity(1000, out var mapped) && mapped.Equals(arrived));
+    }
+
+    private static ExecuteNodeOpIntent BoundaryLoad(bool boundary) => new()
+    {
+        Operation     = NodeOpType.PrepareLive,
+        TransactionId = Guid.NewGuid(),
+        DomainPayload = new EditLoadHandlerPayload(ScenarioId: "scn", TargetState: ClusterState.LoadingLive, IsWorldBoundary: boundary),
+    };
 
     // ── P4 (Q91 §4-B2, R-4001) — the frame thread coordinates; only a pure step leaves it ─────────────────────
 
@@ -429,8 +471,11 @@ public sealed class LoadPhaseChainTests
         public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
         {
             _order?.Add(Part);
+            OnPrepare?.Invoke();
             return Task.CompletedTask;
         }
+
+        public Action? OnPrepare { get; init; }
 
         public Action<EntityRepository?>? OnCommit { get; init; }
 

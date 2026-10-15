@@ -338,6 +338,7 @@ object nobody else can see yet; every write into shared state (the TKB database,
 | which steps | terrain only (`TerrainResidency.Prepare` builds a private `Staged`). ⛔ The knowledge-base step stays inline (`R-4018`: loaded once). The scenario step stays inline (it allocates ids) |
 | progress, not an ACK | the slave publishes ONE `InProgress` status when it defers a prepare; the master's round intake and the prefetch tracker read `InProgress` / `Pending` as progress — no `Received++`, no paid ACK |
 | rails | `LoadPhaseChainTests.P4_AnOffThreadStep_LeavesThePrepareIncomplete_AndRunsOffTheCallingThread` · `ClusterSlaveTests.P4_ADeferredPrepare_ReportsInProgressOnce_ThenItsAnswer` · `ClusterMasterZoneRoundTests.P4_An_InProgress_report_is_not_the_nodes_answer` (red-proved: without the master's skip the round commits on progress alone) |
+| ⭐⭐ **follow-up: the world-boundary clear moved to the START of the prepare** | 🔴 P4 regression, found by `TimeControlIntegrationTests.Stop_PausesTheClock…CE3068` (8/8 at P3, red 3 of 12 after): with the prepare spanning frames, a faster node's committed entities replicated in before this node's Commit, and the Commit-time `CE-2101` clear destroyed them (`Entity is not alive` in SimHost's blueprint application). Fixed in `LoadPhaseChain.PrepareAsync`; rail `TheWorldBoundary_KeepsAnEntityThatArrivesDuringTheLoadWindow_CE2101_P4`. 📄 [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §8 |
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 

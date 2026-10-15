@@ -195,6 +195,16 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
         _loadContext       = context;
 
+        // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host: the load
+        //   builds from the file, never on the previous run's entities. ⛔ Not on live-from-replay, which the master never
+        //   marks. 📄 docs/DESIGN_Deterministic_Network_Ids.md §11b · docs/DESIGN_Cluster_Load_Phase.md §8.
+        //   ⭐⭐ HERE, on the frame thread before any step prepares — ⛔ NOT at Commit. 📐 Since P4 the prepare spans frames,
+        //   and a faster node's committed entities replicate in during that window; a Commit-time clear destroyed them
+        //   (lost entities, and a queued blueprint application threw "Entity is not alive" — measured on
+        //   TimeControlIntegrationTests CE3068, 3 of 12 runs). Everything that arrives after this line is the new world.
+        if (context.IsWorldBoundary && _world != null)
+            WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
+
         // ── The content itself. ⭐⭐ P4 (Q91 §4-B2, R-4001) — THE FRAME THREAD COORDINATES; only pure work leaves it.
         //    📐 Before: every step was awaited inline with no prior yield (the comment here said "off the main thread";
         //    the code did not), so a long TKB/terrain read stopped the frame — and the heartbeat — for its whole length.
@@ -226,12 +236,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         // 🔴 repo is null at both of ClusterSlave's dispatch sites; the injected world carries production.
         var world = repo ?? _world;
 
-        // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host, BEFORE any
-        //   step publishes: the load builds from the file, never on the previous run's entities. ⛔ Not on
-        //   live-from-replay, which the master never marks. 📄 docs/DESIGN_Deterministic_Network_Ids.md §11b.
-        if (context.IsWorldBoundary && world != null)
-            WorldBoundaryReset.Clear(world, _entityMap, _hostLabel);
-
+        // ⛔ The CE-2101 world-boundary clear is NOT here any more — it runs at the start of PrepareAsync (see there).
         foreach (var step in _steps)
             step.Commit(context, world);
     }
