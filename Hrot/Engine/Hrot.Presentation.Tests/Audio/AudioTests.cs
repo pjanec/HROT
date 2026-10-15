@@ -238,6 +238,105 @@ public sealed class AudioTests
         Assert.Contains(output.Looping, v => v.Clip == SoundTkbCatalog.BattleRumble);
     }
 
+    /// <summary>⭐ CE-1120 A2/A3 — a door opening is heard where it is (§2 "doors, boarding"); a body boarding or leaving a vehicle is
+    /// heard as a vehicle door; the town bed follows how built-up it is around the ear.</summary>
+    [Fact]
+    public void CE1120_ADoorIsHeardWhereItIs_ABoardingAsAVehicleDoor_TheTownHumByItsBuildings()
+    {
+        var terrain = Hrot.Presentation.Tests.Map3D.Map3DTests.BtRange();
+        var (world, tkb) = World();
+        world.SetSingletonManaged(terrain);
+        world.RegisterComponent<Fdp.Toolkit.Terrain.DoorState>();
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        var def = terrain.Doors[0];
+        var ear = new Ear(new Vector3(def.Center.X + 5f, def.Center.Y, def.SillZ + 1.7f), Vector3.UnitY);   // 5 m east of the door
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, ear.Position);
+        var door = world.CreateEntity();
+        world.AddComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Closed });
+        world.AddComponent(door, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = def.Key });
+        var rider = Unit(world, TkbEntityTypes.Infantry_Rifleman, ear.Position + new Vector3(10f, 0f, 0f));
+        var layer = new AudioLayer(() => world, () => tkb, () => me, () => ear, () => new NullAudioOutput { OneShotTicks = 1000 });
+        layer.Update(0.016f);   // the first frame learns the doors and who is aboard
+        var output = (NullAudioOutput)layer.Output!;
+        Assert.DoesNotContain(output.Played, v => v.Clip == SoundTkbCatalog.Door);
+
+        world.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+        layer.Update(0.016f);
+        layer.Update(0.1f);     // 5 m: 15 ms of sound travel
+        var opened = Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Door);
+        Assert.True(opened.Pan < -0.5f, "the door is west of a man looking north: on his left");
+        Assert.Equal(1, layer.Sources.DoorsHeard);
+
+        world.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+        layer.Update(0.016f);
+        layer.Update(0.1f);
+        Assert.Equal(1, layer.Sources.BoardingsHeard);
+        Assert.True(output.Played.Last(v => v.Clip == SoundTkbCatalog.Door).Pan > 0.5f, "he boarded 10 m to the east");
+
+        Assert.True(layer.Sources.TownLevel > 0f, "bt-range's buildings are around its doors");
+        Assert.Contains(output.Looping, v => v.Clip == SoundTkbCatalog.Town);
+        Assert.Equal(0f, SoundSources.Built(terrain, def.Center + new Vector2(5000f, 0f)));
+    }
+
+    /// <summary>⭐ CE-1120 AU-9 — the operator's volumes: F6 / F7 / F8 and the F10 panel change them, the mixer and the output take them,
+    /// they are saved in HIS file and the next session starts from them; a broken file gives the defaults.</summary>
+    [Fact]
+    public void CE1120_TheOperatorsVolumes_ReachTheMixer_AndPersistInHisOwnFile()
+    {
+        var (world, tkb) = World();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"hrot-audio-{Guid.NewGuid():N}.json");
+        try
+        {
+            var pressed = new HashSet<Raylib_cs.KeyboardKey>();
+            AudioLayer Make() => new(() => world, () => tkb, () => me, () => North, () => new NullAudioOutput(), k => pressed.Contains(k), () => path);
+            void Press(AudioLayer l, params Raylib_cs.KeyboardKey[] keys) { pressed.Clear(); pressed.UnionWith(keys); l.Update(0.016f); pressed.Clear(); }
+
+            var layer = Make();
+            layer.Update(0.016f);
+            Assert.Equal(0.8f, layer.Volume, 3);
+            Press(layer, Raylib_cs.KeyboardKey.F10);
+            Assert.True(layer.PanelOpen);
+            Press(layer, Raylib_cs.KeyboardKey.Down);               // master → weapons
+            Press(layer, Raylib_cs.KeyboardKey.Left);               // weapons 100 → 90 %
+            Press(layer, Raylib_cs.KeyboardKey.F6);                 // master 80 → 70 %
+            Assert.Equal(0.9f, layer.Mixer.CategoryVolume[(int)SoundCategory.Weapons], 3);
+            Assert.Equal(0.7f, layer.Output!.MasterVolume, 3);
+            Assert.Equal("Weapons  90 %", layer.PanelRows()[1]);
+            Press(layer, Raylib_cs.KeyboardKey.F8);
+            Assert.Equal(0f, layer.Output!.MasterVolume);
+            Press(layer, Raylib_cs.KeyboardKey.F8);
+
+            var next = Make();
+            next.Update(0.016f);
+            Assert.Equal((0.7f, false), (next.Volume, next.Muted));
+            Assert.Equal(0.7f, next.Output!.MasterVolume, 3);
+            Assert.Equal(0.9f, next.Mixer.CategoryVolume[(int)SoundCategory.Weapons], 3);
+
+            System.IO.File.WriteAllText(path, "{ not json");
+            Assert.Equal(0.8f, AudioSettings.Load(path).Master, 3);
+            Assert.Equal(AudioSettings.CategoryCount, AudioSettings.Load(null).Categories.Length);
+        }
+        finally { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); }
+    }
+
+    /// <summary>⭐ CE-1120 AU-8 — listen to the placeholders: <c>HROT_EXPORT_SOUNDS=&lt;folder&gt;</c> writes every generated sound type as a
+    /// WAV (named by id and name) — what a CC0 recording would replace (assets/audio/LICENSES.md).</summary>
+    [SkippableFact]
+    public void CE1120_ExportThePlaceholders_ToListen()
+    {
+        string? dir = Environment.GetEnvironmentVariable("HROT_EXPORT_SOUNDS");
+        Skip.If(string.IsNullOrWhiteSpace(dir), "opt-in: HROT_EXPORT_SOUNDS=<folder>");
+        System.IO.Directory.CreateDirectory(dir!);
+        foreach (var (type, (name, sound)) in SoundTkbCatalog.BuiltIn)
+        {
+            string file = System.IO.Path.Combine(dir!, $"{type}-{name.Replace("Sound: ", "").Replace(' ', '-')}.wav");
+            System.IO.File.WriteAllBytes(file, SoundSynthesizer.Wav(SoundSynthesizer.Make(sound.Synth)));
+            Assert.True(new System.IO.FileInfo(file).Length > 44);
+        }
+    }
+
     [Fact]
     public void CE1120_EveryMapHostGetsTheLayer_BesideThePossessionStation()
     {
