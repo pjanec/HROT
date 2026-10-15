@@ -289,6 +289,45 @@ public sealed class ClusterSlaveTests
         Assert.Equal(2, owner.Entered);          // ⭐ the drop route
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4007</c> (Q91 §4-M) — the join freeze: a node is frozen only when it is BEHIND the cluster it follows (it is
+    /// <c>Idle</c>, the cluster is not). ⛔ A node with no master, and a cluster at rest in <c>Idle</c>, are never frozen — 📐
+    /// dozens of integration suites spawn and replicate exactly there.
+    /// </summary>
+    [Fact]
+    public void R4007_ANodeIsJoinFrozen_OnlyWhileItIsBehindTheClusterItFollows()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Cluster(ClusterState state, Guid session)
+        {
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, SessionId = session });
+            bus.SwapBuffers();
+            slave.Tick();
+        }
+
+        Assert.False(slave.IsJoinFrozen);                         // no master
+        var session = Guid.NewGuid();
+        Cluster(ClusterState.Idle, session);
+        Assert.False(slave.IsJoinFrozen);                         // a cluster at rest
+        Cluster(ClusterState.OperatingLive, session);
+        Assert.True(slave.IsJoinFrozen);                          // ⭐ a late joiner: Idle while the cluster runs
+
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.LoadingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.False(slave.IsJoinFrozen);                         // ⭐ it committed a load: the gate opens
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.False(slave.IsJoinFrozen);                         // dropped to Idle with no master to be behind
+    }
+
     private sealed class IdleCounter : IIdleResetHandler
     {
         public int Entered { get; private set; }

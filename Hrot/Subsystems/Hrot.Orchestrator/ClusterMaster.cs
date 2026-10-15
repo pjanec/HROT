@@ -25,7 +25,7 @@ namespace Hrot.Orchestrator;
 /// Orchestrator control-plane host: system state, node heartbeats, DDS network ID allocation server,
 /// bootstrap latch, heartbeat-timeout eviction, and 2PC transaction history ring buffer.
 /// </summary>
-public sealed class ClusterMaster : IDisposable
+public sealed partial class ClusterMaster : IDisposable
 {
     private readonly ClusterConfiguration _config;
 
@@ -92,6 +92,9 @@ public sealed class ClusterMaster : IDisposable
         /// <see cref="OnPhaseSuccess"/> round; a terminal tracker leaves it null.
         /// </summary>
         public List<int>? Targets;
+
+        /// <summary>⭐ C3 (Q91 §4-M) — a trajectory through Idle: on success its <see cref="Targets"/> become the in-sync set.</summary>
+        public bool ResyncsOnSuccess;
         /// <summary>Per-node response JSON strings fed into the aggregator pipeline.</summary>
         public readonly Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> NodeResponses = new();
     }
@@ -357,6 +360,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessAssetOpIntents();   // ⭐ CE-3021 — publish / refresh arriving on the bus (remote panel)
 
         ConsumeNodeOpStatuses();
+        TickCatchUps();    // ⭐ C7 — late joiners caught up by per-node ops (Q91 §4-M)
         PruneOwedAcks();   // ⭐ P1
     }
 
@@ -492,7 +496,7 @@ public sealed class ClusterMaster : IDisposable
 
             case ClusterOpType.TakeCheckpoint:
             {
-                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 if (nodeIds.Count == 0)
                 {
                     PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
@@ -567,7 +571,10 @@ public sealed class ClusterMaster : IDisposable
             // ⭐⭐ R-4018 / CE-4003 step 2 — a node ENTERING the roster gets the deployment's TKB synced (the saga does
             //   the copy). ⭐ Nothing is sent to the node: its first world build loads the file. 📄 tkb-1 DESIGN §0a.
             if (joined)
+            {
                 _eventBus.PublishManaged(new NodeJoinedRosterEvent { NodeId = hb.NodeId });
+                AdmitJoinedNode(hb.NodeId);   // ⭐ C3 — in sync at once only while the cluster is at rest in Idle
+            }
         }
     }
 
@@ -710,6 +717,7 @@ public sealed class ClusterMaster : IDisposable
             return;
 
         _roster.Remove(nodeId);
+        ForgetSync(nodeId);   // ⭐ C3 — I1: a node that left is no longer in sync
         FdpLog<ClusterMaster>.Warn("[Orchestrator] Node {0} ({1}) ejected (heartbeat timeout).",
             nodeId, profile.SubsystemName);
 
@@ -780,7 +788,7 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
         {
-            var ckNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+            var ckNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
             if (ckNodeIds.Count == 0)
             {
                 PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -867,7 +875,7 @@ public sealed class ClusterMaster : IDisposable
     /// <summary>Shared by the bus drain and the injected-request path, so the editor cannot drift.</summary>
     private void ProcessBuildTerrainAssetIntent(BuildTerrainAssetIntent intent)
     {
-        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        var targets = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (targets.Count == 0)
         {
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -931,7 +939,7 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void StartZoneLoadRound(Guid requestId, string zoneId)
     {
-        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        var targets = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (targets.Count == 0)
         {
             // Nothing to ask ⇒ the postcondition already holds. Reporting Success is honest here in a
@@ -1242,8 +1250,17 @@ public sealed class ClusterMaster : IDisposable
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
         ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
 
-        // S0502: Fan out PrepareXxx + CommitState to all active nodes.
-        var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        // S0502: Fan out PrepareXxx + CommitState.
+        // ⭐⭐ C3 (Q91 §4-M, J1) — to the IN-SYNC nodes; a trajectory that passes through Idle goes to the whole roster and
+        //   leaves every node that answers it in sync (Idle is the universal re-sync point, R-4019).
+        bool throughIdle = trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.Idle);
+        var activeNodeIds = throughIdle ? new List<int>(_roster.ActiveNodes.Keys) : Participants();
+        if (intent.ScenarioId != null && trajectory.OfType<TransitionStep>().Any(t =>
+                t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
+        {
+            _currentScenarioId = intent.ScenarioId;   // ⭐ C7 — what a late joiner's catch-up stages
+            _currentExerciseId = intent.ExerciseId;
+        }
         if (activeNodeIds.Count > 0)
         {
                 var enteredFrom = capturedSourceState;   // CE-2101 — the state each step is entered FROM
@@ -1323,6 +1340,8 @@ public sealed class ClusterMaster : IDisposable
                     RequestId                    = requestId,
                     Expected                     = expectedAcks,
                     BroadcastClusterStateOnComplete = true,
+                    Targets                      = activeNodeIds,
+                    ResyncsOnSuccess             = throughIdle,   // ⭐ C3
                 };
             }
             else
@@ -1483,7 +1502,7 @@ public sealed class ClusterMaster : IDisposable
             {
                 var nodeOp  = intent.IsStart ? NodeOpType.StartEpisode : NodeOpType.StopEpisode;
                 var txId    = Guid.NewGuid();
-                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
 
                 var episodePayload = new EpisodeHandlerPayload(intent.EpisodeId, intent.ScenarioId, intent.IsStart);
                 FanOutNodeOp(nodeOp, txId, episodePayload, nodeIds);
@@ -1536,7 +1555,7 @@ public sealed class ClusterMaster : IDisposable
                     return;
                 }
 
-                var scnNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var scnNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 var scnTxId    = Guid.NewGuid();
 
                 // CE-277(c2): map this fan-out's tx → scenario name so StorageProcessManager can merge the
@@ -1567,7 +1586,7 @@ public sealed class ClusterMaster : IDisposable
                 var exportCts = new CancellationTokenSource();
                 _activeCancellations[intent.RequestId] = exportCts;
 
-                var exportNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var exportNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 if (exportNodeIds.Count == 0)
                 {
                     _activeCancellations.Remove(intent.RequestId);
@@ -1622,7 +1641,7 @@ public sealed class ClusterMaster : IDisposable
     {
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
-        var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (seekNodeIds.Count == 0)
         {
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -1961,6 +1980,13 @@ public sealed class ClusterMaster : IDisposable
         else
         {
             _transactionEpoch++;   // ⭐ C4 — telemetry: one more round completed successfully
+            if (tracker.ResyncsOnSuccess && tracker.Targets != null)
+            {
+                // ⭐ C3 — everyone who answered a trajectory through Idle is in sync with what it reached.
+                _inSync.Clear();
+                foreach (var id in tracker.Targets)
+                    if (_roster.ActiveNodes.ContainsKey(id)) _inSync.Add(id);
+            }
             var aggregated = TryAggregate(txId, tracker.NodeResponses);
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
         }

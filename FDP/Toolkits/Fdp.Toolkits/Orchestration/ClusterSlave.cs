@@ -599,6 +599,20 @@ namespace Fdp.Toolkit.Orchestration
         public Guid FollowingSessionId => _followingSessionId;
         private Guid _followingSessionId;
 
+        /// <summary>The cluster state last announced by the master this node follows (<c>Idle</c> until one is seen).</summary>
+        private ClusterState _clusterState = ClusterState.Idle;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node BEHIND its cluster?</b> It follows a master's session, it is in
+        /// <c>Idle</c>, and the cluster it follows is not: it has no world to put replicated state into, so its world ingress
+        /// stays closed (<c>CycloneNetworkIngressSystem.IsJoinFrozen</c>) until it commits a load. ⭐ A cluster at rest in
+        /// <c>Idle</c>, and a node with no master, are never frozen.
+        /// </summary>
+        public bool IsJoinFrozen =>
+            _followingSessionId != Guid.Empty
+            && _localStateId == (int)ClusterState.Idle
+            && _clusterState != ClusterState.Idle;
+
         /// <summary>
         /// ⭐⭐ C2 — a DIFFERENT session id, or the master's cluster-state writer gone, means the world this node belonged to has
         /// ended: drop to <c>Idle</c> and forget whatever that world's master had asked for. ⭐ Deterministic, no timer: the node
@@ -615,8 +629,10 @@ namespace Fdp.Toolkit.Orchestration
                     if (_followingSessionId != Guid.Empty)
                         DropToIdle($"the master of session {_followingSessionId} is gone");
                     _followingSessionId = Guid.Empty;
+                    _clusterState = ClusterState.Idle;
                     continue;
                 }
+                _clusterState = ev.CurrentState;
                 if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
                 if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
                     DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");

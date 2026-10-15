@@ -212,11 +212,12 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //    ② the pure steps (they build private objects; every shared write is in Commit) run on a worker, in order,
         //    so this method returns an incomplete task and ClusterSlave polls it every frame (_pendingPrepare).
         //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
-        foreach (var step in _steps)
+        var steps = StepsFor(context);
+        foreach (var step in steps)
             if (!step.PreparesOffFrameThread)
                 await step.PrepareAsync(context, ct).ConfigureAwait(false);
 
-        var offFrame = _steps.Where(s => s.PreparesOffFrameThread).ToArray();
+        var offFrame = steps.Where(s => s.PreparesOffFrameThread).ToArray();
         if (offFrame.Length > 0)
             await Task.Run(async () =>
             {
@@ -237,9 +238,17 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         var world = repo ?? _world;
 
         // ⛔ The CE-2101 world-boundary clear is NOT here any more — it runs at the start of PrepareAsync (see there).
-        foreach (var step in _steps)
+        foreach (var step in StepsFor(context))
             step.Commit(context, world);
     }
+
+    /// <summary>
+    /// ⭐⭐ C7 (Q91 §4-M, <c>R-4015</c>) — the steps a load runs: all of them, or — on a late joiner's CATCH-UP — only the
+    /// universal parts (knowledge base, terrain). ⛔ The scenario is never read on a catch-up: the world already exists and
+    /// arrives by replication; a restarted Brain re-running genesis would duplicate every unit.
+    /// </summary>
+    private IEnumerable<ILoadPartProvider> StepsFor(LoadPhaseContext context)
+        => context.IsCatchUp ? _steps.Where(s => s.Part != LoadPart.ScenarioEntities) : _steps;
 
     /// <inheritdoc/>
     public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
@@ -256,7 +265,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     private void AbortLoad()
     {
         if (_loadContext is { } context)
-            foreach (var step in _steps)
+            foreach (var step in StepsFor(context))
                 step.Abort(context);
 
         _holdTcs?.TrySetCanceled();
@@ -288,7 +297,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
     {
         if (_holdTcs == null) return;
 
-        foreach (var step in _steps)
+        foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
             if (!step.IsResolved(_world)) return;
 
         _holdTcs.TrySetResult(null);

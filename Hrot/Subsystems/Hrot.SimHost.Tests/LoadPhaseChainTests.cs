@@ -363,6 +363,34 @@ public sealed class LoadPhaseChainTests
         Assert.NotEqual(epochBefore, Fdp.Toolkit.Replication.Services.WorldEpoch.Of(world));
     }
 
+    /// <summary>
+    /// ⭐⭐ C7 (Q91 §4-M, <c>R-4015</c>) — a late joiner's CATCH-UP load runs the universal parts only: the knowledge base and the
+    /// terrain prepare and commit, the scenario step does neither — the world arrives by replication, and a Brain re-running
+    /// genesis would duplicate every unit.
+    /// </summary>
+    [Fact]
+    public async Task C7_ACatchUpLoad_RunsTheUniversalPartsOnly_NeverTheScenario()
+    {
+        var order = new List<LoadPart>();
+        var kb = new FakeStep(LoadPart.KnowledgeBase, order) { OnCommit = _ => order.Add(LoadPart.KnowledgeBase) };
+        var terrain = new FakeStep(LoadPart.Terrain, order) { OnCommit = _ => order.Add(LoadPart.Terrain) };
+        var scenario = new FakeStep(LoadPart.ScenarioEntities, order) { OnCommit = _ => order.Add(LoadPart.ScenarioEntities) };
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.Brain | NodeRole.MuscleGround, new ILoadPartProvider[] { kb, terrain, scenario }, world: null);
+
+        var load = new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.PrepareLive, TransactionId = Guid.NewGuid(),
+            DomainPayload = new EditLoadHandlerPayload(null, TargetState: ClusterState.LoadingLive, IsCatchUp: true),
+        };
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+
+        Assert.DoesNotContain(LoadPart.ScenarioEntities, order);
+        Assert.Contains(LoadPart.KnowledgeBase, order);
+        Assert.Contains(LoadPart.Terrain, order);
+    }
+
     private static ExecuteNodeOpIntent BoundaryLoad(bool boundary) => new()
     {
         Operation     = NodeOpType.PrepareLive,

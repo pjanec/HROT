@@ -193,7 +193,8 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     // ⭐ L1 — null when the sender omitted it (an older peer, or a scenario naming none).
                     //   The load steps treat a null name as "this scenario names none", which is legal.
                     TerrainName:   dto?.TerrainName,
-                    IsWorldBoundary: dto?.IsWorldBoundary ?? false);   // CE-2101
+                    IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
+                    IsCatchUp:       dto?.IsCatchUp ?? false);         // C7
             }
 
             case NedNodeOpType.StartEpisode:

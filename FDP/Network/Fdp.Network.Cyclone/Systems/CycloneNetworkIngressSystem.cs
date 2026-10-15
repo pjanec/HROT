@@ -45,6 +45,34 @@ namespace Fdp.Network.Cyclone.Modules
         /// </summary>
         public System.Func<bool>? IsWorldStateFrozen { get; set; }
 
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node frozen for a JOIN?</b> True while the node cannot build what it would
+        /// receive (its cluster state is <c>Idle</c>: before it commits a load, and again after a reset). While true,
+        /// <see cref="Fdp.Interfaces.TranslatorClass.WorldState"/> translators are not polled (DDS keeps the latest sample per
+        /// instance), <see cref="Fdp.Interfaces.TranslatorClass.WorldEvent"/> translators are DRAINED and their samples
+        /// discarded, and <see cref="Fdp.Interfaces.TranslatorClass.ControlPlane"/> keeps polling.
+        /// ⭐ Separate from <see cref="IsWorldStateFrozen"/>: the debugger HOLDS events, a join DISCARDS them.
+        /// Wired after composition by <see cref="WireJoinGate"/>; left unset the system behaves exactly as before.
+        /// </summary>
+        public System.Func<bool>? IsJoinFrozen { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> — wires <paramref name="isJoinFrozen"/> onto every ingress system among <paramref name="systems"/>
+        /// (the kernel's scheduled systems, swept once after composition — the shape CGF's debugger gate already uses).
+        /// Returns how many were wired.
+        /// </summary>
+        public static int WireJoinGate(System.Collections.IEnumerable systems, System.Func<bool> isJoinFrozen)
+        {
+            int wired = 0;
+            foreach (var system in systems)
+            {
+                if (system is not CycloneNetworkIngressSystem ingress) continue;
+                ingress.IsJoinFrozen = isJoinFrozen;
+                wired++;
+            }
+            return wired;
+        }
+
         public CycloneNetworkIngressSystem(Fdp.Interfaces.INetworkTranslator[] translators)
         {
              _translators = translators;
@@ -55,13 +83,24 @@ namespace Fdp.Network.Cyclone.Modules
             // ⚠ Asked ONCE per Execute, not per translator: the answer must not change mid-phase or
             //   half the world-state translators would run against a different decision than the
             //   other half.
-            bool frozen = IsWorldStateFrozen?.Invoke() ?? false;
+            bool frozen  = IsWorldStateFrozen?.Invoke() ?? false;
+            bool joining = IsJoinFrozen?.Invoke() ?? false;
 
             var cmd = view.GetCommandBuffer();
             for(int i=0; i<_translators.Length; i++)
             {
-                    if (frozen && _translators[i].Category == Fdp.Interfaces.TranslatorClass.WorldState)
-                        continue;
+                    var category = _translators[i].Category;
+                    if (category != Fdp.Interfaces.TranslatorClass.ControlPlane)
+                    {
+                        if (joining)
+                        {
+                            // ⭐ R-4007 — a join DISCARDS events (no stale burst at the opening) and leaves state in DDS.
+                            if (category == Fdp.Interfaces.TranslatorClass.WorldEvent)
+                                ((Fdp.Interfaces.IDiscardableIngress)_translators[i]).DiscardIngress();
+                            continue;
+                        }
+                        if (frozen) continue;   // the debugger HOLDS state and events alike (DQ30-C)
+                    }
 
                     _translators[i].PollIngress(cmd, view);
             }

@@ -146,7 +146,11 @@ public record NodeTransitionPayloadDto(
     // ⭐ CE-2101 — the load step entered from Idle (the world boundary): every node clears its world first.
     //   Additive on the wire; an older peer omits it and decodes to false.
     [property: JsonPropertyName("IsWorldBoundary")]
-    bool           IsWorldBoundary = false
+    bool           IsWorldBoundary = false,
+
+    // ⭐⭐ C7 (Q91 §4-M) — a late joiner's catch-up load: universal parts only, no scenario. Additive; omitted ⇒ false.
+    [property: JsonPropertyName("IsCatchUp")]
+    bool           IsCatchUp = false
 );
 
 /// <summary>Node-level episode payload DTO for <c>StartEpisode</c> / <c>StopEpisode</c>.</summary>

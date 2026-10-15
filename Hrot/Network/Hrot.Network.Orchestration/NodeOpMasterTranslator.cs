@@ -128,7 +128,8 @@ public sealed class NodeOpMasterTranslator
                     ScenarioId:  p.ScenarioId,
                     ExerciseId:  p.ExerciseId,
                     TerrainName: p.TerrainName,
-                    IsWorldBoundary: p.IsWorldBoundary),   // CE-2101
+                    IsWorldBoundary: p.IsWorldBoundary,    // CE-2101
+                    IsCatchUp:       p.IsCatchUp),         // C7
                 _jsonOptions),
 
             EpisodeHandlerPayload p => JsonSerializer.Serialize(

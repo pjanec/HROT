@@ -279,6 +279,11 @@ namespace Hrot.CGF
             {
                 _kernel.Initialize();
                 _initialized = true;
+
+                // ⭐⭐ R-4007 (Q91 §4-M) — a node BEHIND its cluster takes in no world state and discards world events.
+                var joinSlave = _clusterSlave;
+                Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.WireJoinGate(
+                    _kernel.SystemScheduler.GetAllSystems(), () => joinSlave.IsJoinFrozen);
             }
 
             // ── CONTROL PLANE (Orchestration) ─────────────────────────────────────────

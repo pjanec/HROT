@@ -1673,6 +1673,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    RegisterSystems(), so before this line the scheduler does not yet hold them all.
         WireWorldStateFreezeGate();
 
+        // ⭐⭐ R-4007 (Q91 §4-M) — a node BEHIND its cluster takes in no world state and discards world events.
+        if (_context.ClusterSlave is { } joinSlave)
+            Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.WireJoinGate(
+                _context.Kernel.SystemScheduler.GetAllSystems(), () => joinSlave.IsJoinFrozen);
+
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)
         {

@@ -39,7 +39,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         // ⭐ CE-2101 — true on the load step entered FROM Idle: the world boundary, where every node clears its world
         //   before the load builds the new one (docs/DESIGN_Deterministic_Network_Ids.md §11b, §11g.4). Set by the
         //   master, by the same rule that resets the id authority.
-        bool IsWorldBoundary = false);
+        bool IsWorldBoundary = false,
+        // ⭐⭐ C7 (Q91 §4-M, R-4015) — a LATE JOINER's catch-up load: only the universal parts (knowledge base, terrain) run,
+        //   whatever the node's roles; the scenario is never read and no entity is created — the world arrives by replication.
+        bool IsCatchUp = false);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

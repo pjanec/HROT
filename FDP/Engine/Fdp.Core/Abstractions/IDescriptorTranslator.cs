@@ -44,6 +44,24 @@ namespace Fdp.Interfaces
 
         /// <summary>Time-mode, lockstep, time-sync and orchestration traffic. ⭐ Keeps polling while frozen.</summary>
         ControlPlane = 1,
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — a one-shot world EVENT on a <c>Volatile + KeepAll</c> topic (a shot, a detonation, a
+        /// hit, a request). Held like world state while a debugger freezes the node; ⭐ DISCARDED while the node is frozen for a
+        /// join, so no stale burst follows the opening. ⛔ A translator declaring it MUST implement
+        /// <see cref="IDiscardableIngress"/>.
+        /// </summary>
+        WorldEvent   = 2,
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4007</c> — a <see cref="TranslatorClass.WorldEvent"/> translator's way to throw away what arrived while the node
+    /// could not use it: take every pending sample and drop it. ⛔ Never applies anything to the world.
+    /// </summary>
+    public interface IDiscardableIngress
+    {
+        /// <summary>Takes and discards every pending ingress sample. Returns how many were discarded.</summary>
+        int DiscardIngress();
     }
 
     /// <summary>

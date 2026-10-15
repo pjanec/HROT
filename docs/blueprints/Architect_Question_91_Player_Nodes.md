@@ -1133,6 +1133,103 @@ entity lives as long as its primary owner on EVERY node; nothing about that is s
 
 ---
 
+## 4-M ⭐⭐⭐ BUILD DESIGN — `C3` + `C5` + `C7` SHIP TOGETHER *(design `2026-10-15`, coordinator; `build-state: BUILDING`)*
+
+⭐ Builds the approved I1, I2, J1, J2, K4, K5′, K6, K7 and L2′ (`R-4006`, `R-4007`, `R-4013`–`R-4015`, `R-4017`) on top of
+`CE-4000` F2 (`R-4019`: Idle is empty everywhere).
+
+⛔⛔ **Why one change and not three.** C5 alone closes a joiner's world ingress while it is in `Idle` — and without C7 nothing
+moves a late joiner out of `Idle`, so a Player joining a running exercise would see NOTHING until the next load (today it
+sees the world, minus terrain). C3 alone keeps it out of rounds until the next `Idle`. Only together are they an improvement.
+
+### INVENTORY — measured `2026-10-15` (`query_graph` IMPLEMENTS + grep; `check_index_coverage` NOT run — CLI only)
+
+| what | count | where |
+|---|---|---|
+| production `IDescriptorTranslator`/`INetworkTranslator` implementations | 101 (query `total` 119 incl. tests) | `query_graph` IMPLEMENTS |
+| …that read a `Volatile + KeepAll` (event) topic with real ingress | 8 | `DeferredTakeOwnership`, `EntityHitDamage`, `MissionControlRequest`, `MunitionDetonation`, `SST_OwnershipUpdate`, `WeaponFire`, `WeaponFireRequest`, + `CreateEntityRequest`/`UpdateEntityDescriptorRequest` (owner-side command ingress in `Spawn…`/`UpdateEntityCommandEgressTranslator`) |
+| translators declaring `ControlPlane` today | 3 | the time translators. ⭐ Orchestration is NOT an `INetworkTranslator` (`NodeOpSlaveTranslator : IOrchestrationTranslator`) ⇒ a frozen node still receives its load commands |
+| production generic `CycloneTranslator<T>` / `MultiInstanceCycloneTranslator<T>` instantiations | 0 | tests only |
+| master sites that target `_roster.ActiveNodes` | 17 | `ClusterMaster.cs` — transitions (`:1246`), zone rounds (`:934`), terrain build (`:870`), checkpoint (`:783`), save/export (`:1539`, `:1570`), seek (`:1625`), episodes (`:1486`), cancel (`:1660`, `:1723`), op requests (`:495`), broadcast (`:1827`), diagnostics (`:1013`), prefetch saga (`:1193`, `:1478`) |
+| ingress-gate writers today | 1 | CGF's debugger sweep (`CgfSubsystem.cs:3360`) |
+
+### The master's view of one node (I1 + I2, unchanged) — and where each piece lives
+
+```mermaid
+stateDiagram-v2
+  [*] --> InSync: joins while the cluster is Idle (nothing to catch up — Idle is empty everywhere, R-4019)
+  [*] --> NotInSync: joins while the cluster is Loading/Operating
+  NotInSync --> CatchingUp: CatchUpSaga starts (one attempt per node per cluster commit, K7)
+  CatchingUp --> InSync: ACKed OperatingLive at the cluster's current epoch
+  CatchingUp --> NotInSync: the cluster committed a round meanwhile (E3) or the attempt failed
+  InSync --> NotInSync: EjectNode
+  NotInSync --> InSync: a round INTO Idle — it targets the whole roster and every ACK is in sync
+```
+
+*What the picture shows that prose hid:* `Idle` is the universal re-sync point — a round INTO `Idle` is the one round that
+targets the whole roster, because entering `Idle` asks nothing of a node's world (F2 empties it anyway).
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster (InSyncSet)
+  participant S as CatchUpSaga (per node)
+  participant G as StorageGatewayModule
+  participant J as Joiner: ClusterSlave + LoadPhaseChain
+  participant I as Joiner: CycloneNetworkIngressSystem
+  Note over J,I: J is Idle: ingress gate CLOSED (world state not polled, events discarded)
+  M->>S: node in roster, not InSync, cluster OperatingLive
+  S->>G: prefetch the current scenario's terrain + TKB to J only
+  S->>J: PrepareState/CommitState LoadingLive {IsCatchUp} (own tx, FanOutNodeOp to J)
+  J->>J: chain: KB + terrain only (K5'), no scenario step
+  Note over I: J left Idle at the commit: gate OPENS, durable world state arrives
+  S->>J: PrepareState/CommitState OperatingLive (own tx)
+  J-->>S: ACK
+  S->>M: InSync.Add(J) at the epoch it started from (else restart, E3)
+```
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing, grows>> -InSyncSet; Participants(); OperatingTargets() }
+  class CatchUpSaga { <<NEW, Hrot.Orchestrator>> per-node steps, own trackers, K7 attempt record }
+  class EditLoadHandlerPayload { <<existing, grows>> +IsCatchUp }
+  class LoadPhaseContext { <<existing, grows>> +IsCatchUp }
+  class LoadPhaseChain { <<existing, grows>> catch-up skips non-universal parts }
+  class CycloneNetworkIngressSystem { <<existing, grows>> +IsJoinFrozen: WorldState skipped, WorldEvent discarded }
+  class TranslatorClass { <<existing enum, grows>> +WorldEvent }
+  class IDiscardableIngress { <<NEW>> +DiscardIngress() }
+  class WorldIngressGate { <<NEW, Hrot.Core>> +Wire(scheduler, slave)$ }
+  ClusterMaster --> CatchUpSaga
+  CatchUpSaga ..> EditLoadHandlerPayload
+  LoadPhaseChain ..> LoadPhaseContext
+  WorldIngressGate ..> CycloneNetworkIngressSystem : sets IsJoinFrozen
+  CycloneNetworkIngressSystem ..> IDiscardableIngress
+```
+
+```mermaid
+graph TD
+  MT[ClusterMaster.Tick - master host] --> SAGA[CatchUpSaga.Tick]
+  SAGA -->|FanOutNodeOp to ONE node| SLV[ClusterSlave on the joiner]
+  SLV --> CHAIN[LoadPhaseChain - KB + terrain only]
+  COMP[five ECS composition roots: SimHost, CGF x2, IG, editor] -->|after composition| GATE[WorldIngressGate.Wire]
+  GATE -->|IsJoinFrozen = slave behind its cluster| ING[every CycloneNetworkIngressSystem in the kernel]
+  CGFDBG[CGF debugger sweep] -->|IsWorldStateFrozen, unchanged| ING
+  EXC[ExCon: no kernel world] -.->|not wired| GATE
+  style EXC stroke-dasharray: 5 5
+```
+
+*What the module picture shows:* the gate is wired by the SAME sweep shape CGF already uses, once, after composition, on every
+host with a world; the debugger's predicate stays separate because it HOLDS events instead of discarding them.
+
+| ⭐ decision | lean · why · rejected |
+|---|---|
+| **the join freeze predicate = "the node is BEHIND its cluster": it follows a master's session, it is in `Idle`, and the cluster it follows is not `Idle`** (`ClusterSlave.IsJoinFrozen`) | ⭐ the joiner's exact situation — closed until it commits a load, closed again if reset to `Idle` while the cluster runs (R-4007). ⛔ Rejected first draft *"frozen whenever the node is `Idle`"*: 📐 measured — dozens of integration suites (`AllSubsystemsSpawnMovingVehicleTests`, `DebugApiBatch*`, …) spawn and replicate with the cluster at rest in `Idle` or with no master at all; a cluster at rest has nothing to protect (Idle is empty, R-4019). ⛔ Rejected: a separate flag — two truths for one fact |
+| **events while join-frozen are DISCARDED; ownership topics are HELD** | ⭐ `WeaponFire`, `MunitionDetonation`, `EntityHitDamage`, `WeaponFireRequest`, `MissionControlRequest`, `CreateEntityRequest`, `UpdateEntityDescriptorRequest` → `WorldEvent` + `DiscardIngress`. `SST_OwnershipUpdate`, `DeferredTakeOwnership` stay `WorldState` (held, applied in order when the gate opens) — a dropped hand-over would leave the joiner with the wrong owner |
+| **a `WorldEvent` translator MUST implement `IDiscardableIngress`** | ⭐ a rail asserts it over every production `WorldEvent` translator — ⛔ no silent default (a no-op discard would let the KeepAll queue burst later) |
+| **operator rounds target `InSync`; a round INTO `Idle` targets the roster** | ⭐ J1 + the re-sync point above. One helper, `Participants(targetState)`, replaces the roster read at every OPERATOR round site in the inventory; control/diagnostic sites keep the roster |
+| **the catch-up is node ops only** (K4, R-4017) and **never reads the scenario** (K5′, R-4015) | ⭐ `IsCatchUp` on the load payload; the chain runs the universal parts (KB, terrain) whatever the node's role |
+| **one attempt per node per cluster commit** (K7) | ⭐ a failure is logged and shown; the next cluster commit or a new process (new id, R-4016) tries again |
+| ⚠ **not in this change** | the committed ZONE set (§4-E′), the reliable-init wait-set (C6, uses the published `InSync`), replay catch-up (C9) |
+
 ## 5. OUT OF SCOPE
 
 - ⛔ **Interest management** — every node receives every entity (no partition or content filter exists). User G: not now.
