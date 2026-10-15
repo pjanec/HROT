@@ -1486,7 +1486,7 @@ def run_air_defence(c, timeout):
             break
         time.sleep(0.5)
 
-    missiles = [x for x in shots.values() if x.get("shooter") in (launcher, gunner)]
+    missiles = [x for x in shots.values() if x.get("shooter") == launcher]   # the gunner's own entry is his rifle
     guns = [x for x in shots.values() if x.get("shooter") in (zu23, tech)]
     by = {}
     for x in shots.values():

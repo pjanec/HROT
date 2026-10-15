@@ -1185,6 +1185,21 @@ door to the target.*
 | `RoundSpeed` and the range read a door gun's OWN mount (`MountDto`: mount `32 + k` ⇒ the weapon system's mount 0) | `CombatTkb.MountOf` reads only the aircraft's own suite |
 | rails: `AirAttackNodesTests.S6d_TheDoorsOffHelicopter_OrbitsTheTarget_ItsLeftDoorGunFires_UntilTheTargetIsDown` (DoorGunOrbit picked; on a 300–500 m band; counter-clockwise past a full turn; never below 60 m/s; at 100 m; only the left M134 fires and every round flown from the aim at 850 m/s + the helicopter's velocity passes within 2 m of the target; Success the frame the target dies) · `S6d_ADoorGunnerShot_HisGunFallsSilent_TheOrbitTurnsTheOtherDoorIn` (the left gun silent after its gunner falls, the orbit clockwise, the right gun fires; both down ⇒ Failure, no round after) · `S6d_ADoorGunOrbitOnAPoint_EndsAfterOneFullTurn` (a full turn ON the circle) · `FireProcessingSystemTests.S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity` | red-proved by 8 mutants: the turn's sign · the lead without the helicopter's velocity · the orbit steered at the target (it hovers) · no reversal · no DoorGunOrbit pick · the point strike's end at two turns · the approach's turning counted as orbit (red only after the on-circle assertion) · A4 from the bare weapon |
 
+### 9h. Live — `ua-air-defence` (`2026-10-15`, CE-2191 §7e + §7f)
+
+`scenarios/ua-air-defence` (basic-desert): an Apache on a running-fire attack and a door-gun UH-60 orbit against two pickups; a Stinger
+gunner (202) and a ZU-23-2 technical (110) on their default SOPs. `python3 scripts/utility-demo-check.py --launch ua-air-defence`:
+**PASS 4 / 4** (sim 58 s).
+
+| check | measured |
+|---|---|
+| ① the gunner fires a Stinger | 1 missile from the launcher (his rifle fired 97 rounds at the aircraft too — §7c's path) |
+| ① the Apache is warned | `MissileWarning` IR, 0.98 s to impact — then it breaks: 60 m → 25 m above the ground within 6 s (§7e E4) |
+| ② the ZU-23 engages | 50 rounds; the UH-60 down to 350 / 800 |
+
+⚠ **First run failed ①** — the gunner stood 78 m from the Apache's target and was killed before he could lock (aim 4 s). Moved 400 m
+clear of both targets. ⛔ Not shown yet: the flares themselves (no live readout of a decoy), and the Apache's re-attack after the break.
+
 ### 9g. Live — `ua-air-attack`, the showcase (`2026-10-15`)
 
 ⭐ `python3 scripts/utility-demo-check.py --launch ua-air-attack` — `scenarios/ua-air-attack`, four vignettes on `basic-desert`, every
