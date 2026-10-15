@@ -22,7 +22,7 @@ leans waiting on the user. Last built: CE-3203 (one fragment law for people, hul
 CE-1110 answered (already built in `c313ba0d7`). ⚠ §00 below is the 2026-10-10 programme — history for the current work.
 ⭐ **Progress (continuation session, `2026-10-15`):** ① **CE-2180 ✅ BUILT** — the release time crosses (`RaisedAt`), the SimHost steps the
 carrier back and flies the bomb forward in cue steps; live `ua-air-strike` burst **3.9 m** (was 20–27 m), all five checks PASS (Air Ops §8b).
-② **CE-3203 C4 ✅ measured** — a carried Javelin IS struck (Weapon Systems §5b). ③ C1–C5 APPROVED (R-3008). ④ **Next, the user's pick: CE-3183** (the SimHost suite red across classes in one run). Found: the far
+② **CE-3203 C4 ✅ measured** — a carried Javelin IS struck (Weapon Systems §5b). ③ C1–C5 APPROVED (R-3008). ④ **CE-3183 ✅ FIXED** (`bcf073b2e`): the SimHost suite's rotating OOMs were the kernel's mapping cap — undisposed test worlds rooted by `EntityRepository`'s strong self-handle; the handle is weak now ⇒ SimHost.Tests 1406/1 (the 1 = behaviors' CE2079 rail). Next: CE-3198 (the NLAW overfly top attack) unless the user says otherwise. Found: the far
 technical's ④ fails 3 of 4 live runs (AE5 holes a 100-health technical into a mobility kill at ~125 m) — reported, not changed; the whole
 SimHost suite is red at base too (CE-3183 broadened).
 
