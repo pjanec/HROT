@@ -42,7 +42,13 @@ public sealed class AudioTests
             Assert.InRange(max, peak - 2, peak + 1);                       // normalised, never clipping
             Assert.Equal(a, SoundSynthesizer.Make(sound.Synth));           // the same every time
             if (sound.Loop)
-                Assert.True(Math.Abs(a[0] - a[^1]) < 0.25 * short.MaxValue, $"{name}: the loop's end meets its start ({a[^1]} → {a[0]})");
+            {
+                // the seam (end → start) is no bigger a step than the clip's own steps: a cut without the cross-fade jumps between two
+                // unrelated points, which in a smooth bed (wind, town, rumble) is many times its largest step
+                int step = 0;
+                for (int i = 1; i < a.Length; i++) step = Math.Max(step, Math.Abs(a[i] - a[i - 1]));
+                Assert.True(Math.Abs(a[0] - a[^1]) <= 2 * step + 64, $"{name}: the loop's end meets its start ({a[^1]} → {a[0]}, largest step {step})");
+            }
         }
         var wav = SoundSynthesizer.Wav(new short[] { 1, -1, 2 });
         Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
@@ -171,7 +177,7 @@ public sealed class AudioTests
     public void CE1120_AShotIsHeardAfterItsSoundTravels_FromItsSide_HisOwnAtOnce()
     {
         var (world, tkb) = World();
-        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(4f, 0f, 0f));   // his gun 4 m off the ear (a station gun, a muzzle)
         var far = Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(343f, 0f, 0f));
         var near = Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(-50f, 0f, 0f));
         var (layer, output) = Listening(world, tkb, me);
@@ -191,7 +197,7 @@ public sealed class AudioTests
         Fire(world, me);
         layer.Update(0.016f);
         var own = output.Played.Skip(before).Single(v => v.Clip == SoundTkbCatalog.ShotSmall);
-        Assert.Equal(0f, own.Pan);
+        Assert.Equal(0f, own.Pan);   // his own: centred, though it is 4 m to his right
         Assert.Equal(3, layer.Sources.ShotsHeard);
     }
 
