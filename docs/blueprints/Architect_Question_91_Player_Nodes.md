@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (⭐ §4-I NEW, OPEN — rejoin, outages and stale nodes: the master trusts only what it witnessed;
+updated: 2026-10-15 (§4-I: I3 SUPERSEDED by I5 — a cluster SESSION ID, none exists today) ·
+  2026-10-15 (⭐ §4-I NEW, OPEN — rejoin, outages and stale nodes: the master trusts only what it witnessed;
   does not affect the dispatched batch) ·
   2026-10-15 (REVIEW AMENDMENTS, before any run started: §4-A′ the authority predicate must FAIL SAFE ·
   §4-D′ two name-match sites + the departure channel · §4-E′ the committed zone set is ANNOUNCED durably ·
@@ -716,6 +717,8 @@ batch builds P7 as written, and this section is the next handoff if approved.
 | ⭐ **a node sees the master leave, and does nothing with it** — the orchestrator runs a `ClusterSlave` and heartbeats like any node, so its departure IS observed; no code treats it as the end of the world | `OrchestratorSubsystem.cs:154`; `ClusterCapabilityIngestSystem.Departed` publishes only `NodeDeparted` |
 | ⛔ **the epoch was DESIGNED and never built** — `ClusterStateTopic.TransactionEpoch` is declared and **written nowhere**; the egress writes only `CurrentState` + `ExerciseId` | `OrchestrationMessages.cs:100`; `ClusterOpMasterTranslator.cs:89-93` · design: `mgmt-1/DESIGN.md` §4.2 *"incremented on every successful commit. A node that 'missed' a commit detects this…"* |
 | ⛔ **`ExerciseId` cannot tell two clusters apart** — it is caller-supplied per load, `Guid.Empty` when the caller gives none | `ClusterMaster.cs:1095-1101` |
+| ⛔⛔ **NO session / incarnation id exists anywhere** — and a node's id is a configured number, so a restarted node comes back under the SAME id | `grep -i "incarnation\|sessionid\|clusterid\|bootid"` over production `Hrot/` + `FDP/`: 0 hits; `HrotNodeBuilder.cs:163,232` (`_config.NodeId`), IG from its configured instance id (`IgApplication.cs:717`) |
+| ⭐ `ClusterStateTopic` is **keyless** (one instance), durable, written only by the master | `OrchestrationMessages.cs:92-101` |
 | ⭐ **a stale world IS cleared if the node is a target of the next load** — the load carries `IsWorldBoundary` and the slave accepts a commit from any state | `ClusterMaster.cs:1275`; `ClusterSlave.cs:411-421` |
 
 ### 4-I.2 ⭐ The proposal — two views of one rule
@@ -739,7 +742,7 @@ so the master never has to tell them apart.*
 stateDiagram-v2
   [*] --> Idle: process start, heartbeat 1 Hz
   Idle --> Following: commands from a master arrive
-  Following --> Idle: the master's ClusterState writer is gone
+  Following --> Idle: a new session id, or the master is gone
   Following --> Idle: the master orders a reset
 ```
 
@@ -750,15 +753,17 @@ otherwise does what the master says.*
 |---|---|---|
 | **I1** | ⭐⭐ **the master keeps an `InSync` set**: a node enters it only by ACKing the commit the master is currently at, and leaves it on ejection | ⭐ **LEAN.** The master is not restartable (`§4-E′`), so its memory IS the truth. Replaces "is the node's claimed state equal to the cluster's?" — a check that a node back from an outage passes while having missed a reload, and that a node from a dead cluster passes while holding another scenario |
 | **I2** | ⭐⭐ **the catch-up trigger is "in the roster and not `InSync`"**, and its FIRST step is a reset to `Idle` with the world boundary set | ⭐ **LEAN.** One path for every case. ⚠ Cost: a 6 s network blip makes a Player reload. The asset diff (`DESIGN_Asset_Management.md` §4) means no bytes move twice; only the load chain reruns |
-| **I3** | ⭐⭐ **a node drops to `Idle` on its own when the master's `ClusterState` writer goes not-alive** (the same reset as `§4-H`) | ⭐ **LEAN.** 🔒 *"master is not restartable, if it dies, the world ends."* ⭐ Keyed on the TOPIC's writer, ⛔ never on a subsystem name (`§4-D′`). On the editor the master is in-process and never departs ⇒ no special case (`R-4005`) |
+| ~~**I3**~~ | ⛔ **SUPERSEDED by I5** (same day, before approval): *"a node drops to `Idle` when the master's `ClusterState` writer goes not-alive."* ⛔ **Timing-dependent**: the topic is keyless, so if a new master's writer appears before the old one's lease expires (~10 s), the instance never goes not-alive (DDS instance semantics — not measured here) and the stale node is never told | — |
+| **I5** | ⭐⭐⭐ **A CLUSTER SESSION ID.** The master mints a GUID at process start and publishes it on `ClusterStateTopic` (one new field). Every node remembers the session it is following; **a different session id, or the master's writer gone, ⇒ the world it belonged to ended ⇒ drop to `Idle`** (the `§4-H` reset). The node also reports the session it follows in its heartbeat | ⭐ **LEAN.** Deterministic, no race: a stale node learns it is stale the moment it receives the new master's durable sample. 🔒 *"master is not restartable"* ⇒ one master = one session, so the id needs no persistence. ⭐ Not a network fact (`R-4005`): the editor's in-process master mints one too, and nothing ever differs. ⚠ A wire change — two fields — allowed where the design needs it (`R-169`) |
+| **I6** | ⚠ **stale DURABLE DATA leaking into a new session** — a surviving SimHost/CGF from a dead cluster re-delivers its `TransientLocal` entity descriptors to the new cluster's nodes before its I5 reset runs | ⭐ **LEAN: the I5 reset disposes them** (one frame of ghosts). ⛔ Rejected for now: a DDS **partition per session** on every data topic — airtight, but every writer and reader is re-created on each session change. ⚠ Revisit if one frame of ghosts is ever observed to matter. ⚠ **Not measured:** that the reset's world clear disposes the node's own published instances |
 | **I4** | ⚠ **write `TransactionEpoch`** (mgmt-1 §4.2) | ⭐ **LEAN: yes, but as telemetry.** Increment it on every committed transition and zone commit so the panel and the logs can show who is behind. ⛔ It does NOT decide membership — I1 does, and a node-side epoch comparison would be a second way to drive a node's state (rejected in `§4-E`) |
 
 | outage length | today | with I1–I3 |
 |---|---|---|
 | **< 5 s** | nothing happens; Reliable commands are retransmitted | the same |
 | **5–10 s** | master ejects; node keeps its world; on return it is silently re-admitted, and if a round ran meanwhile it never sees it | ⭐ master ejects; on return the node is `NotInSync` ⇒ reset + catch-up |
-| **> 10 s** | both sides also raise `NodeDeparted`: ownership reclaim (`R-167`), possession released (`§4-F`), then as above | ⭐ the node also drops to `Idle` itself (I3) ⇒ it comes back clean |
-| **master dies, node lives** | the node keeps showing a dead world in `OperatingLive`; a new master re-admits it at face value | ⭐ the node drops to `Idle` (I3); a new cluster sees an ordinary `Idle` late joiner |
+| **> 10 s** | both sides also raise `NodeDeparted`: ownership reclaim (`R-167`), possession released (`§4-F`), then as above | ⭐ as 5–10 s; the session id is unchanged, so the node keeps its world until the master resets it |
+| **master dies, node lives** | the node keeps showing a dead world in `OperatingLive`; a new master re-admits it at face value | ⭐ the new master's session id differs ⇒ the node drops to `Idle` (I5); the new cluster sees an ordinary `Idle` late joiner |
 
 ### 4-I.3 ⚠ What is NOT decided here
 
