@@ -90,6 +90,10 @@ Base: the merge of `ui@ea2510d94` + `behaviors@2205078a4` into `backend` (named 
 | docs | `tracker-counts.py --check` · `design-digest.py --check` · `rulings-check.py` · `mermaid-check.mjs` | see the commit | — | — |
 | tree | `git status` after every suite | clean of test output | — | — |
 
+## The shas
+
+The merge **`0c9905d94`**; AE5 and the steer's row 7 **`c313ba0d7`**, on `backend`.
+
 ## Ids allocated
 
 None — progress on `CE-2177` (AE5) and `CE-1102` (the steer).
