@@ -788,6 +788,7 @@ sequenceDiagram
 |---|---|
 | ★ `AirSense` (extracted: `ShelterFromAirNodes.SenseAir` / `FireAtDrone` are one-line calls now) · `AirDefenceNodes.CanEngageAir` (×2) / `EngageAircraft` + deactivator · `EngageAircraftParams` (`ClearSeconds` 10, `MinElevationDeg` 80) · `EngageAircraftState` · `EngageAircraftBehavior` · `BehaviorNames.EngageAircraft` · row 0 in `BasicInfantrySop` / `BasicVehicleSop` (+ `airSense`, `airDefence` variables) | as the class diagram |
 | rails — `AirDefenceNodesTests`: `CE2191_AMANPADSGunnerAndAZU23Technical_CanEngageAircraft_ARiflemanAnM2TechnicalAnATGMTechnicalCannot` (the REAL catalogue types, seat presets filled) · `CE2191_EngageAircraft_FiresAtTheAircraft_NotTheTopThreat_AndEndsWhenTheSkyIsClear` | |
+| mutants — 6 / 6 red: any machine gun counts · the controlled weapons not walked · an ATGM launcher counted · fire at the top threat · never clear · a dead aircraft still about (entity liveness instead of Health) | ⚠ the Ground-domain SAM arm of `AirCapable` has no catalogue type to exercise it (no SAM launcher carries a Ground-only missile) — kept as the rule CE-2187's `TargetDomain` states |
 
 ## 8. The bomb (A3, A4, A6, B6)
 

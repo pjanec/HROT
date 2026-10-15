@@ -76,7 +76,8 @@ namespace Hrot.SimHost.Tests
         /// gun, +90°) CAN engage an aircraft; a rifleman (an M4), an M2 / DShK technical (a 70° pintle), a bare pickup CANNOT; lowering the
         /// gun threshold to 70° admits the M2.
         /// ✅ Red-proofs (mutants): any machine gun counts ⇒ the M2 technical answers true ⇒ red; the controlled weapons not walked ⇒ the
-        /// gunners and the ZU-23 answer false ⇒ red; a Ground-domain SAM counted ⇒ red on the ATGM technical.
+        /// gunners and the ZU-23 answer false ⇒ red; an ATGM launcher counted ⇒ red on the ATGM technical. (⚠ The Ground-domain SAM arm
+        /// has no catalogue type to exercise it — no SAM launcher carries a Ground-only missile.)
         /// </summary>
         [Fact]
         public void CE2191_AMANPADSGunnerAndAZU23Technical_CanEngageAircraft_ARiflemanAnM2TechnicalAnATGMTechnicalCannot()
@@ -122,7 +123,8 @@ namespace Hrot.SimHost.Tests
         /// ⭐ <c>CE-2191</c> — <see cref="AirDefenceNodes.EngageAircraft"/> on a ZU-23 technical with a helicopter in its memory: it issues
         /// AimAndFire at the HELICOPTER (not at the top threat — a nearer truck in memory is ignored), never moves, stops the fire when the
         /// helicopter is dead, and succeeds once nothing has been in the air for <c>ClearSeconds</c>.
-        /// ✅ Red-proofs (mutants): firing at the top threat ⇒ the truck ⇒ red; never clearing ⇒ Running past 10 s ⇒ red.
+        /// ✅ Red-proofs (mutants): firing at the top threat ⇒ the truck ⇒ red; never clearing ⇒ Running past 10 s ⇒ red; a dead
+        /// aircraft still about (entity liveness, not Health) ⇒ still firing after the kill ⇒ red.
         /// </summary>
         [Fact]
         public unsafe void CE2191_EngageAircraft_FiresAtTheAircraft_NotTheTopThreat_AndEndsWhenTheSkyIsClear()
