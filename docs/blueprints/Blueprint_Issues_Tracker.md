@@ -43,6 +43,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | `ui` | **`CE-1000` – `CE-1999`** | `CE-1085` |
 > | `behaviors` | **`CE-2000` – `CE-2999`** | `CE-2178` *(`CE-2010`–`CE-2029` reserved for the typed-event-nodes batch; it used `CE-2010`–`CE-2017`; the lane resumed at `CE-2018`)* |
 > | `backend` | **`CE-3000` – `CE-3999`** | `CE-3203` |
+> | `coordinator` *(added `2026-10-15`)* | **`CE-4000` – `CE-4999`** | `CE-4000` |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
 > ⭐ Ids below `CE-1000` stay as they are (highest in use `CE-524`, measured `2026-10-02` at the `backend` merge). ⛔ **Never renumber.**

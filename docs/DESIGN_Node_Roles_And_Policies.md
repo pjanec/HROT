@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-13
+updated: 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
-  capability), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
+  capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
+  handler), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
   merely CONVENTION.
@@ -32,6 +33,9 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Unified_Cluster_Handler_Registration.md — owns WHICH cluster handlers each host registers and in
+    what ORDER (CE-279); §3.3 here owns the rule that the set is the same everywhere and a ROLE, not a missing
+    handler, makes a node behave differently.
   - docs/DESIGN_Terrain_World.md — the LOS-against-terrain reader §3.2 named as its reopen trigger now exists (Q81 T4): Perception and Map2D load the terrain world.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file, the
     ECS singleton, the zone ops, the asset build). ⚠ CORRECTED 2026-09-18: an earlier version of this
@@ -242,6 +246,34 @@ the requirement is a **default with a named home**, in the same sense as everyth
 📄 **The mechanism** — the ordered load-phase chain, the single acknowledgement, and the content names on
 the load message — is owned by [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md). ⛔ This
 section states only **which role needs what**, and is not restated there.
+
+### 3.3 ⭐⭐⭐ ONE CODE PATH ON EVERY NODE — **a difference in behaviour comes from the ROLE, never from a missing handler** *(user, `2026-10-15`, `R-4000`)*
+
+> 🔒 **User, verbatim:** *"I forced the design of the nodes to be unified, so all the nodes support handlers for
+> recording, replay and so on. So if we want to disable it, we need to do it via roles so the code stays unified."*
+> · and on the multiplayer Player node: *"if we make stuff more robust, we could stay largely unified"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every node registers the same cluster handlers** | ⛔ a host bootstrap never OMITS a handler to switch a behaviour off — that is the per-host drift `DESIGN_Unified_Cluster_Handler_Registration.md` §3 measured |
+| ⭐⭐ **when a node must behave differently, its ROLE decides** | ⭐ the §3.2 shape: the role declares the WHAT, the host supplies the HOW. ⛔ It is still not a permission gate (§3.1) |
+| ⭐⭐ **prefer a more robust SHARED path to a per-role exception** | ⭐ a role-driven exception is the fallback, ⛔ not the first move |
+| ⛔ **the role → behaviour map is APPLICATION code** | 🔒 `NodeRole.cs` header (user, `2026-09-12`): the engine *"may never map one to a set of components, a system, or a behaviour"* ⇒ the map lives in Hrot, never in FDP |
+
+📐 **The precedent already in the tree** *(measured `2026-10-15`)*: IG registers the same replay and live-load handlers
+as SimHost and CGF (`IgNodeBootstrapper.cs:412,423`) and differs only in the HOW it hands them —
+`ListenerRecordReplayController`, which *"participate[s] in the cluster handshake but do[es] not record or replay ECS
+frame data"* and ACKs every phase. During a replay the owning nodes restore and their egress re-publishes the world, so
+a listener node sees it over the network (`docs/designs/mgmt-1/DESIGN.md` §8.10). ⚠ **That HOW is still chosen by the
+IG bootstrap, not derived from the role** — making it role-derived is `CE-279`'s deferred A2.
+⚠ **One gap against the rule:** IG registers no `ReferenceArchiveHandler` (CGF, SimHost and ExCon do), so it abstains
+from `SerializeLocal` through the no-handler path (`ClusterSlave.cs:473`) rather than through the shared handler.
+
+⭐ **OPEN, not ruled — the multiplayer Player node.** Measured: a Player that is an IG node already takes part in
+recording and replay as a listener, so it needs NO role-driven exception there. What it needs is a 2PC that a
+volatile node can neither veto nor hang (`EjectNode` returns early for a non-mandatory node and the round keeps
+waiting — `ClusterMaster.cs:700`, `:1828`) and a step barrier that drops a node that has gone
+(`MasterSyncController.cs:566-580`). No owning design yet.
 
 ---
 
