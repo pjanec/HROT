@@ -487,6 +487,48 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, status);
         }
 
+        /// <summary>
+        /// ⭐ Slice 6c, found live (ua-air-attack ②, `2026-10-15`) — an entity attack's gun aims at the target's MIDDLE (its hull's half
+        /// height, <see cref="AimPoint.Middle"/> — the height FireProcessingSystem aims at), not at its ground point: aimed at the ground in a
+        /// 3° gun pass every 30 mm round burst ~7 m short of the truck. ✅ Red-proof: the middle dropped ⇒ every aim point at Z 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6c_AGunRunAimsAtTheTargetsMiddle_NotItsGroundPoint()
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                _w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!_w.IsComponentTypeRegistered<Health>()) _w.RegisterComponent<Health>();
+            var plane = SpawnPlane(new Vector3(-7000f, 0f, 50f), GunPlane, 1100);
+            var truck = _w.CreateEntity();
+            _w.AddComponent(truck, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _w.AddComponent(truck, new SimVelocity());
+            _w.AddComponent(truck, new Health { Current = 1e6f, Max = 1e6f });
+            _w.AddComponent(truck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2.5f, Height = 2f });
+            var p = new AirAttackParams { Target = truck, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            var aims = new System.Collections.Generic.List<float>();
+            for (int frame = 0; frame < 60 * 60 && aims.Count < 20; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+                AirAttackNodes.Run(ref p, ref ws, plane, _w);
+                ref var wc = ref _w.GetComponentRW<WeaponChannel>(plane);
+                if (wc.ActiveAction == CombatConstants.ActionIdFireAtPoint)
+                {
+                    if (wc.ActionInstanceId != entered) { executor.OnEnter(plane, ref wc, _w); entered = wc.ActionInstanceId; }
+                    executor.Execute(plane, ref wc, _w, Dt);
+                }
+                ref var w = ref _w.GetComponentRW<WeaponState>(plane);
+                w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
+                _w.Bus.SwapBuffers();
+                foreach (ref readonly var i in _w.Bus.Read<WeaponFireIntent>()) aims.Add(i.TargetPoint.Z);
+                FlyStandIn(plane, 150f, plane: true);
+            }
+            Assert.True(aims.Count >= 5, $"the gun fired: {aims.Count} rounds");
+            Assert.All(aims, z => Assert.InRange(z, 0.95f, 1.05f));   // the 2 m hull's middle — the plane flies level, so the lead adds no height
+        }
+
         // ── ⭐ Slice 6d (Air Operations §9f) — DoorGunOrbit ─────────────────────────────────────────────────────────────────────────
 
         private const long DoorHeli = 9412, DoorGun = 9413;
