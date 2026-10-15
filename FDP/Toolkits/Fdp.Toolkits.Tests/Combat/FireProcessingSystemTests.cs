@@ -554,6 +554,32 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Empty(WarningsAt(SpawnTarget(new Vector3(300f, 0f, 0f))));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2190</c> (Weapon Systems §5c, AD5) — a ZU-23-2 round (no proximity fuze, no dispersion here) at a helicopter crossing at
+        /// 60 m/s, 150 m up and 1 km out, is AIMED AHEAD by AT2's lead so that its straight path passes within the helicopter's 1.5 m body
+        /// radius of where the helicopter IS at that moment — it hits by geometry alone. 🔴 Red-proof: unled, it passes ~50 m behind.
+        /// </summary>
+        [Fact]
+        public void CE2190_AZu23RoundAtAHelicopterCrossingAtAKilometre_MeetsIt()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var heliAt = new Vector3(1000f, 0f, 150f);
+            var crossing = new Vector3(0f, 60f, 0f);
+            var heli = SpawnTarget(heliAt);
+            _world.AddComponent(heli, new SimVelocity { Linear = crossing });
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            PublishIntent(SpawnShooter(Vector3.Zero, muzzleVelocity: 1250f), heli);   // the BDC mount's speed (range 2 500 × 0.5)
+            _sys.Execute(_world, 0.016f);
+            var round = Assert.Single(Rounds());
+            var p0 = _world.GetComponent<SimTransform>(round).Position;
+            var v = _world.GetComponent<SimVelocity>(round).Linear;
+            var aimAt = AimPoint.Middle(_world, heli, out _, out _);
+            float closest = float.MaxValue;
+            for (float t = 0f; t < 2f; t += 0.0005f)
+                closest = MathF.Min(closest, Vector3.Distance(p0 + v * t, aimAt + crossing * t));
+            Assert.True(closest <= 1.5f, $"the round passes {closest:0.0} m from the helicopter");
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();

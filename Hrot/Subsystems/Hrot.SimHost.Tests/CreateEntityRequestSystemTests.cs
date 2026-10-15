@@ -221,6 +221,7 @@ namespace Hrot.SimHost.Tests
         [InlineData(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 3, 4, 3)]
         [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Dshk, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_DshkHmg, 1, 2, 0)]
         [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Minigun, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, 1, 2, 0)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Zu23, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Zu23, 1, 2, 0)]   // ⭐ CE-2190
         public void P1_APlacedArmedVariant_HoldsItsWeaponAndGunner_AndALoadAddsNeither(long hostType, long weaponType, int gunnerSeat,
                                                                                         int stationSeat, int riders)
         {
@@ -278,6 +279,57 @@ namespace Hrot.SimHost.Tests
             Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, gun));
             Assert.Equal(riders, Fdp.Toolkit.Behavior.Embarkation.CapacityOf(w, vehicle));   // the HMMWV's three passenger seats …
             if (riders > 0) Assert.Equal(0, Fdp.Toolkit.Behavior.Embarkation.FreeSeat(w, vehicle));   // … all still free
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2187</c> (DESIGN_Weapon_Systems §5c) — a placed MANPADS gunner (202) comes with his Stinger (613): ONE more spawn command
+        /// (the launcher, for his carry station — seat 1), and once the preset fills it the launcher rides on his back, HE controls it
+        /// (it fires carried) and it can fire. The first soldier preset with a weapon on his back.
+        /// </summary>
+        [Fact]
+        public void CE2187_APlacedStingerGunner_CarriesALauncherHeCanFire()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var repo = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = Hrot.Map.Common.TkbEntityTypes.Infantry_StingerGunner,
+                DisType = ValidDisType, PreAllocatedNetworkId = 901, InitialComponents = new List<object> { new EntityInfo { Name = "S1", ForceId = ForceId.Friend } },
+            });
+            var (system, _, _) = BuildSystem(tkb, source);
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>().ToArray();
+            Assert.Equal(2, commands.Length);   // the soldier + his launcher
+            var launcherCmd = Assert.Single(commands, c => c.TkbType == Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Stinger);
+            Assert.Equal(1, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)launcherCmd.InitialComponents!
+                .Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat);
+
+            using var w = new EntityRepository();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var launcher = w.CreateEntity();
+            new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(w, launcher, tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_Stinger));
+            w.AddComponent(launcher, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 901, Seat = 1 });
+            var soldier = w.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(w, soldier, tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Infantry_StingerGunner));
+            w.AddComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+            map.Register(901, soldier);
+            new Hrot.Common.EntityCreation.SeatPresetSystem(map).Execute(w, 0f);
+
+            Assert.Equal(launcher, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(soldier).Passengers[1]);
+            Assert.Equal(soldier, Fdp.Toolkit.Combat.WeaponSystems.ControllerOf(w, launcher));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, launcher));
         }
 
         /// <summary>A technical's TKB: a host with a driver seat, a gunner seat starting with a rifleman and a pintle station starting
