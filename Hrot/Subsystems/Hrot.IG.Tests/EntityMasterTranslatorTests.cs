@@ -530,25 +530,31 @@ public class EntityMasterTranslatorTests
         using var owner = new DdsWriter<EntityMaster>(ownerParticipant);
         using var stranger = new DdsWriter<EntityMaster>(strangerParticipant);
 
-        int? aliveFrom = null, disposedFrom = null; bool sawDispose = false;
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (aliveFrom == null && DateTime.UtcNow < deadline)
+        int? aliveFrom = null, strangerKnown = null, disposedFrom = null; bool sawDispose = false;
+        // ⭐ Wait until BOTH writers' identities resolve (the library looks them up from an async loop — under a busy suite
+        //   this lags, measured: CE-517). The guard's claim is about a writer whose identity IS known.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while ((aliveFrom == null || strangerKnown == null) && DateTime.UtcNow < deadline)
         {
             owner.Write(new EntityMaster { EntityId = 501 });
-            stranger.Write(new EntityMaster { EntityId = 900 });   // the stranger's identity must be known too
+            stranger.Write(new EntityMaster { EntityId = 900 });
             Thread.Sleep(100);
             using var loan = reader.Take();
             int i = 0;
             foreach (var sample in loan)
             {
-                if (sample.Info.InstanceState == DdsInstanceState.Alive && sample.IsValid && sample.Data.EntityId == 501)
-                    aliveFrom ??= loan.GetSender(i)?.AppInstanceId;
+                if (sample.Info.InstanceState == DdsInstanceState.Alive && sample.IsValid)
+                {
+                    if (sample.Data.EntityId == 501) aliveFrom ??= loan.GetSender(i)?.AppInstanceId;
+                    if (sample.Data.EntityId == 900) strangerKnown ??= loan.GetSender(i)?.AppInstanceId;
+                }
                 i++;
             }
         }
+        Assert.Equal(7, strangerKnown);
 
         stranger.DisposeInstance(new EntityMaster { EntityId = 501 });
-        deadline = DateTime.UtcNow.AddSeconds(10);
+        deadline = DateTime.UtcNow.AddSeconds(30);
         while (!sawDispose && DateTime.UtcNow < deadline)
         {
             Thread.Sleep(50);
