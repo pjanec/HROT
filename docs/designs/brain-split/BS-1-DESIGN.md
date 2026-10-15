@@ -342,7 +342,7 @@ classDiagram
     Entity Target
     int WeaponIndex
     bool IsRemote
-    +long Munition
+    +long AmmoGuid
     +Entity Round
     +Vector3 Origin
     +Vector3 Velocity
@@ -354,7 +354,7 @@ classDiagram
     long ShooterEntityId
     long TargetEntityId
     int WeaponIndex
-    +long Munition
+    +long AmmoGuid
     +long RoundEntityId
     +float OriginX_Y_Z
     +float VelocityX_Y_Z
@@ -390,12 +390,12 @@ sequenceDiagram
   B->>S: WeaponFireIntent / WeaponFireRequest (WeaponIndex=Countermeasures, AmmoGuid=flare) - the existing request path
   S->>S: FireProcessingSystem skips the Countermeasures slot, CountermeasureSystem takes it
   S->>S: spawn Quantity Decoy entities, each at DecoyFlight.At(origin, v, i, t)
-  S->>S: publish WeaponFireNotification(Shooter=aircraft, WeaponIndex=Countermeasures, Munition=flare 8.2.2, Origin, Velocity, Quantity)
+  S->>S: publish WeaponFireNotification(Shooter=aircraft, WeaponIndex=Countermeasures, AmmoGuid=flare 8.2.2, Origin, Velocity, Quantity)
   S->>N: egress (as every fire)
   N->>V: ingress, IsRemote
   V->>V: EffectSpawnSystem: expendable, so Quantity moving flare effects (Lifespan), no muzzle flash
   V->>V: Sound / Heat: expendable, so skipped
-  Note over S,V: a gun shot runs the same path, Munition = the round actually fired, so the flash is the fired round's
+  Note over S,V: a gun shot runs the same path, AmmoGuid = the round actually fired, so the flash is the fired round's
 ```
 
 ```mermaid
@@ -419,10 +419,11 @@ event or the ingressed one — the one-world editor reads the local event and ha
 
 | # | decision | why |
 |---|---|---|
-| F1 | ⭐ the notification carries **`Munition`** (the round actually fired, the tracer when it was one), **`Round`** (the spawned round, null when none), **`Origin`**, **`Velocity`**, **`Quantity`** (1 per shot), **`FiredAt`** (sim time) | DIS Fire PDU parity: munition descriptor type + quantity, location, velocity, munition id. ⛔ Warhead / fuze are NOT copied: they are the munition TYPE's (`ParameterResolver`), as DIS's descriptor names them by type |
+| F1 | ⭐ the notification carries **`AmmoGuid`** (the round actually fired, the tracer when it was one), **`Round`** (the spawned round, null when none), **`Origin`**, **`Velocity`**, **`Quantity`** (1 per shot), **`FiredAt`** (sim time) | DIS Fire PDU parity: munition descriptor type + quantity, location, velocity, munition id. ⛔ Warhead / fuze are NOT copied: they are the munition TYPE's (`ParameterResolver`), as DIS's descriptor names them by type |
+| F1a | ⭐ the round's type is named **`AmmoGuid`** on the notification and the wire, as on `WeaponFireIntent` / `WeaponFireRequest` and the mount | 🔒 user, `2026-10-15`: *"Use AmmoGuid."* — one name along the fire pipeline (request, notification, mount). The detonation side's `Ammo` / `MunitionType` is a separate rename, not in CE-1111 |
 | F2 | appended at the END of both structs | R-169; the precedent is `WeaponFireRequest`'s appended M8 / IF-1 / CE-2180 fields |
-| F3 | every reader uses `Munition`, never the slot's default | the defect |
-| F4 | ⭐ a countermeasure release IS a fire, BOTH ways: the brain asks with the existing `WeaponFireIntent` / `WeaponFireRequest` (`WeaponIndex = WeaponSlots.Countermeasures`, `AmmoGuid` = flare or chaff type), and the SimHost reports with the notification (`Munition` = the expendable, DIS kind 8: flare 8.2.2, chaff 8.2.1; `Quantity` = the salvo) | 🔒 the user's ruling; DIS 7 sends it as a Fire PDU with an expendable descriptor. ⛔ no countermeasure message either way — this SUPERSEDES Missiles & Ammo §3c's `DispenseCountermeasureIntent` / `DispenseCountermeasure` (dt 134) and its two translators |
+| F3 | every reader uses `AmmoGuid`, never the slot's default | the defect |
+| F4 | ⭐ a countermeasure release IS a fire, BOTH ways: the brain asks with the existing `WeaponFireIntent` / `WeaponFireRequest` (`WeaponIndex = WeaponSlots.Countermeasures`, `AmmoGuid` = flare or chaff type), and the SimHost reports with the notification (`AmmoGuid` = the expendable, DIS kind 8: flare 8.2.2, chaff 8.2.1; `Quantity` = the salvo) | 🔒 the user's ruling; DIS 7 sends it as a Fire PDU with an expendable descriptor. ⛔ no countermeasure message either way — this SUPERSEDES Missiles & Ammo §3c's `DispenseCountermeasureIntent` / `DispenseCountermeasure` (dt 134) and its two translators |
 | F5 | one check, `Munitions.IsExpendable` (DIS kind 8), at each reader: effects draw the expendable's own look, sound and heat skip it | a dispenser is not a gun: no flash, no report, no barrel heat |
 | F6 | the flare's path is ONE function of the event (`DecoyFlight.At`), used by the SimHost's decoy AND the viewers' effect | every node draws the flare where the seeker sees it, with no streamed positions |
 

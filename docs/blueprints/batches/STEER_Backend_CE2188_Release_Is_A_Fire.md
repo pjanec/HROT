@@ -27,9 +27,12 @@ fire, why not us?"*
 |---|---|---|
 | brain → SimHost | `DispenseCountermeasureIntent` + DDS `DispenseCountermeasure` (dt 134) + two translators | ⭐ the existing `WeaponFireIntent` / `WeaponFireRequest`: `WeaponIndex = WeaponSlots.Countermeasures` (-1), `AmmoGuid` = the flare or chaff munition type |
 | on the SimHost | `CountermeasureSystem` reads the intent | `FireProcessingSystem` skips the Countermeasures slot; `CountermeasureSystem` takes those intents and spawns the decoys |
-| SimHost → everyone | nothing (decoys never replicated) | ⭐ a `WeaponFireNotification` for the release: `Shooter` = the aircraft, `WeaponIndex` = Countermeasures, `Munition` = the expendable type, `Origin` / `Velocity` = the aircraft's, `Quantity` = the salvo, `FiredAt` — the existing egress sends it |
+| SimHost → everyone | nothing (decoys never replicated) | ⭐ a `WeaponFireNotification` for the release: `Shooter` = the aircraft, `WeaponIndex` = Countermeasures, `AmmoGuid` = the expendable type, `Origin` / `Velocity` = the aircraft's, `Quantity` = the salvo, `FiredAt` — the existing egress sends it |
 | the decoy's path | "at the aircraft, its velocity, falling" | ⭐ ONE function, `DecoyFlight.At(origin, velocity, i, t)` (Fdp.Toolkits Combat), used by your decoys AND by every viewer's flare effect — so every node draws the flare where the seeker sees it |
 | the munition types | — | flare and chaff as TKB munition types with DIS kind 8 (flare 8.2.2, chaff 8.2.1), so `Munitions.IsExpendable` can tell them from rounds |
+
+⭐ **Naming** (user, `2026-10-15`: *"Use AmmoGuid."*): the round's / expendable's TKB type is `AmmoGuid` on the notification and on the
+`WeaponFire` wire, the same name as on the request and the mount; the spawned round's network id is `RoundEntityId`.
 
 ## Who builds what
 
