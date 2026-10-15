@@ -90,6 +90,10 @@ Base: `backend` after the merges of `ui@54088ca74` and `behaviors@b98e9914b`. On
 ⚠ Not run: the E2E / system suite (T3) and a live `ua-air-strike` / `ua-indirect-fire` run — the behaviours lane's demos will now show
 smaller casualty counts at range (a man 121 m from the bomb is wounded, not killed).
 
+## The shas
+
+The merges `49da27177` (ui) and `8bdbca21a` (behaviors); CE-3203 and the CE-1110 answer **`84c27344e`**, on `backend`.
+
 ## Ids allocated
 
 **`CE-3203`** (backend block). Answered: `CE-1110` (ui's row, a line added — cross-lane, said in the commit).
