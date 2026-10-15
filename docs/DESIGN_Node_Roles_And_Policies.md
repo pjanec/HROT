@@ -329,6 +329,11 @@ the name survives only in a `.dev` batch review as a deviation. ⭐ `EditorCapab
 
 ---
 
+✅ **BUILT `2026-10-15` (P2a)** — `EditorSubsystem` now declares `EditorCapabilities.DefaultRole` to the roster. 📐 Measured live:
+`GET /cluster/roster` on a headless editor reads `"roles":"Brain, MuscleGround, Perception, NavigationSolver"` (was `None`); a
+`hill-attack` live load still succeeds (32 entities) — the new `needs:scenario` advert only stages a COPY into the editor's own
+staging folder (`/tmp/FDP_Temp/nodes/node-0/scenarios/…`), nothing is overwritten.
+
 ## 4. ⭐⭐ OWNERSHIP — **a role is an EXPECTATION, the mask is the fact**
 
 | ⭐ | |

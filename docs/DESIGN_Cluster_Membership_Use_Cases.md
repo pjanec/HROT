@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+updated: 2026-10-15 (§3.1: CE-4002 routes BUILT and run live) · 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
   multi-process cluster the same day)
 build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
 current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
@@ -76,7 +76,7 @@ role (Q91 §4-L L4, formerly "best-effort").
 | **UC-8** | an outage of 5–10 s, or longer | the node is reset and caught up when it returns | 🔴 *code*: it is silently re-admitted and believed | Q91 §4-I I1, I2 |
 | **UC-9** | the master dies, a Player lives | the Player drops to `Idle` — its world ended | 🔴 *code*: it keeps showing the dead world | Q91 §4-I I5 |
 | **UC-10** | a Player from a dead cluster meets a new one | reset, then caught up like any joiner | 🔴 *code*: re-admitted at face value | Q91 §4-I I5 |
-| **UC-11** | a Player joins during a replay | the same catch-up into `OperatingReplay`; world from the owners' flood | ⛔ **not testable today** — no route drives a cluster replay (`CE-4002`) | Q91 §4-L L3 |
+| **UC-11** | a Player joins during a replay | the same catch-up into `OperatingReplay`; each node restores its own span, listens outside it (R-4012) | ⚠ testable now (`POST /cluster/transition` with `exerciseId`) — not yet run | Q91 §4-L L3 |
 | **UC-12** | the operator cancels a stuck load | every node returns to `Idle`; the load can be re-issued | 🔴 *code*: cancel never reaches a load | Q91 §4-H, R-4004 |
 | **UC-13** | a scenario is loaded over a loaded one | nothing of the old world remains — on any node, or on the wire | 🔴 the old run's entities stay alive on the wire; a late joiner receives them (`CE-4000`) | Q91 §4-L L2 prerequisite |
 | **UC-14** | the creator (CGF) crashes | its entities go everywhere; a later joiner sees none | ✅ gone on every survivor after ~11 s; a later joiner received none | — |
@@ -110,14 +110,18 @@ $S stop-all
 | departures as each node saw them | `/tmp/n-<mode>-<port>.log`: `ClusterCapabilityIngest] node N left` |
 | what is ON THE WIRE (what a late joiner will get) | `ddsmonitor` (runbook §5a), then group by `TopicTypeName`, read `InstanceState` and `Sender` |
 
-### 3.1 ⛔ What cannot be tested over HTTP yet — `CE-4002`
+### 3.1 ✅ The membership routes — `CE-4002`, BUILT `2026-10-15`
 
-| missing | needed for | proposed route |
+| route | answers / does | served by |
 |---|---|---|
-| the master's roster as the master sees it | UC-4, 5, 6, 8 (today: the orchestrator log) | `GET /cluster/roster` → per node: id, subsystem, reported state, roles, last heartbeat; later `instanceId`, `inSync` |
-| driving a CLUSTER transition with a target state and exercise id | UC-11 (replay), UC-12 (cancel) | `POST /cluster/transition {target, scenario, exerciseId, timeMode}` and `POST /cluster/cancel {targetId}` — published as the same intents the operator panel sends |
+| `GET /cluster/roster` | the MASTER's roster: per node `nodeId`, `subsystem`, `reportedState` (the node's own claim), `roles`, `secondsSinceHeartbeat` (aged by the clock the 5 s ejection uses) | the node hosting the `ClusterMaster` — the orchestrator process (`-m orchestrator`), or the editor's in-process core. Elsewhere: `503` naming the reason |
+| `POST /cluster/transition {target, scenario?, exerciseId?, timeMode?, targetWallTicks?}` | publishes ONE `TransitionStateIntent` exactly as the operator panel does; answers its `transactionId` | any node with an orchestration bus (each node's egress carries it to the master) |
+| `POST /cluster/cancel {targetId}` | publishes the operator's `CancelOperationIntent` (R-4004) for that `transactionId` | any node with an orchestration bus |
 
-⭐ Both read or publish what already exists (the roster, `TransitionStateIntent`, `CancelOperation`); neither adds behaviour.
+⭐ None adds behaviour: a read of the master's roster, and the panel's own intents. ⚠ Both POSTs are asynchronous — they
+confirm PUBLISHED; read `/status` or `/cluster/roster` for the outcome. 📐 **Live `2026-10-15`:** the roster read 4 nodes from
+the orchestrator; a transition to `OperatingLive` with `"scenario":"test-move"` published from the **Player's** API loaded the whole
+cluster; a cancel reached the master (*"no active operation found"* — correct, the load had completed).
 
 ## 4. 📐 The measured run — `2026-10-15`
 

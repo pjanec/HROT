@@ -315,6 +315,10 @@ namespace Hrot.Editor.DebugApi
                               // ⭐ HN-029: the editor is a ONE-NODE cluster and its own ClusterMaster reads
                               //   the bus the composition root hands over ⇒ it can request a transition.
                               [Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad]     = true,
+                              // ⭐ CE-4002: the editor runs the ONE OrchestratorCore in-process (R-215), so it holds
+                              //   the master's roster and the bus a cancel travels on.
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster]    = true,
+                              [Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel]    = true,
                           }
                         : null)))));
 
@@ -1420,6 +1424,26 @@ namespace Hrot.Editor.DebugApi
                 // ⭐ 503 = this host cannot ask at all; 400 = the caller's request was malformed.
                 return Fail(error.StartsWith("This host cannot", StringComparison.Ordinal) ? 503 : 400,
                             error, hintCategory);
+            })));
+
+            // ⭐⭐ CE-4002 — the membership routes (docs/DESIGN_Cluster_Membership_Use_Cases.md §3.1). 503 = this host
+            //    has no master / no bus to ask; 400 = the caller's request was malformed.
+            _routes.Add(new("GET", "/cluster/roster", _ => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.GetClusterRoster();
+                return error != null ? Fail(503, error, hintCategory) : Ok(result);
+            })));
+            _routes.Add(new("POST", "/cluster/transition", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.RequestClusterTransition(ctx.Body);
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, error, hintCategory);
+            })));
+            _routes.Add(new("POST", "/cluster/cancel", ctx => RunMainResult(s =>
+            {
+                var (result, error, hintCategory) = s.RequestClusterCancel(ctx.Body);
+                if (error == null) return Ok(result);
+                return Fail(error.StartsWith("No subsystem", StringComparison.Ordinal) ? 503 : 400, error, hintCategory);
             })));
 
             _routes.Add(new("GET", "/cluster/diagnostics/status", _ => RunMainResult(s =>

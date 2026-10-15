@@ -103,6 +103,14 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private readonly Dictionary<Guid, GenericTransactionTracker> _pendingTransactions = new();
 
+    /// <summary>
+    /// ⭐⭐ P1 (Q91 §4-B, B1) — per round, the ACKs each target node still OWES. Recorded at fan-out (every op but
+    /// <c>CommitState</c>, which the slave applies without an ACK — <c>ClusterSlave.cs:411-422</c>), paid off by each ACK,
+    /// and subtracted from the round when the node is EJECTED, so a round never waits for a node that is gone.
+    /// ⭐ Per node and per round, not "minus one": a multi-step transition owes one ACK per prepare step.
+    /// </summary>
+    private readonly Dictionary<Guid, Dictionary<int, int>> _owedAcks = new();
+
     // ── L8: the PARKED transition ─────────────────────────────────────────
     /// <summary>
     /// ⭐⭐⭐ <c>L8</c> — a transition that has been PLANNED but not yet FANNED OUT, because the scenario's
@@ -348,6 +356,7 @@ public sealed class ClusterMaster : IDisposable
         ProcessAssetOpIntents();   // ⭐ CE-3021 — publish / refresh arriving on the bus (remote panel)
 
         ConsumeNodeOpStatuses();
+        PruneOwedAcks();   // ⭐ P1
     }
 
     // ── UI / test injection path ──────────────────────────────────────────
@@ -695,6 +704,9 @@ public sealed class ClusterMaster : IDisposable
         _roster.Remove(nodeId);
         FdpLog<ClusterMaster>.Warn("[Orchestrator] Node {0} ({1}) ejected (heartbeat timeout).",
             nodeId, profile.SubsystemName);
+
+        // ⭐⭐ P1 — for EVERY node, mandatory or not: a round never waits for a node that is gone.
+        DropFromInFlightRounds(nodeId);
 
         bool isMandatory = Array.IndexOf(_config.Mandatory, profile.SubsystemName) >= 0;
         if (!isMandatory) return;
@@ -1732,6 +1744,7 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var nodeId in targetNodeIds)
         {
+            if (operation != NodeOpType.CommitState) OweAck(transactionId, nodeId);   // ⭐ P1
             _eventBus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = transactionId,
@@ -1796,9 +1809,17 @@ public sealed class ClusterMaster : IDisposable
                 continue;
 
             // AbortOnFirstFailure: reject immediately on the first node error (ManageEpisode policy).
-            if (ev.StatusCode.IsError() && tracker.AbortOnFirstFailure)
+            // ⭐⭐ P2 / C1 (Q91 §4-C, R-4014) — an OBSERVER's error is recorded in the round's responses but never fails it.
+            bool authoritativeError = ev.StatusCode.IsError() && !IsObserver(ev.NodeId);
+            if (ev.StatusCode.IsError() && !authoritativeError)
+                FdpLog<ClusterMaster>.Warn(
+                    "[Orchestrator] P2: observer node {0} answered {1} for round {2} — recorded, the round goes on.",
+                    ev.NodeId, ev.StatusCode, ev.TransactionId);
+
+            if (authoritativeError && tracker.AbortOnFirstFailure)
             {
                 _pendingTransactions.Remove(ev.TransactionId);
+                _owedAcks.Remove(ev.TransactionId);
                 FdpLog<ClusterMaster>.Warn(
                     "[Orchestrator] 2PC transaction {0} aborted: node {1} returned error {2}.",
                     ev.TransactionId, ev.NodeId, ev.StatusCode);
@@ -1806,7 +1827,7 @@ public sealed class ClusterMaster : IDisposable
                 continue;
             }
 
-            if (ev.StatusCode.IsError())
+            if (authoritativeError)
             {
                 tracker.HasFailure  = true;
                 tracker.FailureCode = ev.StatusCode;
@@ -1825,42 +1846,93 @@ public sealed class ClusterMaster : IDisposable
             }
             opDict[ev.Operation] = responseJson;
 
+            PayAck(ev.TransactionId, ev.NodeId);   // ⭐ P1
             tracker.Received++;
             if (tracker.Received >= tracker.Expected)
-            {
-                _pendingTransactions.Remove(ev.TransactionId);
-
-                if (tracker.HasFailure)
-                {
-                    FdpLog<ClusterMaster>.Error(
-                        "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
-                        ev.TransactionId, tracker.FailureCode);
-
-                    // ⭐ A failed NON-TERMINAL phase must tell the nodes that ACKed to drop what they
-                    //   staged — otherwise a prepared-but-never-committed buffer leaks until process
-                    //   exit. 📄 docs/designs/mgmt-1/DESIGN.md §11.1 (ABORT).
-                    if (tracker.OnPhaseSuccess != null && tracker.Targets is { Count: > 0 })
-                        FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
-                            new AbortTransactionPayload(ev.TransactionId), tracker.Targets);
-
-                    PublishOpStatus(tracker.RequestId, tracker.FailureCode);
-                }
-                else if (tracker.OnPhaseSuccess != null)
-                {
-                    // ⛔ Deliberately NO PublishOpStatus here: the requester learns the outcome when the
-                    //   LAST phase completes, not when the first one does.
-                    tracker.OnPhaseSuccess();
-                }
-                else
-                {
-                    var aggregated = TryAggregate(ev.TransactionId, tracker.NodeResponses);
-                    PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
-                }
-
-                if (tracker.BroadcastClusterStateOnComplete)
-                    PublishClusterState(_currentDsmState);
-            }
+                CompleteRound(ev.TransactionId, tracker);
         }
+    }
+
+    /// <summary>
+    /// ⭐ P1 — the ONE place a round completes: from its last ACK, or from the ejection of the last node that still
+    /// owed one. ⛔ Two copies of this block would be two places for the outcome rules to drift.
+    /// </summary>
+    private void CompleteRound(Guid txId, GenericTransactionTracker tracker)
+    {
+        _pendingTransactions.Remove(txId);
+        // ⚠ BEFORE the outcome: a phased round (zone, terrain asset) re-uses this id for its commit phase, and
+        //   OnPhaseSuccess below records that phase's owed ACKs under the SAME id.
+        _owedAcks.Remove(txId);
+
+        if (tracker.HasFailure)
+        {
+            FdpLog<ClusterMaster>.Error(
+                "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
+                txId, tracker.FailureCode);
+
+            // ⭐ A failed NON-TERMINAL phase must tell the nodes that ACKed to drop what they
+            //   staged — otherwise a prepared-but-never-committed buffer leaks until process
+            //   exit. 📄 docs/designs/mgmt-1/DESIGN.md §11.1 (ABORT).
+            if (tracker.OnPhaseSuccess != null && tracker.Targets is { Count: > 0 })
+                FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
+                    new AbortTransactionPayload(txId), tracker.Targets);
+
+            PublishOpStatus(tracker.RequestId, tracker.FailureCode);
+        }
+        else if (tracker.OnPhaseSuccess != null)
+        {
+            // ⛔ Deliberately NO PublishOpStatus here: the requester learns the outcome when the
+            //   LAST phase completes, not when the first one does.
+            tracker.OnPhaseSuccess();
+        }
+        else
+        {
+            var aggregated = TryAggregate(txId, tracker.NodeResponses);
+            PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
+        }
+
+        if (tracker.BroadcastClusterStateOnComplete)
+            PublishClusterState(_currentDsmState);
+    }
+
+    private void OweAck(Guid txId, int nodeId)
+    {
+        if (!_owedAcks.TryGetValue(txId, out var owed)) _owedAcks[txId] = owed = new Dictionary<int, int>();
+        owed[nodeId] = owed.TryGetValue(nodeId, out var n) ? n + 1 : 1;
+    }
+
+    private void PayAck(Guid txId, int nodeId)
+    {
+        if (_owedAcks.TryGetValue(txId, out var owed) && owed.TryGetValue(nodeId, out var n) && n > 0)
+            owed[nodeId] = n - 1;
+    }
+
+    /// <summary>
+    /// ⭐⭐ P1 (Q91 §4-B, B1, R-4001) — a node that left owes no ACK any more: take what it still owed off every
+    /// in-flight round, and complete each round that was waiting only for it. ⛔ No timer: the heartbeat timeout that
+    /// ejected the node is the only time limit. ⚠ A round that completes this way completes on the nodes that remain.
+    /// </summary>
+    private void DropFromInFlightRounds(int nodeId)
+    {
+        foreach (var (txId, tracker) in _pendingTransactions.ToList())
+        {
+            if (!_owedAcks.TryGetValue(txId, out var owed) || !owed.Remove(nodeId, out var stillOwed) || stillOwed <= 0)
+                continue;
+            tracker.Expected -= stillOwed;
+            tracker.Targets?.Remove(nodeId);
+            FdpLog<ClusterMaster>.Warn(
+                "[Orchestrator] P1: node {0} left; round {1} no longer waits for its {2} ACK(s).", nodeId, txId, stillOwed);
+            if (tracker.Received >= tracker.Expected)
+                CompleteRound(txId, tracker);
+        }
+    }
+
+    /// <summary>⭐ P1 — forget the owed counts of fan-outs that never had a round (aborts, standby broadcasts).</summary>
+    private void PruneOwedAcks()
+    {
+        if (_owedAcks.Count == 0) return;
+        foreach (var txId in _owedAcks.Keys.ToList())
+            if (!_pendingTransactions.ContainsKey(txId)) _owedAcks.Remove(txId);
     }
 
     /// <summary>
@@ -1910,6 +1982,46 @@ public sealed class ClusterMaster : IDisposable
 
     private static double UtcNowSeconds() =>
         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+
+    /// <summary>The roles that make a node AUTHORITATIVE (Q91 §4-A). ⚠ The role → policy map is application code (R-4000).</summary>
+    private const Fdp.Core.NodeRole SimulationRoles =
+        Fdp.Core.NodeRole.Brain | Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver;
+
+    /// <summary>
+    /// ⭐⭐⭐ P2 (Q91 §4-A′, R-4014) — is this node an OBSERVER (formerly "best-effort", L4)? Nothing waits for an observer
+    /// and nothing fails because of it. ⛔ FAILS SAFE — an observer iff ALL THREE hold:
+    /// ① its capability advert HAS landed (the mask reads <c>None</c> until it does, <c>IngestHeartbeats</c>);
+    /// ② its roles hold no simulation role;
+    /// ③ the roster holds at least ONE authoritative node — otherwise nothing could ever fail a round (anti-vacuity).
+    /// Unknown ⇒ authoritative; alone ⇒ authoritative.
+    /// </summary>
+    public bool IsObserver(int nodeId)
+    {
+        if (!_roster.ActiveNodes.TryGetValue(nodeId, out var profile) || !IsObserverByRole(profile))
+            return false;
+        foreach (var other in _roster.ActiveNodes.Values)
+            if (!IsObserverByRole(other)) return true;   // ③ someone authoritative remains
+        return false;
+    }
+
+    private bool IsObserverByRole(NodeHealthProfile p)
+        => _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) == 0;
+
+    /// <summary>
+    /// ⭐ <c>CE-4002</c> — the master's roster as plain rows for the debug API (<c>GET /cluster/roster</c>), aged by the
+    /// SAME clock the ejection uses, so a row's age and the 5 s timeout can never disagree. ⛔ A read, no new state.
+    /// </summary>
+    public IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry> DescribeRoster()
+    {
+        double now = UtcNowSeconds();
+        var rows = new List<Hrot.Presentation.DebugApi.ClusterRosterEntry>(_roster.ActiveNodes.Count);
+        foreach (var p in _roster.ActiveNodes.Values)
+            rows.Add(new Hrot.Presentation.DebugApi.ClusterRosterEntry(
+                p.NodeId, p.SubsystemName, p.LocalClusterState.ToString(), p.Roles.ToString(),
+                Math.Round(now - p.LastHeartbeatUtcSeconds, 3)));
+        rows.Sort((a, b) => a.NodeId.CompareTo(b.NodeId));
+        return rows;
+    }
 
     public void Dispose()
     {

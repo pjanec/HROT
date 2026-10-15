@@ -240,6 +240,12 @@ authoritative node's error was swallowed.
 anti-vacuous**: a classification in which *every* node comes out best-effort must fail the test, or clause ③ is
 untestable and the editor case returns unnoticed.
 
+✅ **BUILT `2026-10-15`** — `ClusterMaster.IsObserver(nodeId)`, the three clauses exactly as above; C1 lives in the ACK intake
+(an observer's error is logged and recorded, never sets `HasFailure`, never aborts an `AbortOnFirstFailure` round). Rails:
+`ClusterMasterZoneRoundTests.P2_*` (4) — ⭐ the ANTI-VACUITY rail was red-proofed by deleting clause ③ (it fails, the rest
+pass). ⚠ **Deviation:** `DistributedTransaction.AllowPartialSuccess` stays UNREAD — the observer rule is unconditional
+(R-4014), so a per-transaction switch would be a second way to say it; it is a candidate for deletion, not wiring.
+
 ⚠ **Clause ② is only sound once `R-4005` lands** — the editor declares `NodeRole.None` to the roster today while
 composing all four simulation roles, so without the one-line fix (`EditorSubsystem.cs:1153` →
 `EditorCapabilities.DefaultRole`) clause ③ is the *only* thing protecting the editor. ⇒ **build `R-4005` first; it is
@@ -253,7 +259,7 @@ node, not only Players.
 
 | option | |
 |---|---|
-| ✅ **B1 — on ejection, drop the node from every in-flight tracker** (`Expected--`, remove from `Targets`, complete the round if it was the last ACK) | ✅ **APPROVED.** A bug fix for every node; can be built on its own |
+| ✅ **B1 — on ejection, drop the node from every in-flight tracker** (`Expected--`, remove from `Targets`, complete the round if it was the last ACK) | ✅ **APPROVED.** A bug fix for every node; can be built on its own. ✅ **BUILT `2026-10-15`** — as designed, with one refinement the measurement forced: a round can owe MORE than one ACK per node (a transition has one prepare step per state, under one transaction id), so `FanOutNodeOp` records the ACKs each node owes per round (every op but `CommitState`, which the slave applies without an ACK — `ClusterSlave.cs:411-422`), an ACK pays one off, and `EjectNode` → `DropFromInFlightRounds` subtracts what the node still owed; one `CompleteRound` serves both paths. Rails: `ClusterMasterBootstrapTests.P1_*` (3), red-proofed |
 | ⛔ ~~a bounded ACK wait for best-effort nodes~~ | ⛔ **SUPERSEDED `2026-10-15` by R-4001** (user I): the heartbeat is the only time limit. A node is out of a round when its heartbeat stops (`DetectAndEjectTimedOutNodes`, 5 s default), never because a round took long |
 | B2 — a timeout on every round | ⛔ an authoritative node that is slow (a large terrain) would fail a legitimate load — the case R-4001 forbids |
 

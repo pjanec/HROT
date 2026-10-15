@@ -93,6 +93,8 @@ namespace Hrot.ExCon
                 //    demonstration that the capabilities are genuinely independent, not one "is it wired" bit.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _bus),
+                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _bus),
                 // ⭐⭐ MD-002 — EXPLICITLY null, written out rather than omitted: ExCon has no ECS kernel
                 //    (it already builds ArchitectureDiagnosticsService(() => null) for its own window),
                 //    so `diagnostics.architecture` is FALSE here and that is the true cell. ⛔ An empty

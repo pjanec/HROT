@@ -90,6 +90,8 @@ namespace Hrot.IG
                 //    IgApplication.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
                 // ⭐⭐⭐ CE-163 — IG's OWN committed cluster state, from its OWN ClusterSlave, through the
                 //    SAME shared projection CGF and SimHost use. 🔒 "every ECS node must use the same
                 //    shared code" — ⛔ so this is not an IG affordance, it is the uniform one.

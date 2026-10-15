@@ -502,6 +502,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    path the operator's own "Load into Live" button takes.
             requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .TransitionsVia(() => _context?.EventBus),
+            // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+            requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _context?.EventBus),
             // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
             //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
             // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
