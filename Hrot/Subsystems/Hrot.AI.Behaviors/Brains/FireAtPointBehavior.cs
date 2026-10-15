@@ -31,6 +31,8 @@ namespace Hrot.AI.Behaviors.Brains
                 CooldownSeconds = authored.CooldownSeconds,
                 Rounds = authored.Rounds,
                 Mount = (byte)authored.Mount,
+                FireAt = authored.FireAt,                                                  // ⭐ IF-2 (FM-4)
+                Arc = authored.Arc is >= 0 and <= 2 ? (ArcPreference)authored.Arc : ArcPreference.Auto,   // ⭐ IF-2 (IF-C)
             };
         }
 [Behavior(BehaviorNames.FireAtPoint, Params = typeof(global::Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto), Categories = BehaviorCategory.AllMilitary)]   // ⭐ CE-2134

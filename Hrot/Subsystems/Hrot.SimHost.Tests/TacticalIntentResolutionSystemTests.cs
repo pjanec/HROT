@@ -563,5 +563,25 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("AirPlatformStrike", Assert.Single(Order(repo, system, attackJet, "Strike", strike)).BehaviorName);
             Assert.DoesNotContain(Order(repo, system, t72, "Strike", strike), e => e.BehaviorName == "AirPlatformStrike");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — Strike on an artillery battery (a unit, 11.1.*.4) resolves to the battery commander
+        /// <c>ArtilleryUnitStrike</c>; on a self-propelled gun (1.1.*.4) to <c>SelfPropelledArtilleryStrike</c>; a rifleman has none.
+        /// </summary>
+        [Fact]
+        public void CE2176_Strike_OnABattery_AndOnASelfPropelledGun_ResolvesToTheirFireMission_ARiflemanHasNone()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            const string strike = "{\"Location\":[0,0]}";
+            var battery  = Typed(repo, Dis(11, 1, 225, 4, 5, 1));
+            var m109     = Typed(repo, Dis(1, 1, 225, 4));
+            var rifleman = Typed(repo, Dis(3, 1, 225, 1));
+            Assert.Equal("ArtilleryUnitStrike", Assert.Single(Order(repo, system, battery, "Strike", strike)).BehaviorName);
+            Assert.Equal("SelfPropelledArtilleryStrike", Assert.Single(Order(repo, system, m109, "Strike", strike)).BehaviorName);
+            Assert.DoesNotContain(Order(repo, system, rifleman, "Strike", strike), e => e.BehaviorName is "ArtilleryUnitStrike" or "SelfPropelledArtilleryStrike");
+        }
     }
 }

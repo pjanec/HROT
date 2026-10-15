@@ -1970,5 +1970,171 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) s.Tick();
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
+        // ── CE-2176 IF-2 — the battery fire mission (docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.4, FM-1…FM-8) ─────────────
+
+        private const long IfGunType = 9961;
+        private static readonly Fdp.Toolkit.Tkb.Domain.WeaponMountDto IfMount = new()
+        {
+            Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer, Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.Both,
+            MinElevationDeg = -3f, MaxElevationDeg = 75f, MuzzleVelocity = 300f, InitialAmmunition = 20,
+        };
+
+        /// <summary>A battery of <paramref name="guns"/> stand-in howitzers (one indirect mount, 300 m/s, 20 rounds) at
+        /// <paramref name="at"/>; the commander is force 1.</summary>
+        private static Squad Battery(params Vector3[] at)
+        {
+            var s = new Squad(at.Length);
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("gun", IfGunType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { IfMount } });
+            db.Register(t);
+            s.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            for (int i = 0; i < at.Length; i++)
+            {
+                s.Teleport(s.Members[i], at[i]);
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfGunType });
+                s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 20, MuzzleVelocity = 300f });
+            }
+            s.Repo.AddComponent(s.Commander, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+            return s;
+        }
+
+        private static void Strike(Squad s, Vector3 point, Hrot.AI.Behaviors.Orders.FireMissionControl control,
+                                   Hrot.AI.Behaviors.Orders.FireMissionSheaf sheaf = Hrot.AI.Behaviors.Orders.FireMissionSheaf.Converged,
+                                   float width = 0f, bool dangerClose = false)
+            => s.Order(System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.StrikeOrder
+            {
+                Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, point), Control = control, Sheaf = sheaf, SheafWidthM = width,
+                DangerClose = dangerClose,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.ArtilleryUnitStrike);
+
+        /// <summary>Each gun's last FireAtPoint order.</summary>
+        private static Dictionary<Entity, FireAtPointParamsJsonDto> FireOrders(Squad s)
+        {
+            var d = new Dictionary<Entity, FireAtPointParamsJsonDto>();
+            foreach (var o in s.Orders)
+                if (o.IntentId == BehaviorNames.FireAtPoint)
+                    d[o.Entity] = System.Text.Json.JsonSerializer.Deserialize<FireAtPointParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            return d;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-2 (FM-4) — TIME ON TARGET: three guns at different ranges each get the point, 3 rounds and a fire time
+        /// <c>T − tof</c> from their own fire solution, so every first round lands at the same T (≥ now + the longest flight + the lay
+        /// time); the farthest gun fires first. 🔴 Red-proof: fire times 0 (when ready) ⇒ the impacts spread by the flight difference ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_ABattery_TimeOnTarget_EveryFirstRoundLandsTogether()
+        {
+            var point = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(-1500f, 40f, 0f), new Vector3(-3000f, 80f, 0f));
+            double t0 = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            Strike(s, point, Hrot.AI.Behaviors.Orders.FireMissionControl.TimeOnTarget);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            var orders = FireOrders(s);
+            Assert.Equal(3, orders.Count);
+            var impacts = new List<double>();
+            var fireAt = new List<double>();
+            foreach (var g in s.Members)
+            {
+                var o = orders[g];
+                Assert.Equal(3, o.Rounds);
+                Assert.InRange(Vector2.Distance(new Vector2(o.X, o.Y), new Vector2(point.X, point.Y)), 0f, 2f);   // converged
+                var sol = Fdp.Toolkit.Combat.FireSolution.For(null, s.At(g), new Vector3(o.X, o.Y, o.Z), IfMount, null);
+                Assert.True(sol.Ok);
+                impacts.Add(o.FireAt + sol.TimeOfFlight);
+                fireAt.Add(o.FireAt);
+            }
+            Assert.True(impacts.Max() - impacts.Min() < 1e-3, $"impacts {string.Join(", ", impacts)}");
+            Assert.True(impacts[0] >= t0 + IndirectFireNodes.LaySeconds);
+            Assert.True(fireAt[2] < fireAt[1] && fireAt[1] < fireAt[0], "the farthest gun fires first");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-2 (FM-3) — the SHEAF: three guns abreast across the line of fire. Parallel ⇒ each aims at its own lateral place
+        /// (−50 / 0 / +50); Open over 300 m ⇒ −100 / 0 / +100; when ready ⇒ fire times 0. 🔴 Red-proof: every aim on the point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_ABattery_ParallelAndOpenSheafs_SpreadTheAimPoints()
+        {
+            var point = new Vector3(5000f, 0f, 0f);
+            foreach (var (sheaf, width, want) in new[]
+            {
+                (Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel, 0f, new[] { -50f, 0f, 50f }),
+                (Hrot.AI.Behaviors.Orders.FireMissionSheaf.Open, 300f, new[] { -100f, 0f, 100f }),
+            })
+            {
+                var s = Battery(new Vector3(0f, -50f, 0f), new Vector3(0f, 0f, 0f), new Vector3(0f, 50f, 0f));
+                Strike(s, point, Hrot.AI.Behaviors.Orders.FireMissionControl.WhenReady, sheaf, width);
+                for (int i = 0; i < 4; i++) s.Tick();
+                var orders = FireOrders(s);
+                Assert.Equal(3, orders.Count);
+                for (int i = 0; i < 3; i++)
+                {
+                    var o = orders[s.Members[i]];
+                    Assert.InRange(o.X, point.X - 1f, point.X + 1f);
+                    Assert.InRange(o.Y, want[i] - 1f, want[i] + 1f);
+                    Assert.Equal(0d, o.FireAt);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-2 (FM-1) — a gun that cannot reach is left out (it holds); the others fire. ⭐ (FM-5) a friend 300 m from the
+        /// point refuses the mission — no gun fires, the behaviour fails — unless the order says danger close.
+        /// </summary>
+        [Fact]
+        public void CE2176_ABattery_LeavesOutAGunOutOfRange_AndRefusesDangerClose()
+        {
+            var point = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(-20000f, 0f, 0f));   // 300 m/s reaches ~9.2 km
+            Strike(s, point, Hrot.AI.Behaviors.Orders.FireMissionControl.WhenReady);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var orders = FireOrders(s);
+            Assert.True(orders.ContainsKey(s.Members[0]));
+            Assert.False(orders.ContainsKey(s.Members[1]));
+
+            foreach (bool dangerClose in new[] { false, true })
+            {
+                var b = Battery(new Vector3(0f, 0f, 0f));
+                var friend = b.Repo.CreateEntity();
+                b.Repo.AddComponent(friend, new SimTransform { Position = point + new Vector3(0f, 300f, 0f), Rotation = Quaternion.Identity });
+                b.Repo.AddComponent(friend, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Friend });
+                Strike(b, point, Hrot.AI.Behaviors.Orders.FireMissionControl.WhenReady, dangerClose: dangerClose);
+                bool done = false; Fbt.NodeStatus result = default;
+                for (int i = 0; i < 4; i++) { b.Tick(); done |= b.Finished(out var r) && (result = r) == r; }
+                Assert.Equal(dangerClose, FireOrders(b).ContainsKey(b.Members[0]));
+                if (!dangerClose) { Assert.True(done); Assert.Equal(Fbt.NodeStatus.Failure, result); }
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-2 — a mission resumed after a pause re-sends each gun only the rounds it has LEFT (one fired ⇒ 2), never the
+        /// full count again; once every gun's rounds are gone it ends in Success (rounds complete). 🔴 Red-proof: re-send <c>Rounds</c>
+        /// on every issue ⇒ the resumed order asks 3 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_ABattery_ResumedMission_FiresOnlyTheRoundsLeft_ThenRoundsComplete()
+        {
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(0f, 40f, 0f));
+            Strike(s, new Vector3(5000f, 0f, 0f), Hrot.AI.Behaviors.Orders.FireMissionControl.WhenReady);
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(3, FireOrders(s)[s.Members[0]].Rounds);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(s.Members[0]).Ammo -= 1;   // one round left the tube
+            s.Orders.Clear();
+            s.Pause(1.0);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var resumed = FireOrders(s);
+            Assert.Equal(2, resumed[s.Members[0]].Rounds);
+            Assert.Equal(3, resumed[s.Members[1]].Rounds);
+
+            foreach (var g in s.Members) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(g).Ammo = 17;
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
     }
 }

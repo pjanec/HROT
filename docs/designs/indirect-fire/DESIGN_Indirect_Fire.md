@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2…IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
-current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §5 slices, §6 the demo
+build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3, IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
+current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §5 slices, §6 the demo
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -242,6 +242,19 @@ Rails: `FireSolutionTests` (4) · `BallisticsSystemTests.IF1_*` · `FireProcessi
 weapon-systems fixture: a gunner fires the mortar he mans, nothing before `FireAt`; no solution fails with why; params ≤ 32) ·
 `NedTkbBuilderCombatTests.IF1_*` · `HrotEnvironmentTests.IF1_*` · the LR-1 explosive set and the type-picker golden re-pinned on purpose.
 Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Backend_Indirect_Fire.md).
+
+### 3.7 IF-2 as built — behaviors, `2026-10-15`
+
+| piece | where it landed | deviation from §3.2 / §5, and why |
+|---|---|---|
+| Strike fields (IF-D) | `StrikeOrder.Method / Rounds / Sheaf / SheafWidthM / Control / ImpactInS / Observer / DangerClose` + enums `FireMissionMethod`, `FireMissionSheaf`, `FireMissionControl` (`Orders/OrderDtos.cs`) | ⚠ `Munition` not added yet (one round per gun today); ⚠ `Method = Adjust` fires for effect with a warning until IF-3 |
+| the member order (FM-2) | `MemberOrderKind.FireAtPoint = 7`; `MemberOrder.Rounds / FireAt / Mount / Arc`; `SquadManeuverRunner.Fire` publishes the library `FireAtPoint` (a unit member holds) | — |
+| the shared node | `FireAtPointNodeParams.Arc / FireAt` (appended after `Started`) → the executor's params; `FireAtPointParamsJsonDto.fireAt / arc` | — |
+| the battery (FM-1) | `ArtilleryUnitStrike` → `BatteryFireMissionPlay` over `SquadManeuverRunner`, maneuver `BatteryFireMissionManeuver` (kind 14: Firing · Aborted) | ⭐ the plan (each gun's mount, aim, time of flight, rounds at the start) lives in the play's PARAMS (`BatteryFireParams`), made once at Start; every issue gives each gun only the rounds it has LEFT (a resumed mission never fires twice) |
+| sheaf / TOT / danger close (FM-3/4/5) | `IndirectFireNodes.AimPoint`, `BatteryFireMissionPlay.Plan`, `IndirectFireNodes.DangerClose` (= `HiddenTargetThrow.FriendlyInBurst` at 600 m — reused, not rewritten) | an aim point out of reach falls back to the point; open-sheaf width defaults to guns × max(2 × injury radius, 20 m) |
+| the mount | `IndirectFireNodes.MountOf`: the gun's own first mount with an `IndirectArc`, else the first controlled weapon that has one (32 + k) | — |
+| one gun (FM-1) | `SelfPropelledArtilleryStrike` → the library `FireAtPoint` node (danger close or no indirect weapon ⇒ Failure at once) | no sheaf, no TOT across guns — `ImpactInS` only delays its first round |
+| rails | `SquadManeuverTests.CE2176_*` ×4 (TOT, sheafs, out of range + danger close, resumed mission + rounds complete) · `TacticalIntentResolutionSystemTests.CE2176_*` | red-proofed by four mutants (§5 IF-2) |
 
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 

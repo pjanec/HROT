@@ -221,6 +221,10 @@ namespace Fdp.Toolkit.Combat
         public int Rounds;
         public byte Mount;
         [System.Text.Json.Serialization.JsonIgnore] public uint Started;
+        /// <summary>⭐ Indirect fire IF-2 (FM-2, IF-C) — the arc a fire solution prefers (Auto: low when it clears, else high).</summary>
+        public ArcPreference Arc;
+        /// <summary>⭐ Indirect fire IF-2 (FM-4) — sim time (s) before which nothing leaves (time on target); 0 = now.</summary>
+        public double FireAt;
     }
 
     /// <summary>
@@ -252,6 +256,7 @@ namespace Fdp.Toolkit.Combat
             System.Runtime.CompilerServices.Unsafe.As<byte, Executors.FireAtPointParams>(ref channel.Params[0]) = new Executors.FireAtPointParams
             {
                 Point = p.Point, CooldownSeconds = p.CooldownSeconds, Rounds = p.Rounds, Mount = p.Mount,
+                Arc = p.Arc, FireAt = p.FireAt,   // ⭐ IF-2 (FM-2, FM-4)
             };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
