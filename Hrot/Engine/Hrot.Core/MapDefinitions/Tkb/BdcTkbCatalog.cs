@@ -733,15 +733,21 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public static void RegisterObstacles(TkbDatabase tkbDb)
         {
-            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body");
-            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags");
-            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete");
-            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood");
+            // ⭐ CE-3148 — every obstacle states its DIS type (they drew the magenta unknown-type box): the parked car is a car
+            //   (1.1.0.81, the civilian car's), the rest are cultural features (5 — no domain pinned: an unnamed level is a rail failure)
+            var car = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
+            var feature = new DISEntityType { Kind = 5 };
+            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body", car);
+            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags", feature);
+            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete", feature);
+            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood", feature);
         }
 
-        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material)
+        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material,
+                                             DISEntityType dis)
         {
             var t = new TkbTemplate(name, type);
+            t.DisType = dis;   // ⭐ CE-3148 — the TYPE only: ⛔ no TkbMasterDto, which would list an obstacle in the Add Entity picker as a sided unit
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
             tkbDb.Register(t);
         }

@@ -203,7 +203,18 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             length = 0f;
             width = 0f;
-            if (!view.HasComponent<VehicleParams>(entity)) return;
+            if (!view.HasComponent<VehicleParams>(entity))
+            {
+                // ⭐ CE-3148 — a static obstacle has no vehicle params: its own footprint (per instance, replicated). It drew at the
+                //   renderer's 5 × 2.5 m default.
+                if (view.HasComponent<Fdp.Toolkit.Terrain.ObstacleShape>(entity))
+                {
+                    ref readonly var shape = ref view.GetComponentRO<Fdp.Toolkit.Terrain.ObstacleShape>(entity);
+                    length = shape.Length;
+                    width = shape.Width;
+                }
+                return;
+            }
 
             ref readonly var vp = ref view.GetComponentRO<VehicleParams>(entity);
             length = vp.Length;

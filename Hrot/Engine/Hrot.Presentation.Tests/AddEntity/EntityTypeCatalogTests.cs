@@ -239,10 +239,10 @@ public sealed class EntityTypeCatalogTests
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -
         8805 Door | dis - | family Unknown | folder Other | icon -
-        8806 Car | dis - | family Unknown | folder Other | icon -
-        8807 Sandbag wall | dis - | family Unknown | folder Other | icon -
-        8808 Concrete block | dis - | family Unknown | folder Other | icon -
-        8809 Crate | dis - | family Unknown | folder Other | icon -
+        8806 Car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
+        8807 Sandbag wall | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8808 Concrete block | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8809 Crate | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the

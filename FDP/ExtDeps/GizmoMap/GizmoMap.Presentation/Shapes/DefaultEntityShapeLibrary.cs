@@ -9,6 +9,8 @@ namespace GizmoMap.Presentation.Shapes
         public const string Humanoid = "humanoid";
         public const string FixedWing = "fixed_wing";
         public const string RotaryWing = "rotary_wing";
+        /// <summary>⭐ <c>CE-3148</c> — a cultural feature (DIS kind 5: a sandbag wall, a concrete block, a crate): its footprint outline.</summary>
+        public const string CulturalFeature = "cultural_feature";
         /// <summary>The name of the empty profile returned when nothing matches (drawn as nothing).</summary>
         public const string Fallback = "_fallback";
 
@@ -20,6 +22,7 @@ namespace GizmoMap.Presentation.Shapes
             _profiles[Humanoid] = BuildHumanoid();
             _profiles[FixedWing] = BuildFixedWing();
             _profiles[RotaryWing] = BuildRotaryWing();
+            _profiles[CulturalFeature] = BuildCulturalFeature();
         }
 
         public EntityShapeProfile GetShape(string? shapeName, ulong fallbackDisType)
@@ -43,6 +46,10 @@ namespace GizmoMap.Presentation.Shapes
             {
                 return _profiles[Humanoid];
             }
+            else if (kind == 5)
+            {
+                return _profiles[CulturalFeature];   // ⭐ CE-3148 — it drew the magenta emergency box
+            }
 
             return new EntityShapeProfile { Name = Fallback };
         }
@@ -63,6 +70,27 @@ namespace GizmoMap.Presentation.Shapes
                         {
                             new Vector3(-0.5f, -0.35f, 0f), new Vector3(0.5f, -0.35f, 0f),
                             new Vector3(0.5f, 0.35f, 0f), new Vector3(-0.5f, 0.35f, 0f)
+                        },
+                        IsClosed = true, IsFilled = false, LineThickness = 1f
+                    }
+                }
+            };
+        }
+
+        /// <summary>⭐ <c>CE-3148</c> — the whole footprint (length × width), closed: an obstacle is the box it is.</summary>
+        private static EntityShapeProfile BuildCulturalFeature()
+        {
+            return new EntityShapeProfile
+            {
+                Name = CulturalFeature,
+                Elements = new[]
+                {
+                    new PolylineDefinition
+                    {
+                        LocalVertices = new[]
+                        {
+                            new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f),
+                            new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f)
                         },
                         IsClosed = true, IsFilled = false, LineThickness = 1f
                     }
