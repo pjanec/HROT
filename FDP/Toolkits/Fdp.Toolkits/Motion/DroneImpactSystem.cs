@@ -58,6 +58,9 @@ namespace Fdp.Toolkit.Motion
                     foreach (var b in repo.Query().With<PhysicsCollider>().With<SimTransform>().Build())
                     {
                         if (b == d || (rounds && repo.HasComponent<BallisticProjectile>(b))) continue;
+                        // ⭐ CE-2173 slice 6d — never its OWN riders (WS-3's rule): 📐 measured live, the doors-off UH-60 swept through its
+                        //   door gunners and M134s the moment it moved and crashed into them (Health 800 → 0, its riders dead with it)
+                        if (Fdp.Toolkit.Combat.LineOfFire.RidesWith(repo, d, b)) continue;
                         var c = repo.GetComponentRO<PhysicsCollider>(b);
                         var bp = repo.GetComponentRO<SimTransform>(b).Position;
                         float r = c.Radius + contact;

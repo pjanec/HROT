@@ -213,9 +213,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A4) — an AIR-domain shooter launches with its own velocity: a BOMB leaves
                 //   its rack at the carrier's velocity + 1 m/s down from the body itself and falls (Arc) — the same step BombBallistics
                 //   predicts; any other round adds the carrier's velocity to its own. ⛔ A ground shooter is unchanged.
-                if (Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter))
+                //   ⭐ CE-2173 slice 6d (§9f) — the carrier is the BODY the shot leaves from (HitModel.BodyOf, as the aim above): a door gun
+                //   (a weapon system in the 404's station) has no locomotion of its own, so its round left at the muzzle speed alone.
+                if (Fdp.Toolkit.Motion.Locomotions.InAir(repo, sightBody) && repo.HasComponent<SimVelocity>(sightBody))
                 {
-                    var carrier = repo.GetComponentRO<SimVelocity>(shooter).Linear;
+                    var carrier = repo.GetComponentRO<SimVelocity>(sightBody).Linear;
                     if (firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb)
                     {
                         velocity = BombBallistics.Launch(carrier);
