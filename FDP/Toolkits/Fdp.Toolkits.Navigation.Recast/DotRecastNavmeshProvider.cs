@@ -30,8 +30,9 @@ namespace Fdp.Toolkit.Navigation.Recast;
 /// Register as the <see cref="INavmeshProvider"/> managed singleton:
 /// <code>repo.SetSingletonManaged&lt;INavmeshProvider&gt;(provider);</code>
 /// </para>
+/// <para>⭐ <b>No <c>[ComponentId]</c> of its own</b> (CE-3206): id 212 is the <see cref="INavmeshProvider"/> slot. The
+/// class used to repeat it, so an assembly scan registering every attributed type bound 212 to whichever it met first.</para>
 /// </summary>
-[ComponentId(GlobalComponentIds.INavmeshProvider)]
 public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGeometry
 {
     // ── Search half-extents (metres) for FindNearestPoly ─────────────────────
