@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — behaviors → backend: a Javelin fires blind without a lock, and its top attack overflies a near target (CE-2200, CE-2201)
 
-**Dispatched at the commit that adds this file** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
+**Dispatched at `b86497d1e`** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
 
 ## The measurement (live `ua-javelin-lock`, test-town, `2026-10-16`)
 
