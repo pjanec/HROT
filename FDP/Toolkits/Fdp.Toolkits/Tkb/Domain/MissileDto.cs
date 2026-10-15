@@ -51,5 +51,14 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("deg")]
         [Description("Top attack: the dive angle.")]
         public float DiveAngleDeg { get; init; }
+
+        /// <summary>⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — the NLAW's OVERFLY top attack: fly just above the
+        /// target's roof and fire the charge DOWN as it passes over (a hull only; a man is attacked direct).</summary>
+        [Description("Fire-and-forget only: fly over a vehicle's roof and fire the charge down as it passes (the NLAW).")]
+        public bool Overfly { get; init; }
+
+        [EditUnit("m")]
+        [Description("Overfly: the height above the roof the round passes at.")]
+        public float OverflyHeightM { get; init; } = 1f;
     }
 }

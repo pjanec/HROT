@@ -438,6 +438,45 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.InRange(LateralAtTheTarget(truck), -0.5f, 0.5f);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — an NLAW (overfly) fired at a HULL flies the overfly top attack; fired at a
+        /// target with no hull (a man) it flies direct (<see cref="GuidedRound.Overfly"/> 0) — the downward charge is the anti-armour mode.
+        /// </summary>
+        [Fact]
+        public void CE3198_AnNlawAtAHull_FliesTheOverfly_AtAManItFliesDirect()
+        {
+            _world.RegisterComponent<GuidedRound>();
+            _world.RegisterComponent<TkbIdentity>();
+            const long Launcher = 9500, Nlaw = 9513;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var launcher = new Fdp.Interfaces.TkbTemplate("nlaw gunner", Launcher);
+            launcher.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, AmmoGuid = Nlaw, InitialAmmunition = 2, DamagePerHit = 900, Penetration = 500 } } });
+            db.Register(launcher);
+            var nlaw = new Fdp.Interfaces.TkbTemplate("nlaw", Nlaw);
+            nlaw.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto
+                { Guidance = Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f, Overfly = true });
+            db.Register(nlaw);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            byte OverflyAt(Entity target)
+            {
+                var gunner = SpawnShooter(Vector3.Zero, muzzleVelocity: 200f);
+                _world.AddComponent(gunner, new TkbIdentity { TkbType = Launcher });
+                PublishIntent(gunner, target);
+                _sys.Execute(_world, 0.016f);
+                var round = Assert.Single(Rounds());
+                byte overfly = _world.GetComponent<GuidedRound>(round).Overfly;
+                _world.DestroyEntity(round);
+                return overfly;
+            }
+
+            var tank = SpawnTarget(new Vector3(200f, 0f, 0f));
+            _world.AddComponent(tank, new PhysicsCollider { Radius = 2f, Height = 2.4f });
+            Assert.Equal(1, OverflyAt(tank));
+            Assert.Equal(0, OverflyAt(SpawnTarget(new Vector3(200f, 0f, 0f))));   // no hull: direct
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();

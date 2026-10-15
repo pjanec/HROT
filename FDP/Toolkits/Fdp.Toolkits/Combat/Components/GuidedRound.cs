@@ -36,5 +36,9 @@ namespace Fdp.Toolkit.Combat.Components
         public float DiveAngleDeg;
         /// <summary>Where the seeker last saw the target (fire-and-forget) — it steers there when it loses sight.</summary>
         public Vector3 LastSeen;
+        /// <summary>⭐ <c>CE-3198</c> — 1 = the overfly top attack (DESIGN_Missiles_And_Ammo §3b): steer over the roof, fire down on the pass.</summary>
+        public byte Overfly;
+        /// <summary>⭐ <c>CE-3198</c> — the height above the roof it passes at.</summary>
+        public float OverflyHeightM;
     }
 }

@@ -664,6 +664,21 @@ namespace Hrot.Map.Common.Tests
             Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb) >= 100f);
         }
 
+        /// <summary>⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — the NLAW flies the OVERFLY top attack (1 m over the roof, the charge
+        /// fired down); the Javelin keeps its climb-and-dive (no overfly), so <c>ua-javelin-lock</c> is unchanged.</summary>
+        [Fact]
+        public void CE3198_TheNlaw_FliesTheOverfly_TheJavelinKeepsItsDive()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            var nlaw = db.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile)!.GetDescriptor<MissileDto>()!;
+            Assert.True(nlaw.Overfly);
+            Assert.Equal(1f, nlaw.OverflyHeightM);
+            var javelin = db.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile)!.GetDescriptor<MissileDto>()!;
+            Assert.False(javelin.Overfly);
+            Assert.True(javelin.TopAttack);
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();
