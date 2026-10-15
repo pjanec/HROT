@@ -62,7 +62,8 @@ namespace Fdp.Toolkit.Combat
         /// a fellow passenger of its vehicle (the pickup, its gunner, the M2 in its bed). They move as one body and are never "on the line":
         /// a station weapon stands off its host's reference point, where the crew rides.
         /// </summary>
-        private static bool RidesWith(EntityRepository world, Entity shooter, Entity e)
+        /// <summary>⭐ Also the impact rule's (<c>DroneImpactSystem</c>, CE-2173 slice 6d): a carrier and its riders never meet each other.</summary>
+        internal static bool RidesWith(EntityRepository world, Entity shooter, Entity e)
         {
             if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) return false;
             Entity shooterHost = world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter)
