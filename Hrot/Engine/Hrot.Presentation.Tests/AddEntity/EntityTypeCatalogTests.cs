@@ -199,6 +199,8 @@ public sealed class EntityTypeCatalogTests
         105 Technical (ATGM) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         106 Pickup (Toyota) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         107 M109 155 mm self-propelled howitzer | dis 1.1.225.4.1.0.0 | family SpArtillery | folder Platform/Land/United States/Self-Propelled Artillery | icon _tank
+        108 Technical (DShK) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit

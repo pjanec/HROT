@@ -59,6 +59,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             cmd.AddComponent(unit, new WeaponPosture
             {
                 Kind = (WeaponPostureKind)d.Kind, Target = target, Point = new System.Numerics.Vector3(d.PointX, d.PointY, d.PointZ),
+                ActiveMount = d.ActiveMount,   // ⭐ ui handoff P4 (W-13e)
             });
         }
 

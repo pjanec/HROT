@@ -209,6 +209,77 @@ namespace Hrot.SimHost.Tests
             Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, rightGun));
         }
 
+        /// <summary>
+        /// ⭐⭐ ui handoff P1 (DESIGN_Weapon_Systems §5a; the twin of the 104 rails above, on the REAL catalogue) — a placed armed variant
+        /// spawns its weapon and its gunner into the seats its type names: the HMMWV (102) its rifleman into the roof-ring gunner seat 3
+        /// and an M2 into the ring station 4 (its three passenger seats 0–2 stay free); the new technicals 108 / 109 a DShK / an M134 into
+        /// the bed station 2 and a rifleman into gunner seat 1. Boarded, the weapon is controlled by the vehicle and may fire. A save /
+        /// load (the request carries SeatPresetsFilled) adds NEITHER again. (Red by construction — not run: 102 with the old
+        /// PassengerSeats(3) ⇒ one command.)
+        /// </summary>
+        [Theory]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 3, 4, 3)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Dshk, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_DshkHmg, 1, 2, 0)]
+        [InlineData(Hrot.Map.Common.TkbEntityTypes.Technical_Minigun, Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, 1, 2, 0)]
+        public void P1_APlacedArmedVariant_HoldsItsWeaponAndGunner_AndALoadAddsNeither(long hostType, long weaponType, int gunnerSeat,
+                                                                                        int stationSeat, int riders)
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            SpawnEntityCommand[] Place(object mark)
+            {
+                var repo = CreateWorld();
+                var source = new StubRequestSource();
+                source.Enqueue(new EntityCreationRequest
+                {
+                    RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = hostType, DisType = ValidDisType, PreAllocatedNetworkId = 900,
+                    InitialComponents = new List<object> { mark },
+                });
+                var (system, _, _) = BuildSystem(tkb, source);
+                system.Execute(repo, 0f);
+                repo.Bus.SwapBuffers();
+                return ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>().ToArray();
+            }
+
+            var commands = Place(new EntityInfo { Name = "V1", ForceId = ForceId.Friend });
+            Assert.Equal(3, commands.Length);   // the vehicle + its weapon + its gunner
+            var seats = commands.Where(c => c.TkbType != hostType)
+                .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
+                .OrderBy(x => x.Seat).ToArray();
+            Assert.Equal(new[] { (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)gunnerSeat), (weaponType, (byte)stationSeat) }, seats);
+            Assert.Single(Place(new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 }));   // the saved vehicle: neither again
+
+            using var w = new EntityRepository();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            Entity gun = Entity.Null;
+            foreach (var (type, seat) in seats)
+            {
+                var e = w.CreateEntity();
+                if (type == weaponType) { new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(w, e, tkb.GetByType(type)); gun = e; }
+                else w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+                w.AddComponent(e, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 900, Seat = seat });
+            }
+            var vehicle = w.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(w, vehicle, tkb.GetByType(hostType));
+            map.Register(900, vehicle);
+            new Hrot.Common.EntityCreation.SeatPresetSystem(map).Execute(w, 0f);
+
+            Assert.Equal(gun, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(vehicle).Passengers[stationSeat]);
+            Assert.Equal(vehicle, Fdp.Toolkit.Combat.WeaponSystems.ControllerOf(w, gun));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, gun));
+            Assert.Equal(riders, Fdp.Toolkit.Behavior.Embarkation.CapacityOf(w, vehicle));   // the HMMWV's three passenger seats …
+            if (riders > 0) Assert.Equal(0, Fdp.Toolkit.Behavior.Embarkation.FreeSeat(w, vehicle));   // … all still free
+        }
+
         /// <summary>A technical's TKB: a host with a driver seat, a gunner seat starting with a rifleman and a pintle station starting
         /// with an M2; the M2 and the rifleman.</summary>
         private static TkbDatabase PresetTkb()

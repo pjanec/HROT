@@ -125,6 +125,46 @@ public sealed class GeoSpatialIngressTranslatorTests
         Assert.Equal(20f, transform.Position.Y, precision: 3);
     }
 
+    // ── ⭐ ui handoff P3 (docs/DESIGN_Dead_Reckoning.md §9) — pitch and roll cross the wire ─────────────────
+
+    /// <summary>
+    /// ⭐ P3 — a banking, climbing aircraft on node B: the ingress rebuilds the rotation from heading AND pitch AND roll, so the owner's
+    /// own egress conversion (<c>RotationToHeadingDeg</c> + <c>RotationToPitchRollDeg</c>) reads the same three angles back within 0.01°;
+    /// and with pitch = roll = 0 the result is exactly the heading-only rotation every ground vehicle had before. ⛔ Before: pitch and roll
+    /// were dropped (heading only) — the plane flew level on every receiving node. ✅ Red-proof: the ingress back on
+    /// <c>HeadingDegToRotation</c> ⇒ the pitch reads 0 ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(30f, 10f, -20f)]
+    [InlineData(250f, -15f, 45f)]
+    [InlineData(90f, 0f, 0f)]
+    public void P3_PitchAndRoll_CrossTheWire_AHeadingOnlySampleIsUnchanged(float heading, float pitch, float roll)
+    {
+        using var world = CreateWorld();
+        var (translator, map) = CreateTranslator();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(77L));
+        world.AddComponent(entity, new SimTransform());
+        world.AddComponent(entity, new NetworkTransform());
+        world.AddComponent(entity, new NetworkVelocity());
+        map.Register(77L, entity);
+
+        var sample = MakeSample(77L) with { Ori = new EulerOri { Heading = heading, Pitch = pitch, Roll = roll } };
+        ISimulationView view = world;
+        var cmd = view.GetCommandBuffer();
+        translator.TestDecode(sample, cmd, view);
+        ((EntityCommandBuffer)cmd).Playback(world);
+
+        var rotation = world.GetComponent<SimTransform>(entity).Rotation;
+        Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.RotationToPitchRollDeg(rotation, out float p, out float r);
+        Assert.Equal(heading, Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.RotationToHeadingDeg(rotation), 2);
+        Assert.Equal(pitch, p, 2);
+        Assert.Equal(roll, r, 2);
+        Assert.Equal(rotation, world.GetComponent<NetworkTransform>(entity).LastRotation);
+        if (pitch == 0f && roll == 0f)
+            Assert.Equal(Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem.HeadingDegToRotation(heading), rotation);
+    }
+
     // ── GEOINGRESS-2: Primary-owner loopback — SimTransform NOT updated ───────
 
     /// <summary>

@@ -58,7 +58,8 @@ namespace Fdp.Toolkit.Combat.Systems
             else
                 return Failed(status, WeaponTaskFailure.NoTarget);
 
-            var (azimuth, elevation) = BallisticAim.Solve(repo, hull, turret, CombatTkb.MountOf(repo, hull, task.MountIndex), aim);
+            var (azimuth, elevation) = BallisticAim.Solve(repo, hull, turret, CombatTkb.MountOf(repo, hull, task.MountIndex), aim,
+                                                          task.Arc, unchecked((long)task.AmmoGuid));   // ⭐ ui handoff P2 — the laid gun
             if (!TurretSlew.InArc(turret, azimuth, elevation)) return Failed(status, WeaponTaskFailure.OutOfArc);
 
             ref var pose = ref repo.GetComponentRW<TurretPose>(part);
