@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
+  - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a heavy round does to a structure (a bunker, a building)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon-as-an-entity, the Station / Gunner seats and ControllerOf (a ground mortar is a weapon system its gunner controls)
   - docs/DESIGN_Entity_Interactions.md — §7.5 OWNS the team carry (the 81 / 120 mm tubes are TwoMan loads)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the Strike order (§7) this design extends; mortars and artillery fulfil it here

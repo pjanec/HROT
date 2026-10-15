@@ -2,11 +2,12 @@
 state: LIVE
 updated: 2026-10-15
 build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 approved, W1–W4 proposed), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a strike DOES to a building, bunker, bridge or runway (founded 2026-10-15, CE-2181); W1 here names the kind
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — §7 OWNS what a burst does to a vehicle (the §9c live miss: fragments and blast vs hulls)
   - docs/DESIGN_Dead_Reckoning.md — OWNS how a node knows another node's motion (R6: a brain reads ReplicatedMotion, never SimVelocity)
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: Strike fulfilled by a battery or a self-propelled gun (IF-D adds the fire-mission fields)
@@ -496,7 +497,7 @@ are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_
 🔒 **User, `2026-10-15`:** *"weapon selection depends on the target type. Point target usually cary a reason why to strike it - building
 or bridge or bunker or runway or something - this should come together with the target coordinates. Entity target is covered already
 (entities carry Dis entity type)."* · on B12: *"accepted … but not using non-reasonably strong or expensive ammo or weak or
-collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack duration - accepted"* → B12–B14 in §10.
+collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack duration - accepted"* → B12–B14 in §10 · *"w1-w4 accepted"* · *"support for firing flares/chaffs would be good"* · *"structure damage will come as another programme"* ([founded](../structure-damage/DESIGN_Structure_Damage.md), CE-2181; W1 chooses the weapon, nothing is damaged until it lands).
 
 | 📐 measured `2026-10-15` | code | design |
 |---|---|---|
@@ -506,7 +507,7 @@ collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack 
 | no structure is damaged by anything (no building / bridge / bunker damage) | search `BuildingDamage\|Destructible\|StructureDamage`: 0 | R-2019: *"destructible buildings later, backend's call"* |
 | the unguided aim has no lead | `Fdp.Toolkits/Combat`: the only lead is the guided dive geometry | ⇒ B13 leads in the behaviour |
 
-| ⏳ proposed, awaiting the user | lean | rejected — one line |
+| 🔒 APPROVED `2026-10-15` (*"w1-w4 accepted"*) | decision | rejected — one line |
 |---|---|---|
 | **W1** a point target's kind | `StrikeOrder.TargetKind` (enum, appended): `Unspecified` · `Personnel` · `Vehicles` · `Building` · `Fortification` (bunker) · `Bridge` · `Runway`; `Unspecified` on a terrain building's footprint ⇒ `Building`; it picks the weapon class (W2) | a free-text reason (no rule can read it) · a DIS cultural-feature type (no TKB entry for a point) |
 | **W2** enough, not most | per munition a relative **cost** (TKB, backend); the choice = the CHEAPEST weapon whose expected effect on the target reaches the need (an entity: `ValueOf`; a point: the kind's weapon class), else the most effective | the strongest round always (a bomb on a rifleman) · cost only (a gun on a bunker) |
