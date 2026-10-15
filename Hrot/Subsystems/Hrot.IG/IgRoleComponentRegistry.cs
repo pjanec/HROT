@@ -53,6 +53,12 @@ public static class IgRoleComponentRegistry
         // UXI-23 S1: MapDisplayComponent moved to the shared map list.
         Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         world.RegisterComponent<EntityInfo>();
+        // ⭐ CE-4008 — the shared EntityInfo ingress translator (SharedTranslatorPack, which IG runs) publishes the
+        //   command-hierarchy events when a sample names a commander. 📐 Unregistered, the first such sample threw a
+        //   Strict Mode Violation and killed the node — measured live: a late Player entering a replay crashed on
+        //   CmdAssignSubordinate. IG runs no hierarchy system; the events are only drained.
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>();
+        world.RegisterEvent<Fdp.Core.CommandHierarchy.CmdRemoveSubordinate>();
         world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 
         RouteComponentRegistry.RegisterAll(world);
