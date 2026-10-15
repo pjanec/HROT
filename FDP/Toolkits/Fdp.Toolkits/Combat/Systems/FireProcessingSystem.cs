@@ -142,6 +142,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 bool fromBarrel = Muzzle.TryOf(repo, shooter, evt.WeaponIndex, out var barrel)
                                   && Vector3.Distance(barrel, shooterPos) <= 0.5f * Vector3.Distance(targetPos, shooterPos);
                 if (fromBarrel) origin = barrel;
+                // ⭐ CE-2183 (AT2, R-2021, DESIGN_Air_Operations §7c) — a STRAIGHT round at an AIRCRAFT is aimed where it will be: the ONE
+                //   predictor (TargetLead.Point, behaviors' B13), from the round's origin at its own speed, the target's velocity as this
+                //   node knows it (ReplicatedMotion). Ground targets, guided and arcing rounds are unchanged. ⭐ Here, not on the Brain: a
+                //   shot at a UNIT is aimed by this node at fire time (AimPoint.Middle above) — the Brain's aim point is not used.
+                if (!evt.AtPoint) targetPos = LedAtAircraft(repo, shooter, target, evt, origin, targetPos, weapon.MuzzleVelocity);
                 var delta     = targetPos - origin;
                 var direction = delta.LengthSquared() > 0f
                     ? Vector3.Normalize(delta)
@@ -381,6 +386,32 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <c>z(t) = z₀ + v_z·t − ½·g·t²</c> at the aim point's height) + <see cref="ArcLifetimeMarginSeconds"/>, never less than the flat
         /// <see cref="CombatConstants.ArcRoundLifetimeTicks"/> (so no round lives shorter than before).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2183</c> (AT2, R-2021) — the point a round fired at <paramref name="target"/> is aimed at: when the target is in the
+        /// AIR domain and the round flies STRAIGHT (not an indirect / bomb arc, not a guided missile — those steer or fall on their own),
+        /// <see cref="TargetLead.Point"/> from <paramref name="origin"/> at the round's speed (an unguided rocket's own, else the fired
+        /// mount's muzzle velocity, else <paramref name="weaponMuzzle"/>), with the shooter's own velocity when it flies (A4) and the
+        /// target's as this node knows it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>). Otherwise <paramref name="aim"/>.
+        /// </summary>
+        public static Vector3 LedAtAircraft(EntityRepository repo, Entity shooter, Entity target, in WeaponFireIntent evt, Vector3 origin,
+                                            Vector3 aim, float weaponMuzzle)
+        {
+            if (target.IsNull || !Fdp.Toolkit.Motion.Locomotions.InAir(repo, target)) return aim;
+            var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+            if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb) return aim;
+            long ammo = evt.AmmoGuid != 0 ? evt.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (CombatTkb.WarheadOf(repo, ammo) is { Indirect: true }) return aim;
+            var missile = CombatTkb.MissileOf(repo, ammo);
+            if (missile != null && missile.Guidance != Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided) return aim;
+            float speed = missile is { SpeedMps: > 0f } ? missile.SpeedMps
+                        : mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
+                        : weaponMuzzle;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var targetVelocity)) return aim;
+            var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter)
+                ? repo.GetComponentRO<SimVelocity>(shooter).Linear : Vector3.Zero;
+            return TargetLead.Point(origin, shooterVelocity, speed, aim, targetVelocity);
+        }
+
         public static uint ArcLifetimeTicks(Vector3 from, Vector3 to, Vector3 velocity)
         {
             float g = CombatConstants.Gravity, drop = from.Z - to.Z;

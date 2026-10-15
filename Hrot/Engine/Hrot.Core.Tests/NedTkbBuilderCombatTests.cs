@@ -1,3 +1,4 @@
+using System.Linq;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Toolkit.Tkb;
@@ -641,6 +642,26 @@ namespace Hrot.Map.Common.Tests
 
             Assert.True(w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e));
             Assert.Equal(800f, w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Max);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2186</c> (W2, R-2020, DESIGN_Missiles_And_Ammo §2c) — every built-in munition carries a relative cost, so the weapon brain's
+        /// "cheapest round that is enough" applies to every built-in loadout (a loadout with one uncosted round falls back to the pick by
+        /// effect alone). Ordered as the rule says: a rifle round 1, a guided missile or a bomb in the hundreds.
+        /// </summary>
+        [Fact]
+        public void CE2186_EveryBuiltInMunition_HasACost_InTheRulesOrder()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            var munitions = db.GetAll().Where(t => t.TkbType >= 6001 && t.TkbType < 6100).ToList();
+            Assert.NotEmpty(munitions);
+            Assert.All(munitions, t => Assert.True((t.GetDescriptor<MunitionCostDto>()?.RelativeCost ?? 0f) > 0f, $"{t.Name} has no cost"));
+            float Cost(long type) => db.GetByType(type)!.GetDescriptor<MunitionCostDto>()!.RelativeCost;
+            Assert.Equal(1f, Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball));
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT) < Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds));
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile) >= 100f);
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb) >= 100f);
         }
 
         private static TkbDatabase BuildDatabase()

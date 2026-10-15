@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the ROUND for this engagement, beside the mount: chosen once per target from
             //   the mount's loadout with the one ArmorModel (AmmoChoice); a different round costs one reload, and the weapon holds
             //   meanwhile. A mount with no loadout never switches. The behaviour never names a round (R-261).
-            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, platform, p.Target, weapon.ReloadSeconds);
+            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, platform, p.Target, weapon.ReloadSeconds, Math.Max(1, (int)p.Rounds));
             long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);
             // ⭐⭐ M4 / D-L (DESIGN_Missiles_And_Ammo §3–§4) — the weapon brain's two new holds, on BOTH paths, before a round is
             //   granted: a missile below its minimum range (it cannot arm or turn in time), and a weapon that does not fire on the

@@ -404,6 +404,40 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(60f, Fire(1, charge: 0, high: 0)[0].Length(), 0);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2183</c> (AT2, R-2021, DESIGN_Air_Operations §7c) — a rifleman's round at a helicopter crossing at 60 m/s, 300 m out, is
+        /// aimed AHEAD of it by its velocity × the round's flight time (± 1 m, <see cref="TargetLead"/>); a ground vehicle at the same speed
+        /// is aimed where it is (unchanged). 🔴 Red-proof: without the lead the round passes where the helicopter WAS — ~23 m behind it.
+        /// </summary>
+        [Fact]
+        public void CE2183_ARoundAtACrossingHelicopter_IsLed_AGroundVehicleIsNot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var crossing = new Vector3(0f, 60f, 0f);
+
+            float LateralAtTheTarget(Entity target)
+            {
+                PublishIntent(SpawnShooter(Vector3.Zero), target);
+                _sys.Execute(_world, 0.016f);
+                var round = Assert.Single(Rounds());
+                var start = _world.GetComponent<SimTransform>(round).Position;
+                var v = _world.GetComponent<SimVelocity>(round).Linear;
+                float y = start.Y + v.Y / v.X * (300f - start.X);   // where the round's line crosses the target's track
+                _world.DestroyEntity(round);
+                return y;
+            }
+
+            var heli = SpawnTarget(new Vector3(300f, 0f, 60f));
+            _world.AddComponent(heli, new SimVelocity { Linear = crossing });
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            float t = TargetLead.FlightTime(Vector3.Zero, Vector3.Zero, 800f, new Vector3(300f, 0f, 60f), crossing);
+            Assert.InRange(LateralAtTheTarget(heli), 60f * t - 1f, 60f * t + 1f);
+
+            var truck = SpawnTarget(new Vector3(300f, 0f, 0f));
+            _world.AddComponent(truck, new SimVelocity { Linear = crossing });
+            Assert.InRange(LateralAtTheTarget(truck), -0.5f, 0.5f);
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();

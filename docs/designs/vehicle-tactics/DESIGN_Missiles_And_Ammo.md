@@ -162,6 +162,77 @@ Wire: `WeaponFireRequest.AmmoGuid` (the only new wire field, R-169); `EntityWeap
 `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` · `StandardInputReaderTests.M8_Effectiveness_…`. ⚠ No built-in type carries a
 loadout yet — that is B8's data (M5).
 
+### 2b. Enough, not most — a munition has a COST (`CE-2186`, W2, 🔒 R-2020; backend `2026-10-15`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Munition_Cost.md))
+
+🔒 **User, `2026-10-15`:** *"not using non-reasonably strong or expensive ammo or weak or collateral-damage sensitive targets"* → W2 *"accepted"*
+([Air Ops §7b](../air-attack/DESIGN_Air_Operations.md)). 📐 Measured: `AmmoChoice.Best` takes the HIGHEST value — the strongest round always wins,
+however weak the target (`AmmoChoice.cs`, §2 above); no munition carries a cost (`Tkb/Domain/*.cs`).
+
+```mermaid
+classDiagram
+  class MunitionCostDto { <<NEW TKB record "Munition.Cost">> +RelativeCost : float  (0 = unknown) }
+  class MunitionTkbCatalog { <<existing, grows>> every built-in munition gets a MunitionCostDto from one table (Costs) }
+  class CombatTkb { <<existing, grows>> +CostOf(world, ammo) float }
+  class AmmoChoice {
+    <<existing, grows>>
+    +Sufficient(world, mount, ammo, shooter, target, rounds) bool  «NEW, the ONE rule»
+    +Best(world, load, mount, shooter, target, rounds = 1) int  «cheapest sufficient, else as before»
+    +Choose(…, rounds = 1)  «passes the action's rounds»
+    ValueOf · ExpectedDamage  «unchanged»
+  }
+  class AimAndFireExecutor { <<existing>> Choose(… rounds = the action's Rounds, ≥ 1) }
+  class AirAttackBehaviors { <<behaviors, B12>> the mount pick calls AmmoChoice.Sufficient — the same test }
+  MunitionTkbCatalog ..> MunitionCostDto
+  CombatTkb ..> MunitionCostDto : reads
+  AmmoChoice ..> CombatTkb : CostOf
+  AimAndFireExecutor ..> AmmoChoice
+  AirAttackBehaviors ..> AmmoChoice : Sufficient
+```
+
+*What the picture shows that prose hid: the cost is one TKB record the choice READS; the sufficiency test is ONE static the air attack's
+mount pick calls too — two callers, one rule (R-212 A1), and the value model underneath is untouched.*
+
+```mermaid
+sequenceDiagram
+  participant EX as AimAndFireExecutor (Brain)
+  participant AC as AmmoChoice.Best
+  participant CT as CombatTkb
+  EX->>AC: Best(load, mount, shooter, target, rounds)
+  AC->>CT: CostOf(each loaded type)
+  alt every type with rounds left has a cost
+    AC->>AC: the CHEAPEST whose Sufficient(…) (value × rounds ≥ 1), ties → the higher value, then the loaded one
+    opt none is sufficient
+      AC->>AC: the most effective — today's rule (value, then area)
+    end
+  else any type has no cost
+    AC->>AC: today's rule, unchanged
+  end
+  AC-->>EX: the round
+```
+
+| rule | why |
+|---|---|
+| `Sufficient` = `ValueOf × max(1, rounds) ≥ 1` — the burst is expected to kill | the handoff's lean; one function for the round AND (behaviors) the mount |
+| among the loaded types: the CHEAPEST sufficient; none sufficient ⇒ the most effective (§2's rule) | "enough, not most"; a tank still draws the ATGM |
+| a loadout where any type has no cost ⇒ §2's rule exactly | fence: no existing rail moves without a reason |
+| costs: one table in `MunitionTkbCatalog` (§2c) | data, not code |
+
+#### 2c. The cost table — the rule used
+
+Relative unit cost, **tiers by munition class, ordered by public unit prices** (5.56 / 7.62 ball ≈ $0.5–1, 12.7 mm ≈ $3–5, 25–30 mm ≈ $30–100,
+RPG / LAW rocket ≈ $0.5–2k, mortar / artillery / tank shell ≈ $1–10k, Hydra ≈ $3k, ATGM ≈ $40–200k): the scale is COMPRESSED — only the
+order and the handoff's "a rifle round 1, an ATGM / a bomb in the hundreds" matter to the choice.
+
+| class | relative cost | munitions |
+|---|---|---|
+| small arms | 1 | 5.56 ball / tracer, 7.62 ball / tracer |
+| heavy MG | 3 | 12.7 / 14.5 AP |
+| hand grenade | 5 | M67 |
+| autocannon | 10–20 | GAU-8 HEI / API 10, 25 mm APDS-T 20 |
+| unguided rocket | 30–60 | RPG-7 30, LAW 30, PG-7VL 40, PG-7VR 60 |
+| mortar / artillery / tank shell | 30–100 | 60 mm 30, 81 mm 50, tank HE-FRAG 60, 120 mm mortar 80, 105 mm 80, tank HEAT-MP 80, 120 / 125 mm APFSDS 100, 155 mm 100 |
+| guided / air | 50–500 | FPV warhead 50, Hydra 70 100, TOW 300, NLAW 300, Kornet 300, Mk-82 300, Javelin 500 |
+
 ## 3. Guided rounds (M4, D-D)
 
 ```mermaid

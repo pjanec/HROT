@@ -254,6 +254,16 @@ namespace Fdp.Toolkit.Combat
         /// <see cref="Penetrator.Tandem"/>), anything else — no warhead, unknown ammo, no TKB database — ⇒ kinetic.</summary>
         public static Penetrator PenetratorOf(EntityRepository world, long ammo) => PenetratorOfAmmo(world, ammo);
 
+        /// <summary>⭐ <c>CE-2186</c> (W2) — the relative cost of one round of the munition type <paramref name="ammo"/>
+        /// (<see cref="MunitionCostDto"/>); 0 when unknown.</summary>
+        public static float CostOf(EntityRepository world, long ammo)
+        {
+            // ⭐ CE-2186 (W2, R-2020) — the munition's relative cost (MunitionCostDto); 0 = unknown, no TKB, or no ammo
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return 0f;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<MunitionCostDto>()?.RelativeCost ?? 0f : 0f;
+        }
+
         /// <summary>⭐ M4 (D-D) — the guidance of the munition type <paramref name="ammo"/> (its <see cref="MissileDto"/>), or null: a
         /// round that is not a missile, unknown ammo, or no TKB database.</summary>
         public static MissileDto? MissileOf(EntityRepository world, long ammo)

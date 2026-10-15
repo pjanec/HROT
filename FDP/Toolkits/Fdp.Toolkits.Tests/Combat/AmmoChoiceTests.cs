@@ -122,6 +122,77 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal("HE", Pick(Spawn(Technical, new Vector3(300, 0, 0), 400, 2f)));
         }
 
+        // ── ⭐⭐ CE-2186 (W2, R-2020, DESIGN_Missiles_And_Ammo §2b) — enough, not most ──────────────────────────────────────────────
+
+        private const long He25 = 9301, Apds25 = 9302, Atgm = 9303, Mbt = 9304;
+
+        /// <summary>A 25 mm HE (cost 15), a 25 mm APDS (20) and an ATGM (300, a big blast — so by value alone it wins every tie) on one
+        /// mount; <paramref name="costs"/> false ⇒ the same rounds with no cost data.</summary>
+        private (AmmoLoadout Load, WeaponMountDto Mount) CostedMount(bool costs = true)
+        {
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>()!;
+            if (!db.TryGetByType(He25, out _))
+            {
+                TkbTemplate Round(string name, long type, float pen, float dmg, float cost, WarheadDto? wh)
+                {
+                    var t = new TkbTemplate(name, type);
+                    t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = pen, Damage = dmg });
+                    if (wh != null) t.AddDescriptor(wh);
+                    if (costs) t.AddDescriptor(new MunitionCostDto { RelativeCost = cost });
+                    return t;
+                }
+                db.Register(Round("25mm HE", He25, 20, 150, 15, new WarheadDto
+                    { Kind = WarheadKind.HighExplosive, FragmentRadiusM = 5, FragmentPenetrationMm = 5, FragmentDamage = 40 }));
+                db.Register(Round("25mm APDS", Apds25, 90, 200, 20, null));
+                db.Register(Round("ATGM", Atgm, 800, 1500, 300, new WarheadDto
+                    { Kind = WarheadKind.ShapedCharge, FragmentRadiusM = 20, FragmentPenetrationMm = 20, FragmentDamage = 300,
+                      BlastLethalRadiusM = 6, BlastInjuryRadiusM = 15, BlastLethalDamage = 600 }));
+                db.Register(Target("M1", Mbt, new CombatPlatformDefDto
+                    { MaxHealth = 3000, ArmorFront = 600, ArmorSide = 350, ArmorRear = 200, ArmorFrontCe = 700 }));
+            }
+            var mount = new WeaponMountDto
+            {
+                AmmoGuid = unchecked((ulong)He25), DamagePerHit = 150, InitialAmmunition = 100,
+                Loadout = new() { new AmmoLoadDto { AmmoGuid = unchecked((ulong)He25), Rounds = 50 },
+                                  new AmmoLoadDto { AmmoGuid = unchecked((ulong)Apds25), Rounds = 50 },
+                                  new AmmoLoadDto { AmmoGuid = unchecked((ulong)Atgm), Rounds = 4 } },
+            };
+            return (AmmoLoadout.From(mount.Loadout), mount);
+        }
+
+        private long PickFor(Entity target, int rounds, bool costs = true)
+        {
+            var (load, mount) = CostedMount(costs);
+            var shooter = _w.CreateEntity();
+            _w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            return load.AmmoAt(AmmoChoice.Best(_w, load, mount, shooter, target, rounds));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2186</c> — the weapon brain picks the CHEAPEST round that is enough for the burst: a rifleman draws the 25 mm HE (every
+        /// round kills him), an M1 the ATGM (nothing cheaper gets through its front), a technical the cheaper 25 mm that kills it in the
+        /// burst — never the ATGM. 🔴 Red-proof: the pick by value only ⇒ the rifleman draws the ATGM (its blast wins the area tie-break).
+        /// </summary>
+        [Fact]
+        public void CE2186_TheCheapestRoundThatIsEnough_HeForAMan_TheAtgmForATank_A25mmForATechnical()
+        {
+            Assert.Equal(He25, PickFor(Spawn(Man, new Vector3(300, 0, 0), 100, 0f), rounds: 3));
+            Assert.Equal(Atgm, PickFor(Spawn(Mbt, new Vector3(800, 0, 0), 3000, 2.4f), rounds: 1));
+            long technical = PickFor(Spawn(Technical, new Vector3(300, 0, 0), 400, 2f), rounds: 5);
+            Assert.NotEqual(Atgm, technical);
+            var shooter = _w.CreateEntity();
+            _w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            Assert.True(AmmoChoice.Sufficient(_w, CostedMount().Mount, technical, shooter, Spawn(Technical, new Vector3(300, 0, 0), 400, 2f), 5));
+        }
+
+        /// <summary>⭐ <c>CE-2186</c> — a loadout whose rounds have no cost data picks exactly as before (by value, then area): the rifleman
+        /// draws the ATGM, as the value-only rule always gave him.</summary>
+        [Fact]
+        public void CE2186_RoundsWithNoCost_PickAsBefore()
+        {
+            Assert.Equal(Atgm, PickFor(Spawn(Man, new Vector3(300, 0, 0), 100, 0f), rounds: 3, costs: false));
+        }
+
         /// <summary>⭐ M8 — the value of a round is the expected damage of one hit on the face the shot meets, ÷ the target's maximum
         /// health, capped at 1: the APFSDS on the tank's front does 1100 / 2500; the HEAT does nothing there.</summary>
         [Fact]

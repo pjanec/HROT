@@ -555,7 +555,7 @@ translator set (`TkbTranslatorSet.Base()`, `HrotEnvironment.CreateTkb()`), its c
 ⚠ Also measured, NOT approved: the A-10 and the AH-64 have health but NO armour entry (every round penetrates once AT1 lands) — the
 handoff asks backend for numbers; they come back to the user.
 
-#### 7c-i. As-built — AT1, AT3, AT4 (backend, `2026-10-15`; [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md))
+#### 7c-i. As-built — AT1, AT2, AT3, AT4 (backend, `2026-10-15`; [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md))
 
 ```mermaid
 classDiagram
@@ -602,12 +602,13 @@ already existed (`4e4cd78b3`, M7); the one hole was the impact's ground-phase sk
 |---|---|---|
 | **AT1** (CE-2182) | `BulletCollisionLayer` = **4**; `CombatConstants.CombatCollisionLayer` = 2 (public, the translator's constant). Measured through the production translators (every TKB type): the FPV, A-10, AH-64 and (AT4) the doors-off UH-60 end on layer 2 and are met; soldiers and vehicles stay on 3 (unchanged) | ⚠ **13 more bodies sit on the combat layer alone — every weapon system (600–612: M2, DShK, M134, Javelin, NLAW, LAW, Kornet, TOW, sentry gun, three mortars, the 105 mm)** — with the 2.5 m fallback collider and NO height, standing at a host's seat or on a carrier (Weapon Systems §6). Made hittable they would take the rounds meant for the pickup or the man ⇒ ⭐ a round SKIPS a weapon system (`RaycastSolverSystem`, beside the obstacle skip) — today's behaviour kept; fragments and blast still break it (CE-3203). A real hit on a deployed weapon needs a real collider: proposal to the user, not built |
 | **AT3** (CE-2184) | already built by M7: `RotorcraftModel.Falling` (gravity, horizontal decay 0.5/s), `FixedWingModel.Fall` (ballistic), `DroneImpactSystem` rests a dead flyer on the ground, `EmbarkedStateSystem` kills the riders (I-2c). ⭐ Fixed: `DroneImpactSystem` skipped every flyer in a ground phase (TakingOff … Loading), alive or dead — a helicopter killed on its way down kept `Landing` and fell through the ground; the skip is now for a LIVE flyer only | the handoff's "it hovers (`RotorcraftModel.cs:53`)" read the hover line under the fall check — measured: a killed helicopter falls (rails below) |
+| **AT2** (CE-2183) | `FireProcessingSystem.LedAtAircraft`: a STRAIGHT round (a bullet, a shell, an unguided rocket — not an indirect / bomb arc, not a guided missile) fired at a unit in the AIR domain is aimed at `TargetLead.Point` (behaviors' one predictor) from the round's origin at its speed (the rocket's own, else the mount's muzzle velocity), the shooter's velocity when it flies (A4) and the target's as this node knows it (`ReplicatedMotion`); a ground target is unchanged | ⚠ **deviation — the lead is on the MUSCLE, not in `AimAndFireExecutor`**: a shot at a UNIT is aimed by the firing node at fire time (`AimPoint.Middle` of the target, `FireProcessingSystem.cs:125`) — the Brain's aim point is never read for it, so leading it there would change nothing. The firing node also holds the aircraft's own motion. Rail in the fire path's suite (`FireProcessingSystemTests`), not `AimAndFireExecutorTests` |
 | **AT4** (CE-2185) | both UH-60s (400, 404): `WithCombat` health **800**, blast susceptibility **0.8** (the AH-64 class's — no public damage model for a UH-60) **and `WithBehavior`** (a brain) | ⚠ the brain is REQUIRED, not optional: Health is in the Brain ownership group and only the Brain node applies damage — `HrotOwnershipGroupsTests.…_CE523` went red without it. ⚠ the static UH-60 (400) has no flight model ⇒ its collider is the 2.5 m fallback with no height (a circle at any altitude); harmless on the ground, noted |
 
 **Rails** (the features' own suites): `RaycastSolverSystemTests.CE2182_ARoundFiredUpAtAnAircraft_MeetsIt` · `…_RoundsNeverMeetEachOther` ·
 `…_AWeaponSystemOnItsCarrier_IsNotMet_TheManIs` · `NedTkbBuilderCombatTests.CE2182_AnAircraft_IsOnTheCombatLayer_SoARoundMeetsIt` (403, 405, 406,
 404) · `…CE2185_ABlackHawk_CarriesHealth` (400, 404) · `RotorcraftModelTests.CE2184_AHelicopterKilledMidRoute_FallsToTheGround_InTheFreeFallTime_AndRestsThere`
-· `…CE2184_AHelicopterKilledWhileLanding_DoesNotFallThroughTheGround` · `…CE2184_APlaneKilledAt300m_FallsAlongItsTrack`. Riders: the existing
+· `…CE2184_AHelicopterKilledWhileLanding_DoesNotFallThroughTheGround` · `…CE2184_APlaneKilledAt300m_FallsAlongItsTrack` · `FireProcessingSystemTests.CE2183_ARoundAtACrossingHelicopter_IsLed_AGroundVehicleIsNot`. Riders: the existing
 `EmbarkedStateSystemTests.CE3110_I2c_AVehicleDestroyed_KillsThePassengers_…`.
 
 **Proposed armour faces — NOT built, for the user** (mm RHA-equivalent per face, the `ArmorModel` columns; public figures, rounded, not
