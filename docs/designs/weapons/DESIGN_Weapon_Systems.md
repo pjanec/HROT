@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
+updated: 2026-10-15 (§5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — designed; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
 build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — SetUpWeapon / PackUpWeapon / CarryWeapon and the demo not yet; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
@@ -304,6 +304,27 @@ carrier: BdcTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry
 `IsEmbarkedTag.Exposed` is 1 and `PhysicalPresence.IsHidden` does not hide it; the 81 mm at 10 m that breaks a Javelin on the ground
 breaks it on his back (rail `AreaEffectSystemTests.CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`). ~~not measured for the
 soldier types here; a lean in the report~~
+
+### 5c. Air defence — the MANPADS launchers and the ZU-23-2 (`CE-2187`, `CE-2190`, backend, `2026-10-15`; build-state: BUILDING)
+
+🔒 Frame: [Air Operations §7d](../air-attack/DESIGN_Air_Operations.md) AD1 / AD5 (behaviors' leans, user-approved). The rounds, the IR
+seeker, the proximity fuze and the countermeasures are [Missiles & Ammo §3c](../vehicle-tactics/DESIGN_Missiles_And_Ammo.md). ⭐ **No new
+class here** — data on the existing weapon-system types (§3), so the class and sequence diagrams of §3/§4 hold unchanged: a MANPADS is
+§4b's carried weapon (`FireWhileCarried`, the Javelin 603), the ZU-23 is §4a's station weapon (the M2 600) with a two-man ground crew.
+
+| type | id | `WeaponSystemDto` | mount | turret | breaks (§5b) |
+|---|---|---|---|---|---|
+| Stinger (FIM-92 class) | **613** | the shoulder launcher (`OneMan`, `Ground` \| `Carried`, `FireWhileCarried`) | 1 missile, `AimSeconds` 4 (the IR lock), reload 8 s, range 4 800 m, `Category = Sam` | none | 0.15 m², casing 0, health 15 — a seeker and a battery |
+| Igla (9K38 class) | **614** | as 613 | 1 missile, lock 4 s, reload 8 s, range 5 200 m, `Sam` | none | as 613 |
+| ZU-23-2 | **615** | `TwoMan`, `Ground` \| `Pintle`, deploy 30 s / pack 20 s, carry 0.3 | twin 23 mm: 100 rounds ready (2 × 50), 400 rpm practical, dispersion 3 mils, range 2 500 m, HE-I + API loadout, `MachineGun` | **−10…+90°**, traverse 70 °/s, elevation 50 °/s | 1.0 m², casing 3, health 120 |
+
+| preset / data | id | what |
+|---|---|---|
+| a soldier carrying a Stinger / an Igla | **202 / 203** | the rifleman's body and rifle (mount 0) + `PersonCarrier()` with the carry station's `StartWith` = 613 / 614 (W-I) — ⭐ the first soldier preset with a weapon on his back (2006 / 2007 are still mount-0 launchers, §9) |
+| the technical with a ZU-23 | **110** | pickup + ZU-23 in its bed station + a gunner (the 104 pattern) |
+| munitions | **6030** Stinger · **6031** Igla · **6032** 23 mm HE-I · **6033** 23 mm API | §3c's `MissileDto` (InfraRed, `TargetDomain = Air`) and a proximity `WarheadDto` on 6030/6031; the 23 mm rounds are plain (no proximity fuze — the real one has none, AT2's lead aims them) |
+
+⚠ `WeaponCategory.Sam` is a new enum member (appended) — the weapon brain's `Atgm` / `MachineGun` paths must not mistake a SAM for an ATGM.
 
 ## 6. Rules
 
