@@ -12,15 +12,15 @@
     "a2199d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          500,
+          450,
           100,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          1,
+          0
         ]
       },
       "NetworkIdentity": {
@@ -49,7 +49,7 @@
     "a2199d00-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          100,
+          110,
           100,
           0
         ],
@@ -79,15 +79,15 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [100, 100, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"advance\": {\"Objective\": [110, 100, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
         "Origin": "Superior"
       }
     },
     "a2199d00-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          105,
-          130,
+          115,
+          125,
           0
         ],
         "Rotation": [
@@ -116,22 +116,22 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [105, 130, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"advance\": {\"Objective\": [115, 125, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
         "Origin": "Superior"
       }
     },
     "a2199d00-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          520,
-          540,
+          560,
+          580,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          -0.7071,
+          0.7071
         ]
       },
       "NetworkIdentity": {
@@ -160,8 +160,8 @@
     "a2199d00-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
-          520,
-          460,
+          560,
+          500,
           0
         ],
         "Rotation": [
