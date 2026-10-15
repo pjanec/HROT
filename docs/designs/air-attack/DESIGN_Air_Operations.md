@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and slice 6c's AirPlatformAttack + GunRun + the lead (§9e, 2026-10-15) BUILT; slice 6d's DoorGunOrbit (§9f, 2026-10-15) BUILT; air defence framed (§7d, AD1–AD6 leans; the engine half dispatched to backend as CE-2187…CE-2190); PopUp, Dive, the battle position (W4) and ua-air-attack remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and slice 6c's AirPlatformAttack + GunRun + the lead (§9e, 2026-10-15) BUILT; slice 6d's DoorGunOrbit (§9f, 2026-10-15) BUILT; ua-air-attack LIVE (§9g, 2026-10-15); air defence framed (§7d, AD1–AD6 leans; the engine half dispatched to backend as CE-2187…CE-2190); PopUp, Dive and the battle position (W4) remain
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire, §9e GunRun, §9f DoorGunOrbit), §9g the live showcase, §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -22,6 +22,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — OWNS SquadDismount (§5a) and the squad SOP; this file adds SquadEmbark and the carrier rows (§9)
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation, seats and the person carrier (§7); the doors-off UH-60 (404) is its carrier
   - docs/DESIGN_Body_Geometry_And_Ground_Contact.md — OWNS RestingPose (landing on the gear); the helicopter's touchdown uses it
+  - docs/DESIGN_Terrain_World.md — §4.4 OWNS the collider grid's fit to the terrain: a unit standing outside it cannot be met by a round (§9g; CE-2193)
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261); the bomb release is a weapon-brain profile
   - docs/DESIGN_Map_3D_Mode.md — §6m draws riders in the doors-off Black Hawk's doors and the jump down
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — AIR-1 (precision strike) and AIR-2/3 are first built here
@@ -1057,6 +1058,23 @@ door to the target.*
 | ⚠ the turn is counted from the moment the helicopter is ON the circle (within 1.1 R), then on | 📐 the first build counted inside 1.5 R and the rail measured a point strike ending 5.89 rad into the circle — 23° short of a full turn |
 | `RoundSpeed` and the range read a door gun's OWN mount (`MountDto`: mount `32 + k` ⇒ the weapon system's mount 0) | `CombatTkb.MountOf` reads only the aircraft's own suite |
 | rails: `AirAttackNodesTests.S6d_TheDoorsOffHelicopter_OrbitsTheTarget_ItsLeftDoorGunFires_UntilTheTargetIsDown` (DoorGunOrbit picked; on a 300–500 m band; counter-clockwise past a full turn; never below 60 m/s; at 100 m; only the left M134 fires and every round flown from the aim at 850 m/s + the helicopter's velocity passes within 2 m of the target; Success the frame the target dies) · `S6d_ADoorGunnerShot_HisGunFallsSilent_TheOrbitTurnsTheOtherDoorIn` (the left gun silent after its gunner falls, the orbit clockwise, the right gun fires; both down ⇒ Failure, no round after) · `S6d_ADoorGunOrbitOnAPoint_EndsAfterOneFullTurn` (a full turn ON the circle) · `FireProcessingSystemTests.S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity` | red-proved by 8 mutants: the turn's sign · the lead without the helicopter's velocity · the orbit steered at the target (it hovers) · no reversal · no DoorGunOrbit pick · the point strike's end at two turns · the approach's turning counted as orbit (red only after the on-circle assertion) · A4 from the bare weapon |
+
+### 9g. Live — `ua-air-attack`, the showcase (`2026-10-15`)
+
+⭐ `python3 scripts/utility-demo-check.py --launch ua-air-attack` — `scenarios/ua-air-attack`, four vignettes on `basic-desert`, every
+target inside the collider grid (±750 m). One run: ① the A-10's bomb bursts 3.4 m from the fortification point · ② the A-10 gun run
+kills the lead pickup (19 rounds, the first hits `Hit`) · ③④ the Apache fires rockets AND its gun (mounts 0 and 1, 38 rounds) and
+breaks off 305 m short · ⑤ the UH-60 orbits (≈ 360 m), its left door gun fires, the left gunner is shot, the right door takes over,
+the orbit reverses (+1.64 rad before, −3.03 after), 263 of 440 door-gun rounds hit (median 2.7 m), the truck dies.
+
+| measured on the way — and where it went | |
+|---|---|
+| ⛔ a unit OUTSIDE the collider grid cannot be met by any round — `SpatialHashGrid.Add` drops it without a word (`SpatialHashGrid.cs:142`); the first layout (targets at ≥ 1 000 m) got 1 358 door-gun rounds, 0 hits | ⇒ **CE-2193** to backend (warn on a dropped unit; `DESIGN_Terrain_World.md` §4.4). ⚠ It also produced my **CE-2192** (*"a contact burst never strikes the unit"*) — **WITHDRAWN**, misdiagnosed |
+| a gun's / rocket's aim on an entity is its MIDDLE (`AimPoint.Middle`), not its ground point | §9e's gun run aimed at the wheels and the shallow rounds went short |
+| `RoundSpeed` mirrors `FireProcessingSystem:156-158` (missile speed · the mount's muzzle for index > 0 · the firer's `WeaponState` · the mount · 800) | the lead used 500 where the round flew 800 |
+| ⚠ cross-lane (backend): `LedAtAircraft` reads the carrier (`HitModel.BodyOf`) like A4 does; `DroneImpactSystem` never meets a carrier's own riders (`LineOfFire.RidesWith`, internal now) | the UH-60 crashed into its own gunners in flight; railed in `FireProcessingSystemTests` / `DroneImpactSystemTests` |
+| the Orbit Truck carries **8 000** health | ⭐ a demo setting, not a model: at 100 the run-in's first 30 rounds killed it before the orbit; at 3 000 it died before the gunner was shot |
+| the reversal turn cuts inside the circle (224 m on ≈ 360 m) at ≥ 21 m/s | a 180° turn at speed; the check skips the 10 s after the gunner falls for the band, as for the turn sign. ⚠ The orbit settles ≈ 40 m inside `OrbitRadiusM` — the 30° lead point's chord |
 
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 
