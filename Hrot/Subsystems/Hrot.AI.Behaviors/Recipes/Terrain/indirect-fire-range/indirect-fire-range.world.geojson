@@ -1,0 +1,144 @@
+{
+ "type": "FeatureCollection",
+ "hrot": {
+  "schemaVersion": 1,
+  "bounds": [
+   200,
+   -300,
+   1000,
+   600
+  ],
+  "groundZ": 0,
+  "description": "Indirect fire range (CE-2176 IF-4, docs/designs/indirect-fire/DESIGN_Indirect_Fire.md \u00a76): open ground; a 20 m-high, 300 m-long block standing in for a ridge (x 280-300, y 150-450) in front of the mortar target; a walled courtyard 8 x 8 m with 6 m walls (centre 900, 150) the low arc cannot reach into. The guns stand 2-5 km west, outside the bounds (they do not move). Local metres, X east, Y north, Z up."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "height": 20,
+    "floors": 6,
+    "label": "Ridge Block"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       280,
+       150
+      ],
+      [
+       300,
+       150
+      ],
+      [
+       300,
+       450
+      ],
+      [
+       280,
+       450
+      ],
+      [
+       280,
+       150
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 6.0,
+    "label": "Courtyard wall S",
+    "material": "concrete",
+    "thickness": 0.4
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      896,
+      146
+     ],
+     [
+      904,
+      146
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 6.0,
+    "label": "Courtyard wall E",
+    "material": "concrete",
+    "thickness": 0.4
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      904,
+      146
+     ],
+     [
+      904,
+      154
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 6.0,
+    "label": "Courtyard wall N",
+    "material": "concrete",
+    "thickness": 0.4
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      904,
+      154
+     ],
+     [
+      896,
+      154
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 6.0,
+    "label": "Courtyard wall W",
+    "material": "concrete",
+    "thickness": 0.4
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      896,
+      154
+     ],
+     [
+      896,
+      146
+     ]
+    ]
+   }
+  }
+ ]
+}
