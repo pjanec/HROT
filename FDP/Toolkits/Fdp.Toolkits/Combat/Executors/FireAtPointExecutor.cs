@@ -60,6 +60,8 @@ namespace Fdp.Toolkit.Combat.Executors
             Entity mountEntity;
             int controlledIndex = WeaponSystems.IsControlledIndex(p.Mount) ? p.Mount
                                 : p.Mount == 0 && !world.HasComponent<WeaponState>(entity) ? WeaponSystems.PrimaryMount(world, entity, out _) : -1;
+            // ⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the weapon in his hands, on the wire (also while a hold keeps it silent)
+            WeaponPostureOf.SetActiveMount(world, entity, controlledIndex >= 0 && WeaponSystems.IsControlledIndex(controlledIndex) ? controlledIndex : p.Mount);
             if (controlledIndex >= 0 && WeaponSystems.IsControlledIndex(controlledIndex))
             {
                 shooter = WeaponSystems.ControlledAt(world, entity, controlledIndex);
@@ -79,27 +81,13 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
-            // ⭐ IF-1 (I6, FM-4) — laid and waiting: nothing leaves before FireAt (time on target)
-            if (p.FireAt > 0d && HitModel.Now(world) < p.FireAt)
-            {
-                channel.Status = NodeStatus.Running;
-                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingFireTime);
-                return;
-            }
-            // ⭐ CE-2173 slice 5 (Air Ops §8 A6, the backend's E4 report) — a BOMB on a point waits for the release cue, as the aimed path
-            //   does (AimAndFireExecutor.HoldOf): where a bomb dropped now lands must have reached the point. The aircraft flies; the
-            //   weapon releases. No body turn for a bomb (a person's arc rule).
             var mountDto = CombatTkb.MountOf(world, shooter, fireIndex);
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
-            if (bomb && !AimAndFireExecutor.ReleaseCue(world, entity, p.Point))
-            {
-                channel.Status = NodeStatus.Running;
-                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingRelease);
-                return;
-            }
             // ⭐⭐ IF-1 (I1, I3) — a mount that declares an indirect arc gets a FIRE SOLUTION: the lowest charge that reaches, low or high
             //   (FireSolution.For); the intent carries it and the SimHost flies exactly that. No solution ⇒ the action fails with why.
+            //   ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — solved BEFORE the fire-time hold, so the gun is LAID while it waits.
             byte charge = 0, high = 0;
+            Laying lay = Laying.NoTurret;
             if (mountDto != null && mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset && world.HasComponent<SimTransform>(shooter))
             {
                 var db = world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
@@ -120,6 +108,37 @@ namespace Fdp.Toolkit.Combat.Executors
                 }
                 charge = solution.Charge;
                 high = (byte)(solution.High ? 1 : 0);
+                lay = Lay(world, shooter, fireIndex, mountDto, p.Point, solution.High ? ArcPreference.High : ArcPreference.Low, ammo);
+                if (lay == Laying.OutOfArc)
+                {
+                    AimAndFireExecutor.ReleaseTurrets(world, entity);
+                    channel.Status = NodeStatus.Failure;
+                    Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc);
+                    return;
+                }
+            }
+            // ⭐ IF-1 (I6, FM-4) — laid and waiting: nothing leaves before FireAt (time on target)
+            if (p.FireAt > 0d && HitModel.Now(world) < p.FireAt)
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingFireTime);
+                return;
+            }
+            // ⭐ ui handoff P2 — a laid gun fires once its turret reports OnTarget for this order (the muscle's own report, per epoch)
+            if (lay == Laying.Slewing)
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Slewing);
+                return;
+            }
+            // ⭐ CE-2173 slice 5 (Air Ops §8 A6, the backend's E4 report) — a BOMB on a point waits for the release cue, as the aimed path
+            //   does (AimAndFireExecutor.HoldOf): where a bomb dropped now lands must have reached the point. The aircraft flies; the
+            //   weapon releases. No body turn for a bomb (a person's arc rule).
+            if (bomb && !AimAndFireExecutor.ReleaseCue(world, entity, p.Point))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingRelease);
+                return;
             }
             var reason = ShootAtPoint(world, entity, fireIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: !bomb,
                                       weaponEntity: shooter, charge: charge, highArc: high);
@@ -134,7 +153,48 @@ namespace Fdp.Toolkit.Combat.Executors
             Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, fired + 1, p.Rounds);   // ⭐ CE-3136 — blind fire: no aim, no sight gate
         }
 
-        public void OnExit(Entity entity, ref WeaponChannel channel, EntityRepository world) { }
+        /// <summary>⭐ ui handoff P2 — a laid turret is released (Idle: it HOLDS the laid pose, the muscle stops ordering it).</summary>
+        public void OnExit(Entity entity, ref WeaponChannel channel, EntityRepository world) => AimAndFireExecutor.ReleaseTurrets(world, entity);
+
+        /// <summary>⭐ ui handoff P2 — where laying an indirect mount's turret stands this frame.</summary>
+        internal enum Laying : byte { NoTurret, Slewing, OnTarget, OutOfArc }
+
+        /// <summary>
+        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — lays turret <see cref="Fdp.Toolkit.Tkb.Domain.WeaponMountDto.TurretIndex"/> of
+        /// <paramref name="weapon"/> on <paramref name="point"/>: a <see cref="WeaponTaskMode.Track"/> order carrying the resolved arc and the
+        /// round (a NEW epoch only when the point, the arc, the mount or the round changes), read back from the muscle's
+        /// <see cref="WeaponTaskStatus"/> under that epoch. The brain names the point; the muscle solves the angle (M24). A mount with no
+        /// turret part ⇒ <see cref="Laying.NoTurret"/> — it fires as before.
+        /// </summary>
+        internal static Laying Lay(EntityRepository world, Entity weapon, int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount,
+                                   Vector3 point, ArcPreference arc, long ammo)
+        {
+            if (mount.TurretIndex < 0 || !world.IsComponentTypeRegistered<WeaponTask>() || !world.IsComponentTypeRegistered<TurretPose>())
+                return Laying.NoTurret;
+            var part = TurretParts.Find(world, weapon, mount.TurretIndex);
+            if (part.IsNull) return Laying.NoTurret;
+            var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
+            bool same = current.Mode == WeaponTaskMode.Track && current.Target.IsNull && current.Point == point && current.Arc == arc
+                        && current.MountIndex == mountIndex && current.AmmoGuid == unchecked((ulong)ammo);
+            if (!same)
+            {
+                world.SetComponent(part, new WeaponTask
+                {
+                    Mode = WeaponTaskMode.Track, Target = Entity.Null, Point = point, MountIndex = (byte)mountIndex,
+                    AmmoGuid = unchecked((ulong)ammo), Arc = arc, Epoch = current.Epoch + 1,
+                });
+                return Laying.Slewing;
+            }
+            var status = world.IsComponentTypeRegistered<WeaponTaskStatus>() && world.HasComponent<WeaponTaskStatus>(part)
+                ? world.GetComponent<WeaponTaskStatus>(part) : default;
+            if (status.Epoch != current.Epoch) return Laying.Slewing;
+            return status.State switch
+            {
+                WeaponTaskState.OnTarget => Laying.OnTarget,
+                WeaponTaskState.Failed when status.Reason == WeaponTaskFailure.OutOfArc => Laying.OutOfArc,
+                _ => Laying.Slewing,
+            };
+        }
 
         /// <summary>
         /// ⭐ The ONE per-shot round at a point (shared with <see cref="AimAndFireExecutor"/>'s operator fire, <c>CE-3172</c> S4d):

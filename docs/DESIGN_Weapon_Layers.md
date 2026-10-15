@@ -318,6 +318,31 @@ sequenceDiagram
 | **W-13d** | the wire | `dtWeaponPosture` = 127, keyed by the unit's network id, Reliable + TransientLocal + KeepLast 1, sent on change only (it changes a few times per engagement); the target crosses as its network id | `EntityWeaponTask` (`SimDescriptors.cs:118`), `SharedTranslatorPack.cs:93` (every node) | inside `dtBrainIntent` — a JSON slot written per change of task, SOP or ROE |
 | **W-13e** | how it is drawn | each arm is an upper arm + a forearm; AtEase / Ready / Aimed rifle-and-hand poses for standing and crouched (prone is always aimed, dead unchanged); Aimed turns the upper body toward the target (≤ 75°) and pitches it (≤ 35°) — a soldier's body does not turn to face his target (⛔ SUPERSEDED by W-14 `2026-10-14`: the gait now turns an aimed soldier and the shot waits for him — CE-3195); an ARMED soldier's arms do not swing (they hold the rifle); running tilts the upper body forward (12° at a full run) | `ShapeKit.cs` `BlockFigure` · `MotionTracker.cs` | turning the whole body — the heading is the Muscle's (movement), not the picture's |
 
+#### W-13e — the ACTIVE MOUNT on the posture (ui handoff P4, `2026-10-15`)
+
+```mermaid
+classDiagram
+  class WeaponPosture { <<component, Brain group>> Kind · Target · Point · IdleSeconds · +ActiveMount byte ★ }
+  class EntityWeaponPosture { <<dtWeaponPosture = 127>> Kind · TargetNetworkId · Point · +ActiveMount ★ (APPENDED, R-169) }
+  class WeaponPostureOf { <<the ONE writer>> Report · Idle · +SetActiveMount(world, unit, mount) ★ }
+  class AimAndFireExecutor { <<existing>> the mount it resolved this frame (Auto choice, a named mount, the primary) ★ }
+  class FireAtPointExecutor { <<existing>> its mount (32 + k for a controlled weapon) ★ }
+  AimAndFireExecutor ..> WeaponPostureOf
+  FireAtPointExecutor ..> WeaponPostureOf
+  WeaponPostureOf --> WeaponPosture
+  WeaponPosture ..> EntityWeaponPosture : egress on change
+```
+
+*What the picture shows: the active mount rides the descriptor that already crosses the wire on every posture change, written by the same
+executors at the moment they resolve which mount fires — the map shows the launcher on the shoulder BEFORE the first shot.* The value is the
+unit's mount index (0 = its primary; 1… its own mounts; 32 + k a weapon system it controls); it keeps its last value when the weapon is lowered.
+
+**As built (`2026-10-15`)** — `AimAndFireExecutor` writes it the moment the mount resolves (Auto choice / named / primary);
+`FireAtPointExecutor` the moment the controlled index resolves — BEFORE any hold, so a gunner held on his station's arc still names the
+weapon. `SetActiveMount` writes only on change and only where the unit has a `WeaponPosture`. Rails:
+`AimAndFireExecutorTests.P4_…` (the pickup's station M2 = 32; a gunner's tube = 32; kept when lowered) ·
+`EntityTurretPoseTranslatorTests.WL2b_…` (it crosses the wire).
+
 ### W-14 — the body turns to the shot: a fire arc, and a body that follows a lasting aim *(🔒 user `2026-10-14` (U-W10), R-3003; CE-3195; WL-7 §5i)*
 
 > 🔒 **User, `2026-10-14` (U-W10):** *"I noticed the soldier when firing does not turn his body into the firing direction … i have

@@ -136,10 +136,13 @@ namespace Hrot.Map.Common.Tests
         public void M9_TheTechnicals_APickupWithAPintle_ShootAndScoot()
         {
             var db = BuildDatabase();
-            foreach (var (type, elevMax, traverse, category, onTheMove, ammo) in new[]
+            foreach (var (type, elevMax, traverse, category, onTheMove, ammo, pen) in new[]
                      {
-                         (TkbEntityTypes.Technical_Hmg, 70f, 180f, WeaponCategory.MachineGun, true, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp),
-                         (TkbEntityTypes.Technical_Atgm, 20f, 120f, WeaponCategory.Atgm, false, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile),
+                         (TkbEntityTypes.Technical_Hmg, 70f, 180f, WeaponCategory.MachineGun, true, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, 0f),
+                         (TkbEntityTypes.Technical_Atgm, 20f, 120f, WeaponCategory.Atgm, false, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, 0f),
+                         // ⭐ ui handoff P1 (DESIGN_Weapon_Systems §5a) — the other two bed weapons, presets of the same pickup
+                         (TkbEntityTypes.Technical_Dshk, 70f, 180f, WeaponCategory.MachineGun, true, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, 0f),
+                         (TkbEntityTypes.Technical_Minigun, 30f, 180f, WeaponCategory.MachineGun, true, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, 8f),   // the M134 states its own 8 mm (the door gun's)
                      })
             {
                 var t = db.GetByType(type)!;
@@ -167,7 +170,7 @@ namespace Hrot.Map.Common.Tests
 
                 var weapon = System.Linq.Enumerable.Single(gun.GetDescriptor<WeaponSuiteDto>()!.Mounts);
                 Assert.Equal((category, onTheMove, ammo, 0), (weapon.Category, weapon.FireOnMove!.Value, weapon.AmmoGuid, weapon.TurretIndex));
-                Assert.Equal(0f, weapon.Penetration);   // the round's own (the munition template)
+                Assert.Equal(pen, weapon.Penetration);   // 0 = the round's own (the munition template)
 
                 var s = t.GetDescriptor<SensorCapabilitiesDto>()!;
                 Assert.Equal((2000f, 2.2f), (s.VisionRange, s.EyeHeightStanding));
@@ -175,6 +178,31 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal((1, 1, 6), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category));
                 Assert.Equal(Fdp.Core.ForceId.Hostile, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ ui handoff P1 (DESIGN_Weapon_Systems §5a) — the patrol HMMWV (102) carries an M2 in its roof ring: its three passenger seats
+        /// stay first (0–2, the indices saved scenarios name), then a Gunner seat that starts with a rifleman, EXPOSED while the passengers
+        /// stay enclosed, and the ring station it operates — a pintle, all round, NeedsGunner — that starts with an M2 whose pivot ends 2.3 m
+        /// up. (Red by construction: the old PassengerSeats(3) has three seats.)
+        /// </summary>
+        [Fact]
+        public void P1_TheHmmwv_CarriesAnM2_InItsRoofRing_ItsPassengerSeatsFirst()
+        {
+            var db = BuildDatabase();
+            var carrier = db.GetByType(TkbEntityTypes.Truck_HMMWV)!.GetDescriptor<CarrierDefDto>()!;
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Enclosed, carrier.Exposure);
+            Assert.Equal(5, carrier.Seats.Count);
+            for (int i = 0; i < 3; i++) Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, carrier.Seats[i].Role);
+            var gunner = carrier.Seats[3];
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, TkbEntityTypes.Infantry_Rifleman, (bool?)true),
+                         (gunner.Role, gunner.StartWith, gunner.Exposed));
+            var ring = carrier.Seats[4];
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Station, MountKinds.Pintle, 3, true, TkbEntityTypes.WeaponSystem_M2Hmg),
+                         (ring.Role, ring.Accepts, ring.OperatedBy, ring.NeedsGunner, ring.StartWith));
+            Assert.Null(ring.TraverseMinDeg);   // all round: the M2's own pintle limits
+            var m2Turret = db.GetByType(TkbEntityTypes.WeaponSystem_M2Hmg)!.GetDescriptor<TurretSuiteDto>()!.Turrets[0];
+            Assert.Equal(2.3f, ring.Z + m2Turret.PivotZ, 4);
         }
 
         /// <summary>
@@ -454,6 +482,11 @@ namespace Hrot.Map.Common.Tests
                 var mount = Assert.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
                 Assert.Equal((category, arc, minEl, maxEl, (ulong)ammo), (mount.Category, mount.Arc, mount.MinElevationDeg, mount.MaxElevationDeg, mount.AmmoGuid));
                 Assert.True(mount.DispersionMils > 0f && mount.Range > 0f && mount.FireOnMove != true, $"{t.Name}");
+                // ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — laid by a LAYING turret 0: all round, the mount's elevation window
+                Assert.Equal(0, mount.TurretIndex);
+                var lay = Assert.Single(t.GetDescriptor<TurretSuiteDto>()!.Turrets);
+                Assert.Equal((-180f, 180f, minEl, maxEl), (lay.TraverseMinDeg, lay.TraverseMaxDeg, lay.ElevationMinDeg, lay.ElevationMaxDeg));
+                Assert.True(lay.TraverseRateDegPerSec >= 30f && lay.ElevationRateDegPerSec >= 15f, $"{t.Name}: a full lay inside FM-4's 10 s");
                 var crew = t.GetDescriptor<CarrierDefDto>()!.Seats;
                 Assert.Equal(seats, crew.Count);
                 Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, crew[0].Role);   // a man fires it from its Gunner seat
@@ -480,6 +513,35 @@ namespace Hrot.Map.Common.Tests
             foreach (var t in db.GetAll())
                 if (!fresh.Contains(t.TkbType) && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
                     Assert.All(suite.Mounts, m => Assert.Equal(IndirectArc.Unset, m.Arc));
+        }
+
+        /// <summary>
+        /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
+        /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.
+        /// A type with no platform record (the HMMWV, the transport aircraft) takes it all by the rule (<c>ArmorModel.BlastSusceptibility</c>).
+        /// </summary>
+        [Fact]
+        public void AE3_EveryVehicle_StatesItsBlastSusceptibility()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            int vehicles = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.DisType.Kind != 1 || t.GetDescriptor<CombatPlatformDefDto>() is not { } p) continue;
+                vehicles++;
+                Assert.InRange(p.BlastSusceptibility, 0f, 1f);   // stated, not the −1 fallback
+            }
+            Assert.True(vehicles >= 15, $"only {vehicles} platform types with a combat record");
+            float S(long type) => db.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>()!.BlastSusceptibility;
+            Assert.Equal(1f, S(TkbEntityTypes.Pickup_Toyota));
+            Assert.Equal(1f, S(TkbEntityTypes.Technical_Hmg));
+            Assert.Equal(0f, S(TkbEntityTypes.Tank_M1Abrams));
+            Assert.Equal(0f, S(TkbEntityTypes.Tank_T72));
+            Assert.Equal(0.1f, S(TkbEntityTypes.IFV_Bradley));
+            Assert.Equal(0.25f, S(TkbEntityTypes.Sph_M109));
+            Assert.Equal(0.3f, S(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc));
+            Assert.Equal(0.8f, S(TkbEntityTypes.Heli_AH64));
+            Assert.Equal(-1f, new CombatPlatformDefDto().BlastSusceptibility);   // a TKB file that states none falls back to the side armour
         }
 
         private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource

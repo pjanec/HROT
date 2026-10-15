@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <para>Per target, per body point of its stance (<see cref="BodyProfile.Points"/>): FRAGMENTS through the terrain
     /// (<see cref="TerrainWorld.QueryFire(Vector3, Vector3, List{TerrainWorld.FireCrossing}, DoorStates?)"/> ×
     /// <see cref="AreaEffect.FragmentTransmission"/>) and the colliders (<see cref="ColliderOcclusion"/> — the test sight uses), exposure
-    /// = the mean; BLAST (personnel only in v1) through closed barriers (the least-shielded point) and in the deepest diffraction
+    /// = the mean; BLAST (⭐ R-2019: every target, a hull × its <see cref="ArmorModel.BlastSusceptibility"/>) through closed barriers (the least-shielded point) and in the deepest diffraction
     /// shadow on the line to the highest point (terrain and colliders). Expected values (R-212).</para>
     /// <para>⚠ The entity the round struck is IN the burst too (at ~0 m; it is never its own cover) — its direct hit, from
     /// <see cref="DamageCalculationSystem"/>, comes on top: a warhead mount states no hit damage, so that is the flat default. A REMOTE detonation
@@ -113,7 +113,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 foreach (var p in _points) r = MathF.Min(r, Vector3.Distance(burst, p));
 
                 float fragFall = AreaEffect.FragmentFalloff(r, w.FragmentRadiusM);
-                float blastFall = hull > 0f ? 0f : AreaEffect.BlastFalloff(r, w.BlastLethalRadiusM, w.BlastInjuryRadiusM);   // personnel only (v1)
+                // ⭐ R-2019 D-M2 — blast reaches hulls too, scaled by the hull's susceptibility (a soft skin ≈ 1, an MBT 0) after the SAME
+                //   barrier and shadow a person gets (was: personnel only, v1)
+                var platform = CombatTkb.PlatformOf(repo, e);
+                float susceptibility = ArmorModel.BlastSusceptibility(platform, hull);
+                float blastFall = susceptibility > 0f ? AreaEffect.BlastFalloff(r, w.BlastLethalRadiusM, w.BlastInjuryRadiusM) : 0f;
                 if (fragFall <= 0f && blastFall <= 0f) continue;
 
                 float exposure = 0f, barrier = 0f, shadow = 1f;
@@ -148,14 +152,14 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // ⭐ M1 — the face toward the burst in 3-D, at the hull's middle: a burst ABOVE a hull meets its roof. Fragments
                 //   are kinetic (the jet of a shaped charge is its direct hit, not its fragments).
-                var armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, e), ArmorModel.FacingOf(tf, burst, hull * 0.5f));
+                var armour = ArmorModel.ArmourFor(platform, ArmorModel.FacingOf(tf, burst, hull * 0.5f));
                 float armourChance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
                 float fragDamage = w.FragmentDamage * fragFall * exposure * armourChance;
-                float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow;
+                float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow * susceptibility;
                 float total = fragDamage + blastDamage;
                 if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
                 record.Effects.Add(new DetonationEffect(e, stance.ToString(), _points.Count, r, exposure, fragFall, armourChance, fragDamage,
-                    blastFall, barrier, shadow, blastDamage, total, shieldedBy) { At = tf.Position });
+                    blastFall, barrier, shadow, blastDamage, total, shieldedBy) { At = tf.Position, BlastSusceptibility = susceptibility });
             }
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);

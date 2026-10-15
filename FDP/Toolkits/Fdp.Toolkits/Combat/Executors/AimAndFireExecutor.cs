@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Combat.Executors
             int mountIndex = p.Mount == AimAndFireParams.MountAuto ? EngagementMount(world, entity, ref channel, p.Target, out mountEntity)
                            : p.Mount == 0 ? WeaponSystems.PrimaryMount(world, entity, out mountEntity)   // ⭐ WS-3 — a bare host's primary is its station weapon
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
+            WeaponPostureOf.SetActiveMount(world, entity, mountIndex);   // ⭐ ui handoff P4 (W-13e) — the weapon in his hands, on the wire
             if (!world.HasComponent<WeaponState>(mountEntity))
             {
                 // ⭐ WS-3 — nothing to fire with (a bare host whose station is empty): a failure, never an exception

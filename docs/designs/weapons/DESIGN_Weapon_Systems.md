@@ -230,6 +230,40 @@ UH-60 (404) gains a left and a right door station, each operated by a door-gunne
 gunner in its Gunner seat, **105** = pickup + Kornet + a gunner, **2006** = soldier carrying a Javelin, **2007** = soldier carrying an NLAW. Unchanged: `WeaponMountDto`, the munitions,
 the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 
+### 5a. Presets for every armed vehicle variant (ui handoff P1, `2026-10-15`; R-1001 — data, no editor placement)
+
+```mermaid
+classDiagram
+  class HMMWV_102 { <<existing type, grows>> 3 passenger seats (kept at 0–2) · +Gunner seat 3, StartWith rifleman ★ · +roof ring Station 4: Pintle, OperatedBy 3, NeedsGunner, StartWith M2 600 ★ }
+  class Pickup { <<catalogue helper, existing>> Driver · Gunner · bed Station (Pintle) }
+  class Technical_104 { M2 600 }
+  class Technical_105 { Kornet 606 }
+  class Technical_108 { ★ DShK 601 }
+  class Technical_109 { ★ M134 602 }
+  class SeatPresets { <<existing W-I>> fills StartWith once on the creating node; SeatPresetsFilled stops a reload adding them again }
+  Pickup <|-- Technical_104
+  Pickup <|-- Technical_105
+  Pickup <|-- Technical_108
+  Pickup <|-- Technical_109
+  SeatPresets ..> HMMWV_102
+  SeatPresets ..> Pickup
+```
+
+*What the picture shows that prose hid: no new mechanism — two new `Pickup(...)` calls and one carrier change; the HMMWV keeps its passenger
+seats at the indices scenarios already saved (0–2) and adds the gunner and the ring AFTER them.*
+
+| decision | as designed | rejected |
+|---|---|---|
+| the HMMWV | **102 itself** carries the M2 (a patrol HMMWV) — as the handoff leans | a bare 102 + an armed variant (a new type only a scenario would need) |
+| the ring | all round (no station arc — the weapon's own pintle limits), 2.3 m pivot, the gunner EXPOSED in the ring (`SeatDto.Exposed`) while the passengers stay enclosed | — |
+| the new technicals | **108 Technical (DShK)**, **109 Technical (minigun)** — the pickup body, hostile side like 104 / 105; 106 stays bare | — |
+
+**As built (`2026-10-15`)** — as designed. `BdcTkbCatalog.HmmwvSeats()`: seats 0–2 passengers; seat 3 Gunner (rifleman, `Exposed`,
+at x −0.4, z 1.2); seat 4 Station (Pintle, OperatedBy 3, NeedsGunner, M2, x −0.4, z 2.0 ⇒ the M2's pivot 2.3 m). 108 / 109 are two more
+`Pickup(...)` calls. Rails: `NedTkbBuilderCombatTests.P1_TheHmmwv_…`, `M9_TheTechnicals_…` (+108, 109),
+`CreateEntityRequestSystemTests.P1_APlacedArmedVariant_…` (102 / 108 / 109: weapon + gunner into the named seats, boarded, controlled,
+may fire; a load adds neither), the type-picker golden (+108, 109).
+
 ## 6. Rules
 
 | rule | why |

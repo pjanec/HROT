@@ -61,6 +61,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 Mode = (WeaponTaskMode)d.Mode, Target = target, Point = new System.Numerics.Vector3(d.PointX, d.PointY, d.PointZ),
                 MountIndex = d.MountIndex, RoundsGranted = d.RoundsGranted, AmmoGuid = d.AmmoGuid,
                 CooldownSeconds = d.CooldownSeconds, Epoch = d.Epoch,
+                Arc = (Fdp.Toolkit.Combat.ArcPreference)d.Arc,   // ⭐ ui handoff P2
             };
         }
 

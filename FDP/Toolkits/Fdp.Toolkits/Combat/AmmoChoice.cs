@@ -55,8 +55,9 @@ namespace Fdp.Toolkit.Combat
             {
                 float kinetic = penetrator == Penetrator.Kinetic && pen > 0f ? armour : ArmourFacing(world, shooter, target, Penetrator.Kinetic);
                 area += w.FragmentDamage * ArmorModel.PenetrationChance(w.FragmentPenetrationMm, kinetic);
-                if (Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target) <= 0f)
-                    area += w.BlastLethalDamage;   // blast harms personnel only (AreaEffectSystem v1)
+                // ⭐ R-2019 D-M2 — the burst's own rule (R-212 A1): blast × the target's susceptibility (a person 1, a pickup 1, an MBT 0)
+                area += w.BlastLethalDamage * ArmorModel.BlastSusceptibility(CombatTkb.PlatformOf(world, target),
+                    Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target));
             }
             return (direct, area);
         }

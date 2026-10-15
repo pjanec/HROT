@@ -68,6 +68,17 @@ namespace Fdp.Modules.Geographic.Systems
         }
 
         /// <summary>
+        /// ⭐ ui handoff P3 (docs/DESIGN_Dead_Reckoning.md §9) — the wire's full orientation back to a <see cref="Quaternion"/>: the exact
+        /// inverse of <see cref="RotationToHeadingDeg"/> + <see cref="RotationToPitchRollDeg"/> (pitch nose-UP positive, roll right-wing-down
+        /// positive). With pitch = roll = 0 it is <see cref="HeadingDegToRotation"/> exactly. The ONE ingress conversion (Q59-C1).
+        /// </summary>
+        public static Quaternion EulerDegToRotation(float headingDeg, float pitchDeg, float rollDeg)
+        {
+            const float Deg = MathF.PI / 180f;
+            return SimMath.FromYawPitchRoll((90f - headingDeg) * Deg, -pitchDeg * Deg, rollDeg * Deg);
+        }
+
+        /// <summary>
         /// Converts a world-space ENU velocity vector to compass azimuth degrees [0, 360).
         /// Falls back to <paramref name="fallback"/> when the speed is negligible.
         /// </summary>

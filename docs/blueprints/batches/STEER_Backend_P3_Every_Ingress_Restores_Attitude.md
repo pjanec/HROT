@@ -1,9 +1,11 @@
 <!--STATUS
 state: LIVE — a STEER on a RUNNING handoff (2026-10-15); it ADDS to item P3, it withdraws nothing.
+known-rot: ⭐ OVERTAKEN the same day — backend's `b6ad14c83` (before this steer reached it) already moved sites 1–6 onto ONE helper,
+  `SimTransformBridgeSystem.EulerDegToRotation`, with a round-trip rail (REPORT_Backend_Presets_Elevation_Attitude.md, P3). ⇒ ONLY row 7
+  is still open: the heading-only attribute patch (`SimTransformHeadingInstaller`, `AttributeCompilerFactory`) still levels a banked body.
 updated: 2026-10-15
 current-answer: the whole file.
 stale-below: nothing.
-known-rot: none.
 known-conflict: none.
 related-designs:
   - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md — the running handoff; this widens its P3 (unchanged in place, rule 1)

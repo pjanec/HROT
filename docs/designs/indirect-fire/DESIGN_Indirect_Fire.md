@@ -244,6 +244,70 @@ weapon-systems fixture: a gunner fires the mortar he mans, nothing before `FireA
 `NedTkbBuilderCombatTests.IF1_*` · `HrotEnvironmentTests.IF1_*` · the LR-1 explosive set and the type-picker golden re-pinned on purpose.
 Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Backend_Indirect_Fire.md).
 
+### 3.7 Laying the gun — the elevation on the wire (ui handoff P2, `2026-10-15`)
+
+📐 **Measured:** the weapon muscle already slews a turret part's `TurretPose` — replicated (`dtTurretPose`, W-9) and read by the map —
+from a `WeaponTask` (`WeaponTaskDispatcherSystem`), but **(a)** the mortars and the towed gun have NO turret part (`turret: null`),
+**(b)** `FireAtPoint` never orders a turret (it publishes the round straight away), and **(c)** the muscle's indirect aim is ONE speed's arc
+(`BallisticAim.Solve`), not the fire solution. ⇒ three small changes, no new replication.
+
+```mermaid
+classDiagram
+  class FireAtPointExecutor { <<existing, grows>> +lays an indirect mount's turret: WeaponTask Track at the point ★ · fires once OnTarget ★ }
+  class WeaponTask { <<existing, dtWeaponTask, grows>> Mode · Point · MountIndex · AmmoGuid · Epoch · +Arc ArcPreference ★ (appended) }
+  class WeaponTaskDispatcherSystem { <<existing muscle>> slews TurretPose, reports OnTarget }
+  class BallisticAim { <<existing, grows>> +Solve(…, arc, ammo): a LAID order (arc Low or High) aims along FireSolution.For(no mask).Launch ★ }
+  class FireSolution { <<IF-1>> ChargesOf · For }
+  class TurretPose { <<existing, dtTurretPose>> Azimuth · Elevation }
+  class BdcTkbCatalog { <<existing>> mortars 609–611, towed 612: + a laying turret 0 ★ · mount TurretIndex 0 ★ }
+  FireAtPointExecutor --> WeaponTask : writes (brain)
+  WeaponTaskDispatcherSystem ..> WeaponTask : reads (muscle)
+  WeaponTaskDispatcherSystem ..> BallisticAim
+  BallisticAim ..> FireSolution : Arc ≠ Unset
+  WeaponTaskDispatcherSystem --> TurretPose : slews
+```
+
+*What the picture shows that prose hid: the brain still never computes an angle (M24) — it names the point, the arc its solution chose and
+the round; the muscle solves the same `FireSolution` for that arc and round, and the pose it slews is the one the map already reads on
+every node.*
+
+```mermaid
+sequenceDiagram
+  participant B as FireAtPointExecutor (Brain, CGF)
+  participant T as WeaponTask on the tube's turret part
+  participant M as WeaponTaskDispatcherSystem (Muscle, SimHost)
+  participant P as TurretPose (replicated)
+  B->>B: FireSolution.For (charge, arc) as IF-1
+  B->>T: Track at the point, the chosen arc (Low or High), the round (a new epoch only when one changes)
+  M->>M: BallisticAim.Solve: FireSolution.For(no mask, that arc and round).Launch, then hull-frame angles
+  M->>P: slew at the turret's rates, then OnTarget
+  Note over P: every node sees the laid elevation now, before any round
+  B->>B: FireAt not reached: AwaitingFireTime (laid and waiting)
+  B->>B: status not OnTarget for this epoch: Slewing (held)
+  B->>B: OnTarget and time: ShootAtPoint (the round flies the intent's charge and arc)
+```
+
+| rule | why |
+|---|---|
+| only a mount that declares an `IndirectArc` is laid; every other FireAtPoint fires as before | ⛔ no number moves for a grenade, a rifle burst at a window, a tank at a point |
+| a mortar / the towed gun get a **laying turret** (all round — the crew shifts the baseplate / trails — inside the mount's elevation window; slow rates) rather than a separate elevation field | ⭐ the handoff's "reuse W-9": the turret part is what replicates; cheaper than a field and a translator |
+| the order is re-issued (a new epoch) only when the point, the arc or the mount changes | the muscle's OnTarget report is per epoch |
+
+#### As built (`2026-10-15`, ui handoff P2 — report [`REPORT_Backend_Presets_Elevation_Attitude.md`](../../blueprints/batches/REPORT_Backend_Presets_Elevation_Attitude.md))
+
+| what | as built | deviation from the design above |
+|---|---|---|
+| the order | `FireAtPointExecutor.Lay` writes `WeaponTask { Track, Point, MountIndex, AmmoGuid = the loaded round, Arc }` on the mount's turret part; a new epoch when the point, the arc, the mount or the round changes; reads `WeaponTaskStatus` under that epoch: OnTarget ⇒ fire, Failed OutOfArc ⇒ the action fails `OutOfArc` (turrets released), else held `Slewing` | ⭐ **the arc on the order is the arc the brain's solution CHOSE (Low / High), not the caller's preference** — the muscle then never re-decides it |
+| the muscle | `BallisticAim.Solve(…, arc, ammo)`: arc Low / High and an `IndirectArc` mount ⇒ `FireSolution.For(world: null, pivot, point, mount, ChargesOf(round), arc).Launch`; arc **Auto** (every Engage order) ⇒ the one-speed arc as before | ⭐ **no mask check on the muscle** (it runs per frame; the brain already chose the arc with it). Same charge as the brain's unless a mask made the brain step up a charge on the HIGH arc — then the lay differs by that step and the round still flies the brain's charge. ⭐ **Engage keeps the one-speed aim**: its rounds carry no charge, so aim and flight stay matched |
+| the order of holds | solution (fail with why) → lay → `FireAt` (`AwaitingFireTime`) → OnTarget (`Slewing`) → bomb cue → `ShootAtPoint` | — |
+| `OnExit` | releases the turrets (Idle — the pose STAYS laid) | new: before, FireAtPoint ordered no turret |
+| the guns | 609–611: laying turret 0, all round, 45–85°, pivot 0.3 m; 612: −5–70°, pivot 1.0 m; all **30 °/s traverse, 15 °/s elevation** (a full lay ≈ 6 s, inside FM-4's 10 s); mount `TurretIndex = 0`. The M109 keeps its own turret (10 / 5 °/s) | ⚠ the M109's worst case (180° at 10 °/s = 18 s) exceeds FM-4's lay time — its first round can be late on a time-on-target mission (report lean) |
+| the wire | `WeaponTask.Arc` + `EntityWeaponTask.Arc` (byte, APPENDED, R-169) | — |
+
+Rails: `AimAndFireExecutorTests.P2_AMortar_IsLaid_OnTheSolutionsElevation_BeforeItsFirstRound` (pose within 0.5° of the solution 10 s
+before `FireAt`, nothing before it) · `P2_ASelfPropelledGun_TurnsItsTurret_BeforeItFires` · `EntityTurretPoseTranslatorTests.WL2b_…`
+(the arc crosses) · `NedTkbBuilderCombatTests.IF1_…` (the laying turrets).
+
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 
 | # | decision | rejected (one line each) |

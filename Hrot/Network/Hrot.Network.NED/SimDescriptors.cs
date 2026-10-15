@@ -154,6 +154,8 @@ namespace Hrot.NED.Descriptors
         /// <summary>⭐ WL-3 — seconds between rounds.</summary>
         public float CooldownSeconds;
         public uint Epoch;
+        /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — <c>ArcPreference</c> the laid indirect mount's solution chose (APPENDED, R-169).</summary>
+        public byte Arc;
     }
 
     // ⭐ WL-2b (CE-1049) — the weapon muscle's report on that order (W-3), Muscle → Brain, same key.
@@ -188,6 +190,8 @@ namespace Hrot.NED.Descriptors
         public float PointX;
         public float PointY;
         public float PointZ;
+        /// <summary>⭐ ui handoff P4 (W-13e) — the mount the weapon brain fires with (APPENDED, R-169).</summary>
+        public byte ActiveMount;
     }
 
     // ⭐ CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c, M-1) — an operator's motion axes for a body in Manual, Brain → the Muscle,

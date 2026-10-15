@@ -157,15 +157,15 @@ namespace Fdp.Toolkit.Tkb.Reference
             float casing = MathF.Max(d.MassG / 1000f - w, 0.05f * d.MassG / 1000f);
             float beta = w / casing;
             float v0 = c.Sqrt2E * MathF.Sqrt(beta / (1f + beta / 2f));
-            float fragKg = c.FragmentMassG / 1000f;
-            float pen = c.FragmentK * v0 * MathF.Sqrt(fragKg);
-            float reach = c.RadiusPerCbrtCasingKg * MathF.Cbrt(casing);
             var kind = d.Type switch
             {
                 "frag" => Fdp.Toolkit.Tkb.Domain.WarheadKind.Fragmentation,
                 "heat" or "hedp" => Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge,
                 _ => Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive,
             };
+            float fragG = FragmentMassG(kind, casing, c);
+            float pen = c.FragmentK * v0 * MathF.Sqrt(fragG / 1000f);
+            float reach = c.RadiusPerCbrtCasingKg * MathF.Cbrt(casing);
             var dto = new Fdp.Toolkit.Tkb.Domain.WarheadDto
             {
                 Kind = kind,
@@ -183,10 +183,21 @@ namespace Fdp.Toolkit.Tkb.Reference
             string blast = $"R = Z · W^⅓ (Z = {F(c.ZLethal)} / {F(c.ZInjury)}, W = {F(w)} kg) = {F(dto.BlastLethalRadiusM)} / {F(dto.BlastInjuryRadiusM)} m, " +
                            $"{F(c.BlastLethalDamage)} damage inside the lethal radius";
             string frag = $"v₀ = √2E · √(β/(1+β/2)) = {F(v0)} m/s (√2E = {F(c.Sqrt2E)}, β = {F(w)} / {F(casing)} kg casing); " +
-                          $"pen = k · v₀ · √m = {F(pen)} mm (k = {F(c.FragmentK)}, m = {F(c.FragmentMassG)} g); " +
+                          $"pen = k · v₀ · √m = {F(pen)} mm (k = {F(c.FragmentK)}, m = {F(fragG)} g{(fragG > c.FragmentMassG ? $" = {F(c.FragmentMassG)} · ({F(casing)} / {F(c.MassAnchorCasingKg)})^{F(c.MassExponent)}" : "")}); " +
                           $"reach = {F(c.RadiusPerCbrtCasingKg)} · casing^⅓ = {F(reach)} m; damage = perKgExplosive · W = {F(dto.FragmentDamage)}";
             return new RefWarhead(dto, blast, frag);
         }
+
+        /// <summary>
+        /// ⭐ R-2019 D-M1 (DESIGN_Armour_Hit_Model §7.5) — the mass of one fragment, grams: <c>m₀ · max(1, casing / anchor)^exponent</c> for
+        /// a high-explosive or fragmentation warhead (Mott: a scaled shell's mean fragment grows as s^(7/3) while its casing grows as s³),
+        /// <c>m₀</c> for a shaped charge (its "casing" here is a rocket or missile body). The anchor keeps the grenade, the 40 mm and the
+        /// RPG at <c>m₀</c>.
+        /// </summary>
+        private static float FragmentMassG(Fdp.Toolkit.Tkb.Domain.WarheadKind kind, float casingKg, Coefficients c)
+            => kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge || casingKg <= c.MassAnchorCasingKg
+                ? c.FragmentMassG
+                : c.FragmentMassG * MathF.Pow(casingKg / c.MassAnchorCasingKg, c.MassExponent);
 
         private static float Cbrt(float x) => x > 0f ? MathF.Cbrt(x) : 0f;
         private static string F(float x) => x.ToString("0.###", CultureInfo.InvariantCulture);
@@ -225,7 +236,8 @@ namespace Fdp.Toolkit.Tkb.Reference
 
         private sealed record Coefficients(Dictionary<string, float> Kinetic, Dictionary<string, float> Cone,
             Dictionary<string, float> HighExplosive, float PerSqrtJoule, float PerKgExplosive, float ZLethal, float ZInjury,
-            float BlastLethalDamage, float Sqrt2E, float FragmentMassG, float FragmentK, float RadiusPerCbrtCasingKg)
+            float BlastLethalDamage, float Sqrt2E, float FragmentMassG, float FragmentK, float RadiusPerCbrtCasingKg,
+            float MassAnchorCasingKg, float MassExponent)
         {
             public bool KnowsType(string t) => Kinetic.ContainsKey(t) || Cone.ContainsKey(t) || HighExplosive.ContainsKey(t);
 
@@ -238,10 +250,12 @@ namespace Fdp.Toolkit.Tkb.Reference
                 float V(string section, string key)
                     => root[section]?[key] is JsonNode n ? (float)n.GetValue<double>()
                        : throw new ArgumentException($"Reference library coefficients.json: no '{section}.{key}'.");
+                float Opt(string section, string key, float absent) => root[section]?[key] is JsonNode n ? (float)n.GetValue<double>() : absent;
                 return new Coefficients(Map("kineticPenetration", "k"), Map("shapedChargePenetration", "coneFactor"),
                     Map("highExplosivePenetration", "factor"), V("damage", "perSqrtJoule"), V("damage", "perKgExplosive"),
                     V("blast", "zLethal"), V("blast", "zInjury"), V("blast", "lethalDamage"),
-                    V("fragments", "sqrt2E"), V("fragments", "fragmentMassG"), V("fragments", "kPenetration"), V("fragments", "radiusPerCbrtCasingKg"));
+                    V("fragments", "sqrt2E"), V("fragments", "fragmentMassG"), V("fragments", "kPenetration"), V("fragments", "radiusPerCbrtCasingKg"),
+                    Opt("fragments", "massAnchorCasingKg", float.PositiveInfinity), Opt("fragments", "massExponent", 0f));   // absent ⇒ one mass
             }
         }
 

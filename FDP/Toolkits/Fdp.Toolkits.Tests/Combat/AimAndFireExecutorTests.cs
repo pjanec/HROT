@@ -2321,14 +2321,20 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>A ground mortar (a weapon system, HighOnly 45–85°, one Gunner seat) at the origin, its bomb with charges 60 / 80 / 100
         /// m/s, and a soldier manning it; the soldier's channel holds <paramref name="p"/>. The tube is the weapon; he is its controller.</summary>
-        private unsafe (Entity Man, Entity Tube, WeaponChannel Channel) MannedMortar(FireAtPointParams p)
+        /// <para>⭐ ui handoff P2 — <paramref name="laid"/>: the tube has a LAYING turret 0 (all round, 45–85°, 30 / 15 °/s — the catalogue's)
+        /// and its mount is laid by it.</para>
+        private unsafe (Entity Man, Entity Tube, WeaponChannel Channel) MannedMortar(FireAtPointParams p, bool laid = false)
         {
             RegisterWeaponSystems();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var tubeType = new Fdp.Interfaces.TkbTemplate("Mortar", IfMortarType);
             tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
                 { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, AmmoGuid = (ulong)IfBombType, MuzzleVelocity = 100f,
-                  Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.HighOnly, MinElevationDeg = 45f, MaxElevationDeg = 85f } } });
+                  Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.HighOnly, MinElevationDeg = 45f, MaxElevationDeg = 85f, TurretIndex = laid ? 0 : -1 } } });
+            if (laid)
+                tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto
+                    { PivotZ = 0.3f, TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = 45f, ElevationMaxDeg = 85f,
+                      TraverseRateDegPerSec = 30f, ElevationRateDegPerSec = 15f } } });
             tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto
                 { NeedsOperator = true, MountKinds = Fdp.Toolkit.Tkb.Domain.MountKinds.Ground });
             tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
@@ -2346,6 +2352,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(tube, new WeaponState { Ammo = 10, MuzzleVelocity = 100f });
             new WeaponSystemTkbTranslator().Inject(_world, tube, tubeType);
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, tube, tubeType);
+            if (laid) TurretParts.Ensure(_world, tube, 0);
             var man = WsSoldier(new Vector3(-1f, 0f, 0f));
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, man, tube, SeatRole.Gunner));
             Assert.Equal(man, WeaponSystems.ControllerOf(_world, tube));   // premise: he mans it
@@ -2418,6 +2425,152 @@ namespace Fdp.Toolkit.Combat.Tests
         [Fact]
         public unsafe void IF1_FireAtPointParams_StillFitTheChannel()
             => Assert.True(sizeof(FireAtPointParams) <= 32, $"{sizeof(FireAtPointParams)} bytes");
+
+        // ── ⭐⭐ ui handoff P2 / P4 (HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude; DESIGN_Indirect_Fire §3.7, DESIGN_Weapon_Layers W-13e) ──
+
+        /// <summary>Brain then muscle, one frame at <paramref name="now"/>; the rounds that left.</summary>
+        private WeaponFireIntent[] LayStep(Entity unit, Entity weapon, ref WeaponChannel channel, double now, FireAtPointExecutor brain,
+                                           Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem muscle)
+        {
+            const float dt = 1f / 60f;
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = dt, TimeScale = 1f });
+            brain.Execute(unit, ref channel, _world, dt);
+            WeaponDispatcherSystem.DrainCooldown(ref _world.GetComponentRW<WeaponState>(weapon), dt);
+            muscle.Execute(_world, dt);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<WeaponFireIntent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ ui handoff P2 (§3.7) — a gunner's mortar is LAID before its first round: with <c>FireAt</c> 20 s away the tube's laying
+        /// turret is ordered at once (Track at the point, the solution's arc — High), slews, and long before the fire time its replicated
+        /// <see cref="TurretPose"/> holds the fire solution's elevation (±0.5°, the handoff's acceptance) and the azimuth to the point.
+        /// Nothing leaves before <c>FireAt</c>; then the round leaves with the same solution. ✅ Red-proof (run): the lay removed
+        /// (<c>Laying.NoTurret</c>) ⇒ no order, the pose stays at 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void P2_AMortar_IsLaid_OnTheSolutionsElevation_BeforeItsFirstRound()
+        {
+            var point = new Vector3(0f, 500f, 0f);   // due north: 90° left of the tube's +X
+            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = point, Rounds = 1, CooldownSeconds = 3f, FireAt = 20d }, laid: true);
+            var brain = new FireAtPointExecutor();
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            brain.OnEnter(man, ref channel, _world);
+            var part = TurretParts.Find(_world, tube, 0);
+
+            var mount = CombatTkb.MountOf(_world, tube, 0)!;
+            var db = _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var solution = FireSolution.For(null, Vector3.Zero, point, mount, FireSolution.ChargesOf(db, mount, IfBombType));
+            Assert.True(solution.Ok && solution.High);
+
+            int frame = 0;
+            for (; frame < 60 * 10; frame++) Assert.Empty(LayStep(man, tube, ref channel, frame / 60d, brain, muscle));   // 10 s, all before FireAt
+            Assert.Equal(WeaponTaskMode.Track, _world.GetComponent<WeaponTask>(part).Mode);
+            Assert.Equal(ArcPreference.High, _world.GetComponent<WeaponTask>(part).Arc);
+            Assert.Equal(WeaponTaskState.OnTarget, _world.GetComponent<WeaponTaskStatus>(part).State);
+            var pose = _world.GetComponent<TurretPose>(part);
+            Assert.InRange(pose.Elevation * 180f / MathF.PI, solution.Elevation - 0.5f, solution.Elevation + 0.5f);
+            Assert.InRange(pose.Azimuth * 180f / MathF.PI, 89.5f, 90.5f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingFireTime, LastWeaponReason(man));
+            Assert.Equal(10, _world.GetComponent<WeaponState>(tube).Ammo);
+
+            WeaponFireIntent[] shots = System.Array.Empty<WeaponFireIntent>();
+            for (; frame < 60 * 21 && shots.Length == 0; frame++) shots = LayStep(man, tube, ref channel, frame / 60d, brain, muscle);
+            var shot = Assert.Single(shots);
+            Assert.True(frame / 60d >= 20d, $"the round left at {frame / 60d:F2} s, before FireAt");
+            Assert.Equal(tube, shot.Shooter);
+            Assert.Equal(solution.Charge, shot.Charge);
+            Assert.Equal((byte)1, shot.HighArc);
+        }
+
+        /// <summary>
+        /// ⭐⭐ ui handoff P2 (§3.7) — a self-propelled gun (its OWN turreted Howitzer mount, Arc Both, the M109's 10 / 5 °/s turret) at a
+        /// point 90° to its left, fire when ready: no round while the turret TURNS (the action says Slewing), and the first round leaves
+        /// only once the turret reports OnTarget — the azimuth then 90° ±0.5°. ✅ Red-proof (run): the lay removed ⇒ the round leaves on
+        /// the first frame with the turret still forward ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void P2_ASelfPropelledGun_TurnsItsTurret_BeforeItFires()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<TurretPose>();
+            _world.RegisterComponent<WeaponTask>();
+            _world.RegisterComponent<WeaponTaskStatus>();
+            _world.RegisterComponent<WeaponMuscleState>();
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var gunType = new Fdp.Interfaces.TkbTemplate("SP gun", 9955);
+            gunType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto
+                { PivotZ = 2.6f, TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -3f, ElevationMaxDeg = 75f,
+                  TraverseRateDegPerSec = 10f, ElevationRateDegPerSec = 5f } } });
+            gunType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer, AmmoGuid = (ulong)IfBombType, MuzzleVelocity = 300f, TurretIndex = 0,
+                  Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.Both, MinElevationDeg = -3f, MaxElevationDeg = 75f } } });
+            db.Register(gunType);
+            var shell = new Fdp.Interfaces.TkbTemplate("if shell", IfBombType);
+            shell.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true });
+            shell.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { ChargeSpeedsMps = new() { 150f, 220f, 300f } });
+            db.Register(shell);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var gun = _world.CreateEntity();
+            _world.AddComponent(gun, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _world.AddComponent(gun, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9955 });
+            _world.AddComponent(gun, new WeaponState { Ammo = 10, MuzzleVelocity = 300f });
+            _world.AddComponent(gun, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            var part = TurretParts.Ensure(_world, gun, 0);
+            var channel = new WeaponChannel { Status = NodeStatus.Running };
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(0f, 3000f, 0f), Rounds = 1, CooldownSeconds = 10f });
+            _world.AddComponent(gun, channel);
+            channel = _world.GetComponent<WeaponChannel>(gun);
+            var brain = new FireAtPointExecutor();
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            brain.OnEnter(gun, ref channel, _world);
+
+            int first = -1;
+            bool saidSlewing = false;
+            for (int f = 0; f < 60 * 15 && first < 0; f++)
+            {
+                if (LayStep(gun, gun, ref channel, f / 60d, brain, muscle).Length > 0) { first = f; break; }
+                saidSlewing |= LastWeaponReason(gun) == Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Slewing;
+            }
+            Assert.True(saidSlewing, "the gun never said it was slewing");
+            Assert.True(first >= 60 * 8, $"first round at frame {first}: 90° at 10 °/s is 9 s of traverse");
+            Assert.InRange(_world.GetComponent<TurretPose>(part).Azimuth * 180f / MathF.PI, 89.5f, 90.5f);
+            Assert.Equal(9, _world.GetComponent<WeaponState>(gun).Ammo);
+        }
+
+        /// <summary>
+        /// ⭐ ui handoff P4 (W-13e) — the weapon brain names the mount it fires on the unit's <see cref="WeaponPosture"/>: the pickup's
+        /// station M2 (its controlled index 32) through <c>AimAndFire</c>; the gunner's tube (32) through <c>FireAtPoint</c>. Kept when
+        /// the weapon is lowered. ✅ Red-proof (run): <c>SetActiveMount</c> writing nothing ⇒ 0 ⇒ both red.
+        /// </summary>
+        [Fact]
+        public void P4_TheWeaponBrain_NamesTheMountItFires_OnThePosture()
+        {
+            var (pickup, _, _, channel, _) = Technical(rounds: 1);
+            _world.RegisterComponent<WeaponPosture>();
+            _world.AddComponent(pickup, new WeaponPosture());
+            _executor.OnEnter(pickup, ref channel, _world);
+            _executor.Execute(pickup, ref channel, _world, 1f / 60f);
+            Assert.Equal((byte)WeaponSystems.ControlledMountBase, _world.GetComponent<WeaponPosture>(pickup).ActiveMount);
+            Fdp.Toolkit.Combat.WeaponPostureOf.Idle(_world, pickup, 10f);
+            Assert.Equal(WeaponPostureKind.AtEase, _world.GetComponent<WeaponPosture>(pickup).Kind);
+            Assert.Equal((byte)WeaponSystems.ControlledMountBase, _world.GetComponent<WeaponPosture>(pickup).ActiveMount);
+        }
+
+        /// <inheritdoc cref="P4_TheWeaponBrain_NamesTheMountItFires_OnThePosture"/>
+        [Fact]
+        public void P4_AGunner_FiringTheTubeHeMans_NamesIt_OnThePosture()
+        {
+            var (man, _, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, FireAt = 5d });
+            _world.RegisterComponent<WeaponPosture>();
+            _world.AddComponent(man, new WeaponPosture());
+            new FireAtPointExecutor().OnEnter(man, ref channel, _world);
+            FireAtPointStep(man, ref channel, now: 1d);
+            Assert.Equal((byte)WeaponSystems.ControlledMountBase, _world.GetComponent<WeaponPosture>(man).ActiveMount);
+        }
 
         private Fdp.Toolkit.Behavior.Diagnostics.ActionReason LastWeaponReason(Entity unit)
             => _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason;

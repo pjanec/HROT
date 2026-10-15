@@ -272,3 +272,31 @@ nodes **disagree about what they can see**. ⭐ `R3` + `R4` are what prevent tha
 | ⭐⭐ **ghost positions on SimHost and CGF will start moving between packets** | that is the intent — ⛔ **and it will move test expectations that assert a frozen ghost.** Expectations get **reviewed**, never silently adjusted |
 | ⭐ **`R-142` — the feature's own suites** | `SplitAuthoritySpawnTests` · `Hrot.ClusterRunner.Integration.Tests`, **baselined BEFORE any change** |
 | ⭐ a rail worth having | two nodes at different frame rates must compute the **same** ghost position for the same `simNow` — the property `R3`+`R4` exist to guarantee |
+
+## 9. Pitch and roll on the wire (ui handoff P3, `2026-10-15`)
+
+📐 **Measured:** egress already writes `Ori { Heading, Pitch, Roll }` (`GeoSpatialEgressTranslator.cs:193-236`, `RotationToPitchRollDeg`);
+every ingress site rebuilds the rotation from the HEADING only (`GeoSpatialIngressTranslator.cs:73,148`, `DescriptorMapper.cs:130,362`) — so
+a banking aircraft flies level on a receiving node.
+
+```mermaid
+sequenceDiagram
+  participant O as owner node (egress)
+  participant W as dtWorldPos Ori
+  participant R as receiving node (ingress)
+  O->>W: Heading, Pitch (nose-up +), Roll (right wing down +) from SimTransform.Rotation (unchanged)
+  W->>R: sample
+  R->>R: SimTransformBridgeSystem.EulerDegToRotation(heading, pitch, roll) ★ (was HeadingDegToRotation)
+  R->>R: SimTransform.Rotation, NetworkTransform.LastRotation
+  Note over R: dead reckoning still extrapolates position only (unchanged)
+```
+
+| rule | why |
+|---|---|
+| ONE inverse helper beside `HeadingDegToRotation`: `EulerDegToRotation(h, p, r) = SimMath.FromYawPitchRoll((90 − h)°, −p°, r°)` — the exact inverse of `RotationToHeadingDeg` + `RotationToPitchRollDeg` | one formula, every ingress site — the Q59-C1 rule (*"one formula, three callers, zero copies"*) |
+| with pitch = roll = 0 it equals `HeadingDegToRotation` exactly (`FromYawPitchRoll(y, 0, 0)` IS `FromYaw(y)`) | a level ground vehicle's numbers do not move; a vehicle on a slope now tilts on the receiving node too |
+
+**As built (`2026-10-15`)** — as designed, at SIX sites: `GeoSpatialIngressTranslator` (2), `DescriptorMapper` (2) and
+`BdcWorldPosTranslator` (2 — ⭐ found during the build; the BDC wire carries the same `Ori`). Rail:
+`GeoSpatialIngressTranslatorTests.P3_PitchAndRoll_CrossTheWire_AHeadingOnlySampleIsUnchanged` (heading / pitch / roll round-trip to 0.01°;
+level ⇒ equal to `HeadingDegToRotation`).

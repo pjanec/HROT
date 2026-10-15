@@ -120,6 +120,8 @@ namespace Hrot.SimHost.Tests
         /// ⭐ WL-2b (CE-1049, 📄 DESIGN_Weapon_Layers §5d, W-2/W-3/W-11) — the round trip: the Brain's order to a turret reaches the
         /// Muscle's turret part with the target resolved to the Muscle's own entity; the Muscle's weapon muscle slews and reports; the
         /// report reaches the Brain's turret part. Each side owns only its half (<c>dtWeaponTaskStatus</c> granted to the Muscle).
+        /// ⭐ ui handoff P2 / P4 — the order's appended <see cref="WeaponTask.Arc"/> (the laid gun's arc) and the posture's appended
+        /// <see cref="WeaponPosture.ActiveMount"/> cross too. (Red by construction — not run: a translator without its field delivers Auto / 0.)
         /// </summary>
         [Fact]
         public void WL2b_TheBrainsOrder_ReachesTheMuscle_AndTheReportComesBack()
@@ -132,6 +134,7 @@ namespace Hrot.SimHost.Tests
                 var w = World();
                 w.RegisterComponent<WeaponTask>();
                 w.RegisterComponent<WeaponTaskStatus>();
+                w.RegisterComponent<WeaponPosture>();
                 w.RegisterComponent<SimTransform>();
                 w.RegisterComponent<TkbIdentity>();
                 w.RegisterManagedComponent<DescriptorOwnership>();
@@ -161,16 +164,26 @@ namespace Hrot.SimHost.Tests
             var statusOut = new EntityWeaponTaskStatusEgressTranslator(participant);
             var statusIn = new EntityWeaponTaskStatusIngressTranslator(participant, brainMap);
             Assert.True(brainMap.TryGetEntity(6301L, out var brainTarget));
-            brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3 });
+            brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High });
+            Assert.True(brainMap.TryGetEntity(6300L, out var brainHull));
+            Assert.True(muscleMap.TryGetEntity(6300L, out var muscleHull));
+            brain.AddComponent(brainHull, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = brainTarget, ActiveMount = 33 });
+            var postureOut = new EntityWeaponPostureEgressTranslator(participant, brainMap);
+            var postureIn = new EntityWeaponPostureIngressTranslator(participant, muscleMap);
 
             Thread.Sleep(200);
             taskOut.ScanAndPublish(brain);
             statusOut.ScanAndPublish(brain);   // the Brain does not own the report: sends nothing
+            postureOut.ScanAndPublish(brain);
             Thread.Sleep(300);
             using (var cmd = new EntityCommandBuffer()) { taskIn.PollIngress(cmd, muscle); cmd.Playback(muscle); }
+            using (var cmd = new EntityCommandBuffer()) { postureIn.PollIngress(cmd, muscle); cmd.Playback(muscle); }
             Assert.True(muscleMap.TryGetEntity(6301L, out var muscleTarget));
             Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponTask>(muscleTurret).Target);
             Assert.Equal(3u, muscle.GetComponentRO<WeaponTask>(muscleTurret).Epoch);
+            Assert.Equal(ArcPreference.High, muscle.GetComponentRO<WeaponTask>(muscleTurret).Arc);   // ⭐ ui P2
+            Assert.Equal((byte)33, muscle.GetComponentRO<WeaponPosture>(muscleHull).ActiveMount);    // ⭐ ui P4
+            Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponPosture>(muscleHull).Target);
 
             new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem().Execute(muscle, 1f / 60f);
             Assert.Equal(WeaponTaskState.Slewing, muscle.GetComponentRO<WeaponTaskStatus>(muscleTurret).State);

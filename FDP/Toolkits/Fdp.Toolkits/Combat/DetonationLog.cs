@@ -12,6 +12,9 @@ namespace Fdp.Toolkit.Combat
     {
         /// <summary>⭐ <c>CE-3117</c> — where the entity stood when the burst reached it (the map labels its exposure there).</summary>
         public Vector3 At { get; init; }
+
+        /// <summary>⭐ R-2019 D-M2 — the share of the blast this target takes (1 = a person or a soft skin, 0 = blast-proof).</summary>
+        public float BlastSusceptibility { get; init; } = 1f;
     }
 
     /// <summary>⭐ <c>CE-3117</c> — one fragment ray the area effect traced: the body point, how much got through (0..1), and the
