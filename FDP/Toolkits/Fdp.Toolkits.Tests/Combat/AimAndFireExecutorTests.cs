@@ -981,13 +981,48 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.InRange(FirstShot(4f), 4 * 60, 4 * 60 + 5); // the lock
         }
 
+        /// <summary>⭐ <c>CE-2199</c> — a burst's interval: asked 0 ⇒ the mount's own 60 / RateOfFire; asked > 0 ⇒ kept as given; a mount
+        /// stating no rate keeps 0.</summary>
+        [Fact]
+        public void CE2199_ACooldownOfZero_IsTheMountsOwnRate_AGivenOneIsKept()
+        {
+            var gun = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { RateOfFire = 6f };
+            Assert.Equal(10f, AimAndFireExecutor.CooldownFor(0f, gun));
+            Assert.Equal(0.3f, AimAndFireExecutor.CooldownFor(0.3f, gun));
+            Assert.Equal(0f, AimAndFireExecutor.CooldownFor(0f, new Fdp.Toolkit.Tkb.Domain.WeaponMountDto()));
+            Assert.Equal(0f, AimAndFireExecutor.CooldownFor(0f, null));
+        }
+
+        /// <summary>⭐ <c>CE-2199</c> — the measured case: a tank fighting through its turret with the behaviour's cooldown 0 fires its main
+        /// gun (6 / min) once per 10 s — two rounds in 12 s from its first, never a round a frame. ✅ Red-proof: the turret path passing
+        /// <c>p.CooldownSeconds</c> as given ⇒ all five rounds within a second ⇒ red.</summary>
+        [Fact]
+        public void CE2199_ATankGunAskedForCooldownZero_FiresAtItsOwnRate()
+        {
+            var (shooter, _, channel, _) = TurretedTank(rounds: 5, cooldown: 0f, rateOfFire: 6f);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+            int first = -1, shots = 0;
+            for (int f = 0; f < 60 * 20; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                muscle.Execute(_world, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                int n = _world.Bus.Read<WeaponFireIntent>().Length;
+                if (n > 0 && first < 0) first = f;
+                if (first >= 0 && f <= first + 12 * 60) shots += n;
+            }
+            Assert.True(first >= 0, "it never fired");
+            Assert.Equal(2, shots);
+        }
+
         // ── WL-3 (docs/DESIGN_Weapon_Layers.md §5e) — a turreted mount is fought through its turret ────────────────────────────
 
         /// <summary>A shooter whose type has a turret and a mount on it, with the turret part built (one world = the editor's one
         /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
         private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5,
             Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f,
-            float aimSeconds = 0f)
+            float aimSeconds = 0f, float rateOfFire = 0f)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -1000,7 +1035,7 @@ namespace Fdp.Toolkit.Combat.Tests
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
                 { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity,
-                                                              AimSeconds = aimSeconds } } });
+                                                              AimSeconds = aimSeconds, RateOfFire = rateOfFire } } });
             db.Register(type);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
