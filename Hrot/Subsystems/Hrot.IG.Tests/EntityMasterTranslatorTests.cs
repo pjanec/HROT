@@ -487,6 +487,67 @@ public class EntityMasterTranslatorTests
     }
 
     /// <summary>
+    /// ⭐ CE-4000 (F2) — the question the dispose guard rests on: does a "deleted" sample (no payload, key only) still name
+    /// the node that wrote it? Two writers on two participants: the owner writes, a stranger disposes the same id.
+    /// </summary>
+    [Fact]
+    public void CE4000_ADisposeSample_NamesTheNodeThatDisposedIt()
+    {
+        const uint domain = 233u;
+        using var receiverParticipant = new DdsParticipant(domain);
+        receiverParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 99 });
+        using var ownerParticipant = new DdsParticipant(domain);
+        ownerParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 42 });
+        using var strangerParticipant = new DdsParticipant(domain);
+        strangerParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 7 });
+
+        using var reader = new DdsReader<EntityMaster>(receiverParticipant);
+        reader.EnableSenderTracking(receiverParticipant.SenderRegistry!);
+        using var owner = new DdsWriter<EntityMaster>(ownerParticipant);
+        using var stranger = new DdsWriter<EntityMaster>(strangerParticipant);
+
+        int? aliveFrom = null, disposedFrom = null; bool sawDispose = false;
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (aliveFrom == null && DateTime.UtcNow < deadline)
+        {
+            owner.Write(new EntityMaster { EntityId = 501 });
+            stranger.Write(new EntityMaster { EntityId = 900 });   // the stranger's identity must be known too
+            Thread.Sleep(100);
+            using var loan = reader.Take();
+            int i = 0;
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState == DdsInstanceState.Alive && sample.IsValid && sample.Data.EntityId == 501)
+                    aliveFrom ??= loan.GetSender(i)?.AppInstanceId;
+                i++;
+            }
+        }
+
+        stranger.DisposeInstance(new EntityMaster { EntityId = 501 });
+        deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!sawDispose && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(50);
+            using var loan = reader.Take();
+            int i = 0;
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                {
+                    var key = DdsTypeSupport.FromNative<EntityMaster>(sample.NativePtr);
+                    if (key.EntityId == 501) { sawDispose = true; disposedFrom = loan.GetSender(i)?.AppInstanceId; }
+                }
+                i++;
+            }
+        }
+
+        Console.WriteLine($"PROBE alive-from={aliveFrom} dispose-seen={sawDispose} dispose-from={(disposedFrom?.ToString() ?? "null")}");
+        Assert.Equal(42, aliveFrom);
+        Assert.True(sawDispose, "the stranger's dispose never arrived");
+        Assert.Equal(7, disposedFrom);
+    }
+
+    /// <summary>
     /// ⭐ CE-517, end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
     /// <c>EntityMaster</c> (sender identity). Written ONCE. ⚠ Whether that sample's sender resolves on take or only later
     /// depends on the thread pool (the library looks identities up from an async loop; measured: both happen) — the late path is
