@@ -40,8 +40,8 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Behavior": {
-        "Name": "VehicleFightFromCover",
+      "Sop": {
+        "Name": "BasicVehicleSop",
         "Params": "{}",
         "Origin": "Superior"
       }

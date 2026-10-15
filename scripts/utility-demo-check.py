@@ -1507,7 +1507,7 @@ def run_air_defence(c, timeout):
 
 
 # ── ua-tank-corner (Urban Armour V7; docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4) — the tank's exposure cycle ─────
-#   One M1 on VehicleFightFromCover (no designated target) against an RPG man and a rifleman north of it in test-town:
+#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against an RPG man and a rifleman north of it in test-town:
 #   ① it fires · ② its first rounds go at the RPG man, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
 #   than one point (an exposure is short and a point burns) · ④ between exposures it withdraws (it does not sit in the open).
 def run_tank_corner(c, timeout):
