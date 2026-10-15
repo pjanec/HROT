@@ -77,9 +77,9 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Sop": {
-        "Name": "BasicInfantrySop",
-        "Params": "{}",
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 8301, \"assault\": true}",
         "Origin": "Superior"
       }
     },
