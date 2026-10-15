@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Orchestration
             bus.RegisterManaged<NodeCapabilitiesEvent>();   // CE-285 (C-cap): static capability tokens, published once at join.
             bus.RegisterManaged<ClusterStateTransitionedEvent>();
             bus.RegisterManaged<OrchestratorContextChangedEvent>();
+            bus.RegisterManaged<InSyncSetChangedEvent>();   // C6 — the master's InSync set, to every node's cluster cache
             bus.RegisterManaged<ClusterStateUpdateEvent>();
             bus.RegisterManaged<AssetInventoryUpdateEvent>();
             bus.RegisterManaged<EpisodeStateChangedEvent>();

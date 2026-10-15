@@ -138,6 +138,18 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// ⭐⭐ <c>C6</c> (Q91 §4-N, <c>R-4014</c> K6) — the master's <c>InSync</c> set changed. The cluster's network adapter writes
+    /// it to <c>OrchestratorContextTopic.RequiredNodeIdsJson</c> (durable, one producer); every node's cluster cache uses it so a
+    /// creator's reliable-init barrier waits only for in-sync peers.
+    /// </summary>
+    [EventId(9064)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct InSyncSetChangedEvent
+    {
+        public int[] NodeIds;
+    }
+
+    /// <summary>
     /// Published by <c>OrchestrationObserverTranslator</c> (DDS→bus) and by
     /// <c>ClusterMaster</c> (bus-mode) when the global cluster state transitions.
     /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Fdp.Network.Cyclone.Topics;
@@ -55,7 +56,13 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             // ⭐ CE-3076 (CE-2101's rule) — "reported once per net id": a reused id's new ghost would never report
             //   Constructing / Active, and the creator's reliable-init barrier would wait out its timeout.
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _reported.Clear(); _reportedConstructing.Clear(); }
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
+                foreach (var id in _reported.Union(_reportedConstructing))
+                    _writer.DisposeInstance(new EntityLifecycleStatusDescriptor { EntityId = id, NodeId = _localNodeId });
+                _reported.Clear(); _reportedConstructing.Clear();
+            }
 
             var repo = view as EntityRepository;
             long ts = repo != null ? repo.GlobalVersion : 0;

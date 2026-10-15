@@ -35,6 +35,8 @@ namespace Hrot.Map.Common.Replication.Egress
         // without any executor coupling or shadow ECS component.
         // Key = full Entity handle (Index + Generation), Value = last IntentId that was
         // published to DDS for that exact entity instance.
+        private readonly System.Collections.Generic.HashSet<long> _publishedIds = new();   // ⭐ CE-4007
+        private int _worldEpoch;
         private readonly System.Collections.Generic.Dictionary<Entity, uint> _lastPublishedIntentId
             = new System.Collections.Generic.Dictionary<Entity, uint>();
 
@@ -94,6 +96,13 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
+                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationIntent { EntityId = (int)id });
+                _publishedIds.Clear();
+                _lastPublishedIntentId.Clear();
+            }
             // QueryDelta is a concrete-repository API; bail out gracefully when view
             // is a snapshot or test double that does not implement it.
             var repo = view as EntityRepository;
@@ -145,6 +154,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 // wire format; GeoPoint.Altitude now carries the real destination altitude (P3D-304).
                 var (lat, lon, alt) = _geoTransform.ToGeodetic(intent.FinalDestination);
 
+                _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
                 _writer.Write(new Hrot.NED.Descriptors.NavigationIntent
                 {
                     EntityId         = (int)netId.Value,

@@ -36,7 +36,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            if (WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
+                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityWeaponAmmo { EntityId = id });
+                _last.Clear();
+            }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeaponAmmo>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var unit in view.Query().With<WeaponAmmo>().With<NetworkIdentity>().Build())

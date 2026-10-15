@@ -94,6 +94,7 @@ public sealed partial class ClusterMaster
     {
         if (_eventBus == null) return;
         AdvanceCatchUps();
+        PublishInSyncIfChanged();
 
         if (!IsOperating(_currentDsmState) || TransitionInFlight || _parked != null) return;
         foreach (var nodeId in _roster.ActiveNodes.Keys.ToList())
@@ -154,7 +155,11 @@ public sealed partial class ClusterMaster
         FanOutNodeOp(live ? NodeOpType.PrepareLive : NodeOpType.PrepareEdit, c.TransactionId,
             new EditLoadHandlerPayload(null, false, loading,
                 ExerciseId: _currentExerciseId, TerrainName: names.TerrainName,
-                IsWorldBoundary: true, IsCatchUp: true), targets);
+                // ⛔ NOT a world boundary. 📐 Measured live 2026-10-15: a joiner takes in the current world in the frames before it
+                //   learns the master's session (its gate is not closed yet); a boundary clear here destroyed that entity and DDS
+                //   never re-delivers a taken sample — the joiner lost entity 1000. A joiner already in Idle holds only the CURRENT
+                //   world; a node with a stale one is wiped by the Idle step above (F2, R-4019).
+                IsWorldBoundary: false, IsCatchUp: true), targets);
         FanOutNodeOp(NodeOpType.CommitState, c.TransactionId, new CommitStatePayload(loading), targets);
 
         FanOutNodeOp(NodeOpType.PrepareState, c.TransactionId,
@@ -204,6 +209,20 @@ public sealed partial class ClusterMaster
                     c.NodeId, c.StartedAtEpoch, _transactionEpoch);
             }
         }
+    }
+
+    private int[] _publishedInSync = Array.Empty<int>();
+
+    /// <summary>
+    /// ⭐⭐ C6 (Q91 §4-N) — every node's reliable-init barrier waits only for in-sync peers, so the set is published whenever it
+    /// changes (the network adapter writes it to the durable <c>OrchestratorContextTopic.RequiredNodeIdsJson</c>).
+    /// </summary>
+    private void PublishInSyncIfChanged()
+    {
+        var now = _inSync.OrderBy(id => id).ToArray();
+        if (now.SequenceEqual(_publishedInSync)) return;
+        _publishedInSync = now;
+        _eventBus!.PublishManaged(new InSyncSetChangedEvent { NodeIds = now });
     }
 
     private void FailCatchUp(CatchUp c, string why)

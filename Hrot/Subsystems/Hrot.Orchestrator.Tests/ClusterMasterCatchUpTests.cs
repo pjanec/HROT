@@ -99,6 +99,7 @@ public sealed class ClusterMasterCatchUpTests
                      ops.Select(o => o.Operation).ToArray());
         var load = Assert.IsType<EditLoadHandlerPayload>(ops[2].DomainPayload);
         Assert.True(load.IsCatchUp);
+        Assert.False(load.IsWorldBoundary);   // ⭐ measured live: a boundary clear here destroyed the current world the joiner already held
         Assert.Null(load.ScenarioId);   // ⭐ K5′ — a late joiner never reads the scenario
 
         AnswerAll(bus, master, ops);

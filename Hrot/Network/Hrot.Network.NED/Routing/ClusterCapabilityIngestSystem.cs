@@ -35,11 +35,16 @@ namespace Hrot.Network.Routing
         private readonly Dictionary<int, string[]> _nodeCapabilities = new();
         private readonly HashSet<int> _departed = new();
 
+        /// <summary>⭐ C6 (Q91 §4-N) — the master's context plane: <c>RequiredNodeIdsJson</c> carries its InSync set.</summary>
+        private readonly DdsReader<OrchestratorContextTopic>? _contextReader;
+
         public ClusterCapabilityIngestSystem(
             DdsReader<NodeHeartbeat> heartbeatReader,
             DdsReader<NodeCapabilitiesTopic> capabilitiesReader,
-            SimpleClusterStateCache cache)
+            SimpleClusterStateCache cache,
+            DdsReader<OrchestratorContextTopic>? contextReader = null)
         {
+            _contextReader = contextReader;
             _heartbeatReader    = heartbeatReader ?? throw new ArgumentNullException(nameof(heartbeatReader));
             _capabilitiesReader = capabilitiesReader ?? throw new ArgumentNullException(nameof(capabilitiesReader));
             _cache              = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -47,6 +52,20 @@ namespace Hrot.Network.Routing
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            // ⭐⭐ C6 — the master's InSync set (durable, one producer). An empty field means "not published yet".
+            if (_contextReader != null)
+                using (var ctxLoan = _contextReader.Take())
+                    foreach (var sample in ctxLoan)
+                    {
+                        if (!sample.IsValid || string.IsNullOrWhiteSpace(sample.Data.RequiredNodeIdsJson)) continue;
+                        try
+                        {
+                            var ids = System.Text.Json.JsonSerializer.Deserialize<int[]>(sample.Data.RequiredNodeIdsJson);
+                            if (ids != null) _cache.SetInSync(ids);
+                        }
+                        catch (System.Text.Json.JsonException) { /* a malformed set filters nothing */ }
+                    }
+
             // Gather the durable capability tokens FIRST, so the heartbeat build below derives the role mask
             // from the latest known token set. Retained samples arrive immediately for present + late nodes.
             using (var capLoan = _capabilitiesReader.Take())
