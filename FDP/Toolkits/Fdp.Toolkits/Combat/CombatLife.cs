@@ -54,6 +54,13 @@ namespace Fdp.Toolkit.Combat
                 dead.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
                 return;
             }
+            // ⭐⭐ CE-3211 (hit location §9 S2-8, R-263 D1) — a vehicle's damaged COMPARTMENT: its running gear or engine over the zone's
+            //   threshold is the mobility kill, its turret or gun the firepower kill (derived from the replicated PartDamage, applied here
+            //   where the capability bits live, like MobilityKill). Destroyed stays Health ≤ 0, above.
+            if (Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility))
+                repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities &= ~ActorCapabilities.CanMove;
+            if (Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower))
+                repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities &= ~ActorCapabilities.CanShoot;
             if (health.Current >= health.Max) return;
             if (!repo.IsComponentTypeRegistered<MobilityKill>() || !repo.HasComponent<MobilityKill>(entity)) return;
             float below = repo.GetComponentRO<MobilityKill>(entity).BelowFraction;

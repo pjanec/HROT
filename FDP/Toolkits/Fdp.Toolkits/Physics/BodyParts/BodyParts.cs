@@ -36,7 +36,10 @@ namespace Fdp.Toolkit.Physics.BodyParts
     /// ⭐ <c>CE-3209</c> (HL-1) — one oriented box of a body, in the BODY frame (metres; x forward, y left, z up, the feet's centre at the
     /// origin) for a figure of <see cref="PersonBody.ReferenceHeight"/>: its part, centre, half-extents and rotation.
     /// </summary>
-    public readonly record struct BodyBox(byte Part, Vector3 Centre, Vector3 Half, Quaternion Rotation);
+    /// <para>⭐ <c>CE-3211</c> (S2-7, D-G lifted) — <paramref name="FaceYaw"/>: the yaw (radians, about the body's up) of the frame the
+    /// face entered is judged in — a turret's own azimuth, so a side shot at a turret turned toward it meets the turret's FRONT. 0 = the
+    /// body's frame.</para>
+    public readonly record struct BodyBox(byte Part, Vector3 Centre, Vector3 Half, Quaternion Rotation, float FaceYaw = 0f);
 
     /// <summary>The result of a segment meeting a body: where along it (0..1), which part, the face it entered, the point in the part.</summary>
     public readonly record struct BodyPartHitResult(float T, byte Part, Facing Face, Vector3 LocalPoint);

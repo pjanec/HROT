@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Numerics;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using CarKinem.Spatial;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -68,6 +69,11 @@ namespace Fdp.Toolkit.Physics.Systems
         /// <summary>⭐ <c>CE-3209</c> (HL-2 tier ①) — the cell walk along the segment. On by default; off only to measure the old midpoint disc
         /// (½ length + 5 m, 64 candidates) in the crowd benchmark — ⛔ never a production switch.</summary>
         public bool CellWalk { get; set; } = true;
+
+        /// <summary>⭐⭐ <c>CE-3211</c> (hit location §9) — a ROUND meets a ground VEHICLE by its parts (its kit's boxes, the turret and gun
+        /// posed by <c>TurretPose</c>), not by its circle and height band. On by default; off only to measure the old path — ⛔ never a
+        /// production switch.</summary>
+        public bool VehicleParts { get; set; } = true;
 
         /// <summary>⭐ <c>CE-3209</c> — rounds whose tier-② sphere test rejected a person (so no part was tested). Diagnostics and rails.</summary>
         public long SphereRejects => Interlocked.Read(ref _sphereRejects);
@@ -139,6 +145,9 @@ namespace Fdp.Toolkit.Physics.Systems
             // Resolve all casts in parallel into a local hit-result array, then publish serially.
             var results = new RaycastHit[count];
 
+            // ⭐ CE-3211 — each vehicle's main turret, found ONCE per tick (the parallel loop only reads the map)
+            var turretOf = VehicleParts ? TurretsOf(repo) : null;
+
             Parallel.For(0, count, i =>
             {
                 var req = requestsSnapshot[i];
@@ -150,12 +159,14 @@ namespace Fdp.Toolkit.Physics.Systems
                 //   body reaches PersonBody.MaxBoundRadius from its point). ⛔ Was a disc of ½ length + 5 m round the midpoint, capped at
                 //   64 silently: a 70 m segment visited ~16 × 16 cells, and in a crowd the man on the line could be dropped.
                 float pad = gridData.MaxRadius > 0f
-                    ? MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius)
+                    ? MathF.Max(MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius),
+                                Fdp.Toolkit.Physics.BodyParts.VehicleBody.MaxBoundRadius)   // ⭐ CE-3211 (S2-9) — a turret swung past the circle
                     : PhysicsConstants.QueryExpansionRadius;   // a grid built by hand (no radius measured): the old pad
 
                 unsafe
                 {
                 Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[MaxCandidates];
+                Span<Fdp.Toolkit.Physics.BodyParts.BodyBox> vehicleBoxes = stackalloc Fdp.Toolkit.Physics.BodyParts.BodyBox[Fdp.Toolkit.Physics.BodyParts.VehicleBody.MaxBoxes];   // ⭐ CE-3211
                 bool overflow = false;
                 int nc = CellWalk
                     ? grid.QuerySegment(start2D, end2D, pad, candidates, out overflow)
@@ -214,6 +225,30 @@ namespace Fdp.Toolkit.Physics.Systems
                         if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(Fdp.Toolkit.Physics.BodyParts.PersonBody.Boxes(pose),
                                 tf.Position, tf.Rotation, scale, req.Start, req.End, out var part)) continue;
                         if (part.T < bestT) { bestT = part.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = part; }
+                        continue;
+                    }
+
+                    // ⭐⭐ CE-3211 (§9) — a ROUND meets a ground VEHICLE by its parts: the bound sphere (every turret pose) first, then the
+                    //   kit's boxes the 3-D map draws, the turret and gun posed by the replicated TurretPose. The main hull box's engine third
+                    //   is the Engine (S2-4); a turret's face is judged in its own frame (D-G lifted).
+                    if (VehicleParts && PhysicsConstants.IsBulletRay(req.RayId)
+                        && Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, candidate) is { } vehicle)
+                    {
+                        var size = Fdp.Toolkit.Physics.BodyParts.VehicleBody.SizeOf(repo, candidate, vehicle);
+                        float grow = MathF.Max(MathF.Max(size.X / vehicle.Size.X, size.Y / vehicle.Size.Y), 1f);
+                        var sphereCentre = tf.Position + Vector3.Transform(vehicle.BoundCentre, tf.Rotation);
+                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.SegmentTouchesSphere(req.Start, req.End, sphereCentre, vehicle.BoundRadius * grow))
+                        {
+                            Interlocked.Increment(ref _sphereRejects);
+                            continue;
+                        }
+                        Interlocked.Increment(ref _partTests);
+                        var turretPose = turretOf != null && turretOf.TryGetValue(candidate, out var turretPart)
+                            ? repo.GetComponentRO<Fdp.Toolkit.Combat.Components.TurretPose>(turretPart) : default;
+                        int nb = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Pose(vehicle, size, turretPose.Azimuth, turretPose.Elevation, vehicleBoxes);
+                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(vehicleBoxes[..nb], tf.Position, tf.Rotation, 1f, req.Start, req.End, out var vpart)) continue;
+                        vpart = vpart with { Part = Fdp.Toolkit.Physics.BodyParts.VehicleBody.PartOf(vehicle, vpart.Part, vpart.LocalPoint) };
+                        if (vpart.T < bestT) { bestT = vpart.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = vpart; }
                         continue;
                     }
 
@@ -283,6 +318,20 @@ namespace Fdp.Toolkit.Physics.Systems
         /// <summary>⭐ M1 — narrows [<paramref name="tIn"/>, <paramref name="tOut"/>] of a segment whose height runs
         /// <paramref name="z0"/>→<paramref name="z1"/> to where it lies in [<paramref name="lo"/>, <paramref name="hi"/>]; false when it
         /// never does.</summary>
+        /// <summary>⭐ <c>CE-3211</c> — parent → its main turret part (<c>TurretParts</c> id 2000), for this tick; null when no turrets exist.</summary>
+        private static Dictionary<Entity, Entity>? TurretsOf(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()
+                || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) return null;
+            Dictionary<Entity, Entity>? map = null;
+            foreach (var e in repo.Query().With<Fdp.Toolkit.Replication.Components.PartMetadata>().With<Fdp.Toolkit.Combat.Components.TurretPose>().Build())
+            {
+                ref readonly var meta = ref repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(e);
+                if (meta.InstanceId == Fdp.Toolkit.Combat.TurretParts.FirstPartId) (map ??= new())[meta.ParentEntity] = e;
+            }
+            return map;
+        }
+
         public static bool ZBandOverlap(float z0, float z1, float lo, float hi, ref float tIn, ref float tOut)
         {
             float dz = z1 - z0;

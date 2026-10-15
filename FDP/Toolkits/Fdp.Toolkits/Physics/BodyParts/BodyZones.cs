@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
@@ -27,6 +28,8 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>Where each value came from: "Armour.Front" → (provenance, source).</summary>
         public Dictionary<string, (ParameterProvenance Provenance, string Source)> Sources { get; } = new();
 
+        /// <summary>The zone's armour on <paramref name="face"/>; ⭐ <c>CE-3211</c> (S2-7) — NaN when the zone INHERITS the platform's armour
+        /// (a vehicle zone with no number of its own): the damage step then keeps <c>ArmorModel</c>'s, the CE armour included.</summary>
         public float ArmourOn(Facing face) => Armour[System.Math.Clamp((int)face, 0, 3)];
         public bool Has(byte part) => part < 32 && (PartMask & (1u << part)) != 0;
     }
@@ -38,6 +41,10 @@ namespace Fdp.Toolkit.Physics.BodyParts
         public string Profile { get; init; } = "";
         public ParameterProvenance ProfileProvenance { get; init; }
         public IReadOnlyList<ResolvedZone> Zones { get; init; } = Array.Empty<ResolvedZone>();
+        /// <summary>⭐ <c>CE-3211</c> (S2-5) — the vehicle kit its parts are shaped by (<see cref="VehicleBody"/>), null for a person.</summary>
+        public string? Kit { get; init; }
+        /// <summary>⭐ <c>CE-3211</c> (S2-4) — which end of the main hull box holds the engine.</summary>
+        public EngineEnd EngineEnd { get; init; }
 
         /// <summary>The zone <paramref name="part"/> belongs to, or null.</summary>
         public ResolvedZone? ZoneOf(byte part)
@@ -64,7 +71,8 @@ namespace Fdp.Toolkit.Physics.BodyParts
     /// </summary>
     public static class BodyZones
     {
-        private sealed record Profile(string Name, BodyPlan Plan, int?[] Dis, int Specificity, List<BodyZoneDto> Zones);
+        private sealed record Profile(string Name, BodyPlan Plan, int?[][] Dis, List<BodyZoneDto> Zones, string? Kit = null,
+                                      EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false);
 
         private static readonly Lazy<Profile[]> s_profiles = new(LoadProfiles);
         private static readonly ConditionalWeakTable<TkbTemplate, ResolvedBody?[]> s_cache = new();
@@ -90,35 +98,40 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>The engine's person body: the "Person" profile's zones, or the code's when the library lacks it.</summary>
         public static readonly Lazy<ResolvedBody> PersonFallback = new(() =>
             Build(BodyPlan.Person, FindProfile("Person")?.Zones ?? DefaultPersonZones(), FindProfile("Person") is { } p ? $"profile {p.Name}" : "engine",
-                  FindProfile("Person") != null ? ParameterProvenance.ReferenceByDis : ParameterProvenance.EngineFallback, null, null));
+                  FindProfile("Person") != null ? ParameterProvenance.ReferenceByDis : ParameterProvenance.EngineFallback, null, null, null));
 
         private static ResolvedBody? Resolve(TkbTemplate t)
         {
             var own = t.GetDescriptor<BodyZonesDto>();
             var dis = t.DisType;
-            var profile = Match(dis);
+            var (profile, pattern) = Match(dis);
             if (profile == null && dis.Kind != 3 && own == null) return null;   // ⛔ a profile never adds a body to a non-person
             var plan = profile?.Plan ?? BodyPlan.Person;
+            var platform = t.GetDescriptor<CombatPlatformDefDto>();
+            if (plan != BodyPlan.Person && platform == null) return null;   // ⛔ HL-12 / S2-5: a vehicle with no combat platform has no body
             var baseZones = profile?.Zones ?? DefaultPersonZones();
-            string source = profile != null ? $"profile {profile.Name} ({string.Join('.', Array.ConvertAll(profile.Dis, d => d?.ToString() ?? "*"))})" : "engine";
+            string source = profile != null ? $"profile {profile.Name} ({string.Join('.', Array.ConvertAll(pattern!, d => d?.ToString() ?? "*"))})" : "engine";
             var prov = profile != null ? ParameterProvenance.ReferenceByDis : ParameterProvenance.EngineFallback;
-            return Build(plan, baseZones, source, prov, own, t.GetDescriptor<CombatPlatformDefDto>());
+            return Build(plan, baseZones, source, prov, own, platform, profile);
         }
 
         private static ResolvedBody Build(BodyPlan plan, List<BodyZoneDto> baseZones, string source, ParameterProvenance prov,
-                                          BodyZonesDto? own, CombatPlatformDefDto? platform)
+                                          BodyZonesDto? own, CombatPlatformDefDto? platform, Profile? profile)
         {
+            // ⭐ CE-3211 (S2-7) — a vehicle profile INHERITS the platform's armour on every face it states no number for (NaN)
+            float unstated = profile?.InheritArmour == true ? float.NaN : 0f;
+            string unstatedSource = profile?.InheritArmour == true ? "inherited: the platform's armour (ArmorModel)" : $"none in {source}";
             var zones = new List<ResolvedZone>();
             foreach (var b in baseZones)
             {
                 uint mask = 0;
                 if (b.Parts != null) foreach (var p in b.Parts) if (p < 32) mask |= 1u << p;
                 var z = new ResolvedZone { Name = b.Zone, PartMask = mask };
-                Set(z, "Armour.Front", b.ArmourFront, v => z.Armour[0] = v, prov, source, 0f);
-                Set(z, "Armour.Side", b.ArmourSide, v => z.Armour[1] = v, prov, source, 0f);
-                Set(z, "Armour.Rear", b.ArmourRear, v => z.Armour[2] = v, prov, source, 0f);
-                Set(z, "Armour.Top", b.ArmourTop, v => z.Armour[3] = v, prov, source, 0f);
-                Set(z, "Multiplier", b.Multiplier, v => z.Multiplier = v, prov, source, 1f);
+                Set(z, "Armour.Front", b.ArmourFront, v => z.Armour[0] = v, prov, source, unstated, unstatedSource);
+                Set(z, "Armour.Side", b.ArmourSide, v => z.Armour[1] = v, prov, source, unstated, unstatedSource);
+                Set(z, "Armour.Rear", b.ArmourRear, v => z.Armour[2] = v, prov, source, unstated, unstatedSource);
+                Set(z, "Armour.Top", b.ArmourTop, v => z.Armour[3] = v, prov, source, unstated, unstatedSource);
+                Set(z, "Multiplier", b.Multiplier, v => z.Multiplier = v, prov, source, 1f, $"none in {source}");
                 z.Effect = b.Effect ?? WoundEffect.None;
                 z.WoundedAt = b.WoundedAt ?? 255;
                 z.Sources["Effect"] = (prov, source);
@@ -146,13 +159,15 @@ namespace Fdp.Toolkit.Physics.BodyParts
                     }
                 zones.Add(z);
             }
-            return new ResolvedBody { Plan = plan, Profile = source, ProfileProvenance = prov, Zones = zones };
+            return new ResolvedBody { Plan = plan, Profile = source, ProfileProvenance = prov, Zones = zones, Kit = profile?.Kit,
+                                      EngineEnd = profile?.EngineEnd ?? EngineEnd.None };
         }
 
-        private static void Set(ResolvedZone z, string key, float? value, Action<float> set, ParameterProvenance prov, string source, float dflt)
+        private static void Set(ResolvedZone z, string key, float? value, Action<float> set, ParameterProvenance prov, string source, float dflt,
+                                string dfltSource)
         {
             if (value is { } v) { set(v); z.Sources[key] = (prov, source); }
-            else { set(dflt); z.Sources[key] = (ParameterProvenance.EngineFallback, $"none in {source}"); }
+            else { set(dflt); z.Sources[key] = (ParameterProvenance.EngineFallback, dfltSource); }
         }
 
         private static void Explicit(ResolvedZone z, string key, float value, int index, string source)
@@ -166,13 +181,20 @@ namespace Fdp.Toolkit.Physics.BodyParts
         public static IEnumerable<ResolvedParameter> Parameters(TkbTemplate template)
         {
             if (Of(template) is not { } body) yield break;
+            var platform = template.GetDescriptor<CombatPlatformDefDto>();
             foreach (var z in body.Zones)
             {
                 string[] faces = { "Armour.Front", "Armour.Side", "Armour.Rear", "Armour.Top" };
                 for (int i = 0; i < 4; i++)
                 {
                     var (p, s) = z.Sources.TryGetValue(faces[i], out var v) ? v : (ParameterProvenance.EngineFallback, "engine");
-                    yield return new ResolvedParameter($"Body.{z.Name}.{faces[i]}", z.Armour[i], p, s);
+                    float value = z.Armour[i];
+                    if (float.IsNaN(value))   // ⭐ CE-3211 — an inherited face reports the platform's number (KE; ArmorModel picks CE for a HEAT round)
+                    {
+                        value = platform == null ? 0f : i switch { 0 => platform.ArmorFront, 1 => platform.ArmorSide, 2 => platform.ArmorRear, _ => platform.ArmorTop };
+                        (p, s) = (ParameterProvenance.Explicit, $"inherited: Combat.PlatformDef.Armor{faces[i].Substring(7)}");
+                    }
+                    yield return new ResolvedParameter($"Body.{z.Name}.{faces[i]}", value, p, s);
                 }
                 var (mp, ms) = z.Sources.TryGetValue("Multiplier", out var mv) ? mv : (ParameterProvenance.EngineFallback, "engine");
                 yield return new ResolvedParameter($"Body.{z.Name}.Multiplier", z.Multiplier, mp, ms);
@@ -188,18 +210,27 @@ namespace Fdp.Toolkit.Physics.BodyParts
         }
 
         /// <summary>The most specific profile whose DIS pattern matches <paramref name="dis"/>, or null.</summary>
-        private static Profile? Match(DISEntityType dis)
+        private static (Profile? Profile, int?[]? Pattern) Match(DISEntityType dis)
         {
-            if (dis.Value == 0) return null;
+            if (dis.Value == 0) return (null, null);
             int[] fields = { dis.Kind, dis.Domain, dis.Country, dis.Category, dis.Subcategory, dis.Specific, dis.Extra };
             Profile? best = null;
+            int?[]? bestPattern = null;
+            int bestSpec = -1;
             foreach (var p in s_profiles.Value)
-            {
-                bool ok = true;
-                for (int i = 0; i < p.Dis.Length && ok; i++) ok = p.Dis[i] is not { } want || want == fields[i];
-                if (ok && (best == null || p.Specificity > best.Specificity)) best = p;
-            }
-            return best;
+                foreach (var pattern in p.Dis)   // ⭐ CE-3211 — a profile may name several classes (WheeledUtility: 1.1.*.3, 6, 7)
+                {
+                    bool ok = true;
+                    int spec = 0;
+                    for (int i = 0; i < pattern.Length && ok; i++)
+                    {
+                        if (pattern[i] is not { } want) continue;
+                        ok = want == fields[i];
+                        spec++;
+                    }
+                    if (ok && spec > bestSpec) { best = p; bestPattern = pattern; bestSpec = spec; }
+                }
+            return (best, bestPattern);
         }
 
         private static Profile[] LoadProfiles()
@@ -219,11 +250,17 @@ namespace Fdp.Toolkit.Physics.BodyParts
             var list = new List<Profile>();
             foreach (var n in root["profiles"]!.AsArray())
             {
-                var dis = (n!["dis"]?.GetValue<string>() ?? "").Split('.', StringSplitOptions.RemoveEmptyEntries);
-                var pattern = new int?[dis.Length];
-                int spec = 0;
-                for (int i = 0; i < dis.Length; i++)
-                    if (dis[i] != "*") { pattern[i] = int.Parse(dis[i]); spec++; }
+                var patterns = new List<int?[]>();
+                var disNode = n!["dis"];
+                var texts = disNode is JsonArray arr ? arr.Select(x => x!.GetValue<string>()).ToArray() : new[] { disNode?.GetValue<string>() ?? "" };
+                foreach (var text in texts)
+                {
+                    var dis = text.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                    var pattern = new int?[dis.Length];
+                    for (int i = 0; i < dis.Length; i++)
+                        if (dis[i] != "*") pattern[i] = int.Parse(dis[i]);
+                    patterns.Add(pattern);
+                }
                 var zones = new List<BodyZoneDto>();
                 foreach (var z in n["zones"]!.AsArray())
                 {
@@ -241,7 +278,9 @@ namespace Fdp.Toolkit.Physics.BodyParts
                     });
                 }
                 list.Add(new Profile(n["name"]!.GetValue<string>(), Enum.Parse<BodyPlan>(n["plan"]!.GetValue<string>(), ignoreCase: true),
-                                     pattern, spec, zones));
+                                     patterns.ToArray(), zones, n["kit"]?.GetValue<string>(),
+                                     n["engine"] is { } en ? Enum.Parse<EngineEnd>(en.GetValue<string>(), ignoreCase: true) : EngineEnd.None,
+                                     n["inheritArmour"]?.GetValue<bool>() ?? false));
             }
             return list.ToArray();
         }

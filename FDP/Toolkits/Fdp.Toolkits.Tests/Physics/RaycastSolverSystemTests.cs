@@ -473,6 +473,91 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0L, sys.CandidateOverflows);
         }
 
+
+        // ── ⭐⭐ CE-3211 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §9 S2) — a round meets a VEHICLE's parts ──────────
+
+        private const long TankType = 9311;
+
+        /// <summary>A tank (the Tank kit at its default 7.9 × 3.7 × 2.4 m, no TKB turret ⇒ the kit's own pivots) at (10, 0) facing +x, with
+        /// its turret part child posed at <paramref name="azimuth"/> (radians, counter-clockwise).</summary>
+        private Entity SpawnTank(float azimuth = 0f)
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("T-test tank", TankType) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 1 } };
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 500f, ArmorSide = 80f, ArmorRear = 40f, ArmorTop = 30f });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var tank = SpawnCollider(new Vector2(10f, 0f), radius: 4f, layer: 1);
+            _world.GetComponentRW<PhysicsCollider>(tank).Height = 2.4f;
+            _world.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TankType });
+            var turret = Fdp.Toolkit.Combat.TurretParts.Ensure(_world, tank, 0);
+            _world.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret).Azimuth = azimuth;
+            return tank;
+        }
+
+        /// <summary>A round from the tank's LEFT (+y) across it at (<paramref name="x"/>, <paramref name="z"/>).</summary>
+        private RaycastHit FromLeft(float x, float z, RaycastSolverSystem? sys = null) => FireRoundWith(sys, new Vector3(x, 20f, z), new Vector3(x, -20f, z));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3211</c> (S2-3, S2-4) — a round from the side meets the part it crosses: low, the left track (the running gear); waist high,
+        /// the hull's side; high, the turret's side; and in the hull's REAR third, the engine. A round from behind enters the engine; from
+        /// ahead, the hull's front. 🔴 Red-proof: with <c>VehicleParts</c> off the hit carries no part.
+        /// </summary>
+        [Fact]
+        public void CE3211_ARound_MeetsTheTankPartItCrosses()
+        {
+            var tank = SpawnTank();
+            var gear = FromLeft(10f, 0.4f);
+            Assert.Equal((tank, (byte)1, Fdp.Toolkit.Physics.BodyParts.VehiclePart.RunningGearL), (gear.HitEntity, gear.HasBodyPart, gear.BodyPart));
+            var hull = FromLeft(10f, 1.0f);
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.VehiclePart.Hull, (byte)Fdp.Toolkit.Combat.Facing.Side), (hull.BodyPart, hull.Face));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.VehiclePart.Turret, FromLeft(9.45f, 1.8f).BodyPart);
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.VehiclePart.Engine, FromLeft(7f, 1.0f).BodyPart);
+
+            var behind = FireRoundWith(null, new Vector3(-10f, 0f, 1.0f), new Vector3(30f, 0f, 1.0f));
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.VehiclePart.Engine, (byte)Fdp.Toolkit.Combat.Facing.Rear), (behind.BodyPart, behind.Face));
+            var ahead = FireRoundWith(null, new Vector3(30f, 0f, 1.0f), new Vector3(-10f, 0f, 1.0f));
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.VehiclePart.Hull, (byte)Fdp.Toolkit.Combat.Facing.Front), (ahead.BodyPart, ahead.Face));
+
+            var old = FromLeft(10f, 1.0f, new RaycastSolverSystem { VehicleParts = false });
+            Assert.Equal((tank, (byte)0), (old.HitEntity, old.HasBodyPart));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3211</c> (S2-7, D-G lifted) — a turret TURNED toward a side shot shows that shot its FRONT; a round dropping onto it meets its
+        /// roof (Top); a round just over the turret misses the tank the old height band would have hit.
+        /// </summary>
+        [Fact]
+        public void CE3211_ATurnedTurret_ShowsASideShotItsFront_AndARoundOverItMisses()
+        {
+            var tank = SpawnTank(azimuth: MathF.PI / 2f);   // the turret faces the tank's left
+            var side = FromLeft(9.45f, 1.6f);   // under the barrel, which now points at the shooter
+            Assert.Equal((tank, Fdp.Toolkit.Physics.BodyParts.VehiclePart.Turret, (byte)Fdp.Toolkit.Combat.Facing.Front), (side.HitEntity, side.BodyPart, side.Face));
+            var roof = FireRoundWith(null, new Vector3(9.45f, 0f, 10f), new Vector3(9.45f, 0f, -1f));
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.VehiclePart.Turret, (byte)Fdp.Toolkit.Combat.Facing.Top), (roof.BodyPart, roof.Face));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.VehiclePart.Gun, FromLeft(9.45f, 1.85f).BodyPart);   // down the barrel's muzzle
+            // the gun now points left: a round across its barrel, 3.5 m out from the pivot, meets the gun
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.VehiclePart.Gun,
+                FireRoundWith(null, new Vector3(-10f, 3.5f, 1.87f), new Vector3(30f, 3.5f, 1.87f)).BodyPart);
+
+            Assert.Equal(0, FromLeft(10f, 2.3f).HasHit);                                                 // over the hull and turret
+            Assert.Equal(tank, FromLeft(10f, 2.3f, new RaycastSolverSystem { VehicleParts = false }).HitEntity);   // the old band hit it
+        }
+
+        /// <summary>⭐ <c>CE-3211</c> (S2-9) — a round 12 m from the tank is rejected by its bound sphere, before any box is tested.</summary>
+        [Fact]
+        public void CE3211_TheVehicleBoundSphere_RejectsARoundThatPassesBy()
+        {
+            SpawnTank();
+            var sys = new RaycastSolverSystem();
+            Assert.Equal(0, FireRoundWith(sys, new Vector3(22f, 20f, 1f), new Vector3(22f, -20f, 1f)).HasHit);
+            Assert.Equal(0L, sys.PartTests);
+            FromLeft(10f, 1.0f, sys);
+            Assert.Equal(1L, sys.PartTests);
+        }
 }
 }
 

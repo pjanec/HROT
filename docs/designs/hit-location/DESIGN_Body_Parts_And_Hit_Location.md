@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15 (HL-12: body profiles by DIS class + sparse per-type overrides, user-approved)
-build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design. §1 is the measured ground.
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -309,4 +309,24 @@ SimHost (W-9). ⚠ **One dead edge stays dead:** a `ui` SpArtillery is DRAWN at 
 | **S2-7** | vehicle zones (profiles): Hull ×1 · Turret ×1, Firepower at 160 · Gun ×0.2, Firepower at 32 · RunningGear ×0.3, Mobility at 32 · Engine ×0.8, Mobility at 96. Armour **inherited** (`inheritArmour`): the platform's on the face entered — HL-12 ② | no armour number moves; the turret's own face is the D-G lift | per-zone armour numbers now (no source data — a TKB override can state them) |
 | **S2-8** | the consequences are applied where the capability bits already are: `CombatLife.ApplyHitCapabilities` on the Health owner strips `CanMove` (Mobility) / `CanShoot` (Firepower), like the opt-in `MobilityKill`; destroyed stays Health ≤ 0 | one rule, one place (CE-3092); the bits replicate | a derived read in every dispatcher · a Catastrophic zone (no ammo geometry yet — ⏭ a TKB `Combat.BodyZones` can add one) |
 | **S2-9** | the cell walk's pad grows to `max(grid radius, PersonBody, VehicleBody.MaxBoundRadius)`; the vehicle's bound sphere covers every turret pose (part distance to the pivot + the pivot's distance) | no candidate is lost to a turret swung out past the collider circle | per-pose bounds (work per frame) |
+
+### 9a. S2 as built — `CE-3211` *(backend, `2026-10-16`)*
+
+Built as §9 draws it (`VehicleKit`, `VehicleKitPart`, `VehiclePart`, `VehicleShape`, `VehicleBody` in
+`Fdp.Toolkits/Physics/BodyParts/VehicleBody.cs`; the table `VehicleBody.Tables.g.cs`; `VehicleBodyParityTests` in ui's suite). Deviations:
+
+| as designed | as built | why |
+|---|---|---|
+| the solver asks `TurretParts.PoseOf` per candidate | the parent → main-turret map is built ONCE per tick before the parallel narrow phase; the loop only reads it | `PoseOf` walks a query per call, and the narrow phase is `Parallel.For` |
+| the face of a turret part "in its own frame" | `BodyBox` gains `FaceYaw` (the turret's azimuth); `BodyPartHit` judges the face after turning the normal back by it | one field, no second hit routine |
+| `VehicleShape.KitToBody` places the kit | two offsets, ported apart: `KitToBody` (ui's `kitToBody`: whenever a `Body.Geometry` exists) and `PivotShift` (`KitFromTkb`'s: only for a whole Body.Geometry box) | a faithful port; the parity rail checks both |
+| — | `/combat/shots` names a vehicle's parts (`VehiclePart.NameOf`) | the S1a person names were wrong for a hull |
+| — | the inherited armour shows in `/tkb/resolve` as the platform's KE number with source `inherited: Combat.PlatformDef.Armor…` | NaN is not JSON; the damage step still uses `ArmorModel` (the CE column for a shaped charge) |
+
+**Rails:** `RaycastSolverSystemTests` — `CE3211_ARound_MeetsTheTankPartItCrosses` (track, hull side, turret, the engine from the side and from
+behind, the hull's front; parts off ⇒ none) · `CE3211_ATurnedTurret_ShowsASideShotItsFront_AndARoundOverItMisses` (turret front, roof, the
+gun pointing at the shooter, the barrel across; the old band hit the round over the tank) · `CE3211_TheVehicleBoundSphere_RejectsARoundThatPassesBy`;
+`BodyPartDamageTests` — the tank profile and inherited armour, the turret / gun damage, the mobility and firepower kills; ui's
+`VehicleBodyParityTests` — the generated kits = `ShapeKits`, and for EVERY catalog type of the five families: the kit, the size and the
+posed boxes at three turret poses (and inside the bound sphere). ⏭ S2b `CE-3214` weapon systems, S2c `CE-3215` aircraft.
 

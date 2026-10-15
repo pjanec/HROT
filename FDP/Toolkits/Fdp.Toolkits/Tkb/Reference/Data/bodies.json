@@ -1,5 +1,5 @@
 {
-  "_doc": "CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-12) — body profiles, matched by DIS class (kind.domain.country.category.subcategory.specific.extra; * or absent = any), most specific first. A TKB type overrides a field with a sparse Combat.BodyZones. Armour in mm RHA; part ids are the plan's (Person: ThighL 0, ShinL 1, ThighR 2, ShinR 3, Torso 4, Head 5, UpperArmL 6, ForearmL 7, UpperArmR 8, ForearmR 9). Starter numbers (HL-11) — tuning starts here.",
+  "_doc": "CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-12) — body profiles, matched by DIS class (kind.domain.country.category.subcategory.specific.extra; * or absent = any), most specific first. A TKB type overrides a field with a sparse Combat.BodyZones. Armour in mm RHA; part ids are the plan's (Person: ThighL 0, ShinL 1, ThighR 2, ShinR 3, Torso 4, Head 5, UpperArmL 6, ForearmL 7, UpperArmR 8, ForearmR 9). Starter numbers (HL-11) — tuning starts here. ⭐ CE-3211 (§9): a VEHICLE profile names its kit (VehicleBody, generated from ui's ShapeKits), its engine end, and inheritArmour (a face with no number keeps the platform's armour); its parts are Hull 0, Turret 1, Gun 2, RunningGearL 3, RunningGearR 4, Engine 5; dis may be a list.",
   "profiles": [
     {
       "name": "Soldier",
@@ -21,6 +21,81 @@
         { "zone": "Torso", "parts": [4],          "multiplier": 1.0, "effect": "None" },
         { "zone": "Arm",   "parts": [6, 7, 8, 9], "multiplier": 0.4, "effect": "Aim",  "woundedAt": 64 },
         { "zone": "Leg",   "parts": [0, 1, 2, 3], "multiplier": 0.5, "effect": "Slow", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "Tank",
+      "plan": "TrackedVehicle",
+      "dis": "1.1.*.1",
+      "kit": "Tank",
+      "engine": "rear",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Hull",        "parts": [0],    "multiplier": 1.0 },
+        { "zone": "Turret",      "parts": [1],    "multiplier": 1.0, "effect": "Firepower", "woundedAt": 160 },
+        { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
+        { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
+        { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
+      ]
+    },
+    {
+      "name": "Afv",
+      "plan": "TrackedVehicle",
+      "dis": "1.1.*.2",
+      "kit": "Afv",
+      "engine": "front",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Hull",        "parts": [0],    "multiplier": 1.0 },
+        { "zone": "Turret",      "parts": [1],    "multiplier": 1.0, "effect": "Firepower", "woundedAt": 160 },
+        { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
+        { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
+        { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
+      ]
+    },
+    {
+      "name": "SpArtillery",
+      "plan": "TrackedVehicle",
+      "dis": "1.1.*.4",
+      "kit": "SpArtillery",
+      "engine": "front",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Hull",        "parts": [0],    "multiplier": 1.0 },
+        { "zone": "Turret",      "parts": [1],    "multiplier": 1.0, "effect": "Firepower", "woundedAt": 160 },
+        { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
+        { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
+        { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
+      ]
+    },
+    {
+      "name": "WheeledUtility",
+      "plan": "WheeledVehicle",
+      "dis": ["1.1.*.3", "1.1.*.6", "1.1.*.7"],
+      "kit": "WheeledUtility",
+      "engine": "front",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Hull",        "parts": [0],    "multiplier": 1.0 },
+        { "zone": "Turret",      "parts": [1],    "multiplier": 1.0, "effect": "Firepower", "woundedAt": 160 },
+        { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
+        { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
+        { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
+      ]
+    },
+    {
+      "name": "Car",
+      "plan": "WheeledVehicle",
+      "dis": "1.1.*.81",
+      "kit": "WheeledCar",
+      "engine": "front",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Hull",        "parts": [0],    "multiplier": 1.0 },
+        { "zone": "Turret",      "parts": [1],    "multiplier": 1.0, "effect": "Firepower", "woundedAt": 160 },
+        { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
+        { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
+        { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
       ]
     }
   ]

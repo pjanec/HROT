@@ -126,7 +126,9 @@ namespace Fdp.Toolkit.Physics.Systems
                             shot.HitEntity = hit.HitEntity;
                             if (hit.HasBodyPart != 0)   // ⭐ CE-3209 — the part and the face, for /combat/shots
                             {
-                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart);
+                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) != null   // ⭐ CE-3211 — a vehicle's parts
+                                    ? Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart)
+                                    : Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart);
                                 shot.HitFace = ((Fdp.Toolkit.Combat.Facing)hit.Face).ToString();
                             }
                             shot.ArrivingDamage = damage;

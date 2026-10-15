@@ -96,7 +96,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 float multiplier = 1f;
                 if (evt.HasBodyPart != 0 && Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity)?.ZoneOf(evt.BodyPart) is { } zone)
                 {
-                    if (evt.Penetration > 0f) armour = zone.ArmourOn((Facing)evt.Face);
+                    // ⭐ CE-3211 (S2-7) — a vehicle zone with no number of its own (NaN) keeps the platform's armour on the face entered
+                    if (evt.Penetration > 0f && !float.IsNaN(zone.ArmourOn((Facing)evt.Face))) armour = zone.ArmourOn((Facing)evt.Face);
                     multiplier = zone.Multiplier;
                 }
                 float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour) * multiplier;

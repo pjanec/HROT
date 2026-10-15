@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Physics.Tests
     /// </summary>
     public sealed class BodyPartDamageTests : IDisposable
     {
-        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5;
+        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5, Tank = 6;
         private readonly EntityRepository _world = new();
         private readonly TkbDatabase _db = new();
 
@@ -57,6 +57,9 @@ namespace Fdp.Toolkit.Physics.Tests
             vested.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 100f, ArmorFront = 8f });
             _db.Register(vested);
             _db.Register(Type(Truck, new DISEntityType { Kind = 1, Domain = 1, Category = 7 }));
+            var tank = Type(Tank, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
+            tank.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 500f, ArmorSide = 80f, ArmorRear = 40f, ArmorTop = 30f });
+            _db.Register(tank);
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
 
@@ -318,5 +321,69 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.InRange(local.Z, 0.299f, 0.301f);
             Assert.False(_world.HasComponent<HitMarks>(miss));   // ⭐ only a body that was struck carries marks
         }
-    }
+    
+        // ── ⭐⭐ CE-3211 (§9 S2) — a ground vehicle's compartments ──────────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void CE3211_ATank_GetsTheTankProfile_ItsKit_AndInheritsItsPlatformArmour()
+        {
+            var body = BodyZones.Of(_db.GetByType(Tank))!;
+            Assert.Equal((BodyPlan.TrackedVehicle, "Tank", EngineEnd.Rear), (body.Plan, body.Kit, body.EngineEnd));
+            Assert.True(float.IsNaN(body.ZoneOf(VehiclePart.Turret)!.ArmourOn(Facing.Front)));   // the platform's, kept by ArmorModel
+            Assert.Equal("Engine", body.ZoneOf(VehiclePart.Engine)!.Name);
+            Assert.Equal(WoundEffect.Mobility, body.ZoneOf(VehiclePart.RunningGearR)!.Effect);
+            Assert.NotNull(VehicleBody.Of(_db.GetByType(Tank)));
+            Assert.Null(BodyZones.Of(_db.GetByType(Truck)));   // ⛔ a vehicle with no combat platform has no body (S2-5)
+
+            var resolved = ParameterResolver.ResolveAll(_db.GetByType(Tank));
+            var turretFront = resolved.Single(p => p.Name == "Body.Turret.Armour.Front");
+            Assert.Equal((500f, ParameterProvenance.Explicit), (turretFront.Value, turretFront.Provenance));
+            Assert.StartsWith("inherited", turretFront.Source);
+        }
+
+        [Fact]
+        public void CE3211_ATurretHit_MeetsThePlatformArmour_OnTheFaceEntered_AndAGunHitCountsAFifth()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            var tank = Body(Tank, health: 1000f);
+            _world.AddComponent(tank, new SimTransform { Rotation = Quaternion.Identity });   // the damage step reads the armour only on a placed body
+            float wholeSide = Assess(tank, VehiclePart.Hull, Facing.Side, penetration: 300f, damage: 100f);   // the hull: × 1, the platform's side
+            Assert.True(wholeSide > 50f, $"a 300 mm round should get through 80 mm of side armour: {wholeSide}");
+            Assert.Equal(wholeSide, Assess(tank, VehiclePart.Turret, Facing.Side, penetration: 300f, damage: 100f), 3);
+            Assert.True(Assess(tank, VehiclePart.Turret, Facing.Front, penetration: 300f, damage: 100f) < wholeSide / 2f);   // 500 mm in front
+            Assert.Equal(wholeSide * 0.2f, Assess(tank, VehiclePart.Gun, Facing.Side, penetration: 300f, damage: 100f), 3);
+        }
+
+        private Entity Armed(long type)
+        {
+            var e = Body(type, health: 1000f);
+            _world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            return e;
+        }
+
+        private void Apply(Entity e, byte part, float damage)
+        {
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage, HasBodyPart = 1, BodyPart = part });
+            _world.Bus.SwapBuffers();
+            new HealthApplicationSystem().Execute(_world, 0.016f);
+        }
+
+        [Fact]
+        public void CE3211_AWreckedTrack_IsTheMobilityKill_AWreckedGun_TheFirepowerKill()
+        {
+            var a = Armed(Tank);
+            Apply(a, VehiclePart.RunningGearL, 100f);   // 10 % of its health on the track ⇒ level 26, under 32: still moves
+            Assert.Equal(ActorCapabilities.CanMove | ActorCapabilities.CanShoot, _world.GetComponentRO<ActorCapabilityState>(a).Capabilities);
+            Apply(a, VehiclePart.RunningGearL, 50f);    // level 39 ⇒ the mobility kill
+            Assert.Equal(ActorCapabilities.CanShoot, _world.GetComponentRO<ActorCapabilityState>(a).Capabilities);
+            Assert.Equal(BodyPlan.TrackedVehicle, _world.GetComponentRO<PartDamage>(a).Plan);
+
+            var b = Armed(Tank);
+            Apply(b, VehiclePart.Gun, 150f);
+            Assert.Equal(ActorCapabilities.CanMove, _world.GetComponentRO<ActorCapabilityState>(b).Capabilities);
+            var c = Armed(Tank);
+            Apply(c, VehiclePart.Hull, 400f);             // the hull has no effect: health only
+            Assert.Equal(ActorCapabilities.CanMove | ActorCapabilities.CanShoot, _world.GetComponentRO<ActorCapabilityState>(c).Capabilities);
+        }
+}
 }

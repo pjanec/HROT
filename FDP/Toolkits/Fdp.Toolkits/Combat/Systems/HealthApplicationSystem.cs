@@ -92,7 +92,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (evt.HasBodyPart != 0 && repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>())
                 {
                     if (!repo.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity))
-                        repo.AddComponent(targetEntity, new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person });
+                        repo.AddComponent(targetEntity, new Fdp.Toolkit.Physics.BodyParts.PartDamage   // ⭐ CE-3211 — the body's own plan
+                        {
+                            Plan = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity)?.Plan ?? Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person,
+                        });
                     ref var parts = ref repo.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity);
                     parts.Add(evt.BodyPart, Fdp.Toolkit.Physics.BodyParts.PartDamage.LevelFor(evt.TotalDamage, health.Max));
                 }

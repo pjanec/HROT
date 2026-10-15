@@ -14,6 +14,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         Slow = 1,
         /// <summary>An arm: the aim's spread grows.</summary>
         Aim = 2,
+        /// <summary>⭐ <c>CE-3211</c> (S2-8, R-263) — a vehicle's running gear or engine: the mobility kill (<c>CanMove</c> off).</summary>
+        Mobility = 3,
+        /// <summary>⭐ <c>CE-3211</c> (S2-8, R-263) — a vehicle's turret or gun: the firepower kill (<c>CanShoot</c> off).</summary>
+        Firepower = 4,
     }
 
     /// <summary>

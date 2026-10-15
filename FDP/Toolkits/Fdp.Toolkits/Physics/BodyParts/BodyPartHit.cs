@@ -48,6 +48,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 any = true;
                 var normalLocal = axis switch { 0 => new Vector3(sign, 0, 0), 1 => new Vector3(0, sign, 0), _ => new Vector3(0, 0, sign) };
                 var normalBody = Vector3.Transform(normalLocal, box.Rotation);
+                if (box.FaceYaw != 0f) normalBody = Vector3.Transform(normalBody, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
                 var at = pa + (pb - pa) * t;
                 var unit = new Vector3(Div(at.X, box.Half.X), Div(at.Y, box.Half.Y), Div(at.Z, box.Half.Z)) * 0.5f;   // −0.5 … 0.5
                 hit = new BodyPartHitResult(t, box.Part, FaceOf(normalBody), unit);
