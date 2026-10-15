@@ -198,7 +198,7 @@ namespace Hrot.BDC.Replication
                     msg.Pos.Latitude, msg.Pos.Longitude, msg.Pos.Altitude);
 
                 var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-                var rotation = SimTransformBridgeSystem.HeadingDegToRotation(msg.Ori.Heading);
+                var rotation = SimTransformBridgeSystem.EulerDegToRotation(msg.Ori.Heading, msg.Ori.Pitch, msg.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
 
                 // The sample and its stamp — the anchor dead reckoning extrapolates FROM. Until
                 // CE-211 this translator wrote SimTransform only, so on a BDC node the DR system
@@ -228,7 +228,7 @@ namespace Hrot.BDC.Replication
                 msg.Pos.Latitude, msg.Pos.Longitude, msg.Pos.Altitude);
 
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            var rotation = SimTransformBridgeSystem.HeadingDegToRotation(msg.Ori.Heading);
+            var rotation = SimTransformBridgeSystem.EulerDegToRotation(msg.Ori.Heading, msg.Ori.Pitch, msg.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
 
             repo.SetComponent(entity, new SimTransform { Position = position, Rotation = rotation });
         }

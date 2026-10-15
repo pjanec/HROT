@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Hrot.ScenarioEditor.Gizmos;
-using Hrot.IG.UI;
+using Hrot.UI.Common.Panels;   // ⭐ CE-1096 — the panel moved from Hrot.IG.UI
 using Hrot.Map.Common.Components;
 using Xunit;
 
@@ -47,6 +47,9 @@ public class WaypointEditorPanelTests
             var span = _waypoints.AsSpan();
             return ref span[SelectedVertexIndex];
         }
+
+        public void CommitEdits() => Commits++;   // ⭐ CE-1096
+        public int Commits;
     }
 
     // -- Helpers --

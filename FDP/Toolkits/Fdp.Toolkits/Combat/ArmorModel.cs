@@ -104,10 +104,16 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static float BlastSusceptibility(CombatPlatformDefDto? platform, float hullHeight)
         {
-            if (hullHeight <= 0f || platform == null) return 1f;
+            // ⭐ CE-3203 — a weapon (equipment: a stated presented area) takes its own share, as a hull does
+            if (platform == null || (hullHeight <= 0f && platform.PresentedAreaM2 <= 0f)) return 1f;
             if (platform.BlastSusceptibility >= 0f) return Math.Clamp(platform.BlastSusceptibility, 0f, 1f);
             return Math.Clamp(1f - platform.ArmorSide / SoftSkinArmourMm, 0f, 1f);
         }
+
+        /// <summary>⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — the area a hull presents to a burst (m²): its bounding cylinder's silhouette,
+        /// <c>2 · radius · hull height</c> (a pickup ≈ 10 m²). 0 for a person (no hull height).</summary>
+        public static float PresentedArea(float colliderRadius, float hullHeight)
+            => hullHeight > 0f ? 2f * MathF.Max(colliderRadius, 0.3f) * hullHeight : 0f;
 
         /// <summary>The chance a round of <paramref name="penetration"/> mm defeats <paramref name="armour"/> mm.</summary>
         public static float PenetrationChance(float penetration, float armour)

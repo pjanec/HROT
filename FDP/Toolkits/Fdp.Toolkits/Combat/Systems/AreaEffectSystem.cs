@@ -153,13 +153,18 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ M1 — the face toward the burst in 3-D, at the hull's middle: a burst ABOVE a hull meets its roof. Fragments
                 //   are kinetic (the jet of a shaped charge is its direct hit, not its fragments).
                 var armour = ArmorModel.ArmourFor(platform, ArmorModel.FacingOf(tf, burst, hull * 0.5f));
-                float armourChance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
-                float fragDamage = w.FragmentDamage * fragFall * exposure * armourChance;
+                // ⭐⭐ CE-3203 (Building Interiors §3k.1, W-6″) — ONE fragment law for a man, a hull (AE5) and a weapon: the fragments that
+                //   strike it, the speed they keep, what one does to it. A warhead with no fragment count keeps the old dose.
+                var (kind, area, atDistance) = FragmentTargetOf(repo, e, platform, hull, stance, r);
+                var strike = AreaEffect.Fragments(w, kind, area, atDistance, armour, exposure);
+                float armourChance = strike?.ArmourChance ?? ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
+                float fragDamage = strike?.Damage ?? w.FragmentDamage * fragFall * exposure * armourChance;
                 float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow * susceptibility;
                 float total = fragDamage + blastDamage;
                 if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
                 record.Effects.Add(new DetonationEffect(e, stance.ToString(), _points.Count, r, exposure, fragFall, armourChance, fragDamage,
-                    blastFall, barrier, shadow, blastDamage, total, shieldedBy) { At = tf.Position, BlastSusceptibility = susceptibility });
+                    blastFall, barrier, shadow, blastDamage, total, shieldedBy)
+                    { At = tf.Position, BlastSusceptibility = susceptibility, FragmentHits = strike?.Hits ?? 0f, Target = kind });
             }
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
@@ -190,6 +195,23 @@ namespace Fdp.Toolkit.Combat.Systems
                 repo.Bus.Publish(new DoorCommandEvent { Door = door, Verb = DoorVerb.Breach, Actor = evt.Shooter });
                 record.DoorsBreached.Add(d.Key);
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-3203 (§3k.1) — what the burst meets in <paramref name="e"/>: a WEAPON (equipment — its type states a presented area), a HULL
+        /// (a collider with height: its silhouette, measured from its skin), or a MAN (his stance area). The distance a hull is measured at
+        /// is never inside its own radius.
+        /// </summary>
+        internal static (AreaEffect.FragmentTarget Kind, float Area, float Distance) FragmentTargetOf(EntityRepository repo, Entity e,
+            Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto? platform, float hullHeight, Fdp.Toolkit.Tkb.Domain.StanceId stance, float distance)
+        {
+            if (platform is { PresentedAreaM2: > 0f } stated) return (AreaEffect.FragmentTarget.Equipment, stated.PresentedAreaM2, distance);
+            if (hullHeight > 0f)
+            {
+                float radius = PhysicsColliderReaders.Radius(repo, e);
+                return (AreaEffect.FragmentTarget.Hull, ArmorModel.PresentedArea(radius, hullHeight), MathF.Max(distance, radius));
+            }
+            return (AreaEffect.FragmentTarget.Person, AreaEffect.PersonArea(stance), distance);
         }
 
         /// <summary>The height above its sill a door is tested at (the middle of a standard leaf).</summary>

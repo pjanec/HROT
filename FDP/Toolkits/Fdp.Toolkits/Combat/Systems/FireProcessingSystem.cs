@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Combat.Systems
             uint currentTick = repo.HasSingleton<GlobalTime>()
                 ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber
                 : 0u;
+            double now = HitModel.Now(repo);   // ⭐ CE-2180 — synced sim time
 
             for (int i = 0; i < events.Length; i++)
             {
@@ -64,6 +65,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 var shooter = evt.Shooter;
                 var target  = evt.Target;
+                int late = 0, owed = 0;   // ⭐ CE-2180 — frames a bomb was flown forward / owed to make up the trip from the brain
 
                 // Skip if either entity is no longer alive.
                 if (!repo.IsAlive(shooter)) continue;
@@ -214,6 +216,19 @@ namespace Fdp.Toolkit.Combat.Systems
                         velocity = BombBallistics.Launch(carrier);
                         warheadBits |= WarheadRound.Arc;
                         origin = repo.GetComponentRO<SimTransform>(shooter).Position;
+                        // ⭐⭐ CE-2180 (§8a) — the bomb leaves the carrier as it was when the brain RELEASED it, flown forward to now: the
+                        //   cue ran on the brain, the intent reached this node frames later, and every frame of that trip was ~150 m/s of
+                        //   overshoot (measured live: 20–27 m long). The carrier is stepped back along its own velocity (the run-in is a
+                        //   straight line), the bomb flown the same time by the CUE's own steps (BombBallistics.DefaultDt — so it rejoins
+                        //   the very path the cue predicted, whatever this node's frame). One world ⇒ 0 steps, as before.
+                        late = owed = BombBallistics.LateSteps(evt.RaisedAt, now, deltaTime);
+                        if (late > 0)
+                        {
+                            origin -= carrier * (late * BombBallistics.DefaultDt);
+                            var terrainBelow = Fdp.Toolkit.World.WorldQuery.Of(repo);
+                            late = BombBallistics.FlyFor(ref origin, ref velocity, late,
+                                                         terrainBelow == null ? null : terrainBelow.GroundHeightAt, BombBallistics.DefaultDt);
+                        }
                     }
                     else velocity += carrier;
                 }
@@ -318,6 +333,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
                     Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
                     Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
+                    RaisedAt = evt.RaisedAt, FiredAt = now, CaughtUpSeconds = late * BombBallistics.DefaultDt, CaughtUpFrames = late, OwedFrames = owed, FrameDt = deltaTime,   // ⭐ CE-2180
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.

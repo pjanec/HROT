@@ -253,6 +253,168 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, damage[2]);
         }
 
+        /// <summary>
+        /// ⭐⭐ AE5 (HANDOFF_Behaviors_To_Backend_Fragments_On_Hulls; DESIGN_Armour_Hit_Model §7.7) — a hull counts the fragments that STRIKE
+        /// it, each one round's damage: a pickup in the open 20 m from a Mk-82 is still destroyed; one at 120 m is HOLED, not destroyed
+        /// (health left, above the 60 % mobility kill); an MBT is unhurt. The live measurement had 1 253 at 121 m (the person dose).
+        /// ✅ Red-proof (run): the hull rule removed (the dose for every target) ⇒ the far pickup takes &gt; 300 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AE5_AMk82_DestroysAPickupAt20m_OnlyHolesOneAt120m_AndLeavesAnMbtUnhurt()
+        {
+            VehicleTypes();
+            var near = Hull(Pickup, 20f, 0f, 300f, 2.65f, 1.9f);
+            var far = Hull(Pickup, 0f, 120f, 300f, 2.65f, 1.9f);
+            var tank = Hull(Mbt, -20f, 0f, 3000f, 3f, 2.4f);
+            var (rec, damage) = Burst(Bomb, new Vector3(0f, 0f, 0.1f), near, far, tank);
+
+            Assert.True(damage[0] >= 300f, $"the near pickup took {damage[0]} of 300");
+            Assert.True(damage[1] > 0f && damage[1] < 120f, $"the far pickup took {damage[1]}: holed, not destroyed, still mobile (60 % of 300)");
+            Assert.Equal(0f, damage[2]);
+            var f = rec.Effects.Single(x => x.Entity == far);
+            Assert.Equal(1f, f.FragmentArmourChance);   // the fragments still defeat 5 mm — fewer of them strike
+        }
+
+        // ── ⭐⭐ CE-3203 (Building Interiors §3k.1, W-6″) — ONE fragment law, checked against the published radii ──────────
+
+        /// <summary>
+        /// ⭐⭐ CE-3203 — the numbers a SOLDIER takes are realistic: for every fragmenting round of the reference library, a standing man in
+        /// the open takes a killing dose at the round's published LETHAL radius, a wounding one at its CASUALTY radius, and next to nothing at
+        /// twice that; a prone man takes far less than a standing one. 🔒 User: <i>"No unrealistic numbers for soldier hitting."</i>
+        /// ⛔ Before (the dose): the Mk-82's man took 1 253 at 121 m and a 155 mm's man ≈ 0 inside its 100 m casualty radius (the linear fade).
+        /// The radii are public figures (FM 3-09 / FM 3-22.90 / TM 43-0001-28 class tables, rounded); a man has 100 health.
+        /// ✅ Red-proof (run): a man takes a bullet's per-hit damage (no wound law) ⇒ 10 of 11 rounds fall below 30 at their lethal radius
+        /// ⇒ red; a man back on the old dose ⇒ all 11 red. ⚠ The drag alone is NOT pinned here: removing it moves a man by ≤ 40 % inside
+        /// twice the casualty radius, which the bands allow (measured).
+        /// </summary>
+        [Theory]
+        [InlineData("M67 grenade", 5f, 15f)]
+        [InlineData("60mm mortar HE", 15f, 28f)]
+        [InlineData("81mm mortar HE", 25f, 38f)]
+        [InlineData("120mm mortar HE", 40f, 75f)]
+        [InlineData("105mm howitzer HE", 30f, 55f)]
+        [InlineData("155mm howitzer HE", 50f, 100f)]
+        [InlineData("Mk-82 bomb", 60f, 150f)]
+        [InlineData("70mm rocket HE", 15f, 45f)]
+        [InlineData("125mm HE-frag", 25f, 55f)]
+        [InlineData("PG-7V HEAT", 2f, 5f)]   // ⭐ a shaped charge fragments only its share of the body (before: 1 014 at 5 m)
+        public void W6pp_AStandingMan_IsHitAsThePublishedRadiiSay(string round, float lethalM, float casualtyM)
+        {
+            Assert.True(Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(round, out var ammo));
+            var w = ammo.Warhead!.Dto;
+            Assert.True(w.FragmentCount > 0f && w.FragmentWoundDamage > 0f && w.FragmentDragM > 0f, $"{round}: the law's inputs");
+            float Man(float r, Fdp.Toolkit.Tkb.Domain.StanceId stance = Fdp.Toolkit.Tkb.Domain.StanceId.Standing)
+                => AreaEffect.Fragments(w, AreaEffect.FragmentTarget.Person, AreaEffect.PersonArea(stance), r, 0f, 1f)!.Value.Damage;
+
+            Assert.True(Man(lethalM) >= 30f, $"{round}: a man at the lethal radius {lethalM} m took {Man(lethalM):0.#}");
+            Assert.InRange(Man(casualtyM), 5f, 60f);
+            Assert.True(Man(2f * casualtyM) < 10f, $"{round}: a man at {2f * casualtyM} m took {Man(2f * casualtyM):0.#}");
+            Assert.True(Man(casualtyM, Fdp.Toolkit.Tkb.Domain.StanceId.Prone) < 0.3f * Man(casualtyM), $"{round}: prone vs standing");
+            // the hazard radius is where a standing man's expected damage falls below 1 — beyond it, nothing
+            Assert.InRange(Man(w.FragmentRadiusM - 0.5f), 0.9f, 2f);
+            Assert.Equal(0f, Man(w.FragmentRadiusM + 0.1f));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3203 — the live case the user flagged, through the system: a soldier standing in the open 121 m from a Mk-82 is WOUNDED,
+        /// not shredded (the dose gave 1 253); one 20 m away is killed. ✅ Red-proof (run): the person on the dose ⇒ the far man &gt; 100 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void W6pp_AMk82_KillsAManAt20m_OnlyWoundsOneAt121m()
+        {
+            VehicleTypes();
+            var near = Soldier(20f, 0f);
+            var far = Soldier(0f, 121f);
+            var (rec, damage) = Burst(Bomb, new Vector3(0f, 0f, 0.1f), near, far);
+            Assert.True(damage[0] >= 100f, $"the man at 20 m took {damage[0]}");
+            Assert.InRange(damage[1], 1f, 60f);
+            var f = rec.Effects.Single(x => x.Entity == far);
+            Assert.Equal(AreaEffect.FragmentTarget.Person, f.Target);
+            Assert.InRange(f.FragmentHits, 0.05f, 1.5f);   // a man that far is struck by about one fragment
+        }
+
+        // ── ⭐⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — a weapon is broken by fragments and blast, configured per type ─────────
+
+        private const long WsM2 = 600, WsJavelin = 603;
+
+        /// <summary>The two weapon types, as BdcTkbCatalog states them (§5b): area m², casing mm, health.</summary>
+        private void WeaponTypes()
+        {
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var m2 = new TkbTemplate("break test M2", WsM2);
+            m2.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 80, ArmorFront = 1.5f, ArmorSide = 1.5f, ArmorRear = 1.5f, ArmorTop = 1.5f,
+                                                        PresentedAreaM2 = 0.35f, BlastSusceptibility = 1f });
+            db.Register(m2);
+            var jav = new TkbTemplate("break test Javelin", WsJavelin);
+            jav.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 20, PresentedAreaM2 = 0.3f, BlastSusceptibility = 1f });
+            db.Register(jav);
+        }
+
+        private Entity Weapon(long type, float x, float y, float health)
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new Health { Current = health, Max = health });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3203 — 🔒 User: <i>"maybe it is pretty easy to break a weapon with a shrapnel hit or blast (especially the sophisticated
+        /// ones but likely also the dumb yet fragile mechanical ones)."</i> An 81 mm bomb 10 m away BREAKS a Javelin's command launch unit
+        /// (no casing, 20 health — one fragment) but only damages an M2 beside it (a steel receiver, 80 health); a grenade bursting 3 m
+        /// from the M2 breaks it too (its blast and a cloud of fragments); a Mk-82 121 m away leaves the M2 working. Each is struck as
+        /// EQUIPMENT (its own area), not as a man.
+        /// ✅ Red-proof (run): the stated area ignored (weapons hit as a man) ⇒ the M2 at 10 m takes the man's dose ⇒ destroyed ⇒ red.
+        /// </summary>
+        [Fact]
+        public void W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks()
+        {
+            WeaponTypes();
+            var m2 = Weapon(WsM2, 10f, 0f, 80f);
+            var jav = Weapon(WsJavelin, -10f, 0f, 20f);
+            var (rec, damage) = Burst(Mortar, new Vector3(0f, 0f, 0.1f), m2, jav);
+            Assert.Equal(AreaEffect.FragmentTarget.Equipment, rec.Effects.Single(x => x.Entity == m2).Target);
+            Assert.True(damage[0] > 5f && damage[0] < 80f, $"the M2 at 10 m from an 81 mm took {damage[0]} of 80: damaged, not broken");
+            Assert.True(damage[1] >= 20f, $"the Javelin at 10 m took {damage[1]} of 20: broken");
+
+            var close = Weapon(WsM2, 3f, 30f, 80f);
+            var (_, dGrenade) = Burst(Grenade, new Vector3(0f, 30f, 0.1f), close);
+            Assert.True(dGrenade[0] >= 80f, $"the M2 3 m from a grenade took {dGrenade[0]} of 80");
+
+            VehicleTypes();
+            var far = Weapon(WsM2, 0f, 221f, 80f);
+            var (_, dBomb) = Burst(Bomb, new Vector3(0f, 100f, 0.1f), far);
+            Assert.True(dBomb[0] < 10f, $"the M2 121 m from a Mk-82 took {dBomb[0]} of 80");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3203</c> C4 (DESIGN_Weapon_Systems §5b) — a Javelin CARRIED on a soldier's back is struck when he is: the soldier types
+        /// declare <see cref="Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier"/> (an OPEN carrier — BdcTkbCatalog's rifleman, the urban
+        /// catalogue's soldiers), so the carry station is an exposed seat and the boarded weapon's <c>IsEmbarkedTag.Exposed</c> is 1 —
+        /// <c>PhysicalPresence.IsHidden</c> does not hide it. The same 81 mm at 10 m that breaks a Javelin on the ground breaks it on his back.
+        /// </summary>
+        [Fact]
+        public void CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim()
+        {
+            WeaponTypes();
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            var soldier = Soldier(10f, 0f);
+            _w.AddComponent(soldier, Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator.Seats(Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier()));
+            var jav = Weapon(WsJavelin, 10f, 0f, 20f);   // carried: where he is
+            Fdp.Toolkit.Behavior.Embarkation.Board(_w, jav, soldier, seat: 1);   // seat 1 = his carry station
+
+            Assert.Equal(1, _w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(jav).Exposed);
+            Assert.False(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_w, jav));
+            var (rec, damage) = Burst(Mortar, new Vector3(0f, 0f, 0.1f), soldier, jav);
+            Assert.Equal(AreaEffect.FragmentTarget.Equipment, rec.Effects.Single(x => x.Entity == jav).Target);
+            Assert.True(damage[1] >= 20f, $"the carried Javelin 10 m from an 81 mm took {damage[1]} of 20: broken, as on the ground");
+            Assert.True(damage[0] > 0f, "and the man carrying it is hit");
+        }
+
         // ── W-7′ — a roof burst spares the floor below (closed barrier), not the man on the roof ──
 
         [Fact]

@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Utils
                             // ⭐ The conversion is FDP and network-agnostic (Q59 §7.5): a descriptor and an
                             //    attribute share their FIELD-LEVEL conversion, never their addressing.
                             var rot = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
-                                .HeadingDegToRotation(d.WorldPos.Ori.Heading);
+                                .EulerDegToRotation(d.WorldPos.Ori.Heading, d.WorldPos.Ori.Pitch, d.WorldPos.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
 
                             result.Add(new SimTransform
                             {
@@ -359,7 +359,7 @@ namespace Hrot.Map.Common.Replication.Utils
             // ⭐⭐ Q59-C1 — the same shared conversion the JSON "Heading" route and the binary
             //    SimTransformHeadingInstaller use. ⛔ One formula, three callers, zero copies.
             st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
-                .HeadingDegToRotation(geo.Ori.Heading);
+                .EulerDegToRotation(geo.Ori.Heading, geo.Ori.Pitch, geo.Ori.Roll);   // ⭐ ui P3
         }
 
         /// <summary>

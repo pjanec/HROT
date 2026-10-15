@@ -35,7 +35,7 @@ public sealed class AuthoredRouteGizmo : IStatelessGizmo
         {
             var route = view.GetComponentRO<PersonalRouteRef>(entity).RouteEntity;
             if (view.IsAlive(route) && view.HasManagedComponent<RoutePlan>(route))
-                DrawPlan(draw, view.GetManagedComponentRO<RoutePlan>(route), PersonalColor);
+                DrawPlan(draw, view.GetManagedComponentRO<RoutePlan>(route), PersonalColor, view);
             return;
         }
 
@@ -50,24 +50,26 @@ public sealed class AuthoredRouteGizmo : IStatelessGizmo
         foreach (var routeEntity in _routes!)
         {
             if (view.GetComponentRO<RouteTrajectoryCache>(routeEntity).TrajectoryId != nav.TrajectoryId) continue;
-            DrawPlan(draw, view.GetManagedComponentRO<RoutePlan>(routeEntity), SharedColor);
+            DrawPlan(draw, view.GetManagedComponentRO<RoutePlan>(routeEntity), SharedColor, view);
             return;
         }
     }
 
-    /// <summary>The route as lines between its waypoints and a dot on each (a waypoint stores X = east, Z = north).</summary>
-    public static void DrawPlan(IDebugDrawBuilder draw, RoutePlan plan, Rgba32 color)
+    /// <summary>The route as lines between its waypoints and a dot on each. ⭐ CE-2172 — a waypoint is Z-up (X east, Y north), drawn at
+    /// its height (<see cref="RouteGizmo.PointOf"/>); a null <paramref name="view"/> draws its stored position.</summary>
+    public static void DrawPlan(IDebugDrawBuilder draw, RoutePlan plan, Rgba32 color, ISimulationView? view = null)
     {
         if (plan.Waypoints == null || plan.Waypoints.Count < 2) return;
         int n = plan.Waypoints.Count;
         int segments = plan.IsLoop ? n : n - 1;
         for (int i = 0; i < segments; i++)
-            draw.DrawLine(At(plan, i), At(plan, (i + 1) % n), color, 1.5f, layer: DebugTraceLayers.Paths);
+            draw.DrawLine(At(plan, i, view), At(plan, (i + 1) % n, view), color, 1.5f, layer: DebugTraceLayers.Paths);
         for (int i = 0; i < n; i++)
-            draw.DrawSphere(At(plan, i), 0.6f, color, layer: DebugTraceLayers.Paths, fillColor: color);
+            draw.DrawSphere(At(plan, i, view), 0.6f, color, layer: DebugTraceLayers.Paths, fillColor: color);
     }
 
-    private static Vector3 At(RoutePlan plan, int i) => new(plan.Waypoints[i].Position.X, plan.Waypoints[i].Position.Z, 0f);
+    private static Vector3 At(RoutePlan plan, int i, ISimulationView? view)
+        => view != null ? RouteGizmo.PointOf(view, plan.Waypoints[i]) : plan.Waypoints[i].Position;
 
     private static bool Registered<T>(ISimulationView view) where T : unmanaged =>
         view is not EntityRepository repo || repo.IsComponentTypeRegistered<T>();

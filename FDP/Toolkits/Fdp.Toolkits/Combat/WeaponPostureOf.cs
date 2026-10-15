@@ -46,6 +46,15 @@ namespace Fdp.Toolkit.Combat
             p.IdleSeconds = 0f;
         }
 
+        /// <summary>⭐ ui handoff P4 (W-13e) — the weapon brain names the mount it fires with this frame (written only when it changes).</summary>
+        public static void SetActiveMount(EntityRepository world, Entity unit, int mountIndex)
+        {
+            if (mountIndex < 0 || mountIndex > byte.MaxValue || !world.IsComponentTypeRegistered<WeaponPosture>() || !world.HasComponent<WeaponPosture>(unit))
+                return;
+            if (world.GetComponentRO<WeaponPosture>(unit).ActiveMount == (byte)mountIndex) return;
+            world.GetComponentRW<WeaponPosture>(unit).ActiveMount = (byte)mountIndex;
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3195</c> (W-14b) — where an AIMED <paramref name="unit"/> points (world metres): its target's chest (1 m above its
         /// position) or its aim point. False when it is not Aimed or aims at nothing it can place. The ONE reading of the posture's aim,

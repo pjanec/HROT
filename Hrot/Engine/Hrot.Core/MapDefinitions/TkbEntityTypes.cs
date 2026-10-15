@@ -16,6 +16,10 @@ namespace Hrot.Map.Common
         public const long Pickup_Toyota = 106;
         /// <summary>⭐ IF-1 (I8, IF-G) — the 155 mm self-propelled howitzer (SelfPropelledArtillery 1.1.*.4), a vehicle with a brain.</summary>
         public const long Sph_M109 = 107;
+        /// <summary>⭐ ui handoff P1 (DESIGN_Weapon_Systems §5a) — the pickup (106) with a DShK in the bed and a rifleman at it.</summary>
+        public const long Technical_Dshk = 108;
+        /// <summary>⭐ ui handoff P1 — the pickup (106) with an M134 minigun in the bed and a rifleman at it.</summary>
+        public const long Technical_Minigun = 109;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

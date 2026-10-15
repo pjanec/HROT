@@ -36,6 +36,15 @@ namespace Fdp.Toolkit.Combat
         public float Penetration { get; init; }
         public string PenetrationSource { get; init; } = "";
         public float Damage { get; init; }
+        /// <summary>⭐ <c>CE-2180</c> — the synced sim time the brain raised the shot (0 = unknown), the time this node fired it, and how
+        /// far a bomb was flown forward to make up the trip between them.</summary>
+        public double RaisedAt { get; init; }
+        public double FiredAt { get; init; }
+        public float CaughtUpSeconds { get; init; }
+        /// <summary>The cue steps owed (<c>BombBallistics.LateSteps</c>, 1/60 s each), the steps flown (fewer only when the ground came first), and this frame's dt.</summary>
+        public int OwedFrames { get; init; }
+        public int CaughtUpFrames { get; init; }
+        public float FrameDt { get; init; }
 
         public ShotOutcome Outcome { get; internal set; }
         public uint EndTick { get; internal set; }
@@ -77,6 +86,7 @@ namespace Fdp.Toolkit.Combat
                 Seq = _next, Tick = r.Tick, Shooter = r.Shooter, Target = r.Target, Bullet = r.Bullet, WeaponIndex = r.WeaponIndex,
                 Muzzle = r.Muzzle, Aim = r.Aim, Ordinal = r.Ordinal, Sigma = r.Sigma, Deflection = r.Deflection,
                 Penetration = r.Penetration, PenetrationSource = r.PenetrationSource, Damage = r.Damage,
+                RaisedAt = r.RaisedAt, FiredAt = r.FiredAt, CaughtUpSeconds = r.CaughtUpSeconds, OwedFrames = r.OwedFrames, CaughtUpFrames = r.CaughtUpFrames, FrameDt = r.FrameDt,
             };
             int slot = (int)(_next % Capacity);
             if (_ring[slot] is { } evicted) _byBullet.Remove(Key(evicted.Bullet));

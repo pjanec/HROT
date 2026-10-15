@@ -12,8 +12,28 @@ public enum PartShape : byte { Box, Cylinder, Cone }
 /// <summary>Which body axis a cylinder or cone runs along (x = forward, y = left, z = up).</summary>
 public enum PartAxis : byte { X, Y, Z }
 
-/// <summary>Which colour a part takes: the entity's colour, or a fixed material shade.</summary>
-public enum ColourRole : byte { Body, Dark, Glass, Metal }
+/// <summary>Which colour a part takes: the entity's colour, or a fixed material shade. ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1) —
+/// <see cref="Skin"/>: a figure's head. ⭐ CE-1104 — <see cref="Canvas"/>: a stretcher's.</summary>
+public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin, Canvas }
+
+/// <summary>
+/// ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-4) — which side of a block figure's HEAD box is his face (the face is drawn on it):
+/// <see cref="Front"/> the box's +x side, the top of the head +z (upright, prone, seated); <see cref="Up"/> the +z side, the top of the
+/// head +x (on his back); <see cref="Down"/> the −z side, the top of the head +x (draped over a shoulder). <see cref="None"/>: not a head.
+/// </summary>
+public enum FaceOn : byte { None, Front, Up, Down }
+
+/// <summary>⭐ CE-1097 (§6o F-3) — the shade a head detail is drawn in. ⭐ CE-1101 (§6r) — the eyes, nose and mouth are painted by the
+/// shader now (<see cref="BodySurface"/>); only the helmet and the hair are boxes.</summary>
+public enum FaceShade : byte { Helmet, Hair }
+
+/// <summary>⭐ CE-1097 (§6o) — one detail of a face, a box in the HEAD box's own unit frame (−0.5..0.5 on each axis; x = out of the
+/// face, y = his left, z = the top of his head), before <see cref="BlockFigure.FaceFrame"/> turns it onto the side the face is on.</summary>
+public readonly record struct FacePart(Vector3 Centre, Vector3 Extent, FaceShade Shade);
+
+/// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — one blood spot: a flat box in figure part <paramref name="Part"/>'s unit frame
+/// (the shared part order), on one of its sides; <paramref name="Fresh"/> brighter red, else darker.</summary>
+public readonly record struct Stain(int Part, Vector3 Centre, Vector3 Extent, bool Fresh);
 
 /// <summary>
 /// ⭐ CE-1033 — which articulated assembly a part belongs to. A <see cref="Turret"/> part turns with the turret's azimuth about the
@@ -32,6 +52,9 @@ public enum PartRole : byte
     /// <summary>⭐ CE-1033 S4 — a block figure's limbs: swing about their TOP (hip, shoulder); left and right in opposite phase,
     /// each arm against its leg (<see cref="MotionPose.Swing"/>).</summary>
     LegLeft, LegRight, ArmLeft, ArmRight,
+    /// <summary>⭐ CE-1093 (docs/DESIGN_Map_3D_Mode.md §6n N-9) — a tail-rotor blade: spins about its centre's SIDEWAYS axis, faster than the
+    /// main rotor (<see cref="ShapeKits.TailRotorRatio"/>).</summary>
+    TailRotor,
 }
 
 /// <summary>
@@ -78,9 +101,11 @@ public readonly record struct KitPivots(Vector2 Turret, Vector2 GunTrunnionXZ);
 /// where a limb swings from when it is not its own top — a forearm swings from the shoulder with its upper arm. ⭐ WL-6c —
 /// <paramref name="KneePivot"/> marks a SHIN: it first bends back about its knee by <see cref="MotionPose.KneeFlexL"/> / <c>R</c>, then swings
 /// with its thigh from the hip.</para>
+/// <para>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — <paramref name="Face"/> marks a figure's HEAD and which side of it is the face.</para>
 public readonly record struct KitPart(
     PartShape Shape, Vector3 Centre, Vector3 Extent, ColourRole Colour, PartAxis Axis = PartAxis.Z, float PitchDegrees = 0f,
-    float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null)
+    float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null,
+    FaceOn Face = FaceOn.None)
 {
     /// <summary>The part's transform in BODY space (metres, before the entity's own rotation and position), unarticulated.</summary>
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
@@ -123,6 +148,9 @@ public readonly record struct KitPart(
                 m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Rotor) * Matrix4x4.CreateTranslation(axis);
                 break;
             }
+            case PartRole.TailRotor when motion.Rotor != 0f:
+                m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.Rotor * ShapeKits.TailRotorRatio) * Matrix4x4.CreateTranslation(centre);
+                break;
             case PartRole.WheelSpoke when motion.WheelRoll != 0f:
                 // rolling forward turns the wheel's top forward: about +y, the top (+z) toward +x
                 m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.WheelRoll) * Matrix4x4.CreateTranslation(centre);
@@ -199,6 +227,9 @@ public static class ShapeKits
     private static KitPart Spoke(float cx, float cy, float cz, float width)
         => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(0.13f, width * 1.06f, 0.03f), ColourRole.Metal, Role: PartRole.WheelSpoke);
 
+    /// <summary>⭐ CE-1093 — how many turns the tail rotor makes per main-rotor turn (UH-60: ~4.7).</summary>
+    public const float TailRotorRatio = 4.7f;
+
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
     public const float WheelRadiusOfHeight = 0.21f;
 
@@ -257,7 +288,8 @@ public static class ShapeKits
         Box(0.31f, 0f, 0.38f, 0.10f, 0.12f, 0.30f, ColourRole.Glass),                        // cockpit
         Box(-0.28f, 0f, 0.50f, 0.42f, 0.04f, 0.09f, ColourRole.Body),                        // tail boom
         Box(-0.47f, 0f, 0.64f, 0.06f, 0.015f, 0.34f, ColourRole.Body, -25f),                 // tail fin
-        Cyl(PartAxis.Y, -0.48f, 0.02f, 0.70f, 0f, 0.006f, 0.30f, ColourRole.Dark),           // tail rotor disc
+        Box(-0.48f, 0.025f, 0.70f, 0.17f, 0.004f, 0.012f, ColourRole.Dark, role: PartRole.TailRotor),   // ⭐ CE-1093 — tail-rotor blades
+        Box(-0.48f, 0.025f, 0.70f, 0.006f, 0.004f, 0.56f, ColourRole.Dark, role: PartRole.TailRotor),
         Cyl(PartAxis.Z, 0.06f, 0f, 0.66f, 0.015f, 0f, 0.10f, ColourRole.Metal),              // mast
         Box(0.06f, 0f, 0.72f, 0.83f, 0.03f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, fore–aft
         Box(0.06f, 0f, 0.72f, 0.025f, 1.0f, 0.012f, ColourRole.Dark, role: PartRole.Rotor),  // main blade, across
@@ -305,6 +337,127 @@ public static class ShapeKits
         Box(0.36f, 0f, 0.07f, 0.03f, 0.02f, 0.14f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
     }, default);
 
+    /// <summary>⭐ CE-1086 (§6n N-7) — a quadcopter (an FPV drone; x, y = its rotor span): a body, an X frame, four motor pods and four
+    /// rotors (each spins about its own motor, <see cref="PartRole.Rotor"/>), the camera at the front, the warhead slung under it.</summary>
+    public static readonly ShapeKit Drone = new(new[]
+    {
+        Box(0f, 0f, 0.45f, 0.36f, 0.30f, 0.34f, ColourRole.Body),                            // body
+        Box(0f, 0f, 0.50f, 1.15f, 0.07f, 0.10f, ColourRole.Dark, yaw: 45f),                   // frame arm, front-left to rear-right
+        Box(0f, 0f, 0.50f, 1.15f, 0.07f, 0.10f, ColourRole.Dark, yaw: -45f),                  // frame arm, front-right to rear-left
+        Cyl(PartAxis.Z, 0.36f, 0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),            // motor pods
+        Cyl(PartAxis.Z, 0.36f, -0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Cyl(PartAxis.Z, -0.36f, 0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Cyl(PartAxis.Z, -0.36f, -0.36f, 0.58f, 0.13f, 0f, 0.22f, ColourRole.Metal),
+        Box(0.36f, 0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),   // rotors (two blades each)
+        Box(0.36f, -0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(-0.36f, 0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(-0.36f, -0.36f, 0.72f, 0.46f, 0.05f, 0.02f, ColourRole.Dark, role: PartRole.Rotor),
+        Box(0.21f, 0f, 0.50f, 0.07f, 0.10f, 0.14f, ColourRole.Glass),                        // the camera, at the front
+        Cyl(PartAxis.X, 0.02f, 0f, 0.16f, 0.62f, 0f, 0.30f, ColourRole.Dark),                // the warhead, slung under
+    }, default);
+
+    /// <summary>
+    /// ⭐ CE-1092 (docs/DESIGN_Map_3D_Mode.md §6n N-8) — an attack plane (A-10-like; y = span): a round fuselage with the GAU-8's barrel out
+    /// of the nose, a low straight wing, two engines high on the rear fuselage, the tailplane and its TWIN fins. Its bombs are
+    /// <see cref="AttackJetBombs"/>, drawn one per round left on its bomb rack.
+    /// </summary>
+    public static readonly ShapeKit AttackJet = new(new[]
+    {
+        Cyl(PartAxis.X, 0.02f, 0f, 0.40f, 0.78f, 0f, 0.30f, ColourRole.Body),               // fuselage
+        Cone(PartAxis.X, 0.45f, 0f, 0.40f, 0.08f, 0f, 0.28f, ColourRole.Body),              // nose
+        Cyl(PartAxis.X, 0.50f, 0f, 0.34f, 0.07f, 0f, 0.05f, ColourRole.Metal),              // the GAU-8's barrel
+        Box(0.30f, 0f, 0.57f, 0.10f, 0.06f, 0.12f, ColourRole.Glass),                       // canopy
+        Box(0.02f, 0f, 0.30f, 0.15f, 1.00f, 0.03f, ColourRole.Body),                        // the straight wing, low
+        Cyl(PartAxis.X, -0.20f, 0.10f, 0.64f, 0.18f, 0f, 0.24f, ColourRole.Dark),           // engines, high on the rear fuselage
+        Cyl(PartAxis.X, -0.20f, -0.10f, 0.64f, 0.18f, 0f, 0.24f, ColourRole.Dark),
+        Box(-0.42f, 0f, 0.58f, 0.10f, 0.32f, 0.025f, ColourRole.Body),                      // tailplane
+        Box(-0.43f, 0.16f, 0.74f, 0.10f, 0.012f, 0.32f, ColourRole.Body),                   // twin fins
+        Box(-0.43f, -0.16f, 0.74f, 0.10f, 0.012f, 0.32f, ColourRole.Body),
+        Box(0.12f, 0f, 0.13f, 0.02f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+        Box(0.02f, 0.15f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+        Box(0.02f, -0.15f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+    }, default);
+
+    // ── ⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the AH-64: authored in its own CENTRE-OF-GRAVITY metres (x forward, y left, z up from
+    //    the CG), then put into the kit box by the geometry's own offsets (Body.Geometry: 17.73 × 14.63 × 3.87, BodyCentreX −1.5, the box
+    //    bottom 1.335 m below the CG) — so a part lands where the TKB's own numbers (the turret pivot, the wheels) put things ──────────
+    private const float AhL = 17.73f, AhW = 14.63f, AhH = 3.87f, AhRefX = -1.5f, AhBottom = -1.335f;
+
+    private static KitPart AhBox(float x, float y, float z, float lx, float wy, float hz, ColourRole c, float pitch = 0f, PartRole role = PartRole.Hull)
+        => Box((x - AhRefX) / AhL, y / AhW, (z - AhBottom) / AhH, lx / AhL, wy / AhW, hz / AhH, c, pitch, role: role);
+
+    private static KitPart AhCylX(float x, float y, float z, float length, float diameter, ColourRole c, PartRole role = PartRole.Hull)
+        => Cyl(PartAxis.X, (x - AhRefX) / AhL, y / AhW, (z - AhBottom) / AhH, length / AhL, 0f, diameter / AhH, c, role);
+
+    /// <summary>
+    /// ⭐ CE-1103 (§6s H-1, H-2) — an attack helicopter (AH-64-like): a slim fuselage, the gunner's canopy low in front and the pilot's
+    /// raised behind it, a sensor ball on the nose, engine nacelles beside the mast, stub wings each with a rocket pod (inboard) and a
+    /// missile rail (outboard), a long tail boom with a swept fin, a stabiliser and the tail rotor on its left, a four-blade main rotor, and
+    /// the CHIN GUN — an articulated turret and barrel, placed by the TKB turret (<see cref="KitFromTkb"/>) and turned by its pose.
+    /// </summary>
+    public static readonly ShapeKit AttackHelicopter = new(new[]
+    {
+        AhBox(0.9f, 0f, -0.15f, 6.6f, 1.0f, 1.55f, ColourRole.Body),                   // fuselage
+        AhBox(5.0f, 0f, -0.35f, 1.6f, 0.85f, 1.1f, ColourRole.Body),                   // nose
+        AhBox(6.05f, 0f, -0.45f, 0.55f, 0.6f, 0.6f, ColourRole.Dark),                  // the nose sensor ball
+        AhBox(4.2f, 0f, 0.55f, 1.4f, 0.8f, 0.55f, ColourRole.Glass),                   // the gunner's canopy, low in front
+        AhBox(2.85f, 0f, 0.85f, 1.5f, 0.82f, 0.62f, ColourRole.Glass),                 // the pilot's, raised behind
+        AhCylX(-0.4f, 0.8f, 0.6f, 2.4f, 0.62f, ColourRole.Body),                       // engine nacelles
+        AhCylX(-0.4f, -0.8f, 0.6f, 2.4f, 0.62f, ColourRole.Body),
+        AhBox(0f, 0f, 0.85f, 1.6f, 0.8f, 0.5f, ColourRole.Body),                       // the rotor pylon
+        Cyl(PartAxis.Z, (0f - AhRefX) / AhL, 0f, (1.45f - AhBottom) / AhH, 0.3f / AhL, 0f, 0.75f / AhH, ColourRole.Metal),   // mast
+        AhBox(0f, 0f, 1.95f, 14.6f, 0.55f, 0.08f, ColourRole.Dark, role: PartRole.Rotor),   // main rotor, four blades
+        AhBox(0f, 0f, 1.95f, 0.55f, 14.6f, 0.08f, ColourRole.Dark, role: PartRole.Rotor),
+        AhBox(-5.4f, 0f, 0.15f, 6.2f, 0.5f, 0.65f, ColourRole.Body),                   // tail boom
+        AhBox(-8.4f, 0f, 1.05f, 1.1f, 0.12f, 1.9f, ColourRole.Body, pitch: -20f),      // the swept fin
+        AhBox(-8.6f, 0f, 0.0f, 0.8f, 3.4f, 0.07f, ColourRole.Body),                    // horizontal stabiliser
+        AhBox(-8.7f, 0.25f, 1.6f, 2.8f, 0.05f, 0.2f, ColourRole.Dark, role: PartRole.TailRotor),   // tail rotor, on the left
+        AhBox(-8.7f, 0.25f, 1.6f, 0.2f, 0.05f, 2.8f, ColourRole.Dark, role: PartRole.TailRotor),
+        AhBox(0.7f, 1.55f, 0.35f, 1.1f, 2.0f, 0.12f, ColourRole.Body),                 // stub wings
+        AhBox(0.7f, -1.55f, 0.35f, 1.1f, 2.0f, 0.12f, ColourRole.Body),
+        AhCylX(0.6f, 1.3f, 0.0f, 1.7f, 0.42f, ColourRole.Dark),                        // rocket pods, inboard
+        AhCylX(0.6f, -1.3f, 0.0f, 1.7f, 0.42f, ColourRole.Dark),
+        AhBox(0.7f, 2.3f, 0.0f, 1.7f, 0.45f, 0.42f, ColourRole.Metal),                 // missile rails, outboard
+        AhBox(0.7f, -2.3f, 0.0f, 1.7f, 0.45f, 0.42f, ColourRole.Metal),
+        AhBox(4.3f, 0f, -0.95f, 0.5f, 0.5f, 0.35f, ColourRole.Dark, role: PartRole.Turret),   // the chin turret (KitFromTkb places it)
+        AhCylX(5.0f, 0f, -1.0f, 1.0f, 0.1f, ColourRole.Metal, PartRole.Gun),           // its barrel (KitFromTkb sizes it to the muzzle)
+        AhBox(1.8f, 1.0f, -0.95f, 0.15f, 0.12f, 0.75f, ColourRole.Dark, role: PartRole.Gear),   // gear, when the TKB gives none
+        AhBox(1.8f, -1.0f, -0.95f, 0.15f, 0.12f, 0.75f, ColourRole.Dark, role: PartRole.Gear),
+        AhBox(-8.6f, 0f, -0.8f, 0.12f, 0.1f, 0.9f, ColourRole.Dark, role: PartRole.Gear),
+    }, new KitPivots(new Vector2((4.3f - AhRefX) / AhL, 0f), new Vector2((4.5f - AhRefX) / AhL, (-1.0f - AhBottom) / AhH)));
+
+    /// <summary>⭐ CE-1092 — the attack plane's bombs on their wing pylons (Mk-82: 2.2 m, 0.27 m), outboard first; a pylon each.</summary>
+    public static readonly KitPart[] AttackJetBombs =
+    [
+        Cyl(PartAxis.X, 0.03f, 0.31f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, -0.31f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, 0.19f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+        Cyl(PartAxis.X, 0.03f, -0.19f, 0.20f, 0.135f, 0f, 0.06f, ColourRole.Dark),
+    ];
+
+    /// <summary>⭐ CE-1092 — the pylons the bombs hang from (drawn whether loaded or not).</summary>
+    public static readonly KitPart[] AttackJetPylons =
+    [
+        Box(0.03f, 0.31f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, -0.31f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, 0.19f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+        Box(0.03f, -0.19f, 0.25f, 0.06f, 0.008f, 0.06f, ColourRole.Dark),
+    ];
+
+    /// <summary>⭐ CE-1089 (§6n N-5) — a self-propelled howitzer (M109-like; x includes the barrel): tracks, hull, a big boxy turret set
+    /// back, a long barrel with a muzzle brake and its bore evacuator, the travel lock folded on the glacis.</summary>
+    public static readonly ShapeKit SpArtillery = new(new[]
+    {
+        Box(-0.12f, 0.38f, 0.16f, 0.70f, 0.24f, 0.32f, ColourRole.Dark),                          // track, left (the hull is behind the barrel)
+        Box(-0.12f, -0.38f, 0.16f, 0.70f, 0.24f, 0.32f, ColourRole.Dark),                         // track, right
+        Box(-0.12f, 0f, 0.40f, 0.68f, 0.56f, 0.32f, ColourRole.Body),                            // hull
+        Box(-0.20f, 0f, 0.72f, 0.42f, 0.62f, 0.34f, ColourRole.Body, role: PartRole.Turret),     // the big turret
+        Cyl(PartAxis.X, 0.20f, 0f, 0.72f, 0.62f, 0f, 0.06f, ColourRole.Metal, PartRole.Gun),     // barrel
+        Cyl(PartAxis.X, 0.17f, 0f, 0.72f, 0.07f, 0f, 0.09f, ColourRole.Metal, PartRole.Gun),     // bore evacuator
+        Cyl(PartAxis.X, 0.50f, 0f, 0.72f, 0.04f, 0f, 0.10f, ColourRole.Dark, PartRole.Gun),      // muzzle brake
+        Box(0.21f, 0f, 0.46f, 0.03f, 0.10f, 0.20f, ColourRole.Dark, -30f),                       // travel lock, folded
+    }, new KitPivots(new Vector2(-0.20f, 0f), new Vector2(-0.06f, 0.72f)));
+
     public static readonly ShapeKit Unknown = new(new[] { Box(0f, 0f, 0.5f, 1f, 1f, 1f, ColourRole.Body) }, default);
     public static readonly ShapeKit None = new(System.Array.Empty<KitPart>(), default);
 
@@ -318,6 +471,10 @@ public static class ShapeKits
         VisualFamily.Helicopter => Helicopter,
         VisualFamily.Jet => Jet,
         VisualFamily.CargoPlane => CargoPlane,
+        VisualFamily.Drone => Drone,
+        VisualFamily.SpArtillery => SpArtillery,
+        VisualFamily.AttackJet => AttackJet,
+        VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -333,6 +490,10 @@ public static class ShapeKits
         VisualFamily.Helicopter => new Vector3(19.8f, 16.4f, 5.1f),
         VisualFamily.Jet => new Vector3(15f, 10f, 4.9f),
         VisualFamily.CargoPlane => new Vector3(29.8f, 40.4f, 11.6f),
+        VisualFamily.Drone => new Vector3(0.6f, 0.6f, 0.3f),
+        VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
+        VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
+        VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }
@@ -360,6 +521,114 @@ public static class BlockFigure
     private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull,
                              bool upper = false)
         => new KitPart(PartShape.Box, new Vector3(cx, cy, cz) / S, new Vector3(ex, ey, ez) / S, c, Role: role, Upper: upper);
+
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — a figure's HEAD: a skin-coloured box whose <paramref name="face"/> side carries
+    /// the face (<see cref="FaceParts"/>), drawn on it by the renderer.</summary>
+    private static KitPart Head(float cx, float cy, float cz, float ex, float ey, float ez, FaceOn face, bool upper = false)
+        => P(cx, cy, cz, ex, ey, ez, ColourRole.Skin, upper: upper) with { Face = face };
+
+    // ── ⭐ CE-1097 (§6o F-2, F-3) — the face, in the head box's unit frame (x out of the face, y his left, z the top of his head) ──────
+
+    /// <summary>A soldier's helmet: over the top of his head, a little wider than it and its brim over his brow.</summary>
+    private static readonly FacePart[] SoldierFace =
+        [new(new(-0.02f, 0f, 0.37f), new(1.16f, 1.16f, 0.42f), FaceShade.Helmet)];
+
+    /// <summary>A civilian's hair, close over the top and back of his head.</summary>
+    private static readonly FacePart[] CivilianFace =
+        [new(new(-0.06f, 0f, 0.41f), new(1.06f, 1.06f, 0.24f), FaceShade.Hair)];
+
+    /// <summary>⭐ CE-1097 — the boxes drawn on a figure's head: a soldier's helmet or a civilian's hair (⭐ CE-1101 — the features are the
+    /// shader's).</summary>
+    public static IReadOnlyList<FacePart> FaceParts(bool soldier) => soldier ? SoldierFace : CivilianFace;
+
+    /// <summary>⭐ CE-1097 (§6o F-4) — turns the face's frame (x out of the face, z the top of the head) onto the side of the head box
+    /// the face is on: <see cref="FaceOn.Up"/> x → +z, z → +x; <see cref="FaceOn.Down"/> x → −z, z → +x (both proper rotations).</summary>
+    public static Matrix4x4 FaceFrame(FaceOn on) => on switch
+    {
+        FaceOn.Up => new Matrix4x4(0f, 0f, 1f, 0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 1f),
+        FaceOn.Down => new Matrix4x4(0f, 0f, -1f, 0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 0f, 1f),
+        _ => Matrix4x4.Identity,
+    };
+
+    // ── ⭐ CE-1098 (§6p) — blood: repeatably random spots on the body, more as health drops ──────────────────────────────────────
+
+    /// <summary>⭐ CE-1098 — the most blood spots a figure shows (at no health left: a dead man shows them all).</summary>
+    public const int MaxStains = 8;
+
+    /// <summary>⭐ CE-1098 (§6p B-2) — how many spots a man with <paramref name="health"/> of <paramref name="max"/> shows: none unhurt, one
+    /// after any hit, <see cref="MaxStains"/> at none left.</summary>
+    public static int StainCount(float health, float max)
+    {
+        if (!(max > 0f) || health >= max) return 0;
+        float lost = 1f - Math.Clamp(health, 0f, max) / max;
+        return Math.Clamp((int)MathF.Ceiling(lost * MaxStains), 1, MaxStains);
+    }
+
+    /// <summary>The parts a spot may be on (the shared order: thighs 0 / 2, shins 1 / 3, torso 4, upper arms 6 / 8, forearms 7 / 9) — the
+    /// torso three times as often; never the head (the face is there).</summary>
+    private static readonly int[] StainParts = [TorsoIndex, TorsoIndex, TorsoIndex, 0, 2, 1, 3, 6, 8, 7, 9];
+
+    /// <summary>
+    /// ⭐ CE-1098 (§6p B-1, B-3) — spot <paramref name="k"/> of the man seeded <paramref name="seed"/> (his network id — the same on every node):
+    /// which part it is on, and a flat box in that part's unit frame lying on one of its sides — for the torso its front, back, sides or
+    /// shoulders; for a limb a side along its length. The same seed and k always give the same spot, so a man's spots stay put and the
+    /// earlier ones stay as more appear.
+    /// </summary>
+    public static Stain StainOf(long seed, int k)
+    {
+        ulong s = Mix((ulong)seed * 0x9E3779B1UL + (ulong)k * 0x85EBCA77UL + 0x2545F491UL);
+        float U() { s = Mix(s); return (s >> 40) / (float)(1 << 24); }   // [0, 1)
+        int part = StainParts[(int)(U() * StainParts.Length)];
+        bool torso = part == TorsoIndex;
+        int side = (int)(U() * (torso ? 6 : 4));
+        float w = 0.36f + U() * 0.28f, h = w * (0.7f + U() * 0.6f);
+        var (c, e) = SpotOnSide(torso, side, U(), U(), w, h);
+        return new Stain(part, c, e, Fresh: U() < 0.5f);
+    }
+
+    /// <summary>⭐ CE-1098 / CE-1099 — a flat box lying on one SIDE of a figure part, in the part's unit frame: for the torso
+    /// (<paramref name="torso"/>) side 0–1 its chest, 2 its back, 3 / 4 its sides, 5 its shoulders; for a limb (which runs along its own x)
+    /// sides 0–3 the four faces along it. <paramref name="w"/> × <paramref name="h"/> is its size (fractions of the side), and
+    /// <paramref name="u"/>, <paramref name="v"/> (0..1) place it so the WHOLE box stays on the side. Shared by the blood and the camouflage.</summary>
+    internal static (Vector3 Centre, Vector3 Extent) SpotOnSide(bool torso, int side, float u, float v, float w, float h)
+    {
+        float a = (u - 0.5f) * 2f * (0.5f - w / 2f) * 0.9f, b = (v - 0.5f) * 2f * (0.5f - h / 2f) * 0.9f;
+        const float Proud = 0.51f, Thin = 0.03f;
+        return torso
+            ? side switch
+            {
+                0 or 1 => (new Vector3(Proud, a, b), new Vector3(Thin, w, h)),   // chest (twice as often: the side a man is seen from)
+                2 => (new Vector3(-Proud, a, b), new Vector3(Thin, w, h)),    // back
+                3 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),     // left side
+                4 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),    // right side
+                _ => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),     // shoulders (seen from above; the chest of a man on his back)
+            }
+            : side switch   // a limb runs along its own x: a spot on one of the four sides along it
+            {
+                0 => (new Vector3(a, Proud, b), new Vector3(w, Thin, h)),
+                1 => (new Vector3(a, -Proud, b), new Vector3(w, Thin, h)),
+                2 => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),
+                _ => (new Vector3(a, b, -Proud), new Vector3(w, h, Thin)),
+            };
+    }
+
+    /// <summary>⭐ CE-1098 — where spot <paramref name="st"/> is drawn: a unit box sized and placed in its part's frame, carried by that part's
+    /// own transform <paramref name="part"/> (so it moves with the limb).</summary>
+    public static Matrix4x4 StainDetail(in Stain st, Matrix4x4 part)
+        => Matrix4x4.CreateScale(st.Extent) * Matrix4x4.CreateTranslation(st.Centre) * part;
+
+    private static ulong Mix(ulong z)   // SplitMix64's finaliser
+    {
+        z += 0x9E3779B97F4A7C15UL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        return z ^ (z >> 31);
+    }
+
+    /// <summary>⭐ CE-1097 — where face detail <paramref name="d"/> is drawn: a unit box sized and placed in the head box's frame, turned onto
+    /// the face's side, then carried by the head part's own transform <paramref name="head"/> (its lean, twist, blend and fall).</summary>
+    public static Matrix4x4 FaceDetail(in FacePart d, FaceOn on, Matrix4x4 head)
+        => Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre) * FaceFrame(on) * head;
 
     /// <summary>A box from <paramref name="a"/> to <paramref name="b"/> (metres), <paramref name="w"/> wide and <paramref name="h"/>
     /// tall across — an arm segment or the rifle.</summary>
@@ -420,7 +689,7 @@ public static class BlockFigure
     [
         .. Legs(new(0f, 0.11f, 0.90f), new(0f, 0.11f, 0.02f), new(0f, -0.11f, 0.90f), new(0f, -0.11f, 0.02f), swings: true),
         P(0f, 0f, 1.18f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),                       // torso
-        P(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),                       // head
+        Head(0f, 0f, 1.60f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),                      // head
     ];
 
     /// <summary>⭐ WL-6c — how much lower the athletic fighting stance carries the hips (m): knees bent, weight forward.</summary>
@@ -434,7 +703,7 @@ public static class BlockFigure
     [
         .. Legs(new(-0.02f, 0.12f, 0.80f), new(0.24f, 0.15f, 0.02f), new(-0.02f, -0.12f, 0.80f), new(-0.20f, -0.16f, 0.02f), swings: true),
         P(0f, 0f, 1.18f - AthleticDrop, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-        P(0.02f, 0f, 1.60f - AthleticDrop, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.02f, 0f, 1.60f - AthleticDrop, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     /// <summary>⭐ WL-6c — the COMBAT GLIDE's legs (an aimed soldier on the move): hips as low as the athletic stance, both feet under
@@ -454,7 +723,7 @@ public static class BlockFigure
         .. Leg(new(-0.05f, 0.12f, 0.50f), new(0.40f, 0.12f, 0.02f), true, swings: false, bend: Vector3.UnitZ),   // support knee up
         .. KneelingLeg(new(-0.05f, -0.12f, 0.50f), new(-0.40f, -0.12f, 0.07f)),                                  // firing-side knee down
         P(-0.02f, 0f, 0.76f, 0.26f, 0.40f, 0.52f, ColourRole.Body, upper: true),
-        P(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.04f, 0f, 1.14f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     /// <summary>A leg kneeling: the knee forward and down on the ground, the shin lying back from it to the foot. The shin is built
@@ -483,14 +752,14 @@ public static class BlockFigure
     [
         .. Legs(new(0f, 0.12f, 0.90f - CrouchRunDrop), new(0.06f, 0.12f, 0.02f), new(0f, -0.12f, 0.90f - CrouchRunDrop), new(0.06f, -0.12f, 0.02f), swings: true),
         P(0.02f, 0f, 1.18f - CrouchRunDrop, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-        P(0.02f, 0f, 1.60f - CrouchRunDrop, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+        Head(0.02f, 0f, 1.60f - CrouchRunDrop, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
     ];
 
     private static readonly KitPart[] ProneBody =
     [
         .. Legs(new(-0.20f, 0.12f, 0.09f), new(-1.06f, 0.14f, 0.07f), new(-0.20f, -0.12f, 0.09f), new(-1.06f, -0.14f, 0.07f), swings: false),
         P(0.04f, 0f, 0.13f, 0.60f, 0.42f, 0.24f, ColourRole.Body),
-        P(0.48f, 0f, 0.17f, 0.24f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.48f, 0f, 0.17f, 0.24f, 0.20f, 0.21f, FaceOn.Front),
     ];
 
     /// <summary>Where the shoulders are, per stance (metres; left is +y).</summary>
@@ -638,7 +907,7 @@ public static class BlockFigure
     [
         .. Legs(new(-0.17f, 0.12f, 0.08f), new(-1.02f, 0.32f, 0.07f), new(-0.17f, -0.12f, 0.08f), new(-1.02f, -0.32f, 0.07f), swings: false),
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.11f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.08f), new(0.36f, 0.48f, 0.06f), new(0.30f, 0.76f, 0.06f), PartRole.Hull),
         .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
     ];
@@ -664,7 +933,7 @@ public static class BlockFigure
         .. Legs(new(-0.10f, 0.11f, 0.02f), new(-0.32f, 0.13f, -0.80f), new(-0.10f, -0.11f, 0.02f), new(-0.32f, -0.13f, -0.80f), swings: false,
                 bend: new Vector3(-1f, 0f, 0f)),
         P(0.22f, 0f, 0.06f, 0.60f, 0.40f, 0.24f, ColourRole.Body),                 // torso, lying across
-        P(0.62f, 0f, -0.12f, 0.22f, 0.20f, 0.24f, ColourRole.Body),                // head, hanging
+        Head(0.62f, 0f, -0.12f, 0.22f, 0.20f, 0.24f, FaceOn.Down),                 // head, hanging
         .. Arm(new(0.48f, 0.21f, 0.02f), new(0.56f, 0.22f, -0.28f), new(0.58f, 0.18f, -0.58f), PartRole.Hull),
         .. Arm(new(0.48f, -0.21f, 0.02f), new(0.56f, -0.22f, -0.28f), new(0.58f, -0.18f, -0.58f), PartRole.Hull),
     ];
@@ -680,10 +949,78 @@ public static class BlockFigure
     [
         .. Legs(new(-0.17f, 0.11f, 0.08f), new(-1.02f, 0.15f, 0.07f), new(-0.17f, -0.11f, 0.08f), new(-1.02f, -0.15f, 0.07f), swings: false),
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.13f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.13f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.12f), new(0.52f, 0.20f, 0.40f), new(0.74f, 0.10f, 0.75f), PartRole.Hull),
         .. Arm(new(0.28f, -0.21f, 0.12f), new(0.52f, -0.20f, 0.40f), new(0.74f, -0.10f, 0.75f), PartRole.Hull),
     ];
+
+    /// <summary>
+    /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t T-b1, T-b2) — ON A STRETCHER: on his back, head forward (+X, toward the front man), legs
+    /// together, arms along his sides (a soldier's rifle on his chest), centred on the litter — and the litter itself, appended after the
+    /// shared part order: its canvas and two poles 1.7 m long whose ends are the carriers' handles. The frame is the litter's
+    /// (<see cref="Carriage.TeamFrame"/>): its origin is where the poles are held.
+    /// </summary>
+    public static KitPart[] OnLitter(bool soldier) => soldier ? LitterArmed : LitterPlain;
+
+    /// <summary>⭐ CE-1104 — half a stretcher pole: the handle is this far ahead of (front) or behind (rear) the litter's middle (m).</summary>
+    public const float LitterHalfLength = 0.85f;
+
+    private static readonly Vector3 OnLitterShift = new(0.24f, 0f, 0.03f);   // his middle on the litter's, lying on the canvas
+
+    private static KitPart[] Shifted(KitPart[] parts, Vector3 by)
+    {
+        var moved = new KitPart[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+            moved[i] = parts[i] with
+            {
+                Centre = parts[i].Centre + by / S,
+                SwingPivot = parts[i].SwingPivot is { } sp ? sp + by / S : null,
+                KneePivot = parts[i].KneePivot is { } kp ? kp + by / S : null,
+            };
+        return moved;
+    }
+
+    private static readonly KitPart[] LitterBody = Shifted(
+    [
+        .. Legs(new(-0.17f, 0.10f, 0.08f), new(-1.02f, 0.11f, 0.07f), new(-0.17f, -0.10f, 0.08f), new(-1.02f, -0.11f, 0.07f), swings: false),
+        P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
+        Head(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
+        .. Arm(new(0.28f, 0.22f, 0.10f), new(0.02f, 0.25f, 0.08f), new(-0.24f, 0.24f, 0.08f), PartRole.Hull),
+        .. Arm(new(0.28f, -0.22f, 0.10f), new(0.02f, -0.25f, 0.08f), new(-0.24f, -0.24f, 0.08f), PartRole.Hull),
+    ], OnLitterShift);
+
+    private static readonly KitPart[] Litter =
+    [
+        P(0f, 0f, -0.01f, 1.55f, 0.56f, 0.03f, ColourRole.Canvas),                     // the canvas
+        P(0f, 0.30f, 0f, 2f * LitterHalfLength, 0.04f, 0.04f, ColourRole.Metal),       // the poles, their ends the handles
+        P(0f, -0.30f, 0f, 2f * LitterHalfLength, 0.04f, 0.04f, ColourRole.Metal),
+    ];
+
+    private static readonly KitPart RifleOnChest = Limb(new(0.30f, -0.10f, 0.27f), new(-0.40f, 0.10f, 0.27f), 0.05f, 0.08f, ColourRole.Metal);
+    private static readonly KitPart[] LitterPlain = [.. LitterBody, .. Litter];
+    private static readonly KitPart[] LitterArmed = [.. LitterBody, Shifted([RifleOnChest], OnLitterShift)[0], .. Litter];
+
+    /// <summary>
+    /// ⭐ CE-1104 (§6t T-b3, T-b4) — a standing figure's arms on a TEAM load's handles: the front man's hands just behind his hips (the load
+    /// is behind him), the rear man's just ahead of him, both at <see cref="Carriage.HandleHeight"/> and the poles' width apart; a
+    /// soldier's rifle slung across his back. Only the arm parts (and the rifle) change; the legs keep their gait.
+    /// </summary>
+    public static KitPart[] HandleArms(KitPart[] standing, bool front, bool soldier)
+    {
+        if (standing.Length < TorsoIndex + 2 + 4) return standing;
+        var parts = (KitPart[])standing.Clone();
+        float x = front ? -0.15f : 0.15f, z = Carriage.HandleHeight;
+        var handL = new Vector3(x, 0.30f, z); var handR = new Vector3(x, -0.30f, z);
+        KitPart[] arms =
+        [
+            .. Arm(StandShoulderL, new(x * 0.5f, 0.31f, 1.12f), handL, PartRole.Hull),
+            .. Arm(StandShoulderR, new(x * 0.5f, -0.31f, 1.12f), handR, PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) parts[TorsoIndex + 2 + i] = arms[i];
+        if (soldier && parts.Length > TorsoIndex + 6)
+            parts[TorsoIndex + 6] = Limb(new(-0.16f, 0.22f, 1.55f), new(-0.14f, -0.24f, 0.85f), 0.05f, 0.08f, ColourRole.Metal);   // slung
+        return parts;
+    }
 
     /// <summary>⭐ CE-1081 — the dragged figure.</summary>
     public static KitPart[] Towed(bool soldier)
@@ -709,6 +1046,56 @@ public static class BlockFigure
         return parts;
     }
 
+    /// <summary>⭐ CE-1085 … CE-1090 — a soldier's weapon part in the shared order (after the four leg parts, torso, head and four arm parts).</summary>
+    public const int WeaponIndex = TorsoIndex + 6;
+
+    /// <summary>
+    /// ⭐ CE-1088 (docs/DESIGN_Map_3D_Mode.md §6n N-2) — a man AT HIS WEAPON: kneeling (<paramref name="kneel"/>, the kneel's legs) or
+    /// standing, both hands forward on its grips or handles (0.5 m in front of him, at the grips' height), a soldier's rifle slung across his
+    /// back. The figure's frame is placed at the weapon's gunner spot (<see cref="WeaponKits.GunnerSpot"/>) or his seat.
+    /// </summary>
+    public static KitPart[] AtWeapon(bool kneel, bool soldier)
+    {
+        var body = kneel ? CrouchedBody : StandingBody;
+        var drop = kneel ? CrouchDrop : Vector3.Zero;
+        float gripZ = kneel ? 0.62f : 0.98f;
+        var l = StandShoulderL + drop;
+        var r = StandShoulderR + drop;
+        KitPart[] parts =
+        [
+            .. body,
+            .. Arm(l, l + new Vector3(0.24f, 0.02f, -0.20f), new Vector3(0.50f, 0.10f, gripZ), PartRole.Hull),
+            .. Arm(r, r + new Vector3(0.24f, -0.02f, -0.20f), new Vector3(0.50f, -0.10f, gripZ), PartRole.Hull),
+        ];
+        if (!soldier) return parts;
+        var back = drop + new Vector3(0f, 0f, 0f);
+        return [.. parts, Limb(new Vector3(-0.16f, 0.22f, 1.55f) + back, new Vector3(-0.14f, -0.24f, 0.85f) + back, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    /// <summary>The length and diameter of a shoulder-fired tube (m) — a Javelin's, near enough for an NLAW or an RPG.</summary>
+    public const float TubeLength = 1.10f, TubeDiameter = 0.13f;
+
+    /// <summary>
+    /// ⭐ CE-1090 (§6n N-4) — the soldier's rifle replaced by a launcher TUBE on his shoulder, along the rifle's line (his aim): the tube
+    /// sits a little higher and further back than the rifle, so a third of it sticks out behind the shoulder (where the backblast leaves).
+    /// Only the weapon part changes — the hands stay where they hold the rifle. A figure with no weapon part is returned as it is.
+    /// </summary>
+    public static KitPart[] Shouldered(KitPart[] parts)
+    {
+        if (parts.Length <= WeaponIndex) return parts;
+        var rifle = parts[WeaponIndex];
+        float p = rifle.PitchDegrees * MathF.PI / 180f, y = rifle.YawDegrees * MathF.PI / 180f;
+        var dir = new Vector3(MathF.Cos(p) * MathF.Cos(y), MathF.Cos(p) * MathF.Sin(y), -MathF.Sin(p));   // the rifle's +X, in the body
+        var centre = rifle.Centre * S - dir * 0.18f + new Vector3(0f, 0f, 0.06f);
+        var shouldered = (KitPart[])parts.Clone();
+        shouldered[WeaponIndex] = rifle with
+        {
+            Shape = PartShape.Cylinder, Axis = PartAxis.X, Centre = centre / S,
+            Extent = new Vector3(TubeLength, 0f, TubeDiameter) / S, Colour = ColourRole.Body,
+        };
+        return shouldered;
+    }
+
     /// <summary>⭐ CE-1081 — how far a carrier's upper body leans under the load (radians): carrying ~11°, dragging ~17°.</summary>
     public const float CarryLean = 0.20f, DragLean = 0.30f;
 
@@ -729,7 +1116,7 @@ public static class BlockFigure
         [
             .. legs,
             P(-0.02f, 0f, 0.28f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
-            P(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, ColourRole.Body, upper: true),
+            Head(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
         ];
         if (!soldier)
             return [.. body, .. Arm(shoulderL, new(0.12f, 0.30f, 0.28f), new(0.30f, 0.16f, 0.05f), PartRole.Hull),
@@ -748,7 +1135,7 @@ public static class BlockFigure
         .. Leg(new(-0.17f, 0.12f, 0.08f), new(-1.02f, 0.22f, 0.07f), true, swings: false),
         .. Leg(new(-0.17f, -0.12f, 0.08f), new(-0.62f, -0.14f, 0.07f), false, swings: false, bend: Vector3.UnitZ),   // knee up
         P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
-        P(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, ColourRole.Body),
+        Head(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
         .. Arm(new(0.28f, 0.21f, 0.10f), new(0.14f, 0.30f, 0.20f), new(0.08f, 0.02f, 0.27f), PartRole.Hull),        // hand on his chest
         .. Arm(new(0.28f, -0.21f, 0.08f), new(0.36f, -0.48f, 0.06f), new(0.30f, -0.76f, 0.06f), PartRole.Hull),
     ];
@@ -780,6 +1167,7 @@ public static class BlockFigure
                 YawDegrees = a[i].YawDegrees + (b[i].YawDegrees - a[i].YawDegrees) * t,
                 PitchDegrees = a[i].PitchDegrees + (b[i].PitchDegrees - a[i].PitchDegrees) * t,
                 Role = PartRole.Hull,
+                Face = t < 0.5f ? a[i].Face : b[i].Face,   // ⭐ CE-1097 (§6o F-4) — the face turns over halfway through a fall
             };
         return blended;
     }
@@ -870,7 +1258,7 @@ public static class BlockFigure
             .. Leg(CrawlHipL, Ankle(pullL, 1f), true, swings: false, bend: new Vector3(0.3f, 1f, 0.1f)),
             .. Leg(CrawlHipR, Ankle(pullR, -1f), false, swings: false, bend: new Vector3(0.3f, -1f, 0.1f)),
             P(0.04f, 0f, 0.14f, 0.60f, 0.42f, 0.24f, ColourRole.Body) with { YawDegrees = shimmy },
-            P(0.50f, 0f, 0.20f, 0.24f, 0.20f, 0.21f, ColourRole.Body) with { YawDegrees = shimmy * 1.5f },
+            Head(0.50f, 0f, 0.20f, 0.24f, 0.20f, 0.21f, FaceOn.Front) with { YawDegrees = shimmy * 1.5f },
             .. Arm(ProneShoulderL + new Vector3(0f, 0f, 0.01f), elbowL, handL, PartRole.Hull),
             .. Arm(ProneShoulderR + new Vector3(0f, 0f, 0.01f), elbowR, handR, PartRole.Hull),
         ];

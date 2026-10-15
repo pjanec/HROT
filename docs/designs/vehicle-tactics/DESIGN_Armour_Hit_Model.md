@@ -265,7 +265,7 @@ took a tank for a person. With B8's loadouts the weapon brain then picked HEAT-M
 states the hull's `Body.Geometry` (ground-centred size; people excluded) and `VehicleKinematicsTkbTranslator` falls back to its height. Rail
 `NedTkbBuilderCombatTests.B8_ANedHull_StatesItsSizeAndLocomotion_…`; the live hill attack is the proof (handoff report).
 
-## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: BUILT `2026-10-15` — §7.5 design, §7.6 as built)*
+## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: BUILT `2026-10-15` — §7.5 design, §7.6 as built; AE5 §7.7 BUILT)*
 
 🔒 **User, `2026-10-15`:** *"A and B together is the most realistic … chosing this one, most realistic.*
 *Blast should be reduced by buildings (later we will be destructing buildings, backend can think about that, but not needed immediately)."*
@@ -411,3 +411,52 @@ Rails: `ReferenceLibraryTests.AE1_ABiggerShell_ThrowsHeavierFragments_…` · `A
 `AreaEffectSystemTests.AE2_AMk82_WrecksAPickupInTheOpen_LessBehindABuilding_AndLeavesAnMbtUnhurt` (red-proved) ·
 `NedTkbBuilderCombatTests.AE3_EveryVehicle_StatesItsBlastSusceptibility`. Report:
 [REPORT_Backend_Area_Effects_Vehicles.md](../../blueprints/batches/REPORT_Backend_Area_Effects_Vehicles.md).
+
+### 7.7 AE5 — a fragment on a HULL is a hit, not a share of a man's dose (backend design step, `2026-10-15`)
+
+📐 **Measured** (behaviors, live `ua-air-strike`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Fragments_On_Hulls.md)):
+after AE1 a hull takes the PERSONNEL fragment sum — `FragmentDamage · falloff · exposure · chance` (`AreaEffectSystem.cs:157`), where
+`FragmentDamage = 600 · explosive kg` is a man's dose. A Mk-82 (89 kg) puts 1 253 on a pickup 121 m away (300 hp) and 41 638 at 20 m (×140).
+⇒ the person rule is right for a man and wrong for a hull: a hull is struck by **so many fragments**, each doing **one round's damage**.
+
+```mermaid
+classDiagram
+  class WarheadDto { <<existing, grows>> FragmentDamage (a man's dose) · FragmentPenetrationMm · FragmentRadiusM · +FragmentCount ★ · +FragmentHitDamage ★ }
+  class ReferenceLibrary { <<existing, grows>> Warhead(): +FragmentCount = casing / one fragment's mass ★ · +FragmentHitDamage = perSqrtJoule · √(½ m v₀²) ★ — the kinetic damage law of every bullet }
+  class AreaEffect { <<existing, grows>> FragmentFalloff · +HullFragmentHits(count, area, distance, reach) ★ }
+  class ArmorModel { <<existing>> PenetrationChance · BlastSusceptibility · +PresentedArea(radius, hullHeight) ★ }
+  class AreaEffectSystem { <<existing>> a person: the dose (unchanged) · a HULL: hits × hit damage × chance × exposure ★ }
+  class AmmoChoice { <<existing>> the same hull rule, the burst at the hull's own radius ★ }
+  ReferenceLibrary --> WarheadDto : derives
+  AreaEffectSystem ..> AreaEffect
+  AreaEffectSystem ..> ArmorModel
+  AmmoChoice ..> AreaEffect
+```
+
+*What the picture shows that prose hid: no new mechanism on the burst — the hull branch reads two numbers the library already has the inputs
+for (the casing, the fragment mass and speed it computes for the penetration) and the hull's collider; a person never enters it.*
+
+| rule | why |
+|---|---|
+| **a hull** = `PhysicsColliderReaders.HullHeight > 0` (the predicate `BlastSusceptibility` already uses); everything else keeps the person rule | ⛔ no person number moves (the fence) |
+| hits = `FragmentCount · area / (2π r²) · (1 − r / reach)` — a ground burst throws its fragments over a hemisphere; `(1 − r/reach)` is the fragments' lost speed, so the hits fade to 0 at the reach the falloff already uses; r ≥ the hull's radius | the falloff is a game curve for a man; a hull needs a count to be "holed, not wrecked" far out |
+| area = `2 · collider radius · hull height` (the bounding cylinder's silhouette; a pickup ≈ 10 m²) | the collider is the hull's one size every host has |
+| damage = hits · `FragmentHitDamage` · `PenetrationChance(pen, armour)` · exposure | ⭐ the handoff's lean: one model for "a fragment hit a pickup" and "a bullet hit a pickup" — the per-hit damage is the kinetic law the library uses for every bullet |
+| a warhead with no `FragmentCount` (a hand-written TKB `WarheadDto`) keeps the person rule on hulls | nothing to count with; ⚠ a report line |
+
+Rejected (one line each): a per-type fragment susceptibility on `CombatPlatformDefDto` — a second knob per type for what the warhead
+already determines · a cap on hull fragment damage — a 155 mm at 15 m and a Mk-82 at 120 m would hit the same cap.
+
+**As built (`2026-10-15`)** — as designed. `WarheadDto.FragmentCount` / `FragmentHitDamage` (library-derived); `AreaEffect.HullFragmentHits`;
+`ArmorModel.PresentedArea` + `ArmorModel.HullFragmentDamage` (null ⇒ the person rule) — called by `AreaEffectSystem` and `AmmoChoice`.
+Against a pickup: Mk-82 20 m 41 638 → **2 667** (destroyed), 120 m 1 253 → **14** (holed); 155 mm 15 m ≈ 880 → **372**; every other library
+warhead 0 before and after (its fragments do not pass 5 mm). ⚠ A weapon system has no collider, so it still takes the person rule (report
+B3). Rail: `AreaEffectSystemTests.AE5_AMk82_DestroysAPickupAt20m_OnlyHolesOneAt120m_AndLeavesAnMbtUnhurt`. Report:
+[REPORT_Backend_Fragments_On_Hulls.md](../../blueprints/batches/REPORT_Backend_Fragments_On_Hulls.md).
+
+⛔ **SUPERSEDED in part `2026-10-15` by `CE-3203`** — [Building Interiors §3k.1](../../DESIGN_Building_Interiors.md) (W-6″) makes this hull
+count the ONE fragment law for a man, a hull and a weapon: the `(1 − r/reach)` fade is replaced by the fragments' drag `e^(−r/λ)` (which also
+scales the penetration), and the count is `N · A / (2πr² + A)`. `AreaEffect.HullFragmentHits` / `ArmorModel.HullFragmentDamage` are gone
+(`AreaEffect.Fragments`). The AE5 rail still holds (a pickup at 20 m destroyed, at 120 m holed and mobile, the MBT unhurt); a weapon system is
+now EQUIPMENT with its own area (report B3 closed — Weapon Systems §5b).
+

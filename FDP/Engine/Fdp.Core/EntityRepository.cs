@@ -33,6 +33,11 @@ namespace Fdp.Core
         // Provides an unmanaged IntPtr that HSM action delegates (via HsmKernelBridge.WorldHandle)
         // use to recover this EntityRepository through the Fhsm.Kernel unmanaged constraint.
         // See DEBT-007-HSM-ANALYSIS.md for full explanation.
+        // ⭐ CE-3183 — a WEAK handle: it gives access while something holds the world (every reader recovers it inside a
+        //   tick, from a bridge HsmRunner fills from the live repo), and never keeps it alive. ⛔ It was Normal (strong):
+        //   a world nobody disposed was rooted for the life of the process, so its NativeChunkTable finalizers never ran
+        //   and every table's mmap reservation stayed — measured: 484 undisposed test worlds, 56 240 mappings against
+        //   vm.max_map_count 65 530, then OutOfMemoryException wherever the next allocation landed.
         private GCHandle _selfHandle;
         
         // Stage 21: Lifecycle Event Stream
@@ -161,7 +166,7 @@ namespace Fdp.Core
             Interlocked.Increment(ref _liveInstanceCount);
             if (_trackLeaks) _liveOrigins[this] = Environment.StackTrace;
             Bus = new FdpEventBus();
-            _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
+            _selfHandle = GCHandle.Alloc(this, GCHandleType.Weak);   // ⭐ CE-3183 — never roots the world
             _entityIndex = new EntityIndex();
             _componentTables = new Dictionary<Type, IComponentTable>();
             _metadata = new ComponentMetadataTable();
@@ -173,7 +178,8 @@ namespace Fdp.Core
         /// Raw unmanaged handle to this repository. Valid for passing through
         /// <c>unmanaged</c>-constrained contexts (e.g. <c>HsmKernelBridge</c>).
         /// Recover via: <c>(EntityRepository)GCHandle.FromIntPtr(handle).Target!</c>
-        /// Remains valid until <see cref="Dispose"/> is called.
+        /// Remains valid until <see cref="Dispose"/> is called, while the repository is reachable — ⭐ <c>CE-3183</c>: the handle
+        /// is weak, so read it only from code that holds the repository (the bridge is filled per tick from the live world).
         /// </summary>
         public IntPtr UnmanagedHandle => GCHandle.ToIntPtr(_selfHandle);
 

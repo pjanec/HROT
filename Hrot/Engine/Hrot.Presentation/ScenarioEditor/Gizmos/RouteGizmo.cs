@@ -32,12 +32,21 @@ namespace Hrot.ScenarioEditor.Gizmos
             int segCount = plan.IsLoop ? n : n - 1;
 
             for (int i = 0; i < segCount; i++)
-            {
-                // RouteWaypoint uses X=East, Z=North (canvas Y).
-                var a = new Vector3(plan.Waypoints[i].Position.X,             plan.Waypoints[i].Position.Z,             0f);
-                var b = new Vector3(plan.Waypoints[(i + 1) % n].Position.X,   plan.Waypoints[(i + 1) % n].Position.Z,   0f);
-                draw.DrawLine(a, b, NormalColor, 1f, SizeMode.ScreenPixels);
-            }
+                draw.DrawLine(PointOf(view, plan.Waypoints[i]), PointOf(view, plan.Waypoints[(i + 1) % n]), NormalColor, 1f, SizeMode.ScreenPixels);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-2172 (R-182; docs/designs/air-attack/DESIGN_Air_Operations.md §5, air hand-off U1) — where a waypoint is DRAWN: the route
+        /// is Z-up like every world position (X east, Y north — what the draw tool writes, <c>ScenarioSpawnAdapter</c>), so the 2-D map shows
+        /// it where it was drawn. ⭐ U2 — and at its height in 3-D: a flyer's waypoint (<see cref="RouteWaypoint.HeightAgl"/> &gt; 0) that high
+        /// above the ground at its point; otherwise its own Z — 0 for a ground route, which the 3-D map drapes on the surface (§3.9 group B).
+        /// ⛔ Before, all three route gizmos read <c>Position.Z</c> as north.
+        /// </summary>
+        public static Vector3 PointOf(ISimulationView view, in RouteWaypoint wp)
+        {
+            if (wp.HeightAgl <= 0f) return wp.Position;
+            float ground = Fdp.Toolkit.World.WorldQuery.Of(view)?.GroundHeightAt(wp.Position.X, wp.Position.Y) ?? 0f;
+            return new Vector3(wp.Position.X, wp.Position.Y, ground + wp.HeightAgl);
         }
     }
 }

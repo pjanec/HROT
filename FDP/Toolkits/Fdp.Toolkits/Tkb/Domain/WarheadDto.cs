@@ -67,6 +67,27 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("Fragment damage to a fully exposed target at the burst.")]
         public float FragmentDamage { get; init; }
 
+        /// <summary>⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — how many fragments the casing breaks into; with it a HULL counts the
+        /// fragments that strike it. 0 = not stated: a hull takes the person rule (<see cref="FragmentDamage"/>).</summary>
+        [Description("Fragments the casing breaks into (a hull counts the ones that strike it). 0 = not stated.")]
+        public float FragmentCount { get; init; }
+
+        /// <summary>⭐ AE5 — the damage ONE fragment that penetrates does to a hull: the kinetic law every bullet uses
+        /// (perSqrtJoule · √(½ m v₀²)).</summary>
+        [Description("Damage of one penetrating fragment on a hull (the kinetic law of a bullet).")]
+        public float FragmentHitDamage { get; init; }
+
+        /// <summary>⭐ CE-3203 (DESIGN_Building_Interiors §3k.1, W-6″) — the damage ONE fragment does to a MAN at the burst's speed
+        /// (woundPerSqrtJoule · √(½ m v₀²)); it falls with the fragment's speed (<see cref="FragmentDragM"/>). 0 = not stated.</summary>
+        [Description("Damage of one fragment hitting a man, at the burst (falls with its speed).")]
+        public float FragmentWoundDamage { get; init; }
+
+        /// <summary>⭐ CE-3203 — the distance over which a fragment's speed falls to 1/e (drag; a heavier fragment carries further). Its
+        /// per-hit damage and its penetration fall with that speed. 0 = no drag.</summary>
+        [EditUnit("m")]
+        [Description("Distance over which a fragment's speed falls to 1/e (drag).")]
+        public float FragmentDragM { get; init; }
+
         public FuzeKind Fuze { get; init; }
 
         [EditUnit("s")]

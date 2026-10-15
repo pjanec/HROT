@@ -230,5 +230,41 @@ namespace Fdp.Toolkit.Geographic.Tests
             Assert.InRange(pitchDeg, 18f, 22f);
             Assert.InRange(rollDeg, -1f, 1f);
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ ui handoff P3 + its STEER (DESIGN_Dead_Reckoning §9) — <see cref="SimTransformBridgeSystem.EulerDegToRotation"/> is the exact
+        /// inverse of the egress conversions: heading × pitch (to ±80°) × roll (to ±60°) round-trip within 0.1°.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(Attitudes))]
+        public void P3_TheAttitude_RoundTrips_ThroughTheOneIngressConversion(float heading, float pitch, float roll)
+        {
+            var q = SimTransformBridgeSystem.EulerDegToRotation(heading, pitch, roll);
+            float h = SimTransformBridgeSystem.RotationToHeadingDeg(q);
+            SimTransformBridgeSystem.RotationToPitchRollDeg(q, out float p, out float r);
+            Assert.InRange(System.MathF.Abs(((h - heading) % 360f + 540f) % 360f - 180f), 0f, 0.1f);
+            Assert.InRange(p, pitch - 0.1f, pitch + 0.1f);
+            Assert.InRange(r, roll - 0.1f, roll + 0.1f);
+        }
+
+        public static System.Collections.Generic.IEnumerable<object[]> Attitudes()
+        {
+            foreach (float h in new[] { 0f, 37f, 90f, 200f, 315f })
+                foreach (float p in new[] { -80f, -30f, 0f, 10f, 80f })
+                    foreach (float r in new[] { -60f, -20f, 0f, 45f, 60f })
+                        yield return new object[] { h, p, r };
+        }
+
+        /// <summary>⭐ STEER P3 row 7 — a heading-only change keeps the bank and the pitch.</summary>
+        [Fact]
+        public void P3_AHeadingOnlyChange_KeepsPitchAndRoll()
+        {
+            var banked = SimTransformBridgeSystem.EulerDegToRotation(30f, 10f, -20f);
+            var turned = SimTransformBridgeSystem.WithHeadingDeg(banked, 200f);
+            Assert.InRange(SimTransformBridgeSystem.RotationToHeadingDeg(turned), 199.9f, 200.1f);
+            SimTransformBridgeSystem.RotationToPitchRollDeg(turned, out float p, out float r);
+            Assert.InRange(p, 9.9f, 10.1f);
+            Assert.InRange(r, -20.1f, -19.9f);
+        }
+}
 }

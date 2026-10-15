@@ -494,7 +494,7 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Empty(Published(mi));                                                   // nothing until Send
 
         mi.OrderForm.PicksFor(entry).RequestLocationPick("$.Location");
-        pick.Location!.SetResult(new GeoPoint(120, -40, 0));
+        pick.Location!.SetResult(new GeoPoint(50.5, 14.25, 0));   // a geodetic point — behaviors' CE-2176 fix refuses a local [y, x] (|lat| > 90)
         DrawFrame(mi.OrderForm);
         entry.Remember = true;
         Assert.True(entry.Send());

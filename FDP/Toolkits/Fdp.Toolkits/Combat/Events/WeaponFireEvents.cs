@@ -55,6 +55,11 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>⭐ IF-1 (I3) — with a <see cref="Charge"/>: 1 = the high arc, 0 = the low one. The brain decided; the SimHost flies it.</summary>
         public byte HighArc;
+
+        /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a) — the synced sim time (s) the brain raised this shot (Dead Reckoning D4: sim time stamps
+        /// what crosses nodes); <b>0 = unknown ⇒ now</b>. A bomb starts from its carrier as it was THEN and is flown forward to now, so the
+        /// trip from the brain to the SimHost moves nowhere the bomb lands.</summary>
+        public double RaisedAt;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────

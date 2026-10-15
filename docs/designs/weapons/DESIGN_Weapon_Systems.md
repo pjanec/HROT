@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
+updated: 2026-10-15 (§5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
 build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — SetUpWeapon / PackUpWeapon / CarryWeapon and the demo not yet; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
@@ -230,6 +230,81 @@ UH-60 (404) gains a left and a right door station, each operated by a door-gunne
 gunner in its Gunner seat, **105** = pickup + Kornet + a gunner, **2006** = soldier carrying a Javelin, **2007** = soldier carrying an NLAW. Unchanged: `WeaponMountDto`, the munitions,
 the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 
+### 5a. Presets for every armed vehicle variant (ui handoff P1, `2026-10-15`; R-1001 — data, no editor placement)
+
+```mermaid
+classDiagram
+  class HMMWV_102 { <<existing type, grows>> 3 passenger seats (kept at 0–2) · +Gunner seat 3, StartWith rifleman ★ · +roof ring Station 4: Pintle, OperatedBy 3, NeedsGunner, StartWith M2 600 ★ }
+  class Pickup { <<catalogue helper, existing>> Driver · Gunner · bed Station (Pintle) }
+  class Technical_104 { M2 600 }
+  class Technical_105 { Kornet 606 }
+  class Technical_108 { ★ DShK 601 }
+  class Technical_109 { ★ M134 602 }
+  class SeatPresets { <<existing W-I>> fills StartWith once on the creating node; SeatPresetsFilled stops a reload adding them again }
+  Pickup <|-- Technical_104
+  Pickup <|-- Technical_105
+  Pickup <|-- Technical_108
+  Pickup <|-- Technical_109
+  SeatPresets ..> HMMWV_102
+  SeatPresets ..> Pickup
+```
+
+*What the picture shows that prose hid: no new mechanism — two new `Pickup(...)` calls and one carrier change; the HMMWV keeps its passenger
+seats at the indices scenarios already saved (0–2) and adds the gunner and the ring AFTER them.*
+
+| decision | as designed | rejected |
+|---|---|---|
+| the HMMWV | **102 itself** carries the M2 (a patrol HMMWV) — as the handoff leans | a bare 102 + an armed variant (a new type only a scenario would need) |
+| the ring | all round (no station arc — the weapon's own pintle limits), 2.3 m pivot, the gunner EXPOSED in the ring (`SeatDto.Exposed`) while the passengers stay enclosed | — |
+| the new technicals | **108 Technical (DShK)**, **109 Technical (minigun)** — the pickup body, hostile side like 104 / 105; 106 stays bare | — |
+
+**As built (`2026-10-15`)** — as designed. `BdcTkbCatalog.HmmwvSeats()`: seats 0–2 passengers; seat 3 Gunner (rifleman, `Exposed`,
+at x −0.4, z 1.2); seat 4 Station (Pintle, OperatedBy 3, NeedsGunner, M2, x −0.4, z 2.0 ⇒ the M2's pivot 2.3 m). 108 / 109 are two more
+`Pickup(...)` calls. Rails: `NedTkbBuilderCombatTests.P1_TheHmmwv_…`, `M9_TheTechnicals_…` (+108, 109),
+`CreateEntityRequestSystemTests.P1_APlacedArmedVariant_…` (102 / 108 / 109: weapon + gunner into the named seats, boarded, controlled,
+may fire; a load adds neither), the type-picker golden (+108, 109).
+⚠ **`2026-10-15` (ui, CE-1108 — a cross-lane data edit):** the gunner seats got a drawable place — the HMMWV's (seat 3) now STANDS in the
+hatch at x −0.4, z 0.7 (feet); every `Pickup(...)` gunner (seat 1: 104 / 105 / 108 / 109) KNEELS in the bed at x −2.0, z 0.85. Without a
+place the technicals' gunner was drawn inside the body, and at z 1.2 the HMMWV's showed only his head. Read only by the 3-D drawing; the
+stations, indices, roles and presets are unchanged ([DESIGN_Map_3D_Mode §6n](../../DESIGN_Map_3D_Mode.md), `Map3DTests.CE1108_*`).
+
+### 5b. A weapon is broken by fragments and blast — configured per type (`CE-3203`, `2026-10-15`)
+
+🔒 User: *"weapon entities should be destroyable and separately configured … maybe it is pretty easy to break a weapon with a shrapnel hit
+or blast (especially the sophisticated ones but likely also the dumb yet fragile mechanical ones)."* 📐 Measured: every weapon type had
+`MaxHealth = 60` from one helper, no collider (so the area effect hit it like a MAN), and `CanFire` never read its health — a broken weapon
+kept firing. Now each type states how it breaks; the burst uses the one fragment law
+([Building Interiors §3k.1](../../DESIGN_Building_Interiors.md)) with the weapon as EQUIPMENT.
+
+| type | area m² | casing mm RHA | health | blast share | why |
+|---|---|---|---|---|---|
+| M2 600 · DShK 601 | 0.35 | 1.5 | 80 | 1 | a steel receiver, but the feed, sights and barrel are exposed |
+| M134 602 | 0.25 | 1 | 40 | 1 | an electric drive and a belt chute |
+| Javelin 603 · Kornet 606 · TOW 607 (tripod) | 0.3 · 0.35 · 0.4 | 0 | 20 · 25 · 25 | 1 | ⭐ sophisticated: optics, seeker, electronics — one fragment breaks it |
+| NLAW 604 · M72 LAW 605 | 0.15 · 0.1 | 0 | 15 · 10 | 1 | a thin tube |
+| sentry gun 608 | 0.3 | 1 | 30 | 1 | sensors and electronics |
+| 60 / 81 / 120 mm mortar 609–611 | 0.2 / 0.3 / 0.5 | 2 | 60 / 80 / 120 | 1 | a thick tube; the bipod and sight break |
+| 105 mm towed 612 | 3.0 | 6 | 400 | 0.5 | a gun shield and a carriage |
+
+| rule | |
+|---|---|
+| a weapon at **0 health is DESTROYED**: `CanFire` ⇒ `WeaponHold.Destroyed`; the weapon brain does not choose it; it no longer arms its host (`WeaponOf`) | the host's other weapons (if any) still fight |
+| a weapon is EQUIPMENT in the burst: `CombatPlatformDefDto.PresentedAreaM2 > 0` | its own area, casing and health — not a man's |
+| it stays in its host's controlled list | the `32 + k` mount indices of the others must not shift |
+
+**As built (`2026-10-15`, `CE-3203`)** — as designed. `BdcTkbCatalog.WeaponSystemType` takes a `WeaponBreaks(area, casing, health,
+blast share)` per type (the table above; the casing is every face's armour). `WeaponSystems.IsBroken` (a weapon system at health ≤ 0);
+`CanFire` ⇒ `WeaponHold.Destroyed` (= 4); `PrimaryMount` / `WeaponOf` skip a broken one (the next working one answers); `WeaponChoice.Choose`
+never picks one. Measured at 10 m from an 81 mm: M2 30 of 80, Javelin 25 of 20 (broken); a grenade 3 m from an M2 breaks it; a Mk-82
+121 m away puts 2 on it. Rails: `NedTkbBuilderCombatTests.CE3203_EveryWeaponSystem_StatesHowItBreaks` ·
+`AimAndFireExecutorTests.CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody` ·
+`AreaEffectSystemTests.W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. ✅ **C4 measured `2026-10-15`:** a weapon
+CARRIED by a soldier (a Javelin on his back) IS struck with him — every soldier type declares `CarrierDefDto.PersonCarrier()` (an OPEN
+carrier: BdcTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry station is an exposed seat, the boarded weapon's
+`IsEmbarkedTag.Exposed` is 1 and `PhysicalPresence.IsHidden` does not hide it; the 81 mm at 10 m that breaks a Javelin on the ground
+breaks it on his back (rail `AreaEffectSystemTests.CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`). ~~not measured for the
+soldier types here; a lean in the report~~
+
 ## 6. Rules
 
 | rule | why |
@@ -258,6 +333,7 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 | **W-G** | a soldier carries one weapon system (a carry station beside the casualty seat); a two-man weapon needs both men to move it — ★ built as the **team carry** ([`DESIGN_Entity_Interactions.md`](../../DESIGN_Entity_Interactions.md) §7.5, R-2017): one man carries it, a named assistant is linked and placed at the rear handle; either man down ⇒ the weapon is put down; at the firing point the assistant takes the loader seat | an inventory system |
 | **W-H** | 🔒 the HOST's gunner seat operates its station weapon (no passenger-of-a-passenger) | a soldier sitting on the weapon itself while it is mounted |
 | **W-I** | 🔒 *"Agreed"* (`2026-10-14`) — presets seat their CREW too: `StartWith` on any seat, so 104 / 105 arrive with a real gunner; orders go to the host; killing the gunner silences the gun until someone boards the seat | `NeedsGunner = false` on preset stations (the gun fires from an empty truck) · an abstract vehicle-level gunner (nobody to kill) |
+| **W-J** *(ui lane, cross-lane edit, `2026-10-15`, R-1001)* | 🔒 *"Weapons in vehicles should come from tkb defined presets, no need to edit in the editor, but the presets need to be created - backend."* — a host's weapons are ONLY its TKB presets (`StartWith`, W-I); ⛔ the editor half of U2 (dropping a weapon on a host, picking a station in the Details panel) is WITHDRAWN; the missing presets are backend's ([HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md](../../blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md) P1) | an editor that authors stations per instance (a second way to arm a host) |
 
 ## 8. Slices and rails — in the features' own suites
 

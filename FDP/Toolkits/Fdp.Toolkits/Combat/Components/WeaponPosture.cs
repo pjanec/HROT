@@ -31,5 +31,8 @@ namespace Fdp.Toolkit.Combat.Components
         public Vector3 Point;
         /// <summary>Seconds with no weapon action running — the Brain's own clock for lowering the weapon; never sent.</summary>
         public float IdleSeconds;
+        /// <summary>⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the mount the weapon brain is firing / about to fire: the unit's mount
+        /// index (0 = its primary, 1… its own mounts, 32 + k a weapon system it controls). Kept when the weapon is lowered; sent.</summary>
+        public byte ActiveMount;
     }
 }

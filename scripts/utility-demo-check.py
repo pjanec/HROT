@@ -1307,6 +1307,12 @@ def run_air_strike(c, timeout):
     b = d.get("burst") or [9e9, 9e9, 0]
     miss = flat(b, aim) if aim else 9e9
     print(f"    the burst at {b}, the target at {aim}: {miss:.1f} m off; warhead {d.get('warheadSource', '')[:60]}")
+    # ⭐ CE-2180 — the bomb's trip from the brain's cue to the SimHost's fire, and how far it was flown forward to make it up
+    bombs = [x for x in _if_shots({plane}) if x.get("raisedAt") is not None]
+    if bombs:
+        x = bombs[0]
+        print(f"    the release: raised {x.get('raisedAt')} s (brain), fired {x.get('firedAt')} s (SimHost) — trip {x.get('tripSeconds')} s, "
+              f"caught up {x.get('caughtUpSeconds')} s ({x.get('caughtUpFrames')} of {x.get('owedFrames')} cue steps owed; the SimHost frame dt {x.get('frameDt')})")
     c.ok(miss <= 25.0, f"① the bomb burst on the target (within 25 m) — {miss:.1f} m")
     c.ok(len(dets) == 1, f"② ONE bomb per pass — {len(dets)} bursts")
     wait_for(lambda: (h := health(target)) is not None and h < 100, 5)   # ⚠ a predicate, not the value: Health 0 is falsy

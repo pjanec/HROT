@@ -488,7 +488,10 @@ public sealed class EqsDistributedTests
         if (sim.HasSingletonManaged<CarKinem.Road.RoadNetworkHolder>()) sim.GetSingletonManaged<CarKinem.Road.RoadNetworkHolder>()!.Publish(roads);
         else sim.SetSingletonManaged(new CarKinem.Road.RoadNetworkHolder(roads, takeOwnership: true));
 
-        long unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Tank_M1Abrams);
+        // ⭐ CE-3138 — the crossing unit is a RIFLEMAN, as in the ua-danger-crossing demo (§10.3): to a person an armed watcher is
+        //   danger 1. Since CE-2165 V1 a VEHICLE rates it by what penetrates its armour — a T-72 on an Abrams's front read 0.50,
+        //   on the threshold, and this rail stayed red for that reason, not for the rating path it guards.
+        long unitNet    = SpawnOnMuscle(harness, TkbEntityTypes.Infantry_Rifleman);
         long watcherNet = SpawnOnMuscle(harness, TkbEntityTypes.Tank_T72);
         Assert.True(harness.PumpUntil(() => new[] { unitNet, watcherNet }.All(n =>
                 harness.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
@@ -524,7 +527,22 @@ public sealed class EqsDistributedTests
                 posX: 260f, posY: 300f, scoreBoost: Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation, tick: 1,
                 modality: SensorModality.Visual);
             return cgf.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(child).GetSpanRO()[0].ThreatRating >= 0.5f;
-        }, timeoutFrames: 600), "The Brain must rate the crossing threatened from the remembered watcher with sight of it.");
+        }, timeoutFrames: 600), "The Brain must rate the crossing threatened from the remembered watcher with sight of it. "
+            + DiagnoseRating(cgf, cgfUnit, cgfWatcher, area));
+    }
+
+    // CE-3138 — what the Brain's rating read: the watcher's danger on the Brain, and whether the terrain blocks its sight.
+    private static string DiagnoseRating(EntityRepository cgf, Entity unit, Entity watcher,
+        Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor area)
+    {
+        var terrain = Fdp.Toolkit.World.WorldQuery.Of(cgf);
+        var eye = new Vector3(260f, 300f, Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem.EyeHeight);
+        var target = area.Center + new Vector3(0f, 0f, Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem.AreaHeight);
+        return $"[watcher alive={cgf.IsAlive(watcher)} weaponState={cgf.HasComponent<WeaponState>(watcher)}"
+             + $" outOfFight={Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(cgf, watcher)}"
+             + $" danger={Fdp.Toolkit.Perception.ThreatDanger.Of(cgf, unit, watcher):F2}"
+             + $" terrain={(terrain == null ? "none" : terrain.GetType().Name)} sightBlocked={terrain?.SightBlocked(eye, target)}"
+             + $" area={area.Center} memorySlots={cgf.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(unit).Count}]";
     }
 
     /// <summary>

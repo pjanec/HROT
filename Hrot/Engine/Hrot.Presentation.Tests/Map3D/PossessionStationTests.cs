@@ -390,4 +390,61 @@ public sealed class PossessionStationTests
         var (_, ys) = PossessionStation.HudOrigin(new Vector2(800f, 300f), lineCount: 6, width: 600);
         Assert.True(ys + 6 * PossessionStation.HudLineHeight <= 300, $"the last line ends at {ys + 6 * PossessionStation.HudLineHeight}");
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-1095 (docs/DESIGN_Entity_Control.md §8f — air hand-off U3) — a possessed PLANE is flown by looking: its scheme is FixedWing
+    /// (no longer Person, which walked it and cycled a stance on C), the frame carries the look's heading as <c>Yaw</c>, its pitch as
+    /// <c>Vertical</c> (÷ the model's 25°), W / S as the throttle and no strafe; the view sits on the plane and BANKS with it (its pitch stays
+    /// the look's); the HUD gives speed, height and heading. Letting go unbanks the operator's view.
+    /// </summary>
+    [Fact]
+    public void CE1095_APlane_FliesByTheLook_TheViewBanksWithIt_AndTheHudGivesSpeedHeightHeading()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.RegisterComponent<SimVelocity>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            // flying north-east at 300 m, banked 30° to the right (right wing down)
+            var bank = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 30f * MathF.PI / 180f);
+            var heading = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4f);
+            w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 300f), Rotation = heading * bank });
+            w.AddComponent(unit, new SimVelocity { Linear = new Vector3(106f, 106f, 0f) });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w);
+            station.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.Equal(ControlScheme.FixedWing, driver.Scheme);
+            sw.Camera3D.Update(0.016f);
+            Assert.InRange(sw.Camera3D.Eye.Z, 301f, 302f);   // on the plane
+            float roll = Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(heading * bank).Roll;
+            Assert.True(MathF.Abs(roll) > 0.4f);
+            Assert.Equal(roll, sw.Camera3D.Roll, 4);           // the view banks with the body
+            Assert.True(Vector3.Dot(sw.Camera3D.Up, sw.Camera3D.Right) is > -1e-4f and < 1e-4f);
+
+            var input = new Input { MouseDelta = new Vector2(0f, -100f) };   // look up 0.25 rad
+            input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
+            input.Keys.Add((int)Raylib_cs.KeyboardKey.A);
+            input.Keys.Add((int)Raylib_cs.KeyboardKey.C);
+            sw.Camera3D.HandleInput(input);
+            w.Bus.SwapBuffers();
+            var frame = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+            Assert.Equal(1f, frame.Forward);                                   // throttle up
+            Assert.Equal(0f, frame.Lateral);                                    // a plane does not strafe
+            Assert.Equal(0.25f / FpsCameraDriver.FullClimbLook, frame.Vertical, 3);   // the look's pitch asks the climb
+            Assert.Equal(driver.Yaw, frame.Yaw);
+            Assert.Equal((byte)0, frame.Stance);                                 // C is no stance on a plane
+            Assert.Null(driver.Stance);
+
+            var hud = PossessionStation.Hud.Lines(w, unit, 0, driver.IsVehicle, false, driver.Stance, false, driver.Scheme);
+            Assert.Equal("SPD 150 m/s  ALT 300 m  HDG 045", hud[0]);
+            Assert.Contains(hud, l => l.StartsWith("mouse: fly where you look"));
+            Assert.DoesNotContain(hud, l => l.StartsWith("STANCE"));
+
+            sw.Camera3D.Driver = null;
+            Assert.Equal(0f, sw.Camera3D.Roll);                                  // the operator's own view is never banked
+        }
+    }
 }

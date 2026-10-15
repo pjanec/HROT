@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station DESIGN 2026-10-14 (§8f), building
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -732,6 +732,89 @@ on which the latch or the ammo switch could silently not tick.
 - *The latch in the station* — the station cannot see when the round left; the brain can, by the executor's own round count.
 - *The AI's `AmmoChoice.Choose` for the operator* — the user chooses the round; `Cycle` shares the switch and its cost.
 - *A new params field* — 32 bytes are full; `Target` and `Rounds` already mean "who" and "how many".
+
+## 8f. S7 DETAIL — the pilot station: fly a plane by looking, the view banks, a flyer's HUD (`CE-1095`, air hand-off U3, designed `2026-10-14`, ui)
+
+🔒 **User, `2026-10-14`:** the air-operations plan *"Approved"* (R-2015) — its U3: *"the pilot station — `ControlScheme.FixedWing`; the camera
+follows the body's attitude (bank and pitch) for both flyers (today yaw only); the HUD per scheme (speed, height, heading; later the bomb
+cue)"* ([HANDOFF_Behaviors_To_Ui_Air_Operations.md](blueprints/batches/HANDOFF_Behaviors_To_Ui_Air_Operations.md) U3) → the ui plan → *"Ok go"*.
+
+📐 **INVENTORY** *(read end to end: `PossessionStation.cs`, `FpsCameraDriver`, `MapCamera3D.cs`, `FixedWingModel.Manual`, `RotorcraftModel.Manual`;
+Air Operations §6, §6b)*:
+
+| fact | where | so |
+|---|---|---|
+| the scheme comes from the body's locomotion: Rotorcraft · Wheeled/Tracked ⇒ Vehicle · the rest ⇒ Person — a **FixedWing** body falls to Person (walks, C cycles a stance) | `PossessionStation.cs:354-360` | a fourth scheme |
+| the plane's manual model reads the EXISTING frame axes: `Yaw` = the heading looked along, `Vertical` ∈ [−1, 1] = the climb angle asked (× 25°), `Forward` = the throttle, held | `FixedWingModel.Manual` (E5), Air Ops §6b | no wire change: the station only fills the fields |
+| the camera has yaw and pitch only; its up vector is derived from them — no roll | `MapCamera3D.cs:86-87, 114-118` | a `Roll` the up vector turns by (FDP `Fdp.Presentation`, cross-lane) |
+| the body's attitude is in `SimTransform.Rotation`; `RotorcraftModel.TiltOf(q)` reads its pitch and roll | Air Ops §6 rule, `RotorcraftModel` | the view's bank is read where the model writes it |
+| the HUD lists health, weapons, the keys for a person or a vehicle | `PossessionStation.Hud.Lines` | a flyer's lines: speed, height above the ground, heading |
+
+```mermaid
+classDiagram
+    direction LR
+    class FpsCameraDriver { <<existing, grows>> Scheme + FixedWing · HandleInput: a flyer's axes · Place: + camera.Roll }
+    class ControlScheme { <<existing enum, grows>> Person · Vehicle · Rotorcraft · + FixedWing }
+    class MapCamera3D { <<existing, FDP, grows>> Yaw · Pitch · + Roll · Up turned by Roll }
+    class Hud { <<existing, grows>> Lines + FlightLine(speed, height AGL, heading) }
+    class OperatorControlFrameEvent { <<existing, unchanged>> Forward · Yaw · Vertical }
+    class FixedWingModel { <<existing, backend>> Manual(Yaw, Vertical, Forward) }
+    class RotorcraftModel { <<existing, backend>> TiltOf(q) }
+    FpsCameraDriver --> ControlScheme
+    FpsCameraDriver ..> MapCamera3D : yaw, pitch, roll
+    FpsCameraDriver ..> RotorcraftModel : the body's bank
+    FpsCameraDriver --> OperatorControlFrameEvent : one a frame
+    OperatorControlFrameEvent ..> FixedWingModel : on the muscle
+    FpsCameraDriver ..> Hud
+```
+
+```mermaid
+sequenceDiagram
+    participant O as operator (mouse, W / S)
+    participant D as FpsCameraDriver (the station)
+    participant C as MapCamera3D
+    participant M as FixedWingModel.Manual (the muscle)
+    O->>D: the mouse moves the LOOK (yaw, pitch), W / S held
+    D->>M: frame: Yaw = look yaw, Vertical = look pitch / 25 deg, Forward = W - S
+    M->>M: banks toward the look, levels as it comes on, climbs to the angle, holds the throttle
+    D->>C: eye on the body, the look's yaw and pitch, Roll = the body's bank
+    C-->>O: the horizon tilts as the plane banks into the turn
+```
+
+```mermaid
+graph TD
+    SW[MapViewSwitch / MapCanvas, every map host] --> ST[PossessionStation layer, every map host]
+    ST -->|owns while possessed| DRV[FpsCameraDriver]
+    DRV -->|OperatorControlFrameEvent, bus to NED| OP[OperatorControlBehavior, the brain]
+    OP -->|ManualDrive| AIR[AirMotionModule: FixedWingModel / RotorcraftModel, MuscleGround]
+    AIR -->|SimTransform with pitch and roll| DRV
+```
+
+*Caption:* the station adds no new message and no new system: the plane's model already reads the frame's axes, so the whole slice is how the
+station FILLS them and how its camera SHOWS the body's attitude. ⚠ On a node that only receives the plane, the bank shows only once backend
+replicates pitch and roll (`GeoSpatialIngressTranslator` restores the heading only — reported, §6n of the 3-D map design).
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **P-1 scheme** | `ControlScheme.FixedWing` for a `FixedWing` body; Person no longer catches it |
+| **P-2 controls** | the mouse moves the LOOK, as for everyone; the frame carries `Yaw` = the look's heading, `Vertical` = the look's pitch ÷ 25° (clamped), `Forward` = W − S (the model holds the throttle); no strafe, no stance, no climb keys (the look climbs) |
+| **P-3 the view** | the eye on the body (1.5 m above its reference point); the camera looks along the operator's look; its **roll is the body's bank** — for both flyers. ⚠ **Deviation from U3's "bank and pitch":** the camera's PITCH stays the look's, because in mouse-aim the look IS the stick — pitching the view with the nose would chase the aim |
+| **P-4 the HUD** | a flyer (plane or helicopter): `SPD 152 m/s  ALT 312 m  HDG 045` (ground speed, height above the ground under it, heading) and its own keys line; the weapons as before |
+
+**Rejected — one line each:** *a stick on the keyboard (pitch / roll keys)* — U3 and B3 chose mouse-aim for a non-expert; *a new frame field
+for pitch* — `Vertical` already means it to the model; *the camera locked to the nose* — the aim would be locked too.
+
+**AS-BUILT (`CE-1095`, `2026-10-14`, ui)** — built as the three diagrams above draw it; no box moved. Details they do not carry:
+
+| as-built detail | why |
+|---|---|
+| `MapCamera3D.Roll` (FDP `Fdp.Presentation`, cross-lane): `Up` is rotated about `Forward`; `Detached` resets it to 0 | the camera had no roll; one property, every map host gets it |
+| the bank is `RotorcraftModel.TiltOf(rotation).Roll` for BOTH flyers | the existing decomposition of a body's attitude — no second one |
+| `Hud.Lines(…, scheme)`: a flyer's `FlightLine` and its own keys line; the person / vehicle lines unchanged | the scheme picks the lines, so a person's HUD cannot grow flight fields |
+| P-3's deviation (the view's PITCH stays the look's) is as argued above | — |
+
+📐 **Rail** `PossessionStationTests.CE1095_*` (the scheme, the frame's axes, the camera's roll, the HUD line) — red-proved twice (the view does
+not bank; the plane is a Person).
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

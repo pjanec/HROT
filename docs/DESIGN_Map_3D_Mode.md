@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l). ALL leans M1–M22 APPROVED (U21, U22, U23).
+build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
 updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
@@ -8,12 +8,14 @@ updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assume
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
 current-answer: §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
-  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §7 what is NOT verified.
+  with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the mortars and guns (IF-G) and the fire mission; §6n here draws the tubes, the howitzers, their laid elevation and blast
+  - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the drone (type 403, its flight body); §6n here draws it as a quadcopter
   - docs/DESIGN_Entity_Interactions.md §7.5 — OWNS the team carry (R-2017): the stretcher drawn between the two carriers, a two-man weapon carried by the pair
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon deploy state the map draws (stowed / deployed) and a gunner at his weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the aircraft attitude the map draws (bank, pitch, tilt in SimTransform.Rotation) and the air-assault scenarios that use §6m's riders (R-2015)
@@ -1565,6 +1567,635 @@ limp and the carrier's lean; the door seats, legs out; the jump) · `CarKinemati
 | ![carried and dragged](assets/map-3d/held-1-carried-dragged.png) | ![carried, close](assets/map-3d/held-1b-carried-close.png) |
 | ![wounded and down](assets/map-3d/held-2-wounded-down.png) | ![doors off](assets/map-3d/held-3-doors-off.png) |
 | ![the jump](assets/map-3d/held-4-jump.png) | *the forward left rider, 0.23 s after leaving his seat in a Black Hawk hovering 2 m up: crouched, about 1.7 m in the air below the door* |
+
+### 6n. CE-1085 … CE-1094 — weapon systems, launchers, mortars and guns, the drone, the attack plane — DESIGN `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"new type of missile system like NLAW or LAW or Javelin, and new type of weapons like heavy machine gun M2 and the
+minigun … mounted to a vehicle with a gunner position … located on the ground, placeable standalone with an operator, or we can carry those
+weapons by one or multiple men … two soldiers carrying a stretcher … new types of bombs and aircraft types that can drop bombs and fire the
+cannon or a mounted minigun. All those would need map 3d visualization. Pls check and suggest."* → the plan → *"The stuff before approved"*;
+the indirect-fire part (R-2018) and its barrel-elevation lean → *"Approved"* → *"Ok go"*.
+
+📐 **INVENTORY** *(graph `search_graph` `.*WeaponSystem.*` Class = 10, `.*ShapeKit.*` = 2, `.*VisualFamil.*` = 1, `.*(Trail|Blast).*` = 7 —
+none in Presentation; three Explore sweeps of `docs/` + `.dev/`; the load-bearing lines re-read by hand)*:
+
+| fact | where | so |
+|---|---|---|
+| a weapon system is an ENTITY (class `WeaponSystem` 1.1.*.50, subclasses HMG .1 · Minigun .2 · ATGM .3 · Launcher .4 · Sentry .5); a mortar is class `Mortar` 1.1.*.10, a towed gun `TowedArtillery` 1.1.*.5, an SP gun `SelfPropelledArtillery` 1.1.*.4 | `EntityClassTable.cs:130-145`, Indirect Fire IF-G | none has a visual family ⇒ an unknown purple box today |
+| its deploy state `WeaponSystemState { Deploy, Until }` is replicated to every node | `WeaponSystemComponents.cs` (WS-1) | the drawing reads it on any host — no wire |
+| a STATION weapon's transform is placed at its seat by the sim; a CARRIED one sits at the carrier's feet (carry-station place 0,0,0); a gunner in a weapon's own `Gunner` seat stands AT the weapon's origin | `EmbarkedStateSystem.CarryAndKill` (WS-2) | ⭐ station weapons draw where they are; a carried weapon and a gunner need a drawn placement (as §6m's casualty did) |
+| ⛔ `Carriage.Of` reads `ModeOf(0)` whenever the carrier's list is not empty — a man with only a weapon in his carry station (seat 1) is drawn CARRYING a casualty | `Carriage.cs:74` (CE-1081, mine) | fix: the casualty seat and the carry station are read separately |
+| a weapon system turns on its OWN turret part; its fire is the weapon entity's (`WeaponFireNotification.Shooter` = the weapon) | WS-3, `f656cb38b` | the kits articulate (§3.11) with `_poseOf`; the muzzle flash finds the weapon |
+| no replicated "which mount is in his hands"; `WeaponFireNotification { Shooter, WeaponIndex }` reaches every map host (NED ingress on the IG) | `WeaponPosture.cs` (Kind, Target, Point), `WeaponFireIngressTranslator.cs` | ⭐ the launcher in hands follows the LAST SHOT |
+| the FPV drone (403) is class `Uav` (1.2.*.50) ⇒ family Jet ⇒ a 15 m F-16; its body is 0.3 m (`Gen.Flight` body radius / height) | `BdcTkbCatalog.DefineFpvDrone`, `EntityBodyLayer3D.Resolve` | a `Drone` family for a ROTORCRAFT Uav, sized from its flight body |
+| the A-10 (405) is class `AttackAircraft` (1.2.*.2) ⇒ family Jet; its bombs count down in the replicated `WeaponAmmo` mirror | `BdcTkbCatalog.DefineAttackPlane`, CE-1079 | an attack-plane kit with pylons; the bombs drawn = rounds left |
+| a bomb release goes through the ordinary fire path ⇒ a muzzle flash at the nose | `EffectSpawnSystem.cs:63-74` | skip the flash for a `Bomb` mount |
+| a smoke trail runs STRAIGHT back to the muzzle (combat node) or along the velocity (viewer) | `ProjectileLayer.TrailOf`, `:130` | a remembered path ⇒ a curved trail on every host |
+| a rotor turns only while ≥ 5 m above its resting height | `EntityBodyLayer3D.IsAirborne`, `MotionTracker` | the rotor follows movement too, and spins up / down |
+| on the combat node a round knows its `Shooter`; a viewer's round does not | `BallisticProjectile.Shooter`, LR-3 | the gun's laid elevation is exact where combat runs, a default elsewhere (until backend's IF-1 field) |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing, grows>> Draw3D · + a second pass for carried weapons · + gunner placement }
+    class VisualFamilies { <<existing, grows>> + WeaponSystem · SpArtillery · Drone · AttackJet }
+    class WeaponKits { <<NEW static, Map3D>> KindOf(dis) WeaponKind · Stowed(kind) · Deployed(kind) · Blend(t) · GunnerSpot(kind) · OnBack(...) }
+    class WeaponKind { <<NEW enum>> Hmg · Minigun · Atgm · Launcher · Sentry · Mortar · TowedGun }
+    class ShapeKits { <<existing, grows>> + SpArtillery · Drone · AttackJet (+ pylon bombs, gun) }
+    class Carriage { <<existing, FIXED>> Of: casualty seat and carry station apart · + Manning (at his weapon) }
+    class FigureCarriage { <<existing, grows>> + Load (the weapon he carries) }
+    class BlockFigure { <<existing, grows>> + AtWeapon(kneel) · Shouldered (a tube on the shoulder) · Seated + Stand / Kneel }
+    class SeatPose { <<TKB, this lane's CE-1083, grows>> Sit · SitLegsOut · + Stand · Kneel }
+    class RecentShots { <<NEW managed singleton>> Last(shooter) (mount, at) }
+    class EffectSpawnSystem { <<existing, grows>> writes RecentShots · no flash for a Bomb · + backblast / blast }
+    class ProjectileLayer { <<existing, grows>> + RoundTrails (a remembered path) }
+    class MotionTracker { <<existing, grows>> rotor spin-up / down, tail rotor, drone rotors }
+    class WeaponSystemState { <<existing, replicated>> Deploy · Until }
+    class WeaponAmmo { <<existing, replicated>> AmmoOf(mount) }
+    EntityBodyLayer3D ..> WeaponKits
+    EntityBodyLayer3D ..> VisualFamilies
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> RecentShots : the launcher in hands
+    EntityBodyLayer3D ..> WeaponSystemState : stowed / deployed
+    EntityBodyLayer3D ..> WeaponAmmo : bombs left
+    EntityBodyLayer3D *-- MotionTracker
+    WeaponKits ..> WeaponKind
+    Carriage --> FigureCarriage
+    EffectSpawnSystem --> RecentShots
+    BlockFigure ..> SeatPose
+```
+
+*What the picture shows that prose hid:* every new look is a KIT or a POSE chosen from facts every host already has (class, deploy state,
+seats, ammo mirror, fire notifications) — the only new state is presentation memory (`RecentShots`, `RoundTrails`, the rotor's spin), and
+the only TKB change is two more seat poses in the enum this lane added.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D (each frame)
+    participant K as WeaponKits
+    participant C as Carriage
+    participant S as RecentShots
+    L->>L: pass 1, every entity
+    alt a weapon system on the ground or in a station
+        L->>K: Stowed / Deployed / Blend(deploy state, Until)
+        L->>L: drawn at its own transform, turret posed (§3.11)
+    else a weapon system carried by a man
+        L->>L: deferred to pass 2
+    else a man in a weapon's Gunner seat
+        L->>C: Of = Manning, the weapon
+        L->>K: GunnerSpot(kind), turned with the weapon's turret
+        L->>L: AtWeapon (kneeling or standing, hands on the grips)
+    else a soldier
+        L->>S: Last(him) a launcher within 4 s and aimed?
+        L->>L: Shouldered (the tube replaces the rifle), else the rifle
+    end
+    L->>L: pass 2, carried weapons
+    L->>K: OnBack(carrier as drawn) — or hidden while he shoulders it
+```
+
+```mermaid
+graph TD
+    CAN[MapCanvas, every 3-D frame] --> EBL[EntityBodyLayer3D, every map host]
+    CAN --> PL[ProjectileLayer, every map host]
+    CAN --> EL[EffectLayer, every map host]
+    WDS[WeaponDeploySystem, the weapon's owner] -->|WeaponSystemState, replicated| EBL
+    ESS[EmbarkedStateSystem, every node] -->|IsEmbarkedTag, station transforms| EBL
+    MIR[WeaponAmmoMirrorSystem, the brain] -->|WeaponAmmo, replicated| EBL
+    FIRE[FireProcessingSystem, the muscle] -->|WeaponFireNotification, NED to every host| ESP[EffectSpawnSystem, every map host]
+    ESP -->|RecentShots| EBL
+    ESP -->|flash, backblast, blast entities| EL
+    LR[LightweightRound ingress, every host] --> PL
+```
+
+*Caption:* nothing here runs on the simulation side — every input already reaches every map host; ⚠ `EffectSpawnSystem` is skipped during a
+replay (`IsReplayActive`), so in a replay the launcher stays slung and no backblast is drawn (the recorded effects still are).
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **N-1 weapon systems** (CE-1087) | one family `WeaponSystem`; the kind from the class chain (HMG, Minigun, ATGM, Launcher, Sentry; + `Mortar`, `TowedArtillery`); each kind a STOWED and a DEPLOYED kit with the same parts in the same order, blended over `Deploying` / `Packing` by `Until`; a station weapon is drawn where the sim put it; its turret and gun articulate |
+| **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` |
+| **N-3 carried** (CE-1085) | the classifier fix; a carried stowed weapon is drawn slung across the back |
+| **N-4 launcher in hands** (CE-1090) | a soldier AIMED within 4 s of firing a launcher (an ATGM mount, or a carried ATGM / Launcher weapon) holds the tube on his shoulder instead of the rifle (the carried weapon is not drawn twice); the flash leaves the tube's front; a recoilless launcher throws a BACKBLAST cone behind it; a mortar / gun throws a ground BLAST ring |
+| **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction). ✅ `2026-10-15` backend P2 (`b6ad14c83`): mortars 609–611 and the towed 612 have a laying turret, and every indirect gun is LAID (W-9 `TurretPose`) before it fires — `LaidPose` already reads the turret pose first, so a laid tube shows the mission's azimuth and elevation on every node before its first round; the defaults are only for a gun nobody has laid. SP howitzer: a tank hull, a big boxy turret, a long barrel |
+| **N-6 trails** (CE-1091) | the smoke trail follows the round's REMEMBERED path (sim time, every host), so a top-attack climb and dive shows; a shell or mortar bomb draws a faint thin streak of its last 2 s |
+| **N-7 drone** (CE-1086) | family `Drone` = a `Uav` that flies as a `Rotorcraft`: an X frame, four motor pods, four rotors spinning; sized 2·radius × 2·radius × height from `Gen.Flight` |
+| **N-8 attack plane** (CE-1092) | family `AttackJet` (class `AttackAircraft`): straight wings, two engines on the rear fuselage, twin fins, the nose gun, pylons; a bomb per round left on its `Bomb` mount (`WeaponAmmo`) |
+| **N-9 rotors** (CE-1093) | a rotor runs while airborne OR moved within the last 20 s, and spins up / down over 3 s; the tail rotor spins about its axle |
+| **N-10 bomb release** (CE-1094) | no muzzle flash for a `Bomb` mount |
+
+**Rejected — one line each:**
+- *A per-weapon `VisualFamily` (seven new families)* — the families key the icon and size fallbacks; one family + a kind keeps those tables short.
+- *Drawing the carried weapon from the figure's parts list* — the weapon is its own entity (picked, selected, killed); it stays its own draw.
+- *A replicated "active mount" for the hands* — a wire change (backend's); the last shot is on every host already. ⏭ asked of backend as an improvement.
+- *Matching a viewer's new shell to the nearest muzzle for the elevation* — two guns side by side break it (approved lean).
+- *A trail in the SIMULATION* — a look; the round's own positions over time are enough.
+
+#### 6n as-built `2026-10-14` (ui)
+
+⭐ **Built as the three diagrams draw it** — `WeaponKits` / `WeaponKind` / `FiringBlast` (`Map3D/WeaponKits.cs`), `RecentShots`
+(`Effects/RecentShots.cs`), the four families, `ShapeKits.Drone` / `SpArtillery` / `AttackJet` (+ `AttackJetBombs` / `AttackJetPylons`),
+`BlockFigure.AtWeapon` / `Shouldered`, `Carriage` (fixed, + `Manning`, + `Load`), `ProjectileLayer.RoundPath` / `TrailOf(r, path)` /
+`StreakOf`, `MotionTracker`'s spool, `PartRole.TailRotor`, `SeatPose.Stand` / `Kneel`. The details the diagrams do not carry:
+
+| as-built detail | why |
+|---|---|
+| ⚠ `RecentShots` lives BESIDE the world (a `ConditionalWeakTable<EntityRepository, …>`), not as a managed singleton in it | ⛔ a managed singleton needs a central component id (FDP `GlobalComponentIds`) — for one host's drawing memory that must never be saved, recorded or replicated. ⭐ The class diagram's «managed singleton» is SUPERSEDED by this |
+| the backblast and gun blast are two new built-in EFFECT TYPES of the existing `Explosion` kind (**7161** Backblast — a 2.6 m dust cloud, **7162** Gun blast — 6 m), no new effect kind; the backblast sits 2.2 m behind the shooter on the line of fire, 1.3 m up | the effect layer already draws a world-fixed expanding cloud; a type is data |
+| a gunner at his weapon is drawn at the kind's GUNNER SPOT scaled to the weapon's size and turned with its traverse; a gunner seat that declares a place wins (`Kneel` / `Stand` ⇒ the place is his feet) | ⚠ the spot is the KIT's, not the TKB's: the WS-4 weapon types may later give their gunner seat a place, and then it wins |
+| a carried weapon is drawn in a SECOND pass, on its bearer's figure frame as drawn (`OnBack`: its length from the right hip to the left shoulder) | the bearer may be drawn after the weapon in the query order |
+| the launcher-on-the-shoulder rule: AIMED and a launcher shot (an `Atgm` mount, or one firing a `Rocket` / `Missile` round — the RPG) by him or by the launcher he carries within **4 s** | ✅ `2026-10-15` CE-1107: ALSO the replicated `WeaponPosture.ActiveMount` (backend P4) — a launcher SELECTED (his own mount, or a carried launcher by its controlled index 32 + k) is shouldered while he aims, before the first shot, on every node |
+| the shouldered tube's front is the weapon tip (the muzzle flash), and also the CARRIED weapon's tip — its shot is the weapon entity's (WS-3) | the flash would otherwise leave the weapon at his feet |
+| a laid gun: its turret pose where driven, else the elevation its newest round left at (seen on this node, 60 s), else **60°** mortar / **25°** howitzer | N-5 |
+| ⚠ the A-10's bombs read the `WeaponAmmo` mirror (CE-1079) — present only where a brain mirrors it; elsewhere the full load | an editor's placed plane shows four |
+| the rotor: spools over **3 s**; runs while airborne or for **20 s** after it last moved (> 2 cm a frame); a helicopter first seen airborne is at speed. The tail rotor: two crossed blades at **4.7×** the main rotor; the tail-rotor DISC is gone (a spinning disc shows nothing) | ⚠ the old S4 rail's "parked ⇒ rotor 0 at once" moved to "parked ⇒ it runs on, spools down, stands" |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos (`RouteWaypointGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`), not only the one the row named — the same Z-as-north read; one helper `RouteGizmo.PointOf` (a flyer's waypoint at ground + `HeightAgl`, else its own Z — 0 drapes) | three copies of one rule had one bug; now one rule |
+| the type golden moved on exactly two lines (403 Jet → Drone, 405 Jet → AttackJet) and the class-table sweep on the five classes that now have a family | deliberate |
+| ⚠ **finding for backend (WS-4):** a weapon type's `Gen.Carrier` must be `Exposure = Open` (and a pickup's bed station / gunner seat exposed) — the engine's one rule hides an ENCLOSED passenger, so a gunner at a tripod, or the M2 in a bed, of a type left enclosed is neither drawn nor seen | `PhysicalPresence.IsEnclosedPassenger` |
+
+📐 **Rails:** `Map3DTests.CE1085_*` · `CE1086_*` · `CE1087_*` · `CE1088_*` · `CE1090_*` · `CE1091_*` · `CE1092_*` · `CE1093_*` ·
+`EffectTests.CE1094_*` · `RouteWaypointGizmoTests.CE2172_*` (+ RWG-002 / RWG-003 and `AuthoredRouteGizmoTests` re-pinned Z-up) ·
+`Map3DFrameRail.CE1085_V_*` (the real frame, below).
+
+✅ **(V) — a real frame under Xvfb** (`Map3DFrameRail.CE1085_V_*`):
+
+| | |
+|---|---|
+| ![weapon systems](assets/map-3d/ws-1-weapons.png) | ![HMG stowed / deployed, Kornet](assets/map-3d/ws-2-hmg-kornet-mortar.png) |
+| *the row: kneeling gunners at an HMG, a Kornet and a mortar, a towed howitzer with its trails spread, a sentry gun; the Javelin shooter's tube; the drone; the technical's gunner at its bed M2 (front)* | *an HMG stowed (lying) beside one deployed, its gunner at the grips* |
+| ![carried, shouldered, drone](assets/map-3d/ws-3-carried-shouldered-drone.png) | ![the technical](assets/map-3d/ws-4-technical.png) |
+| *a Javelin slung across a back; a launcher on the shoulder just after firing; an FPV drone* | *the M2 in the bed's station, its gunner kneeling behind it* |
+| ![laid guns](assets/map-3d/ws-4b-laid-guns.png) | ![top attack](assets/map-3d/ws-5-top-attack-trail.png) |
+| *the howitzer laid at 25°, a man at its breech; the mortar at 60°, its gunner beside it* | *a missile's top-attack trail arcing onto the SP howitzer* |
+| ![A-10](assets/map-3d/ws-6-a10.png) | *the A-10's own airframe: straight wing, engines on the rear fuselage, twin fins, the nose gun* |
+| ![route heights](assets/map-3d/ws-7-route-heights.png) | *a flyer's route drawn Z-up (CE-2172): from its ground start it climbs to each waypoint's height above the ground (CE-1096)* |
+
+⏭ **Built in their OWN designs, not here:** the route gizmo Z-up and the waypoint heights (air hand-off U1 / U2 — CE-2172 / CE-2173,
+[DESIGN_Air_Operations.md](designs/air-attack/DESIGN_Air_Operations.md) §5), the pilot station (U3, §6 there and
+[DESIGN_Entity_Control.md](DESIGN_Entity_Control.md)), placing a weapon into a station in the editor (weapon-systems hand-off U2, CE-2174). ⏸ **Blocked on
+other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack helicopter, door guns, minigun / GAU-8 tracer streams, Hydra
+salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
+⭐ **`2026-10-15` — after merging `behaviors` (T-a, F1–F4, IF-1, WS-4 landed):** UNBLOCKED — the stretcher and the two-man weapon (T-b:
+a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
+to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
+stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
+
+⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
+rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
+Now the pickup gunner KNEELS in the bed behind his pintle (x −2.0, feet at 0.85 m) and the HMMWV's STANDS in the hatch (feet at 0.7 m) — the
+gun's pivot at his chest. A gunner seat's place and pose are read only by the 3-D drawing (the sim reads a STATION's place, unchanged). ⚠ A
+cross-lane data edit to backend's `BdcTkbCatalog` (`Pickup`, `HmmwvSeats`). Rails `Map3DTests.CE1108_*` (×5), `CE1107_*`; frame rail
+`CE1102_V` crews each preset from its own catalogue seats:
+
+![](assets/map-3d/presets-1.png)
+
+### 6o. CE-1097 — a face: skin, eyes, nose and mouth, a soldier's helmet — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"give the soldiers some face, now it is just a green expressionless cube, there should be some skin color and
+symbolic eyes and nose and mouth and green helmet on the top"*.
+
+📐 **INVENTORY** *(graph `search_graph .*(BlockFigure|ShapeKit|PartColour|KitPart).*` = 7; grep `BlockFigure.|ColourRole.|PartColour(` = 5
+files)*: the head is ONE `ColourRole.Body` box in every pose (`BlockFigure`, `ShapeKit.cs` — standing, athletic, crouched, crouched run,
+prone, crawl, dead, downed, draped, towed, seated); `EntityBodyLayer3D` is the ONLY renderer of the kits; every pose keeps one part ORDER
+(`HeadIndex` 5, `WeaponIndex` 10) that the blends, the first-person eye and the muzzle tip rely on. ⛔ No design in `docs/` or `.dev/`
+covers a face (searched `helmet`, `face`, `skin`; the TKB `Accessory` idea is a data idea, not a drawing).
+
+```mermaid
+classDiagram
+    direction LR
+    class KitPart { <<existing, grows>> + Face FaceOn }
+    class FaceOn { <<NEW enum>> None · Front · Up · Down }
+    class ColourRole { <<existing, grows>> + Skin }
+    class BlockFigure { <<existing, grows>> every pose's head Skin with its FaceOn · FaceParts · FaceFrame }
+    class FacePart { <<NEW>> Centre · Extent in the head box · Shade }
+    class FaceShade { <<NEW enum>> Eye · Nose · Mouth · Helmet · Hair }
+    class EntityBodyLayer3D { <<existing, grows>> draws the face on the head part · FaceDetailsDrawn }
+    KitPart --> FaceOn
+    BlockFigure ..> FacePart
+    FacePart --> FaceShade
+    EntityBodyLayer3D ..> BlockFigure
+    EntityBodyLayer3D ..> KitPart
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    participant H as the head part
+    L->>H: BodyTransform, with lean, twist, stance blend
+    L->>L: draw the head box in skin
+    L->>F: FaceFrame of the head's FaceOn, FaceParts soldier or civilian
+    L->>L: draw each face part in the head box's frame, then the head's transform
+```
+
+*Caption:* the face is drawn ON the head part, in the head box's own frame, so it follows every lean, twist, stance blend and fall for
+free, and the shared part order does not move (no new kit part). The only new fact a pose states is WHICH side of its head box is the face.
+
+| decision | rule |
+|---|---|
+| **F-1 skin** | every head is `ColourRole.Skin`, one fixed tone |
+| **F-2 the features** | two dark eyes, a nose a shade darker than the skin and a dark red mouth, standing a little proud of the face so they read at a distance |
+| **F-3 the helmet** | a soldier wears a helmet over the top of the head, a little wider than it, in his UNIFORM colour a step darker — green for the default soldier; a civilian has dark hair instead |
+| **F-4 which side is the face** | `FaceOn` on the head part: `Front` (upright, prone, seated), `Up` (on his back — dead, downed, dragged), `Down` (draped over a shoulder); a fall or blend switches it halfway |
+| **F-5 the first-person head** | the face is not drawn for the possessed unit's own head (it is not drawn now) |
+
+**Rejected — one line each:** *new kit parts for the eyes and helmet* — every pose's part order (the blends, `HeadIndex`, `WeaponIndex`)
+would move; *a fixed olive helmet* — from above the helmet is most of what is seen of a man, and a fixed colour would hide his side;
+*rotating the head box in the lying poses instead of a tag* — face-up with the top of the head away from the body needs a turn of 180°
+about a diagonal, and the fall blends yaw and pitch linearly, so the head would spin as he falls.
+
+**AS-BUILT** — as drawn above. Rails `Map3DTests.CE1097_*` ×2 (every pose's head and its face side; the face's place, the helmet's colour),
+frame rail `Map3DFrameRail.CE1097_V` (`face-*.png`). ⚠ `TkbEntityTypes.CivilianPedestrian` (501) is drawn as a box, not a person —
+the civilian figure is `UrbanCombatTkbCatalog.TkbCivilianPedestrian` (1001).
+
+| | |
+|---|---|
+| ![faces](assets/map-3d/face-1-front.png) | ![close](assets/map-3d/face-2-close.png) |
+| *a civilian (hair), riflemen crouched, aimed and ready (helmets in the uniform darker), a dead soldier looking up* | *close: eyes, nose, mouth, the helmet's brim over the brow* |
+
+### 6p. CE-1098 — blood: spots on a hurt man, more as his health drops — DESIGN + AS-BUILT `2026-10-14` (ui)
+
+🔒 **User, `2026-10-14`:** *"Some red blood stains where soldier was hit would also be great … or just repeatably random spots based on
+health level"*.
+
+| the choice rests on | code — how it is | design basis |
+|---|---|---|
+| the sim knows where a bullet struck | ✅ `HitEvent` carries the bullet segment and `HitT` (`FDP/Toolkits/Fdp.Toolkits/Combat/HitEvent.cs`) | ⛔ searched `docs/`, `.dev/` for blood / wound marks: none found |
+| …but no node is told where | ✅ the wire carries the damage (`EntityHitDamage`: id + HP) and the health (`EntityDamage`: `Current`, `Max`), no point | `docs/DESIGN_Injury_States.md` owns the injury states (from health), not marks |
+| every node has the health | ✅ `EntityDamage` → `Health{Current, Max}` | — |
+
+⇒ the user's second option, which needs nothing new on the wire: **repeatably random spots by health.** The real hit point is a
+follow-up if backend ever puts it on the hit message.
+
+```mermaid
+classDiagram
+    direction LR
+    class BlockFigure { <<existing, grows>> MaxStains · StainCount · StainOf · StainDetail }
+    class Stain { <<NEW>> Part · Centre · Extent · Fresh }
+    class Health { <<existing, replicated>> Current · Max }
+    class EntityBodyLayer3D { <<existing, grows>> Bloodied · draws each spot on its part · StainsDrawn }
+    BlockFigure ..> Stain
+    EntityBodyLayer3D ..> Health
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant F as BlockFigure
+    L->>F: StainCount of his health
+    L->>F: StainOf his network id, k, for k below the count
+    L->>L: draw the figure part by part
+    L->>L: after each part, its spots, carried by that part's transform
+```
+
+*Caption:* a spot belongs to a PART (by the shared part order) and sits in that part's own frame, so it moves with the limb through every
+gait, blend and fall; its place comes only from the man's network id and its number, so every node draws the same spots and a spot never
+jumps when another appears.
+
+| decision | rule |
+|---|---|
+| **B-1 where** | on the torso (three times as often; there the chest twice as often as the back, a side or the shoulders) or a thigh, shin, upper arm or forearm; never the head or the rifle |
+| **B-2 how many** | none unhurt, one after any hit, up to 8 at no health left (a dead man shows them all) |
+| **B-3 the same everywhere** | seeded by the network id (the entity index where there is none); spot k never changes |
+| **B-4 colour** | a fresh red or a dried darker red, half and half |
+
+**Rejected — one line each:** *spots where he was hit* — no node but the one that resolved the hit knows where (a wire change, backend's);
+*a random draw per frame* — the spots would flicker; *more spots the longer he is hurt* — health is what every node shares, time since the
+hit is not.
+
+**AS-BUILT** — as drawn. Rails `Map3DTests.CE1098_*` ×2 (how many; repeatable, per man, on the body), frame rail `Map3DFrameRail.CE1098_V`
+(`blood-*.png`).
+
+| | |
+|---|---|
+| ![blood front](assets/map-3d/blood-1-front.png) | ![blood above](assets/map-3d/blood-2-above.png) |
+| *health 15, 50, 85, 100 (left to right) — the more hurt, the more spots* | *from above; the dead man shows all 8 (some on the sides he lies on)* |
+
+### 6q. CE-1099 — what people wear: civilians in varied clothes, children, a soldier's camouflage by his side — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Pedestrians body should not be green, color should vary, derived from tkb type, also some variation of dresses,
+short sleeves, skirts, shorts, suits etc. Children also needed. Soldiers also need to differ a bit based on their affiliation, maybe by
+different texture of their body uniform?"*
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a pedestrian is green because his TYPE has no colour | ✅ `CivilianPedestrian` (1001) has no `VisualDefinitionDto` (`UrbanCombatTkbCatalog.cs`), so `Resolve` falls to `DefaultColour(Person)` = green | ⛔ searched `docs/`, `.dev/` for clothing / camouflage / children: none found |
+| a figure's height comes from its type | ✅ `Resolve` scales the figure by `StrideRenderModelDefDto.ShapeHeight` | — |
+| every node knows a man's side | ✅ `EntityInfo.ForceId` (Neutral / Friend / Hostile) crosses the wire (`EntityInfoIngressTranslator`) | §3.7 M15 / M16 (the side palette) |
+| a soldier is told from a civilian by his type | ✅ `VisualFamilies.IsSoldier`: DIS 3.x.x.1 | — |
+| per-man detail can be repeatable on every node | ✅ the blood (§6p) seeds by the network id | §6p B-3 |
+
+```mermaid
+classDiagram
+    direction LR
+    class Outfits { <<NEW static>> For seed, soldier, child, type colour, side · ColourOfPart · Details }
+    class Outfit { <<NEW>> Top · Sleeve · Bottom · Shin · Skin · Hair · HairStyle · Legwear · Suit · Camo · Child }
+    class PartDetail { <<NEW>> Part · Centre · Extent · Colour · Frame }
+    class TypeLook { <<existing, grows>> + TypeColoured · Child }
+    class EntityBodyLayer3D { <<existing, grows>> each part in its outfit colour · the outfit's details · DetailsDrawn }
+    class UrbanCombatTkbCatalog { <<existing, grows>> + CivilianChild 1003 }
+    class EntityInfo { <<existing, replicated>> ForceId }
+    Outfits ..> Outfit
+    Outfits ..> PartDetail
+    EntityBodyLayer3D ..> Outfits
+    EntityBodyLayer3D ..> TypeLook
+    EntityBodyLayer3D ..> EntityInfo
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant O as Outfits
+    L->>O: For his network id, soldier or not, child or not, his type's colour, his side
+    O-->>L: the outfit, every choice drawn from the seed
+    L->>L: draw each part in its outfit colour
+    L->>O: Details of the outfit
+    L->>L: after each part, its details in that part's frame
+```
+
+*Caption:* the outfit (and a car's paint, O-6) is one value computed from facts every node already has, so a man looks the same everywhere and from frame to frame; the
+kit and its part order do not change — the outfit only colours the parts and adds details in their frames (as the face and the blood do).
+
+| decision (⭐ lean, built) | rule |
+|---|---|
+| **O-1 a civilian's colours** | his TYPE's colour when it has one (each man a little lighter or darker, the hue nudged); a type with none picks from a palette of everyday clothes — tops in many colours, trousers in jeans blue, khaki, grey, black, brown |
+| **O-2 what a civilian wears** | per man: long or short sleeves (short = skin-coloured forearms); trousers, shorts (skin shins) or — for a woman — a skirt to the knee; sometimes a dark suit with a white shirt and a tie; hair short, long or none, in a natural colour; skin in one of several tones |
+| **O-3 children** | a new type `CivilianChild` (1003): a pedestrian 1.25 m tall, slower; drawn smaller with a larger head, in brighter clothes |
+| **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — fleck (many small tan, brown and green spots); Neutral — plain |
+| **O-5 the same everywhere** | every choice is seeded by the network id (the entity index where there is none) and the type id |
+| **O-6 personal cars** (`CE-1100`, user *"And we need personal car with similar color variety"*) | a car (the `WheeledCar` family) with no colour of its own gets a street paint by its seed — mostly white, black, silver and grey, then blue and red, a few green, beige, yellow, brown; one with its own colour keeps its hue, lighter or darker per car. Glass and wheels keep their shades |
+
+**Rejected — one line each:** *a real texture on the uniform* — the bodies are lit flat-coloured cubes with no texture binding in the shader;
+patches in the block style need no shader change and read the same at every distance the boxes do; *colour by side for the whole uniform* —
+the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier; *the outfit stored as a component* —
+nothing would write it on a replica, and the seed already makes it the same everywhere.
+
+**AS-BUILT (`CE-1099`, `CE-1100`)** — as drawn above. Measured on the first frames and changed: dark camouflage patches on olive vanished
+under the shading, and a patch on ONE side of a part mostly faced away from the camera ⇒ each pattern mixes light and dark tones, a patch goes
+THROUGH its part (it shows on two opposite sides) and a woodland patch on a limb is a band round it; Friend 18 woodland patches, Hostile 30
+sand-heavy fleck (a hostile reads paler). ⚠ The fleck stays subtler than the woodland. The blood (§6p) and the camouflage share one
+placement of a box on a part's side (`BlockFigure.SpotOnSide`) for the blood; the camouflage places its own through-boxes. Cross-lane:
+`Hrot.Core` `UrbanCombatTkbCatalog` gains `CivilianChild` (1003); `UrbanCombatCatalogRails` (SimHost) counts 10 types; the picker golden
+lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (`dress-*.png`); red-proved 6 ways.
+
+| | |
+|---|---|
+| ![dress front](assets/map-3d/dress-1-front.png) | ![soldiers](assets/map-3d/dress-2-soldiers.png) |
+| *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
+| ![above](assets/map-3d/dress-3-above.png) | |
+
+### 6r. CE-1101 — camouflage and faces drawn by the SHADER, not by boxes — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Isnt the camouflage build from geometry? Isnt this performance unfriendly? Wouldnt a procedurally generated
+texture work better?"* · *"Same for the human faces a guess texture can add same variety and remove unnecessary geometries"*.
+⛔ **SUPERSEDES** §6q's camouflage PATCHES (O-4's drawing, and its rejected line *"a real texture … patches need no shader change"*) and
+§6o's face FEATURE boxes (F-2). The helmet, the hair and the outfit details (tie, skirt, long hair) stay boxes: they change the outline.
+
+| the change rests on | code — how it is | design basis |
+|---|---|---|
+| every patch and feature was its own draw call | ✅ `EntityBodyLayer3D` draws each with its own `DrawMesh` (no instancing): a soldier was 11 parts + 5 face + 18 / 30 patches | §6q counted none of it |
+| the shader sampled no texture | ✅ `LitShader.cs`: no texture coordinates in, colour = vertex × material | M5: one shader for the 3-D map |
+| a part's own frame reaches the shader | ✅ the mesh's local axes are HROT axes behind a fixed basis change (`HrotToRaylib.ModelFromHrot`: raylib-local → HROT-local is `(x, −z, y)`), and a part's size is the length of each model-matrix column | — |
+| a texture on the cube would stretch | the cube's texture coordinates run 0–1 on every face; a limb face is 0.12 × 0.44 m | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class LitShader { <<existing FDP, grows>> UseSurface glsl · passes each fragment its part-local unit position, metres and normal · default surface returns the colour }
+    class BodySurface { <<NEW Hrot.Presentation>> Glsl · Woodland · Fleck · Face · Plain · uniforms set only on change }
+    class FaceLook { <<NEW>> EyeSpacing · MouthWidth · Beard · Brow · EyeColour · Lips }
+    class Outfit { <<existing, grows>> + Face FaceLook }
+    class EntityBodyLayer3D { <<existing, shrinks>> sets the surface per part · no patches, no feature boxes }
+    LitShader ..> BodySurface : the host's surface function
+    EntityBodyLayer3D ..> BodySurface
+    Outfit --> FaceLook
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant S as BodySurface
+    participant G as the GPU
+    L->>S: a uniform part of a soldier: his pattern, its tones, his seed
+    L->>G: draw the part, one call
+    G->>G: each fragment: noise in the part's own metres picks a tone
+    L->>S: his head: the face side, his face look, hair, eyes, lips
+    L->>G: draw the head, one call
+    L->>S: anything else: plain
+```
+
+*Caption:* the pattern is computed per fragment from the part's OWN frame in metres, so a patch is the same size on a torso and a forearm, it
+moves with the limb, and it covers every side; a soldier is back to ~16 draw calls. With the surface plain the shader's output is unchanged,
+so the terrain and every other body draw exactly as before.
+
+| decision | rule |
+|---|---|
+| **S-1 where the code lives** | `LitShader` (FDP) stays generic: a host registers ONE surface function (`UseSurface`); the body patterns are Hrot's (`BodySurface`) |
+| **S-2 camouflage** | 3-D value noise in the part's metres, three tones over the uniform: woodland large (a ~0.18 m feature), fleck small and sparse, seeded per man |
+| **S-3 faces** | on the head's face side (its `FaceOn`): eye whites with a coloured iris, brows in the hair colour, a nose shade, a mouth; per man the eye spacing, mouth width, brow weight, eye colour, lips, and a moustache or a beard for some men |
+| **S-4 what stays geometry** | the helmet, the hair, a skirt, a tie, long hair, the blood spots (≤ 8, only on the hurt) |
+
+**Rejected — one line each:** *a small image on the cube's texture coordinates* — it stretches on limbs and needs the shader changed anyway;
+*a texture projected by world position* — the pattern would slide over a walking man; *keep the boxes and skip them far away* — the layer does
+not know the camera, and a crowd close up pays in full.
+
+**AS-BUILT (`CE-1101`)** — as drawn above. The pattern runs in the part's own frame in METRES (`LitShader`'s vertex stage passes the
+mesh-local position, its size from the model-matrix column lengths, and the normal, all in HROT axes), so a patch keeps its size from torso to
+forearm. Measured: the face pass leaves terrain, vehicles and weapons pixel-identical in the existing frame rails (`ws-*`, 15 of 16 green; the
+red one, `CE3174_V`, was CE-1079's HUD renumbering, a display-only rail that had not run since — its expectation now reads the HUD as numbered).
+A frame rail asserts the shader compiled AND carries the body surface, since otherwise the C# counters would count paint the GPU never did.
+Rails `Map3DTests.CE1101_*` (faces vary, only grown men wear beards), `CE1097_*` / `CE1099_*` rewritten for painted features and patterns,
+frame rails `CE1097_V` / `CE1099_V` (`FacesPainted`, `CamoPainted`).
+
+| | |
+|---|---|
+| ![camouflage](assets/map-3d/surface-1-camo.png) | ![faces](assets/map-3d/surface-2-faces.png) |
+| *painted by the shader, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* | *eyes with irises, brows, the nose's shade and the mouth, per man* |
+
+### 6s. CE-1103 — the AH-64: an attack helicopter's own body, its chin gun turning with its aim — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Maybe also an attack helicopter ah64 might be needed"* → the plan *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| the type exists, drawn as the generic helicopter | ✅ 406 `Heli_AH64`, DIS 1.2.225.20 (`BdcTkbCatalog.DefineAttackHelicopter`); the class table names `AttackHelicopter` 1.2.*.20 (`EntityClassTable.cs:159`) but the map maps no family to it | Air Operations §7a AW-5 |
+| its body is CG-referenced | ✅ `Body.Geometry` 17.73 × 14.63 × 3.87, `BodyCentreX = −1.5`, `BodyCentreZ = 0.6` | G4 (Body Geometry) |
+| its chin gun is turret 0 / mount 0 | ✅ `TurretDto` pivot (4.3, 0, −1.0), trunnion +0.2; mount 0 the M134, muzzle +0.8 | AW-5 |
+| ⛔ `KitFromTkb` reads the TKB pivot as a box-frame offset | ✅ `KitFromTkb.cs:24` — `turret.PivotX / size.X`, no reference-point shift: right for a ground-referenced tank (offset 0), **wrong for a CG body** (1.5 m aft, 1.3 m low on the AH-64) | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class VisualFamily { <<existing, grows>> + AttackHelicopter }
+    class VisualFamilies { <<existing, grows>> AttackHelicopter class to the AttackHelicopter family }
+    class ShapeKits { <<existing, grows>> + AttackHelicopter kit, its size }
+    class KitFromTkb { <<existing, fixed>> the TKB pivot shifted from the body reference to the kit box }
+    class MotionTracker { <<existing, grows>> the attack helicopter's rotor spools like a helicopter's }
+    class EntityBodyLayer3D { <<existing>> poseOf, the chin turret's TurretPose }
+    VisualFamilies ..> VisualFamily
+    ShapeKits ..> VisualFamily
+    EntityBodyLayer3D ..> KitFromTkb
+    EntityBodyLayer3D ..> MotionTracker
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant K as KitFromTkb
+    participant P as TurretPoseSource
+    L->>K: the AH-64 kit, its template, its size
+    K-->>L: turret and barrel at the TKB pivot, shifted into the kit box
+    L->>P: the chin turret's azimuth and elevation
+    L->>L: draw: the gun turns and lifts with its aim, the rotors spin while it lives
+```
+
+*Caption:* nothing new reaches the map — the family, a kit, and one fix that makes a CG-referenced turret land where the TKB puts it.
+
+| decision | rule |
+|---|---|
+| **H-1 the body** | a slim fuselage with a stepped tandem canopy (gunner low in front, pilot raised behind), a nose sensor ball, engine nacelles either side of the mast, stub wings with a rocket pod and a missile rail each side, a long tail boom with a swept fin, a horizontal stabiliser and a tail rotor on the left, a four-blade main rotor |
+| **H-2 the chin gun** | an articulated turret + barrel under the nose, placed by the TKB turret and turned by the replicated `TurretPose` (as a tank's) |
+| **H-3 rotors** | spin while it lives, as the helicopter's (S4 spool) |
+
+**Rejected — one line each:** *the UH-60 kit for the AH-64* — wide cabin, no wings, no chin gun, so an attack helicopter reads as a
+transport; *a turret fix only for this type* — every CG-referenced body with a turret would carry the same error.
+
+**AS-BUILT** — as drawn. The kit is authored in the AH-64's own centre-of-gravity metres and put into its box by the geometry's offsets, so
+it agrees with the TKB's wheels and turret. `KitFromTkb` now shifts the TKB pivot by the box offset (zero for every ground-referenced type,
+so tanks are unchanged — the E4b rail still holds them). ⭐ The E4b rail (the drawn barrel tip within 5 cm of `Muzzle.TryOf`) gained the
+AH-64 AND the renderer's box offset (`kitToBody`) — without it the rail could never have seen this class of error. Rails
+`Map3DTests.CE1103_*`, `E4b_*` (+ AH-64), frame rail `CE1103_V` (`ah64-*.png`).
+
+| | |
+|---|---|
+| ![AH-64 side](assets/map-3d/ah64-1-side.png) | ![AH-64 close](assets/map-3d/ah64-2-close.png) |
+| *one hovering with its rotors turning, one on its wheels, a UH-60 in front for scale* | *the tandem canopy, the nose sensor, the stub wing's pod and rail, the tail rotor on the left* |
+
+### 6t. CE-1104 — the stretcher and the two-man weapon: two men carry one load (team carry T-b) — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-14`:** *"we might need aomething like that for medics carrying stretcher with wounded soldier"* · *"Approwed"* (R-2017) →
+`2026-10-15` the plan *"APPROVED"*. The sim half is T-a (backend, built); this is its drawing ([Entity Interactions
+§7.5](DESIGN_Entity_Interactions.md) T-b).
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a stretcher is a CARRY MODE, not an entity | ✅ `CarryMode.Stretcher = 3` in `PassengerBuffer.Modes`; the casualty's `IsEmbarkedTag.Mode == Stretcher`, his holder the front carrier | §7.5 T2 |
+| the second man is named by the carrier | ✅ `PassengerBuffer.Assistant`; he carries `IsAssistingTag { Carrier }`, derived on every node | §7.5 T1 |
+| the sim already places all three | ✅ the assistant `AssistantBehindMetres` (2 m) behind the carrier, the casualty half way | §7.5 T3 |
+| a two-man weapon is a `TwoMan` weapon system in the carry station with an assistant | ✅ `Embarkation.IsTwoManWeapon` | §7.5 |
+| ⛔ the map does not know any of it | ✅ `Carriage.Of`: a `Stretcher` casualty falls to `Free` (drawn standing), the carrier to `Carrying` (the shoulder pose); nothing reads `IsAssistingTag` | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class CarriageKind { <<existing, grows>> + OnStretcher · StretcherFront · StretcherRear · TeamFront · TeamRear }
+    class FigureCarriage { <<existing, grows>> + Partner, the other man of the pair }
+    class Carriage { <<existing, grows>> reads the Stretcher mode and IsAssistingTag · LitterFrame }
+    class BlockFigure { <<existing, grows>> OnLitter, the casualty and the litter · HandleArms, both hands on the handles }
+    class ColourRole { <<existing, grows>> + Canvas }
+    class EntityBodyLayer3D { <<existing, grows>> the litter frame for the casualty · a two-man weapon between the pair }
+    Carriage ..> CarriageKind
+    Carriage ..> FigureCarriage
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant C as Carriage
+    participant F as BlockFigure
+    L->>C: the casualty: OnStretcher, his carrier, the assistant
+    C-->>L: the litter frame, midway between the pair at hand height, facing the carrier's way
+    L->>F: OnLitter: him on his back on the litter, poles and canvas
+    L->>C: the carrier: StretcherFront · the assistant: StretcherRear
+    L->>F: HandleArms: hands behind him on the front handles, or ahead of him on the rear ones
+    L->>L: a two-man weapon: drawn between the pair, at the same height
+```
+
+*Caption:* the three are found from facts every node has (the carrier's list, the derived tags); the drawing only moves the casualty onto a
+litter between the two men and their hands onto its handles — the sim's places are kept.
+
+| decision | rule |
+|---|---|
+| **T-b1 the casualty** | on his back on the litter, head toward the front man, arms along his sides (a soldier's rifle on his chest); the litter midway between the pair at 0.80 m, facing the front man's way |
+| **T-b2 the litter** | two poles 1.7 m long and a canvas between them |
+| **T-b3 the carriers** | the front man's hands behind his hips on the front handles, the rear man's ahead of him on the rear ones; both walk with their gait; a soldier's rifle slung |
+| **T-b4 a two-man weapon** | stowed, between the pair at hand height, both men's hands on it |
+
+**Rejected — one line each:** *a stretcher entity* — the sim ruled it a carry mode (T2), so the drawing needs none; *the litter at the casualty's
+own place and height* — he is placed on the ground by the sim, the litter belongs in the men's hands.
+
+**AS-BUILT** — as drawn. A two-man weapon's stowed kit is centred on the hands by its own height (measured: a fixed share of its size
+left a stowed 120 mm mortar on the ground). ⚠ A carried weapon must carry `IsEmbarkedTag.Exposed = 1` to be drawn at all (the enclosed-
+passenger rule hides `Exposed = 0`) — true of the sim's carry station; the rail sets it. Rails `Map3DTests.CE1104_*` (the classifier and the
+team frame; the litter and the hands), frame rail `CE1104_V` (`team-*.png`).
+
+| | |
+|---|---|
+| ![team side](assets/map-3d/team-1-side.png) | ![team above](assets/map-3d/team-2-above.png) |
+| *behind: two medics carry a wounded soldier on a stretcher; in front: a mortar team carries a 120 mm mortar between them* | *from above* |
+
+### 6u. CE-1105 — a burst you can see: automatic fire draws a stream from the muzzle — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** the plan (*"minigun / GAU-8 streams … build after the AH-64"*) *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a node sees only some rounds of a fast gun | ✅ only rounds whose munition has a look replicate (`FireProcessingSystem.cs`, `LightweightRound`): the M134 fires 7.62 ball with one tracer in five, so four in five rounds are invisible on every node | Visual Effects §8.5 LR-1 / LR-4 |
+| …and at the behaviour's cadence, not the gun's | ✅ one intent per shot at the action's `CooldownSeconds`; the catalogue's `RateOfFire` (3000 / 3900) reaches no mount (`WeaponMountDto` has none) | — |
+| every map host hears every shot | ✅ `WeaponFireNotification` (shooter, target, mount) reaches every map host; `EffectSpawnSystem` already writes `RecentShots` from it (CE-1090) | §6n N-4 |
+| where a muzzle is | ✅ `Muzzle.TryOf(world, shooter, mount, out muzzle, out forward)` — the round's own origin (E4b holds the drawing to it) | VE-L |
+
+```mermaid
+classDiagram
+    direction LR
+    class RecentShots { <<existing, grows>> + where the shot was aimed · Recent }
+    class FireStreams { <<NEW Hrot.Presentation.Effects>> IsAutomatic · Dashes · Window · Spacing · Speed }
+    class EffectSpawnSystem { <<existing>> records the aim point with the shot }
+    class ProjectileLayer { <<existing, grows>> draws the streams · StreamsDrawn }
+    EffectSpawnSystem ..> RecentShots
+    ProjectileLayer ..> RecentShots
+    ProjectileLayer ..> FireStreams
+```
+
+```mermaid
+sequenceDiagram
+    participant S as EffectSpawnSystem
+    participant R as RecentShots
+    participant P as ProjectileLayer
+    S->>R: a shot: shooter, mount, time, aim point
+    P->>R: shots within the window
+    P->>P: an automatic mount only, its muzzle from Muzzle.TryOf
+    P->>P: dashes from the muzzle toward the aim point, running outward at bullet speed, fading
+```
+
+*Caption:* the stream is drawn from what every node already hears — no entity, no wire; the real tracer rounds still fly as before.
+
+| decision | rule |
+|---|---|
+| **B-1 which guns** | a mount whose category is `MachineGun` or `Autocannon` (M134, M2, DShK, a coax, the Bradley's 25 mm, the GAU-8); rifles, launchers and big guns keep their single round |
+| **B-2 the stream** | for 0.35 s after each shot: dashes 1.8 m long every 5 m from the muzzle toward the aim point (its target, else where its posture aims, else straight out of the muzzle), running outward at 900 m/s, fading; at most 500 m |
+| **B-3 the look** | the tracer colour (additive), as wide as a tracer on screen |
+
+**Rejected — one line each:** *spawn the missing rounds on every node* — the wire carries one in five on purpose (LR-1); *read the catalogue's
+rate of fire* — no mount carries it; *a stream for every weapon* — a rifle shot or a tank round is one round, and a stream would lie.
+
+**As-built `2026-10-15`** — matches the diagrams. `FireStreams` (`Hrot.Presentation/Effects/FireStreams.cs`) is pure (`IsAutomatic`, `Dashes`);
+`RecentShots.Record` gained the aim point (`EffectSpawnSystem`: the target's position, else `AimPointOf` the shooter's posture) and `Recent(now,
+seconds)`; `ProjectileLayer.DrawStreams` runs after the rounds, skips a dead shooter or a non-automatic mount, and draws each dash as an additive
+cone in tracer orange whose alpha falls with the window. A station weapon (a door gun, a pintle M2) streams from ITS OWN muzzle — the shooter is
+the weapon entity. Rails `EffectTests.CE1105_*` ×3, frame rail `Map3DFrameRail.CE1105_V` (an AH-64's chin gun at a T-72, and a doors-off UH-60's
+right door gun):
+
+⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
+only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
+of him with its pivot at his chest (`BdcTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+
+| ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
+|---|---|---|
 
 ## 7. NOT VERIFIED — say so before it is built on
 

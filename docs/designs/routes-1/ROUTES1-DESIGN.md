@@ -3,10 +3,11 @@ state: LIVE
 build-state: BUILT in substance (verified 2026-09-17) — RoutePlan, PersonalRouteAuthoringSystem,
   RouteTrajectorySyncSystem + RouteTrajectoryCache, MapRouteEgressTranslator and the FollowRoute
   executor all exist in production. ⚠ The header below still says "Status: Design Phase"; that is STALE.
-updated: 2026-09-17
+updated: 2026-10-14
 current-answer: §5 (Shared vs Personal Routes) and §5.1 (directing a vehicle to follow one) are the
   route MODEL and are current — a shared route is a root entity multiple vehicles may follow.
   ⭐ §16 is NEW and carries the as-built PERSISTENCE gap, which this design never covered.
+  ⭐ §11.4 (CE-1096, 2026-10-14) — the waypoint editor on every authoring host, with the air fields; §11.2's IG-only panel is SUPERSEDED by it.
 known-rot: ⛔⛔ THIS DESIGN NEVER COVERED SCENARIO PERSISTENCE, and the omission shipped as a DEFECT:
   PersonalRouteRefTranslator persists the vehicle→route GUID, but there is NO RoutePlanTranslator, so
   the waypoints are never written. A save/load silently yields a vehicle pointing at an EMPTY route.
@@ -437,6 +438,87 @@ The panel provides real-time, in-tool editing of per-waypoint semantic metadata.
 ### 11.3 Triggering Edit Mode
 
 Editing is initiated via the IOS context menu: the operator right-clicks a route entity and selects "Edit". The IOS publishes `MapCommandRequest { Type = CMD_START_EDITING, EntityId }`. The IG's `MapCommandController` pushes the `RouteEditTool` seeded with the target entity's `RoutePlan`.
+
+### 11.4 The waypoint editor on EVERY authoring host, with the air fields (`CE-1096`, air hand-off U2, ui, designed `2026-10-14`)
+
+🔒 **User, `2026-10-14`:** the air-operations plan *"Approved"* (R-2015) — U2 *"per-waypoint height, kind and hold in the route editor"*
+([HANDOFF_Behaviors_To_Ui_Air_Operations.md](../../blueprints/batches/HANDOFF_Behaviors_To_Ui_Air_Operations.md)) → the ui plan → *"Ok go"*.
+
+📐 **INVENTORY** *(graph `search_graph .*Waypoint.* Class` = 25 — the only waypoint-properties UI is `Hrot.IG.UI.WaypointEditorPanel`; window
+registrations grep'd per host)*:
+
+| fact | where | so |
+|---|---|---|
+| the panel edits the route gizmo's WORKING copy (speed, AI-advice JSON) and lives in **Hrot.IG** — only the IG registers its window | `Hrot.IG/UI/WaypointEditorPanel.cs`, `IgSubsystem.cs:216` | ⛔ the EDITOR (and CGF, the editor of `--mode all`) can draw a route and move its points but set nothing on a waypoint |
+| shared panel windows already live in `Hrot.Presentation.Windows` with the id / perspective / colour as arguments, registered by each host | `ScenarioPanelWindowIds`, `SpawnerPanelWindow` (`EditorSubsystem.cs:5012`, `CgfSubsystem.cs:1933`) | ⭐ the precedent: one implementation, the host gives the id |
+| ⛔ the gizmo DESELECTS on `OnCommit` (`_activeVertex = -1`) — a click is a press + a release, so the panel shows its selection only while the mouse is held | `RouteWaypointGizmo.OnCommit` | a defect: the selection outlives the drag |
+| the panel never writes back: the gizmo publishes on a menu action or a right-click | `WriteBackAndPublish` | an edit made in the panel is lost on Escape |
+| the air fields exist on `RouteWaypoint` and round-trip the save and the wire (backend E2) | `RoutePlan.cs`, `RoutePlanTranslator` (B1 rail) | the panel only has to edit them |
+
+```mermaid
+classDiagram
+    direction LR
+    class WaypointEditorPanel { <<MOVED Hrot.IG to Hrot.Presentation.Panels, grows>> BuildViewModel · DrawContent · + kind, height, hold fields }
+    class WaypointEditorPanelViewModel { <<moved, grows>> + Kind · HeightAgl · Hold · HoldSeconds · HoldUnit }
+    class WaypointEditorWindow { <<NEW Hrot.Presentation.Windows, ManagedWindow>> id · perspective · colour from the host }
+    class IRouteWaypointEditorState { <<existing, grows>> SelectedVertexIndex · GetSelectedWaypointRef · + CommitEdits }
+    class RouteWaypointGizmo { <<existing, fixed>> keeps the selection after a drag · CommitEdits publishes }
+    class RouteWaypoint { <<existing>> Kind · HeightAgl · Hold · HoldSeconds · HoldUnit }
+    class EditorSubsystem { <<host>> registers editor_waypoint_editor }
+    class CgfSubsystem { <<host>> registers cgf_waypoint_editor }
+    class IgSubsystem { <<host>> registers ig_waypoint_editor (unchanged id) }
+    WaypointEditorWindow --> WaypointEditorPanel
+    WaypointEditorPanel ..> IRouteWaypointEditorState
+    RouteWaypointGizmo ..|> IRouteWaypointEditorState
+    IRouteWaypointEditorState ..> RouteWaypoint
+    EditorSubsystem ..> WaypointEditorWindow
+    CgfSubsystem ..> WaypointEditorWindow
+    IgSubsystem ..> WaypointEditorWindow
+```
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant G as RouteWaypointGizmo
+    participant P as WaypointEditorPanel
+    participant E as the route entity
+    U->>G: click a waypoint (press, release)
+    G->>G: selected, and it stays selected
+    P->>G: the selected waypoint each frame
+    U->>P: Kind Ground, Height 120 m, Hold Unload
+    P->>G: CommitEdits when a field is changed
+    G->>E: RoutePlan written, UpdateEntityCommand published
+```
+
+*Caption:* nothing new reaches the route — the panel already edited the gizmo's working copy; what changes is WHERE the panel can be opened
+(every authoring host, one implementation) and that an edit is committed when it is made rather than lost on Escape.
+
+| decision (✅ user, `2026-10-14`) | rule |
+|---|---|
+| **W-1 one panel, every authoring host** | the panel and a `WaypointEditorWindow` move to `Hrot.Presentation`; the editor (`editor_waypoint_editor`), CGF (`cgf_waypoint_editor`) and the IG (`ig_waypoint_editor`, its id kept for saved layouts) register it |
+| **W-2 the air fields** | Kind (Pass / Ground) · Height above ground, m (0 = the stored height) · Hold (None / Seconds / Unload / Pickup) · its seconds (Seconds) · its unit's network id (Pickup); the position shown, read-only |
+| **W-3 commit on edit** | a field the author changes is committed at once (`CommitEdits` → the route written and published, as a drag's end does) |
+| **W-4 the selection stays** | releasing a drag keeps the waypoint selected; Escape / a deletion clear it |
+
+**Rejected — one line each:** *a second, editor-only panel* — two implementations of one panel (ruling 9); *a unit picked on the map for the
+hold* — v1 takes the network id; the map pick (`IMapPickAdapter`) is a follow-up once a Pickup scenario needs it; *committing on the panel's
+close* — Escape would still lose the edit.
+
+**AS-BUILT (`CE-1096` + `CE-2172`, `2026-10-14`, ui)** — built as the two diagrams above draw them. Details they do not carry:
+
+| as-built detail | why |
+|---|---|
+| the panel's namespace is `Hrot.UI.Common.Panels` (file in `Hrot.Presentation/Panels`); `Draw(beforeBegin, afterBegin)` keeps a standalone window for the IG's own loop, which styles it with `IgPanelColors.Push`/`Pop` | the IG standalone draws panels outside the window manager; one panel serves both |
+| `CommitEdits()` = the gizmo's existing `WriteBackAndPublish` | the same write a drag's end makes — no second publish path |
+| combo changes commit at once; text / number fields commit on `IsItemDeactivatedAfterEdit` | a commit per keystroke would publish half-typed values |
+| ⭐ CE-2172 fixed in ALL THREE route gizmos through one helper, `RouteGizmo.PointOf(view, wp)` = ground + `HeightAgl` when it is above 0, else `Position` | `RouteGizmo` and `AuthoredRouteGizmo` had the same Y-north reading; one helper keeps them from drifting |
+| the Pickup unit is a numeric network id (v1) | the map pick stays the follow-up named above |
+
+📐 **Rails** `RouteWaypointGizmoTests.CE2172_*` (Z-up, a drag keeps the height) and `CE1096_*` (the selection survives the release, a panel edit
+reaches the route) — each red-proved; IG `WaypointEditorPanelTests` and `IgWindowsDumpTheirModelsTests` re-pointed at the shared panel. Seen in the
+3-D map (frame rail `Map3DFrameRail.CE1085_V`, shot `ws-7`):
+
+![route heights](../../assets/map-3d/ws-7-route-heights.png)
 
 ---
 

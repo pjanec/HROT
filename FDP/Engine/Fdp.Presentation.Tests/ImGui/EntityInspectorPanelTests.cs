@@ -53,11 +53,12 @@ namespace Fdp.Presentation.Tests
             var e3 = repo.CreateEntity();
             var session = new RepositoryAdapter(repo);
             
-            // Search for ID of e2
-            var results = EntityInspectorPanel.GetFilteredEntities(session, e2.Index.ToString(), 1000).ToList();
-            
-            Assert.Single(results);
-            Assert.Equal(e2, results[0]);
+            // ⭐ CE-3166 — the filter is a SUBSTRING of the row label "[index, vGen] …" (since the import), so a bare "1" also matches
+            //   every "v1"; the bracketed id names e2 alone. The [Singletons] row is always first (RepositoryAdapter's contract).
+            var results = EntityInspectorPanel.GetFilteredEntities(session, $"[{e2.Index},", 1000).ToList();
+
+            Assert.Equal(RepositoryAdapter.SingletonEntity, results[0]);
+            Assert.Equal(e2, Assert.Single(results.Skip(1)));
         }
         
         [Fact]
@@ -68,12 +69,14 @@ namespace Fdp.Presentation.Tests
             var session = new RepositoryAdapter(repo);
             
             var results = EntityInspectorPanel.GetFilteredEntities(session, "", 5).ToList();
-            
-            Assert.Equal(5, results.Count);
+
+            // ⭐ CE-3166 — the limit counts ENTITIES; the [Singletons] row is always first and never counted (RepositoryAdapter's contract)
+            Assert.Equal(RepositoryAdapter.SingletonEntity, results[0]);
+            Assert.Equal(5, results.Count(e => e != RepositoryAdapter.SingletonEntity));
         }
         
         [Fact]
-        public void GetFilteredEntities_InvalidSearch_ReturnsAllWithLimit()
+        public void GetFilteredEntities_ANonMatchingSearch_ListsOnlyTheSingletonRow()
         {
             using var repo = new EntityRepository();
             repo.CreateEntity();
@@ -99,8 +102,10 @@ namespace Fdp.Presentation.Tests
             // So it yields the entity.
             // This means invalid filter string = NO FILTER.
             
+            // ⭐ CE-3166 — ⛔ the reasoning above describes an id-parse filter this panel no longer has: the search is a substring of the
+            //   row label, so "abc" matches no entity; the [Singletons] row stays (it is always listed).
             var results = EntityInspectorPanel.GetFilteredEntities(session, "abc", 1000).ToList();
-            Assert.Equal(2, results.Count);
+            Assert.Equal(new[] { RepositoryAdapter.SingletonEntity }, results);
         }
 
         [Fact]

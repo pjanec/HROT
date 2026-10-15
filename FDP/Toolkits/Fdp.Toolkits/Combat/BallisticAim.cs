@@ -32,13 +32,26 @@ namespace Fdp.Toolkit.Combat
         /// <summary>
         /// The angles that aim turret <paramref name="turret"/> of <paramref name="hullEntity"/> at <paramref name="aimPoint"/> for
         /// <paramref name="mount"/>'s round (null mount ⇒ direct).
+        /// <para>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — a mount that declares an <see cref="IndirectArc"/> aims along the FIRE
+        /// SOLUTION the brain fires with (<see cref="FireSolution.For"/>: the lowest charge of <paramref name="ammo"/> that reaches on
+        /// <paramref name="arc"/>), so the laid elevation is the fired one. Solved without the mask check (per frame, cheap); the brain
+        /// already chose the arc with it. ⛔ Only for a LAID order (<paramref name="arc"/> Low / High): an Engage order (Auto) fires rounds
+        /// that fly the mount's one speed, so it keeps aiming along that one-speed arc. No solution ⇒ the one-speed arc below.</para>
         /// </summary>
         public static (float Azimuth, float Elevation) Solve(EntityRepository world, Entity hullEntity, TurretDto turret,
-                                                              WeaponMountDto? mount, Vector3 aimPoint)
+                                                              WeaponMountDto? mount, Vector3 aimPoint,
+                                                              ArcPreference arc = ArcPreference.Auto, long ammo = 0L)
         {
             var hull = world.GetComponent<SimTransform>(hullEntity);
             var pivot = PivotOf(hull, turret);
             var direction = aimPoint - pivot;
+            if (arc != ArcPreference.Auto && mount != null && mount.Arc != IndirectArc.Unset)
+            {
+                var db = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+                if (ammo == 0L) ammo = unchecked((long)mount.AmmoGuid);
+                var solution = FireSolution.For(null, pivot, aimPoint, mount, FireSolution.ChargesOf(db, mount, ammo), arc);
+                if (solution.Ok) return AnglesOf(hull, solution.Launch);
+            }
             if (mount != null && IsIndirect(world, mount))
             {
                 float speed = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocityOrFallback(mount.MuzzleVelocity);

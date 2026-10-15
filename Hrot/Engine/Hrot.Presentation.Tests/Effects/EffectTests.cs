@@ -65,7 +65,7 @@ public sealed class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(12, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke
+        Assert.Equal(14, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -148,6 +148,96 @@ public sealed class EffectTests
         Tick(world, life, 0f);
         Assert.Equal(new[] { EffectTkbCatalog.DecalLarge }, Effects(world).Select(f => f.Type).ToArray());
         Assert.Equal(1, life.Removed);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1094 / CE-1090 (docs/DESIGN_Map_3D_Mode.md §6n N-10, N-4) — a BOMB leaving the A-10's rack makes no muzzle flash (it made a
+    /// 4 m one at the nose); a Javelin fired from the shoulder throws a BACKBLAST behind the gunner on the line of fire, besides its flash;
+    /// every shot is remembered for the bodies (the launcher on the shoulder).
+    /// </summary>
+    [Fact]
+    public void CE1094_ABombMakesNoFlash_ALauncherThrowsABackblastBehindHim()
+    {
+        var (world, tkb) = World();
+        At(world, 5.0);
+        var a10 = Unit(world, Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10, new Vector3(0, 0, 300));
+        world.Bus.Publish(new WeaponFireNotification { Shooter = a10, Target = Entity.Null, WeaponIndex = 0 });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+        Assert.DoesNotContain(Effects(world), f => EffectTkbCatalog.VisualOf(tkb, f.Type)?.Kind == EffectKind.MuzzleFlash);
+
+        var gunner = Unit(world, Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbJavelinTeam, new Vector3(100, 0, 0));
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(100, 400, 2));
+        var suite = tkb.GetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbJavelinTeam)!.GetDescriptor<WeaponSuiteDto>()!;
+        int launcher = suite.Mounts.FindIndex(m => m.Category == WeaponCategory.Atgm);
+        world.Bus.Publish(new WeaponFireNotification { Shooter = gunner, Target = tank, WeaponIndex = launcher });
+        Tick(world, spawn, 0.016f);
+        var blast = Effects(world).Single(f => f.Type == EffectTkbCatalog.Backblast).Entity;
+        var at = world.GetComponentRO<SimTransform>(blast).Position;
+        Assert.True(at.Y < -1.5f && MathF.Abs(at.X - 100f) < 0.1f, $"behind him, away from the tank ({at})");
+        Assert.True(Hrot.UI.Common.Effects.RecentShots.Of(world)!.FiredWithin(gunner, 5.0, 1.0, out int mount) && mount == launcher);
+    }
+
+    /// <summary>
+    /// ⭐ CE-1105 (docs/DESIGN_Map_3D_Mode.md §6u B-1) — which weapons stream: the AH-64's chin M134 and the A-10's GAU-8 (machine gun,
+    /// autocannon) do; a rifle, a tank gun and the AH-64's rocket pod are one round each.
+    /// </summary>
+    [Fact]
+    public void CE1105_MachineGunsAndAutocannonsStream_RiflesAndBigGunsDoNot()
+    {
+        var (_, tkb) = World();
+        List<WeaponMountDto> Mounts(long type) => tkb.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+        var ah64 = Mounts(Hrot.Map.Common.TkbEntityTypes.Heli_AH64);
+        Assert.True(FireStreams.IsAutomatic(ah64[0]));
+        Assert.False(FireStreams.IsAutomatic(ah64[1]));
+        Assert.Contains(Mounts(Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10), FireStreams.IsAutomatic);
+        Assert.DoesNotContain(Mounts(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman), FireStreams.IsAutomatic);
+        Assert.False(FireStreams.IsAutomatic(Mounts(Hrot.Map.Common.TkbEntityTypes.Tank_T72)[0]));
+        Assert.False(FireStreams.IsAutomatic(null));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1105 (§6u B-2) — the stream's geometry: 0.1 s after the shot its head has flown 90 m (+ one spacing), so dashes of 1.8 m start
+    /// every 5 m from the phase (90 % 5 = 0) up to 95 m, toward the aim; it is 1 − 0.1/0.35 strong; past the window nothing; an unknown aim
+    /// streams along the weapon's forward; a near target cuts it short.
+    /// </summary>
+    [Fact]
+    public void CE1105_TheDashesRunOutFromTheMuzzle_TowardTheAim_AndFade()
+    {
+        var into = new List<(Vector3 From, Vector3 To)>();
+        var muzzle = new Vector3(10, 0, 5);
+        float s = FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.1, into);
+        Assert.Equal(1f - 0.1f / 0.35f, s, 3);
+        Assert.Equal(19, into.Count);   // 0, 5, … 90
+        for (int i = 0; i < into.Count; i++)
+        {
+            Assert.Equal(muzzle.X + i * 5f, into[i].From.X, 2);
+            Assert.Equal(1.8f, Vector3.Distance(into[i].From, into[i].To), 2);
+            Assert.Equal(0f, into[i].From.Y, 3);   // toward the aim, not the forward
+        }
+        Assert.Equal(0f, FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.36, into));
+        Assert.Empty(into);
+
+        FireStreams.Dashes(muzzle, Vector3.Zero + muzzle, Vector3.UnitY, 0.1, into);   // no aim known
+        Assert.All(into, d => Assert.True(MathF.Abs(d.From.X - muzzle.X) < 1e-3f && d.To.Y > d.From.Y));
+
+        FireStreams.Dashes(muzzle, muzzle + new Vector3(12, 0, 0), Vector3.UnitY, 0.3, into);   // a target 12 m away
+        Assert.All(into, d => Assert.True(d.To.X <= muzzle.X + 12f + 1e-3f));
+    }
+
+    /// <summary>⭐ CE-1105 (§6u) — the spawner remembers where each shot was AIMED: at its target when it has one.</summary>
+    [Fact]
+    public void CE1105_EveryShotIsRememberedWithItsAim()
+    {
+        var (world, _) = World();
+        At(world, 7.0);
+        var heli = Unit(world, Hrot.Map.Common.TkbEntityTypes.Heli_AH64, new Vector3(0, 0, 30));
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(400, 0, 0));
+        world.Bus.Publish(new WeaponFireNotification { Shooter = heli, Target = tank, WeaponIndex = 0 });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var shot = Assert.Single(RecentShots.Of(world)!.Recent(7.1, FireStreams.Window));
+        Assert.Equal((heli, 0, 7.0, new Vector3(400, 0, 0)), shot);
+        Assert.Empty(RecentShots.Of(world)!.Recent(7.5, FireStreams.Window));
     }
 
     [Fact]

@@ -70,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 data.Pos.Latitude, data.Pos.Longitude, data.Pos.Altitude);
 
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Ori.Heading);
+            var rotation = SimTransformBridgeSystem.EulerDegToRotation(data.Ori.Heading, data.Ori.Pitch, data.Ori.Roll);   // ⭐ ui P3 — pitch and roll too
 
             cmd.SetComponent(entity, new NetworkTransform
             {
@@ -145,7 +145,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // 1. Position & rotation
             var cartesian = _geoTransform.ToCartesian(geo.Pos.Latitude, geo.Pos.Longitude, geo.Pos.Altitude);
             var position  = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            var rotation  = SimTransformBridgeSystem.HeadingDegToRotation(geo.Ori.Heading);
+            var rotation  = SimTransformBridgeSystem.EulerDegToRotation(geo.Ori.Heading, geo.Ori.Pitch, geo.Ori.Roll);   // ⭐ ui P3
 
             repo.SetComponent(entity, new NetworkTransform
             {

@@ -100,14 +100,16 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             // Bump DispatchedInstanceId so next command isn't ignored as duplicate
             report.DispatchedInstanceId++;
 
-            // Clear queue if present
+            // ⭐ CE-3008 (R-180) — abort the queue in the MUSCLE's state only: the queue itself (AnimationMontageQueue) is the
+            //   Brain's request and the Brain is its one writer. ⛔ It set queue.Count = 0. Tracking off + the Failure report keep
+            //   MontageQueueAdvanceSystem from resuming an entry (Case A needs tracking, Case B a Running status) until the Brain
+            //   issues a new command.
             if (repo.HasComponent<AnimationMontageQueueState>(entity))
             {
                 ref var queueState = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);
-                ref var queue = ref repo.GetComponentRW<AnimationMontageQueue>(entity);
-
                 queueState.CurrentEntryIndex = 0xFF;
-                queue.Count = 0;
+                queueState.TrackingActive = 0;
+                queueState.EntryElapsedSeconds = 0f;
             }
         }
 

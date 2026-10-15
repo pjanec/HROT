@@ -259,7 +259,7 @@ air-assault order.*
 | a **Ground** waypoint: the helicopter lands on it (Landing → touchdown on `RestingPose` → Landed / Unloading / Loading) and takes off when the hold ends; a route that STARTS on a Ground waypoint with the body landed takes off first | B7: the user's "if it starts on the ground … take off; ends on the ground … land" |
 | holds: **Seconds** is timed by the Muscle; **Unload** (nobody aboard) and **Pickup** (`HoldUnit`'s members aboard) are judged by the helicopter's Brain (it knows rosters), which sets `Flags.ReleaseHold` | the Muscle has no rosters; one bit on an existing field |
 | a fixed-wing aircraft ignores Ground waypoints in v1 (warning) and orbits the last point (B9) | no runways yet |
-| the editor (ui, CE-2172): the gizmo fixed to Z-up, plus per-waypoint height, kind and hold | the route tools cannot set a height today |
+| the editor (ui, CE-2172): the gizmo fixed to Z-up, plus per-waypoint height, kind and hold | the route tools cannot set a height today — ⭐ **BUILT `2026-10-14` (ui)**: CE-2172 Z-up in all three route gizmos ([DESIGN_Map_3D_Mode §6n](../../DESIGN_Map_3D_Mode.md)), CE-1096 the waypoint editor on every authoring host ([ROUTES1 §11.4](../routes-1/ROUTES1-DESIGN.md)) |
 
 ### 5a. As-built — slice 1 (E2, `2026-10-14`)
 
@@ -368,7 +368,7 @@ only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the sam
 | `RotorcraftModel.Manual` — today's direct axes (Forward / Lateral × top speed, `Yaw` absolute, `Vertical` × climb) **plus the tilt a route draws**: the nose down ∝ forward speed (≤ 20°), rolled ∝ strafe (≤ 30°) and into the turn (atan(v·ω/g)), eased at 40°/s, drawn from the body's actual speed. ⭐ **R-3007:** the axes ask for a velocity the body reaches at its type's `Gen.Flight AccelMps2` (FPV drone 15, UH-60 3; 0 ⇒ 3); keys released ⇒ it brakes to a hover and holds it there (no drift) and levels. The same rate eases a route's speed and a point move (braking √(2·a·d) for the point) | B3 "today's controls + hover hold + the same tilt"; ~~no acceleration limit (instant velocity)~~ ⛔ SUPERSEDED — a drone and a UH-60 cannot share one response |
 | 🔒 **User, `2026-10-14`** on the E5 findings: *"Accepting your lean for the aircraft crash. Accepting adding the MK82 bomb."* — then, on the acceleration and the throttle: *"keep json, accel yes, throttle yes"* (R-3007, `CE-3202`) | the decisions folded into the rows above |
 | `RotorcraftModel.TiltOf(q)` — the pitch and roll of a `BodyGeometry.Rotation`, shared with `FixedWingModel` (its roll reading is corrected for pitch: left.Z = sin roll · cos pitch) | one reader of the attitude |
-| rails: `FixedWingModelTests.B3_TheMouseAimPilot_TurnsToTheLook_BanksItself_AndLevelsOut` · `B3_ThrottleBack_AndNoseUp_NeverStalls` · `RotorcraftModelTests.B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover` · R-3007: `R3007_ADroneAndAHelicopter_ChangeSpeed_AtTheirOwnAcceleration` · `FixedWingModelTests.R3007_TheThrottle_IsHeld_AnySpeedBetweenStallAndTop` · `DroneImpactSystemTests.R3007_AnAircraftThatIsNotAMunition_Crashes_WithoutABurst` | the station half (`ControlScheme.FixedWing`, camera attitude, HUD) is ui's |
+| rails: `FixedWingModelTests.B3_TheMouseAimPilot_TurnsToTheLook_BanksItself_AndLevelsOut` · `B3_ThrottleBack_AndNoseUp_NeverStalls` · `RotorcraftModelTests.B3_AHelicopter_UnderManualDrive_TiltsAsItFlies_AndHoldsItsHover` · R-3007: `R3007_ADroneAndAHelicopter_ChangeSpeed_AtTheirOwnAcceleration` · `FixedWingModelTests.R3007_TheThrottle_IsHeld_AnySpeedBetweenStallAndTop` · `DroneImpactSystemTests.R3007_AnAircraftThatIsNotAMunition_Crashes_WithoutABurst` | the station half (`ControlScheme.FixedWing`, camera attitude, HUD) is ui's — ⭐ **BUILT `2026-10-14` (ui, CE-1095)**: [DESIGN_Entity_Control §8f](../../DESIGN_Entity_Control.md) (the view banks; its pitch stays the look's — argued there) |
 
 ## 7. Orders and the one attack behaviour (B4, B5)
 
@@ -491,6 +491,9 @@ possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405,
 ⭐ **F4 as built:** the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404's seats 8–11 are
 per side a door gunner (rifleman) and a `Door` station with an M134 operated by him — the DoorGunOrbit profile's two guns; its 8 riders
 are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree`.
+⚠ **`2026-10-15` (ui, CE-1106 — a cross-lane data edit):** the gunner's seat sat at |Y| 0.95, inside the drawn fuselage; it now sits in the
+door like the riders (|Y| 1.05, `SitLegsOut`) and the station stands in front of him (|Y| 1.35, Z −0.7: the pintle pivot at his chest). Seat
+indices, roles, presets and arcs unchanged ([DESIGN_Map_3D_Mode §6u](../../DESIGN_Map_3D_Mode.md)).
 
 ### 7b. Weapon choice, a moving target, how long an Attack lasts — 🔒 `2026-10-15` (R-2020)
 
@@ -598,6 +601,60 @@ that every other weapon uses.*
 | the **Release** profile = the per-shot path (`WeaponBrainProfiles.For(Bomb)`), held by `AimAndFireExecutor.HoldOf` → `ActionReason.AwaitingRelease` (appended; aimed, not amber) until the cue; then released with no seen-now gate, no aim clock, no body twist, no friendly-line check. Release window: seconds ≤ ½ dt and > −0.5 s (a missed pass does not drop late), cross-track ≤ 10 m. One bomb per pass = the action's round count (or its cooldown). `FiresPerPress(Bomb)` = true | A6; ⚠ deviation: the window is half a second, not one frame, so a brain ticking slower than the sim still releases |
 | rails: `BombBallisticsTests.A3_ThePredictedImpact_IsTheFlownImpact` (2 cases) · `A6_TheCue_SaysNow_WhenTheImpactReachesTheTarget` · `FireProcessingSystemTests.A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot` · `AimAndFireExecutorTests.A6_TheReleaseProfile_WaitsForTheCue` | — |
 | ⚠ not built here: `FireAtPointExecutor` (a strike on a POINT) has no release gate yet — the behaviour lane's `AirAttack` LevelBomb (slice 5) decides which executor it drives; the gate is one call (`ReleaseCue`'s `BombBallistics.ReleaseNow`) | reported to behaviors |
+
+### 8b. As-built — the release crosses nodes with its time (`CE-2180`, `2026-10-15`)
+
+⛔ **SUPERSEDES §8a's one-world picture for a split cluster.** §8a's sequence is one world: the cue and the fire are consecutive frames.
+On a cluster the cue runs on the BRAIN node (CGF) and the bomb starts on the SimHost frames later — live, the Mk-82 burst 20.4 / 26.7 m
+long at 150 m/s (§9c), i.e. 0.14–0.18 s of flight between them.
+
+```mermaid
+sequenceDiagram
+  participant AF as AimAndFire / FireAtPoint (CGF, brain)
+  participant EG as WeaponFireIntentEgressTranslator (CGF)
+  participant IN as WeaponFireRequestIngressTranslator (SimHost)
+  participant FP as FireProcessingSystem (SimHost, Input)
+  participant BB as BombBallistics
+  AF->>AF: ReleaseCue on ReplicatedMotion (the plane projected to simNow) says now
+  AF->>AF: ReleaseAt = simNow + the cue's seconds (≤ 0 when the brain's tick noticed late)
+  AF->>EG: WeaponFireIntent { RaisedAt = ReleaseAt }
+  EG->>IN: WeaponFireRequest { …, RaisedAt } (DDS, frames later)
+  IN->>FP: WeaponFireIntent { RaisedAt }
+  FP->>BB: LateSteps(RaisedAt, now, frameDt) = n cue steps (1/60 s)
+  FP->>FP: carrier stepped back n/60 s along its velocity (the release pose)
+  FP->>BB: FlyFor(origin, Launch(v), n, 1/60) — gravity, then the move, n times
+  FP->>FP: spawn the bomb there (Arc) — the path it would have flown from the release
+```
+
+*What the picture shows that prose hid: the time crosses, the pose does not — the SimHost owns the plane's motion, so it rebuilds the
+release pose from its own state; and the catch-up is the flight's own two steps, so the bomb lands on the path the cue predicted.*
+
+```mermaid
+classDiagram
+  class WeaponFireIntent { +double RaisedAt  "CE-2180, 0 = now" }
+  class WeaponFireRequest { +double RaisedAt  "R-169 appended" }
+  class BombBallistics {
+    +LateSteps(raisedAt, now, frameDt, stepDt) int
+    +FlyFor(ref p, ref v, steps, ground, dt) int
+    +Impact() · Cue() · ReleaseNow()  "§8a, unchanged"
+  }
+  class ShotRecord { +RaisedAt · FiredAt · CaughtUpSeconds · OwedFrames · CaughtUpFrames · FrameDt }
+  WeaponFireIntent ..> WeaponFireRequest : egress / ingress copy
+  FireProcessingSystem ..> BombBallistics : a Bomb from an Air-domain shooter
+  FireProcessingSystem ..> ShotRecord : GET /combat/shots
+```
+
+| as built | why |
+|---|---|
+| every brain-side producer stamps `RaisedAt = HitModel.Now` (synced sim time): `AimAndFireExecutor` ×2, `FireAtPointExecutor.ShootAtPoint`, `HiddenTargetThrow`; the muscle-side turret task leaves 0 (it fires where it is) | Dead Reckoning D4: what crosses nodes is stamped with synced sim time |
+| ⭐ a **bomb's** stamp is the cue's own moment — `AimAndFireExecutor.ReleaseAt` = now + `Cue`'s seconds-to-release (clamped to the release window) — not the brain tick that noticed it | the brain sees "now" only on its tick; a slow brain releases up to one tick late (≈ 14 m at 10 Hz). The gate (`ReleaseCue`) is unchanged — the stamp decides nothing |
+| `LateSteps = round((now − frameDt − RaisedAt) / (1/60))`, never < 0: a round started this frame starts from the carrier as of the previous frame (the motion has not stepped yet), so one world reads 0 — `B6`, `A3`, `A4` unchanged. ⭐ Counted and flown in the **cue's** step (`BombBallistics.DefaultDt`), not the frame's | 📐 live, the cloud SimHost ran **0.088 s** frames: whole frames left ±½ frame (±6.6 m) — the first cut (frame steps) burst 8.8 m short there. In the cue's step the bomb rejoins the exact predicted path; what remains is the slow frame's own integration of the rest of the fall |
+| the carrier is stepped back along its **current** velocity, not carried on the wire | the SimHost owns the plane's motion; the run-in is a straight line (§9c freezes it 2.5 km out). ⛔ Rejected: the pose on the wire — the brain only has a projection of the SimHost's own state |
+| `FlyFor` stops one step above the ground (`BallisticsSystem` bursts it next frame) | a very late intent on a low pass still bursts, never underground |
+| only a **Bomb** from an Air-domain shooter is caught up | ⛔ Rejected: a fixed lead in the cue — it moves with the brain's period and the transport. A gun / rocket aims from where the SimHost has the shooter, so its trip moves nothing |
+| `GET /combat/shots`: `raisedAt`, `firedAt`, `tripSeconds`, `caughtUpSeconds`, `owedFrames` / `caughtUpFrames` (cue steps), `frameDt` | the measurement, kept |
+| 📐 **live `ua-air-strike` ① (`--mode all`, this cloud VM)**: before (behaviors' runs) 20.4 / 26.7 m long · frame-step catch-up: **3.0 m** (trip 0.362 s) and **8.8 m short** (trip 0.324 s, frames 0.088 s) · cue-step catch-up: **6.6 m long** (trip 0.285 s, frames 0.095 s — the brain's tick still late) · + the cue's own moment stamped (`ReleaseAt`): ✅ **3.9 m** (trip 0.237 s, 9 cue steps, frames 0.085 s; checks ①–⑤ all PASS) | ≤ 10 m acceptance ✅. ⚠ The cloud VM runs ~11 Hz frames; at 60 Hz the slow-frame integration term (what remains) is ≈ 6× smaller |
+| rails: `BombBallisticsTests.CE2180_AnIntentReadNFramesLate_LandsWhereTheReleaseSaid` (n = 0, 9, 11, 40 — the burst where the raise predicted; ✅ red-proof: the catch-up off ⇒ 22.6 / 27.7 / 100.8 m long, n = 0 green) · `AimAndFireExecutorTests.CE2180_ASlowBrain_StampsTheCuesReleaseMoment_NotItsTick` (a 10 Hz brain) · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+`RaisedAt`) | — |
 
 ## 9. The air assault and the rescue round trip (B8, B10, B11)
 

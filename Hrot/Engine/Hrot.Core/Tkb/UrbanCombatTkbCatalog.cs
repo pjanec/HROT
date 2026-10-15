@@ -43,6 +43,8 @@ namespace Hrot.Core.Tkb
         public const int TkbCivilianPedestrian = 1001;
         /// <summary>TKB type code for the CivilianCar template.</summary>
         public const int TkbCivilianCar        = 1002;
+        /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-3) — TKB type code for the CivilianChild template.</summary>
+        public const int TkbCivilianChild      = 1003;
         /// <summary>TKB type code for the MilitaryAPC template.</summary>
         public const int TkbMilitaryApc        = 2001;
         /// <summary>TKB type code for the InfantrySoldier template.</summary>
@@ -143,6 +145,19 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.7f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true, CanInteract = true });   // ⭐ 5d-2 — a person opens doors (the interaction channel requires CanInteract)
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-3) — CivilianChild (1003): a pedestrian 1.25 m tall who runs a little slower; the 3-D
+            //   map draws a person under 1.5 m as a child (a larger head, brighter clothes). Otherwise a CivilianPedestrian.
+            {
+                var t = new TkbTemplate("CivilianChild", TkbCivilianChild);
+                Master(t, "CivilianChild", new DISEntityType { Kind = 3, Domain = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.22f, ShapeHeight = 1.25f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.45f, Width = 0.32f, MaxSpeedFwd = 4.5f, MaxAccel = 2.5f });
+                t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = CivilianVisionRange, HearingRange = CivilianHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps));
                 tkb.Register(t);

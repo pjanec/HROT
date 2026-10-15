@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-current-answer: ⭐ §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-15
+current-answer: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,18 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
+
+⭐ **The queue is [`batches/HANDOFF_Backend_Continuation_2026_10_15.md`](batches/HANDOFF_Backend_Continuation_2026_10_15.md)** — ① CE-2180
+(the bomb lands 20–27 m long: release latency between the brain and the SimHost), ② CE-3203 C4 (is a carried weapon struck?), ③ the CE-3203
+leans waiting on the user. Last built: CE-3203 (one fragment law for people, hulls and weapons; weapons break per type) at `84c27344e`;
+CE-1110 answered (already built in `c313ba0d7`). ⚠ §00 below is the 2026-10-10 programme — history for the current work.
+⭐ **Progress (continuation session, `2026-10-15`):** ① **CE-2180 ✅ BUILT** — the release time crosses (`RaisedAt`), the SimHost steps the
+carrier back and flies the bomb forward in cue steps; live `ua-air-strike` burst **3.9 m** (was 20–27 m), all five checks PASS (Air Ops §8b).
+② **CE-3203 C4 ✅ measured** — a carried Javelin IS struck (Weapon Systems §5b). ③ C1–C5 APPROVED (R-3008). ④ **CE-3183 ✅ FIXED** (`bcf073b2e`): the SimHost suite's rotating OOMs were the kernel's mapping cap — undisposed test worlds rooted by `EntityRepository`'s strong self-handle; the handle is weak now ⇒ SimHost.Tests 1406/1 (the 1 = behaviors' CE2079 rail). ⑤ **Autonomous rows (user: "go ahead autonomously")** — CE-3148 ✅ (static obstacles carry DIS kind 5 / the car kind 1, drawn as a cultural-feature box, not magenta) · CE-3189 ✅ (already fixed `8ee002bcb`) · CE-3166 ✅ (Presentation reds re-pointed) · CE-3165 ✅ (closed) · CE-3114 ✅ (nav tile cache prunes) · CE-3008 ✅ (capability loss aborts the montage in the Muscle's state, R-180) · CE-3138 ✅ (the cross-host danger-area rail: its Abrams read a head-on T-72 at 0.50 since CE-2165 V1 — unit now a rifleman). ⛔ **CE-3198 (NLAW overfly) is PARKED** — the user's gate: queue it after the drone attack (behaviors appends the go). Not started: CE-3180 (fixture component ids — a cross-lane sweep), CE-3200 (deferred by its row). ⚠ The full ClusterRunner integration suite never finished in one run (killed at 30 min); the EQS subset is 30/30 after CE-3138. Found: the far
+technical's ④ fails 3 of 4 live runs (AE5 holes a 100-health technical into a mobility kill at ~125 m) — reported, not changed; the whole
+SimHost suite is red at base too (CE-3183 broadened).
 
 ## 00. NOW (`2026-10-10`) — the behaviour LIBRARY: generic, squad-aware *(this session is the ACTIVE backend session; 🔒 user: "the other one is on hold")*
 

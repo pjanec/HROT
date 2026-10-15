@@ -1,13 +1,14 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); IF-4 BUILT (behaviors, 2026-10-15 — §3.9, passes live); IF-5 smoke and IF-6 counter-battery are DESIGN
-current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built (§3.5 is the adjust sequence AS BUILT), §3.9 IF-4 as built, §5 slices, §6 the demo
+build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); laying the gun BUILT (backend, ui handoff P2, 2026-10-15 — §3.10); IF-4 BUILT (behaviors, 2026-10-15 — §3.9, passes live); IF-5 smoke and IF-6 counter-battery are DESIGN
+current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built (§3.5 is the adjust sequence AS BUILT), §3.9 IF-4 as built, §3.10 laying the gun on the wire, §5 slices, §6 the demo
 stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a heavy round does to a structure (a bunker, a building)
+  - docs/DESIGN_Map_3D_Mode.md — §6n draws the tubes, the towed and SP howitzers, their crews, the laid elevation (a default until IF-1 replicates it) and the firing blast (the §5 ui row)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon-as-an-entity, the Station / Gunner seats and ControllerOf (a ground mortar is a weapon system its gunner controls)
   - docs/DESIGN_Entity_Interactions.md — §7.5 OWNS the team carry (the 81 / 120 mm tubes are TwoMan loads)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the Strike order (§7) this design extends; mortars and artillery fulfil it here
@@ -314,6 +315,70 @@ Rails (`SquadManeuverTests`): `CE2176_AnAdjustingRound_IsOneRoundFromTheGunNeare
 
 Layout: the M109s at (−3500, −40) / (−3800, 0) / (−4100, 40) (≈ 4.4–5.0 km, three ranges); the 81 mm section at x = −1700 (≈ 2 km from ①'s point).
 
+### 3.10 Laying the gun — the elevation on the wire (ui handoff P2, `2026-10-15`)
+
+📐 **Measured:** the weapon muscle already slews a turret part's `TurretPose` — replicated (`dtTurretPose`, W-9) and read by the map —
+from a `WeaponTask` (`WeaponTaskDispatcherSystem`), but **(a)** the mortars and the towed gun have NO turret part (`turret: null`),
+**(b)** `FireAtPoint` never orders a turret (it publishes the round straight away), and **(c)** the muscle's indirect aim is ONE speed's arc
+(`BallisticAim.Solve`), not the fire solution. ⇒ three small changes, no new replication.
+
+```mermaid
+classDiagram
+  class FireAtPointExecutor { <<existing, grows>> +lays an indirect mount's turret: WeaponTask Track at the point ★ · fires once OnTarget ★ }
+  class WeaponTask { <<existing, dtWeaponTask, grows>> Mode · Point · MountIndex · AmmoGuid · Epoch · +Arc ArcPreference ★ (appended) }
+  class WeaponTaskDispatcherSystem { <<existing muscle>> slews TurretPose, reports OnTarget }
+  class BallisticAim { <<existing, grows>> +Solve(…, arc, ammo): a LAID order (arc Low or High) aims along FireSolution.For(no mask).Launch ★ }
+  class FireSolution { <<IF-1>> ChargesOf · For }
+  class TurretPose { <<existing, dtTurretPose>> Azimuth · Elevation }
+  class BdcTkbCatalog { <<existing>> mortars 609–611, towed 612: + a laying turret 0 ★ · mount TurretIndex 0 ★ }
+  FireAtPointExecutor --> WeaponTask : writes (brain)
+  WeaponTaskDispatcherSystem ..> WeaponTask : reads (muscle)
+  WeaponTaskDispatcherSystem ..> BallisticAim
+  BallisticAim ..> FireSolution : Arc ≠ Unset
+  WeaponTaskDispatcherSystem --> TurretPose : slews
+```
+
+*What the picture shows that prose hid: the brain still never computes an angle (M24) — it names the point, the arc its solution chose and
+the round; the muscle solves the same `FireSolution` for that arc and round, and the pose it slews is the one the map already reads on
+every node.*
+
+```mermaid
+sequenceDiagram
+  participant B as FireAtPointExecutor (Brain, CGF)
+  participant T as WeaponTask on the tube's turret part
+  participant M as WeaponTaskDispatcherSystem (Muscle, SimHost)
+  participant P as TurretPose (replicated)
+  B->>B: FireSolution.For (charge, arc) as IF-1
+  B->>T: Track at the point, the chosen arc (Low or High), the round (a new epoch only when one changes)
+  M->>M: BallisticAim.Solve: FireSolution.For(no mask, that arc and round).Launch, then hull-frame angles
+  M->>P: slew at the turret's rates, then OnTarget
+  Note over P: every node sees the laid elevation now, before any round
+  B->>B: FireAt not reached: AwaitingFireTime (laid and waiting)
+  B->>B: status not OnTarget for this epoch: Slewing (held)
+  B->>B: OnTarget and time: ShootAtPoint (the round flies the intent's charge and arc)
+```
+
+| rule | why |
+|---|---|
+| only a mount that declares an `IndirectArc` is laid; every other FireAtPoint fires as before | ⛔ no number moves for a grenade, a rifle burst at a window, a tank at a point |
+| a mortar / the towed gun get a **laying turret** (all round — the crew shifts the baseplate / trails — inside the mount's elevation window; slow rates) rather than a separate elevation field | ⭐ the handoff's "reuse W-9": the turret part is what replicates; cheaper than a field and a translator |
+| the order is re-issued (a new epoch) only when the point, the arc or the mount changes | the muscle's OnTarget report is per epoch |
+
+#### As built (`2026-10-15`, ui handoff P2 — report [`REPORT_Backend_Presets_Elevation_Attitude.md`](../../blueprints/batches/REPORT_Backend_Presets_Elevation_Attitude.md))
+
+| what | as built | deviation from the design above |
+|---|---|---|
+| the order | `FireAtPointExecutor.Lay` writes `WeaponTask { Track, Point, MountIndex, AmmoGuid = the loaded round, Arc }` on the mount's turret part; a new epoch when the point, the arc, the mount or the round changes; reads `WeaponTaskStatus` under that epoch: OnTarget ⇒ fire, Failed OutOfArc ⇒ the action fails `OutOfArc` (turrets released), else held `Slewing` | ⭐ **the arc on the order is the arc the brain's solution CHOSE (Low / High), not the caller's preference** — the muscle then never re-decides it |
+| the muscle | `BallisticAim.Solve(…, arc, ammo)`: arc Low / High and an `IndirectArc` mount ⇒ `FireSolution.For(world: null, pivot, point, mount, ChargesOf(round), arc).Launch`; arc **Auto** (every Engage order) ⇒ the one-speed arc as before | ⭐ **no mask check on the muscle** (it runs per frame; the brain already chose the arc with it). Same charge as the brain's unless a mask made the brain step up a charge on the HIGH arc — then the lay differs by that step and the round still flies the brain's charge. ⭐ **Engage keeps the one-speed aim**: its rounds carry no charge, so aim and flight stay matched |
+| the order of holds | solution (fail with why) → lay → `FireAt` (`AwaitingFireTime`) → OnTarget (`Slewing`) → bomb cue → `ShootAtPoint` | — |
+| `OnExit` | releases the turrets (Idle — the pose STAYS laid) | new: before, FireAtPoint ordered no turret |
+| the guns | 609–611: laying turret 0, all round, 45–85°, pivot 0.3 m; 612: −5–70°, pivot 1.0 m; all **30 °/s traverse, 15 °/s elevation** (a full lay ≈ 6 s, inside FM-4's 10 s); mount `TurretIndex = 0`. The M109 keeps its own turret (10 / 5 °/s) | ⚠ the M109's worst case (180° at 10 °/s = 18 s) exceeds FM-4's lay time — its first round can be late on a time-on-target mission (report lean) |
+| the wire | `WeaponTask.Arc` + `EntityWeaponTask.Arc` (byte, APPENDED, R-169) | — |
+
+Rails: `AimAndFireExecutorTests.P2_AMortar_IsLaid_OnTheSolutionsElevation_BeforeItsFirstRound` (pose within 0.5° of the solution 10 s
+before `FireAt`, nothing before it) · `P2_ASelfPropelledGun_TurnsItsTurret_BeforeItFires` · `EntityTurretPoseTranslatorTests.WL2b_…`
+(the arc crosses) · `NedTkbBuilderCombatTests.IF1_…` (the laying turrets).
+
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 
 | # | decision | rejected (one line each) |
@@ -329,6 +394,7 @@ Layout: the M109s at (−3500, −40) / (−3800, 0) / (−4100, 40) (≈ 4.4–
 | **FM-2** | **one new member order**: `MemberOrderKind.FireAtPoint { Point, Rounds, FireAt, Arc }` → the library `FireAtPoint` behaviour, whose params DTO gains `fireAt` and `arc`; the member's mount is its first INDIRECT mount, own or controlled (`IndirectFireNodes.MountOf`) | a gun-specific behaviour (`FireAtPoint` already is the mechanism) |
 | **FM-3** | **the sheaf**: Converged — every gun at the point; Parallel — each gun's aim offset by its own lateral offset in the battery, perpendicular to the line of fire; Open — guns spread evenly over `SheafWidthM` (default guns × 2 × the warhead's burst radius) | one aim point always (a 6-gun sheaf on one spot) |
 | **FM-4** | **time on target**: T = now + the longest time of flight + a lay time (10 s); gun i fires at T − tof_i, so every first round lands together; `WhenReady` fires on arrival of the order | a fixed delay per gun (wrong as soon as two guns stand at different ranges) |
+| ⚠ **FM-4 open (`2026-10-15`, ui → behaviors, [CE-1109](../../blueprints/batches/HANDOFF_Ui_To_Behaviors_FM4_Lay_Time_From_The_Turret.md))** | the fixed 10 s lay is shorter than a real M109's worst-case lay (180° at 10 °/s = 18 s) now that backend's P2 lays the gun before it fires ⇒ lean: each gun's own lay time from its turret's pose and rates | raising the catalogue rates (the user: the number should be real) |
 | **FM-5** | **danger close**: a friendly unit within 600 m of the point (any gun's round) and `DangerClose` not set ⇒ the play fails with *"danger close"*; set ⇒ fire, and the adjust (slice 3) creeps in by 100 m steps | firing regardless (a fire mission is the easiest way to kill your own platoon) |
 | **FM-6** | **adjusting**: one adjusting gun (the one nearest the battery's centre), one round per correction, bracketing 800 → 400 → 200 → 100 → 50 m along the observer–target line; within 50 m ⇒ fire for effect with every gun | adjusting with the whole battery (wastes rounds, warns the target) |
 | **FM-7** | **messages**: the play reports `shot` (fired), `splash` (5 s before impact), `rounds complete` and `end of mission` on the behaviour log and to the observer | silent missions (nobody can follow one live) |

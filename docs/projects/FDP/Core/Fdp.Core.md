@@ -417,7 +417,7 @@ Fdp.Core Dependency Tree
     `GetRefRO<T>()`, `HasComponent<T>()`
   - `Query()` — returns `QueryBuilder`
   - `SetSingletonUnmanaged<T>()`, `GetSingletonUnmanaged<T>()`
-  - `UnmanagedHandle` — GCHandle IntPtr for HSM bridge
+  - `UnmanagedHandle` — GCHandle IntPtr for HSM bridge (⭐ WEAK since `CE-3183`: read it only while holding the repository)
 
 - **`EntityRepository.DeltaQuery.cs`** — `QueryDelta(query, sinceVersion)` returning
   `DeltaQueryEnumerable`. Implements two-level chunk-skip: Level 1 skips whole 64 KB
@@ -704,7 +704,7 @@ Central ECS world. `IDisposable`, `partial` (split across four files).
 | `PhaseConfig PhaseConfig` | Transition / permission configuration. |
 | `FdpEventBus Bus` | Event bus for publish/subscribe. |
 | `float SimulationTime` | Current simulation time (seconds). |
-| `IntPtr UnmanagedHandle` | GCHandle pointer for HSM bridge. |
+| `IntPtr UnmanagedHandle` | GCHandle pointer for HSM bridge — a WEAK handle (`CE-3183`): valid while the repository is reachable; it never keeps the repository alive. |
 | `TimeSliceMetric DefaultTimeSliceMetric` | `WallClockTime` or `EntityCount`. |
 
 **Entity lifecycle**

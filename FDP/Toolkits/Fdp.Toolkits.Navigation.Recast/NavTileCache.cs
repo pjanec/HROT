@@ -49,7 +49,17 @@ public sealed class NavTileCache
     /// <summary>The disk folder, or null for memory only.</summary>
     public string? Folder { get; }
 
-    public NavTileCache(string? folder = null) => Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
+    /// <summary>⭐ <c>CE-3114</c> — how long a square's OTHER tiles may sit unused before a write of that square deletes them.</summary>
+    public static readonly TimeSpan DefaultPruneAfter = TimeSpan.FromDays(14);
+
+    /// <summary>⭐ <c>CE-3114</c> — this cache's prune age (<see cref="DefaultPruneAfter"/> unless a test sets it).</summary>
+    public TimeSpan PruneAfter { get; }
+
+    public NavTileCache(string? folder = null, TimeSpan? pruneAfter = null)
+    {
+        Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
+        PruneAfter = pruneAfter ?? DefaultPruneAfter;
+    }
 
     /// <summary>
     /// The process-wide cache every <see cref="RecastNavmeshFactory"/> uses unless told otherwise: memory + the folder in
@@ -134,9 +144,33 @@ public sealed class NavTileCache
         try
         {
             var path = PathOf(key);
-            return File.Exists(path) ? File.ReadAllBytes(path) : null;
+            if (!File.Exists(path)) return null;
+            var bytes = File.ReadAllBytes(path);
+            // ⭐ CE-3114 — a tile still in use stays young: two terrains sharing a square keep both while both are loaded
+            try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); } catch (Exception) { }
+            return bytes;
         }
         catch (Exception) { return null; }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3114</c> (Navigation v2 §14 "P2 as built") — a new tile of a square leaves the square's OLD tiles behind (a changed
+    /// input is a new hash, a new file; an old <c>BakeFormat</c> is a different hash too), so the folder only grew. On each write, the
+    /// square's other tiles in that layer unused for <see cref="PruneAfter"/> are deleted. ⚠ The age is file time (wall clock): cache
+    /// housekeeping that decides nothing the simulation computes — a deleted tile that is still wanted is only a re-bake.
+    /// </summary>
+    private void PruneSquare(in NavTileKey key, string written)
+    {
+        try
+        {
+            var cutoff = DateTime.UtcNow - PruneAfter;
+            foreach (var file in Directory.GetFiles(Path.GetDirectoryName(written)!, $"{key.TileX}_{key.TileZ}_*.navtile"))
+            {
+                if (string.Equals(file, written, StringComparison.Ordinal)) continue;
+                if (File.GetLastWriteTimeUtc(file) < cutoff) File.Delete(file);
+            }
+        }
+        catch (Exception) { }   // another process may hold or delete it: housekeeping never fails a bake
     }
 
     private void WriteDisk(in NavTileKey key, byte[] bytes)
@@ -149,6 +183,7 @@ public sealed class NavTileCache
             var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             File.WriteAllBytes(temp, bytes);
             File.Move(temp, path, overwrite: true);
+            PruneSquare(key, path);
         }
         catch (Exception e)
         {
