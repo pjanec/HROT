@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (dto.Seats.Count > PassengerBuffer.Capacity)
                 throw new InvalidOperationException(
                     $"TKB type '{template.Name}' declares {dto.Seats.Count} seats in Gen.Carrier; the maximum is {PassengerBuffer.Capacity} " +
-                    "(the passenger list and its wire topic carry 8). Declare fewer seats.");
+                    $"(the passenger list and its wire topic carry {PassengerBuffer.Capacity}). Declare fewer seats.");
 
             if (repo.IsComponentTypeRegistered<PassengerBuffer>() && !repo.HasComponent<PassengerBuffer>(entity))
                 repo.AddComponent(entity, new PassengerBuffer());
@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Behavior.Translators
                 {
                     CarrySpeedFactor = dto.Person.CarrySpeedFactor, DragSpeedFactor = dto.Person.DragSpeedFactor,
                     CarryBehindMetres = dto.Person.CarryBehindMetres, DragBehindMetres = dto.Person.DragBehindMetres,
+                    StretcherSpeedFactor = dto.Person.StretcherSpeedFactor, AssistantBehindMetres = dto.Person.AssistantBehindMetres,   // ⭐ T-a
                 };
                 if (repo.HasComponent<PersonCarrier>(entity)) repo.SetComponent(entity, person);
                 else repo.AddComponent(entity, person);
@@ -84,7 +85,7 @@ namespace Fdp.Toolkit.Behavior.Translators
             {
                 var seat = dto.Seats[i];
                 if (seat.Role != SeatRole.Station) continue;
-                stations.StationMask |= (byte)(1 << i);
+                stations.StationMask |= (ushort)(1 << i);
                 bool arc = seat.TraverseMinDeg.HasValue || seat.TraverseMaxDeg.HasValue || seat.ElevationMinDeg.HasValue || seat.ElevationMaxDeg.HasValue;
                 stations.Seats[i] = new StationSeat
                 {
@@ -112,7 +113,7 @@ namespace Fdp.Toolkit.Behavior.Translators
             {
                 seats.Roles[i] = dto.Seats[i].Role;
                 bool exposed = dto.Seats[i].Exposed ?? dto.Exposure == PassengerExposure.Open;
-                if (exposed) seats.ExposedMask |= (byte)(1 << i);
+                if (exposed) seats.ExposedMask |= (ushort)(1 << i);
             }
             return seats;
         }

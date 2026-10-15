@@ -17,6 +17,7 @@ known-conflict: it SUPERSEDES three places that frame DR as an IG-only presentat
   removes), docs/designs/IG/DESIGN-IG.md, and docs/projects/relationships/FDP-Network-Stack.md §12.6.
   Each is marked at the site.
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — §9c: the live miss that produced R6 (a brain read a plane's SimVelocity)
   - DESIGN_Weapon_Layers.md — W-10 applies this model to TurretPose (azimuth, elevation, rates, sim stamp).
 -->
 
@@ -172,6 +173,7 @@ sequenceDiagram
 | **R3** | ⭐⭐ **The target is recomputed FRESH EVERY FRAME** from `LastPosition + Vel × (simNow − SimStamp)` | ⇒ a **pure function of replicated data** — time-synced nodes agree by construction, with no accumulator to diverge |
 | **R4** | ⭐⭐⭐ **Both the stamp and `simNow` are cluster-synced SIMULATION time** | 🔒 `D4`. ⭐ Matches the codebase's only prior art for cross-node sample age — EQS `BecomesStale` ages over `view.Time` *(`EqsResultUpdateSystem.cs:65`)*, chosen so Brain/Muscle clock skew cannot corrupt the delta |
 | **R5** | ⭐⭐ **No pause guard.** Extrapolation freezes because `simNow` stops | 🔒 `D4`. ⛔ This deliberately avoids the `IsPaused`/`IsAdvancing` landmine *(`M-42`: `IsPaused` is **false** while paused — pause switches to `Stepping` with `DeltaTime → 0`)* |
+| **R6** | ⭐ *(`2026-10-15`, behaviors, CE-2173)* **A brain reads a unit whose MOTION another node owns through `ReplicatedMotion.Of`, never `SimVelocity`** — on a brain node such a unit is neither owned nor a ghost, so R1's predicate skips it and its `SimVelocity` stays the zero `SpatialCoreTkbTranslator` gave it. `ReplicatedMotion.Project` is R3's formula; `DeadReckoningSyncSystem` calls it too, so there is one | 📌 the A-10 never released its bomb live (`DESIGN_Air_Operations.md` §9c). ⭐ Second reader routed `2026-10-15`: `VehicleCover.IsStanding` (every vehicle read as parked on a brain node; rail `CoverPointsGizmoTests.CE2173_AVehicleAnotherNodeDrives_IsNotStanding`) |
 | **R6** | ⭐⭐ **No unstamped mode.** An unstamped sample is a **defect, logged loudly** | 🔒 `D3`. ⛔ Not a silent degraded path — the "make an omission loud" habit |
 | **R7** | ⭐ **Smoothing RATE is per-host, not per-role** — a constructor parameter | 🔒 `D1`: renderers *"might just do smoothing on higher rate as they are usually running on higher fps"* |
 | **R8** | ⭐⭐ **Both stacks, identically** | 🔒 `D5` |

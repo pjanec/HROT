@@ -18,12 +18,12 @@ namespace Fdp.Toolkit.Combat
     {
         /// <summary>
         /// A controlled weapon's index in its controller's mount list: <c>ControlledMountBase + k</c> for the k-th weapon of
-        /// <see cref="Controlled"/>. Above every real mount index (a type has ≤ 8 mounts), within the brain's one-byte mount choice.
+        /// <see cref="Controlled"/>. Above every real mount index (a type has few mounts), within the brain's one-byte mount choice.
         /// </summary>
         public const int ControlledMountBase = 32;
 
-        /// <summary>The most weapons one unit controls (≤ 8 seats per type, plus the weapon whose gunner seat it occupies).</summary>
-        public const int MaxControlled = 9;
+        /// <summary>The most weapons one unit controls (every seat of a type, plus the weapon whose gunner seat it occupies).</summary>
+        public const int MaxControlled = Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity + 1;
 
         /// <summary>Is <paramref name="index"/> a controlled weapon's mount index (<see cref="ControlledMountBase"/> + k)?</summary>
         public static bool IsControlledIndex(int index) => index >= ControlledMountBase && index < ControlledMountBase + MaxControlled;
@@ -165,6 +165,19 @@ namespace Fdp.Toolkit.Combat
             for (int k = 0; k < n; k++)
                 if (world.HasComponent<Components.WeaponState>(weapons[k])) { mount = weapons[k]; return ControlledMountBase + k; }
             return 0;
+        }
+
+        /// <summary>
+        /// ⭐ WS-4 — the entity whose <see cref="Components.WeaponState"/> is <paramref name="unit"/>'s PRIMARY weapon: the unit itself when
+        /// it carries one, else its first controlled weapon system (a bare pickup's M2 — <see cref="PrimaryMount"/>), else null (unarmed).
+        /// ⭐ The one answer to "is this unit armed, and with what?" for readers that used to look for a WeaponState on the unit itself
+        /// (the utility inputs, <c>ThreatDanger.OwnStrength</c>): a unit with its own gun reads exactly as before.
+        /// </summary>
+        public static Entity WeaponOf(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<Components.WeaponState>()) return Entity.Null;
+            if (world.HasComponent<Components.WeaponState>(unit)) return unit;
+            return IsControlledIndex(PrimaryMount(world, unit, out var weapon)) ? weapon : Entity.Null;
         }
 
         /// <summary>The mount index <paramref name="weapon"/> has in <paramref name="unit"/>'s mount list, or −1 when the unit does not

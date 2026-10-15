@@ -258,7 +258,7 @@ namespace Hrot.NED.Descriptors
     }
 
     // ⭐ CE-3110 I-2b (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7.1c) — a vehicle's passengers, the vehicle's owner (Brain group) →
-    //   every node, keyed by the vehicle. Eight scalar network ids (the EntityWeaponAmmo shape; PassengerBuffer.Capacity = 8).
+    //   every node, keyed by the vehicle. Twelve scalar network ids (the EntityWeaponAmmo shape; PassengerBuffer.Capacity = 12 — seats 8–11 appended, F4).
     //   Reliable + TransientLocal + KeepLast 1: a late joiner must know who is aboard.
     [DdsTopic("EntityPassengers")]
     [DdsIdlFile("hrot-sim-desc")]
@@ -277,6 +277,16 @@ namespace Hrot.NED.Descriptors
         public long Passenger7;
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — each seat's <c>CarryMode</c>, 2 bits per seat (the list's own <c>Modes</c>).</summary>
         public ushort Modes;
+        /// <summary>⭐ Team carry T-a (R-2017 T1) — a person carrier's second man (<c>PassengerBuffer.Assistant</c>), network id; 0 = none.
+        /// APPENDED (R-169).</summary>
+        public long Assistant;
+        /// <summary>⭐ F4 (Air Ops §7a, 🔒 user `2026-10-14` "extend the wire capacity") — seats 8–11 (the list is 12 wide) and their carry
+        /// modes (bits 16–23 of the list's <c>Modes</c>, as seat i at bits 2(i−8)). APPENDED (R-169).</summary>
+        public long Passenger8;
+        public long Passenger9;
+        public long Passenger10;
+        public long Passenger11;
+        public ushort ModesHigh;
     }
 
     // ⭐ CE-3136 P-7a (O3, R-242/R-243) — a static obstacle's box (the TKB's size or a scenario's per-instance one), published by the

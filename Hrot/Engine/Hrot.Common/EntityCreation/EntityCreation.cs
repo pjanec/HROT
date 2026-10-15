@@ -39,9 +39,11 @@ namespace Hrot.Common.EntityCreation
             int nodeId,
             IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> networkSystems,
             Fdp.Core.EntityRepository world,
-            Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem)
+            Hrot.Map.Common.Services.StaticObstacleBakeSystem obstacleBakeSystem,
+            SeatPresetSystem seatPresetSystem)
         {
             ObstacleBakeSystem = obstacleBakeSystem;
+            SeatPresetSystem   = seatPresetSystem;
             Translators        = translators;
             Elm                = elm;
             LocalRequests      = localRequests;
@@ -68,6 +70,13 @@ namespace Hrot.Common.EntityCreation
         /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
         /// </summary>
         public Hrot.Map.Common.Services.StaticObstacleBakeSystem ObstacleBakeSystem { get; }
+
+        /// <summary>
+        /// ⭐ Weapon systems WS-4 (W-I) — boards a host's seat presets (the M2, the gunner) into their seats once the host is there. ⛔ Not
+        /// optional where this node creates a host that has presets: unscheduled, they stand beside it unboarded. Schedule it
+        /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
+        /// </summary>
+        public SeatPresetSystem SeatPresetSystem { get; }
 
         /// <summary>
         /// ⭐⭐ <b>This node's app-instance id — the value an author passes as <c>owner</c> to say
@@ -309,6 +318,9 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(ObstacleBakeSystem))
                 missing.Add($"{nameof(ObstacleBakeSystem)} (StaticObstacleBakeSystem) — every static obstacle (a parked car, a sandbag " +
                             "wall) stays Constructing until the lifecycle timeout DESTROYS it: the pack registered the rule that waits for it");
+            if (!seen.Contains(SeatPresetSystem))
+                missing.Add($"{nameof(SeatPresetSystem)} (WS-4) — a host's seat presets (a technical's gun and gunner) are created but never " +
+                            "boarded: they stand beside it, and its gun has no gunner");
             if (!seen.Contains(FinalizationSystem))
                 missing.Add($"{nameof(FinalizationSystem)} — phase-2 ACKs will never be dispatched, so a " +
                             "requester waits forever");

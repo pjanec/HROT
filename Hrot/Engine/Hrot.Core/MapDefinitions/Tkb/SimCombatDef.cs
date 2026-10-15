@@ -69,6 +69,18 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <inheritdoc cref="MagazineSize"/>
         public float ReloadSeconds { get; set; }
+
+        /// <summary>⭐ Air Ops slice 6a (AW-1) — a FIXED mount's nose cone, degrees off the body's forward (0 = no cone).
+        /// <c>WeaponMountDto.FixedConeDeg</c>.</summary>
+        public float FixedConeDeg { get; set; }
+
+        /// <summary>⭐ Indirect fire IF-1 (I2) — the arcs an indirect round may fly; Default = today's rule. <c>WeaponMountDto.Arc</c>.</summary>
+        public Fdp.Toolkit.Tkb.Domain.IndirectArc Arc { get; set; }
+
+        /// <summary>⭐ IF-1 (I2) — the barrel's elevation limits for an indirect solution, degrees; 0 = none. <c>WeaponMountDto.Min/MaxElevationDeg</c>.</summary>
+        public float MinElevationDeg { get; set; }
+        /// <inheritdoc cref="MinElevationDeg"/>
+        public float MaxElevationDeg { get; set; }
     }
     
     /// <summary>

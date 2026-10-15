@@ -68,7 +68,12 @@ namespace Hrot.Map.Common.Replication.Egress
                 EntityId = netId, Count = (byte)n,
                 Passenger0 = ids[0], Passenger1 = ids[1], Passenger2 = ids[2], Passenger3 = ids[3],
                 Passenger4 = ids[4], Passenger5 = ids[5], Passenger6 = ids[6], Passenger7 = ids[7],
-                Modes = b.Modes,   // ⭐ CE-2152 (R-2011 C5) — carried / dragged travels with the seat
+                Passenger8 = ids[8], Passenger9 = ids[9], Passenger10 = ids[10], Passenger11 = ids[11],   // ⭐ F4 — appended
+                Modes = (ushort)(b.Modes & 0xFFFF),   // ⭐ CE-2152 (R-2011 C5) — carried / dragged travels with the seat
+                ModesHigh = (ushort)(b.Modes >> 16),  // ⭐ F4 — seats 8–11
+                // ⭐ T-a (R-2017 T1) — the second man of a team carry
+                Assistant = !b.Assistant.IsNull && view.IsAlive(b.Assistant) && view.HasComponent<NetworkIdentity>(b.Assistant)
+                    ? view.GetComponentRO<NetworkIdentity>(b.Assistant).Value : 0,
             };
         }
 
@@ -142,7 +147,8 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, vehicle, OwnershipExtensions.PackKey(OrdinalValue, 0))) return true;   // ours: drop
             var buffer = new PassengerBuffer();
-            Span<long> ids = stackalloc long[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7 };
+            Span<long> ids = stackalloc long[] { d.Passenger0, d.Passenger1, d.Passenger2, d.Passenger3, d.Passenger4, d.Passenger5, d.Passenger6, d.Passenger7,
+                                                 d.Passenger8, d.Passenger9, d.Passenger10, d.Passenger11 };   // ⭐ F4 — 12 seats
             for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — seat i from slot i; 0 = an empty seat
             {
                 if (ids[i] == 0) continue;
@@ -150,7 +156,12 @@ namespace Hrot.Map.Common.Replication.Ingress
                 buffer.Passengers[i] = passenger;
                 buffer.Count++;
             }
-            buffer.Modes = d.Modes;   // ⭐ CE-2152 (R-2011 C5)
+            buffer.Modes = d.Modes | ((uint)d.ModesHigh << 16);   // ⭐ CE-2152 (R-2011 C5) · ⭐ F4 — seats 8–11
+            if (d.Assistant != 0)    // ⭐ T-a — held, like a passenger, until the second man is known here
+            {
+                if (!_entityMap.TryGetEntity(d.Assistant, out var assistant) || !view.IsAlive(assistant)) return false;
+                buffer.Assistant = assistant;
+            }
             cmd.AddComponent(vehicle, buffer);
             return true;
         }

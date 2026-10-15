@@ -494,7 +494,8 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static bool Reloading(EntityRepository world, Entity self)
-            => world.HasComponent<WeaponState>(self) && Magazine.Reloading(world.GetComponentRO<WeaponState>(self));
+            => Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self) is var gun && !gun.IsNull
+               && Magazine.Reloading(world.GetComponentRO<WeaponState>(gun));   // ⭐ WS-4 — own gun or the controlled station weapon
 
         private static bool UnderFire(EntityRepository world, Entity self, double since) => FiredUponSince(world, self, since);
 

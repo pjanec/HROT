@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Serializers
 
             return new Dictionary<string, object>
             {
-                [Key] = new JsonObject { ["Vehicle"] = guidStr }
+                [Key] = new JsonObject { ["Vehicle"] = guidStr, ["Seat"] = (int)tag.Seat }   // ⭐ WS-4 (W-I) — and the seat
             };
         }
 
@@ -65,7 +65,11 @@ namespace Hrot.SimHost.Serializers
             if (resolved.IsNull || !repo.IsAlive(resolved)) return;
 
             long networkId = repo.GetComponent<NetworkIdentity>(resolved).Value;
-            repo.SetManagedComponent(entity, new InitialVehicleIntent { VehicleNetworkId = new EntityRef(networkId) });
+            repo.SetManagedComponent(entity, new InitialVehicleIntent
+            {
+                VehicleNetworkId = new EntityRef(networkId),
+                Seat = obj["Seat"]?.GetValue<int>() ?? -1,   // ⭐ WS-4 — absent in an older save
+            });
         }
 
         public IEnumerable<string> GetOutputDomKeys() => Array.Empty<string>();

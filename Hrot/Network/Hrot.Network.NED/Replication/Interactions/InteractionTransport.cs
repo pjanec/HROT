@@ -24,11 +24,12 @@ namespace Hrot.Map.Common.Replication.Interactions
     {
         EInteractionKind Kind { get; }
 
-        /// <summary>Every local, not-yet-sent event of this kind whose target this node does not own → <paramref name="send"/>.</summary>
-        void ScanOutgoing(EntityRepository repo, OutgoingSink send);
+        /// <summary>Every local, not-yet-sent event of this kind whose target this node does not own → <paramref name="send"/>. ⭐ T-a —
+        /// <paramref name="map"/> maps any further entity the case carries (its network-id fields), as the transport maps target and actor.</summary>
+        void ScanOutgoing(EntityRepository repo, NetworkEntityMap map, OutgoingSink send);
 
         /// <summary>A received request of this kind → this node's typed event, marked remote.</summary>
-        void PublishIncoming(Entity target, Entity actor, in InteractionPayload payload, IEntityCommandBuffer cmd);
+        void PublishIncoming(Entity target, Entity actor, in InteractionPayload payload, NetworkEntityMap map, IEntityCommandBuffer cmd);
     }
 
     /// <summary>The egress callback: one request to send.</summary>
@@ -43,24 +44,32 @@ namespace Hrot.Map.Common.Replication.Interactions
         public delegate bool FlagOf(in TEvent e);
         public delegate InteractionPayload PayloadOf(in TEvent e);
         public delegate TEvent EventOf(Entity target, Entity actor, in InteractionPayload payload);
+        /// <summary>⭐ T-a — a case's further entities → network ids (after <c>toPayload</c>).</summary>
+        public delegate void IdsOut(in TEvent e, NetworkEntityMap map, ref InteractionPayload payload);
+        /// <summary>⭐ T-a — a case's network ids → this node's entities (after <c>fromPayload</c>).</summary>
+        public delegate void IdsIn(in InteractionPayload payload, NetworkEntityMap map, ref TEvent e);
 
         private readonly EntityOf _target, _actor;
         private readonly FlagOf _isRemote;
         private readonly Func<EntityRepository, Entity, bool> _ownsTarget;
         private readonly PayloadOf _toPayload;
         private readonly EventOf _fromPayload;
+        private readonly IdsOut? _idsOut;
+        private readonly IdsIn? _idsIn;
 
         public EInteractionKind Kind { get; }
 
         public InteractionCodec(EInteractionKind kind, EntityOf target, EntityOf actor, FlagOf isRemote,
-            Func<EntityRepository, Entity, bool> ownsTarget, PayloadOf toPayload, EventOf fromPayload)
+            Func<EntityRepository, Entity, bool> ownsTarget, PayloadOf toPayload, EventOf fromPayload,
+            IdsOut? idsOut = null, IdsIn? idsIn = null)
         {
             Kind = kind;
             _target = target; _actor = actor; _isRemote = isRemote;
             _ownsTarget = ownsTarget; _toPayload = toPayload; _fromPayload = fromPayload;
+            _idsOut = idsOut; _idsIn = idsIn;
         }
 
-        public void ScanOutgoing(EntityRepository repo, OutgoingSink send)
+        public void ScanOutgoing(EntityRepository repo, NetworkEntityMap map, OutgoingSink send)
         {
             if (!repo.Bus.IsRegistered<TEvent>()) return;
             var events = repo.Bus.Read<TEvent>();
@@ -71,13 +80,18 @@ namespace Hrot.Map.Common.Replication.Interactions
                 var target = _target(in e);
                 if (_ownsTarget(repo, target)) continue;           // applied here by the kind's handler
                 var payload = _toPayload(in e);
+                _idsOut?.Invoke(in e, map, ref payload);
                 payload.Kind = Kind;
                 send(target, _actor(in e), in payload);
             }
         }
 
-        public void PublishIncoming(Entity target, Entity actor, in InteractionPayload payload, IEntityCommandBuffer cmd)
-            => cmd.PublishEvent(_fromPayload(target, actor, in payload));
+        public void PublishIncoming(Entity target, Entity actor, in InteractionPayload payload, NetworkEntityMap map, IEntityCommandBuffer cmd)
+        {
+            var e = _fromPayload(target, actor, in payload);
+            _idsIn?.Invoke(in payload, map, ref e);
+            cmd.PublishEvent(e);
+        }
     }
 
     /// <summary>
@@ -157,7 +171,12 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in EmbarkEntityCommand e) => new InteractionPayload { Embark = new EmbarkInteractionPayload { Role = (byte)e.Role, Mode = (byte)e.Mode } },   // ⭐ CE-2151 B-b
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new EmbarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true, Role = (Fdp.Toolkit.Behavior.Components.SeatRole)p.Embark.Role,
-                                               Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode });
+                                               Mode = (Fdp.Toolkit.Behavior.Components.CarryMode)p.Embark.Mode },
+            // ⭐ T-a (R-2017 T1) — the team load's second man rides as a network id
+            idsOut:      static (in EmbarkEntityCommand e, NetworkEntityMap map, ref InteractionPayload p)
+                => p.Embark.Assistant = !e.Assistant.IsNull && map.TryGetNetworkId(e.Assistant, out long id) ? id : 0,
+            idsIn:       static (in InteractionPayload p, NetworkEntityMap map, ref EmbarkEntityCommand e)
+                => e.Assistant = p.Embark.Assistant != 0 && map.TryGetEntity(p.Embark.Assistant, out var a) ? a : Entity.Null);
 
         /// <summary>⭐ CE-3110 I-2a — a passenger leaves its vehicle (the raiser names the vehicle: the wire's target).</summary>
         public static readonly IInteractionCodec Disembark = new InteractionCodec<DisembarkEntityCommand>(
@@ -220,7 +239,7 @@ namespace Hrot.Map.Common.Replication.Interactions
         public void ScanAndPublish(ISimulationView view)
         {
             if (view is not EntityRepository repo) return;
-            for (int i = 0; i < _codecs.Count; i++) _codecs[i].ScanOutgoing(repo, _sink);
+            for (int i = 0; i < _codecs.Count; i++) _codecs[i].ScanOutgoing(repo, _entityMap, _sink);
         }
 
         private void Send(Entity target, Entity actor, in InteractionPayload payload)
@@ -281,7 +300,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             if (!_byKind.TryGetValue(msg.Payload.Kind, out var codec)) { UnknownKindCount++; return; }
             if (!_entityMap.TryGetEntity(msg.TargetId, out var target)) return;
             var actor = msg.ActorId != 0 && _entityMap.TryGetEntity(msg.ActorId, out var a) ? a : Entity.Null;
-            codec.PublishIncoming(target, actor, in msg.Payload, cmd);
+            codec.PublishIncoming(target, actor, in msg.Payload, _entityMap, cmd);
         }
 
         public void ScanAndPublish(ISimulationView view) { }

@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14 (as-built B3–B5, backend)
+updated: 2026-10-15 (§7 D-M area effects vs vehicles, behaviors — R-2019)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-A, D-B, D-C, D-F, D-G approved earlier the same day)
-current-answer: §2 (classes), §3 (sequences), §4 (who runs it), §5 (rails) — §1 is the measured ground.
+current-answer: §2 (classes), §3 (sequences), §4 (who runs it), §5 (rails) — §1 is the measured ground; §6 as-built; §7 D-M (area effects against vehicles, a frame — DESIGN).
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/designs/air-attack/DESIGN_Air_Operations.md — §9c the live miss (a Mk-82 15 m from a pickup did nothing) that produced §7
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the falling mortar / howitzer round whose roof hit this model already takes
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (items M1–M3, M6; decisions D-A…D-L); this file is its hit-model build design
   - docs/DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the armour model as decided (§9, R-212: facing, penetration chance, expected damage, A3 numbers fixed per type); this file extends its Facing and its armour table, never the formula
@@ -262,3 +263,59 @@ took a tank for a person. With B8's loadouts the weapon brain then picked HEAT-M
 900 mm composite front, and the attack stalled (both hostiles untouched; at B7 they died by t = 46 s). ✅ Fixed at the source: `WithPhysics`
 states the hull's `Body.Geometry` (ground-centred size; people excluded) and `VehicleKinematicsTkbTranslator` falls back to its height. Rail
 `NedTkbBuilderCombatTests.B8_ANedHull_StatesItsSizeAndLocomotion_…`; the live hill attack is the proof (handoff report).
+
+## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: DESIGN — a FRAME to backend, who designs the classes as step 1)*
+
+🔒 **User, `2026-10-15`:** *"A and B together is the most realistic … chosing this one, most realistic.*
+*Blast should be reduced by buildings (later we will be destructing buildings, backend can think about that, but not needed immediately)."*
+
+### 7.1 What exists — measured `2026-10-15`
+
+| fact | where |
+|---|---|
+| 📌 **the live miss:** a Mk-82 burst 15 m from a pickup leaves it at Health 100 (`ua-air-strike`; `GET /combat/detonations` on SimHost: `fragmentArmourChance 0`, `blastDamage 0`) | `DESIGN_Air_Operations.md` §9c |
+| blast skips every hull: `blastFall = hull > 0 ? 0 : …` — *"personnel only (v1)"* | `AreaEffectSystem.cs:116` |
+| ONE fragment mass for every warhead (`fragmentMassG 0.5`) ⇒ a Mk-82 fragment penetrates ≈ 2.4 mm (Gurney v₀ ≈ 1760 m/s, `k · v₀ · √m`), the pickup is 5 mm all round ⇒ `PenetrationChance` 0 (ramp 0.8–1.2 × armour) | `ReferenceLibrary.cs:155-180`, `coefficients.json` `fragments`, `ArmorModel.cs:96` |
+| ⭐ buildings ALREADY reduce blast — for people: a closed barrier passes `exp(−R / 100 mm)`, an open obstacle taller than the target leaves a diffraction shadow (W-7′) | `AreaEffect.cs:20-70`, `AreaEffectSystem.cs:119-147`, `DESIGN_Building_Interiors.md` §3k W-7′ |
+| fragment penetration ALSO decides what a fragment passes through walls (`FragmentTransmission`) | `AreaEffectSystem.cs:124` |
+
+### 7.2 The rule — one burst, two effects, for every target
+
+```mermaid
+flowchart TD
+  B["a burst (warhead: W kg, casing kg)"] --> T{"each target in reach"}
+  T --> F["FRAGMENTS — mass grows with the casing ★ (A)<br/>pen = k · v0 · sqrt(m(casing))"]
+  T --> X["BLAST — falloff lethal → injury radius"]
+  F --> FA["× armour chance (face, ArmorModel) × the line's terrain transmission"]
+  X --> XP{"a person?"}
+  XP -->|yes| XB["× closed-barrier transmission × shadow (as today)"]
+  XP -->|"no — a hull ★ (B)"| XV["× the SAME barrier and shadow<br/>× the hull's blast susceptibility (soft skin high, armour low)"]
+  FA --> D["damage = fragments + blast"]
+  XB --> D
+  XV --> D
+```
+
+*What the picture shows that prose hid: B adds no new attenuation — the hull goes through the same building barrier and shadow the person
+does, so "blast reduced by buildings" holds for vehicles by construction. The two new inputs are a fragment mass that depends on the casing
+and a blast susceptibility per hull.*
+
+### 7.3 Decisions *(leans for backend to confirm in its design step; the user's choice above is fixed)*
+
+| # | decision | rejected |
+|---|---|---|
+| **D-M1** | **(A) fragment mass grows with the casing** (e.g. `m = m₀ · (casing / casing₀)^⅓`), anchored so a hand grenade, a 40 mm grenade and an RPG keep today's 0.5 g — a bomb, a 155 mm shell, a 120 mm mortar throw heavier fragments that go through light armour (and through more wall) | one larger mass for all (grenades would start piercing walls) |
+| **D-M2** | **(B) blast damages a hull**, scaled by a per-type **blast susceptibility** (TKB): soft-skinned (a pickup, a truck, a car) near 1, armoured low — an MBT ≈ 0 outside the lethal radius; through the same barrier / shadow as a person | blast on every hull equally (a tank killed by a near miss) · a hard threshold on armour thickness |
+| **D-M3** | a light vehicle may take a **mobility kill** from blast before it dies (`MobilityKill` exists, M9) — backend's call | — |
+| **D-M4** | **buildings that break** (a wall blown in, a house collapsing) are NOT in this slice — backend owns when; the barrier model is where it would plug in | doing it now |
+
+### 7.4 Acceptance *(the numbers backend reports; the demos are the behaviours lane's)*
+
+| | |
+|---|---|
+| ① | a Mk-82 within ~25 m of a pickup destroys or disables it; a 155 mm HE within ~15 m heavily damages it; an 81 mm within ~5 m damages it |
+| ② | an MBT is unhurt by blast outside the lethal radius; fragments still meet its armour as today |
+| ③ | a pickup behind a building from the burst takes less blast than one in the open (the existing barrier / shadow) |
+| ④ | ⛔ **no person number moves** for grenades, 40 mm and RPG HE (golden or rail); ⚠ any number that DOES move (a bomb's fragments through a wall) is listed in the report |
+| ⑤ | `ua-air-strike` ③ passes live (the behaviours lane re-runs it) |
+
+⭐ **Handoff:** [HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md).

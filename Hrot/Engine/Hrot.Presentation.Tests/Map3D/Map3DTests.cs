@@ -39,7 +39,7 @@ public sealed class Map3DTests
         var d = t.DisType;
         if (d.Kind == 3) return "_person";
         if (d.Kind == 1 && d.Domain == 1)
-            return d.Category switch { 1 => "_tank", 2 => "_afv", 3 or 6 or 7 or 81 => "_wheeled", _ => null };
+            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 81 => "_wheeled", _ => null };   // ⭐ IF-1: 4 (SP artillery) moved on purpose
         return null;
     }
 
@@ -407,10 +407,15 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
+<<<<<<< HEAD
                 1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
                 3 or 6 or 7 => VisualFamily.WheeledUtility,
                 4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
                 _ => VisualFamily.Unknown,
+=======
+                1 or 4 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,   // ⭐ IF-1 (I8): 4 = SelfPropelledArtillery → the tank kit, moved on purpose
+                3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
+>>>>>>> origin/behaviors
             };
         if (d.Kind == 1 && d.Domain == 2)
             return d.Category switch
@@ -1200,8 +1205,11 @@ public sealed class Map3DTests
         Assert.True(db.TryGetByType(TkbEntityTypes.Heli_UH60_DoorsOff, out var heli) && heli != null);
         var carrier = heli!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!;
         Assert.Equal(Fdp.Toolkit.Behavior.Components.PassengerExposure.Open, carrier.Exposure);
-        Assert.Equal(8, carrier.Seats.Count);
-        Assert.All(carrier.Seats, seat => Assert.True(seat.HasPlace && MathF.Abs(seat.Y) > 1f));
+        // ⭐ F4 (Air Ops §7a) — 12 seats now: the 8 riders in the doors, then two door gunners and two door guns forward of them
+        var riders = carrier.Seats.Where(s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Passenger).ToList();
+        Assert.Equal(8, riders.Count);
+        Assert.All(riders, seat => Assert.True(seat.HasPlace && MathF.Abs(seat.Y) > 1f));
+        Assert.All(carrier.Seats, seat => Assert.True(seat.HasPlace));
         Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>());   // the doors-on one is unchanged
 
         var seat = carrier.Seats[0];                                   // the left door, forward

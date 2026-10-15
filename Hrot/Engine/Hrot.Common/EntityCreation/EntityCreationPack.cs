@@ -253,7 +253,8 @@ namespace Hrot.Common.EntityCreation
 
             return new EntityCreation(
                 translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
-                promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake);
+                promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake,
+                new SeatPresetSystem(ctx.EntityMap));   // ⭐ WS-4 (W-I) — boards the presets CreateEntityRequestSystem spawns
         }
     }
 }

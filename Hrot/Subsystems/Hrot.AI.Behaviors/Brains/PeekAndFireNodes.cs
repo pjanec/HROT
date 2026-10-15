@@ -777,8 +777,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>B8 — the unit's weapon is reloading, or its magazine is empty (then the reload starts here).</summary>
         private static bool ReloadingOrEmpty(EntityRepository world, Entity self)
         {
-            if (!world.HasComponent<WeaponState>(self)) return false;
-            ref var weapon = ref world.GetComponentRW<WeaponState>(self);
+            // ⭐ WS-4 (the backend's report) — the unit's PRIMARY weapon: its own, or the station weapon it controls (a bare pickup's M2)
+            var gun = Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self);
+            if (gun.IsNull) return false;
+            ref var weapon = ref world.GetComponentRW<WeaponState>(gun);
             if (Magazine.Reloading(weapon)) return true;
             if (weapon.MagazineSize > 0 && weapon.MagazineRounds == 0 && weapon.Ammo > 0) { Magazine.StartIfEmpty(ref weapon); return true; }
             return false;

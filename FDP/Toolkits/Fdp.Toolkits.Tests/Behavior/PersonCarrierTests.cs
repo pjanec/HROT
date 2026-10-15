@@ -36,6 +36,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterComponent<SimTransform>();
             _world.RegisterEvent<DamageAssessedEvent>();
+            _world.RegisterComponent<IsAssistingTag>();                 // ⭐ T-a
+            _world.RegisterComponent<WeaponSystemParams>();             // ⭐ T-a — a two-man weapon
+            _world.RegisterComponent<CarrierStations>();                // ⭐ T-a — the soldier's carry station (WS-2)
+            if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -157,6 +161,136 @@ namespace Fdp.Toolkit.Behavior.Tests
             new CarrierTkbTranslator().Inject(_world, apc, t);
             Assert.False(_world.HasComponent<PersonCarrier>(apc));
             Assert.Equal((byte)0, _world.GetComponentRO<CarrierSeats>(apc).PassengersSurvive);
+        }
+            // ── ⭐⭐ Team carry T-a (R-2017; docs/DESIGN_Entity_Interactions.md §7.5; STEER_Behaviors_To_Backend_Team_Carry.md) ──────────────────
+
+        /// <summary>A weapon system of the given portability, carried on a soldier's carry station.</summary>
+        private Entity Weapon(WeaponPortability portable)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Rotation = Quaternion.Identity });
+            var t = new TkbTemplate("Weapon", 4345L);
+            t.AddDescriptor(new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Carried, Portable = portable });
+            new WeaponSystemTkbTranslator().Inject(_world, e, t);
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐⭐ T4 — a STRETCHER and a TWO-MAN weapon need a named second man — alive and in the fight, carrying nothing, the carrier's side,
+        /// within 2 m; a one-man load refuses one. The pair's fire goes (T5), and the second man is tagged and stands still (T1, T3).
+        /// ✅ Red-proof: TryEmbark without the team gate ⇒ a stretcher goes with nobody at the rear ⇒ red.
+        /// </summary>
+        [Fact]
+        public void TA_AStretcher_AndATwoManWeapon_NeedAFitSecondMan_AOneManLoadRefusesOne()
+        {
+            var carrier = Soldier(100f);
+            var casualty = Soldier(20f);
+            var far = Soldier(100f, new Vector3(5f, 0f, 0f));
+            var hurt = Soldier(10f, new Vector3(1f, 0f, 0f));
+            var enemy = Soldier(100f, new Vector3(1f, 0f, 0f));
+            _world.AddComponent(carrier, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
+            var helper = Soldier(100f, new Vector3(1.5f, 0f, 0f));
+
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher));                     // nobody
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: far));     // 5 m
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: hurt));    // down
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: enemy));   // their side
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Carried, assistant: helper));    // one-man
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: helper));
+
+            Assert.Equal(helper, _world.GetComponentRO<PassengerBuffer>(carrier).Assistant);
+            Assert.Equal(CarryMode.Stretcher, _world.GetComponentRO<IsEmbarkedTag>(casualty).Mode);
+            Assert.Equal(carrier, _world.GetComponentRO<IsAssistingTag>(helper).Carrier);
+            Assert.Equal(ActorCapabilities.CanMove, Caps(carrier) & MoveAndFire);   // hands full, still walks
+            Assert.Equal((ActorCapabilities)0, Caps(helper) & MoveAndFire);         // hands full, placed at the handle
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, Soldier(20f), Soldier(100f, new Vector3(1f, 0f, 0f)),
+                mode: CarryMode.Stretcher, assistant: helper));                                                                                // already assisting
+
+            var gunner = Soldier(100f, new Vector3(0f, 20f, 0f));
+            var loader = Soldier(100f, new Vector3(1f, 20f, 0f));
+            var mortar = Weapon(WeaponPortability.TwoMan);
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, mortar, gunner));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, mortar, gunner, assistant: loader));
+            Assert.Equal(ActorCapabilities.CanMove, Caps(gunner) & MoveAndFire);   // ⭐ a team weapon fills his hands (a one-man one does not)
+            Assert.Equal(EmbarkResult.Invalid, Embarkation.TryEmbark(_world, Weapon(WeaponPortability.OneMan), Soldier(100f, new Vector3(0f, 40f, 0f)),
+                assistant: Soldier(100f, new Vector3(1f, 40f, 0f))));
+        }
+
+        /// <summary>
+        /// ⭐ T3 — the second man is PLACED at the rear handle (2 m behind, facing the carrier's way) and the casualty between them, and he
+        /// follows as the carrier turns; a list that names him (another node's) tags him; a list that stops naming him releases him.
+        /// ✅ Red-proof: EmbarkedStateSystem without the assistant pass ⇒ he stays where he stood ⇒ red.
+        /// </summary>
+        [Fact]
+        public void TA_TheSecondMan_WalksAtTheRearHandle_AsTheCarrierTurns()
+        {
+            var carrier = Soldier(100f, new Vector3(10f, 0f, 0f));
+            var casualty = Soldier(20f, new Vector3(10f, 0f, 0f));
+            var helper = Soldier(100f, new Vector3(11f, 0f, 0f));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: helper));
+            var sys = new EmbarkedStateSystem();
+
+            sys.Execute(_world, 0.016f);
+            Assert.Equal(new Vector3(8f, 0f, 0f), _world.GetComponentRO<SimTransform>(helper).Position);     // heading +X ⇒ 2 m behind
+            Assert.Equal(9f, _world.GetComponentRO<SimTransform>(casualty).Position.X, 3);                   // between them
+
+            _world.GetComponentRW<SimTransform>(carrier).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // facing +Y
+            sys.Execute(_world, 0.016f);
+            var h = _world.GetComponentRO<SimTransform>(helper).Position;
+            Assert.Equal(10f, h.X, 3);
+            Assert.Equal(-2f, h.Y, 3);
+
+            // another node's view: the list alone names him ⇒ tagged there; the list stops naming him ⇒ released
+            _world.RemoveComponent<IsAssistingTag>(helper);
+            sys.Execute(_world, 0.016f);
+            Assert.Equal(carrier, _world.GetComponentRO<IsAssistingTag>(helper).Carrier);
+            _world.GetComponentRW<PassengerBuffer>(carrier).Assistant = Entity.Null;
+            sys.Execute(_world, 0.016f);
+            Assert.False(_world.HasComponent<IsAssistingTag>(helper));
+            Assert.Equal(MoveAndFire, Caps(helper) & MoveAndFire);
+        }
+
+        /// <summary>
+        /// ⭐ T6 — EITHER man down puts the load down where it is (the casualty stays down, alive) and drops the link; the one still standing
+        /// gets his fire back. ✅ Red-proof: CarryAndKill checking only the carrier ⇒ the stretcher goes on with a dead man at the rear ⇒ red.
+        /// </summary>
+        [Fact]
+        public void TA_EitherManDown_PutsTheLoadDown_AndDropsTheLink()
+        {
+            foreach (bool frontFalls in new[] { false, true })
+            {
+                var carrier = Soldier(100f);
+                var casualty = Soldier(20f);
+                var helper = Soldier(100f, new Vector3(1f, 0f, 0f));
+                Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, casualty, carrier, mode: CarryMode.Stretcher, assistant: helper));
+                _world.GetComponentRW<Health>(frontFalls ? carrier : helper).Current = 0f;
+                var sys = new EmbarkedStateSystem();
+                sys.Execute(_world, 0.016f);
+                sys.Execute(_world, 0.016f);
+
+                Assert.Equal(1, sys.Dropped);
+                Assert.False(_world.HasComponent<IsEmbarkedTag>(casualty));
+                Assert.True(CombatLife.IsAlive(_world, casualty));
+                Assert.True(_world.GetComponentRO<PassengerBuffer>(carrier).Assistant.IsNull);
+                Assert.False(_world.HasComponent<IsAssistingTag>(helper));
+                var standing = frontFalls ? helper : carrier;
+                Assert.Equal(ActorCapabilities.CanShoot, Caps(standing) & ActorCapabilities.CanShoot);
+            }
+        }
+
+        /// <summary>⭐ T3 — a stretcher slows the pair to 0.6 of the carrier's speed; a carried weapon by its OWN carry factor (a two-man one is
+        /// the pair's), never the casualty's 0.5. ✅ Red-proof: CarryLoad without the stretcher case ⇒ 0.5 ⇒ red.</summary>
+        [Fact]
+        public void TA_AStretcher_Slows_ToSixTenths_AWeapon_ToItsOwnCarryFactor()
+        {
+            var carrier = Soldier(100f);
+            Embarkation.TryEmbark(_world, Soldier(20f), carrier, mode: CarryMode.Stretcher, assistant: Soldier(100f, new Vector3(1f, 0f, 0f)));
+            Assert.Equal(0.6f, CarryLoad.Factor(_world, carrier), 3);
+
+            var gunner = Soldier(100f, new Vector3(0f, 20f, 0f));
+            Embarkation.TryEmbark(_world, Weapon(WeaponPortability.TwoMan), gunner, assistant: Soldier(100f, new Vector3(1f, 20f, 0f)));
+            Assert.Equal(new WeaponSystemDto().CarrySpeedFactor, CarryLoad.Factor(_world, gunner), 3);
         }
     }
 }

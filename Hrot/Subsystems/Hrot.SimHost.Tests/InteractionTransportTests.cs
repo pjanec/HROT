@@ -268,6 +268,23 @@ namespace Hrot.SimHost.Tests
             Deliver(asDrag);
             Assert.Equal(Fdp.Toolkit.Behavior.Components.CarryMode.Dragged,
                 Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Mode);
+
+            // ⭐ Team carry T-a (R-2017 T1; R-169 — EmbarkInteractionPayload.Assistant APPENDED) — a stretcher request names its second man,
+            //   who crosses as a network id and arrives as the owner's entity. ✅ Red-proof: the codec without idsOut ⇒ 0 on the wire ⇒ red.
+            var helper = soldiersNode.CreateEntity();
+            map.Register(44L, helper);
+            var ownersHelper = owner.CreateEntity();
+            ownerMap.Register(44L, ownersHelper);
+            owner.Bus.SwapBuffers();
+            writer.Written.Clear();
+            soldiersNode.Bus.Publish(new Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand
+                { Passenger = soldier, Vehicle = apc, Mode = Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher, Assistant = helper });
+            soldiersNode.Bus.SwapBuffers();
+            egress.ScanAndPublish(soldiersNode);
+            var asStretcher = Assert.Single(writer.Written);
+            Assert.Equal(44L, asStretcher.Payload.Embark.Assistant);
+            Deliver(asStretcher);
+            Assert.Equal(ownersHelper, Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Assistant);
         }
 
         [Fact]

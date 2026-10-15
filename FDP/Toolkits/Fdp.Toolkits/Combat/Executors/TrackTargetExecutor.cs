@@ -40,9 +40,25 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            var mount = CombatTkb.MountOf(world, entity, p.Mount);
+            // ⭐⭐ Weapon systems WS-3 (W-D; DESIGN_Weapon_Systems §4a) — a weapon system this unit controls tracks on ITS OWN turret, as
+            //   AimAndFire fires it: mount 0 names the primary (a bare host's station weapon — PrimaryMount), a controlled index the weapon
+            //   itself (its mount 0). It slews only while it may fire for this unit (SystemHold — the gunner, the deploy state, the arc).
+            Entity platform = entity;
+            int platformMount = p.Mount;
+            if (p.Mount == 0 && WeaponSystems.IsControlledIndex(WeaponSystems.PrimaryMount(world, entity, out var primary))) platform = primary;
+            else if (WeaponSystems.IsControlledIndex(p.Mount)) platform = WeaponSystems.ControlledAt(world, entity, p.Mount);
+            if (platform != entity) platformMount = 0;
+            if (!platform.IsNull && platform != entity && AimAndFireExecutor.SystemHold(world, entity, platform, p.Target) is { } hold)
+            {
+                AimAndFireExecutor.ReleaseTurrets(world, entity);
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, hold, p.Target);
+                return;
+            }
+
+            var mount = platform.IsNull ? null : CombatTkb.MountOf(world, platform, platformMount);
             var part = mount != null && mount.TurretIndex >= 0 && world.IsComponentTypeRegistered<WeaponTask>()
-                ? TurretParts.Find(world, entity, mount.TurretIndex) : Entity.Null;
+                ? TurretParts.Find(world, platform, mount.TurretIndex) : Entity.Null;
             if (part.IsNull)
             {
                 channel.Status = NodeStatus.Failure;
@@ -51,9 +67,9 @@ namespace Fdp.Toolkit.Combat.Executors
             }
 
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
-            bool same = current.Mode == WeaponTaskMode.Track && current.Target == p.Target && current.MountIndex == p.Mount;
+            bool same = current.Mode == WeaponTaskMode.Track && current.Target == p.Target && current.MountIndex == platformMount;
             if (!same)
-                world.SetComponent(part, new WeaponTask { Mode = WeaponTaskMode.Track, Target = p.Target, MountIndex = p.Mount, Epoch = current.Epoch + 1 });
+                world.SetComponent(part, new WeaponTask { Mode = WeaponTaskMode.Track, Target = p.Target, MountIndex = (byte)platformMount, Epoch = current.Epoch + 1 });
 
             var status = world.IsComponentTypeRegistered<WeaponTaskStatus>() && world.HasComponent<WeaponTaskStatus>(part)
                 ? world.GetComponent<WeaponTaskStatus>(part) : default;

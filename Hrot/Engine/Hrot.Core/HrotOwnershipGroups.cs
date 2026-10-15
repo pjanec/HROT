@@ -127,8 +127,12 @@ public static class HrotOwnershipGroups
     // G-4 — the same conditions the TKB translators use to provision each group's components.
     private static bool HasBrain(TkbTemplate t)      => t.GetDescriptor<BehaviorProfileDto>() is { BrainTier: not 0 };
     // ⭐ CE-3199 / R-3005 — a FLYER (Gen.Flight) is moved by the Muscle too: there is one Muscle role (MuscleGround keeps its name).
+    // ⭐⭐ Weapon systems WS-4 (DESIGN_Weapon_Systems §2, §9) — and a WEAPON SYSTEM: it has no locomotion, but the Muscle aims its turret
+    //   (TurretPose, WeaponTaskStatus) and carries it in its host's station (SimTransform, like any passenger whose position the Muscle owns).
+    //   Without it the turret's pose stays with the node that created the weapon, and on a split cluster the Muscle never fires it.
     private static bool HasKinematics(TkbTemplate t)
-        => t.GetDescriptor<VehicleParametersDto>() != null || t.GetDescriptor<FlightParamsDto>() != null;
+        => t.GetDescriptor<VehicleParametersDto>() != null || t.GetDescriptor<FlightParamsDto>() != null
+           || t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSystemDto>() != null;
     // ⭐ CE-3036 — a unit with any SENSOR is perceived by the Perception group too (V3: its results publish from there).
     private static bool HasPerception(TkbTemplate t)
         => t.GetDescriptor<SensorCapabilitiesDto>() is { } s && (s.VisionRange > 0f || s.Sensors.Count > 0);

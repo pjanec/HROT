@@ -1,11 +1,11 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
-current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails — §1 is the measured ground.
+build-state: BUILT (backend WS-1…WS-4, §9; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
+current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
-known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount; here they become presets (a pickup host + a weapon system in its station) — §6 stays true until slice WS-4 lands.
+known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
 related-designs:
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: mortar tubes and towed howitzers as weapon systems; FireAtPoint firing a controlled weapon
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267) and the weapon posture (R-272); this file only widens WHICH mounts a unit's weapon brain fires (the controlled weapon systems) and keeps the one firing path
@@ -271,3 +271,47 @@ the tank, the Bradley, the rifles. ⚠ Seats per type stay ≤ 8 (the wire).
 | **WS-6** | behaviors | `ManWeapon`, `SetUpWeapon`, `PackUpWeapon`, `CarryWeapon`; `WeaponSystemAttack` / `WeaponSystemHold`; an automatic weapon's SOP; the demo **`ua-weapon-systems`** (a squad sets up an HMG; a technical fights; a sentry gun covers a gate) | `WeaponSystemNodesTests`, `TacticalIntentResolutionSystemTests.WS_*`, the demo's live rail |
 
 WS-1 → WS-2 → WS-3 → WS-4 on backend (WS-1/WS-2 can go together); WS-5 after WS-1; WS-6 after WS-3.
+
+## 9. As built — backend WS-1…WS-4 (`2026-10-14`), and where it deviates
+
+⭐ Built against §3–§6 and the W-I steer. ⭐ What the diagrams above say still holds except for the rows marked **DEVIATION**; those
+are the as-built truth and supersede the prose they contradict.
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponSystems { <<static, Fdp.Toolkits Combat — built>> IsWeaponSystem · ControllerOf · CanFire(out WeaponHold) · InStationArc · Controlled · ControlledAt · IndexOf · PrimaryMount · GunnerOf }
+  class WeaponMountQuery { <<existing>> EnumerateMounts «own mounts, unchanged» · +EnumerateFiringMounts «own + controlled» }
+  class AimAndFireExecutor { <<existing>> a controlled index (32+k) ⇒ platform = the weapon, mount 0 · SystemHold(unit, weapon, target) }
+  class HitModel { <<existing>> +BodyOf(shooter) «a boarded weapon system ⇒ its carrier» }
+  class CreateEntityRequestSystem { <<existing request tier>> 3.6 mark SeatPresetsFilled · 4c one spawn per StartWith (PresetSeatIntent) }
+  class SeatPresets { <<static, Hrot.Common>> Of · ToFill · ForceOf }
+  class SeatPresetSystem { <<Hrot.Common, in EntityCreationPack, every host>> PresetSeatIntent ⇒ Embarkation.TryEmbarkAt }
+  class Embarkation { <<existing>> weapon ⇒ FreeStation · +TryEmbarkAt(seat) }
+  class SeatPresetsFilled { <<component 382, saved, not replicated>> }
+  class PresetSeatIntent { <<component 383, transient>> HostNetworkId · Seat }
+  AimAndFireExecutor ..> WeaponSystems
+  AimAndFireExecutor ..> HitModel
+  WeaponMountQuery ..> WeaponSystems
+  CreateEntityRequestSystem ..> SeatPresets
+  CreateEntityRequestSystem ..> SeatPresetsFilled
+  CreateEntityRequestSystem ..> PresetSeatIntent
+  SeatPresetSystem ..> PresetSeatIntent
+  SeatPresetSystem ..> Embarkation
+```
+
+*What the picture shows that prose hid: the seat presets are NOT a CGF behaviour (§2 put `SeatPresets` in the brain). They are filled
+at the REQUEST TIER — the same place a template's child blueprints are spawned — on whichever node services the host's creation
+(R-138), and boarded by a system every host schedules from the entity-creation pack.*
+
+| # | as built | vs. the design |
+|---|---|---|
+| WS-1 | `Gen.WeaponSystem` (`WeaponSystemDto`), `WeaponPortability { Static, OneMan, TwoMan }` — ⚠ **DEVIATION**: `Static`, not `None`/`Fixed` (the IDL generator puts every enum member of a descriptor's file in one scope, and `fixed` is an IDL keyword) · seat fields on `SeatDto` · `CarrierStations` (381, type fact) · `WeaponSystemParams` (379) / `WeaponSystemState` (380, `dtWeaponSystemState` = 132, Brain group) · class 1.1.*.50 | §3, §5 |
+| WS-2 | a weapon boards a `Station` whose `Accepts` shares a kind; a man never boards a station (also not by asking for the `Station` role); `PersonCarrier()` gains a carry station (`Station`, `Carried`) — the casualty seat is unchanged; a carried weapon does NOT strip the carrier's fire; `EmbarkedStateSystem` places a station passenger at the seat's place and facing | §6 rows 6–7 |
+| WS-3 | `ControllerOf` = the station's host · the carrier of a `FireWhileCarried` weapon · the man in the weapon's own `Gunner` seat · itself when automatic and unmanned · nobody. `CanFire` = a controller, deployed (a station weapon counts as deployed), the gunner in the fight (`NeedsGunner` station, or the manning gunner). ⚠ **DEVIATION**: `EnumerateMounts` is NOT widened — `CombatTkbTranslator` counts a type's own mount children by it, and a boarded weapon must never join that count; the weapon brain reads the sibling `EnumerateFiringMounts`. A controlled weapon's mount index is `32 + k` (its place in `Controlled`) and the executor fires it AS THE WEAPON (its own mount 0, turret part, muzzle, belt); the unit keeps sight, ROE and status. A bare host's primary mount (`Mount = 0`, and the Auto fallback) is its first station weapon. The arc check is the station's limits (`InStationArc`) — the weapon's own turret limits stay the muscle's `OutOfArc`. ⭐ Added: `HitModel.BodyOf` — a station / carried weapon's spread and sight line are judged on its CARRIER (the pickup moves and is fired at; the soldier kneels), so a technical's numbers do not move when its gun became an entity; `LineOfFire` never counts those riding together. New hold reasons `NotControlled`, `NoGunner`, `NotDeployed` (the turret is released at once — a gunner's death silences the gun the same frame). ⭐ **`TrackTarget` routes the same way** (mount 0 → the primary, a controlled index → the weapon; it slews the WEAPON's turret and holds on `SystemHold`) — 📌 found by the split-cluster rail in WS-4: the technical's tree tracks before it fires, the tracker looked for a mount on the bare pickup, failed every frame, and the M2 never fired; rail `AimAndFireExecutorTests.WS_TrackTarget_OnABareHost_SlewsItsStationWeaponsTurret` | §6 rows 1–4 |
+| WS-4 | nine weapon types (600–608) · the bare Toyota (106) · 104 / 105 = that pickup with `StartWith` M2 / Kornet on the station and a rifleman (200) on the gunner seat; 105's old ±120° / −10…+20° arc is now the STATION's · ⚠ **DEVIATION** (see the class diagram): the presets ride the request tier; `SeatPresetsFilled` is written there and SAVED, so a load whose request carries it fills nothing, and a host loaded without it (a scenario saved before presets) is filled · ⭐ added: a save keeps each passenger's SEAT (`PassengerBuffer` "Seats", `IsEmbarkedTag` "Seat"), so a gunner comes back into the gunner seat — before, a load re-chose seats by role and a crew-only host refused its crew | §4d, §5, §6 row 9 |
+| WS-4 ownership | ⭐ **every weapon type has a BRAIN** (§6's "its own brain runs only while it controls itself" — and `CE-523`: Health and the deploy state are Brain-group components, which only apply to a type with a brain) · ⭐ **the Muscle group applies to a weapon system** (`HrotOwnershipGroups.HasKinematics` widened): the Muscle aims its turret (`TurretPose`, `WeaponTaskStatus`) and carries it in its station (`SimTransform`), as for any passenger. Without it the turret stayed with the weapon's creator and a split cluster never fired it | §2 (the module picture assumed both) |
+| WS-4 armed | ⭐ **`WeaponSystems.WeaponOf(unit)`** — the unit's own `WeaponState` holder, else its first controlled weapon system, else null — is the one answer to *"is this unit armed, with what?"*: the utility inputs `AmmoFraction` / `WeaponHasAmmo` / `WeaponReadiness` / `RoundsLeft` and `ThreatDanger.OwnStrength` read through it — ⭐ and so does `ThreatDanger.Of` / `ToMe` for a bare host as a TARGET (its danger is its station gun's suite; before, its enemies read it as an unarmed contact, 0.3). 📌 Found by the split-cluster rail: they read the UNIT's `WeaponState`, so a bare pickup scored 0 on its engage decision and never fought (and ranked itself unarmed). A unit with its own gun reads exactly as before — no ground number moves. ⚠ **Report to behaviors**: three behaviour-lane sites still read the unit's own `WeaponState` — `PeekAndFireNodes.ReloadingOrEmpty`, `VehicleFightFromCoverNodes.Reloading` (a bare host never waits for a reload) and `HillAttackTankNodes` (fails on a bare host); `WeaponOf` is the call for them | §6 |
+| WS-4 riders | ⭐ **a carrier and its riders do not hide each other** (`RideGroups` in `LosStrategies.cs`, used by `ColliderOcclusion` — sight, fragments and blast shadow — and by `PlanarCircleLosStrategy`). 📌 Found by the split-cluster rail, and ⚠ **older than WS-4**: an OPEN cabin's riders are colliders (R-271 — exposed, seen and hit), so the gunner standing at the pickup's own position blinded the pickup and the pickup the gunner. Measured: at the same spot the bare Toyota (106) and the Bradley (101) saw the target, the crewed technical (104) did not. It applies to every open carrier (a doors-off UH-60, a soldier carrying a casualty). The line of FIRE already had this rule (`LineOfFire.RidesWith`, WS-3) | R-271 (DESIGN_Entity_Interactions §7.2a) |
+| ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
+| ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |

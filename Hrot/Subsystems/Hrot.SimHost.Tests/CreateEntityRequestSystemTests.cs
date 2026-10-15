@@ -133,6 +133,203 @@ namespace Hrot.SimHost.Tests
 
         // â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+        // ── ⭐⭐ Weapon systems WS-4 (W-I; STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets; DESIGN_Weapon_Systems §4d) ──────────
+
+        private const long PresetHost = 9104L, PresetGun = 9600L, PresetMan = 9200L;
+
+        /// <summary>
+        /// ⭐⭐ Air Ops slice 6a F4 (DESIGN_Air_Operations §7a; 🔒 user `2026-10-14` "extend the wire capacity") — a placed doors-off UH-60
+        /// (404, the REAL catalogue) spawns its two door gunners and two M134s into seats 8–11, beyond the old 8-wide list: its 8 rider seats
+        /// stay free for a squad. Boarded, each M134 is controlled by the helicopter and fires while its door gunner is in the fight; a door
+        /// gunner shot ⇒ his gun falls silent (<c>NoGunner</c>), the other still fires. ✅ Red-proof: Capacity 8 ⇒ the translator refuses 12
+        /// seats ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff, DisType = ValidDisType,
+                InitialComponents = new List<object> { new EntityInfo { Name = "H1", ForceId = ForceId.Friend } },
+            });
+            var (system, _, _) = BuildSystem(tkb, source);
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(5, commands.Count);   // the helicopter + 2 door gunners + 2 M134s
+            var seats = commands.Where(c => c.TkbType != Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff)
+                .Select(c => (c.TkbType, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)c.InitialComponents!.Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat))
+                .OrderBy(x => x.Seat).ToArray();
+            Assert.Equal(new[] { (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)8), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)9),
+                                 (Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, (byte)10), (Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun, (byte)11) }, seats);
+
+            // boarded by SeatPresetSystem on the real types
+            using var w = new EntityRepository();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var placed = new List<(Entity, byte)>();
+            foreach (var (type, seat) in seats)
+            {
+                var e = w.CreateEntity();
+                if (type == Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M134Minigun)
+                    new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(w, e, tkb.GetByType(type));
+                else w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+                w.AddComponent(e, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 700, Seat = seat });
+                placed.Add((e, seat));
+            }
+            var heli = w.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(w, heli, tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Heli_UH60_DoorsOff));
+            map.Register(700, heli);
+            new Hrot.Common.EntityCreation.SeatPresetSystem(map).Execute(w, 0f);
+
+            var list = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(heli);
+            foreach (var (e, seat) in placed) Assert.Equal(e, list.Passengers[seat]);
+            Assert.Equal(8, Fdp.Toolkit.Behavior.Embarkation.CapacityOf(w, heli));        // the riders' seats
+            Assert.Equal(0, Fdp.Toolkit.Behavior.Embarkation.FreeSeat(w, heli));          // … all still free
+            var (leftGunner, leftGun, rightGun) = (placed[0].Item1, placed[1].Item1, placed[3].Item1);
+            Assert.Equal(heli, Fdp.Toolkit.Combat.WeaponSystems.ControllerOf(w, leftGun));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, leftGun));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, rightGun));
+
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(leftGunner).Current = 0f;   // the left door gunner is shot
+            Assert.False(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, leftGun, out var why));
+            Assert.Equal(Fdp.Toolkit.Combat.WeaponHold.NoGunner, why);
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, rightGun));
+        }
+
+        /// <summary>A technical's TKB: a host with a driver seat, a gunner seat starting with a rifleman and a pintle station starting
+        /// with an M2; the M2 and the rifleman.</summary>
+        private static TkbDatabase PresetTkb()
+        {
+            var db = new TkbDatabase();
+            var host = new TkbTemplate("Technical", PresetHost);
+            host.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto { Seats =
+            {
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver },
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = PresetMan },
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station,
+                    Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true, StartWith = PresetGun },
+            } });
+            db.Register(host);
+            var gun = new TkbTemplate("M2", PresetGun);
+            gun.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto { MountKinds = Fdp.Toolkit.Tkb.Domain.MountKinds.Pintle });
+            db.Register(gun);
+            db.Register(new TkbTemplate("Rifleman", PresetMan));
+            return db;
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-4 (W-I) — a placed technical is ONE request, and the node servicing it spawns its seat presets beside it: the M2 for the
+        /// station, a rifleman of the HOST'S SIDE for the gunner seat, each naming its seat on its host (PresetSeatIntent); the host is
+        /// marked filled (SeatPresetsFilled, saved). ✅ Red-proof: without the 3.6/4c steps ⇒ one command ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_APlacedHost_SpawnsItsSeatPresets_OfItsSide_AndIsMarkedFilled()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = PresetHost, DisType = ValidDisType,
+                InitialComponents = new List<object> { new EntityInfo { Name = "T1", ForceId = ForceId.Hostile } },
+            });
+            var (system, _, _) = BuildSystem(PresetTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Equal(3, commands.Count);
+            var host = commands.Single(c => c.TkbType == PresetHost);
+            Assert.Contains(host.InitialComponents!, c => c is Fdp.Toolkit.Behavior.Components.SeatPresetsFilled);
+            foreach (var (type, seat) in new[] { (PresetMan, 1), (PresetGun, 2) })
+            {
+                var preset = commands.Single(c => c.TkbType == type);
+                var intent = (Fdp.Toolkit.Behavior.Components.PresetSeatIntent)preset.InitialComponents!.Single(c => c is Fdp.Toolkit.Behavior.Components.PresetSeatIntent);
+                Assert.Equal((host.NetworkId, (byte)seat), (intent.HostNetworkId, intent.Seat));
+                Assert.Equal(ForceId.Hostile, ((EntityInfo)preset.InitialComponents!.Single(c => c is EntityInfo)).ForceId);
+                Assert.Equal(host.OwnerNodeId, preset.OwnerNodeId);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-4 (W-I, the steer's rail) — a save / load adds NEITHER again: the loaded host's request carries the saved
+        /// SeatPresetsFilled, so only the host is spawned (its saved M2 and gunner come back as their own entities, boarded by the saved
+        /// passenger list). ✅ Red-proof: ToFill ignoring the mark ⇒ three commands ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_ALoadedHost_AlreadyFilled_SpawnsNoPresetsAgain()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = PresetHost, DisType = ValidDisType,
+                PreAllocatedNetworkId = 555,
+                InitialComponents = new List<object> { new Fdp.Toolkit.Behavior.Components.SeatPresetsFilled { Filled = 1 } },
+            });
+            var (system, _, _) = BuildSystem(PresetTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+
+            Assert.Single(((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>());
+        }
+
+        /// <summary>
+        /// ⭐⭐ WS-4 (W-I) — SeatPresetSystem boards each preset into the seat its TYPE names (not the first free one of a role): the M2
+        /// into the station, the rifleman into the gunner seat, once the host is there; then the intents are gone. A preset whose host has
+        /// not arrived waits. ✅ Red-proof: boarding with TryEmbark (first free seat of the passenger role) ⇒ the rifleman finds no
+        /// passenger seat ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_SeatPresetSystem_BoardsEachPresetIntoItsSeat_OnceTheHostIsThere()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            var db = PresetTkb();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var gun = repo.CreateEntity();
+            new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator().Inject(repo, gun, db.GetByType(PresetGun));
+            repo.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 700, Seat = 2 });
+            var man = repo.CreateEntity();
+            repo.AddComponent(man, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 700, Seat = 1 });
+            var system = new Hrot.Common.EntityCreation.SeatPresetSystem(map);
+
+            system.Execute(repo, 0f);   // the host is not here yet: both wait
+            Assert.True(repo.HasComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>(gun));
+
+            var host = repo.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(repo, host, db.GetByType(PresetHost));
+            map.Register(700, host);
+            system.Execute(repo, 0f);
+
+            var list = repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(host);
+            Assert.Equal((man, gun), (list.Passengers[1], list.Passengers[2]));
+            Assert.False(repo.HasComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>(gun));
+            Assert.False(repo.HasComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>(man));
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-143</c> — <b>the default is <c>AllPeers</c>, so adoption changes NOTHING.</b>
         /// 📌 Both publish sites hardcoded <c>ReliableInitType.AllPeers</c>; the request now carries the
@@ -204,7 +401,8 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(
                     "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
 
-            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+            Assert.Equal(3,   // ⭐ WS-4 — the parent, the children, and the seat presets (W-I)
+                System.Text.RegularExpressions.Regex.Matches(
                 code, @"InitType\s*=\s*pending\.Request\.InitType").Count);
             Assert.DoesNotContain("InitType          = ReliableInitType.AllPeers", code);
         }
@@ -278,7 +476,8 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(
                     "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
 
-            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+            Assert.Equal(3,   // ⭐ WS-4 — the parent, the children, and the seat presets (W-I)
+                System.Text.RegularExpressions.Regex.Matches(
                 code, @"IsTransient\s*=\s*pending\.Request\.IsTransient").Count);
         }
 
@@ -318,7 +517,8 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(
                     "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
 
-            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+            Assert.Equal(3,   // ⭐ WS-4 — the parent, the children, and the seat presets (W-I)
+                System.Text.RegularExpressions.Regex.Matches(
                 code, @"ReliableInitTimeout\s*=\s*pending\.Request\.ReliableInitTimeout").Count);
         }
 
@@ -391,7 +591,8 @@ namespace Hrot.SimHost.Tests
                 CompositionRootSource.ReadRepoSource(
                     "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
 
-            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+            Assert.Equal(3,   // ⭐ WS-4 — the parent, the children, and the seat presets (W-I)
+                System.Text.RegularExpressions.Regex.Matches(
                 code, @"SpawnHeight\s*=\s*pending\.Request\.SpawnHeight").Count);
         }
 

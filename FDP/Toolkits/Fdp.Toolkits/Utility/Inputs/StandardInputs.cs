@@ -72,8 +72,9 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("AmmoFraction")]
         public static float AmmoFraction(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
             float result = ws.MaxAmmo == 0 ? 0f : Math.Clamp((float)ws.Ammo / ws.MaxAmmo, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -86,8 +87,9 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("WeaponHasAmmo")]
         public static float WeaponHasAmmo(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
             float result = ws.Ammo > 0 ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -101,8 +103,9 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("WeaponReadiness")]
         public static float WeaponReadiness(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(ctx.Self);
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4 — a bare host reads its station weapon
+            if (weapon.IsNull) return 0f;
+            ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(weapon);
             float result = ws.CooldownSecondsRemaining <= 0f && Fdp.Toolkit.Combat.Magazine.Ready(ws) ? 1f : 0f;
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
@@ -452,12 +455,17 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("RoundsLeft")]
         public static float RoundsLeft(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<WeaponState>(ctx.Self)) return 0f;
-            int ammo = ctx.Repo.GetComponentRO<WeaponState>(ctx.Self).Ammo;
+            var weapon = WeaponOf(in ctx);   // ⭐ WS-4
+            if (weapon.IsNull) return 0f;
+            int ammo = ctx.Repo.GetComponentRO<WeaponState>(weapon).Ammo;
             float result = ammo <= 0 ? 0f : Math.Clamp(MathF.Log(1f + ammo) / MathF.Log(1f + RoundsLeftFullScale), 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;
         }
+
+        /// <summary>⭐ WS-4 — the WeaponState these inputs read for <c>ctx.Self</c>: its own, else (a bare host) its station weapon's
+        /// (<see cref="Fdp.Toolkit.Combat.WeaponSystems.WeaponOf"/>). A mount (weapon selection's Self) carries its own, as before.</summary>
+        private static Entity WeaponOf(in UtilityInputCtx ctx) => Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(ctx.Repo, ctx.Self);
 
         // ── RegisterAll ──────────────────────────────────────────────────────────
 

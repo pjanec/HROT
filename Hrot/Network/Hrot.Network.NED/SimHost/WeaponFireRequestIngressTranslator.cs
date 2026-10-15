@@ -94,6 +94,8 @@ namespace Hrot.Network.NED.SimHost
                 AtPoint     = atPoint,
                 TargetPoint = new System.Numerics.Vector3(request.PointX, request.PointY, request.PointZ),
                 AmmoGuid    = request.AmmoGuid,   // ⭐ M8
+                Charge      = request.Charge,     // ⭐ IF-1 (I3)
+                HighArc     = request.HighArc,
             });
         }
 

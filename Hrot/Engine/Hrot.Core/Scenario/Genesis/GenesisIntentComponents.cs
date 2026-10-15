@@ -24,6 +24,11 @@ namespace Hrot.Common.Serializers
     {
         /// <summary>Network IDs of all passenger entities at scenario load time.</summary>
         public List<EntityRef> PassengerNetworkIds { get; set; } = new();
+
+        /// <summary>⭐ Weapon systems WS-4 (W-I) — each passenger's SEAT, parallel to <see cref="PassengerNetworkIds"/> (a gunner comes back
+        /// into the gunner seat, the M2 into its station). Empty for a save written before seats were saved: then the seats are re-chosen
+        /// by the boarding rules, as before.</summary>
+        public List<int> Seats { get; set; } = new();
     }
 
     /// <summary>
@@ -40,6 +45,9 @@ namespace Hrot.Common.Serializers
     {
         /// <summary>Network ID of the vehicle entity this soldier is embarked in.</summary>
         public EntityRef VehicleNetworkId { get; set; }
+
+        /// <summary>⭐ WS-4 (W-I) — the seat it had; −1 (a save written before seats were saved) = the boarding rules choose.</summary>
+        public int Seat { get; set; } = -1;
     }
 
     /// <summary>

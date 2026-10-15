@@ -1129,7 +1129,8 @@ public sealed class Map3DFrameRail
         Assert.InRange(eye.Z - query.GroundHeightAt(stand.X, stand.Y), 1.2f, 2.0f);                       // at a standing eye height
         Assert.True(bodies.BodiesDrawn >= 1, "the tank across the street is drawn");
         var lines = PossessionStation.Hud.Lines(world, me, mount: 0, vehicle: false, hullLocked: false);
-        Assert.Equal(new[] { "HEALTH 74/100", "> WEAPON 0  112/150  [22]", "  WEAPON 1  3/4" }, lines[..3]);
+        // ⭐ CE-1079 — each weapon is numbered by its KEY (1-4), not its mount index (this display-only rail had not run since)
+        Assert.Equal(new[] { "HEALTH 74/100", "> 1 WEAPON  112/150  [22]", "  2 WEAPON  3/4" }, lines[..3]);
     }
 
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>

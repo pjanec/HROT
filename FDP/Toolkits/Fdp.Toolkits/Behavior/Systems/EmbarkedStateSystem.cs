@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         private readonly Dictionary<Entity, int> _order = new();
         private readonly HashSet<Entity> _killSent = new();
         private readonly HashSet<Entity> _drops = new();
+        private readonly List<Entity> _released = new();
 
         /// <summary>Passengers this node boarded from a list (a rail reads it).</summary>
         public long Boarded { get; private set; }
@@ -37,8 +38,10 @@ namespace Fdp.Toolkit.Behavior.Systems
         public long Left { get; private set; }
         /// <summary>Passengers this node killed because their vehicle was destroyed (lethal damage events published).</summary>
         public long Killed { get; private set; }
-        /// <summary>⭐ CE-2152 — loads this node dropped because their person carrier went down.</summary>
+        /// <summary>⭐ CE-2152 — loads this node dropped because their person carrier went down (⭐ T-a — or his second man did).</summary>
         public long Dropped { get; private set; }
+        /// <summary>⭐ T-a — second men this node released because their carrier no longer names them.</summary>
+        public long Released { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -80,6 +83,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var vehicle in _leaving.Keys) if (repo.IsAlive(vehicle)) Embarkation.ReleaseCarrier(repo, vehicle);
 
             CarryAndKill(repo);
+            Assistants(repo);
 
             // ⭐ CE-2152 (R-2011 C9) — a person carrier who is DOWN (incapacitated or dead) drops his load where he lies, alive: on the node
             //   that owns his list (its change replicates); the casualty stays down (Leave restores only someone in the fight).
@@ -106,7 +110,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!repo.IsAlive(vehicle)) continue;
 
                 bool person = Embarkation.IsPersonCarrier(repo, vehicle);
-                if (person && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle))
+                // ⭐ T-a (R-2017 T6) — a TEAM load is put down when EITHER man is down
+                var second = person ? Embarkation.AssistantOf(repo, vehicle) : Entity.Null;
+                if (person && (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle)
+                               || (!second.IsNull && (!repo.IsAlive(second) || !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, second)))))
                 {
                     if (Embarkation.OwnsVehicle(repo, vehicle)) _drops.Add(vehicle);   // ⭐ CE-2152 C9 — dropped below, never killed with him
                     continue;
@@ -159,11 +166,54 @@ namespace Fdp.Toolkit.Behavior.Systems
             => repo.IsComponentTypeRegistered<CarrierSeats>() && repo.HasComponent<CarrierSeats>(vehicle)
                && repo.GetComponentRO<CarrierSeats>(vehicle).PassengersSurvive != 0;
 
-        /// <summary>⭐ CE-2152 (R-2011 C10) — how far behind a person carrier the casualty is held for its mode.</summary>
+        /// <summary>⭐ CE-2152 (R-2011 C10) — how far behind a person carrier the casualty is held for its mode. ⭐ T-a — a stretcher's casualty
+        /// lies half way to the rear handle.</summary>
         private static float Behind(EntityRepository repo, Entity carrier, CarryMode mode)
         {
             ref readonly var pc = ref repo.GetComponentRO<PersonCarrier>(carrier);
-            return mode == CarryMode.Dragged ? pc.DragBehindMetres : pc.CarryBehindMetres;
+            return mode switch
+            {
+                CarryMode.Dragged   => pc.DragBehindMetres,
+                CarryMode.Stretcher => 0.5f * pc.AssistantBehindMetres,
+                _                   => pc.CarryBehindMetres,
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐ Team carry T-a (R-2017 T1, T3) — the SECOND man, derived on every node from his carrier's list as the passenger side is:
+        /// named and not tagged ⇒ <see cref="Embarkation.Assist"/>; tagged and no longer named ⇒ <see cref="Embarkation.ReleaseAssistant"/>.
+        /// While he assists he is PLACED at the rear handle (<see cref="PersonCarrier.AssistantBehindMetres"/> behind, facing the carrier's
+        /// way, at his velocity) where his position is owned — the pair moves as one at the carrier's speed.
+        /// </summary>
+        private void Assistants(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<IsAssistingTag>() || !repo.IsComponentTypeRegistered<PersonCarrier>()) return;
+            bool transforms = repo.IsComponentTypeRegistered<SimTransform>();
+            bool velocities = repo.IsComponentTypeRegistered<SimVelocity>();
+            foreach (var carrier in repo.Query().With<PersonCarrier>().With<PassengerBuffer>().Build())
+            {
+                var second = repo.GetComponentRO<PassengerBuffer>(carrier).Assistant;
+                if (second.IsNull || !repo.IsAlive(second)) continue;
+                if (!(repo.HasComponent<IsAssistingTag>(second) && repo.GetComponentRO<IsAssistingTag>(second).Carrier == carrier))
+                    Embarkation.Assist(repo, second, carrier);
+                if (transforms && repo.HasComponent<SimTransform>(carrier) && repo.HasComponent<SimTransform>(second) && Embarkation.OwnsPosition(repo, second))
+                {
+                    ref readonly var c = ref repo.GetComponentRO<SimTransform>(carrier);
+                    ref var t = ref repo.GetComponentRW<SimTransform>(second);
+                    t.Position = c.Position - Forward(c.Rotation) * repo.GetComponentRO<PersonCarrier>(carrier).AssistantBehindMetres;
+                    t.Rotation = c.Rotation;
+                    if (velocities && repo.HasComponent<SimVelocity>(carrier) && repo.HasComponent<SimVelocity>(second))
+                        repo.GetComponentRW<SimVelocity>(second) = repo.GetComponentRO<SimVelocity>(carrier);
+                }
+            }
+            foreach (var man in repo.Query().With<IsAssistingTag>().Build())
+            {
+                var carrier = repo.GetComponentRO<IsAssistingTag>(man).Carrier;
+                if (repo.IsAlive(carrier) && Embarkation.AssistantOf(repo, carrier) == man) continue;
+                _released.Add(man);
+            }
+            foreach (var man in _released) { Embarkation.ReleaseAssistant(repo, man); Released++; }
+            _released.Clear();
         }
 
         /// <summary>The heading (X-forward, Z-up), flattened to the ground.</summary>

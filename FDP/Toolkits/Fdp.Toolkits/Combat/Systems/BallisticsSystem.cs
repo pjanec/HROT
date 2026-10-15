@@ -132,6 +132,8 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 uint lifetime = (proj.Warhead & (WarheadRound.Arc | WarheadRound.TimeFuze)) != 0
                     ? CombatConstants.ArcRoundLifetimeTicks : CombatConstants.BulletLifetimeTicks;
+                // ⭐ Indirect fire IF-1 (I5) — an arc round lives its own flight + 10 s (a 90 s howitzer round still lands)
+                if ((proj.Warhead & WarheadRound.Arc) != 0 && proj.ArcLifetimeTicks > lifetime) lifetime = proj.ArcLifetimeTicks;
                 // ⭐ M4 — a missile lives its flight (MaxFlightSeconds), not a bullet's 2 s: a 2 km TOW vanished mid-flight
                 if (guided && repo.HasComponent<GuidedRound>(entity) && repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks > 0)
                     lifetime = repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks;

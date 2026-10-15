@@ -106,12 +106,9 @@ public class DeadReckoningSyncSystem : IEcsModuleSystem
             // Age of the last received sample. Clamped at zero: a stamp ahead of local sim time
             // means the publisher is ahead of us, and extrapolating backwards would rewind the
             // entity rather than hold it still.
-            float age = (float)(simNow - netTf.SimStamp);
-            if (age < 0f)
-                age = 0f;
-
-            // Recomputed from the sample every frame — never from the previous projection.
-            var projectedNetPos = netTf.LastPosition + (netVel.Value * age);
+            // Recomputed from the sample every frame — never from the previous projection. ⭐ CE-2173 — the ONE projection
+            // (ReplicatedMotion.Project), shared with a brain that reads a unit whose motion another node owns.
+            var projectedNetPos = Fdp.Toolkit.Replication.ReplicatedMotion.Project(in netTf, in netVel, simNow);
 
             var blendedPos = Vector3.Lerp(simTf.Position, projectedNetPos, deltaTime * SmoothingRate);
             cmd.SetComponent(entity, new SimTransform

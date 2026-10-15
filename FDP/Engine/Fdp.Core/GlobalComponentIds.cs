@@ -884,5 +884,18 @@ namespace Fdp.Core
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;
+
+        /// <summary><c>SeatPresetsFilled</c> — ⭐ WS-4 (W-I): a host whose seat presets (<c>SeatDto.StartWith</c>) were filled; saved, so a
+        /// scenario load never fills them again. ⚠ 382 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int SeatPresetsFilled = 382;
+
+        /// <summary><c>PresetSeatIntent</c> — ⭐ WS-4 (W-I): a preset passenger's seat on its host, until it is boarded; transient, the
+        /// creating node only. ⚠ 383 measured free on backend, ui and behaviors 2026-10-14.</summary>
+        public const int PresetSeatIntent = 383;
+
+        /// <summary><c>IsAssistingTag</c> — ⭐ team carry T-a (R-2017): the second man of a team carry (a stretcher, a two-man weapon), derived
+        /// on every node from the carrier's <c>PassengerBuffer.Assistant</c>, like <c>IsEmbarkedTag</c>; never saved. ⚠ 384 measured free on
+        /// backend, ui and behaviors 2026-10-14.</summary>
+        public const int IsAssistingTag = 384;
     }
 }

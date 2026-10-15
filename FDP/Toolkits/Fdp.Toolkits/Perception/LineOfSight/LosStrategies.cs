@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     {
         private readonly Func<ISimulationView, Entity, float>? _radius;
         private readonly List<(Entity E, Vector2 P, float R)> _colliders = new();
+        private readonly RideGroups _rides = new();   // ⭐ WS-4
         private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
         private readonly List<int> _near = new();
 
@@ -52,6 +53,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 _colliders.Add((c, new Vector2(p.X, p.Y), _radius?.Invoke(view, c) ?? 0f));
             }
             _index.Build(_colliders.Count, i => _colliders[i].P, i => _colliders[i].R);
+            _rides.Build(view);
         }
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
@@ -64,7 +66,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (int k in _near)
             {
                 var (e, p, r) = _colliders[k];
-                if (e.Index == observer.Index || e.Index == target.Index) continue;
+                if (e.Index == observer.Index || e.Index == target.Index || _rides.Together(e, observer) || _rides.Together(e, target)) continue;
                 if (LosGeometry.LegacyCrossing(a, b, p, r)) return false;
             }
             return true;
@@ -278,6 +280,33 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     }
 
     /// <summary>
+    /// ⭐⭐ WS-4 (R-271, DESIGN_Weapon_Systems §9 "riders") — who RIDES TOGETHER for sight and blast shadow: a carrier and everyone
+    /// embarked on it (its gunner, its station weapon, a carried casualty) are one body. 📌 Found by the split-cluster rail: an
+    /// OPEN cabin's passengers are colliders (I-2c: exposed — seen and hit), and the gunner standing at the pickup's own position
+    /// blocked the pickup's sight, and the pickup the gunner's — a technical with its crew aboard saw nothing. The line of FIRE
+    /// already had the rule (<c>LineOfFire.RidesWith</c>); this is the same rule for the line of SIGHT.
+    /// </summary>
+    public sealed class RideGroups
+    {
+        private readonly Dictionary<int, int> _carrierOf = new();
+
+        /// <summary>Records every embarked entity's carrier (by index — the skip convention of the colliders).</summary>
+        public void Build(ISimulationView view)
+        {
+            _carrierOf.Clear();
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) return;
+            foreach (var e in view.Query().With<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>().Build())
+                _carrierOf[e.Index] = view.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e).VehicleEntity.Index;
+        }
+
+        /// <summary>The index of the body <paramref name="index"/> rides as: its carrier's, or its own.</summary>
+        public int GroupOf(int index) => _carrierOf.TryGetValue(index, out var carrier) ? carrier : index;
+
+        /// <summary>Does collider <paramref name="collider"/> ride with <paramref name="skip"/> (its carrier, its rider, a co-rider)?</summary>
+        public bool Together(Entity collider, Entity skip) => skip.Index >= 0 && GroupOf(collider.Index) == GroupOf(skip.Index);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-1032</c> (R-225 W-6′) — THE 3-D collider test, ONE implementation for sight and for fragments, so the two never
     /// disagree about what hides a body: every <see cref="PhysicsCollider"/> is an upright cylinder (radius, and
     /// <see cref="PhysicsCollider.Height"/> above its Z — 0 = unknown, which blocks at every height). Moved verbatim out of
@@ -287,6 +316,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     public sealed class ColliderOcclusion
     {
         private readonly List<(Entity E, Vector3 P, float R, float H)> _colliders = new();
+        private readonly RideGroups _rides = new();   // ⭐ WS-4 — riders and their carrier do not hide each other
         private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
         private readonly List<int> _near = new();
 
@@ -318,6 +348,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                     radius?.Invoke(view, c) ?? 0f, height?.Invoke(view, c) ?? 0f));
             }
             _index.Build(_colliders.Count, i => new Vector2(_colliders[i].P.X, _colliders[i].P.Y), i => _colliders[i].R);
+            _rides.Build(view);
         }
 
         /// <summary>
@@ -333,7 +364,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (int k in _near)
             {
                 var (e, p, r, h) = _colliders[k];
-                if (Skips(e, skipA) || Skips(e, skipB)) continue;
+                if (Skips(e, skipA) || Skips(e, skipB) || _rides.Together(e, skipA) || _rides.Together(e, skipB)) continue;
                 if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out float t1)) continue;
                 if (h <= 0f) { unknownHeight = true; return e; }   // unknown height — blocks, as before
                 float z0 = from.Z + ((to.Z - from.Z) * t0);
@@ -362,7 +393,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             foreach (int k in _near)
             {
                 var (e, p, r, h) = _colliders[k];
-                if (Skips(e, skipA) || Skips(e, skipB) || h <= 0f) continue;
+                if (Skips(e, skipA) || Skips(e, skipB) || _rides.Together(e, skipA) || _rides.Together(e, skipB) || h <= 0f) continue;
                 if (p.Z + h <= topZ) continue;
                 if (!LosGeometry.SegmentCircle(a, b, new Vector2(p.X, p.Y), r, out float t0, out _)) continue;
                 float f = factor(p.Z + h - baseZ, (1f - t0) * length);

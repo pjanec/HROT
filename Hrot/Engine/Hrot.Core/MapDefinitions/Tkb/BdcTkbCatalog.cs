@@ -30,10 +30,15 @@ namespace Hrot.Map.Definitions.Tkb
             AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
         };
 
-        /// <summary>⭐ M9 (Exposure Cycle §6) — a technical: the pickup, its pintle <paramref name="turret"/> and <paramref name="weapon"/>.</summary>
+        /// <summary>⭐ M9 (Exposure Cycle §6) — a pickup: drives like a car, no armour, a 2.2 m eye in the bed, hostile. ⭐⭐ WS-4 (W-F, W-I;
+        /// DESIGN_Weapon_Systems §5) — its weapon is no longer TYPE data: the bed is a STATION (a pintle, operated by the gunner seat,
+        /// NeedsGunner) and a technical is this pickup with a weapon system and a gunner in its seats (<paramref name="weapon"/>,
+        /// <paramref name="gunner"/> — <c>SeatDto.StartWith</c>, filled once on the creating node by <c>SeatPresets</c>).</summary>
         /// <param name="icon">an icon with embedded art (the HMMWV's until a pickup icon is drawn — CE1017's icon rail).</param>
-        private static void Technical(NedTkbBuilder builder, long type, string name, string icon, TurretDto turret, WeaponMount weapon)
+        private static void Pickup(NedTkbBuilder builder, long type, string name, string icon, long weapon = 0, long gunner = 0,
+                                   float traverseDeg = 0f, float elevationMinDeg = 0f, float elevationMaxDeg = 0f)
         {
+            bool arc = traverseDeg > 0f;
             builder
                 .DefineVehicle(type, name)
                 .WithVisual(type, v => { v.IconName = icon; v.SymbolCode = "SHGPUCV--------"; v.ModelPath = "models/technical.obj"; v.ColorHex = "#C8C2B0"; v.Scale = 0.9f; })
@@ -51,9 +56,24 @@ namespace Hrot.Map.Definitions.Tkb
                     c.MobilityKillBelowFraction = 0.6f;
                     c.EyeHeight = 2.2f;   // standing in the bed
                     c.SensorRange = 2000;
-                    c.Weapons.Add(weapon);
                 })
-                .WithTurrets(type, turret)
+                .WithCarrier(type, new CarrierDefDto
+                {
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open,   // a bed and a cab window: the crew is seen and hit
+                    Seats =
+                    {
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver },
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = gunner },
+                        // the bed pintle: the weapon's own pivot ends 1.9 m up, 1.3 m behind the reference point (the M9 pintle's place)
+                        new SeatDto
+                        {
+                            Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Pintle, OperatedBy = 1, NeedsGunner = true,
+                            X = -1.3f, Z = PintleZ, StartWith = weapon,
+                            TraverseMinDeg = arc ? -traverseDeg : null, TraverseMaxDeg = arc ? traverseDeg : null,
+                            ElevationMinDeg = arc ? elevationMinDeg : null, ElevationMaxDeg = arc ? elevationMaxDeg : null,
+                        },
+                    },
+                })
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
                 {
                     MovingAudibleRange = 100f, MovingClass = SoundSourceClass.WheeledEngine,
@@ -62,6 +82,197 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 2)
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 6 });   // 1.1.*.6 small wheeled utility vehicle
+        }
+
+        /// <summary>⭐ WS-4 — the bed station's height: a weapon's pintle pivot (<see cref="WeaponPivotZ"/>) above it ends at the M9 pintle's 1.9 m.</summary>
+        private const float WeaponPivotZ = 0.3f, PintleZ = 1.9f - WeaponPivotZ;
+
+        /// <summary>
+        /// ⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — a WEAPON SYSTEM type: an entity of its own (Gen.WeaponSystem) whose gun is
+        /// its mount 0 and whose pintle / tripod is its own turret 0; manned through a Gunner seat (+ a loader's for a two-man weapon); seen,
+        /// hit and destroyed (60 hp). DIS 1.1.*.50.<paramref name="sub"/> (the WeaponSystem class). Every one has a BRAIN (§6: it runs only
+        /// while the weapon controls itself, else it holds — and the Brain group must own its Health and deploy state, CE-523); an AUTOMATIC one
+        /// (<c>NeedsOperator = false</c>) also sees (a sensor) and so fights on its own.
+        /// </summary>
+        private static void WeaponSystemType(NedTkbBuilder builder, long type, string name, byte sub, WeaponSystemDto ws, WeaponMount weapon,
+                                             TurretDto? turret, float sensorRange = 0f, byte category = 50)
+        {
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v => { v.SymbolCode = "SFGPEWM--------"; v.ColorHex = "#5A5F52"; v.Scale = 0.5f; })
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 60;
+                    if (sensorRange > 0f) { c.SensorRange = sensorRange; c.EyeHeight = 1f; }
+                    c.Weapons.Add(weapon);
+                })
+                .WithWeaponSystem(type, ws)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = category, Subcategory = sub })   // ⭐ IF-1 — a mortar 10, a towed gun 5
+                // ⭐ hidden from the Add Entity picker until the ui lane draws the class (WS-5: the stowed / deployed drawings and its
+                //   picker entries — a weapon has no 3-D family yet, Map3D S1). It is created by presets and scenarios meanwhile.
+                .HiddenFromPalette(type);
+            if (turret != null) builder.WithTurrets(type, turret);
+            if (ws.NeedsOperator)
+            {
+                var crew = new CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
+                crew.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner });
+                if (ws.Portable == WeaponPortability.TwoMan) crew.Seats.Add(new SeatDto());   // the loader
+                builder.WithCarrier(type, crew);
+            }
+            else builder.WithFaction(type, 1);   // W-E — it fights on its own
+            builder.WithBehavior(type);
+        }
+
+        /// <summary>⭐ WS-4 — a pintle / tripod turret of a weapon system: all round, its pivot <see cref="WeaponPivotZ"/> above its base.</summary>
+        private static TurretDto Pintle(float elevationMinDeg, float elevationMaxDeg, float traverseRate, float elevationRate, float trunnionX)
+            => new() { PivotZ = WeaponPivotZ, TrunnionX = trunnionX, TraverseMinDeg = -180f, TraverseMaxDeg = 180f,
+                       ElevationMinDeg = elevationMinDeg, ElevationMaxDeg = elevationMaxDeg,
+                       TraverseRateDegPerSec = traverseRate, ElevationRateDegPerSec = elevationRate };
+
+        /// <summary>⭐ WS-4 — the 12.7 mm heavy machine gun as the M9 technical carried it (penetration: the round's own, 25 mm).</summary>
+        private static WeaponMount Hmg(string name) => new()
+        {
+            WeaponType = name, Ammunition = 300, Range = 1500, RateOfFire = 600, DamagePerHit = 60,
+            DispersionMils = 4f, MagazineSize = 50, ReloadSeconds = 8f, FireOnMove = true,
+            AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+            MuzzleOffset = new System.Numerics.Vector3(1.6f, 0f, 0f),
+        };
+
+        /// <summary>⭐ WS-4 — the weapon systems (600–608): the separable weapons a host's station, a soldier or the ground holds.</summary>
+        private static void RegisterWeaponSystems(NedTkbBuilder builder)
+        {
+            var heavy = new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground | MountKinds.Pintle,
+                                              DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.5f };
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_M2Hmg, "M2 HMG", 1, heavy, Hmg("12.7mm_M2"), Pintle(-10f, 70f, 90f, 45f, 0.4f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_DshkHmg, "DShK HMG", 1, heavy, Hmg("12.7mm_DShK"), Pintle(-10f, 70f, 90f, 45f, 0.4f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_M134Minigun, "M134 minigun", 2,
+                new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Door | MountKinds.Pintle },
+                new WeaponMount { WeaponType = "7.62mm_M134", Ammunition = 3000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                    DispersionMils = 6f, MagazineSize = 1500, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+                    MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f) },
+                Pintle(-60f, 30f, 120f, 90f, 0.3f));
+            var shoulder = new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground | MountKinds.Carried,
+                                                 FireWhileCarried = true, CarrySpeedFactor = 0.9f, DeploySeconds = 2f, PackSeconds = 2f };
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Javelin, "Javelin", 3, shoulder with { CarrySpeedFactor = 0.8f },
+                new WeaponMount { WeaponType = "Javelin_ATGM", Ammunition = 2, Range = 2500, RateOfFire = 3, DamagePerHit = 1500,
+                    AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile, Category = WeaponCategory.Atgm }, turret: null);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Nlaw, "NLAW", 4, shoulder,
+                new WeaponMount { WeaponType = "NLAW", Ammunition = 1, Range = 800, RateOfFire = 3, DamagePerHit = 900,
+                    AimSeconds = 2.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm }, turret: null);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Law, "M72 LAW", 4, shoulder with { MountKinds = MountKinds.Carried },
+                new WeaponMount { WeaponType = "M72_LAW", Ammunition = 1, Range = 200, RateOfFire = 3, DamagePerHit = 600,
+                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbLawRocket }, turret: null);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_KornetTripod, "Kornet (tripod)", 3, heavy with { DeploySeconds = 30f },
+                new WeaponMount { WeaponType = "Kornet_ATGM", Ammunition = 4, Range = 5000, RateOfFire = 2, DamagePerHit = 2000,   // as the M9 technical carried it
+                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    MuzzleOffset = new System.Numerics.Vector3(0.6f, 0f, 0.2f) },
+                Pintle(-10f, 20f, 40f, 20f, 0.3f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_TowTripod, "TOW (tripod)", 3, heavy with { DeploySeconds = 30f },
+                new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 4, Range = 3750, RateOfFire = 2, DamagePerHit = 1800,
+                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 15f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0.2f) },
+                Pintle(-10f, 20f, 30f, 15f, 0.3f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_SentryGun, "Sentry gun", 5,
+                new WeaponSystemDto { NeedsOperator = false, Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground | MountKinds.Pintle },
+                new WeaponMount { WeaponType = "7.62mm_RWS", Ammunition = 1000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30,
+                    DispersionMils = 3f, MagazineSize = 200, ReloadSeconds = 6f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0f) },
+                Pintle(-20f, 60f, 120f, 60f, 0.2f), sensorRange: 1200f);
+
+            // ⭐⭐ Indirect fire IF-1 (I8, IF-G; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the tubes and the towed gun: weapon
+            //   systems crewed through their Gunner seat (+ a loader's for a two-man tube), class Mortar 1.1.*.10 / TowedArtillery 1.1.*.5.
+            //   Each fires at a POINT by a fire solution (Arc HighOnly / Both + the elevation limits) at its round's charges (I7). Public
+            //   figures, rounded; the dispersion, rates and deploy times are starter values — tuning starts here.
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar60, "60 mm mortar", 1,
+                new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground, DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.8f },
+                IndirectMount("60mm_M224", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar60mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar81, "81 mm mortar", 2,
+                new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 60f, PackSeconds = 45f, CarrySpeedFactor = 0.5f },
+                IndirectMount("81mm_M252", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar81mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar120, "120 mm mortar", 3,
+                new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 90f, PackSeconds = 60f, CarrySpeedFactor = 0.4f },
+                IndirectMount("120mm_M120", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar120mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Howitzer105, "105 mm towed howitzer", 1,
+                new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground },   // emplaced: no towing yet (IF-G)
+                IndirectMount("105mm_M119", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb105mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer105HeName,
+                              WeaponCategory.Howitzer, IndirectArc.Both, -5f, 70f, rounds: 40, rangeM: 11500f, dispersionMils: 3f, reloadSeconds: 8f),
+                turret: null, category: 5);
+        }
+
+        /// <summary>⭐ IF-1 (I8) — an INDIRECT mount: a point-firing gun whose round flies the fire solution's charge and arc. Its damage is
+        /// the round's library pair (the warhead does the work); it stands to fire.</summary>
+        private static WeaponMount IndirectMount(string name, long ammo, string libraryName, WeaponCategory category, IndirectArc arc,
+            float minElevationDeg, float maxElevationDeg, int rounds, float rangeM, float dispersionMils, float reloadSeconds)
+            => new()
+            {
+                WeaponType = name, Ammunition = rounds, Range = rangeM, RateOfFire = 60f / reloadSeconds,
+                DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(libraryName), DispersionMils = dispersionMils,
+                AimSeconds = 2f, MagazineSize = 1, ReloadSeconds = reloadSeconds, FireOnMove = false,
+                AmmoTkb = ammo, Category = category, Arc = arc, MinElevationDeg = minElevationDeg, MaxElevationDeg = maxElevationDeg,
+            };
+
+        /// <summary>
+        /// ⭐⭐ IF-1 (I8, IF-G, FM-1) — the 155 mm SELF-PROPELLED HOWITZER (M109 class): a tracked vehicle with a turret (all round, −3…+75°), a
+        /// brain (a Strike to it resolves to <c>SelfPropelledArtilleryStrike</c>, the behaviour lane's), and a preset crew (W-I: driver,
+        /// gunner, commander, two loaders). Class SelfPropelledArtillery 1.1.*.4. Public figures, rounded.
+        /// </summary>
+        private static void DefineSelfPropelledHowitzer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Sph_M109;
+            builder
+                .DefineVehicle(type, "M109 155 mm self-propelled howitzer")
+                .WithVisual(type, v => { v.SymbolCode = "SFGPUCFHE------"; v.ColorHex = "#5A5F52"; v.Scale = 1.2f; v.ShowLabel = true; })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 27_500; p.Length = 6.19f; p.Width = 3.15f; p.Height = 3.25f;
+                    p.MaxSpeed = 15f; p.MaxSpeedRev = 5f; p.Acceleration = 1.5f; p.TurnRate = 20f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 30; c.ArmorSide = 25; c.ArmorRear = 20; c.ArmorTop = 20;
+                    c.MaxHealth = 1200;
+                    c.EyeHeight = 2.8f;
+                    c.SensorRange = 2000;
+                    var gun = IndirectMount("155mm_M284", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb155mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer155HeName,
+                                            WeaponCategory.Howitzer, IndirectArc.Both, -3f, 75f, rounds: 39, rangeM: 18100f, dispersionMils: 3f, reloadSeconds: 10f);
+                    gun.TurretIndex = 0;
+                    gun.MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f);
+                    c.Weapons.Add(gun);
+                })
+                .WithTurrets(type, new TurretDto
+                {
+                    PivotX = -0.5f, PivotZ = 2.6f, TrunnionX = 0.8f,
+                    TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -3f, ElevationMaxDeg = 75f,
+                    TraverseRateDegPerSec = 10f, ElevationRateDegPerSec = 5f,
+                })
+                .WithCarrier(type, new CarrierDefDto
+                {
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Enclosed,
+                    Seats =
+                    {
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, StartWith = TkbEntityTypes.Infantry_Rifleman },
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman },
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Commander, StartWith = TkbEntityTypes.Infantry_Officer },
+                        new SeatDto { StartWith = TkbEntityTypes.Infantry_Rifleman },   // the loaders
+                        new SeatDto { StartWith = TkbEntityTypes.Infantry_Rifleman },
+                    },
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 4, Subcategory = 1 });
         }
 
         public static void RegisterAll(TkbDatabase tkbDb)
@@ -253,22 +464,16 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐⭐ M9 (docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §6, D-K) — the TECHNICALS: an unarmoured pickup
             //   (5 mm all round, 300 hp, a mobility kill below 60 %) with one weapon on a pintle in the bed. No armour, so speed and
             //   surprise are the protection: shoot and scoot (the behaviour lane's BasicVehicleSop). The gunner is the vehicle (D-K).
-            Technical(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "hmmwv",
-                new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.4f,                       // a pintle: all round, up to +70° (drones)
-                    TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -10f, ElevationMaxDeg = 70f,
-                    TraverseRateDegPerSec = 90f, ElevationRateDegPerSec = 45f },
-                new WeaponMount { WeaponType = "12.7mm_DShK", Ammunition = 300, Range = 1500, RateOfFire = 600, DamagePerHit = 60,   // penetration: the round's own (25 mm)
-                    DispersionMils = 4f, MagazineSize = 50, ReloadSeconds = 8f, FireOnMove = true,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHmgAp, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                    MuzzleOffset = new System.Numerics.Vector3(1.6f, 0f, 0f) });
-            Technical(builder, TkbEntityTypes.Technical_Atgm, "Technical (ATGM)", "hmmwv",
-                new TurretDto { PivotX = -1.3f, PivotZ = 1.9f, TrunnionX = 0.3f,
-                    TraverseMinDeg = -120f, TraverseMaxDeg = 120f, ElevationMinDeg = -10f, ElevationMaxDeg = 20f,
-                    TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 20f },
-                new WeaponMount { WeaponType = "Kornet_ATGM", Ammunition = 4, Range = 5000, RateOfFire = 2, DamagePerHit = 2000,   // penetration: the missile's own (1100 mm tandem)
-                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,   // halts for the flight (command guidance)
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
-                    MuzzleOffset = new System.Numerics.Vector3(0.6f, 0f, 0.2f) });
+            // ⭐⭐ WS-4 (W-F, W-I, STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets) — the gun is an ENTITY now: a bare pickup (106) and two
+            //   presets of it — 104 = + an M2 in the bed station + a rifleman in the gunner seat, 105 = + a Kornet (the old ±120° / −10…+20° arc,
+            //   now the station's) + a rifleman. Orders go to the pickup; its weapon brain fires the station weapon (WS-3).
+            RegisterWeaponSystems(builder);
+            Pickup(builder, TkbEntityTypes.Pickup_Toyota, "Pickup (Toyota)", "hmmwv");
+            Pickup(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "hmmwv",
+                weapon: TkbEntityTypes.WeaponSystem_M2Hmg, gunner: TkbEntityTypes.Infantry_Rifleman);
+            Pickup(builder, TkbEntityTypes.Technical_Atgm, "Technical (ATGM)", "hmmwv",
+                weapon: TkbEntityTypes.WeaponSystem_KornetTripod, gunner: TkbEntityTypes.Infantry_Rifleman,
+                traverseDeg: 120f, elevationMinDeg: -10f, elevationMaxDeg: 20f);
             
             // Infantry Rifleman
             builder
@@ -419,6 +624,23 @@ namespace Hrot.Map.Definitions.Tkb
                 });
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
+            DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
+
+            // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
+            //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_ArtilleryBattery, "Artillery Battery")
+                .WithVisual(TkbEntityTypes.Unit_ArtilleryBattery, v => { v.SymbolCode = "SFGPUCF---E----"; v.ColorHex = "#0000FF"; v.Scale = 1.2f; })
+                .WithFaction(TkbEntityTypes.Unit_ArtilleryBattery, 1)
+                .WithBehavior(TkbEntityTypes.Unit_ArtilleryBattery)
+                .AsComposite(TkbEntityTypes.Unit_ArtilleryBattery, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Sph_M109, Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Echelon = "Company";   // a battery is a company-level echelon
+                    comp.AutoCreateChildren = false;
+                })
+                .AsLandUnit(TkbEntityTypes.Unit_ArtilleryBattery, Hrot.Core.Tkb.UnitArm.Artillery, UnitedStates);   // 11.1.225.4.5.1
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
@@ -527,6 +749,81 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 5000;
                     c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, Category = WeaponCategory.Bomb });
+                    // ⭐ Air Ops slice 6a (AW-1, AW-2; §7a) — the GAU-8: FIXED forward in the nose (its arc is a 5° cone round the body's
+                    //   forward, so the gun run points the plane), 1150 rounds, ~3900 rounds/min; HEI loaded, the penetrator for armour
+                    //   (AmmoChoice, M8). Every round's numbers are the library's (MunitionTkbCatalog); dispersion 5 mils (80 % in ~5 mil).
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "GAU-8 Avenger", Ammunition = 1150, Range = 1200f, RateOfFire = 3900, DispersionMils = 5f,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName),
+                        Category = WeaponCategory.Autocannon, FixedConeDeg = 5f, FireOnMove = true,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei,
+                        Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, 575), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api, 575) },
+                        MuzzleOffset = new System.Numerics.Vector3(7.5f, 0f, -0.6f),
+                    });
+                })
+                .WithBehavior(type);
+        }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: it FLIES like the
+        /// doors-off UH-60 (Rotorcraft, a little faster and more agile), carries a chin M134 on a turret (mount 0: ±110°, −60…+11°) and a
+        /// fixed-forward Hydra-70 pod (mount 1: 38 rockets, an 8° cone — the pod points where the helicopter points; a held trigger or the
+        /// action's round count is the ripple). DIS 1.2.225.20 (attack helicopter) so the air orders resolve. Public figures, rounded;
+        /// the crew is the type itself (no seats). A brain (its behaviours are the behaviour lane's, slice 6). Friendly.
+        /// </summary>
+        private static void DefineAttackHelicopter(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Heli_AH64;
+            DefineAircraft(builder, type, "AH-64 Apache (attack helicopter)", "SFAPMHA-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 17.73f, Width = 14.63f, Height = 3.87f,   // rotors turning; width = main-rotor diameter
+                    BodyCentreX = -1.5f, BodyCentreZ = 0.6f,             // box bottom = the tyres (−1.33)
+                    GroundContacts =
+                    {
+                        Wheel("main left",  1.8f,  1.0f, -1.33f, 0.32f, 0.8f, retractable: false),
+                        Wheel("main right", 1.8f, -1.0f, -1.33f, 0.32f, 0.8f, retractable: false),
+                        Wheel("tail",      -8.6f,  0f,   -1.33f, 0.18f, 0.6f, retractable: false),
+                    },
+                });
+            builder
+                .WithFlight(type, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft, new FlightParamsDto
+                {
+                    MaxSpeedMps = 80f, ClimbMps = 12f, TurnRateDeg = 40f, EnduranceSeconds = 7200f,
+                    ContactRadiusM = 1f, BodyRadiusM = 1.2f, BodyHeightM = 3.0f,
+                    HoverHeightM = 30f, TurnRadiusM = 50f, AccelMps2 = 4f,
+                })
+                .WithTurrets(type, new TurretDto
+                {
+                    PivotX = 4.3f, PivotZ = -1.0f, TrunnionX = 0.2f,          // under the nose
+                    TraverseMinDeg = -110f, TraverseMaxDeg = 110f, ElevationMinDeg = -60f, ElevationMaxDeg = 11f,
+                    TraverseRateDegPerSec = 120f, ElevationRateDegPerSec = 90f,
+                })
+                .WithCombat(type, c =>
+                {
+                    c.MaxHealth = 800;
+                    c.EyeHeight = 1f;
+                    c.SensorRange = 6000;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                        DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
+                        MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "Hydra-70 pod", Ammunition = 38, Range = 4000f, RateOfFire = 300, DispersionMils = 10f,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Hydra70LibraryName),
+                        Category = WeaponCategory.Rocket, FixedConeDeg = 8f, FireOnMove = true,
+                        AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket,
+                        MuzzleOffset = new System.Numerics.Vector3(0.5f, 1.8f, -0.6f),   // the left stub wing
+                    });
                 })
                 .WithBehavior(type);
         }
@@ -545,7 +842,8 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 };
 
-        /// <summary>⭐ CE-1083 — a doors-off Black Hawk's eight door seats: four a side on the cabin floor's edge, facing out, legs over the sill.</summary>
+        /// <summary>⭐ CE-1083 — a doors-off Black Hawk's eight door seats: four a side on the cabin floor's edge, facing out, legs over the sill;
+        /// ⭐ F4 — then each side's door gunner and door gun (seats 8–11).</summary>
         private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto DoorSeats()
         {
             var dto = new Fdp.Toolkit.Tkb.Domain.CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
@@ -555,6 +853,26 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         X = x, Y = 1.05f * side, Z = -0.85f, FacingDegrees = 90f * side, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut,
                     });
+            // ⭐ Air Ops slice 6a F4 (DESIGN_Air_Operations §7a; Weapon Systems WS-4, W-I) — a door gun each side, forward of the cabin
+            //   doors: a gunner seat (it starts with a soldier) and a DOOR station operated by it (it starts with an M134), its arc the
+            //   side it faces. Appended after the eight riders (seats 8–11), so a rider's seat index is unchanged; the passenger list is
+            //   12 wide for it (🔒 user, 2026-10-14). A door gunner shot ⇒ his gun falls silent (NeedsGunner, WS-3).
+            foreach (float side in new[] { 1f, -1f })
+            {
+                int gunnerSeat = dto.Seats.Count;
+                dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
+                {
+                    Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman,
+                    X = 3.0f, Y = 0.95f * side, Z = -0.85f, FacingDegrees = 90f * side,
+                });
+                dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
+                {
+                    Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Door,
+                    OperatedBy = gunnerSeat, NeedsGunner = true, StartWith = TkbEntityTypes.WeaponSystem_M134Minigun,
+                    X = 3.2f, Y = 1.15f * side, Z = -0.2f, FacingDegrees = 90f * side,
+                    TraverseMinDeg = side > 0 ? 20f : -160f, TraverseMaxDeg = side > 0 ? 160f : -20f,
+                });
+            }
             return dto;
         }
 

@@ -83,11 +83,55 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §8) — a Mk-82-class 500 lb free-fall bomb: an indirect area warhead (the
         /// library's own <c>"Mk-82 bomb"</c> entry, CE-3201: 94 kg TNT-equivalent in a 227 kg case), dropped by the Release profile.</summary>
         public const int TkbMk82Bomb = 6022;
+        /// <summary>⭐ Air Ops slice 6a (AW-2, DESIGN_Air_Operations §7a) — the A-10's GAU-8 30 mm HEI: the library's <c>"30mm HE"</c> warhead
+        /// (an area burst against men and soft vehicles).</summary>
+        public const int TkbGau8Hei = 6023;
+        /// <summary>⭐ Air Ops 6a (AW-2) — the GAU-8's armour-piercing round: the library's nearest penetrator, <c>"30mm APFSDS"</c>.</summary>
+        public const int TkbGau8Api = 6024;
+        /// <summary>⭐ Air Ops 6a (AW-4) — a Hydra-70-class UNGUIDED 70 mm rocket with an HE warhead (the library's <c>"70mm rocket HE"</c>,
+        /// public M151 figures): fast and flat, scattered by its pod's dispersion.</summary>
+        public const int TkbHydra70Rocket = 6025;
+        /// <summary>⭐ Indirect fire IF-1 (I7, IF-A; DESIGN_Indirect_Fire §4) — the 60 mm mortar's HE bomb (the library's <c>"60mm mortar HE"</c>, BY
+        /// NAME like the 81 mm), with its charges.</summary>
+        public const int Tkb60mmMortarHe = 6026;
+        /// <summary>⭐ IF-1 (I7) — the 120 mm mortar's HE bomb (library <c>"120mm mortar HE"</c>, by name), with its charges.</summary>
+        public const int Tkb120mmMortarHe = 6027;
+        /// <summary>⭐ IF-1 (I7) — the 105 mm howitzer's HE shell (library <c>"105mm howitzer HE"</c>, by name), with its charges.</summary>
+        public const int Tkb105mmHowitzerHe = 6028;
+        /// <summary>⭐ IF-1 (I7) — the 155 mm howitzer's HE shell (library <c>"155mm howitzer HE"</c>, by name), with its charges.</summary>
+        public const int Tkb155mmHowitzerHe = 6029;
+
+        public const string Mortar60mmHeName = "60mm mortar HE", Mortar120mmHeName = "120mm mortar HE",
+                            Howitzer105HeName = "105mm howitzer HE", Howitzer155HeName = "155mm howitzer HE";
+
+        /// <summary>
+        /// ⭐ IF-1 (I7, IF-B) — the CHARGES, vacuum-equivalent: <c>v = √(g · R_max)</c> per charge (m/s), from public maximum ranges per charge
+        /// (rounded): the M224 60 mm (≈ 0.42 / 1.0 / 1.75 / 2.6 / 3.49 km), the M252 81 mm (1.0 / 2.2 / 3.4 / 4.5 / 5.6 km), the M120 120 mm
+        /// (1.5 / 3.0 / 4.5 / 5.9 / 7.2 km), the M119 105 mm (3.5 / 4.5 / 5.5 / 6.8 / 8.0 / 9.8 / 11.5 km) and the M109 155 mm
+        /// (4.0 / 5.5 / 7.0 / 9.0 / 11.0 / 13.0 / 15.5 / 18.1 km). ⚠ Range per charge is approximate — tuning starts here.
+        /// </summary>
+        public static System.Collections.Generic.List<float> ChargesFor(params float[] maxRangesKm)
+        {
+            var speeds = new System.Collections.Generic.List<float>(maxRangesKm.Length);
+            foreach (float km in maxRangesKm) speeds.Add(MathF.Round(MathF.Sqrt(9.81f * km * 1000f), 1));
+            return speeds;
+        }
+
+        public static readonly float[] Mortar60RangesKm = { 0.42f, 1.0f, 1.75f, 2.6f, 3.49f };
+        public static readonly float[] Mortar81RangesKm = { 1.0f, 2.2f, 3.4f, 4.5f, 5.6f };
+        public static readonly float[] Mortar120RangesKm = { 1.5f, 3.0f, 4.5f, 5.9f, 7.2f };
+        public static readonly float[] Howitzer105RangesKm = { 3.5f, 4.5f, 5.5f, 6.8f, 8.0f, 9.8f, 11.5f };
+        public static readonly float[] Howitzer155RangesKm = { 4.0f, 5.5f, 7.0f, 9.0f, 11.0f, 13.0f, 15.5f, 18.1f };
 
         public const string Pg7vlName = "PG-7VL rocket", Pg7vrName = "PG-7VR rocket", LawName = "M72 LAW rocket", NlawName = "NLAW missile",
                             JavelinName = "Javelin missile", KornetName = "Kornet missile", FpvWarheadName = "FPV warhead",
                             TankHeatMpName = "120mm HEAT-MP round", TankHeFragName = "tank HE-FRAG round", HmgApName = "12.7mm AP round",
-                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb";
+                            Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb",
+                            Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket";
+
+        /// <summary>⭐ Air Ops 6a — the reference-library entries the air weapons' rounds take their numbers from (the template's own names
+        /// match no entry, so nothing is picked up by name — LR-1).</summary>
+        public const string Gau8HeiLibraryName = "30mm HE", Gau8ApiLibraryName = "30mm APFSDS", Hydra70LibraryName = "70mm rocket HE";
 
         /// <summary>⭐ M5 — the reference-library entries the new warheads are copied from (the nearest real one; the template's numbers win).</summary>
         public const string TankHeatLibraryName = "120mm HEAT", TankHeLibraryName = "125mm HE-frag";
@@ -97,7 +141,8 @@ namespace Hrot.Core.Tkb
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
             Register(tkb, M67GrenadeName, TkbM67Grenade, new DISEntityType { Kind = 2, Domain = 8 });                   // anti-personnel
-            Register(tkb, Mortar81mmHeName, Tkb81mmMortarHe, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });  // anti-personnel, ballistic
+            Register(tkb, Mortar81mmHeName, Tkb81mmMortarHe, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },   // anti-personnel, ballistic
+                     charges: ChargesFor(Mortar81RangesKm));   // ⭐ IF-1 (I7) — charges only (no pen/damage: the MortarTeam 2005 reads nothing new)
             // ⭐ LR-1 — DIS kind 2 (munition), domain 9 anti-armour / 8 anti-personnel, category 2 ballistic / 1 guided
             Register(tkb, Ball556Name, Tkb556Ball, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
             Register(tkb, Tracer556Name, Tkb556Tracer, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
@@ -135,6 +180,21 @@ namespace Hrot.Core.Tkb
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
             Register(tkb, Mk82Name, TkbMk82Bomb, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
+            // ⭐ Air Ops 6a (AW-2, AW-4) — the air weapons' rounds: every number from the library entry (its generic pair: penetration
+            //   and damage; its generated warhead); the rocket's flight is its own (700 m/s, self-destruct after 6 s, ~4 km).
+            Register(tkb, Gau8HeiName, TkbGau8Hei, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(Gau8HeiLibraryName), LibraryPenetration(Gau8HeiLibraryName), LibraryDamage(Gau8HeiLibraryName));
+            Register(tkb, Gau8ApiName, TkbGau8Api, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     null, LibraryPenetration(Gau8ApiLibraryName), LibraryDamage(Gau8ApiLibraryName));
+            Register(tkb, Hydra70Name, TkbHydra70Rocket, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(Hydra70LibraryName), LibraryPenetration(Hydra70LibraryName), LibraryDamage(Hydra70LibraryName),
+                     Rocket(700f, 6f));
+            // ⭐ IF-1 (I7, IF-A) — the indirect rounds: warheads BY NAME from the library (like the 81 mm), their charges on the generic profile
+            var indirect = new DISEntityType { Kind = 2, Domain = 8, Category = 2 };
+            Register(tkb, Mortar60mmHeName, Tkb60mmMortarHe, indirect, charges: ChargesFor(Mortar60RangesKm));
+            Register(tkb, Mortar120mmHeName, Tkb120mmMortarHe, indirect, charges: ChargesFor(Mortar120RangesKm));
+            Register(tkb, Howitzer105HeName, Tkb105mmHowitzerHe, indirect, charges: ChargesFor(Howitzer105RangesKm));
+            Register(tkb, Howitzer155HeName, Tkb155mmHowitzerHe, indirect, charges: ChargesFor(Howitzer155RangesKm));
         }
 
         /// <summary>⭐ M5 — an unguided rocket's flight: its speed and how long until it self-destructs.</summary>
@@ -152,16 +212,26 @@ namespace Hrot.Core.Tkb
         private static WarheadDto? LibraryWarhead(string libraryName)
             => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) && r.Warhead != null ? r.Warhead.Dto : null;
 
+        /// <summary>⭐ Air Ops 6a — the library entry's generic penetration (mm RHA) and damage, so a round's numbers have one source.</summary>
+        public static float LibraryPenetration(string libraryName)
+            => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) ? r.Generic.PenetrationMm : 0f;
+
+        /// <inheritdoc cref="LibraryPenetration"/>
+        public static float LibraryDamage(string libraryName)
+            => Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.TryGetAmmo(libraryName, out var r) ? r.Generic.Damage : 0f;
+
         private static void Register(ITkbDatabase tkb, string name, int type, DISEntityType dis, WarheadDto? warhead = null,
-                                     float penetrationMm = 0f, float damage = 0f, MissileDto? missile = null)
+                                     float penetrationMm = 0f, float damage = 0f, MissileDto? missile = null,
+                                     System.Collections.Generic.List<float>? charges = null)
         {
             var t = new TkbTemplate(name, type) { DisType = dis };
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString(), HideFromPalette = true });
             if (BuiltInLooks.TryGetValue(type, out var look)) t.AddDescriptor(look);   // ⭐ P1 — how its round looks
             if (warhead != null) t.AddDescriptor(warhead);
             // ⭐ M5 — the round's own numbers (generic: from any weapon), what CombatTkb.RoundOf reads for a loadout's other rounds
-            if (penetrationMm > 0f || damage > 0f)
-                t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = penetrationMm, Damage = damage });
+            if (penetrationMm > 0f || damage > 0f || charges != null)
+                t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = penetrationMm, Damage = damage,
+                                                              ChargeSpeedsMps = charges ?? new() });   // ⭐ IF-1 (I7) — the charges
             if (missile != null) t.AddDescriptor(missile);
             tkb.Register(t);
         }
@@ -191,10 +261,19 @@ namespace Hrot.Core.Tkb
                 [TkbTankHeFrag] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [Tkb762Tracer] = new() { Shape = MunitionShape.Bullet, Length = 0.033f, Diameter = 0.0078f, Tracer = true, TracerColorHex = "#FF6A30" },
                 [TkbMk82Bomb] = new() { Shape = MunitionShape.Bomb, Length = 2.2f, Diameter = 0.27f, ColorHex = "#4B5320" },
+                // ⭐ Air Ops 6a — the GAU-8's rounds trace (a gun run is seen); the Hydra is a rocket with a smoke trail
+                [TkbGau8Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
+                [TkbGau8Api] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
+                [TkbHydra70Rocket] = new() { Shape = MunitionShape.Rocket, Length = 1.4f, Diameter = 0.07f, ColorHex = "#6B6E4A", SmokeTrail = true },
+                // ⭐ IF-1 (I7) — mortar bombs and shells in flight
+                [Tkb60mmMortarHe] = new() { Shape = MunitionShape.Bomb, Length = 0.35f, Diameter = 0.06f, ColorHex = "#5A5E3A" },
+                [Tkb120mmMortarHe] = new() { Shape = MunitionShape.Bomb, Length = 0.7f, Diameter = 0.12f, ColorHex = "#5A5E3A" },
+                [Tkb105mmHowitzerHe] = new() { Shape = MunitionShape.Shell, Length = 0.5f, Diameter = 0.105f, ColorHex = "#5A5E3A" },
+                [Tkb155mmHowitzerHe] = new() { Shape = MunitionShape.Shell, Length = 0.7f, Diameter = 0.155f, ColorHex = "#5A5E3A" },
             };
 
-        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6022), whether or not it has a look: a round, never a body.</summary>
-        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbMk82Bomb;
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6029), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= Tkb155mmHowitzerHe;
 
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>

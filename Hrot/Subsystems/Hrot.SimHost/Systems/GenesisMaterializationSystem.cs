@@ -81,9 +81,12 @@ namespace Hrot.SimHost.Systems
                     }
                 }
                 if (!allResolved) continue;
-                foreach (var netId in intent.PassengerNetworkIds)
-                    if (_entityMap.TryGetEntity(netId.NetworkId, out var passenger))
-                        Count(Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity));
+                // ⭐ WS-4 (W-I) — into the SAVED seat when the save has seats (a gunner into the gunner seat, the M2 into its station)
+                bool seated = intent.Seats.Count == intent.PassengerNetworkIds.Count;
+                for (int i = 0; i < intent.PassengerNetworkIds.Count; i++)
+                    if (_entityMap.TryGetEntity(intent.PassengerNetworkIds[i].NetworkId, out var passenger))
+                        Count(seated ? Fdp.Toolkit.Behavior.Embarkation.TryEmbarkAt(repo, passenger, entity, intent.Seats[i])
+                                     : Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, passenger, entity));
                 cmd.RemoveManagedComponent<InitialPassengersIntent>(entity);
             }
         }
@@ -95,7 +98,8 @@ namespace Hrot.SimHost.Systems
                 var intent = view.GetManagedComponentRO<InitialVehicleIntent>(entity);
                 if (!_entityMap.TryGetEntity(intent.VehicleNetworkId.NetworkId, out var vehicle) || !view.IsAlive(vehicle))
                     continue;
-                Count(Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, entity, vehicle));
+                Count(intent.Seat >= 0 ? Fdp.Toolkit.Behavior.Embarkation.TryEmbarkAt(repo, entity, vehicle, intent.Seat)   // ⭐ WS-4 — its saved seat
+                                       : Fdp.Toolkit.Behavior.Embarkation.TryEmbark(repo, entity, vehicle));
                 cmd.RemoveManagedComponent<InitialVehicleIntent>(entity);
             }
         }

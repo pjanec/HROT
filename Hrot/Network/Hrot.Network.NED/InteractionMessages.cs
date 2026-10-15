@@ -88,6 +88,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ <c>CE-2152</c> C-a (R-2011 C5) — carried or dragged onto a person carrier (<c>CarryMode</c>; 0 = seated).</summary>
         public byte Mode;
+
+        /// <summary>⭐ Team carry T-a (R-2017 T1) — the team load's second man, network id (0 = none); mapped by the codec. APPENDED (R-169).</summary>
+        public long Assistant;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Disembark"/> case (target = the vehicle, actor = the passenger).</summary>

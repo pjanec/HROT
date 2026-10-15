@@ -48,6 +48,13 @@ namespace Fdp.Toolkit.Combat.Events
         /// <summary>⭐ M8 (D-I) — the munition type of the LOADED round (the weapon brain's choice from the mount's loadout);
         /// <b>0 = the mount's own <c>AmmoGuid</c></b>, as before. <c>FireProcessingSystem</c> fires this round.</summary>
         public long AmmoGuid;
+
+        /// <summary>⭐ Indirect fire IF-1 (I3) — the fire solution's CHARGE (1-based into the round's <c>ChargeSpeedsMps</c>);
+        /// <b>0 = no solution</b>: today's arc (<c>ThrowArc</c>, the mount's one speed). <c>FireProcessingSystem</c> flies this charge.</summary>
+        public byte Charge;
+
+        /// <summary>⭐ IF-1 (I3) — with a <see cref="Charge"/>: 1 = the high arc, 0 = the low one. The brain decided; the SimHost flies it.</summary>
+        public byte HighArc;
     }
 
     // ── WeaponFireNotification ────────────────────────────────────────────────

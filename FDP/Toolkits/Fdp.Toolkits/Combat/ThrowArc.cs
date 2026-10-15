@@ -32,6 +32,11 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>True when a round launched at <paramref name="velocity"/> reaches (near) <paramref name="to"/> with nothing stopping it.</summary>
         public static bool Clears(Fdp.Toolkit.World.IWorldQuery world, Vector3 from, Vector3 to, Vector3 velocity, float penetration)
+            => Clears(world, from, to, velocity, penetration, Samples);
+
+        /// <summary>⭐ Indirect fire IF-1 — <see cref="Clears(Fdp.Toolkit.World.IWorldQuery, Vector3, Vector3, Vector3, float)"/> in
+        /// <paramref name="samples"/> segments (a gun's kilometres need more than a throw's 12 — <c>FireSolution.ClearsDensely</c>).</summary>
+        public static bool Clears(Fdp.Toolkit.World.IWorldQuery world, Vector3 from, Vector3 to, Vector3 velocity, float penetration, int samples)
         {
             var flat = new Vector2(to.X - from.X, to.Y - from.Y);
             float distance = flat.Length();
@@ -39,9 +44,9 @@ namespace Fdp.Toolkit.Combat
             if (distance < 1e-3f || horizontal < 1e-3f) return true;
             float until = MathF.Max(distance - EndClearanceMetres, 0f) / horizontal;   // seconds to just short of the point
             var previous = from;
-            for (int i = 1; i <= Samples; i++)
+            for (int i = 1; i <= samples; i++)
             {
-                float t = until * i / Samples;
+                float t = until * i / samples;
                 var at = from + velocity * t;
                 at.Z -= 0.5f * CombatConstants.Gravity * t * t;
                 float damage = 1f, pen = penetration;

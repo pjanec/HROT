@@ -110,6 +110,44 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// gun sets <c>false</c>).
         /// </summary>
         public bool? FireOnMove { get; init; }
+
+        /// <summary>
+        /// ⭐ Air Ops slice 6a (AW-1; docs/designs/air-attack/DESIGN_Air_Operations.md §7a) — the NOSE CONE of a FIXED mount (no turret):
+        /// the half-angle, in degrees, around the unit body's 3-D forward (pitch included) inside which the AI may fire it — an A-10's
+        /// cannon, a helicopter's rocket pod. The weapon brain holds a round aimed outside it (<c>OutOfArc</c>; the aircraft must point).
+        /// <b>0 = no cone</b>: the mount fires in any direction, as before. The operator is never held (he points the aircraft).
+        /// </summary>
+        [EditUnit("deg")]
+        public float FixedConeDeg { get; init; }
+
+        /// <summary>
+        /// ⭐ Indirect fire IF-1 (I2, IF-C; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.3) — which arcs an INDIRECT round from this
+        /// mount may fly: a mortar <see cref="IndirectArc.HighOnly"/>, a howitzer <see cref="IndirectArc.Both"/>. <b><see cref="IndirectArc.Unset"/>
+        /// = today's rule</b> (<c>ThrowArc</c>: a launcher high, a throw low unless masked) and no fire solution — a hand throw and every mount
+        /// before IF-1 are unchanged. Any other value makes the weapon brain solve the charge and the arc (<c>FireSolution.For</c>).
+        /// </summary>
+        public IndirectArc Arc { get; init; }
+
+        /// <summary>⭐ IF-1 (I2) — the barrel's elevation limits for an indirect solution, degrees above the horizontal; 0 = no limit.</summary>
+        [EditUnit("deg")]
+        public float MinElevationDeg { get; init; }
+        /// <inheritdoc cref="MinElevationDeg"/>
+        [EditUnit("deg")]
+        public float MaxElevationDeg { get; init; }
+    }
+
+    /// <summary>⭐ Indirect fire IF-1 (I2, IF-C) — the arcs a mount's indirect round may fly.</summary>
+    public enum IndirectArc : byte
+    {
+        /// <summary>Today's rule (<c>ThrowArc</c>), no fire solution: every mount declared before IF-1, a hand throw. ⚠ Not "Default": the
+        /// IDL generator scopes a descriptor file's enum members together, and <c>default</c> is an IDL keyword.</summary>
+        Unset = 0,
+        /// <summary>A mortar: the high arc only.</summary>
+        HighOnly = 1,
+        /// <summary>A howitzer, a grenade launcher: low when it clears, else high.</summary>
+        Both = 2,
+        /// <summary>A flat-trajectory gun firing indirect: the low arc only.</summary>
+        LowOnly = 3,
     }
 
     /// <summary>⭐ M8 — one munition type in a mount's <see cref="WeaponMountDto.Loadout"/> and how many rounds of it.</summary>

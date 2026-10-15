@@ -144,7 +144,10 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         /// <summary>Eight is the list's and the wire's maximum; a type declaring more fails loudly at spawn.</summary>
         [Fact]
-        public void MoreThanEightSeats_IsRefused()
-            => Assert.Throws<InvalidOperationException>(() => Spawn(CarrierDefDto.PassengerSeats(9)));
+        public void MoreThanEightSeats_IsRefused()   // ⭐ F4 — the list is 12 wide now: 12 seats spawn, 13 are refused
+        {
+            Spawn(CarrierDefDto.PassengerSeats(PassengerBuffer.Capacity));
+            Assert.Throws<InvalidOperationException>(() => Spawn(CarrierDefDto.PassengerSeats(PassengerBuffer.Capacity + 1)));
+        }
     }
 }

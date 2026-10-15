@@ -367,14 +367,15 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
-            if (!world.HasComponent<WeaponState>(self))
+            var gun = Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self);   // ⭐ WS-4 — own gun or the controlled station weapon
+            if (gun.IsNull)
             {
                 BehaviorLog.Error(self, world, "Entity is missing WeaponState; cannot track rounds fired.");
                 return NodeStatus.Failure;
             }
 
             ref var weapon = ref world.GetComponentRW<WeaponChannel>(self);
-            var ws = world.GetComponent<WeaponState>(self);
+            var ws = world.GetComponent<WeaponState>(gun);
 
             if (p.LastObservedAmmo < 0)
             {

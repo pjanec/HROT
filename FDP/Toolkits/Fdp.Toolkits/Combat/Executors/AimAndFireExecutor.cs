@@ -374,6 +374,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-3195 (W-14a) — blind rounds too wait for the body to face where they go
             //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
+            if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
             if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
@@ -514,7 +515,8 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <summary>
         /// ⭐ M4 / D-L — the weapon brain's holds before a round leaves: <see cref="ActionReason.TooClose"/> when the round is a
         /// missile and the target is inside its <c>MinRangeM</c>; <see cref="ActionReason.HoldMoving"/> when the mount does not fire on
-        /// the move (<see cref="CombatTkb.FiresOnTheMove"/>) and the unit moves. Null = fire.
+        /// the move (<see cref="CombatTkb.FiresOnTheMove"/>) and the unit moves; <see cref="ActionReason.AwaitingRelease"/> for a bomb
+        /// before its cue; <see cref="ActionReason.OutOfArc"/> for a fixed mount whose target is outside its nose cone (Air Ops 6a). Null = fire.
         /// </summary>
         public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
         {
@@ -528,6 +530,8 @@ namespace Fdp.Toolkit.Combat.Executors
             //   bomb dropped now lands has reached the target, within 10 m across the track). The behaviour flies the run-in; the
             //   weapon brain releases — the same gate for a player who holds the trigger (R-261).
             if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb && !ReleaseCue(world, unit, target)) return ActionReason.AwaitingRelease;
+            // ⭐ Air Ops slice 6a (AW-1, §7a) — a FIXED gun / pod fires only inside its nose cone: the behaviour points the aircraft.
+            if (BodyAim.TargetPoint(world, target, out var targetAt) && BodyAim.OutsideFixedCone(world, unit, mount, targetAt)) return ActionReason.OutOfArc;
             return null;
         }
 
@@ -543,11 +547,11 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <c>FireAtPointExecutor</c>).</summary>
         public static bool ReleaseCue(EntityRepository world, Entity unit, Vector3 point)
         {
-            if (!world.HasComponent<SimTransform>(unit)) return false;
-            var v = world.HasComponent<SimVelocity>(unit) ? world.GetComponentRO<SimVelocity>(unit).Linear : Vector3.Zero;
+            // ⭐ CE-2173 (Air Ops §9c) — the carrier as THIS node knows it: on the brain node a plane's motion is SimHost's, its
+            //   SimVelocity is never refreshed there (dead reckoning skips it), so the cue read a standing plane and never released.
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, unit, out var p, out var v)) return false;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
-            return BombBallistics.ReleaseNow(world.GetComponentRO<SimTransform>(unit).Position, v, point,
-                terrain == null ? null : terrain.GroundHeightAt);
+            return BombBallistics.ReleaseNow(p, v, point, terrain == null ? null : terrain.GroundHeightAt);
         }
 
         /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>

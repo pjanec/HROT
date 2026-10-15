@@ -11,6 +11,28 @@ namespace Hrot.Map.Common
         public const long Technical_Hmg = 104;
         /// <summary>⭐ M9 — a pickup with a command-guided ATGM: halts for the flight, then scoots.</summary>
         public const long Technical_Atgm = 105;
+        /// <summary>⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — a bare Toyota pickup: a driver, a gunner, and one bed station
+        /// (pintle) the gunner operates. 104 / 105 are this pickup with a weapon and a gunner in its seats (W-I, SeatPresets).</summary>
+        public const long Pickup_Toyota = 106;
+        /// <summary>⭐ IF-1 (I8, IF-G) — the 155 mm self-propelled howitzer (SelfPropelledArtillery 1.1.*.4), a vehicle with a brain.</summary>
+        public const long Sph_M109 = 107;
+
+        // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
+        public const long WeaponSystem_M2Hmg = 600;
+        public const long WeaponSystem_DshkHmg = 601;
+        public const long WeaponSystem_M134Minigun = 602;
+        public const long WeaponSystem_Javelin = 603;
+        public const long WeaponSystem_Nlaw = 604;
+        public const long WeaponSystem_Law = 605;
+        public const long WeaponSystem_KornetTripod = 606;
+        public const long WeaponSystem_TowTripod = 607;
+        /// <summary>⭐ W-E — an AUTOMATIC remote weapon station: its own sensor and brain, it fights unmanned.</summary>
+        public const long WeaponSystem_SentryGun = 608;
+        /// <summary>⭐ Indirect fire IF-1 (I8, IF-G) — the tubes (class Mortar 1.1.*.10) and the towed howitzer (TowedArtillery 1.1.*.5).</summary>
+        public const long WeaponSystem_Mortar60 = 609;
+        public const long WeaponSystem_Mortar81 = 610;
+        public const long WeaponSystem_Mortar120 = 611;
+        public const long WeaponSystem_Howitzer105 = 612;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;
@@ -58,11 +80,16 @@ namespace Hrot.Map.Common
         /// <summary>⭐ Air Ops slice 4 (DESIGN_Air_Operations §6, §8) — an A-10 class ATTACK AIRCRAFT (~150 m/s): a FixedWing flyer with four
         /// Mk-82 bombs (munition 6022) on a Bomb mount, released by the weapon brain's Release profile.</summary>
         public const long Jet_AttackA10 = 405;
+        /// <summary>⭐ Air Ops slice 6a (DESIGN_Air_Operations §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: a Rotorcraft with a chin M134
+        /// turret (mount 0) and a fixed-forward Hydra-70 rocket pod (mount 1, munition 6025).</summary>
+        public const long Heli_AH64 = 406;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;
         public const long Unit_TankPlatoon_Auto = 303;
+        /// <summary>⭐ IF-1 (I8, FM-1) — an artillery battery (ArtilleryUnit 11.1.*.4): the commander unit of a fire mission.</summary>
+        public const long Unit_ArtilleryBattery = 304;
 
         // Civilian & Insurgent Types
         public const long CivilianPedestrian = 501;

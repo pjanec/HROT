@@ -33,5 +33,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("mm RHA")]
         [Description("Armour penetration of this round from this weapon, mm RHA. 0 = not stated.")]
         public float PenetrationMm { get; init; }
+
+        /// <summary>
+        /// ⭐ Indirect fire IF-1 (I2, IF-B; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the round's CHARGES from this weapon: one
+        /// launch speed per charge, ascending (m/s). ⚠ <b>VACUUM-EQUIVALENT</b>: each is <c>v = √(g · R_max)</c> for that charge's real maximum
+        /// range, so the flight (gravity, no drag) reaches the real RANGE; its time of flight is shorter than a real one (accepted, IF-B).
+        /// <c>FireSolution.For</c> picks the lowest charge that reaches on the chosen arc. Empty = no charges: the mount's single
+        /// <c>MuzzleVelocity</c>, as before.
+        /// </summary>
+        [EditUnit("m/s")]
+        [Description("Launch speed per charge, ascending, vacuum-equivalent (v = sqrt(g * max range)). Empty = the mount's single muzzle velocity.")]
+        public System.Collections.Generic.List<float> ChargeSpeedsMps { get; init; } = new();
     }
 }

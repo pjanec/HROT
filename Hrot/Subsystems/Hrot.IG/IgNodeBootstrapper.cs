@@ -579,11 +579,12 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
         context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
         context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
+        context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
 
         var unserviceable = creation.Unserviceable(new object[]
         {
             creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem,
+            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
         }.Concat(creation.NetworkSystems));
         if (unserviceable.Length > 0)
             FdpLog<IgNodeBootstrapper>.Info(

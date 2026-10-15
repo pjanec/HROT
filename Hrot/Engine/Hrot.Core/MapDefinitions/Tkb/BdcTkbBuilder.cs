@@ -47,6 +47,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
         
+        /// <summary>⭐ Weapon systems WS-4 — keeps the type out of the Add Entity picker (it is still created — by a preset, a scenario, a
+        /// request — and drawn as whatever its family is).</summary>
+        public NedTkbBuilder HiddenFromPalette(long tkbId)
+        {
+            var template = _db.GetByType(tkbId) ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            var master = template.GetDescriptor<TkbMasterDto>() ?? new TkbMasterDto();
+            template.AddDescriptor(master with { HideFromPalette = true });
+            return this;
+        }
+
         /// <summary>
         /// Assigns a DIS Entity Type to the template.
         /// The type is stamped onto the entity header via
@@ -287,6 +297,10 @@ namespace Hrot.Map.Definitions.Tkb
                         AimSeconds        = wm.AimSeconds,
                         MagazineSize      = wm.MagazineSize,
                         ReloadSeconds     = wm.ReloadSeconds,
+                        FixedConeDeg      = wm.FixedConeDeg,   // ⭐ Air Ops 6a (AW-1) — a fixed gun / pod fires inside its nose cone
+                        Arc               = wm.Arc,            // ⭐ IF-1 (I2) — the indirect arcs and the elevation limits
+                        MinElevationDeg   = wm.MinElevationDeg,
+                        MaxElevationDeg   = wm.MaxElevationDeg,
                     });
                 }
                 template.AddDescriptor(suite);

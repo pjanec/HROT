@@ -130,6 +130,10 @@ namespace Fdp.Toolkit.Combat.Components
 
         /// <summary>⭐ <c>CE-1032</c> (W-4) — seconds left on a time fuze (counts down from firing; 0 with no time fuze).</summary>
         public float FuzeRemaining;
+
+        /// <summary>⭐ Indirect fire IF-1 (I5) — an ARC round's lifetime in ticks, from its time of flight
+        /// (<c>FireProcessingSystem.ArcLifetimeTicks</c>); 0 = the flat <c>CombatConstants.ArcRoundLifetimeTicks</c>.</summary>
+        public uint ArcLifetimeTicks;
     }
 
     /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>

@@ -73,6 +73,31 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.False(Sees(world, new PlanarCircleLosStrategy(PhysicsRadiusReader()), obs, tgt));
         }
 
+        /// <summary>
+        /// ⭐⭐ WS-4 (R-271 — an OPEN cabin's riders are seen and hit, so they are colliders) — a carrier and its riders do not hide each
+        /// other: the pickup sees past the gunner standing at its own position, and the gunner past the pickup. A stranger standing on the
+        /// same spot still blocks. 📌 Found by the split-cluster rail: a technical with its crew aboard saw nothing.
+        /// ✅ Red-proof: the occluder without <see cref="RideGroups"/> ⇒ both blinded ⇒ red.
+        /// </summary>
+        [Fact]
+        public void WS4_ACarrierAndItsRiders_DoNotHideEachOther_AStrangerStillDoes()
+        {
+            var (world, obs, tgt) = ObserverAndTarget100mEast();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>())
+                world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            world.AddComponent(obs, new PhysicsCollider { Radius = 2.5f });   // the pickup's hull
+            var gunner = world.CreateEntity();                                 // riding it, at its position (an open bed)
+            world.AddComponent(gunner, new SimTransform { Position = new Vector3(0.5f, 0f, 0f) });
+            world.AddComponent(gunner, new PhysicsCollider { Radius = 0.5f });
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = obs, Exposed = 1 });
+
+            Assert.True(Sees(world, new PlanarCircleLosStrategy(PhysicsRadiusReader()), obs, tgt), "the pickup sees past its own gunner");
+            Assert.True(Sees(world, new PlanarCircleLosStrategy(PhysicsRadiusReader()), gunner, tgt), "the gunner sees past his own pickup");
+
+            world.RemoveComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(gunner);   // the same body, not aboard: a stranger
+            Assert.False(Sees(world, new PlanarCircleLosStrategy(PhysicsRadiusReader()), obs, tgt), "a stranger on the line still blocks");
+        }
+
         // ── 3-D sight through the terrain world (docs/DESIGN_Terrain_World.md §4.3, R-181/R-182) ─────────────
 
         private const string TwelveMetreBuildingAt50 = """

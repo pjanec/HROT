@@ -48,6 +48,11 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ M8 (D-I, R-169) — the munition type of the LOADED round (the weapon brain's choice from the mount's loadout);
         /// 0 = the mount's own <c>AmmoGuid</c>.</summary>
         public long AmmoGuid;
+
+        /// <summary>⭐ Indirect fire IF-1 (I3, R-169 — APPENDED) — the brain's fire solution: the charge (1-based; 0 = none, today's arc)
+        /// and the arc (1 = high). The SimHost flies exactly this (no second decision).</summary>
+        public byte Charge;
+        public byte HighArc;
     }
 
     /// <summary>
