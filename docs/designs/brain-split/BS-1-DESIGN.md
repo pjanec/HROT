@@ -1,11 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-04
-current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction.
+updated: 2026-10-15 (§5.4b CE-1111 / R-1002: the fire notification carries the shot; a countermeasure release is a fire)
+current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
 stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
-known-rot: none recorded.
+known-rot: §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
 known-conflict: none.
 related-designs:
+  - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS flares / chaff and the decoy's seduction (§3c, CE-2188); their RELEASE travels as §5.4b's fire.
+  - ../../DESIGN_Visual_Effects.md — OWNS the effects made from fire events on every map host (VE-A); §5.4b gives them the round actually fired and the expendable's look.
   - docs/blueprints/Architect_Question_85_Hit_Chance.md — OWNS hit chance; proposes the aim deflection on the Muscle's FireProcessingSystem, per §2.1.
   - ../hill-attack/DESIGN.md — owns the CE-466 combat-death rule (CombatLife.IsAlive) that §5.1a's first guard reuses.
   - ../../DESIGN_Decision_Layer.md — owns the ROE (R-200, §4.4) and RecentSenses (§4.3) that §5.1a's ROE guard enforces.
@@ -306,6 +308,131 @@ production actually has, and redden under inverse edit.
 
 ⇒ 🔒 **§4.3's `DamageSystem` guard and §6.4's `HealthApplicationSystem` guard are UNCHANGED and correct.**
 The authority rule governs **who applies damage**, never **who executes a shot**.
+
+#### ⭐⭐ 5.4b — `CE-1111` (R-1002): **the fire notification carries the SHOT, as DIS's Fire PDU does — and a countermeasure release is a fire** *(ui, `2026-10-15`; build-state: READY-TO-BUILD)*
+
+🔒 **User, `2026-10-15`:** *"Weaponfire notification can not be missing the crucial parameters, same like DIS does not. It must be a
+bug. Regarding countermeasures no specific message please. We need something for generic single shot effect activation. If dis can do
+it as fire, why not us?"*
+
+📐 **The defect.** The brain → SimHost request carries the loaded round (`WeaponFireRequest.AmmoGuid`, M8) and the SimHost flies and
+scores it with that round (`FireProcessingSystem.cs:174-177`). The SimHost → everyone notification carried only shooter, target and slot
+(§4.1 "POC simplified"), so every viewer GUESSED the round from the slot's default: `EffectSystems.cs:68-69` (a fired HE from an
+APFSDS-default gun drew the APFSDS flash), and sound and heat know no round at all. DIS's Fire PDU carries what was fired, from where,
+how fast and how many; ours did not.
+
+**INVENTORY** (`search_graph name_pattern=".*WeaponFire.*"`, 185 hits, production code below; grep `ReadEvents<WeaponFireNotification>`
+confirms the readers):
+
+| role | site |
+|---|---|
+| publish (SimHost) | `FireProcessingSystem.cs:365` |
+| egress → `WeaponFire` | `NED/SimHost/WeaponFireNotificationEgressTranslator.cs` |
+| ingress → the same notification, `IsRemote` | `NED/IG/WeaponFireIngressTranslator.cs:78` *(⚠ §5.6 says `IgWeaponFireEvent` — known rot: that struct is registered, nothing publishes it)* |
+| read: effects (every map host) | `Hrot.Presentation/Effects/EffectSystems.cs:65` |
+| read: legacy IG effects | `Hrot.IG/Systems/EventToEffectSystem.cs:54` |
+| read: sound | `Fdp.Toolkits/Perception/Signatures/SoundEmissionSystem.cs:55` |
+| read: heat | `Fdp.Toolkits/Perception/Signatures/ThermalHeatSystem.cs:26` |
+
+```mermaid
+classDiagram
+  class WeaponFireNotification {
+    <<event, Fdp.Toolkits Combat>>
+    Entity Shooter
+    Entity Target
+    int WeaponIndex
+    bool IsRemote
+    +long AmmoGuid
+    +Entity Round
+    +Vector3 Origin
+    +Vector3 Velocity
+    +ushort Quantity
+    +double FiredAt
+  }
+  class WeaponFire {
+    <<DDS, NED - fields APPENDED, R-169>>
+    long ShooterEntityId
+    long TargetEntityId
+    int WeaponIndex
+    +long AmmoGuid
+    +long RoundEntityId
+    +float OriginX_Y_Z
+    +float VelocityX_Y_Z
+    +ushort Quantity
+    +double FiredAt
+  }
+  class WeaponSlots {
+    <<new, Fdp.Toolkits Combat>>
+    +const int Countermeasures = -1
+  }
+  class Munitions {
+    <<new helper, Fdp.Toolkits Combat>>
+    +IsExpendable(tkb, type) bool
+  }
+  class DecoyFlight {
+    <<new, Fdp.Toolkits Combat - CE-2188, backend>>
+    +At(origin, velocity, i, t) Vector3
+  }
+  WeaponFireNotification --> WeaponFire : egress / ingress
+  WeaponFireNotification ..> WeaponSlots : WeaponIndex
+  WeaponFireNotification ..> Munitions : DIS kind 8 = expendable
+  Munitions ..> DecoyFlight : an expendable's path
+```
+*What the picture shows that prose hid: one event serves a shot AND a decoy release, and the only branch any reader needs is "is this
+munition an expendable" — one helper, not a second message with its own translators.*
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (aircraft)
+  participant S as SimHost
+  participant N as NED WeaponFire
+  participant V as every map host
+  B->>S: WeaponFireIntent / WeaponFireRequest (WeaponIndex=Countermeasures, AmmoGuid=flare) - the existing request path
+  S->>S: FireProcessingSystem skips the Countermeasures slot, CountermeasureSystem takes it
+  S->>S: spawn Quantity Decoy entities, each at DecoyFlight.At(origin, v, i, t)
+  S->>S: publish WeaponFireNotification(Shooter=aircraft, WeaponIndex=Countermeasures, AmmoGuid=flare 8.2.2, Origin, Velocity, Quantity)
+  S->>N: egress (as every fire)
+  N->>V: ingress, IsRemote
+  V->>V: EffectSpawnSystem: expendable, so Quantity moving flare effects (Lifespan), no muzzle flash
+  V->>V: Sound / Heat: expendable, so skipped
+  Note over S,V: a gun shot runs the same path, AmmoGuid = the round actually fired, so the flash is the fired round's
+```
+
+```mermaid
+graph TD
+  FPS["FireProcessingSystem (SimHost, combat capability)"] -->|publishes| EV["WeaponFireNotification"]
+  REQ["WeaponFireIntent (ingressed WeaponFireRequest)"] --> FPS
+  REQ -->|WeaponIndex = Countermeasures| CMS["CountermeasureSystem (SimHost, CE-2188)"]
+  CMS -->|publishes| EV
+  EV --> EG["WeaponFireNotificationEgressTranslator (SimHost pack)"]
+  EG --> WIRE["DDS WeaponFire"]
+  WIRE --> IN["WeaponFireIngressTranslator (viewer nodes)"]
+  IN --> EV2["WeaponFireNotification IsRemote"]
+  EV --> FX["EffectSpawnSystem (MapInteractionPack, every map host)"]
+  EV2 --> FX
+  EV --> SND["SoundEmissionSystem"]
+  EV --> HEAT["ThermalHeatSystem"]
+  EV2 --> IGFX["EventToEffectSystem (IG, legacy)"]
+```
+*Who calls it each frame: the SimHost publishes (combat capability only, §5.4a); every map host's `EffectSpawnSystem` reads the local
+event or the ingressed one — the one-world editor reads the local event and has no egress.*
+
+| # | decision | why |
+|---|---|---|
+| F1 | ⭐ the notification carries **`AmmoGuid`** (the round actually fired, the tracer when it was one), **`Round`** (the spawned round, null when none), **`Origin`**, **`Velocity`**, **`Quantity`** (1 per shot), **`FiredAt`** (sim time) | DIS Fire PDU parity: munition descriptor type + quantity, location, velocity, munition id. ⛔ Warhead / fuze are NOT copied: they are the munition TYPE's (`ParameterResolver`), as DIS's descriptor names them by type |
+| F1a | ⭐ the round's type is named **`AmmoGuid`** on the notification and the wire, as on `WeaponFireIntent` / `WeaponFireRequest` and the mount | 🔒 user, `2026-10-15`: *"Use AmmoGuid."* — one name along the fire pipeline (request, notification, mount). The detonation side's `Ammo` / `MunitionType` is a separate rename, not in CE-1111 |
+| F2 | appended at the END of both structs | R-169; the precedent is `WeaponFireRequest`'s appended M8 / IF-1 / CE-2180 fields |
+| F3 | every reader uses `AmmoGuid`, never the slot's default | the defect |
+| F4 | ⭐ a countermeasure release IS a fire, BOTH ways: the brain asks with the existing `WeaponFireIntent` / `WeaponFireRequest` (`WeaponIndex = WeaponSlots.Countermeasures`, `AmmoGuid` = flare or chaff type), and the SimHost reports with the notification (`AmmoGuid` = the expendable, DIS kind 8: flare 8.2.2, chaff 8.2.1; `Quantity` = the salvo) | 🔒 the user's ruling; DIS 7 sends it as a Fire PDU with an expendable descriptor. ⛔ no countermeasure message either way — this SUPERSEDES Missiles & Ammo §3c's `DispenseCountermeasureIntent` / `DispenseCountermeasure` (dt 134) and its two translators |
+| F5 | one check, `Munitions.IsExpendable` (DIS kind 8), at each reader: effects draw the expendable's own look, sound and heat skip it | a dispenser is not a gun: no flash, no report, no barrel heat |
+| F6 | the flare's path is ONE function of the event (`DecoyFlight.At`), used by the SimHost's decoy AND the viewers' effect | every node draws the flare where the seeker sees it, with no streamed positions |
+
+**Rejected:** a `CountermeasureDispensed` message — duplicates the Fire PDU's shape for one case (the user's ruling) · each flare as a
+`LightweightRound` (R-271) — streams positions a known start already fixes · leaving `WeaponFire` thin and deriving the round on the
+viewer — the defect itself.
+
+**Split:** `CE-1111` (ui) builds F1–F3 and F5 and the flare / chaff looks; `CE-2188` (backend, running) publishes its release by F4 and
+owns `DecoyFlight` (F6) — see [`STEER_Backend_CE2188_Release_Is_A_Fire.md`](../../blueprints/batches/STEER_Backend_CE2188_Release_Is_A_Fire.md).
 
 ### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
 

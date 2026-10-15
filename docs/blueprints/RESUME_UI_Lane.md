@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-10
-current-answer: ⭐⭐⭐ 2026-10-10 — THE ui LANE'S CURRENT PROGRAMME IS THE 3-D WORLD AND COMBAT REALISM ⇒ read
+updated: 2026-10-15
+current-answer: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" directly below this STATUS block (what is
+  built, what is waiting on other lanes, what to do next). The programme is still the 3-D world and combat realism
+  (../PLAN_3D_World_And_Realism.md); the live design is ../DESIGN_Map_3D_Mode.md §6n–§6u.
+  ⛔ OLDER: 2026-10-10 — THE ui LANE'S CURRENT PROGRAMME IS THE 3-D WORLD AND COMBAT REALISM ⇒ read
   ../PLAN_3D_World_And_Realism.md FIRST (§2 roadmap A1…E2, §3 dependencies, §6 how to resume). Built today: CE-1035 Q0–Q2,
   CE-1034 H1–H3, CE-1033 S1 + every host + air kits, CE-1041 aircraft gear; designed + approved: CE-1042 effects (VE-A..VE-M),
   the live turret (R-255). Everything below this line is OLDER state.
@@ -147,6 +150,52 @@ related-designs:
   The dead text was MOVED VERBATIM to "## ⛔ HISTORY — older STATUS strands" at the foot of this file.
   Nothing was deleted.
 -->
+
+## ⭐⭐⭐ SESSION `2026-10-15` — RESUME HERE
+
+**Branch `ui` at `54088ca74` (pushed).** Last merges: `behaviors@2a2b16f92` (via `cdff1ddc1`) and `backend@d99ee4412` (`103c9903a`).
+⚠ `behaviors` has moved since (`b98e9914b`: IF-2 / IF-3 / IF-4 assets, air slice 6) — **merge it first** next session.
+
+### What was built (all in [DESIGN_Map_3D_Mode](../DESIGN_Map_3D_Mode.md), rows in the [tracker](Blueprint_Issues_Tracker.md), ui block)
+
+| id | what | design § |
+|---|---|---|
+| CE-1085…1094 | weapon systems, gunners, launchers on the shoulder, backblast, mortars / howitzers laid, smoke trails, FPV drone, A-10, rotors | §6n |
+| CE-1095 / 1096 | pilot station (fixed-wing view banks), waypoint editor with heights | Entity Control §8f, ROUTES1 §11.4 |
+| CE-1097 / 1098 | faces (skin, eyes, helmet / hair); blood spots by lost health | §6o, §6p |
+| CE-1099 / 1100 | civilian clothes and children (`CivilianChild` 1003), camouflage by side; car paints | §6q, §6r |
+| CE-1101 | camouflage and faces painted by the SHADER (`LitShader.UseSurface`, `BodySurface`), no patch geometry — ⚠ a cross-lane edit to FDP `LitShader.cs` | §6q |
+| CE-1103 | AH-64 kit (`VisualFamily.AttackHelicopter`, DIS cat 20); `KitFromTkb` CG-turret offset fix | §6s |
+| CE-1104 | stretcher and two-man weapon carry drawn | §6t |
+| CE-1105 | automatic-fire streams (`FireStreams`, `ProjectileLayer.DrawStreams`, `RecentShots` keeps the aim) | §6u |
+| CE-1106 | doors-off UH-60 door gunners sit in the door (catalogue seats moved — cross-lane to Air Ops F4) | §6u |
+| CE-1107 | the SELECTED launcher on the shoulder before the first shot (backend P4 `WeaponPosture.ActiveMount`) | §6n |
+| CE-1108 | armed presets' gunners at their guns (pickup kneels in the bed, HMMWV stands in the hatch — cross-lane to backend's catalogue) | §6n |
+
+Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, SimHost 58/0; rulings 206/206; every item red-proved.
+
+### Waiting on other lanes (handoffs written by ui — check their state first)
+
+| id | to | what | file |
+|---|---|---|---|
+| CE-1102 | backend | ✅ DONE (`b6ad14c83`): presets P1, laid gun P2, pitch / roll P3, active mount P4 — ui side done (CE-1107 / 1108) | [handoff](batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md) · [report](batches/REPORT_Backend_Presets_Elevation_Attitude.md) |
+| CE-1109 | behaviors | FM-4's time-on-target lay time per gun from its turret (the real M109 needs up to 18 s, FM-4 assumes 10) | [handoff](batches/HANDOFF_Ui_To_Behaviors_FM4_Lay_Time_From_The_Turret.md) |
+| CE-1110 | backend | a heading-only attribute patch keeps the body's pitch and roll (the steer's last row) | [handoff](batches/HANDOFF_Ui_To_Backend_Heading_Patch_Keeps_Attitude.md) |
+
+### Next, in order (leans)
+
+1. **Merge `behaviors`** (and `backend` if it moved); re-run Presentation + `Map3DFrameRail`; the type-picker golden and `OldFamily` theory rows are the usual merge casualties.
+2. **§6n's "STILL BLOCKED" list** — the sheaf aim points and the fire-mission form were waiting on behaviors' IF-2, which is now BUILT (`Indirect Fire §3.7`): re-measure and draw them (aim points of a battery's sheaf; the Strike order's fire-mission fields in the order form).
+3. **Live check of P3** — run a cluster (`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`) with a banking UH-60 / A-10 and confirm the receiving node draws its bank (backend's report asks the ui lane for it).
+4. When CE-1109 / CE-1110 land: merge, re-shoot `CE1105_V` / `CE1102_V`, close the rows.
+
+### How this session worked (reuse it)
+
+- **Xvfb** for frame rails: `rm -f /tmp/.X11-unix/X99 /tmp/.X99-lock; setsid Xvfb :99 -screen 0 2200x1200x24 &` — it died twice; a frame-rail run that prints nothing means it is down. Shots: `DISPLAY=:99 HROT_RAIL_SHOTS=<dir> dotnet test Hrot/Engine/Hrot.Presentation.Tests/... --no-build --filter FullyQualifiedName~Map3DFrameRail`; copy the chosen PNGs to `docs/assets/map-3d/`.
+- **Red-proofs:** a detached worktree at the commit (`git worktree add --detach /tmp/rp-wt <sha>`), then for each break: replace one anchor string, build the TEST project, run the rail filter, expect RED, restore; finally build + run the filter green. (The script used was in the session scratchpad — rewrite it; it is ~50 lines.)
+- **Look at the screenshot every time** — CE-1106 and CE-1108 were both found only by looking (counters passed).
+- **Run the FULL Presentation suite before committing** (`--no-build`, ~20 s) — a filtered run missed a theory row once.
+
 # ⭐⭐⭐ RESUME — **the UI / variable implementation lane**
 
 ## ⭐⭐⭐ SESSION `2026-09-21` (c) — **`CE-306`: the last two selection seams unified; the residual list was ROTTEN**

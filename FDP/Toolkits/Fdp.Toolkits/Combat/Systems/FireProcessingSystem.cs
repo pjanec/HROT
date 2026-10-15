@@ -430,8 +430,10 @@ namespace Fdp.Toolkit.Combat.Systems
                         : mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
                         : weaponMuzzle;
             if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var targetVelocity)) return aim;
-            var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter)
-                ? repo.GetComponentRO<SimVelocity>(shooter).Linear : Vector3.Zero;
+            // ⭐ CE-2173 slice 6d — the carrier the round inherits (A4, above) is the body it leaves from: a door gun's helicopter
+            var body = HitModel.BodyOf(repo, shooter);
+            var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, body) && repo.HasComponent<SimVelocity>(body)
+                ? repo.GetComponentRO<SimVelocity>(body).Linear : Vector3.Zero;
             return TargetLead.Point(origin, shooterVelocity, speed, aim, targetVelocity);
         }
 

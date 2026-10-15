@@ -201,7 +201,10 @@ public sealed class EntityTypeCatalogTests
         107 M109 155 mm self-propelled howitzer | dis 1.1.225.4.1.0.0 | family SpArtillery | folder Platform/Land/United States/Self-Propelled Artillery | icon _tank
         108 Technical (DShK) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         109 Technical (minigun) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
+        110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        203 Rifleman (Igla) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
@@ -226,6 +229,9 @@ public sealed class EntityTypeCatalogTests
         610 81 mm mortar | dis 1.1.0.10.2.0.0 | family WeaponSystem | folder Platform/Land/Mortar | icon -
         611 120 mm mortar | dis 1.1.0.10.3.0.0 | family WeaponSystem | folder Platform/Land/Mortar | icon -
         612 105 mm towed howitzer | dis 1.1.0.5.1.0.0 | family WeaponSystem | folder Platform/Land/Towed Artillery | icon -
+        613 Stinger (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        614 Igla (MANPADS) | dis 1.1.0.50.6.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        615 ZU-23-2 | dis 1.1.0.50.7.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
         1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1003 CivilianChild | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
