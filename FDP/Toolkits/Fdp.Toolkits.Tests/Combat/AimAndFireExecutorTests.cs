@@ -2349,6 +2349,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var man = WsSoldier(new Vector3(-1f, 0f, 0f));
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, man, tube, SeatRole.Gunner));
             Assert.Equal(man, WeaponSystems.ControllerOf(_world, tube));   // premise: he mans it
+            // ⭐ IF-4 ① (WS-3) — and the dispatcher lets him fire it: WeaponDispatcherSystem fails a weapon action of a man without CanShoot
+            //   before the executor runs, which these rails call directly. ✅ Red-proof: Board stripping CanShoot from a Gunner seat ⇒ red.
+            Assert.True(_world.GetComponentRO<ActorCapabilityState>(man).Capabilities.HasFlag(ActorCapabilities.CanShoot));
 
             var channel = new WeaponChannel { Status = NodeStatus.Running };
             Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);

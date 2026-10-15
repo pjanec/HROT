@@ -592,6 +592,7 @@ every host calls). The carry needs no new system and no cross-group ordering: th
 | `LocomotionMoveTo` — "THE one way a C# node moves its own unit" (CE-2092) | `Hrot.AI.Behaviors/Brains/LocomotionMoveTo.cs` | the nodes' walk ⇒ the nodes live in `Hrot.AI.Behaviors` |
 | `Embarkation.DismountPoint` — beside the hull (radius + 1.5 m) | `Embarkation.cs:139` | the boarding point (seat 0 of 1) |
 | boarding stays `CanInteract` (only CanMove / CanShoot stripped) | `Embarkation.cs:48` | ⇒ a passenger's interaction action runs aboard |
+| ⭐ `2026-10-15` — a WEAPON SYSTEM's own Gunner seat strips only CanMove (`Embarkation.StrippedOn`) | `Embarkation.cs` | ⇒ its man, the weapon's controller, fires it; every other seat unchanged — [Weapon Systems §9 WS-6](designs/weapons/DESIGN_Weapon_Systems.md) |
 | curated library behaviour pattern: `[BehaviorResolver]` from a `[BehaviorContract]` DTO into a blackboard of node params | `DoorLocksmithBehavior.cs` | the two library behaviours |
 | a JSON-authored entity reference: `EntityRef` (network id, remapped on load, picked by the editor) | `Fdp.Toolkits/Replication/EntityRef.cs` | the vehicle in the params |
 

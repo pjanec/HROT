@@ -99,7 +99,7 @@ namespace Hrot.SimHost.Tests
         /// ✅ Red-proofs: the executor ignoring the role ⇒ the ManWeapon man in seat 1 ⇒ red; the resolver not setting Gunner ⇒ red.
         /// </summary>
         [Fact]
-        public void CE2176_ManWeapon_TakesTheGunnerSeat_AndControlsTheWeapon_APlainEmbarkTakesTheLoadersSeat()
+        public void CE2176_ManWeapon_TakesTheGunnerSeat_ControlsAndFiresTheWeapon_APlainEmbarkTakesTheLoadersSeat()
         {
             Entity Mortar()
             {
@@ -118,6 +118,7 @@ namespace Hrot.SimHost.Tests
             Dispatch(plain, new EmbarkExecutor());
             Assert.Equal(1, _w.GetComponentRO<IsEmbarkedTag>(plain).Seat);                     // the loader's seat
             Assert.True(WeaponSystems.ControllerOf(_w, rider).IsNull);                         // nobody mans it
+            Assert.False(_w.GetComponentRO<ActorCapabilityState>(plain).Capabilities.HasFlag(ActorCapabilities.CanShoot));   // the loader fires nothing
 
             var tube = Mortar();
             var gunner = Soldier(Embarkation.BoardingPoint(_w, tube));
@@ -131,6 +132,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, EmbarkNodes.Embark(ref man, gunner, _w));
             Assert.Equal(0, _w.GetComponentRO<IsEmbarkedTag>(gunner).Seat);                    // the Gunner seat
             Assert.Equal(gunner, WeaponSystems.ControllerOf(_w, tube));                        // he controls it
+            // ⭐ IF-4 ① (WS-3) — and he may FIRE it: the weapon dispatcher fails a weapon action of a man without CanShoot before its
+            //   executor runs (measured live: the mortar section never fired). He still cannot walk off with the tube.
+            var caps = _w.GetComponentRO<ActorCapabilityState>(gunner).Capabilities;
+            Assert.True(caps.HasFlag(ActorCapabilities.CanShoot), $"the gunner keeps his fire: {caps}");
+            Assert.False(caps.HasFlag(ActorCapabilities.CanMove));
         }
 
         [Fact]
