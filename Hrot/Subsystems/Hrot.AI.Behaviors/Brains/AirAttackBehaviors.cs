@@ -631,6 +631,10 @@ namespace Hrot.AI.Behaviors.Brains
                 return tp + new Vector3(tv.X, tv.Y, 0f) * fall;
             }
             byte mount = ws.Weapon == WeaponRockets && ws.Mount != AirAttackProfiles.None ? ws.Mount : ws.GunMount;
+            // ⭐ a gun or a rocket aims at the target's MIDDLE (the height FireProcessingSystem aims at, AimPoint.Middle) — 📐 measured live
+            //   (ua-air-attack ②): aimed at the ground point, a 3° gun pass burst every 30 mm round on the ground ~7 m short of the truck
+            if (world.HasComponent<SimTransform>(p.Target))
+                tp.Z += Fdp.Toolkit.Combat.AimPoint.Middle(world, p.Target, out _, out _).Z - world.GetComponentRO<SimTransform>(p.Target).Position.Z;
             return TargetLead.Point(sp, sv, RoundSpeed(world, self, mount), tp, tv);
         }
 
