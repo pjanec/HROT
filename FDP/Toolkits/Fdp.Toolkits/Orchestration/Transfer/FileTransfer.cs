@@ -91,6 +91,15 @@ namespace Fdp.Toolkit.Orchestration.Transfer
     {
         public const string SharePrefix = "hrot.transfer.share=";
 
+        /// <summary>
+        /// ⭐ Advertised by a node that RUNS a DDS file receiver. ⛔ A node advertising neither this nor a share is never sent
+        /// anything over DDS — it would wait forever for an answer it cannot give (measured live: a load parked indefinitely).
+        /// </summary>
+        public const string DdsReceiver = "hrot.transfer.dds";
+
+        public static bool HasDdsReceiver(System.Collections.Generic.IEnumerable<string>? tokens)
+            => tokens != null && System.Linq.Enumerable.Contains(tokens, DdsReceiver);
+
         /// <summary>The environment variable a deployment sets to <c>none</c> to make a node advertise NO share (a remote Player).</summary>
         public const string ShareEnvironmentVariable = "HROT_TRANSFER_SHARE";
 

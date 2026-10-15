@@ -54,7 +54,13 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
 
     /// <summary>⭐ The share this node advertises: its own staging root, unless the deployment says otherwise (a remote Player: none).</summary>
     private static string[] ShareToken(int nodeId)
-        => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ForThisProcess(NodeRoot(nodeId)) is { } t ? new[] { t } : Array.Empty<string>();
+    {
+        // ⭐ this node runs a DDS receiver (below) — say so; and its share, unless the deployment says none
+        var share = Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ForThisProcess(NodeRoot(nodeId));
+        return share != null
+            ? new[] { Fdp.Toolkit.Orchestration.Transfer.TransferTokens.DdsReceiver, share }
+            : new[] { Fdp.Toolkit.Orchestration.Transfer.TransferTokens.DdsReceiver };
+    }
 
     /// <inheritdoc/>
     public void Dispose()

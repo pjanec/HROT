@@ -17,13 +17,17 @@ namespace Fdp.Toolkit.Orchestration.Transfer
         private readonly IFileTransferProvider _share;
         private readonly IFileTransferProvider? _dds;
         private readonly Func<int, bool> _hasShare;
+        private readonly Func<int, bool> _canReceiveDds;
         private readonly Func<int, string> _nodeRootSeenByMaster;
 
         /// <param name="hasShare">Whether a node advertised a share it can be copied into.</param>
         /// <param name="nodeRootSeenByMaster">A node's staging root as the master's paths name it (the gateway's destinations are under it).</param>
+        /// <param name="canReceiveDds">Whether a node advertised a DDS receiver (<see cref="TransferTokens.DdsReceiver"/>); default: yes.</param>
         public RoutingTransferProvider(IFileTransferProvider share, IFileTransferProvider? dds,
-                                       Func<int, bool> hasShare, Func<int, string> nodeRootSeenByMaster)
+                                       Func<int, bool> hasShare, Func<int, string> nodeRootSeenByMaster,
+                                       Func<int, bool>? canReceiveDds = null)
         {
+            _canReceiveDds = canReceiveDds ?? (_ => true);
             _share = share ?? throw new ArgumentNullException(nameof(share));
             _dds = dds;
             _hasShare = hasShare ?? throw new ArgumentNullException(nameof(hasShare));
@@ -35,7 +39,7 @@ namespace Fdp.Toolkit.Orchestration.Transfer
         public bool CanReach(TransferTarget target) => _share.CanReach(target) || _dds != null;
 
         /// <summary>Whether this provider would send to <paramref name="nodeId"/> over DDS.</summary>
-        public bool UsesDds(int nodeId) => _dds != null && !_hasShare(nodeId);
+        public bool UsesDds(int nodeId) => _dds != null && !_hasShare(nodeId) && _canReceiveDds(nodeId);
 
         public IFileTransfer Start(TransferRequest request)
         {

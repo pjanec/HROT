@@ -125,7 +125,9 @@ public sealed class OrchestratorCore : IDisposable
                 StorageGatewayModule.DefaultProvider, o.DdsTransfer,
                 hasShare: nodeId => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ParseShare(
                     _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null) != null,
-                nodeRootSeenByMaster: nodeId => OrchestrationConstants.GetNodeStagingRoot(OrchestrationConstants.ResolveStagingRoot(), nodeId));
+                nodeRootSeenByMaster: nodeId => OrchestrationConstants.GetNodeStagingRoot(OrchestrationConstants.ResolveStagingRoot(), nodeId),
+                canReceiveDds: nodeId => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.HasDdsReceiver(
+                    _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null));
         var storageGateway = new StorageGatewayModule(transfer);
         _storage   = new StorageProcessManager(bus, storageGateway, nas);                         // TASK-S002
         _inventory = new AssetInventoryProcessManager(                                            // CGF1-S0506
