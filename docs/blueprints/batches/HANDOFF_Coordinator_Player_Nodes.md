@@ -1,5 +1,7 @@
 <!--STATUS
-state: LIVE — RE-DISPATCHED AGAIN (rule 1a) at the commit that adds the review amendments (2026-10-15); scope frozen there.
+state: LIVE — RE-DISPATCHED AGAIN (rule 1a) 2026-10-15. ⭐⭐ YOUR SCOPE IS FROZEN AT `fe1095d68` (the commit that adds
+  the review amendments). Documents that change after it are FYI ONLY; a later document that INVALIDATES an item is a
+  STOP-and-report for THAT ITEM, never a reason to adapt or revert (R-106).
   ⚠ Verified before amending: NO started-marker exists on any branch (`git log --all --grep='started HANDOFF_Coordinator_Player_Nodes'`
   is empty) and the user confirmed the other session is on hold ⇒ rule 1a's blind window (rule 1b) does not apply.
   ⚠ Earlier stamps: 1d2eac460 (first), 7a1f7297e (the P5 steer folded in). Neither had a run.
