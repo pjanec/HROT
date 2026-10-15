@@ -137,6 +137,12 @@ public sealed class BTreeCallShapeTests
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.Plain),
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000021", BTreeDelegateShapeDto.Plain),
         ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-000000000031", BTreeDelegateShapeDto.Plain),
+        // ⭐ CE-2191 (Air Ops §7f) — the air-defence row of both SOPs: SensedFresh (air threat) and AirDefenceNodes.CanEngageAir
+        //   (AirDefenceBehaviors.cs:118, (ref EngageAircraftParams, Entity, EntityRepository)) ⇒ both the plain three-param shared form.
+        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
+        ("BasicInfantrySop.btree.json", "c2080000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
+        ("BasicVehicleSop.btree.json", "c2165000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000061", BTreeDelegateShapeDto.Plain),   // ⭐ CE-2159 X-c — the danger-area row
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),

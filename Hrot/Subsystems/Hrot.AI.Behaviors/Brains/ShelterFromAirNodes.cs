@@ -143,23 +143,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// its position goes to <c>DroneAt</c>, and a newer sighting / hearing than any before moves <c>LastAirAt</c> to now. Returns the
         /// drone's entity when it is an identified one (Null for heard rotors).
         /// </summary>
-        internal static unsafe Entity SenseAir(ref ShelterFromAirState ws, EntityRepository world, Entity self, double now)
-        {
-            if (!world.HasComponent<TargetMemory>(self)) return Entity.Null;
-            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-            uint newest = 0; int at = -1;
-            for (int i = 0; i < mem.Count; i++)
-            {
-                if (!AirContacts.IsAir(world, in mem, i) || mem.LastSeenTick[i] < newest) continue;
-                newest = mem.LastSeenTick[i];
-                at = i;
-            }
-            if (at < 0) return Entity.Null;
-            ws.DroneAt = new Vector3(mem.PositionsX[at], mem.PositionsY[at], mem.PositionsZ[at]);
-            ws.DroneSlot = mem.EntityIds[at];
-            if (newest > ws.AirTick || ws.AirTick == 0) { ws.AirTick = newest; ws.LastAirAt = now; }
-            return TargetMemory.IsAnonymous(in mem, at) ? Entity.Null : new Entity((ulong)mem.EntityIds[at]);
-        }
+        internal static Entity SenseAir(ref ShelterFromAirState ws, EntityRepository world, Entity self, double now)
+            => AirSense.Newest(world, self, now, ref ws.AirTick, ref ws.LastAirAt, out ws.DroneAt, out ws.DroneSlot);
 
         private static void KeepSensor(ref ShelterFromAirState ws, in ShelterFromAirParams p, Entity self, EntityRepository world)
         {
@@ -207,23 +192,9 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Phase = ShelterPhase.Evading;
         }
 
-        /// <summary>Aimed fire at the drone while it is SEEN; a failure (out of arc) waits <see cref="RetryFireSeconds"/> before the next try.</summary>
+        /// <summary>Aimed fire at the drone while it is SEEN (<see cref="AirSense.FireAt"/>).</summary>
         private static void FireAtDrone(ref ShelterFromAirState ws, Entity self, EntityRepository world, Entity drone, double now)
-        {
-            if (!world.HasComponent<WeaponChannel>(self)) return;
-            bool seen = !drone.IsNull && SightNow.Sees(world, self, drone);
-            if (!seen) { PostureNodes.StopFiring(world, self, ref ws.Fire); return; }
-            ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
-            bool mine = !ws.Fire.Threat.IsNull && channel.ActiveAction == CombatConstants.ActionIdAimAndFire;
-            if (mine && channel.Status == NodeStatus.Failure)
-            {
-                PostureNodes.StopFiring(world, self, ref ws.Fire);
-                ws.RetryFireAt = now + RetryFireSeconds;
-                return;
-            }
-            if (now < ws.RetryFireAt) return;
-            PostureNodes.Fire(world, self, ref ws.Fire, 0f, 0, drone);
-        }
+            => AirSense.FireAt(world, self, ref ws.Fire, ref ws.RetryFireAt, drone, now);
 
         private static void Release(ref ShelterFromAirState ws, Entity self, EntityRepository world)
         {

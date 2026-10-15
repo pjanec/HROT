@@ -8,6 +8,7 @@ using Fbt;
 using Fbt.Compiler;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Hrot.AI.Behaviors.Brains;
 
 namespace Hrot.AI.Behaviors.Trees;
 
@@ -17,6 +18,16 @@ public static class BasicVehicleSop
         new BTreeBuilder<byte, BTreeContext>()
             .Selector(sel =>
             {
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
+                        visualId: new Guid("c2165000-0000-0000-0000-0000000000a2"));
+                    seq.Condition("Hrot.AI.Behaviors.Brains.AirDefenceNodes.CanEngageAir@24",
+                        visualId: new Guid("c2165000-0000-0000-0000-0000000000a3"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:EngageAircraft:UnderFire@-1",
+                        visualId: new Guid("c2165000-0000-0000-0000-0000000000a4"));
+                },
+                    visualId: new Guid("c2165000-0000-0000-0000-0000000000a1"));
                 sel.Sequence(seq =>
                 {
                     seq.Condition("Fdp.Toolkit.Behavior.SopConditions.SensedFresh@0",
