@@ -28,7 +28,10 @@ current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the a
   AMEND the section above them and WIN over it; ⭐ §4-H (operator cancel → Idle, R-4004) is new and has no
   earlier version. ⛔ Do not quote §4-A, §4-D or §4-E without reading the prime section that follows it.
 stale-below: nothing
-known-rot: ⚠ TWO claims this document made that the review measured FALSE, both corrected in place:
+known-rot: ⛔ R-4018 (2026-10-15): the TKB FILE reaches a node by the JOIN SYNC (designs/tkb-1/DESIGN.md §0a), never by
+  the catch-up. Every "LoadingLive (KB + terrain)" below still holds for the LOAD — the knowledge-base step loads the file the
+  join sync left — but no TKB is transferred in the catch-up.
+  ALSO: ⚠ TWO claims this document made that the review measured FALSE, both corrected in place:
   ① §4-B2's consequences row said a stall is "cancelled by an operator with the existing
   ClusterOpType.CancelOperation" — cancel is ARCHIVE-ONLY and reaches no load (ClusterMaster.cs:1627-1640);
   §4-H is the fix. ② §4-A's blast-radius text called the editor authoritative — it declares NodeRole.None to
@@ -315,7 +318,7 @@ object nobody else can see yet; every write into shared state (the TKB database,
 |---|---|
 | the frame thread polls a not-yet-finished prepare every frame and commits it when done | ✅ BUILT — `ClusterSlave.cs:259-300` (`_pendingPrepare`) |
 | a step split into a pure `Prepare` that builds a private object and a frame-thread `Commit` | ✅ terrain already is — `TerrainResidency.Prepare` returns a `Staged` and touches only its own last-loaded fields; the world is written in `Commit` |
-| the knowledge-base step | 🔴 NOT safe to move — its `Prepare` `Clear()`s and refills the LIVE `TkbDatabase` (`KnowledgeBaseLoadStep.PrepareAsync`). ⇒ ⭐ parse into a NEW database in `Prepare`, swap the reference in `Commit` |
+| the knowledge-base step | ⛔⛔ **SUPERSEDED `2026-10-15` by `R-4018`** — the TKB is loaded ONCE per process (one TKB per deployment, synced when the node joins; a no-op on every later load), so it stays on the frame thread and is NOT moved off it. 🔒 User: *"TKB is static … It doesn't need any background thread."* ⛔ Was: *"NOT safe to move — parse into a NEW database in `Prepare`, swap in `Commit`"* |
 | the scenario-entities step | ✅ already ticked on the frame thread across frames (genesis through the ECS request queue, readiness checked per frame) — ⛔ it stays there |
 | the steps actually yielding | 🔴 no — both pure steps run synchronously, so today the "async" prepare finishes inline. ⇒ the chain starts the pure work as a task and returns |
 | progress to the orchestrator | 🔴 a node's `NodeOpStatus` is counted as its ACK whatever its code (`ClusterMaster.cs:1809-1829` — `Received++` for every status). ⇒ ⭐ an `InProgress` status must be read as PROGRESS, not an ACK — one change in the master's ACK intake; the existing message and code carry it |
@@ -325,6 +328,15 @@ object nobody else can see yet; every write into shared state (the TKB database,
 | ⭐ `Commit` stays short | it runs on the frame thread; a long `Commit` would stop the heartbeat, which is exactly what R-4001 forbids |
 | ⭐ a step that cannot be split stays on the frame thread **ticked**, reporting progress per tick | the scenario-entities shape |
 | ⚠ **what R-4001 deliberately leaves open** | a node alive and ticking whose step never finishes holds its round forever. ⭐ **Report it, don't time it**: the progress shows a stall; an operator cancels. ⛔⛔ **CORRECTED `2026-10-15`** — this row read *"an operator cancels with the EXISTING `ClusterOpType.CancelOperation`. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today."* 📐 **Measured: it does NOT.** Cancel is archive-only and the one cleanly cancellable transition state is `PARKED`, before anything is sent (`ClusterMaster.cs:1627-1640`); `LoadPhaseChain` never claims `AbortTransaction`. ⇒ **the escape R-4001 relies on did not exist — ⭐ `§4-H` builds it** (a routing fix: the abort seam is already complete) |
+
+#### ⏳ P4 — BEING BUILT `2026-10-15` (this table becomes the as-built when it lands)
+
+| piece | as built |
+|---|---|
+| the step contract | `ILoadPartProvider.PreparesOffFrameThread` (default `false`) — a step whose prepare builds only a private object says so |
+| the chain | `LoadPhaseChain.PrepareAsync` prepares the frame-thread steps inline, in order, then runs the off-thread ones on a worker in order ⇒ it returns an incomplete task and `ClusterSlave` polls it every frame (the existing `_pendingPrepare`) |
+| which steps | terrain only (`TerrainResidency.Prepare` builds a private `Staged`). ⛔ The knowledge-base step stays inline (`R-4018`: loaded once). The scenario step stays inline (it allocates ids) |
+| progress, not an ACK | the slave publishes ONE `InProgress` status when it defers a prepare; the master's round intake and the prefetch tracker read `InProgress` / `Pending` as progress — no `Received++`, no paid ACK |
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 

@@ -551,6 +551,7 @@ public sealed class ClusterMaster : IDisposable
             // capability tokens (gathered by IngestCapabilities), so a heartbeat re-applies the latest known
             // capabilities + mask. Unknown-so-far ⇒ empty set / None until the capabilities advert lands.
             var tokens = _nodeCapabilities.TryGetValue(hb.NodeId, out var t) ? t : System.Array.Empty<string>();
+            bool joined = !_roster.ActiveNodes.ContainsKey(hb.NodeId);
             var profile = new NodeHealthProfile
             {
                 NodeId                  = hb.NodeId,
@@ -561,6 +562,11 @@ public sealed class ClusterMaster : IDisposable
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
             _roster.Upsert(profile);
+
+            // ⭐⭐ R-4018 / CE-4003 step 2 — a node ENTERING the roster gets the deployment's TKB synced (the saga does
+            //   the copy). ⭐ Nothing is sent to the node: its first world build loads the file. 📄 tkb-1 DESIGN §0a.
+            if (joined)
+                _eventBus.PublishManaged(new NodeJoinedRosterEvent { NodeId = hb.NodeId });
         }
     }
 

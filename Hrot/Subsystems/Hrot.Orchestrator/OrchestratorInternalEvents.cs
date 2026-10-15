@@ -26,6 +26,16 @@ internal struct ExecutePrefetchIntent
 }
 
 /// <summary>
+/// ⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — published by <see cref="ClusterMaster"/> when a node ENTERS the roster
+/// (first start, restart after ejection, late join — one path). Consumed by <see cref="AssetPrefetchProcessManager"/>,
+/// which syncs the deployment's TKB to that node. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0a.
+/// </summary>
+internal struct NodeJoinedRosterEvent
+{
+    public int NodeId;
+}
+
+/// <summary>
 /// Published by <see cref="AssetPrefetchProcessManager"/> when the gateway
 /// <c>PrefetchScenarioAsync</c> task completes (success or failure).
 /// Consumed by <see cref="AssetPrefetchProcessManager"/> to drive the PrefetchFiles fan-out or

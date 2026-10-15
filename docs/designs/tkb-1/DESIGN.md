@@ -66,7 +66,7 @@ known-rot: ⛔⛔ R-4018 (2026-10-15, §0 below) OVERTURNS §1's "loaded before 
 | **synced when a node JOINS the cluster** — at its first start, a restart or a late join, one path: the orchestrator copies the master copy into that node's staging (skipped when the node already holds the same bytes) and tells that node to load it. The node loads it once and keeps it | §1 "loaded before scenario content during `PrepareLive` / `PrepareEdit`" |
 | **re-checked before every scenario load** — the same copy runs as a freshness check; an unchanged master copy copies and reloads nothing, a changed one is copied and reloaded before the scenario is built, so the whole cluster moves together | — |
 | **the name travels with the FILE SYNC, never with the load command** — the cluster's "prepare to load" message carries the scenario id and the terrain name only | `DESIGN_Cluster_Load_Phase.md` L1's `TkbName` on the load payload |
-| a late joiner's catch-up runs terrain only — its TKB arrives by the join sync | `R-4015`'s "knowledge base and terrain" |
+| a late joiner's catch-up transfers no TKB — the join sync already delivered it; the catch-up's knowledge-base step only loads it | `R-4015`'s TKB transfer |
 
 📐 **Measured `2026-10-15`:** ONE scenario file in the repository names a TKB — the seed
 `Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/scenario.json`, naming `HrotDefault` — and NO TKB archive exists anywhere:
@@ -81,9 +81,9 @@ every node runs on the built-in catalogue (`HrotEnvironment.CreateTkb()`). ⛔ A
 | the node: the knowledge-base step reads the `StagedTkb` record — never the scenario, never the load command — and loads once (same name, length, mtime ⇒ no-op) | `KnowledgeBaseLoadStep` |
 | the scenario format: `TkbName` removed from `ScenarioHeader`, `ScenarioHeaderDto`, the serializer, the merge and both editor save paths; an old file's value is ignored; the gateway's consensus check reads only `TerrainName` | `ScenarioHeader.cs` · `ScenarioSerializer.cs` · `ScenarioMergeCore.cs` · `StorageGatewayModule.CheckTerrainNameConsensus` |
 | the load command: `TkbName` removed from `EditLoadHandlerPayload`, `NodeTransitionPayloadDto` and `LoadPhaseContext`; an older peer's value is ignored on read | `ReferenceEditLoadHandler.cs` · `OrchestrationPayloadDtos.cs` |
-| ⏳ the sync when a node JOINS — `CE-4003` step 2, designed in §0a below | — |
+| ✅ the sync when a node JOINS — `CE-4003` step 2, §0a below | `ClusterMaster.IngestHeartbeats` · `AssetPrefetchProcessManager.SyncTkbToJoinedNodes` |
 
-### 0a. ⭐ The join sync — `CE-4003` step 2 *(design `2026-10-15`, READY-TO-BUILD)*
+### 0a. ⭐ The join sync — `CE-4003` step 2 *(design `2026-10-15`; ✅ BUILT the same day, as drawn — `ClusterMaster.IngestHeartbeats` publishes `NodeJoinedRosterEvent`, `AssetPrefetchProcessManager.SyncTkbToJoinedNodes` runs `SyncTkb` for that node; rails in `ClusterMasterPrefetchTests`)*
 
 🔒 *"It is a way how to synchronize some important data files when the process starts before it even starts a scenario. The
 scenario time load is only just another check if that file is up to date."* · *"when the node is loading at all and becoming

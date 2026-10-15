@@ -583,4 +583,78 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Assert.Equal("HrotDefault", ClusterConfiguration.Default.TkbName);
         Assert.Equal("Custom_v2", new ClusterConfiguration { TkbName = "Custom_v2" }.ForOneNodeCluster().TkbName);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — a node ENTERING the roster gets the deployment's TKB synced, with NO
+    /// scenario load and NO command sent to it (its first world build loads the file). 📄 tkb-1 DESIGN §0a.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void AJoiningNode_GetsTheTkbSynced_WithNoScenarioLoadAndNoCommand()
+    {
+        var tkbDir = OrchestrationConstants.GetNasTkbRoot(_nasDir);
+        Directory.CreateDirectory(tkbDir);
+        File.WriteAllText(Path.Combine(tkbDir, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension), "zip-bytes");
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+        try
+        {
+            var bus = new FdpEventBus();
+            using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+            var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), _nasDir, stagingDir, tkbName: "Alpha_v1");
+
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 7, SubsystemName = "Player",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+
+            var nodeTkb = OrchestrationConstants.GetNodeTkbStagingRoot(stagingDir, 7);
+            bool commandSent = false;
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while (StagedTkb.Read(nodeTkb) == null && DateTime.UtcNow < deadline)
+            {
+                bus.SwapBuffers();
+                saga.Tick();
+                master.Tick();
+                commandSent |= bus.ReadManaged<ExecuteNodeOpIntent>().Any();
+                Thread.Sleep(10);
+            }
+
+            Assert.Equal("Alpha_v1", StagedTkb.Read(nodeTkb));
+            Assert.True(File.Exists(Path.Combine(nodeTkb, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension)));
+            Assert.False(commandSent, "the join sync sends the node nothing — its first world build loads the file");
+        }
+        finally
+        {
+            try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ The join is ENTERING the roster, once — a node's every later heartbeat is not a join. ⛔ Otherwise every node
+    /// would be re-synced once a second.
+    /// </summary>
+    [Fact]
+    public void ANodesLaterHeartbeats_AreNotAJoin()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+        int joins = 0;
+        for (int frame = 0; frame < 4; frame++)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 7, SubsystemName = "Player",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+            bus.SwapBuffers();
+            master.Tick();
+            bus.SwapBuffers();
+            joins += bus.ReadManaged<NodeJoinedRosterEvent>().Count(e => e.NodeId == 7);
+        }
+
+        Assert.Equal(1, joins);
+    }
 }

@@ -81,6 +81,8 @@ public sealed class AssetPrefetchProcessManager
     /// </summary>
     public void Tick()
     {
+        SyncTkbToJoinedNodes();
+
         foreach (var intent in _bus.ReadManaged<ExecutePrefetchIntent>())
         {
             if (string.IsNullOrWhiteSpace(_nasBasePath))
@@ -268,6 +270,41 @@ public sealed class AssetPrefetchProcessManager
             if (mode != null) list.Add(new AssetSyncTarget(kind, root, mode.Value));
         }
         return list;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — the JOIN SYNC: a node that entered the roster gets the deployment's TKB
+    /// copied into its staging, on a worker, through the same <see cref="StorageGatewayModule.SyncTkb"/> every scenario
+    /// load uses. ⭐ No command to the node and no ACK — its first world build loads the file (the knowledge-base step).
+    /// ⚠ A failure is logged, never fatal: the copy before the next scenario load runs again and fails that load loudly.
+    /// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0a.
+    /// </summary>
+    private void SyncTkbToJoinedNodes()
+    {
+        foreach (var joined in _bus.ReadManaged<NodeJoinedRosterEvent>())
+        {
+            if (string.IsNullOrWhiteSpace(_nasBasePath) || string.IsNullOrWhiteSpace(_tkbName)) continue;
+
+            var target = new NodeDistributionTarget
+            {
+                NodeId             = joined.NodeId,
+                TkbDestinationPath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
+                    _localStagingRoot, joined.NodeId),
+            };
+            int nodeId = joined.NodeId;
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                int ok = 0, failed = 0;
+                StorageGatewayModule.SyncTkb(_tkbName, new[] { target }, _nasBasePath, ref ok, ref failed);
+                if (failed > 0)
+                    FdpLog<AssetPrefetchProcessManager>.Error(
+                        "[AssetPrefetchProcessManager] Join sync of TKB '{0}' to node {1} failed — the next scenario load retries it.",
+                        _tkbName, nodeId);
+                else
+                    FdpLog<AssetPrefetchProcessManager>.Info(
+                        "[AssetPrefetchProcessManager] Join sync: TKB '{0}' checked on node {1}.", _tkbName, nodeId);
+            });
+        }
     }
 
     private List<NodeDistributionTarget> BuildNodeDistributionTargets(

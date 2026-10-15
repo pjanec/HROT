@@ -14,6 +14,7 @@ public static class OrchestratorEventRegistry
         bus.RegisterManaged<ExecutePrefetchIntent>();
         bus.RegisterManaged<PrefetchStagingCompletedEvent>();
         bus.RegisterManaged<PrefetchDistributionCompletedEvent>();   // L8 — what a parked transition waits on.
+        bus.RegisterManaged<NodeJoinedRosterEvent>();                // R-4018 — a node entered the roster: sync its TKB.
         bus.RegisterManaged<ExportArchiveBegunEvent>();
         bus.RegisterManaged<SaveScenarioJsonBegunEvent>();
         bus.RegisterManaged<ImportArchiveBegunEvent>();
