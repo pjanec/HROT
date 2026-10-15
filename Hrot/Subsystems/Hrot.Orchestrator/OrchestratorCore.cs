@@ -132,7 +132,7 @@ public sealed class OrchestratorCore : IDisposable
         _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
         // TASK-P002 — the prefetch. Must tick BEFORE ClusterMaster so PrefetchStagingCompletedEvent is ready.
-        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas);
+        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas, tkbName: config.TkbName);   // ⭐ R-4018
 
         // ⭐ CE-3021 — explicit publish / refresh over the SAME gateway and NAS (silent-default rule).
         _master.AssetSync = new AssetSyncService(storageGateway, nas, _master.ActiveNodeCapabilitySnapshot);

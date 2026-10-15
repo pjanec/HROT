@@ -506,4 +506,81 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
             e => e.RequestId == nextId && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(SawPrepare(bus), "After a cancel the next transition must be admitted, not rejected.");
     }
+
+    // ── R-4018 — the deployment's ONE TKB rides every prefetch ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> end to end through the SAGA, not the gateway alone: a scenario load's prefetch leaves the
+    /// CONFIGURED TKB and its <see cref="StagedTkb"/> record on the node before <c>PrefetchFiles</c> is fanned out — the
+    /// scenario names no TKB at all. ⛔ This is what fails if the saga forgets to pass its name to the gateway.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void TheConfiguredTkb_ReachesTheNode_ThroughThePrefetchSaga()
+    {
+        var scenarioDir = Path.Combine(_nasDir, OrchestrationConstants.ScenariosDirectoryName, _scenarioId);
+        Directory.CreateDirectory(scenarioDir);
+        File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
+        var tkbDir = OrchestrationConstants.GetNasTkbRoot(_nasDir);
+        Directory.CreateDirectory(tkbDir);
+        File.WriteAllText(Path.Combine(tkbDir, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension), "zip-bytes");
+
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+        try
+        {
+            var bus = new FdpEventBus();
+            using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+            var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), _nasDir, stagingDir, tkbName: "Alpha_v1");
+            Assert.Equal("Alpha_v1", saga.TkbName);
+
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 1, SubsystemName = "TestNode",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+            bus.SwapBuffers();
+            master.Tick();
+            bus.SwapBuffers();
+
+            master.HandleClusterOpRequest(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingEdit}\",\"ScenarioId\":\"{_scenarioId}\"}}",
+            });
+
+            bool prefetchFiles = false;
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while (!prefetchFiles && DateTime.UtcNow < deadline)
+            {
+                saga.Tick();
+                master.Tick();
+                bus.SwapBuffers();
+                prefetchFiles = bus.ReadManaged<ExecuteNodeOpIntent>().Any(i => i.Operation == FdpNodeOpType.PrefetchFiles);
+                Thread.Sleep(10);
+            }
+
+            Assert.True(prefetchFiles, "the prefetch never completed");
+            var nodeTkb = OrchestrationConstants.GetNodeTkbStagingRoot(stagingDir, 1);
+            Assert.Equal("Alpha_v1", StagedTkb.Read(nodeTkb));
+            Assert.True(File.Exists(Path.Combine(nodeTkb, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension)));
+        }
+        finally
+        {
+            try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> — the TKB name works with default settings (no configuration file), and the editor's one-node
+    /// cluster keeps a configured one. ⛔ <c>ForOneNodeCluster</c> copies every field by hand, so a forgotten copy would
+    /// silently fall back to the default — the silent-default pattern.
+    /// </summary>
+    [Fact]
+    public void TheTkbName_DefaultsToTheOneInUse_AndTheOneNodeClusterKeepsAConfiguredOne()
+    {
+        Assert.Equal("HrotDefault", ClusterConfiguration.Default.TkbName);
+        Assert.Equal("Custom_v2", new ClusterConfiguration { TkbName = "Custom_v2" }.ForOneNodeCluster().TkbName);
+    }
 }

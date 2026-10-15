@@ -45,16 +45,17 @@ public enum LoadPart
 /// ⭐⭐ Everything a load step needs to know about the round it is running in — read off the ONE message
 /// the orchestrator fans out, never off a file.
 ///
-/// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2. ⚠ <see cref="TkbName"/> and
-/// <see cref="TerrainName"/> may be <see langword="null"/> when the sender omitted them (an older peer) or
-/// when the scenario genuinely names none — a step distinguishes the two by falling back to its staged
-/// header, and treats "no name anywhere" as legal and silent.</para>
+/// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2. ⚠ <see cref="TerrainName"/> may be <see langword="null"/>
+/// when the sender omitted it (an older peer) or when the scenario genuinely names none — the step distinguishes the
+/// two by falling back to its staged header, and treats "no name anywhere" as legal and silent.</para>
+///
+/// <para>⛔ <c>R-4018</c> — no TKB name: the knowledge-base step reads the name its file sync left
+/// (<c>StagedTkb</c>).</para>
 /// </summary>
 public readonly record struct LoadPhaseContext(
     Guid TransactionId,
     ClusterState TargetState,
     string? ScenarioId,
-    string? TkbName,
     string? TerrainName,
     Guid ExerciseId,
     bool IsNewScenario,
@@ -65,7 +66,7 @@ public readonly record struct LoadPhaseContext(
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TkbName, p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary)
+                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>

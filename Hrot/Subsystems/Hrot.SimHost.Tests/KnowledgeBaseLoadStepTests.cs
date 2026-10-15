@@ -31,24 +31,14 @@ public class KnowledgeBaseLoadStepTests : IDisposable
             Directory.Delete(_stagingRoot, recursive: true);
     }
 
-    private void WriteScenarioHeader(string? tkbName, bool phase2Format = false)
+    /// <summary>
+    /// ⭐ <c>R-4018</c> — what the orchestrator's TKB sync leaves behind: the record naming the archive it copied.
+    /// <see langword="null"/> = no master copy, so nothing is staged.
+    /// </summary>
+    private void WriteScenarioHeader(string? tkbName)
     {
-        string content;
-        if (phase2Format && tkbName != null)
-        {
-            // Phase 2 format: $meta first, then TkbName at root level.
-            content = $"{{\"$meta\":{{\"docType\":\"Hrot.Scenario\",\"schemaVersion\":1}},\"TkbName\":\"{tkbName}\"}}";
-        }
-        else if (tkbName != null)
-        {
-            // Legacy format.
-            content = $"{{\"TkbName\":\"{tkbName}\"}}";
-        }
-        else
-        {
-            content = "{\"SubsystemType\":\"SimHost\"}";
-        }
-        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), content, new UTF8Encoding(false));
+        if (tkbName == null) StagedTkb.Clear(_tkbDir);
+        else StagedTkb.Write(_tkbDir, tkbName);
     }
 
     /// <summary>
@@ -67,15 +57,13 @@ public class KnowledgeBaseLoadStepTests : IDisposable
     /// <summary>
     /// ⭐ <c>L3</c> — a step is driven by a LOAD-PHASE CONTEXT, not by a node-op intent: it no longer
     /// CLAIMS an operation, because <c>LoadPhaseChain</c> claims once for the whole node.
-    /// ⚠ <c>tkbName: null</c> here means "the message named none", which sends the step to its staged-header
-    /// fallback — exactly the behaviour these cases were written against.
+    /// ⛔ <c>R-4018</c>: the context carries no TKB name — the step reads the sync's <see cref="StagedTkb"/> record.
     /// </summary>
-    private static LoadPhaseContext MakeContext(string? tkbName = null) =>
+    private static LoadPhaseContext MakeContext() =>
         new LoadPhaseContext(
             TransactionId: Guid.NewGuid(),
             TargetState:   ClusterState.LoadingLive,
             ScenarioId:    "scn",
-            TkbName:       tkbName,
             TerrainName:   null,
             ExerciseId:    Guid.Empty,
             IsNewScenario: false);
@@ -135,19 +123,19 @@ public class KnowledgeBaseLoadStepTests : IDisposable
     }
 
     [Fact]
-    public async Task Fallback_NullTkbName_EmptyDb_RegistersNedCatalog()
+    public async Task Fallback_NothingStaged_EmptyDb_RegistersTheBuiltInCatalogue()
     {
         var db = new TkbDatabase();
         var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
-        // No ScenarioHeader.json -- triggers fallback path
+        // No StagedTkb record -- no master copy, the fallback path
         await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
         Assert.True(db.GetAll().Any());
     }
 
     [Fact]
-    public async Task Fallback_NullTkbName_PopulatedDb_DoesNotOverwrite()
+    public async Task Fallback_NothingStaged_PopulatedDb_DoesNotOverwrite()
     {
         var db = new TkbDatabase();
         Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
@@ -155,7 +143,6 @@ public class KnowledgeBaseLoadStepTests : IDisposable
 
         var h = new KnowledgeBaseLoadStep(db, _stagingRoot);
 
-        // Write header without TkbName
         WriteScenarioHeader(tkbName: null);
         await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
@@ -177,24 +164,46 @@ public class KnowledgeBaseLoadStepTests : IDisposable
     }
 
     /// <summary>
-    /// JM-P2-005-T01: Phase 2 scenario header ($meta first, then TkbName) is parsed
-    /// correctly by the forward-only Utf8JsonReader scanner.
-    /// The ExtractTkbNameFromLocalScenario private method skips $meta (not "TkbName")
-    /// and continues until it finds the TkbName property.
+    /// ⭐⭐⭐ <c>R-4018</c> — a scenario never names a TKB: an OLD staged scenario header that still carries
+    /// <c>TkbName</c>, with its archive right there, is IGNORED. Only the sync's record decides.
     /// </summary>
     [Fact]
-    public async Task ExtractTkbName_Phase2Format_ReturnsCorrectName()
+    public async Task ALegacyScenarioHeaderNamingATkb_IsIgnored()
     {
-        var db  = new TkbDatabase();
-        var h   = new KnowledgeBaseLoadStep(db, _stagingRoot);
-        var zip = Path.Combine(_tkbDir, "TestTkb.zip");
-
-        WriteScenarioHeader("TestTkb", phase2Format: true);
-        CreateMinimalTkbZip(zip, "TestTkb");
+        var db = new TkbDatabase();
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), "{\"TkbName\":\"Legacy\"}", new UTF8Encoding(false));
+        CreateMinimalTkbZip(Path.Combine(_tkbDir, "Legacy.zip"), "Legacy");
 
         await h.PrepareAsync(MakeContext(), CancellationToken.None);
 
-        Assert.Equal("TestTkb", db.ActiveTkbName);
+        Assert.Null(db.ActiveTkbName);
+        Assert.DoesNotContain(db.GetAll(), t => t.Name == "TestEntity");   // the archive's entity was never loaded
+        Assert.NotEmpty(db.GetAll());                                       // ⭐ the built-in catalogue instead
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> — the master copy disappears ⇒ the sync clears its record ⇒ a node holding the file TKB goes BACK
+    /// to the built-in catalogue, so it agrees with a node started now. ⛔ Keeping the stale file TKB would leave two TKBs
+    /// in one cluster.
+    /// </summary>
+    [Fact]
+    public async Task WhenTheMasterCopyIsGone_AFileTkbGoesBackToTheBuiltInCatalogue()
+    {
+        var db = new TkbDatabase();
+        var h  = new KnowledgeBaseLoadStep(db, _stagingRoot);
+        WriteScenarioHeader("Alpha");
+        CreateMinimalTkbZip(Path.Combine(_tkbDir, "Alpha.zip"), "Alpha");
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
+        Assert.Equal("Alpha", db.ActiveTkbName);
+
+        WriteScenarioHeader(tkbName: null);   // the sync found no master copy
+        await h.PrepareAsync(MakeContext(), CancellationToken.None);
+
+        Assert.Null(db.ActiveTkbName);
+        Assert.DoesNotContain(db.GetAll(), t => t.Name == "TestEntity");
+        var builtIn = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        Assert.Equal(builtIn.GetAll().Count(), db.GetAll().Count());
     }
 
     // ── CE-259az — the file path applies HROT's component conventions ─────────────────────────────
@@ -236,8 +245,8 @@ public class KnowledgeBaseLoadStepTests : IDisposable
 
     /// <summary>
     /// ⭐⭐ <b>The programmatic fallback gets the SAME answer</b> — which is the half an app-layer
-    /// convention in this handler could never have reached. ⚠ With no <c>TkbName</c> the handler loads
-    /// <c>NedTkbCatalog</c>, whose templates no longer declare birth-criticality at all; they report it
+    /// convention in this handler could never have reached. ⚠ With nothing staged the handler loads the
+    /// built-in catalogue, whose templates no longer declare birth-criticality at all; they report it
     /// because the derivation is a property of the COMPONENT.
     /// </summary>
     [Fact]

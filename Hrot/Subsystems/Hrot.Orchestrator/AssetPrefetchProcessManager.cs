@@ -43,6 +43,12 @@ public sealed class AssetPrefetchProcessManager
 
     private readonly FdpEventBus _bus;
     private readonly StorageGatewayModule _gateway;
+
+    /// <summary>⭐ <c>R-4018</c> — the deployment's one TKB, synced on every prefetch (<c>ClusterConfiguration.TkbName</c>).</summary>
+    private readonly string _tkbName;
+
+    /// <summary>⭐ The TKB name this saga syncs — exposed so a rail can assert the production composition passes it.</summary>
+    public string TkbName => _tkbName;
     private readonly string _nasBasePath;
     private readonly string _localStagingRoot;
     private readonly Dictionary<Guid, PrefetchAckTracker> _pendingPrefetchAcks = new();
@@ -58,8 +64,10 @@ public sealed class AssetPrefetchProcessManager
         FdpEventBus bus,
         StorageGatewayModule gateway,
         string nasBasePath,
-        string? localStagingRoot = null)
+        string? localStagingRoot = null,
+        string tkbName = ClusterConfiguration.DefaultTkbName)
     {
+        _tkbName          = tkbName;
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
@@ -105,7 +113,7 @@ public sealed class AssetPrefetchProcessManager
                 intent.ScenarioId, intent.RequestId);
 
             var capturedIntent = intent;
-            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath)
+            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath, _tkbName)
                 .ContinueWith(task =>
                 {
                     bool isSuccess = !task.IsFaulted && !task.IsCanceled

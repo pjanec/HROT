@@ -68,13 +68,104 @@ known-rot: ⛔⛔ R-4018 (2026-10-15, §0 below) OVERTURNS §1's "loaded before 
 | **the name travels with the FILE SYNC, never with the load command** — the cluster's "prepare to load" message carries the scenario id and the terrain name only | `DESIGN_Cluster_Load_Phase.md` L1's `TkbName` on the load payload |
 | a late joiner's catch-up runs terrain only — its TKB arrives by the join sync | `R-4015`'s "knowledge base and terrain" |
 
-📐 **Measured `2026-10-15`:** all 10 scenario files in the repository name the same TKB (`HrotDefault`) and no TKB archive is
-checked in — every node runs on the built-in catalogue (`HrotEnvironment.CreateTkb()`), which stays the fallback. The copy
-today is started only by a scenario transition (`ClusterMaster.cs:1182`, `:1468`) — the join trigger is new and shares the
-late-join catch-up's per-node ops (`R-4017`).
+📐 **Measured `2026-10-15`:** ONE scenario file in the repository names a TKB — the seed
+`Hrot.AI.Behaviors/Recipes/Scenarios/basic-desert/scenario.json`, naming `HrotDefault` — and NO TKB archive exists anywhere:
+every node runs on the built-in catalogue (`HrotEnvironment.CreateTkb()`). ⛔ An earlier wording said *"all 10 scenario files"*
+— 9 of those were build-output copies of the same seed.
+
+| ⭐ as built `2026-10-15` (`CE-4003` step 1) | where |
+|---|---|
+| the name: `ClusterConfiguration.TkbName`, a code default `"HrotDefault"` — works with no configuration file; `ForOneNodeCluster` keeps it | `ClusterConfiguration.cs` |
+| the copy: before every scenario load, `{nas}/tkb/<name>.zip` → each node's `TKB/` (skipped when the same bytes are there), then a `StagedTkb` record naming it | `StorageGatewayModule.SyncTkb` · `StagedTkb.cs` |
+| 🔒 **the fallback** (user, `2026-10-15`: *"go ahead with the fallback"*): no master copy ⇒ nothing copied, any old record removed, no failure; the node runs the built-in catalogue — and a node holding a file TKB goes back to it, so every node agrees | `SyncTkb` · `KnowledgeBaseLoadStep.PrepareAsync` · `HrotEnvironment.RegisterBuiltInTkb` |
+| the node: the knowledge-base step reads the `StagedTkb` record — never the scenario, never the load command — and loads once (same name, length, mtime ⇒ no-op) | `KnowledgeBaseLoadStep` |
+| the scenario format: `TkbName` removed from `ScenarioHeader`, `ScenarioHeaderDto`, the serializer, the merge and both editor save paths; an old file's value is ignored; the gateway's consensus check reads only `TerrainName` | `ScenarioHeader.cs` · `ScenarioSerializer.cs` · `ScenarioMergeCore.cs` · `StorageGatewayModule.CheckTerrainNameConsensus` |
+| the load command: `TkbName` removed from `EditLoadHandlerPayload`, `NodeTransitionPayloadDto` and `LoadPhaseContext`; an older peer's value is ignored on read | `ReferenceEditLoadHandler.cs` · `OrchestrationPayloadDtos.cs` |
+| ⏳ the sync when a node JOINS — `CE-4003` step 2, designed in §0a below | — |
+
+### 0a. ⭐ The join sync — `CE-4003` step 2 *(design `2026-10-15`, READY-TO-BUILD)*
+
+🔒 *"It is a way how to synchronize some important data files when the process starts before it even starts a scenario. The
+scenario time load is only just another check if that file is up to date."* · *"when the node is loading at all and becoming
+part of the cluster."*
+
+```mermaid
+sequenceDiagram
+  participant N as node (ClusterSlave)
+  participant M as ClusterMaster
+  participant S as AssetPrefetchProcessManager
+  participant G as StorageGatewayModule
+  N->>M: first heartbeat — the node ENTERS the roster
+  M->>S: NodeJoinedRosterEvent(nodeId)
+  S->>G: SyncTkb(TkbName, [that node's TKB dir]) on a worker
+  G-->>S: copied · skipped (same bytes) · no master copy (record cleared)
+  Note over N: Idle — nothing reads a TKB, the file waits on disk
+  M->>N: later — a scenario load, or the late-join catch-up (R-4017)
+  N->>N: KnowledgeBaseLoadStep reads StagedTkb and loads it ONCE
+```
+
+*What the picture shows that prose hid: the node is never told to load anything. The join sync only puts the file on disk;
+the first thing that builds a world — a scenario load or a late joiner's catch-up — runs the existing knowledge-base step,
+which loads it once and is a no-op after.*
+
+```mermaid
+classDiagram
+  class NodeJoinedRosterEvent {
+    <<new, internal>>
+    +int NodeId
+  }
+  class ClusterMaster {
+    IngestHeartbeats() publishes NodeJoinedRosterEvent for a node not yet in the roster
+  }
+  class AssetPrefetchProcessManager {
+    +string TkbName
+    Tick() also reads NodeJoinedRosterEvent
+  }
+  class StorageGatewayModule {
+    +SyncTkb(name, targets, nas, ref ok, ref failed)$
+  }
+  class StagedTkb {
+    +Write(dir, name)$
+    +Read(dir)$
+    +Clear(dir)$
+  }
+  class KnowledgeBaseLoadStep {
+    PrepareAsync() reads StagedTkb
+  }
+  ClusterMaster ..> NodeJoinedRosterEvent : publishes
+  AssetPrefetchProcessManager ..> NodeJoinedRosterEvent : reads
+  AssetPrefetchProcessManager --> StorageGatewayModule : SyncTkb
+  StorageGatewayModule ..> StagedTkb : writes
+  KnowledgeBaseLoadStep ..> StagedTkb : reads
+```
+
+*Everything but the event already exists (step 1). The class picture is the reuse claim: one copy routine, one record, one
+loader — the join adds a trigger, not a second path.*
+
+```mermaid
+graph TD
+  OC[OrchestratorCore — ticks every frame] --> PM[AssetPrefetchProcessManager.Tick]
+  OC --> CM[ClusterMaster.Tick]
+  CM -->|IngestHeartbeats| EV((NodeJoinedRosterEvent))
+  EV --> PM
+  PM --> G[StorageGatewayModule.SyncTkb — worker]
+  G --> D[(node TKB dir + StagedTkb)]
+  D -.->|first world build| KB[KnowledgeBaseLoadStep — node's LoadPhaseChain]
+```
+
+*Who calls it each frame: `OrchestratorCore` ticks the saga BEFORE the master (`OrchestratorCore.cs:156`), so a join seen in
+frame N is synced from frame N+1 (the event crosses one bus swap). Both the orchestrator process and the editor's in-process
+core run this — there is no host on which it never ticks.*
+
+| ⭐ decision | why |
+|---|---|
+| the trigger is ENTERING THE ROSTER (`IngestHeartbeats`, a node id not present) | it is the one place every node — first start, restart after ejection, late joiner — becomes a member. ⚠ A process restarted within the heartbeat timeout never leaves the roster (`CE-4001`) and gets no join sync — its staging directory persists on disk, so it still holds the file |
+| no command to the node, no ACK | ⭐ nothing reads a TKB in `Idle`; the first world build loads it. ⛔ A new node op would be a permanent wire value (`R-42`) for no consumer |
+| a sync failure is LOGGED, never fatal | the copy before the next scenario load is the safety net — it runs again and fails that load loudly if it still cannot copy |
+| behaviour assets are NOT in it yet | 📋 `CE-4004` — the same trigger is where they would go |
+
 ⛔ **SUPERSEDED the same day:** an earlier wording of this section said *"loaded at process start from the node's own installed
 copy; the orchestrator stops staging the TKB"*. The user kept the staging — a fresh node has no copy until one is synced.
-⚠ This document is otherwise unchanged until `CE-4003` is built; the as-built folds in then.
 
 ## 1. Overview
 

@@ -136,13 +136,10 @@ public record NodeTransitionPayloadDto(
     [property: JsonPropertyName("ExerciseId")]
     Guid          ExerciseId,
 
-    // ⭐⭐⭐ L1 — the SHARED CONTENT NAMES. See EditLoadHandlerPayload's remarks for why they ride the
-    //    message: four of the five roles never open the scenario file, so they cannot read these out of it.
-    // ⭐ Optional with a null default, so every existing positional construction still compiles and an
-    //   older peer that omits them decodes to null — the wire form is JSON, so this is purely additive.
-    [property: JsonPropertyName("TkbName")]
-    string?        TkbName = null,
-
+    // ⭐⭐⭐ L1 — the SHARED CONTENT NAME. See EditLoadHandlerPayload's remarks for why it rides the
+    //    message: four of the five roles never open the scenario file, so they cannot read it out of it.
+    // ⭐ Optional with a null default; an older peer that omits it decodes to null.
+    // ⛔ R-4018 — no TkbName: the TKB's name travels with its file sync. An older peer's TkbName is ignored on read.
     [property: JsonPropertyName("TerrainName")]
     string?        TerrainName = null,
 

@@ -10,17 +10,13 @@ namespace Fdp.Toolkit.Scenario
     /// (e.g. <c>"Hrot.CGF"</c>, <c>"Hrot.SimHost"</c>). Written to <c>$meta.docType</c>
     /// in Phase 2 format.
     /// </param>
-    /// <param name="TkbName">
-    /// Optional TKB name required by this scenario. Null means no opinion.
-    /// </param>
     /// <param name="TerrainName">
     /// Optional TERRAIN name required by this scenario, with an optional subfolder path
     /// (e.g. <c>"desert/kandahar"</c>). Null means no opinion, and such a scenario still loads.
     ///
     /// <para><b>⭐ A NAME, and nothing else.</b> Road networks, terrain DB, heightmaps and built-in
     /// buildings are internal data of the terrain asset and are declared in the terrain's own definition
-    /// file — ⛔ never in the scenario. This field is exactly the same shape as
-    /// <paramref name="TkbName"/>: a name that resolves to an artifact, with the artifact's contents
+    /// file — ⛔ never in the scenario: a name that resolves to an artifact, with the artifact's contents
     /// living in the artifact.</para>
     ///
     /// <para>⛔ Do NOT grow this into an identity-plus-asset-reference block. A prior design draft did
@@ -29,8 +25,10 @@ namespace Fdp.Toolkit.Scenario
     ///
     /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §2.1e ①.
     /// </param>
+    /// <remarks>⛔⛔ <b>No TKB name — <c>R-4018</c>.</b> A scenario never names a TKB: there is one TKB per
+    /// deployment, synced from its NAS master copy (R-4018). An older file's <c>Header.TkbName</c> is ignored on read and never
+    /// written back. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</remarks>
     public record ScenarioHeader(
         string SubsystemType,
-        string? TkbName = null,
         string? TerrainName = null);
 }

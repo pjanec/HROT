@@ -1283,7 +1283,6 @@ public sealed class ClusterMaster : IDisposable
                             false,
                             (FdpClusterState)(int)tStep.TargetState,
                             ExerciseId:  intent.ExerciseId,
-                            TkbName:     contentNames.TkbName,
                             TerrainName: contentNames.TerrainName,
                             // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
                             IsWorldBoundary: worldBoundary);

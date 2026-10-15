@@ -119,7 +119,6 @@ public sealed class TerrainLoadStepTests : IDisposable
         TransactionId: Guid.NewGuid(),
         TargetState:   ClusterState.LoadingLive,
         ScenarioId:    "scn",
-        TkbName:       null,
         TerrainName:   terrainName,
         ExerciseId:    Guid.Empty,
         IsNewScenario: false);
@@ -632,21 +631,21 @@ public sealed class TerrainLoadStepTests : IDisposable
     public void TheOrchestratorsStagedHeaderIsReadableByTheTerrainReader()
     {
         var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
-            new Hrot.Orchestrator.StagedArtifactNames("Alpha_v1", "basic-desert"));
+            new Hrot.Orchestrator.StagedArtifactNames("basic-desert"));
         File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
 
         Assert.Equal("basic-desert", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));
     }
 
     /// <summary>
-    /// ⭐ A scenario naming a TKB but NO terrain still reads back as "no terrain" — ⛔ not as an empty
+    /// ⭐ A scenario naming NO terrain reads back as "no terrain" — ⛔ not as an empty
     /// string or a throw. ⚠ The no-terrain path stays legal, exactly like the no-TKB one.
     /// </summary>
     [Fact]
     public void AStagedHeaderWithNoTerrainNameReadsBackAsNull()
     {
         var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
-            new Hrot.Orchestrator.StagedArtifactNames("Alpha_v1", null));
+            new Hrot.Orchestrator.StagedArtifactNames(null));
         File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
 
         Assert.Null(Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));
@@ -680,7 +679,7 @@ public sealed class TerrainLoadStepTests : IDisposable
 
         // ⭐ The header (S2c) reaches the terrain reader; the DEFINITION file does not arrive with it.
         var json = Hrot.Orchestrator.StorageGatewayModule.BuildStagedHeaderJson(
-            new Hrot.Orchestrator.StagedArtifactNames(null, "basic-desert"));
+            new Hrot.Orchestrator.StagedArtifactNames("basic-desert"));
         File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), json, new UTF8Encoding(false));
 
         Assert.Equal("basic-desert", Fdp.Toolkit.Terrain.ScenarioTerrainName.Read(_stagingRoot));

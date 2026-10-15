@@ -127,7 +127,6 @@ public sealed class NodeOpMasterTranslator
                         : null,
                     ScenarioId:  p.ScenarioId,
                     ExerciseId:  p.ExerciseId,
-                    TkbName:     p.TkbName,
                     TerrainName: p.TerrainName,
                     IsWorldBoundary: p.IsWorldBoundary),   // CE-2101
                 _jsonOptions),

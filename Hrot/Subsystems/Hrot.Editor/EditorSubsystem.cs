@@ -1563,7 +1563,7 @@ namespace Hrot.Editor
             Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
                 clusterSlave,
                 new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, tkbDb, _world!, EditorNodeId),
+                    scenarioSerializer, _world!, EditorNodeId),
                 archiveHandler: null);
             // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
             //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and

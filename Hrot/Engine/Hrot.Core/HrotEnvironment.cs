@@ -28,6 +28,18 @@ namespace Hrot.Map.Common
         public static TkbDatabase CreateTkb()
         {
             var tkb = new TkbDatabase();
+            RegisterBuiltInTkb(tkb);
+            return tkb;
+        }
+
+        /// <summary>
+        /// ⭐ The built-in catalogue — the ONE definition of what a node runs on when no TKB file is staged. Used by
+        /// <see cref="CreateTkb"/> at node start and by the knowledge-base load step when it falls back
+        /// (<c>R-4018</c>: no master copy on the NAS). ⛔ <paramref name="tkb"/> must be empty —
+        /// <c>TkbDatabase.Register</c> throws on a duplicate.
+        /// </summary>
+        public static void RegisterBuiltInTkb(TkbDatabase tkb)
+        {
             NedTkbCatalog.RegisterAll(tkb);
             // ⭐ 2026-08-31: the UrbanCombat development templates, so all four CreateTkb() sites produce
             //    identical CONTENTS. ⚠ Development default only — the real system loads TKB from files
@@ -37,7 +49,6 @@ namespace Hrot.Map.Common
             Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
             Hrot.Core.Tkb.MapCameraTkb.RegisterAll(tkb);         // ⭐ CE-1033 S5 — the map camera entity's type (R-260)
             RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
-            return tkb;
         }
 
         /// <summary>

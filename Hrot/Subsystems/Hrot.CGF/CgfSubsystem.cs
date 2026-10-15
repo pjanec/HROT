@@ -1292,7 +1292,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   cannot exist. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
         //   CE-279 Layer A — built here, registered below via SerializeLocalRegistrar with CGF's archive handler.
         var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-            scenarioSerializer, _context.TkbDb, _context.World, _context.NodeId);
+            scenarioSerializer, _context.World, _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));

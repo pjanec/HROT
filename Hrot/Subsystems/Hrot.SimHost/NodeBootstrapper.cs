@@ -385,7 +385,7 @@ namespace Hrot.SimHost
                 //   owns nothing). Registered below via SerializeLocalRegistrar.
                 //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, tkbDb, world, nodeId);
+                    scenarioSerializer, world, nodeId);
 
                 // ⭐⭐ L4a — the ONE scenario step, offered to the chain. It is still conditional on the
                 //   authoring deps, but the conditional now means only "this host can satisfy the part":
