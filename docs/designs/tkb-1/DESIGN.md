@@ -39,7 +39,10 @@ related-designs:
     authoring time (a seed scenario used as a New-Scenario recipe). ⚠ This document's §7.3 rules only
     how a node RESOLVES an existing header value; it measured no answer for a brand-new scenario, where
     `ITkbDatabase.ActiveTkbName` has exactly one writer and that writer reads the header back.
-known-rot: §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
+known-rot: ⛔⛔ R-4018 (2026-10-15, §0 below) OVERTURNS §1's "loaded before scenario content during
+  PrepareLive / PrepareEdit" and "reloaded only when TkbName … changes", and every statement that a SCENARIO names
+  its TKB (§7.3's read of Header.TkbName). ONE TKB per deployment, loaded at process start. Build item CE-4003.
+  §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
   node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
   §6.5b corrects that reading. Do not quote that sentence without §6.5b.
 -->
@@ -50,6 +53,22 @@ known-rot: §6.5's closing sentence ("an IG node would include BIG-specific tran
 **Input documents:** `.dev/tkb-1/tkb-design-ideas.md`, `.dev/tkb-1/design-talk.md`
 
 ---
+
+## 0. ⛔⛔ R-4018 — ONE TKB PER DEPLOYMENT, LOADED AT PROCESS START *(user, `2026-10-15`)*
+
+> 🔒 **User, verbatim:** *"If the TKB is mentioned as part of the scenario, I think this is wrong, because keeping multiple TKBs, which are full of technical information, is unmaintainable, so you need to keep just one copy and reuse it everywhere."* · *"TKB is static. It is not part of loading scenario or terrain, so you do not
+> need to load it. As such, it can be loaded up front and can stay there in the same state all the time."*
+
+| ⭐ the rule | ⛔ what it overturns below |
+|---|---|
+| every node loads THE TKB once, at process start, from its own installed copy (name from node configuration; the built-in `HrotEnvironment.CreateTkb()` catalogue is the fallback), and it never changes for the process's life | §1 "loaded before scenario content during `PrepareLive` / `PrepareEdit`" · "reloaded only when TkbName or file timestamp changes" |
+| a scenario does NOT name a TKB — `Header.TkbName` is no longer written, and nothing reads it: an old file's value is ignored, so a scenario can never be refused over it | §7.3's resolve-from-header path · `ITkbDatabase.ActiveTkbName` as a scenario stamp |
+| the knowledge-base step leaves the cluster load; the orchestrator stops staging the TKB per scenario | `DESIGN_Artifact_Staging.md`'s TKB half (terrain staging stays) · `DESIGN_Cluster_Load_Phase.md`'s TKB row |
+| a late joiner's catch-up runs terrain only | `R-4015`'s "knowledge base and terrain" |
+
+📐 **Why this costs nothing in practice, measured `2026-10-15`:** all 10 scenario files in the repository name the same
+TKB (`HrotDefault`) and no TKB archive is checked in — every node already runs on the built-in catalogue.
+⚠ This document is otherwise unchanged until `CE-4003` is built; the as-built folds in then.
 
 ## 1. Overview
 
