@@ -37,6 +37,8 @@ namespace Fdp.Toolkit.Combat.Systems
         private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
         private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
         private readonly List<Vector3> _points = new(3);
+        private readonly float[] _shares = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];       // ⭐ CE-3212
+        private readonly float[] _partDamage = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];   // ⭐ CE-3212
 
         /// <summary>Detonations this system assessed (a rail and a diagnostics counter read it).</summary>
         public long Assessed { get; private set; }
@@ -160,12 +162,29 @@ namespace Fdp.Toolkit.Combat.Systems
                 float armourChance = strike?.ArmourChance ?? ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
                 float fragDamage = strike?.Damage ?? w.FragmentDamage * fragFall * exposure * armourChance;
                 float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow * susceptibility;
+                // ⭐⭐ CE-3212 (hit location §10) — a man with a body: the hits land on the parts that FACE the burst, each meeting its zone's
+                //   armour (helmet, vest) and multiplier — one damage event per part struck, so PartDamage and the wounds follow. An
+                //   unarmoured man's total is the calibrated law's (S3-3).
+                bool split = kind == AreaEffect.FragmentTarget.Person && strike is { Hits: > 0f } st
+                             && SplitOverParts(repo, e, tf, burst, w, atDistance, st.Hits, exposure, armour, out armourChance);
+                var facing = ArmorModel.FacingOf(tf, burst, hull * 0.5f);
+                if (split)
+                {
+                    fragDamage = 0f;
+                    for (byte p = 0; p < _partDamage.Length; p++)
+                    {
+                        if (_partDamage[p] <= 0f) continue;
+                        fragDamage += _partDamage[p];
+                        repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = _partDamage[p], HasBodyPart = 1, BodyPart = p });
+                    }
+                    if (blastDamage > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = blastDamage });
+                }
                 float total = fragDamage + blastDamage;
-                if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
-                // ⭐ CE-3210 (hit location HL-10) — fragments stay whole-body for damage until S3; the marks they leave on a man are
-                //   SAMPLED, as many as the fragments that struck him (capped), seeded by the burst so every run draws the same.
+                if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
+                // ⭐ CE-3210 (HL-10) / CE-3212 (S3-5) — the marks the fragments leave on a man, as many as struck him (capped), seeded by the
+                //   burst so every run draws the same; on the parts by their shares when he has a body.
                 if (kind == AreaEffect.FragmentTarget.Person && strike is { Hits: >= 0.5f } s)
-                    MarkFragments(repo, e, (int)MathF.Round(s.Hits), record.Seq, ArmorModel.FacingOf(tf, burst, hull * 0.5f));
+                    MarkFragments(repo, e, (int)MathF.Round(s.Hits), record.Seq, facing, split ? _shares : default);
                 record.Effects.Add(new DetonationEffect(e, stance.ToString(), _points.Count, r, exposure, fragFall, armourChance, fragDamage,
                     blastFall, barrier, shadow, blastDamage, total, shieldedBy)
                     { At = tf.Position, BlastSusceptibility = susceptibility, FragmentHits = strike?.Hits ?? 0f, Target = kind });
@@ -180,13 +199,14 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-3210</c> (HL-10) — <paramref name="hits"/> fragment marks on <paramref name="body"/>'s parts, on the face toward the
         /// burst, at points drawn from a hash of the burst and the body (deterministic: a replay draws the same).</summary>
-        internal static void MarkFragments(EntityRepository repo, Entity body, int hits, long burstSeq, Facing face)
+        internal static void MarkFragments(EntityRepository repo, Entity body, int hits, long burstSeq, Facing face,
+                                           ReadOnlySpan<float> shares = default)
         {
             int n = Math.Min(hits, MaxFragmentMarks);
             uint h = (uint)(burstSeq * 2654435761L) ^ (uint)(body.Index * 40503);
             for (int i = 0; i < n; i++)
             {
-                h = Next(h); byte part = (byte)(h % Fdp.Toolkit.Physics.BodyParts.PersonPart.Count);
+                h = Next(h); byte part = shares.IsEmpty ? (byte)(h % Fdp.Toolkit.Physics.BodyParts.PersonPart.Count) : Draw(shares, (h % 10000) / 10000f);
                 h = Next(h); float a = (h % 1000) / 1000f - 0.5f;
                 h = Next(h); float b = (h % 1000) / 1000f - 0.5f;
                 // the point lies on the face entered: front/rear on the part's x side, the side on its y, the top on its z
@@ -200,6 +220,56 @@ namespace Fdp.Toolkit.Combat.Systems
                 Fdp.Toolkit.Physics.BodyParts.HitMarksWriter.Mark(repo, body, part, local, (byte)face, Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment);
             }
             static uint Next(uint x) { x ^= x << 13; x ^= x >> 17; x ^= x << 5; return x == 0 ? 2463534242u : x; }
+            static byte Draw(ReadOnlySpan<float> w, float u)
+            {
+                byte last = 0;
+                for (byte i = 0; i < w.Length; i++)
+                {
+                    if (w[i] <= 0f) continue;
+                    last = i;
+                    u -= w[i];
+                    if (u < 0f) return i;
+                }
+                return last;
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3212</c> (hit location §10 S3-1..S3-3) — spreads a man's expected fragment <paramref name="hits"/> over his parts by their
+        /// area facing the burst (<see cref="Fdp.Toolkit.Physics.BodyParts.FragmentSplit"/>); each part's hits meet its zone's armour on that
+        /// face (an inherited / unstated face keeps <paramref name="platformArmour"/>) and count by its multiplier over the area-weighted mean,
+        /// so an unarmoured man's total is the law's. Fills <c>_shares</c> and <c>_partDamage</c>; false when he has no person body.
+        /// </summary>
+        private bool SplitOverParts(EntityRepository repo, Entity e, in SimTransform tf, Vector3 burst, Tkb.Domain.WarheadDto w, float distance,
+                                    float hits, float exposure, float platformArmour, out float meanChance)
+        {
+            meanChance = 1f;
+            Array.Clear(_partDamage);
+            if (Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, e) is not { Plan: Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person } body) return false;
+            var pose = Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(repo, e);
+            float scale = Fdp.Toolkit.Physics.BodyParts.PersonBody.ScaleOf(
+                repo.HasComponent<PhysicsCollider>(e) ? repo.GetComponentRO<PhysicsCollider>(e).Height : 0f);
+            var (centre, _) = Fdp.Toolkit.Physics.BodyParts.PersonBody.Bound(pose);
+            var toward = Vector3.Transform(burst - (tf.Position + Vector3.Transform(centre * scale, tf.Rotation)), Quaternion.Inverse(tf.Rotation));
+            if (Fdp.Toolkit.Physics.BodyParts.FragmentSplit.Shares(Fdp.Toolkit.Physics.BodyParts.PersonBody.Boxes(pose), toward, _shares) <= 0f) return false;
+            var face = Fdp.Toolkit.Physics.BodyParts.BodyPartHit.FaceOf(Vector3.Normalize(toward));
+            var (perHit, penetration) = AreaEffect.FragmentHit(w, AreaEffect.FragmentTarget.Person, distance);
+            float mean = 0f;
+            for (byte p = 0; p < _shares.Length; p++)
+                if (_shares[p] > 0f) mean += _shares[p] * (body.ZoneOf(p)?.Multiplier ?? 1f);
+            if (mean <= 0f) return false;
+            meanChance = 0f;
+            for (byte p = 0; p < _shares.Length; p++)
+            {
+                if (_shares[p] <= 0f) continue;
+                var zone = body.ZoneOf(p);
+                float a = zone?.ArmourOn(face) ?? platformArmour;
+                if (float.IsNaN(a)) a = platformArmour;
+                float chance = ArmorModel.PenetrationChance(penetration, a);
+                meanChance += _shares[p] * chance;
+                _partDamage[p] = hits * _shares[p] * perHit * chance * ((zone?.Multiplier ?? 1f) / mean) * MathF.Max(exposure, 0f);
+            }
+            return true;
         }
 
         /// <summary>

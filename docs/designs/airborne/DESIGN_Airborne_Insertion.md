@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: DESIGN — slice 1 READY-TO-BUILD once the user approves §3 (D-1…D-9); slices 2–3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions, §5 the descent models, §7 slice 1 (fast-rope AND parachute, per lane).
+build-state: READY-TO-BUILD — slice 1 (fast-rope + parachute) and slice 2 (the ejecting pilot) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §8 the three demos.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -21,7 +21,9 @@ related-designs:
 🔒 **User, `2026-10-15`:** *"I need them to jump out of the helicopter and fly to a given place on the ground. also the pilot of a malfunctioning
 fighter jet … simple movement model for a descending paratrooper so he can navigate and finally hit the landing spot, with spiraling, proper tilts
 when turning … maybe we could also add a special forces descending from a hovering helicopter on a rope"* → *"ok write the design but put both
-rope and parachuting to slice one"*.
+rope and parachuting to slice one"*. ✅ **Approved `2026-10-15` (R-1003):** *"approved. i will need a demo scenario for a squad of paratrooper
+jumping out of helicopter and regrouping on the ground … a squad sliding down to building roof using rope from a helicopter then needs to come
+and hover above the building and fly away when all men are safely on the roof … and a demo of a catapulting pilot"* (§8).
 
 ## 0. INVENTORY — what exists (codebase-memory graph, re-indexed `2026-10-15`, 231 427 nodes; + grep)
 
@@ -197,7 +199,7 @@ killed mid-rope: gravity, then fall damage (§5.3).
 | after | clear the rope, 360° security, assault; ropes cut; the helicopter leaves or orbits (DoorGunOrbit) | out of the harness (~30–60 s, vulnerable), rally at the assembly point | the same, faster (~10 s) |
 | total | 8–10 men in ~10–15 s | a squad over ~10 s of flight | — |
 
-## 3. Decisions (leans for approval)
+## 3. Decisions — ✅ APPROVED `2026-10-15` (R-1003), as written
 
 | # | decision | lean | rejected — one line each |
 |---|---|---|---|
@@ -273,7 +275,7 @@ incapacitates (the existing injury path).
 |---|---|---|---|
 | **B-1** | backend | `Descent` component + `EntityDescent` descriptor (egress / ingress, the `EntityWeaponPosture` pattern) + `Locomotions.Of` reads it first | ★ a man with `Descent{Parachute}` reports class Parachute on every node |
 | **B-2** | backend | `LocomotionClass.Rope / Parachute`, `RopeSlideModel`, `ParachuteModel` (§5), `MotionModelTable` rows; `CarKinematicsSystem.Without<Descent>` | ★ rope: 12 m in ~3.5 s, x,y under the anchor; ★ ram-air from 1 000 m lands within 10 m of P in calm and in 5 m/s wind; ★ round lands within its drift; ★ bank = atan(V ψ̇ / g) ± 2°; ★ a spiral sinks faster than a straight glide |
-| **B-3** | backend | `RouteHold.Rope / Drop`, `NavigationPhase.Roping / Dropping` in `RotorcraftModel`; an `Unload` hover above 3 m refused (warned) | ★ the UH-60 hovers at 12 m while anyone is aboard on a Rope hold, then goes on |
+| **B-3** | backend | `RouteHold.Rope / Drop`, `NavigationPhase.Roping / Dropping` in `RotorcraftModel`; an `Unload` hover above 3 m refused (warned). ⭐ **A `Rope` hold's height is above the HIGHEST SURFACE under the waypoint** (a roof — `IWorldQuery.SurfacesAt`), not the ground (`AirRoute.cs:229` measures `HeightAgl` from the ground: over a 12 m building a 12 m hover is AT the roof); refused when that height exceeds the rope. ⭐ **It is released when nobody is aboard AND nobody is on its ropes** (no live `Descent` anchored to it short of `Landed`) — `Unload`'s rule alone would fly off with men hanging (they leave the passenger list at the door) | ★ the UH-60 hovers 12 m above a roof; ★ it leaves only after the last man is `Landed`; ★ a Rope hold over a 30 m-high hover on a 20 m rope is refused |
 | **B-4** | backend | `Embarkation.ExitIntoDescent(passenger, exit kind, anchor)`: leave at the DOOR (seat place / anchor) at its height, add `Descent{Exit}` — via `DisembarkEntityCommand`'s new exit field | ★ a roped man starts at the door, not beside the hull |
 | **B-5** | backend | TKB: `Gen.Parachute`, `RopeAnchors` (UH-60 404 + 400), types Paratrooper, SF operator; `Wind` singleton (scenario) | the catalogue suites; ★ the release-point helper's rail |
 | **B-6** | backend | `Locomotions.IsAircraft` used by `AmmoChoice` / `AirContacts` (D-4); fall damage (§5.3) | ★ a Stinger never selects a parachutist; a rifle does |
@@ -281,12 +283,31 @@ incapacitates (the existing injury path).
 | **H-2** | behaviors | demo `ua-airborne`: ① SF fast-rope onto a rooftop, the helicopter then orbits ② a static-line stick onto a DZ ③ a free-fall team spirals down onto a point | live, PASS per vignette |
 | **U-1** | ui | the 3-D drawing: the rope from the anchor to the surface (dropped after the hold); round and ram-air canopies with lines, banked with the body; poses per phase (exit tuck, free-fall arch, under canopy hands on toggles, flare, PLF roll, rope slide); amend §6m C-4 (D-8) | frame rails + screenshots per phase |
 
-### Slice 2 — the ejecting pilot (DESIGN)
+### Slice 2 — the ejecting pilot (✅ READY — the user's third demo needs it)
 The jet's crew is the type itself, so ejection **spawns a Pilot entity** (the existing entity-creation path) at the canopy BEFORE the kill (R-2021):
 `Descent{Ejection}` — the rocket seat (apex 50–100 m above, seat away at 1–2 s, round canopy by ~3 s, sink 6–7 m/s); trigger: health below a
 threshold or a damage state (the "malfunction"); then **`EvadeAndSignal`** (out of the harness, hide, move away from the enemy, a beacon) feeding
 the planned rescue (Air Ops §4c / §9, `SquadRecover`, `ua-air-rescue`). Drawing: the seat, the rocket flame, the canopy.
 
+| # | lane | item | acceptance |
+|---|---|---|---|
+| **B-7** | backend | a **Pilot** type (pistol, `Gen.Parachute` round, ejection figures); `Descent.Kind = Ejection` in `ParachuteModel` (rocket arc: up 60–100 m in ~1 s, seat away at 1.5 s, canopy by ~3 s, then the round canopy) | ★ from a level A-10 at 300 m / 150 m/s the canopy is open by 3 s, ≥ 50 m above the ejection height |
+| **B-8** | backend | **`EjectExecutor`** + the pilot SPAWN (the entity-creation path) at the cockpit, given the aircraft's velocity; the aircraft is then abandoned ⇒ it falls and crashes as a killed one (`FixedWingModel.Fall`, R-2021, R-3007) — the pilot is out BEFORE, so he does not die with it | ★ one Pilot entity per ejection, the jet down within its fall time |
+| **B-9** | backend | the trigger: an `Eject` action (a behaviour may order it) and the automatic rule health ≤ the type's eject threshold | ★ a jet hit below the threshold ejects once |
+| **H-3** | behaviors | **`Eject`** behaviour (a mission task — after a `TimerElapsed` trigger it plays the malfunction) and **`EvadeAndSignal`** for the landed pilot: out of the harness, away from known enemies to the nearest cover, prone / crouched, holding there (the beacon and the rescue round trip stay Air Ops §4c / §9) | ★ the landed pilot reaches cover ≥ 100 m from the nearest known enemy and stays down |
+| **U-2** | ui | the drawing: the seat and its rocket flame for ~1 s, the seat tumbling away, the round canopy; the abandoned jet's fall uses the existing crash drawing | frame rail + screenshots |
+
 ### Slice 3 — later
 Rappel (harness, 1–2 m/s, can stop; down a wall to a window), rope extraction (SPIES / FRIES: hooked on, flown away), fixed-wing transport
 drops (a C-130 type), varying wind, a canopy that fails (reserve).
+
+## 8. The demos (user, `2026-10-15`) — behaviors authors them (H-2), each a scenario `scenarios/<name>/scenario.json` in the existing form
+
+| demo | what happens | PASS when |
+|---|---|---|
+| **`ua-airborne-drop`** | a doors-off UH-60 (404) with a paratrooper squad (8, round canopies) flies a route: climb to 400 m AGL → a `Drop` hold on the DZ leg (35 m/s) → back to its start. `SquadAirborneExit` sends the stick out one per second; each man drifts down to his point along the DZ; `AssembleAfterDrop` takes the squad to the assembly point beside the DZ | all 8 land on the DZ (within 150 m of their points), each takes off his harness, the squad stands assembled at the rally point; the helicopter flies home empty |
+| **`ua-fast-rope-roof`** | an SF squad (8) in a UH-60 approaches a flat-roofed building (≥ 10 × 10 m, ~10–15 m high), comes to a **`Rope` hold 12 m above the ROOF** over it, `SquadFastRope` sends them down both ropes; each lander takes a security spot ON THE ROOF (spots kept inside the roof's outline — a man never steps off a ledge, CE-3145); when the last man is `Landed` the hold releases and the helicopter flies away | 8 men on the roof in ≤ 15 s of roping, none on the ground, in a ring; the helicopter left only after the last landing (never with a man on a rope) |
+| **`ua-eject`** | an A-10 (405) flies a route at 300 m; its mission's second task is `Eject` after `TimerElapsed` 40 s (the malfunction). The pilot ejects, the jet falls and crashes, the pilot lands under his round canopy and `EvadeAndSignal` takes him to cover; a hostile patrol 500 m off (so "away from the enemy" means something) | one Pilot entity, the canopy open by 3 s, the jet crashed, the pilot in cover and down |
+
+⚠ **Terrain for `ua-fast-rope-roof`:** a building with a flat, reachable roof — the authoring lane picks one (or adds one to a test terrain) and states
+its roof height in the scenario's notes; the rope hold's height is above THAT roof (B-3).
