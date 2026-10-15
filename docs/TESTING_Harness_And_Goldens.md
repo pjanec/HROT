@@ -9,6 +9,8 @@ current-answer: the whole file — how the C# harness drives the system over HTT
 design-basis: DESIGN_MCP_System_Test_Harness.md (the harness) · DESIGN_UI_Observability_Snapshot.md (PanelSnapshot) ·
   DESIGN_Headless_Testability.md (the taxonomy) · MCP_Integration.md (the API).
 known-conflict: none.
+related-designs:
+  - docs/blueprints/Architect_Question_92_Per_World_Component_Registry.md — owns the OTHER process-wide residue of a test: the static component registry and its 81 Clear() callers (§4-G).
 -->
 # RUNBOOK — how we test the system, and how we keep goldens honest
 
