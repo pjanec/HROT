@@ -418,6 +418,12 @@ or over its capacity); `SpatialHashSystem` counts them per frame (`Dropped`) and
 position and the grid's extent) — a new fit clears the set, so whoever is still outside is named again. ⛔ The grid is **not** widened
 to the entities: it follows the terrain by design (W9 above); a unit off its terrain is an authoring error to surface, not to absorb.
 
+⭐ **`CE-2194` (backend, `2026-10-16`; behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Perception_Grid.md)) — the
+PERCEPTION grid says so too.** 📐 Measured live on `basic-desert` ([0, 600]²): the two grids follow the terrain differently (perception
+[0, 1000), collider [−750, 750)), so a truck at (−150, 150) was hittable and seen by nobody for 40 s, silently. As built:
+`LocalGridBuilderSystem` places every entity through one `Place`, which logs **one** warning per entity per terrain fit (`Warnings`; the
+fit clears the set) on both the full rebuild and the incremental (moving) path. Same rule as CE-2193: the grid is not widened.
+
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 
 ```mermaid
