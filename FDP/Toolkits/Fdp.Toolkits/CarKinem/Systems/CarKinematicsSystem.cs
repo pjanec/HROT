@@ -87,6 +87,9 @@ namespace CarKinem.Systems
                 // ⭐ CE-3110 I-2c (R-271) — a passenger is CARRIED (EmbarkedStateSystem writes its transform from the vehicle's on the
                 //   position owner); driving it here would fight the carry every frame and let a possessed passenger walk out of the hull.
                 .Without<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                // ⭐ airborne insertion D-3 — a man coming down a rope or under a canopy is moved by his descent model (AirMotionSystem);
+                //   driving and ground-clamping him here would pull him out of the sky
+                .Without<Fdp.Toolkit.Motion.Descent>()
                 .Build();
             
             // We use FDP Kernel's optimized ForEachParallel which handles load balancing

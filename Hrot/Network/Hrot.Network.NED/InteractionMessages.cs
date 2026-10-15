@@ -19,6 +19,9 @@ namespace Hrot.NED.Messages
         Possess         = 5,
         ReleasePossession = 6,
         ControlFrame    = 7,
+        // ⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §1) — target = the man, actor = the carrier;
+        //   applied by the node owning the man's POSITION.
+        StartDescent    = 8,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -99,6 +102,19 @@ namespace Hrot.NED.Messages
     public partial struct DisembarkInteractionPayload
     {
         public byte Reserved;
+
+        /// <summary>⭐ Airborne insertion B-4 — <c>ExitKind</c> (0 = step out beside the hull) and the rope / door index. APPENDED (R-169).</summary>
+        public byte Exit;
+        public byte AnchorIndex;
+    }
+
+    /// <summary>⭐ Airborne insertion B-4 — the <see cref="EInteractionKind.StartDescent"/> case (target = the man, actor = the carrier).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct StartDescentInteractionPayload
+    {
+        public byte Exit;
+        public byte AnchorIndex;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>
@@ -141,6 +157,9 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.ControlFrame)]
         public ControlFrameInteractionPayload ControlFrame;
+
+        [DdsCase(EInteractionKind.StartDescent)]
+        public StartDescentInteractionPayload StartDescent;
     }
 
     /// <summary>

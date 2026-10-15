@@ -97,6 +97,8 @@ public static class HrotOwnershipGroups
         muscle.SetBit(GlobalComponentIds.TurretPose);
         // ⭐ CE-3210 (hit location HL-8) — where rounds struck a body: the Muscle resolves the hit (dtHitMarks).
         muscle.SetBit(GlobalComponentIds.HitMarks);
+        // ⭐ Airborne insertion B-1 (D-1) — a man coming down a rope or under a canopy: moved by the node that owns his position (dtDescent).
+        muscle.SetBit(GlobalComponentIds.Descent);
         muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task
         muscle.SetBit(GlobalComponentIds.WeaponMuscleState);  // ⭐ WL-3 — its never-sent fire timing (like FrustrationTicks)
         // ⭐ CE-3199 / R-3005 — ONE Muscle role moves every body, ground or air: a flyer's never-sent flight state and its flight

@@ -218,7 +218,7 @@ namespace Fdp.Toolkit.Tests.Motion
             }
         }
 
-        private (Entity heli, AirMotionSystem air, Routes routes) Heli(Vector3 at, bool onTheGround)
+        private (Entity heli, AirMotionSystem air, Routes routes) Heli(Vector3 at, bool onTheGround, CarrierDefDto? carrier = null)
         {
             _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -233,6 +233,7 @@ namespace Fdp.Toolkit.Tests.Motion
                     new GroundContactPoint { Name = "tail",       X = -6.2f, Y = 0f,    Z = -RestZ, Kind = GroundContactKind.Wheel },
                 },
             });
+            if (carrier != null) t.AddDescriptor(carrier);
             db.Register(t);
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
@@ -363,6 +364,116 @@ namespace Fdp.Toolkit.Tests.Motion
             }
         }
     
+        // ── ⭐⭐ Airborne insertion B-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-7, D-8) — Rope / Drop holds ──────────
+
+        /// <summary>A terrain with one 12 m (four-storey) building over (190..210, −10..10).</summary>
+        private void ARoofAt200()
+        {
+            const string wall = "\"walls\":[{\"from\":[0,0],\"to\":[20,0]},{\"from\":[20,0],\"to\":[20,20]},{\"from\":[20,20],\"to\":[0,20]},{\"from\":[0,20],\"to\":[0,0]}]";
+            string storey = "{\"height\":3," + wall + "}";
+            _w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            _w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,600,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"R\",\"building\":{\"footprint\":[[0,0],[20,0],[20,20],[0,20]]," +
+                "\"storeys\":[" + storey + "," + storey + "," + storey + "," + storey + "]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[190,-10]}}]}"));
+            Assert.Equal(12f, DescentRules.HighestSurface(Fdp.Toolkit.World.WorldQuery.Of(_w)!, 200f, 0f), 2);
+        }
+
+        private void Release(Entity heli, bool on)
+        {
+            var intent = _w.GetComponent<NavigationIntent>(heli);
+            intent.ReleaseHold = on;
+            _w.SetComponent(heli, intent);
+        }
+
+        /// <summary>⭐ B-3 — a Rope hold hovers its height (12 m by default) above the ROOF under the waypoint, not above the ground: over a
+        /// 12 m building at 24 m. It reports <see cref="NavigationPhase.Roping"/>, holds until its Brain releases it, then flies on.
+        /// ✅ Red-proof: AirborneHolds without the roof term ⇒ it hovers 12 m above the ground, ON the roof ⇒ red.</summary>
+        [Fact]
+        public void B3_ARopeHold_HoversItsHeightAboveTheRoof_ReportingRoping_UntilReleased()
+        {
+            ARoofAt200();
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false);
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(200, 0, RouteWaypointKind.Pass, RouteHold.Rope), Wp(400, 0) });
+            Order(heli);
+
+            int frames = 0;
+            while (_w.GetComponent<NavigationStatus>(heli).Phase != NavigationPhase.Roping && frames++ < 60 * 60) air.Execute(_w, Dt);
+            var at = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.Equal(NavigationPhase.Roping, _w.GetComponent<NavigationStatus>(heli).Phase);
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(200, 0)) < 0.5f, $"at {at}");
+            Assert.InRange(at.Z, 12f + AirMotionSystem.DefaultRopeHoverM - 0.3f, 12f + AirMotionSystem.DefaultRopeHoverM + 0.3f);
+            Assert.Equal(1, _w.GetComponent<FlightState>(heli).Airborne);
+
+            for (int i = 0; i < 60 * 10; i++) air.Execute(_w, Dt);                        // nobody released it: it hangs there
+            Assert.Equal(NavigationPhase.Roping, _w.GetComponent<NavigationStatus>(heli).Phase);
+            Assert.Equal(at, _w.GetComponent<SimTransform>(heli).Position);
+
+            Release(heli, true);
+            for (int i = 0; i < 60 * 60 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++) air.Execute(_w, Dt);
+            var end = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.True(Vector2.Distance(new Vector2(end.X, end.Y), new Vector2(400, 0)) < 0.5f, $"at {end}");
+        }
+
+        /// <summary>⭐ B-3 — a Rope hold higher above the roof than the carrier's rope is refused (warned) and flown through: a 30 m hover on
+        /// a 20 m rope never reports Roping.</summary>
+        [Fact]
+        public void B3_ARopeHoldHigherThanItsRope_IsRefused_AndFlownThrough()
+        {
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false, new CarrierDefDto { RopeLengthM = 20f });
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), new NavRouteWaypoint(new Vector3(200, 0, 0), 0f, RouteWaypointKind.Pass, 30f, RouteHold.Rope, 0f, 0L), Wp(400, 0) });
+            Order(heli);
+            var seen = new System.Collections.Generic.HashSet<NavigationPhase>();
+            for (int i = 0; i < 60 * 60 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)
+            {
+                air.Execute(_w, Dt);
+                seen.Add(_w.GetComponent<NavigationStatus>(heli).Phase);
+            }
+            Assert.DoesNotContain(NavigationPhase.Roping, seen);
+            Assert.Equal(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(heli).Result);
+        }
+
+        /// <summary>⭐ B-3 (D-8) — an Unload hold on an AIR waypoint hovering more than 3 m up is refused as a hover (warned) and LANDS
+        /// instead: nobody steps down from 30 m any more (they used to stand beside the hull and be clamped to the ground).</summary>
+        [Fact]
+        public void B3_AnUnloadHoverAbove3m_LandsInstead()
+        {
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false);
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(200, 0, RouteWaypointKind.Pass, RouteHold.Unload), Wp(400, 0) });
+            Order(heli);
+            int frames = 0;
+            while (_w.GetComponent<NavigationStatus>(heli).Phase != NavigationPhase.Unloading && frames++ < 60 * 60) air.Execute(_w, Dt);
+            Assert.Equal(NavigationPhase.Unloading, _w.GetComponent<NavigationStatus>(heli).Phase);
+            Assert.InRange(_w.GetComponent<SimTransform>(heli).Position.Z, RestZ - 0.01f, RestZ + 0.01f);   // on its gear
+            Assert.Equal(0, _w.GetComponent<FlightState>(heli).Airborne);
+        }
+
+        /// <summary>⭐ B-3 (D-7) — a Drop waypoint is NOT a stop: the helicopter flies through it at speed and reports
+        /// <see cref="NavigationPhase.Dropping"/> along the DZ leg until its Brain releases it, then plain Following to the route's end.</summary>
+        [Fact]
+        public void B3_ADropWaypoint_IsFlownThrough_ReportingDropping_UntilReleased()
+        {
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 30), onTheGround: false);
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(300, 0, RouteWaypointKind.Pass, RouteHold.Drop), Wp(1200, 0) });
+            Order(heli);
+            float speedAtDz = -1f;
+            NavigationPhase phaseAt600 = default, phaseAfter = default;
+            bool released = false;
+            for (int i = 0; i < 60 * 120 && _w.GetComponent<NavigationStatus>(heli).Result != NavigationResult.Arrived; i++)
+            {
+                float x0 = _w.GetComponent<SimTransform>(heli).Position.X;
+                air.Execute(_w, Dt);
+                float x = _w.GetComponent<SimTransform>(heli).Position.X;
+                if (x0 < 300f && x >= 300f) speedAtDz = (x - x0) / Dt;
+                if (!released && x >= 600f) { phaseAt600 = _w.GetComponent<NavigationStatus>(heli).Phase; Release(heli, true); released = true; }
+                else if (released && x >= 650f && phaseAfter == default) phaseAfter = _w.GetComponent<NavigationStatus>(heli).Phase;
+            }
+            Assert.True(speedAtDz > 20f, $"it slowed to {speedAtDz} m/s at the DZ — a Drop is not a stop");
+            Assert.Equal(NavigationPhase.Dropping, phaseAt600);
+            Assert.Equal(NavigationPhase.Following, phaseAfter);
+            Assert.Equal(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(heli).Result);
+        }
+
         // ── ⭐⭐ CE-2184 (AT3, R-2021, DESIGN_Air_Operations §7c) — a killed aircraft FALLS and comes to rest ───────────────────────
 
         private void FlatGround()

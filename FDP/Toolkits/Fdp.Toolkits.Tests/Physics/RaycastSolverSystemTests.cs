@@ -422,6 +422,26 @@ namespace Fdp.Toolkit.Physics.Tests
         }
 
         /// <summary>
+        /// ⭐ Airborne insertion B-1 (ui steer, design §9 / D-12) — a man coming DOWN is still a PERSON target: a <c>Descent</c> makes his
+        /// class Parachute (<c>Locomotions.Of</c>), but <c>IsPerson</c> keys on his <c>VehicleParams</c>, so a round through his torso under
+        /// the canopy, 300 m up, meets his Torso. ⛔ Were <c>IsPerson</c> rewritten over <c>Locomotions.Of</c>, a paratrooper would be
+        /// untouchable — this rail is the fence.
+        /// </summary>
+        [Fact]
+        public void B1_AManUnderACanopy_IsStillAPerson_AndARoundThroughHisTorsoHitsTorso()
+        {
+            var man = SpawnPerson(null);
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            _world.AddComponent(man, new Fdp.Toolkit.Motion.Descent
+                { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Canopy, Canopy = Fdp.Toolkit.Motion.CanopyKind.Round });
+            _world.GetComponentRW<SimTransform>(man).Position = new Vector3(10f, 0f, 300f);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.LocomotionClass.Parachute, Fdp.Toolkit.Motion.Locomotions.Of(_world, man));
+            Assert.True(PhysicsColliderReaders.IsPerson(_world, man));
+            var hit = ShootAt(0f, 301.2f);
+            Assert.Equal((man, Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso), (hit.HitEntity, hit.BodyPart));
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3209</c> — the body has GAPS the old band did not: a round between a standing man's legs at knee height misses him, and so
         /// does one past his shoulder; a round over a PRONE man at 0.4 m misses, at 0.15 m meets his torso. 🔴 Red-proof: the circle + band
         /// hit the round between the legs.

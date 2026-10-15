@@ -19,5 +19,12 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>⭐ <c>CE-3110</c> I-2a (R-221) — set by the interaction ingress: this command came off the network.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ Airborne insertion B-4 (D-8) — how he leaves: <see cref="Fdp.Toolkit.Motion.ExitKind.StepOut"/> (beside the hull,
+        /// the default), down a rope, or out of the door under a parachute. APPENDED.</summary>
+        public Fdp.Toolkit.Motion.ExitKind Exit;
+
+        /// <summary>⭐ B-4 — which rope or door (the carrier's <c>RopeAnchors</c> index; 0 = the first). APPENDED.</summary>
+        public byte AnchorIndex;
     }
 }

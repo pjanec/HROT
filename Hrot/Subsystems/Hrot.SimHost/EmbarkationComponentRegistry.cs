@@ -41,5 +41,6 @@ public static class EmbarkationComponentRegistry
         world.RegisterEvent<EmbarkEntityCommand>();
         world.RegisterEvent<DisembarkEntityCommand>();
         world.RegisterEvent<EjectPassengersCommand>();   // ⭐ CE-3110 I-2a
+        world.RegisterEvent<StartDescentCommand>();      // ⭐ airborne insertion B-4
     }
 }

@@ -73,6 +73,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
+        world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and
@@ -106,6 +107,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();   // ⭐ airborne insertion B-4 — applied by the passenger's position owner
         // ⭐⭐ CE-3110 I-2c — the embarkation STATE too, on every host: any node that can own a live entity can own a vehicle or a
         //   passenger, and every node receives the passenger list (I-2b's ingress) and derives the passenger side. 🔴 They were
         //   registered only by the CGF and SimHost registries, so IG — which runs I-2b's ingress — would have applied an

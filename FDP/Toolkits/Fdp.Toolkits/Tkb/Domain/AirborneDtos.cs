@@ -1,0 +1,39 @@
+using System.ComponentModel;
+using Fdp.Toolkit.Motion;
+using Fdp.Toolkit.Tkb.Attributes;
+using StructEdit.Core.Attributes;
+
+namespace Fdp.Toolkit.Tkb.Domain
+{
+    /// <summary>⭐ Airborne insertion §4 — one fast rope of a carrier: where it hangs from (the carrier's frame).</summary>
+    public record RopeAnchorDto
+    {
+        [EditUnit("m")] public float X { get; init; }
+        [EditUnit("m")] public float Y { get; init; }
+        [EditUnit("m")] public float Z { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §2, §4) — a jumper's parachute: its canopy and the
+    /// figures the descent model flies it by. A field left 0 takes the canopy's default (<c>ParachuteModel.Defaults</c> — public figures,
+    /// rounded: round T-11 class, ram-air MC-4 class).
+    /// </summary>
+    [TkbDescriptor("Gen.Parachute")]
+    public record ParachuteDto
+    {
+        [Description("Round (static line) or RamAir (free fall, steerable).")]
+        public CanopyKind Canopy { get; init; } = CanopyKind.Round;
+        [EditUnit("m/s")] public float SinkMps { get; init; }
+        [EditUnit("m/s")] public float ForwardMps { get; init; }
+        [EditUnit("deg/s")] public float TurnRateDeg { get; init; }
+        [EditUnit("deg")] public float MaxBankDeg { get; init; }
+        [Description("The sink at full brakes, × the sink (and the forward speed × 1.5 of it).")]
+        public float BrakeSinkFactor { get; init; }
+        [EditUnit("m")] public float FlareHeightM { get; init; }
+        [EditUnit("s")] public float OpenSeconds { get; init; }
+        [Description("Free fall: the height above the ground the canopy is pulled at.")]
+        [EditUnit("m")] public float PullHeightM { get; init; }
+        [Description("On the ground: out of the harness (he cannot move or fire).")]
+        [EditUnit("s")] public float LandingSeconds { get; init; }
+    }
+}

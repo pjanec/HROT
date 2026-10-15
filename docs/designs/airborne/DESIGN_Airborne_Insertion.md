@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
-build-state: READY-TO-BUILD — slice 1 (fast-rope + parachute) and slice 2 (the ejecting pilot) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §8 the three demos.
+updated: 2026-10-16
+build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a); B-5…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 (wins over §1/§5 where they differ), §8 the three demos.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -225,7 +225,8 @@ killed mid-rope: gravity, then fall damage (§5.3).
 
 ### 5.1 `RopeSlideModel`
 Each frame: the anchor's WORLD point (the helicopter's transform × the anchor place) gives x, y; z falls at `SlideMps` (eased in over 0.3 s),
-slowing to 1 m/s below `BrakeHeightM`; the surface under the anchor (`IWorldQuery.SurfaceZ` — the ground or a roof) ends it ⇒ `Landed`. The
+slowing to 1 m/s below `BrakeHeightM` *(⚠ as-built §7a: a RAMP from the slide speed down to 1 m/s at the surface — a flat 1 m/s over 3 m alone
+takes 3 s and misses B-2's "12 m in ~3.5 s")*; the surface under the anchor (`IWorldQuery.SurfaceZ` — the ground or a roof) ends it ⇒ `Landed`. The
 anchor dead or out of the hold ⇒ `Falling` (§5.3). Yaw = facing the helicopter's side.
 
 ### 5.2 `ParachuteModel`
@@ -282,6 +283,76 @@ incapacitates (the existing injury path).
 | **H-1** | behaviors | SOP rows + `SquadFastRope`, `SquadAirborneExit` (jumpmaster), `ParachuteDescent`, `AssembleAfterDrop`, the release point | ★ 8 men down two ropes in ≤ 15 s and in a 360° ring; ★ a stick of 8 from 400 m lands along the DZ and assembles |
 | **H-2** | behaviors | demo `ua-airborne`: ① SF fast-rope onto a rooftop, the helicopter then orbits ② a static-line stick onto a DZ ③ a free-fall team spirals down onto a point | live, PASS per vignette |
 | **U-1** | ui | the 3-D drawing: the rope from the anchor to the surface (dropped after the hold); round and ram-air canopies with lines, banked with the body; poses per phase (exit tuck, free-fall arch, under canopy hands on toggles, flare, PLF roll, rope slide); amend §6m C-4 (D-8) | frame rails + screenshots per phase |
+
+### 7a. As-built — B-1…B-4 (`2026-10-16`, backend)
+
+```mermaid
+classDiagram
+    direction LR
+    class Descent { <<component 392, Muscle group, dtDescent 137>> Kind Phase Canopy AnchorIndex PhaseSince Anchor Target Class }
+    class Wind { <<singleton 393>> Velocity Of(world) }
+    class DescentRules { <<static>> SurfaceBelow HighestSurface TryAnchor DoorPoint RopeLength Fall DefaultRopeLengthM 18 }
+    class Descents { <<static NEW>> Start(world, man, carrier, exit, anchorIndex) }
+    class RopeSlideModel { SlideMps 5 BrakeHeightM 3 brake ramp }
+    class ParachuteModel { Defaults(canopy) Of(world, jumper, canopy) Guide() }
+    class DescentLandingSystem { <<PostSimulation, AirMotionModule>> }
+    class AirMotionSystem { AirborneHolds() StepDownMaxM 3 DefaultRopeHoverM 12 }
+    class RotorcraftModel { Rope hold / Drop leg }
+    class AirPath { Dropping NEW }
+    class AirHolds { <<behaviors lane>> ShouldRelease AnyOnRopes NEW }
+    class Embarkation { Disembark(exit, anchorIndex) ExitIntoDescent() NEW }
+    class EmbarkationSystem { applies StartDescentCommand on the POSITION owner }
+    class DisembarkEntityCommand { +Exit +AnchorIndex appended }
+    class StartDescentCommand { <<event 3204 NEW>> Passenger Anchor Exit AnchorIndex IsRemote }
+    class InteractionCodecs { StartDescent = kind 8 NEW }
+    Embarkation ..> Descents : owns his position
+    Embarkation ..> StartDescentCommand : else publishes
+    InteractionCodecs ..> StartDescentCommand : carries to the position owner
+    EmbarkationSystem ..> Descents
+    Descents ..> Descent : adds
+    AirMotionSystem ..> RopeSlideModel
+    AirMotionSystem ..> ParachuteModel
+    ParachuteModel ..> Wind
+    RotorcraftModel ..> AirPath
+    AirHolds ..> Descent : reads the ropes
+```
+
+*Caption:* what the picture shows that §1 did not — the **second interaction** (`StartDescentCommand`) that closes CE-3059 for a descent: the
+carrier's owner decides the exit, but only the man's POSITION owner may add the `Descent` (a Muscle-group component whose egress is gated
+on that ownership).
+
+```mermaid
+sequenceDiagram
+    participant B as Brain node (the carrier's dtPassengerBuffer)
+    participant T as interaction transport
+    participant M as Muscle node (the man's dtWorldPos)
+    B->>B: EmbarkationSystem: Disembark(man, heli, exit RopeDown, anchor k)
+    B->>B: out of the list, Leave(door point) (a no-op write here)
+    alt this node owns his position (one node, the editor)
+      B->>B: Descents.Start: Descent{FastRope, Exit, Anchor heli}
+    else another node owns it
+      B->>T: StartDescentCommand (target = the man, actor = the heli)
+      T->>M: StartDescentCommand, IsRemote
+      M->>M: EmbarkationSystem: OwnsPosition ⇒ Descents.Start
+    end
+    M->>M: AirMotionSystem: RopeSlideModel snaps him to the anchor (Exit), Grip, Slide, Brake, Landed
+    M->>B: EntityDescent (dtDescent) + the transform: every node sees a Rope body
+```
+
+*Caption:* the message that crosses is the DECISION, not a position — the Muscle re-derives the door point from the same carrier and anchor
+index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and no second copy of the column rule CE-3059 warned against.
+
+| deviation from §1 / §5 / §7, and why | where |
+|---|---|
+| ⭐ **CE-3059 resolved for a descent** by a new interaction kind `StartDescent = 8` (`StartDescentCommand`, event 3204, payload `{Exit, AnchorIndex}`) applied by the man's POSITION owner; one node applies it at once. ⚠ The plain step-out dismount is unchanged — CE-3059 stays open for it | `Embarkation.ExitIntoDescent`, `InteractionCodecs.StartDescent` |
+| ⭐ an Unload **or Pickup** hover > 3 m above the ground is refused as a hover and **lands** instead (warned) — Pickup added: boarding a 30 m hover is the same teleport upwards | `AirMotionSystem.AirborneHolds` |
+| ⭐ a Rope waypoint's `HeightAgl` counts above the ROOF (the highest surface); unstated ⇒ **12 m**; the rope unstated on the type ⇒ **18 m** (60 ft); refused ⇒ flown through (hold dropped, warned) | same; `DescentRules.RopeLength` |
+| ⭐ a Drop waypoint is **flown through** at speed (not a stop); `Dropping` runs until the Brain releases it or the next REAL stop; a route ending on its DZ hovers there still `Dropping` | `RotorcraftModel.FollowRoute`, `AirRoute.IsFlownThrough`, `AirPath.Dropping` |
+| the rope: `SlideMps` **5** (§2: 3–5) and a brake **ramp** (§5.1 above) — 12 m in ~3.5 s | `RopeSlideModel` |
+| `Wind` needed a component id (**393**) — a singleton lookup on an id-less type THROWS, so every parachute frame would have crashed | `GlobalComponentIds.Wind` |
+| IDL forbids two enumerators of one name in a module (case-insensitive): `DescentPhase.FreeFalling`, `CanopyKind.NoCanopy`, `ExitKind.StepOut / RopeDown / JumpOut` | `Descent.cs` |
+| a jump is a free fall under a ram-air canopy, a static line under a round one — by the man's `Gen.Parachute` (none ⇒ round) | `Descents.Start` |
+| ★ (ui steer) a man with a `Descent` is still `IsPerson` — it keys on `VehicleParams`, never on `Locomotions.Of` — and a round through his torso under a canopy hits Torso | `RaycastSolverSystemTests.B1_AManUnderACanopy_IsStillAPerson…` |
 
 ### Slice 2 — the ejecting pilot (✅ READY — the user's third demo needs it)
 The jet's crew is the type itself, so ejection **spawns a Pilot entity** (the existing entity-creation path) at the canopy BEFORE the kill (R-2021):

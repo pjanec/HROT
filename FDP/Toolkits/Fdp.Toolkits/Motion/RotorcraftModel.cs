@@ -156,7 +156,14 @@ namespace Fdp.Toolkit.Motion
             if (path.Stage == AirStage.Start)
             {
                 bool onGround = OnGear(ref f);
-                if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f)
+                if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f && AirRoute.IsFlownThrough(in path.Stops[0]) && !onGround)
+                {
+                    path.Dropping = true;   // ⭐ B-3 — the route starts on its DZ leg
+                    path.ReleaseArmed = !intent.ReleaseHold;
+                    path.NextStop = 1;
+                    path.Stage = AirStage.Flying;
+                }
+                else if (path.Stops.Length > 0 && path.Stops[0].S <= 0.5f)
                     path.Stage = onGround || path.Stops[0].Kind != RouteWaypointKind.Ground ? BeginHold(path, path.Stops[0]) : AirStage.Landing;
                 else path.Stage = onGround ? AirStage.TakingOff : AirStage.Flying;
             }
@@ -198,13 +205,13 @@ namespace Fdp.Toolkit.Motion
                     bool released = stop.Hold switch
                     {
                         RouteHold.Seconds => (path.HoldLeft -= dt) <= 0f,
-                        RouteHold.Unload or RouteHold.Pickup => intent.ReleaseHold && path.ReleaseArmed,
+                        RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope => intent.ReleaseHold && path.ReleaseArmed,
                         _ => true,
                     };
                     bool onGround = OnGear(ref f);
                     if (released)
                     {
-                        if (stop.Hold is RouteHold.Unload or RouteHold.Pickup) path.ReleaseArmed = false;
+                        if (stop.Hold is RouteHold.Unload or RouteHold.Pickup or RouteHold.Rope) path.ReleaseArmed = false;
                         if (stop.Last) path.Stage = AirStage.Done;
                         else { path.NextStop++; path.Stage = onGround ? AirStage.TakingOff : AirStage.Flying; }
                     }
@@ -213,6 +220,8 @@ namespace Fdp.Toolkit.Motion
                     {
                         RouteHold.Unload => NavigationPhase.Unloading,
                         RouteHold.Pickup => NavigationPhase.Loading,
+                        RouteHold.Rope => NavigationPhase.Roping,
+                        RouteHold.Drop when path.Dropping => NavigationPhase.Dropping,   // a Drop at the route's end: the hover goes on dropping
                         _ => onGround ? NavigationPhase.Landed : NavigationPhase.Following,
                     };
                     Report(ref f, intent, NavigationResult.InProgress, released ? NavigationPhase.Following : phase, path.Progress);
@@ -221,9 +230,12 @@ namespace Fdp.Toolkit.Motion
                 case AirStage.Done:
                     f.Velocity.Linear = Vector3.Zero;
                     SetVertical(ref f, 0f);
-                    Report(ref f, intent, NavigationResult.Arrived, OnGear(ref f) ? NavigationPhase.Landed : NavigationPhase.Completed, path.Progress);
+                    ReleaseDrop(in intent, path);
+                    Report(ref f, intent, NavigationResult.Arrived,
+                           path.Dropping ? NavigationPhase.Dropping : OnGear(ref f) ? NavigationPhase.Landed : NavigationPhase.Completed, path.Progress);
                     return;
             }
+            ReleaseDrop(in intent, path);
 
             // ── Flying: along the path, the speed eased; slowed for the curve ahead and for the next stop ──
             bool hasStop = path.NextStop < path.Stops.Length;
@@ -236,7 +248,7 @@ namespace Fdp.Toolkit.Motion
             float look = path.SpeedNow * path.SpeedNow / (2f * accelMax) + 5f;
             float kAhead = AirRoute.MaxCurvature(path, path.Progress, path.Progress + look);
             if (kAhead > 1e-5f) vt = MathF.Min(vt, MathF.Sqrt(lateral / kAhead));
-            if (hasStop) vt = MathF.Min(vt, MathF.Sqrt(2f * accelMax * MathF.Max(0f, next.S - path.Progress)));
+            if (hasStop && !AirRoute.IsFlownThrough(in next)) vt = MathF.Min(vt, MathF.Sqrt(2f * accelMax * MathF.Max(0f, next.S - path.Progress)));
             float dv = Math.Clamp(vt - path.SpeedNow, -2f * accelMax * dt, accelMax * dt);
             float accel = dv / MathF.Max(dt, 1e-4f);
             path.SpeedNow = MathF.Max(0f, path.SpeedNow + dv);
@@ -266,12 +278,28 @@ namespace Fdp.Toolkit.Motion
             f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, path.Pitch, path.Roll));
             SetVertical(ref f, f.Velocity.Linear.Z);
 
-            if (arrived)
+            if (arrived && AirRoute.IsFlownThrough(in next))
+            {
+                // ⭐ airborne insertion B-3 (D-7) — the DZ leg begins: flown on, at its speed, reporting Dropping until the Brain releases it
+                path.Dropping = true;
+                path.ReleaseArmed = !intent.ReleaseHold;
+                path.NextStop++;
+            }
+            else if (arrived)
             {
                 path.SpeedNow = 0f;
+                path.Dropping = next.Hold == RouteHold.Drop;   // a real stop ends the DZ leg; a route ending on its DZ hovers there, still dropping
                 path.Stage = next.Kind == RouteWaypointKind.Ground ? AirStage.Landing : BeginHold(path, next);
             }
-            Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Following, path.Progress);
+            Report(ref f, intent, NavigationResult.InProgress, path.Dropping ? NavigationPhase.Dropping : NavigationPhase.Following, path.Progress);
+        }
+
+        /// <summary>⭐ Airborne insertion B-3 — the Brain released the DZ leg (nobody aboard): the route goes on as a plain flight.</summary>
+        private static void ReleaseDrop(in NavigationIntent intent, AirPath path)
+        {
+            if (!path.Dropping || !intent.ReleaseHold || !path.ReleaseArmed) return;
+            path.Dropping = false;
+            path.ReleaseArmed = false;
         }
 
         private static AirStage BeginHold(AirPath path, in AirStop stop)

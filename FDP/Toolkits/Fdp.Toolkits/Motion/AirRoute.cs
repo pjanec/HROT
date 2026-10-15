@@ -59,6 +59,9 @@ namespace Fdp.Toolkit.Motion
         public int NextStop;
         public float HoldLeft;
         public bool ReleaseArmed = true;
+        /// <summary>⭐ Airborne insertion B-3 — past a <see cref="RouteHold.Drop"/> waypoint and not released yet: the leg is flown
+        /// reporting <see cref="NavigationPhase.Dropping"/>.</summary>
+        public bool Dropping;
         public float Pitch;
         public float Roll;
         /// <summary>⭐ Air Ops slice 4 — a plane's circle after its route's end (<see cref="FixedWingModel"/>).</summary>
@@ -86,6 +89,9 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>True when the aircraft stops at <paramref name="w"/> (it lands there or holds).</summary>
         public static bool IsStop(in NavRouteWaypoint w) => w.Kind == RouteWaypointKind.Ground || w.Hold != RouteHold.None;
+
+        /// <summary>⭐ Airborne insertion B-3 — a <see cref="RouteHold.Drop"/> stop is flown THROUGH (the DZ leg begins there), never stopped at.</summary>
+        public static bool IsFlownThrough(in AirStop s) => s.Hold == RouteHold.Drop && s.Kind != RouteWaypointKind.Ground && !s.Last;
 
         /// <summary>
         /// Compiles <paramref name="waypoints"/> into an <see cref="AirPath"/> flown from <paramref name="from"/> (an approach leg is added
