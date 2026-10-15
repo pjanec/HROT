@@ -482,6 +482,35 @@ namespace Hrot.Map.Common.Tests
                     Assert.All(suite.Mounts, m => Assert.Equal(IndirectArc.Unset, m.Arc));
         }
 
+        /// <summary>
+        /// ⭐ R-2019 D-M2 (AE3; DESIGN_Armour_Hit_Model §7.5) — every catalogued VEHICLE that declares a combat platform STATES its blast
+        /// susceptibility (none left to the side-armour fallback): the soft skins take it all, the MBTs nothing, the light armour between.
+        /// A type with no platform record (the HMMWV, the transport aircraft) takes it all by the rule (<c>ArmorModel.BlastSusceptibility</c>).
+        /// </summary>
+        [Fact]
+        public void AE3_EveryVehicle_StatesItsBlastSusceptibility()
+        {
+            var db = HrotEnvironment.CreateTkb();
+            int vehicles = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.DisType.Kind != 1 || t.GetDescriptor<CombatPlatformDefDto>() is not { } p) continue;
+                vehicles++;
+                Assert.InRange(p.BlastSusceptibility, 0f, 1f);   // stated, not the −1 fallback
+            }
+            Assert.True(vehicles >= 15, $"only {vehicles} platform types with a combat record");
+            float S(long type) => db.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>()!.BlastSusceptibility;
+            Assert.Equal(1f, S(TkbEntityTypes.Pickup_Toyota));
+            Assert.Equal(1f, S(TkbEntityTypes.Technical_Hmg));
+            Assert.Equal(0f, S(TkbEntityTypes.Tank_M1Abrams));
+            Assert.Equal(0f, S(TkbEntityTypes.Tank_T72));
+            Assert.Equal(0.1f, S(TkbEntityTypes.IFV_Bradley));
+            Assert.Equal(0.25f, S(TkbEntityTypes.Sph_M109));
+            Assert.Equal(0.3f, S(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMilitaryApc));
+            Assert.Equal(0.8f, S(TkbEntityTypes.Heli_AH64));
+            Assert.Equal(-1f, new CombatPlatformDefDto().BlastSusceptibility);   // a TKB file that states none falls back to the side armour
+        }
+
         private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource
         {
             public readonly System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> Waypoints = new();
