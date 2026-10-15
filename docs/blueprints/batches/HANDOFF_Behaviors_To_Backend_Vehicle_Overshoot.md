@@ -42,3 +42,18 @@ it drove inside the footprint and the height sampler put it on the roof.
 item 1 for the cycle, not for other movers (`MoveToLocation` at a vehicle's own speed, convoys).
 
 **Acceptance:** ★ a tank sent 37 m at its top speed stops within `ArrivalRadius` · ★ a tank driven at a building's wall stops at it.
+
+---
+
+# ② (CE-2199, added `2026-10-15` at `5c6c3f7f1`, a new item — ① above unchanged) — an aimed burst with cooldown 0 fires EVERY FRAME
+
+📐 Live `ua-tank-corner`: an M1 fired **8 rounds of its 120 mm in ~1.3 s** (the muzzle moved ~0.8 m per shot at a 5 m/s creep ⇒ ~6 rounds/s)
+against a catalogue `RateOfFire` of 6 per minute. `AimAndFireExecutor.cs:275` sets `CooldownSecondsRemaining = p.CooldownSeconds`, and every
+caller that means "the weapon's own" passes **0** — `VehicleFightFromCoverNodes` (`FireCooldownSeconds` 0 ⇒ documented "the weapon's own"),
+`AirSense.FireAt` (`PostureNodes.Fire(…, 0f, 0, air)`). Nothing resolves the 0, so the mount fires each frame until its ammunition runs out.
+
+⭐ **Ask:** in the executor, a cooldown ≤ 0 ⇒ the FIRED mount's own interval (60 / `RateOfFire`, and its reload when the magazine empties) —
+only the executor knows which mount `MountAuto` picked (a tank's 120 mm 10 s vs its coax 0.1 s). ⚠ Blast radius: every caller passing 0 slows
+to its weapon's real rate (the vehicle cycle, the air defence; the infantry nodes pass 0.25–0.3 s and are unchanged).
+
+**Acceptance:** ★ a tank on `VehicleFightFromCover` fires its main gun at most once per 60 / `RateOfFire` s · ★ a cooldown > 0 is kept as given.
