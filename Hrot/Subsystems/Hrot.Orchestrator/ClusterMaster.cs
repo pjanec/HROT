@@ -338,6 +338,7 @@ public sealed partial class ClusterMaster : IDisposable
     {
         IngestCapabilities();   // CE-285: gather static capability tokens BEFORE heartbeats derive roles from them.
         IngestHeartbeats();
+        ProcessNodeIdRequests();   // ⭐ C1 — master-assigned node ids
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
         PublishStepRosterIfChanged();   // ⭐ P3

@@ -193,6 +193,40 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string ResultJson;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>C1</c> (Q91 §4-O, <c>R-4009</c>/<c>R-4016</c>) — a process with no configured node id asks the master for one, BEFORE it
+    /// composes anything id-dependent. Identified by facts it already has: its computer name and process id (no random id).
+    /// ⚠ Keyed by the process id plus a stable 64-bit hash of the computer name (<c>NodeIdKeys.ComputerHash</c>); the name
+    /// itself rides as data.
+    /// </summary>
+    [DdsTopic("NodeIdRequest")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct NodeIdRequest
+    {
+        [DdsKey] public long ComputerHash;
+        [DdsKey] public int ProcessId;
+        [DdsManaged] public string ComputerName;
+        /// <summary>The id the process insists on (0 = none: let the master choose).</summary>
+        public int ForcedId;
+        /// <summary>The id the process held before (0 = none) — granted again when free.</summary>
+        public int PreferredId;
+    }
+
+    /// <summary>⭐⭐ <c>C1</c> — the master's answer, on the same key as the request.</summary>
+    [DdsTopic("NodeIdGrant")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct NodeIdGrant
+    {
+        [DdsKey] public long ComputerHash;
+        [DdsKey] public int ProcessId;
+        public int NodeId;
+        public Guid SessionId;
+        public bool Refused;
+        [DdsManaged] public string Reason;
+    }
+
     [DdsTopic("NodeHeartbeat")]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
@@ -306,5 +340,27 @@ namespace Hrot.NED.Messages
 
         /// <summary>The provided <c>currentVersion</c> does not match the live version (optimistic locking).</summary>
         VersionConflict = 8,
+    }
+}
+
+namespace Hrot.NED.Descriptors.Orchestration
+{
+    /// <summary>⭐ <c>C1</c> — the key of a <see cref="NodeIdRequest"/>/<see cref="NodeIdGrant"/>: one definition for both sides.</summary>
+    public static class NodeIdKeys
+    {
+        /// <summary>A stable 64-bit FNV-1a hash of the upper-cased computer name (never <c>string.GetHashCode</c>, which is per-process).</summary>
+        public static long ComputerHash(string computerName)
+        {
+            unchecked
+            {
+                ulong h = 14695981039346656037UL;
+                foreach (char c in (computerName ?? string.Empty).ToUpperInvariant())
+                {
+                    h ^= c;
+                    h *= 1099511628211UL;
+                }
+                return (long)h;
+            }
+        }
     }
 }

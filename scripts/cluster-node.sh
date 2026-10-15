@@ -2,7 +2,7 @@
 # Launch / probe / stop ONE cluster node process each — the shape the membership use cases need
 # (docs/DESIGN_Cluster_Membership_Use_Cases.md). Wraps RUNBOOK_Cluster_Debugging_Over_Http.md §1.2/§1.3.
 #
-#   scripts/cluster-node.sh start <mode> <port> [base-node-id] [domain]   # mode: orchestrator|cgf|simhost|ig
+#   scripts/cluster-node.sh start <mode> <port> [base-node-id|auto] [domain]   # mode: orchestrator|cgf|simhost|ig; auto = ask the master (C1)
 #   scripts/cluster-node.sh status <port>                                  # GET /status of that node
 #   scripts/cluster-node.sh get <port> <route>                             # GET any debug route
 #   scripts/cluster-node.sh post <port> <route> [json]                     # POST (body defaults to {})
@@ -21,7 +21,7 @@ case "${1:-}" in
     log=/tmp/n-$mode-$port.log
     # ⛔ setsid + nohup: a plain & dies with the calling shell (runbook §1.3).
     HROT_DEBUG_API_PORT=$port setsid nohup xvfb-run -a --server-args="-screen 0 1280x800x24" \
-      dotnet "$DLL" --mode "$mode" --no-wait -n "$base" -d "$domain" > "$log" 2>&1 < /dev/null &
+      dotnet "$DLL" --mode "$mode" --no-wait $( [ "$base" = auto ] || echo "-n $base" ) -d "$domain" > "$log" 2>&1 < /dev/null &
     echo $! > /tmp/n-$port.pid
     # wait for the debug API (no fixed sleep): poll /status until it answers or 120 s pass
     for _ in $(seq 1 120); do

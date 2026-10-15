@@ -149,6 +149,30 @@ namespace Fdp.Toolkit.Orchestration
         public int[] NodeIds;
     }
 
+    /// <summary>⭐⭐ <c>C1</c> (Q91 §4-O, <c>R-4009</c>) — a process asks the master for a node id (computer name + process id).</summary>
+    [EventId(9065)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeIdRequestEvent
+    {
+        public string ComputerName;
+        public int ProcessId;
+        public int ForcedId;
+        public int PreferredId;
+    }
+
+    /// <summary>⭐⭐ <c>C1</c> — the master's answer to a <see cref="NodeIdRequestEvent"/>.</summary>
+    [EventId(9066)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeIdGrantEvent
+    {
+        public string ComputerName;
+        public int ProcessId;
+        public int NodeId;
+        public System.Guid SessionId;
+        public bool Refused;
+        public string Reason;
+    }
+
     /// <summary>
     /// Published by <c>OrchestrationObserverTranslator</c> (DDS→bus) and by
     /// <c>ClusterMaster</c> (bus-mode) when the global cluster state transitions.

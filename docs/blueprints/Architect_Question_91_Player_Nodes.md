@@ -1318,6 +1318,89 @@ set filters NOTHING by it — so the unit and integration harnesses that run wit
 | provider | `ClusterCacheExpectedPeersProvider`: present ∧ advertises ∧ `IsInSync` ∧ holds a simulation role. ⚠ **behaviour change, approved by K6:** a Player (Map2D only) is no longer waited for — `ClusterCacheExpectedPeersProviderTests` previously expected a `map2d` peer in the set and was updated |
 | rails | `ClusterCacheExpectedPeersProviderTests.C6_OnlyInSyncAuthoritativePeers_AreWaitedFor`, `.J4_EnteringInSyncOrDeparting_ClearsTheUnsupportedMark` |
 
+## 4-O ⭐⭐ BUILD DESIGN — `C1`: THE MASTER ASSIGNS NODE IDS *(design `2026-10-15`, coordinator; `build-state: BUILT`)*
+
+⭐ Builds L1 (`R-4009`) as amended by `R-4016`: a process with no configured id ASKS the master, identified by its computer
+name + process id; the master grants an id from a dynamic range, never reused within its session; a forced id already held by
+a live process is refused.
+
+### INVENTORY — measured `2026-10-15` (grep; the id is a constructor argument everywhere)
+
+| where the id is baked in | file |
+|---|---|
+| the runner computes `base + subsystem offset` and builds the participant (sender tracking `AppInstanceId`) and the network factory with it | `Program.cs:215-228` (`ResolveAppNodeId`, `:719`) |
+| `-n/--node-id`, **default 0** — "not given" and "0" are indistinguishable today | `RunnerConfiguration.cs:35` |
+| the node composition (`HrotNodeBuilder`, `LocalNodeId`) and the IG's own override | `HrotNodeBuilder.cs:163`, `IgApplication.cs:296` |
+| 📐 the collision this removes: two IGs launched alike both get 100 and both obey (`CE-4001`) | §4-K K1 |
+
+```mermaid
+sequenceDiagram
+  participant R as runner (no -n given, one subsystem, not the orchestrator)
+  participant B as NodeIdBroker (temporary participant)
+  participant T as NedOrchestrationTranslator (master)
+  participant M as ClusterMaster.NodeIds
+  R->>B: Request(computer name, process id, forced 0, preferred 0)
+  B->>T: NodeIdRequest (Reliable, TransientLocal, key = computer + pid)
+  Note over B: waits, logging waiting for a cluster every few seconds (no timer decides anything)
+  T->>M: NodeIdRequestEvent
+  M->>M: a free forced id is granted, a held one refused, else the next dynamic id (never reused)
+  M->>T: NodeIdGrantEvent
+  T->>B: NodeIdGrant (key = computer + pid, NodeId, SessionId, Refused, Reason)
+  B-->>R: the granted id (or exit with the refusal's reason)
+  R->>R: compose the node with that id (participant, factory, builder) as today
+```
+
+```mermaid
+classDiagram
+  class NodeIdRequest { <<NEW topic, hrot-orchestration>> +ComputerName key +ProcessId key +ForcedId +PreferredId }
+  class NodeIdGrant { <<NEW topic>> +ComputerName key +ProcessId key +NodeId +SessionId +Refused +Reason }
+  class NodeIdAllocator { <<NEW, Hrot.Orchestrator>> +Grant(request, liveRoster) }
+  class ClusterMaster { <<existing, grows>> owns NodeIdAllocator, session-scoped }
+  class NedOrchestrationTranslator { <<existing, grows>> request reader, grant writer }
+  class NodeIdBroker { <<NEW, Hrot.Network.NED>> +AwaitGrant(participant, ...)$ }
+  class Program { <<existing, grows>> asks only when -n is absent }
+  ClusterMaster --> NodeIdAllocator
+  NedOrchestrationTranslator ..> NodeIdRequest
+  NedOrchestrationTranslator ..> NodeIdGrant
+  NodeIdBroker ..> NodeIdRequest
+  NodeIdBroker ..> NodeIdGrant
+  Program ..> NodeIdBroker
+```
+
+```mermaid
+graph TD
+  P[runner Program.Main, before composing] -->|-n absent, single subsystem, not orchestrator| BR[NodeIdBroker - own short-lived participant]
+  P -->|-n given, or --mode all, or orchestrator| OLD[today's base + offset - a FORCED id]
+  BR --> TOPIC[(NodeIdRequest / NodeIdGrant)]
+  TOPIC --> NOT[NedOrchestrationTranslator on the master host]
+  NOT --> CM[ClusterMaster.Tick - NodeIdAllocator]
+  ED[editor: offline, in-process master] -.->|not wired: its id is configured| OLD
+  style ED stroke-dasharray: 5 5
+```
+
+*What the pictures show that prose hid:* the grant must complete BEFORE the participant the node runs on is created (sender
+tracking bakes the id in), so the broker uses its own short-lived participant; and nothing changes for any launch that names its
+id — only an id-less launch takes the new path.
+
+| ⭐ decision | lean · why · rejected |
+|---|---|
+| **"forced" = `-n` given on the command line**; absent ⇒ ask | ⭐ every script and test that names an id keeps today's behaviour exactly. `-n` becomes `int?` (absent ≠ 0). ⛔ Rejected: a new `--auto-id` flag — the approved default is "ask unless forced", and Players should need no flag |
+| ask only for a SINGLE-subsystem, non-orchestrator launch | ⭐ the orchestrator IS the master; `--mode all` hosts its own master in-process with configured ids |
+| dynamic range starts at 10000, monotonically increasing per master session | ⭐ clear of every configured range (`base + 1..700`); never reused within a session (a possession or ownership record may name it) |
+| a forced request for an id held by a LIVE roster node of a DIFFERENT process is refused | ⭐ R-4009: refused loudly — the runner exits with the reason |
+| ⚠ `PreferredId` is carried but the runner does not persist one yet | the field exists for the I5 "keep my id in a new session" case; a node meeting a new session today drops to Idle with its id |
+| ⚠ no master ⇒ the process waits indefinitely, logging | 🔒 the design's "its own idle". ⛔ No timeout (R-4001) |
+
+#### ✅ AS BUILT `2026-10-15`
+
+| piece | as built |
+|---|---|
+| wire | `NodeIdRequest {ComputerHash, ProcessId (keys), ComputerName, ForcedId, PreferredId}`, `NodeIdGrant {ComputerHash, ProcessId (keys), NodeId, SessionId, Refused, Reason}` — Reliable + TransientLocal; ⚠ keyed by a 64-bit FNV-1a hash of the upper-cased computer name (`NodeIdKeys.ComputerHash`) because no topic in this binding has a string key yet — the name rides as data |
+| master | `NodeIdAllocator` (pure: the caller says which ids are live) owned by `ClusterMaster`, `ProcessNodeIdRequests` right after the heartbeat ingest; bus events `NodeIdRequestEvent`/`NodeIdGrantEvent` (9065/9066); `NedOrchestrationTranslator` bridges both |
+| node | `NodeIdBroker.AwaitGrant` on its own short-lived participant, before composition; logs every 5 s while no master answers |
+| runner | `-n` defaults to −1 (absent); a single-subsystem launch that is not the orchestrator, `all` or the editor asks, and the grant replaces BOTH `subNodeId` and the `NodeIdResolver` (no subsystem offset); a refusal exits with the reason; every other absent case uses base 0 as before. `scripts/cluster-node.sh start <mode> <port> auto` launches without `-n` |
+| rails | `NodeIdAllocatorTests` (5, new suite) |
+
 ## 5. OUT OF SCOPE
 
 - ⛔ **Interest management** — every node receives every entity (no partition or content filter exists). User G: not now.
