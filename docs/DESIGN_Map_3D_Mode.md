@@ -1917,6 +1917,20 @@ patches in the block style need no shader change and read the same at every dist
 the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier; *the outfit stored as a component* —
 nothing would write it on a replica, and the seed already makes it the same everywhere.
 
+**AS-BUILT (`CE-1099`, `CE-1100`)** — as drawn above. Measured on the first frames and changed: dark camouflage patches on olive vanished
+under the shading, and a patch on ONE side of a part mostly faced away from the camera ⇒ each pattern mixes light and dark tones, a patch goes
+THROUGH its part (it shows on two opposite sides) and a woodland patch on a limb is a band round it; Friend 18 woodland patches, Hostile 30
+sand-heavy fleck (a hostile reads paler). ⚠ The fleck stays subtler than the woodland. The blood (§6p) and the camouflage share one
+placement of a box on a part's side (`BlockFigure.SpotOnSide`) for the blood; the camouflage places its own through-boxes. Cross-lane:
+`Hrot.Core` `UrbanCombatTkbCatalog` gains `CivilianChild` (1003); `UrbanCombatCatalogRails` (SimHost) counts 10 types; the picker golden
+lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (`dress-*.png`); red-proved 6 ways.
+
+| | |
+|---|---|
+| ![dress front](assets/map-3d/dress-1-front.png) | ![soldiers](assets/map-3d/dress-2-soldiers.png) |
+| *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
+| ![above](assets/map-3d/dress-3-above.png) | |
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

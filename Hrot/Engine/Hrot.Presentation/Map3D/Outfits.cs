@@ -51,10 +51,10 @@ public static class Outfits
     private static readonly Color Shirt = new(238, 238, 236, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
     private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
-    private static readonly Color[] Fleck = [new(206, 186, 134, 255), new(120, 70, 42, 255), new(40, 44, 30, 255)];
+    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy: a hostile reads paler
 
     /// <summary>How many camouflage patches each pattern lays on a man.</summary>
-    public const int WoodlandPatches = 18, FleckPatches = 26;
+    public const int WoodlandPatches = 18, FleckPatches = 30;
 
     /// <summary>
     /// ⭐ CE-1099 — the outfit of the man seeded <paramref name="seed"/> (his network id) of TKB type <paramref name="type"/>.
@@ -137,7 +137,7 @@ public static class Outfits
             var r = new Draw(seed, 0x5EED + k);
             int part = CamoParts[r.Pick(CamoParts.Length)];
             bool torso = part == BlockFigure.TorsoIndex;
-            float w = woodland ? 0.40f + r.Next() * 0.30f : 0.16f + r.Next() * 0.14f;
+            float w = woodland ? 0.40f + r.Next() * 0.30f : 0.20f + r.Next() * 0.14f;
             float h = MathF.Min(0.9f, w * (0.6f + r.Next() * 0.8f));
             // ⚠ measured: a patch on ONE side mostly faced away from the camera ⇒ a patch goes THROUGH its part (it shows on two opposite
             //   sides), and a woodland patch on a limb wraps it as a band (it shows from every side)
