@@ -196,16 +196,18 @@ namespace Fdp.Toolkit.Replay.Tests
         // ── R-4012 (Q91 §4-P) — restore inside the span, listen outside it ───────
 
         [Fact]
-        public void R4012_A_recording_covers_its_span_plus_the_end_grace_and_the_end_sentinel_but_not_before_its_first_frame()
+        public void R4012_A_recording_covers_its_span_plus_a_grace_at_both_ends_and_the_end_sentinel()
         {
             var filePath = CreateSmallRecording(frameCount: 5);
             using var playback = new PlaybackController(filePath);
             long first = playback.FirstFrameWallTicks, last = playback.LastFrameWallTicks;
 
-            Assert.False(playback.Covers(first - 1));
+            long grace = PlaybackController.CoverageGraceTicks;
+            Assert.False(playback.Covers(first - grace - 1));
+            Assert.True(playback.Covers(first - grace));   // 📐 a node present all along starts recording up to ~0.7 s late
             Assert.True(playback.Covers(first));
-            Assert.True(playback.Covers(last + PlaybackController.CoverageEndGraceTicks));
-            Assert.False(playback.Covers(last + PlaybackController.CoverageEndGraceTicks + 1));
+            Assert.True(playback.Covers(last + grace));
+            Assert.False(playback.Covers(last + grace + 1));
             Assert.True(playback.Covers(long.MaxValue));
         }
 
@@ -263,7 +265,7 @@ namespace Fdp.Toolkit.Replay.Tests
             var module = new ReplayModule(filePath, world, new StubTimeController(0L));
             module.RegisterSystems(new CapturingSystemRegistry());
 
-            Assert.False(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks - 1));
+            Assert.False(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks - PlaybackController.CoverageGraceTicks - 1));
             Assert.Equal(ReplaySpanState.Listening, module.State);
             Assert.True(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks));
             Assert.True(module.IsRestoring);

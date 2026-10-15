@@ -33,10 +33,12 @@ namespace Fdp.Core.FlightRecorder
         public bool IsAtStart => _currentFrameIndex < 0;
 
         /// <summary>
-        /// ⭐ <c>R-4012</c> (Q91 §4-P P3) — how far past its last frame a recording still counts as covering a moment: nodes
-        /// that recorded to the end of an exercise stop a frame or two apart.
+        /// ⭐ <c>R-4012</c> (Q91 §4-P P3) — how far outside its first and last frame a recording still counts as covering a moment.
+        /// 📐 Measured live: nodes present for a whole exercise start recording when their own load hold ends — SimHost 0.7 s after
+        /// CGF — and stop a frame or two apart. ⛔ Without the grace, a node present all along LISTENS at the replay's very start.
+        /// A late joiner is many seconds out and still listens.
         /// </summary>
-        public static readonly long CoverageEndGraceTicks = 2 * TimeSpan.TicksPerSecond;
+        public static readonly long CoverageGraceTicks = 2 * TimeSpan.TicksPerSecond;
 
         /// <summary>Wall-clock ticks of the first recorded frame, or 0 for an empty recording.</summary>
         public long FirstFrameWallTicks => _frameIndex.Count > 0 ? _frameIndex[0].WallClockTicks : 0;
@@ -46,8 +48,8 @@ namespace Fdp.Core.FlightRecorder
 
         /// <summary>
         /// ⭐⭐ <c>R-4012</c> (Q91 §4-P P3) — <b>does this recording cover the moment?</b> Inside
-        /// <c>[first frame, last frame + <see cref="CoverageEndGraceTicks"/>]</c>; <see cref="long.MaxValue"/> means "the end"
-        /// and is covered by any recording with frames. ⭐ A node asks this before it restores: outside, it restores nothing
+        /// <c>[first frame − <see cref="CoverageGraceTicks"/>, last frame + <see cref="CoverageGraceTicks"/>]</c> (a moment in the
+        /// lead-in shows the first frame); <see cref="long.MaxValue"/> means "the end" and is covered by any recording with frames. ⭐ A node asks this before it restores: outside, it restores nothing
         /// and listens. ⛔ <see cref="SeekToWallClockTicks"/> still floors a moment before the first frame to frame 0 — callers
         /// that must not show the first frame for an earlier moment ask here first.
         /// </summary>
@@ -55,7 +57,7 @@ namespace Fdp.Core.FlightRecorder
         {
             if (_frameIndex.Count == 0) return false;
             if (wallTicks == long.MaxValue) return true;
-            return wallTicks >= FirstFrameWallTicks && wallTicks <= LastFrameWallTicks + CoverageEndGraceTicks;
+            return wallTicks >= FirstFrameWallTicks - CoverageGraceTicks && wallTicks <= LastFrameWallTicks + CoverageGraceTicks;
         }
         
         public PlaybackController(string filePath)

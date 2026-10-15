@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (⭐ §4-P NEW — C9 build design: one replay anchor from the prepare round, entry runs a seek round, covered ⇔ inside the span, a node with no recording listens; measured live — spans differ, entry leaves the clock past the end, the entry seek never runs) ·
+updated: 2026-10-15 (§4-P C9 BUILT — as-built + live run; the coverage grace now applies at BOTH ends, measured) ·
+  2026-10-15 (⭐ §4-P NEW — C9 build design: one replay anchor from the prepare round, entry runs a seek round, covered ⇔ inside the span, a node with no recording listens; measured live — spans differ, entry leaves the clock past the end, the entry seek never runs) ·
   2026-10-15 (K4 APPROVED as R-4017 — every §4-I..§4-L decision is now taken) ·
   2026-10-15 (K5′ APPROVED as R-4015 — a catch-up runs KB + terrain only, never the scenario; R-4016 a process is identified by computer name + process id, no random ids — L1 amended) ·
   2026-10-15 (J1, J2, J4, J5 APPROVED as R-4013 — J5 with the wall-clock exemption; K6, K7 APPROVED as R-4014; K1+K2 superseded by L1 + I5; K4, K5 re-explained, open) ·
@@ -1460,7 +1461,7 @@ id — only an id-less launch takes the new path.
 | runner | `-n` defaults to −1 (absent); a single-subsystem launch that is not the orchestrator, `all` or the editor asks, and the grant replaces BOTH `subNodeId` and the `NodeIdResolver` (no subsystem offset); a refusal exits with the reason; every other absent case uses base 0 as before. `scripts/cluster-node.sh start <mode> <port> auto` launches without `-n` |
 | rails | `NodeIdAllocatorTests` (5, new suite) |
 
-## 4-P ⭐⭐⭐ BUILD DESIGN — `C9`: REPLAY BY SPAN *(design `2026-10-15`, coordinator; `build-state: READY-TO-BUILD`)*
+## 4-P ⭐⭐⭐ BUILD DESIGN — `C9`: REPLAY BY SPAN *(design `2026-10-15`, coordinator; `build-state: BUILT` — see the as-built table at the end)*
 
 ⭐ Builds L3‴ (`R-4012`): each node restores its own recording where it covers the moment and listens elsewhere. 📐 Measuring it
 showed that R-4012 cannot hold until the replay has **one timeline**: today every node measures replay time from its OWN first
@@ -1595,7 +1596,7 @@ controller itself, so the ECS hosts that build the controller without `ForNode` 
 |---|---|
 | **P1 one anchor = the earliest first frame across the cluster**, computed by the master from the prepare round and sent on every seek | ⭐ computed from the frame stamps themselves (same clock domain), works on recordings made before this change. ⛔ Rejected: each node's own start (today) — misaligns a late node by its join delay. ⛔ Rejected: stamp the cluster's `OperatingLive` start into each recording — `StateStartWallTicks` is never written, the master's clock domain differs in stepping mode (`SteppingTimeController.cs:60` stamps synthetic ticks), and old recordings would not have it |
 | **P2 entering a replay always runs a SEEK ROUND** (to the hint, else 0) after the transition completes; the planner's untracked seek is no longer fanned out | ⭐ the only path that both delivers the anchor and snaps the clock. ⚠ Behaviour change: a replay is entered PAUSED at its start (the seek path pauses) instead of running from the live clock's time — which today is past the end |
-| **P3 covered ⇔ first ≤ t ≤ last + 2 s**, and `t = long.MaxValue` ("the end") is covered by any node with frames | ⭐ the grace absorbs nodes whose last frames differ by a frame or two at the exercise end. ⛔ Rejected: "only before the first frame is outside" — leaves a departed node showing its last frame forever |
+| **P3 covered ⇔ first − 2 s ≤ t ≤ last + 2 s**, and `t = long.MaxValue` ("the end") is covered by any node with frames | ⭐ the grace absorbs nodes present all along whose recordings start and stop a little apart. ⛔ Rejected: "only before the first frame is outside" — leaves a departed node showing its last frame forever. ⚠ **SUPERSEDED in the build:** the design had no grace at the START — 📐 the live run measured SimHost starting 0.7 s after CGF, so SimHost LISTENED at the replay's start; the grace now covers both ends |
 | **P4 outside ⇒ `SoftClear` + the seek's after-hook (map rebuild, lifecycle reset), ingress open**; inside ⇒ seek own file, ingress gated like a join | ⭐ the same world operation a keyframe already performs, so the after-seek contract is unchanged. ⛔ Rejected: `WorldBoundaryReset.Clear` — it advances `WorldEpoch`, which now writes deletes on the wire (CE-4000 F2) and would delete the entity for every listener |
 | **P5 no recording ⇒ a listener** (`HasRecording = false`), not a failed prepare | ⭐ R-4012 — a node that was absent replays nothing and listens. ⚠ Today such a node fails the whole replay transition |
 | **P6 the ingress gate for restoring is the join gate's semantics** (state skipped, events discarded) | ⭐ R-4007 reason ③ — the node builds everything itself (Plan A) |
@@ -1614,6 +1615,22 @@ controller itself, so the ECS hosts that build the controller without `ForNode` 
 | the aggregator returns min first / max last / duration from them | `ReplayConsensusAggregator` tests |
 | the master sends the anchor on every seek, and entering replay publishes one seek | `ClusterMasterSeekTests` |
 | live: a late Player's replay shows the same entity positions as CGF at the same playhead, and listens before its first frame | multi-process run |
+
+#### ✅ AS BUILT `2026-10-15`
+
+| piece | as built |
+|---|---|
+| coverage | `PlaybackController.Covers` (`CoverageGraceTicks` = 2 s at both ends, `long.MaxValue` = the end), `FirstFrameWallTicks` / `LastFrameWallTicks` |
+| play loop | `PlaybackTickSystem` — `ReplaySpanState {Unsettled, Restoring, Listening}`; outside ⇒ `SoftClear` + after-seek hook, once; back inside ⇒ seek own file; `AnchorWallTicks` (cluster's) else own first frame; logs every switch |
+| module | `ReplayModule` — absent `.fdp` ⇒ `HasRecording = false`, a listener (a CORRUPT file still throws); `SeekToWallClockTicksAsync` returns whether it restored; `AnchorWallTicks`, `State`, `IsRestoring`, `RecordingEndWallTicks` |
+| gate | `IReplayRestoreGated` (Fdp.Core); `CycloneNetworkIngressSystem` treats restoring like a join; wired by `EcsRecordReplayController.PrepareReplayAsync` (sweeps the scheduler) — so hosts that build the controller without `ForNode` get it too |
+| contract | `IRecordReplayController` + `ActiveRecordingEndWallTicks`, `ReplayAnchorWallTicks {get;set}`, `IsRestoringReplay` |
+| wire | `ReplayPrepareResult` + `FirstFrameWallTicks`, `LastFrameWallTicks`; `ReplaySeekPayload` + `AnchorWallTicks` (defaults 0 — old payloads keep the old behaviour) |
+| master | `ClusterMaster.Replay.cs` — `NoteReplayEntry` (the transition no longer fans out the seek), `OnRoundSucceededForReplay` (learns the zero; publishes ONE `SeekReplayIntent` for the entering round); every seek carries the zero; `ReplayConsensusAggregator` earliest first / latest last; `ReplayProcessManager` end = duration, re-armed by every seek |
+| found on the way | `CE-4008` — IG lacked the hierarchy SCHEMA (first the event, then `UnitSubordinate`); `HierarchyComponentRegistry` moved to `Hrot.Common` beside `UnitHierarchySystem` and IG calls it |
+| rails | `ReplayModuleTests` (5 new), `ReferenceHandlerTests` (3 new), `ClusterMasterSeekTests` (3 new), `IgRoleComponentRegistryTests` (1) |
+
+📐 **Live, multi-process, `hill-attack`, a Player joined ~15 s late (domain 22):** replay zero = CGF's first frame; CGF and SimHost (0.5 s later, inside the grace) restored at it, the Player — 14.6 s span — listened, and entity 1001 on the Player matched CGF to 0.01 m from the flood; every clock read `simTime=0, paused` after entry; after 18 s of play the Player switched to its own recording at playhead 13.0 s (its first frame minus the grace). ⚠ **Seen, harmless:** between the seek and the clock snap reaching a slave (~0.5 s) its playhead still reads the live clock, so a node may restore its LAST frame for a few frames before the snap — an ordering fact of the existing snap, not fixed here.
 
 ## 5. OUT OF SCOPE
 
