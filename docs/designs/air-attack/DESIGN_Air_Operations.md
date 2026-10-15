@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-15
 build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 approved, W1–W4 proposed), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -491,6 +491,28 @@ possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405,
 per side a door gunner (rifleman) and a `Door` station with an M134 operated by him — the DoorGunOrbit profile's two guns; its 8 riders
 are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree`.
 
+### 7b. Weapon choice, a moving target, how long an Attack lasts — 🔒 `2026-10-15` (R-2020)
+
+🔒 **User, `2026-10-15`:** *"weapon selection depends on the target type. Point target usually cary a reason why to strike it - building
+or bridge or bunker or runway or something - this should come together with the target coordinates. Entity target is covered already
+(entities carry Dis entity type)."* · on B12: *"accepted … but not using non-reasonably strong or expensive ammo or weak or
+collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack duration - accepted"* → B12–B14 in §10.
+
+| 📐 measured `2026-10-15` | code | design |
+|---|---|---|
+| `StrikeOrder` carries a point and an optional entity — no target kind | `OrderDtos.cs:72-118` | — ⇒ W1 |
+| `AmmoChoice.ValueOf` = expected damage ÷ max health — the STRONGEST round wins; no munition has a cost | `AmmoChoice.cs`; `Tkb/Domain/*.cs` (no cost field) | Missiles and Ammo §2 (D-I) ⇒ W2 |
+| no collateral rule; the friend checks are `LineOfFire.BlockedByFriendly` (the line) and indirect fire's 600 m `DangerClose` (the point) | `FireAtPointExecutor.cs:163`, `IndirectFireBehaviors.cs:29` | Indirect Fire FM-5 ⇒ W3 |
+| no structure is damaged by anything (no building / bridge / bunker damage) | search `BuildingDamage\|Destructible\|StructureDamage`: 0 | R-2019: *"destructible buildings later, backend's call"* |
+| the unguided aim has no lead | `Fdp.Toolkits/Combat`: the only lead is the guided dive geometry | ⇒ B13 leads in the behaviour |
+
+| ⏳ proposed, awaiting the user | lean | rejected — one line |
+|---|---|---|
+| **W1** a point target's kind | `StrikeOrder.TargetKind` (enum, appended): `Unspecified` · `Personnel` · `Vehicles` · `Building` · `Fortification` (bunker) · `Bridge` · `Runway`; `Unspecified` on a terrain building's footprint ⇒ `Building`; it picks the weapon class (W2) | a free-text reason (no rule can read it) · a DIS cultural-feature type (no TKB entry for a point) |
+| **W2** enough, not most | per munition a relative **cost** (TKB, backend); the choice = the CHEAPEST weapon whose expected effect on the target reaches the need (an entity: `ValueOf`; a point: the kind's weapon class), else the most effective | the strongest round always (a bomb on a rifleman) · cost only (a gun on a bunker) |
+| **W3** collateral | a weapon is out when a friend or a `Neutral` stands within its warhead's injury radius of the aim point (Mk-82 ≈ 27 m), re-checked each pass; `DangerClose` on the order overrides, as for artillery | a target-kind flag (collateral is who is near NOW, not what the target is) |
+| **W4** a helicopter's Attack | fire from a **battle position**: an EQS point that sees the target from beyond every known threat's reach (`BeyondThreatRange`, V3), reached low; unmask, fire, remask, move to another before firing again (A9's pop-up, for any weapon that outranges the threats); RunningFire only when no such point exists; never hover where it is | hover and shoot from where it is (today's `PlatformAttack` fallback — a stationary helicopter in RPG range) |
+
 ## 8. The bomb (A3, A4, A6, B6)
 
 | rule | why |
@@ -695,6 +717,9 @@ channel. A helicopter never reaches the point; a plane does, and a pass with not
 | **B9** | planes do not land in v1 (start airborne, orbit the route's end) | runways and taxiing |
 | **B10** | `SquadEmbark` drill; the LZ holds until the named unit is aboard | the helicopter loads the squad · a timed hold |
 | **B11** | the rescue is an authored mission tree | a hard-coded rescue behaviour |
+| **B12** | 🔒 `2026-10-15` (R-2020, §7b) — Attack (an entity) prefers direct fire (gun, rockets); the bomb only if nothing else is aboard; Strike (a point) prefers the bomb — the weapon follows the target's kind, and never an unreasonably strong or expensive one, nor one that endangers others (W2, W3) | the bomb on everything |
+| **B13** | 🔒 `2026-10-15` — a moving target: the attack re-reads its position (`ReplicatedMotion`) every 0.5 s until the run-in freezes, and aims at the LED point (velocity × the round's flight or fall time), handed to `FireAtPoint` — no executor change | aiming at where it is now |
+| **B14** | 🔒 `2026-10-15` — an Attack flies passes until the target is destroyed, the chosen ammunition is gone, or 3 passes; a Strike is one pass | one pass for both |
 
 ## 11. Slices and rails — in the features' own suites
 
