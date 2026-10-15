@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
+updated: 2026-10-15 (HL-12: body profiles by DIS class + sparse per-type overrides, user-approved)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
 current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Terrain_Combat_Tuning.md — OWNS the resolution chain and provenance (§2, §2a); HL-12 is the first real use of its reserved ReferenceByDis step, for body profiles
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — OWNS the armour formula (R-212), the face rule (D-A) and D-G "no hull / turret split"; this file replaces ITS face rule (the face entered) and lifts D-G in S2, never the formula
   - docs/DESIGN_Injury_States.md — OWNS the four human states derived from Health (I1–I3, R-2011); this file adds limb wounds DERIVED the same way, and fills its open "wounded AIM"
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS the ruling (R-263): vehicles' mobility kill · firepower kill · destroyed from per-compartment damage; S2 here is its build design
@@ -69,7 +70,9 @@ classDiagram
   class RaycastHit { <<existing, grows - APPENDED>> +PartId +Face +LocalPoint }
   class HitResolutionSystem { <<existing, grows>> DetonationNotification + HitMarks }
   class DetonationNotification { <<existing, grows - APPENDED>> +PartId +Face }
-  class BodyZonesDto { <<NEW TKB Combat.BodyZones; plan defaults, type overrides>> Zones: name, parts, armourPerFace, multiplier, effect, threshold }
+  class BodyZonesDto { <<NEW TKB Combat.BodyZones, SPARSE per-type override>> Zones: name, parts, armourPerFace, multiplier, effect, threshold }
+  class BodyProfileLibrary { <<NEW, Reference Library bodies.json>> profiles keyed by DIS class with wildcards, most specific first }
+  class BodyZoneResolver { <<NEW, beside ParameterResolver>> +Resolve(tkb, type) ResolvedZones with provenance }
   class DamageCalculationSystem { <<existing, grows>> armour = zone armour on the face; x zone multiplier }
   class DamageAssessedEvent { <<existing, grows - APPENDED>> +PartId }
   class EntityHitDamage { <<existing DDS, grows - APPENDED R-169>> +PartId }
@@ -86,12 +89,14 @@ classDiagram
   RaycastSolverSystem --> RaycastHit
   HitResolutionSystem --> DetonationNotification
   HitResolutionSystem --> HitMarks : writes (Muscle)
-  DamageCalculationSystem ..> BodyZonesDto
+  DamageCalculationSystem ..> BodyZoneResolver
+  BodyZoneResolver ..> BodyZonesDto : 1 the type's override
+  BodyZoneResolver ..> BodyProfileLibrary : 2 the DIS-class profile
+  Wounds ..> BodyZoneResolver
   DamageCalculationSystem --> DamageAssessedEvent
   DamageAssessedEvent --> EntityHitDamage : egress / ingress
   HealthApplicationSystem --> PartDamage : writes (Brain)
   Wounds ..> PartDamage
-  Wounds ..> BodyZonesDto
   KitPart ..> BodyShape : the drawing reads the same geometry
 ```
 *What the picture shows that prose hid: ONE geometry (`BodyShape`) serves the drawing (`KitPart` keeps only the look) and the hit test;
@@ -166,6 +171,7 @@ it, its hits carry no part.*
 | **HL-8** | ⭐ **`HitMarks`**: a fixed ring (24 slots of PartId · part-local point 3×int16 · face · kind (bullet / fragment / burn / penetration) · sequence), added on the first hit, written by the MUSCLE, replicated like `TurretPose` (BestEffort, TransientLocal, KeepLast 1, on change, once a frame); viewers ACCUMULATE by sequence | your fixed-size, muscle-owned array; part-local so a hole turns with the turret and moves with the arm; a late joiner gets the last 24 | an event stream of hits (unbounded, a late joiner cannot rebuild) · world-space points (break on any articulation) · marks only derived from damage (kept as the fallback when a mark was evicted) |
 | **HL-9** (lean) | **S1's person pose = logical stance + weapon posture**, no gait swing, no aim twist / lean, no transition blend | the gait is cosmetic (no node shares its phase); twist is a refinement once the aim reaches the sim side | — |
 | **HL-10** (lean) | fragments stay WHOLE-BODY for damage until S3; their HitMarks are SAMPLED (deterministic, seeded by the burst) on the parts facing it, as many as the hits AE5 scored | fragments are counts and probabilities, not rays (AE5) — a ray per fragment is S3's cost question | — |
+| **HL-12** | ⭐ **zones are defined ONCE PER CLASS and overridden per type only where needed** — 🔒 user, `2026-10-15`: *"not for each tkb type separately (class templates?), but customizable per tkb type if really needed (overrides?)"* → *"approved"*. Three layers through the resolver chain that already exists ([Terrain Combat Tuning §2](../../DESIGN_Terrain_Combat_Tuning.md)): ① the type's own SPARSE `BodyZonesDto` (only the fields that differ: *"M1: turret front 800"*, *"militia: no vest"*) ② a **body profile** in the Reference Library's `bodies.json`, matched by the type's **DIS class**, most specific wildcard first (`1.1.*.1.*` MBT · `1.1.*.2.*` armoured carrier · `1.1.*.*` land vehicle · `3.1.*` soldier / civilian · `1.2.*` aircraft) ③ the plan's engine fallback. Merged FIELD BY FIELD; every value carries its provenance (`Explicit` / `ReferenceByDis:<profile>` / `EngineFallback`) into `/tkb/resolve` and the inspector. The type's existing `ArmorFront/Side/Rear/Top` ARE its explicit Hull values (no number is lost). ⛔ A profile never ADDS combat to a type: it applies only to a type that already has a combat platform (the risk §2b deferred DIS matching for) | one entry serves every tank; the provenance answers "why did this head shot not kill?" | C# inheritance between TKB types (none exists — a second layering beside the resolver) · zones copied into every catalog type (~30 copies that drift) · matching profiles by name (names are arbitrary; DIS is on every platform) |
 | **HL-11** (lean) | starting person zones: Head (helmet on every face but the face's front; × 4), Torso (vest front / back; × 1), Arm (× 0.4), Leg (× 0.5); thresholds: a limb wounded at level 64 | public-medicine shape, starter numbers — tuning starts here | — |
 
 ## 6. Slices, items and rails
@@ -173,7 +179,7 @@ it, its hits carry no part.*
 | slice | lane · id | builds | rails (in the features' own suites) |
 |---|---|---|---|
 | **S1a** people collide by parts | backend · **CE-3209** | HL-1 (person plan only), HL-2, HL-3, HL-5; `RaycastHit` + `DetonationNotification` appended; the **benchmark** (a crowded street, a burst through it: before / after) in `Fdp.ModuleHost.Benchmarks` | `RaycastSolverSystemTests`: a round between a standing man's legs misses; one at head height hits Head; a prone man is hit only by a low round; the sphere rejects without part tests (a counter); a 70 m segment finds a man its midpoint circle missed; no candidate cap |
-| **S1b** people's damage by part | backend · **CE-3210** | HL-4, HL-6, HL-7 (people), HL-8, HL-10's marks; `EntityHitDamage.PartId` (R-169 appended); `PartDamage` + `HitMarks` descriptors and translators; `BodyZonesDto` for the soldier and civilian | `DamageCalculationSystemTests`: a head hit through a helmet vs without; `HealthApplicationSystemTests`: `PartDamage` written on the owner only; `InjuryTests`: a leg wound slows, an arm wound widens σ; translator round trips; the ring evicts the oldest and keeps the sequence |
+| **S1b** people's damage by part | backend · **CE-3210** | HL-4, HL-6, HL-7 (people), HL-8, HL-10's marks, **HL-12** (the resolver + `bodies.json` with the soldier and civilian profiles first); `EntityHitDamage.PartId` (R-169 appended); `PartDamage` + `HitMarks` descriptors and translators; `BodyZonesDto` for the soldier and civilian | `DamageCalculationSystemTests`: a head hit through a helmet vs without; `HealthApplicationSystemTests`: `PartDamage` written on the owner only; `InjuryTests`: a leg wound slows, an arm wound widens σ; translator round trips; the ring evicts the oldest and keeps the sequence |
 | **S1c** the drawing | ui (its id) | `BlockFigure` draws from `BodyKit`; blood and holes from `HitMarks` (seeded spots as the fallback); a debug overlay of the colliding parts | ui's suites |
 | **S2** vehicles and weapon systems | backend · **CE-3211** (ui draws) | the TrackedVehicle / WheeledVehicle / Rotorcraft / WeaponSystem plans; the family kits' geometry moves; turret and gun parts posed by `TurretPose`; compartments ⇒ mobility / firepower / destroyed (R-263); D-G lifted; weapon systems hittable when not embarked (supersedes CE-2182's skip) | a round over a turret's roof meets the roof; a side shot at a turned turret meets the turret's side armour; an engine hit stops it; a gun hit stops it firing |
 | **S3** fragments per part | backend · **CE-3212** | fragment damage spread over the exposed parts (and its cost measured) | AE5's rails per part |

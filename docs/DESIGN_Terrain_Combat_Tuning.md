@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — HL-12 builds this file's reserved ReferenceByDis step for PLATFORM body profiles (bodies.json); ammo stays matched by name
   - docs/designs/mgmt-1/DESIGN.md — §13.3a owns the exercise archive's scenario copy (CE-3119, a §5a follow-up here)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — §5: the new AT rounds (PG-7VL/VR, LAW, NLAW, Javelin, Kornet-class, FPV warhead, tank HEAT-MP / HE, HMG AP)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds the AT rounds (PG-7VL/VR, LAW, NLAW, Javelin, FPV warhead) to the ammo library and a shaped-charge armour column (M2, M5)
