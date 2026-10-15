@@ -493,7 +493,7 @@ public class EntityMasterTranslatorTests
     [Fact]
     public void CE4000_ADisposeSample_NamesTheNodeThatDisposedIt()
     {
-        const uint domain = 233u;
+        const uint domain = 178u;
         using var receiverParticipant = new DdsParticipant(domain);
         receiverParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 99 });
         using var ownerParticipant = new DdsParticipant(domain);
