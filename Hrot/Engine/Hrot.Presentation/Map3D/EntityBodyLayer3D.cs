@@ -78,6 +78,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     public void Draw3D(RenderContext ctx)
     {
         BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
+        DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
+        _ropeUsers.Clear();
         _carried.Clear();
         _shouldering.Clear();
         _figureFrames.Clear();
@@ -141,7 +143,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             KitPart[] parts;
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
-            if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
+            bool canopy = false;
+            if (look.Family == VisualFamily.Person && DescentFigure(world, e, look.Soldier, size, tf.Position, simTime, out canopy) is { } descending)
+            {
+                parts = descending;                 // ⭐ CE-1119 (§6w) — on a rope or under a canopy: the phase's figure, no gait
+                motion = MotionPose.Still with { HipZ = 0.5f };
+            }
+            else if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
             {
                 parts = held;                       // ⭐ CE-1081..1083 (§6m) — carried, dragged, seated, down: no gait of his own
                 motion = MotionPose.Still with { HipZ = 0.5f };
@@ -266,6 +274,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     }
             }
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
+            if (canopy) DrawCanopy(world, e, body, shader, simTime);   // ⭐ CE-1119 (§6w AB-V3) — in his frame: it banks with him
             // ⭐ CE-1033 S3 — where this body's labels sit: the top of the drawn box above the reference point.
             if (hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0)
                 _tops[net] = geometry != null ? geometry.BodyCentreZ + size.Z / 2f : size.Z;
@@ -282,6 +291,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
         DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
+        DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _teamPartner.Clear();
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
@@ -416,6 +426,135 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         // ⭐ WL-6c — aimed and on the move: the combat glide (feet under the lowered hips, knees bent)
         if (soldier && target == StanceId.Standing && aimed > 0f && stride > 0f) parts = BlockFigure.Glide(parts, aimed * stride);
         return (parts, target == StanceId.Standing ? aimed : 0f, 0f);
+    }
+
+    // ── ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a man on a rope or under a canopy, the ropes ─────────────────────────
+
+    /// <summary>⭐ CE-1119 — descending figures, canopies, ropes hanging and cut ropes lying, drawn by the last frame (rails).</summary>
+    public int DescentsDrawn { get; private set; }
+    public int CanopiesDrawn { get; private set; }
+    public int RopesDrawn { get; private set; }
+    public int CutRopesDrawn { get; private set; }
+
+    /// <summary>How long a cut rope lies where it fell (s, sim time).</summary>
+    public const float CutRopeSeconds = 30f;
+
+    private static readonly Color RoundCanopy = new(92, 100, 64, 255), RamAirCanopy = new(58, 62, 64, 255);
+    private static readonly Color Line = new(176, 174, 160, 255), RopeColour = new(66, 60, 44, 255);
+    private const float LineThickness = 0.025f;
+
+    private readonly HashSet<(Entity Carrier, int Index)> _ropeUsers = new();
+    private readonly Dictionary<(Entity Carrier, int Index), (Vector3 Top, Vector3 Bottom, float Length)> _ropesOut = new();
+    private readonly Dictionary<(Entity Carrier, int Index), (Vector3 Top, Vector3 Bottom, float Length)> _ropesNow = new();
+    private readonly List<(Vector3 Foot, Vector3 Top, float Length, double At)> _cutRopes = new();
+    private readonly List<CanopyPiece> _canopy = new();
+    private readonly List<(Vector3 A, Vector3 B)> _lines = new();
+
+    private static bool TryDescent(EntityRepository world, Entity e, out Fdp.Toolkit.Motion.Descent d)
+    {
+        d = default;
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>() || !world.HasComponent<Fdp.Toolkit.Motion.Descent>(e)) return false;
+        d = world.GetComponentRO<Fdp.Toolkit.Motion.Descent>(e);
+        return d.Kind != Fdp.Toolkit.Motion.DescentKind.None;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1119 (§6w AB-V2, AB-V6) — the figure of a man coming down (<see cref="DescentDraw.Figure"/>), null when he has none (no
+    /// <c>Descent</c>, or off the rope). While he comes down the jump tracker is told he RIDES at his hips' height, so the end of the descent
+    /// is never drawn as a jump from the seat he left (§6m C-4 amended). <paramref name="canopy"/>: a canopy is out over him.
+    /// </summary>
+    private KitPart[]? DescentFigure(EntityRepository world, Entity e, bool soldier, Vector3 size, Vector3 at, double simTime, out bool canopy)
+    {
+        canopy = false;
+        if (!TryDescent(world, e, out var d)) return null;
+        if (d.Kind == Fdp.Toolkit.Motion.DescentKind.FastRope && d.Phase is not (Fdp.Toolkit.Motion.DescentPhase.Landed or Fdp.Toolkit.Motion.DescentPhase.Falling))
+            _ropeUsers.Add((d.Anchor, d.AnchorIndex));
+        _drops.Riding(e, at.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);   // even off the rope (Landed): no jump from the seat
+        float open = Fdp.Toolkit.Motion.ParachuteModel.Of(world, e, d.Canopy == Fdp.Toolkit.Motion.CanopyKind.NoCanopy ? Fdp.Toolkit.Motion.CanopyKind.Round : d.Canopy).OpenSeconds;
+        var parts = DescentDraw.Figure(d, simTime, soldier, open);
+        if (parts == null) return null;
+        _fall.Alive(e, StanceId.Standing, simTime);
+        _down.Alive(e, StanceId.Standing, simTime);
+        canopy = DescentDraw.Opening(d, simTime, open) >= 0f;
+        DescentsDrawn++;
+        return parts;
+    }
+
+    /// <summary>⭐ CE-1119 (§6w AB-V3, AB-V4) — his canopy and its lines, in his frame <paramref name="body"/> (so it banks with him).</summary>
+    private void DrawCanopy(EntityRepository world, Entity e, Matrix4x4 body, LitShader shader, double simTime)
+    {
+        if (!TryDescent(world, e, out var d)) return;
+        float open = Fdp.Toolkit.Motion.ParachuteModel.Of(world, e, d.Canopy).OpenSeconds;
+        DescentDraw.Canopy(d.Canopy, DescentDraw.Opening(d, simTime, open), DescentDraw.Collapse(d, simTime), _canopy, _lines);
+        if (_canopy.Count == 0) return;
+        var colour = d.Canopy == Fdp.Toolkit.Motion.CanopyKind.RamAir ? RamAirCanopy : RoundCanopy;
+        foreach (var piece in _canopy)
+            DrawPart(piece.Shape switch { PartShape.Cone => _cone, PartShape.Cylinder => _cylinder, _ => _cube }, piece.Local, colour, body, shader);
+        foreach (var (a, b) in _lines) DrawPart(_cube, DescentDraw.Stick(a, b, LineThickness), Line, body, shader);
+        CanopiesDrawn++;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1119 (§6w AB-V5) — the fast ropes: every rope of a carrier that is ROPING (its replicated <c>NavigationStatus</c>), or that a man
+    /// on it names, hangs from <see cref="Fdp.Toolkit.Motion.DescentRules.TryAnchor"/> — the point the slide holds him under — straight down to
+    /// the surface below, its spare length coiled at its foot. A rope that stops hanging was CUT: it lies in a heap where it fell for
+    /// <see cref="CutRopeSeconds"/>.
+    /// </summary>
+    private void DrawRopes(EntityRepository world, LitShader shader, double simTime)
+    {
+        _ropesNow.Clear();
+        var query = Fdp.Toolkit.World.WorldQuery.Of(world);
+        void Hang(Entity carrier, int index)
+        {
+            if (_ropesNow.ContainsKey((carrier, index))) return;
+            var probe = new Fdp.Toolkit.Motion.Descent { Anchor = carrier, AnchorIndex = (byte)index };
+            if (!Fdp.Toolkit.Motion.DescentRules.TryAnchor(world, probe, out var top, out _, out _)) return;
+            float surface = query != null ? Fdp.Toolkit.Motion.DescentRules.HighestSurface(query, top.X, top.Y) : 0f;
+            if (surface > top.Z) surface = query?.GroundHeightAt(top.X, top.Y) ?? 0f;
+            float length = Fdp.Toolkit.Motion.DescentRules.RopeLength(world, carrier);
+            var (bottom, _) = DescentDraw.Rope(top, surface, length);
+            _ropesNow[(carrier, index)] = (top, bottom, length);
+        }
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>())
+            foreach (var c in world.Query().With<Fdp.Toolkit.Navigation.NavigationStatus>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(c).Phase != Fdp.Toolkit.Navigation.NavigationPhase.Roping) continue;
+                int ropes = Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(world, c, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>() is { RopeAnchors.Count: > 0 } def
+                    ? def.RopeAnchors.Count : 2;
+                for (int k = 0; k < ropes; k++) Hang(c, k);
+            }
+        foreach (var (carrier, index) in _ropeUsers) Hang(carrier, index);
+
+        foreach (var (top, bottom, length) in _ropesNow.Values)
+        {
+            DrawPart(_cube, DescentDraw.Stick(top, bottom, DescentDraw.RopeThickness), RopeColour, Matrix4x4.Identity, shader);
+            float spare = length - (top.Z - bottom.Z);
+            if (spare > 0.5f)   // the spare length coiled at its foot
+                DrawPart(_cylinder, Matrix4x4.CreateScale(0.6f, 0.6f, MathF.Min(0.25f, 0.02f * spare)) * Matrix4x4.CreateTranslation(bottom), RopeColour, Matrix4x4.Identity, shader);
+            RopesDrawn++;
+        }
+        // a rope that hung last frame and does not now was cut: it falls in a heap under where it hung
+        foreach (var (key, rope) in _ropesOut)
+            if (!_ropesNow.ContainsKey(key))
+            {
+                float surface = query != null ? Fdp.Toolkit.Motion.DescentRules.HighestSurface(query, rope.Top.X, rope.Top.Y) : rope.Bottom.Z;
+                if (surface > rope.Top.Z) surface = rope.Bottom.Z;
+                _cutRopes.Add((new Vector3(rope.Top.X, rope.Top.Y, surface), rope.Top, rope.Length, simTime));
+            }
+        _ropesOut.Clear();
+        foreach (var (key, rope) in _ropesNow) _ropesOut[key] = rope;
+        _cutRopes.RemoveAll(r => simTime < r.At || simTime - r.At > CutRopeSeconds);
+        foreach (var (foot, _, length, _) in _cutRopes)   // lying out in a loose S from where it hung, the rest in a low heap at its end
+        {
+            float run = MathF.Min(length * 0.5f, 8f);
+            var lift = new Vector3(0f, 0f, 0.03f);
+            var p1 = foot + new Vector3(run * 0.5f, 0.7f, 0f);
+            var p2 = foot + new Vector3(run, -0.3f, 0f);
+            DrawPart(_cube, DescentDraw.Stick(foot + lift, p1 + lift, DescentDraw.RopeThickness), RopeColour, Matrix4x4.Identity, shader);
+            DrawPart(_cube, DescentDraw.Stick(p1 + lift, p2 + lift, DescentDraw.RopeThickness), RopeColour, Matrix4x4.Identity, shader);
+            DrawPart(_cylinder, Matrix4x4.CreateScale(0.7f, 0.7f, 0.08f) * Matrix4x4.CreateTranslation(p2), RopeColour, Matrix4x4.Identity, shader);
+            CutRopesDrawn++;
+        }
     }
 
     private readonly MotionTracker _motion = new();

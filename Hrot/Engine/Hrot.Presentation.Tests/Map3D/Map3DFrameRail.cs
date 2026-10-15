@@ -1725,6 +1725,134 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a doors-off UH-60 hovering 12 m up, ROPING, two SF men on its ropes; a stick of
+    /// paratroopers in every phase (the exit tuck, a free-fall arch, a canopy opening, round canopies — one banked —, a ram-air wing banked
+    /// in a spiral, the flare, the landing roll, sitting up landed). Then the hold ends: the ropes are cut and lie where they fell, and a man
+    /// whose descent ended is not drawn jumping from his seat. Screenshots <c>airborne-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1119_V_FastRopes_Canopies_AndEveryDescentPhase()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        const double Now = 100.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        float ground = G(spot.X, spot.Y);
+
+        // the helicopter, roping, nose east
+        var heli = world.CreateEntity();
+        world.AddComponent(heli, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground + 12f), Rotation = Quaternion.Identity });
+        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60_DoorsOff });
+        world.AddComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus { Phase = Fdp.Toolkit.Navigation.NavigationPhase.Roping });
+        Entity Man(long type, Vector3 at, Quaternion facing, Fdp.Toolkit.Motion.Descent descent)
+        {
+            var m = world.CreateEntity();
+            world.AddComponent(m, new SimTransform { Position = at, Rotation = facing });
+            world.AddComponent(m, new TkbIdentity { TkbType = type });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(m, descent);
+            return m;
+        }
+        var roper = new List<Entity>();
+        for (int k = 0; k < 2; k++)
+        {
+            Assert.True(Fdp.Toolkit.Motion.DescentRules.TryAnchor(world, new Fdp.Toolkit.Motion.Descent { Anchor = heli, AnchorIndex = (byte)k }, out var top, out _, out _));
+            roper.Add(Man(TkbEntityTypes.Infantry_SfOperator, top - new Vector3(0f, 0f, 4f + 4f * k) - new Vector3(0f, 0f, 1.9f), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, k == 0 ? MathF.PI / 2f : -MathF.PI / 2f),
+                          new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli, AnchorIndex = (byte)k, PhaseSince = Now - 1.0 }));
+        }
+
+        // the stick, in a line to the north of the helicopter, each in its phase
+        var east = Quaternion.Identity;
+        var banked = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 22f * MathF.PI / 180f);
+        Fdp.Toolkit.Motion.Descent Para(Fdp.Toolkit.Motion.DescentKind kind, Fdp.Toolkit.Motion.DescentPhase phase, double since,
+                                        Fdp.Toolkit.Motion.CanopyKind canopy = Fdp.Toolkit.Motion.CanopyKind.Round)
+            => new() { Kind = kind, Phase = phase, PhaseSince = Now - since, Canopy = canopy };
+        var round = Fdp.Toolkit.Motion.DescentKind.StaticLine;
+        var mff = Fdp.Toolkit.Motion.DescentKind.FreeFall;
+        float y0 = spot.Y + 14f;
+        var stick = new (Fdp.Toolkit.Motion.Descent D, float Height, Quaternion Facing, long Type)[]
+        {
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Exit, 0.2), 30f, east, TkbEntityTypes.Infantry_Paratrooper),
+            (Para(mff, Fdp.Toolkit.Motion.DescentPhase.FreeFalling, 3, Fdp.Toolkit.Motion.CanopyKind.RamAir), 34f, east, TkbEntityTypes.Infantry_SfOperator),
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Deploying, 1.6), 26f, east, TkbEntityTypes.Infantry_Paratrooper),
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Canopy, 8), 18f, east, TkbEntityTypes.Infantry_Paratrooper),
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Canopy, 8), 22f, banked, TkbEntityTypes.Infantry_Paratrooper),
+            (Para(mff, Fdp.Toolkit.Motion.DescentPhase.Canopy, 8, Fdp.Toolkit.Motion.CanopyKind.RamAir), 16f, banked, TkbEntityTypes.Infantry_SfOperator),
+            (Para(mff, Fdp.Toolkit.Motion.DescentPhase.Flare, 0.5, Fdp.Toolkit.Motion.CanopyKind.RamAir), 2.5f, east, TkbEntityTypes.Infantry_SfOperator),
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Landing, 0.5), 0f, east, TkbEntityTypes.Infantry_Paratrooper),
+            (Para(round, Fdp.Toolkit.Motion.DescentPhase.Landed, 5), 0f, east, TkbEntityTypes.Infantry_Paratrooper),
+        };
+        for (int i = 0; i < stick.Length; i++)
+        {
+            float x = spot.X - 24f + 12f * i, y = y0;
+            Man(stick[i].Type, new Vector3(x, y, G(x, y) + stick[i].Height), stick[i].Facing, stick[i].D);
+        }
+        int canopies = stick.Count(s => s.D.Phase is not (Fdp.Toolkit.Motion.DescentPhase.Exit or Fdp.Toolkit.Motion.DescentPhase.FreeFalling));
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 6f), 30f, MathF.PI * 1.45f, -0.18f);   // from the south, the helicopter and its ropes
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-1-ropes.png"));
+        Assert.Equal(2, bodies.RopesDrawn);
+        Assert.Equal(2 + stick.Length, bodies.DescentsDrawn);
+        Assert.Equal(canopies, bodies.CanopiesDrawn);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 24f, y0, ground + 17f), 78f, MathF.PI * 1.5f, -0.06f);   // the stick, side-on
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-2-the-stick.png"));
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 60f, y0, ground + 1.5f), 16f, MathF.PI * 1.40f, -0.28f);   // the flare, the roll, landed
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-3-landing.png"));
+
+        // the hold ends: the men are off the rope, the helicopter stops roping — the ropes are cut, and nobody jumps from a seat
+        foreach (var m in roper)   // down: Landed on the ground for a frame (as the slide ends), then the descent is over
+        {
+            var tf = world.GetComponentRO<SimTransform>(m);
+            world.SetComponent(m, tf with { Position = new Vector3(tf.Position.X, tf.Position.Y, G(tf.Position.X, tf.Position.Y)) });
+            var dsc = world.GetComponentRO<Fdp.Toolkit.Motion.Descent>(m);
+            world.SetComponent(m, dsc with { Phase = Fdp.Toolkit.Motion.DescentPhase.Landed, PhaseSince = Now });
+        }
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now + 0.05 });
+        frame.Step(canvas.Draw);
+        Assert.Equal(2, bodies.RopesDrawn);   // still roping: the ropes hang until the helicopter stops
+        foreach (var m in roper) world.RemoveComponent<Fdp.Toolkit.Motion.Descent>(m);
+        world.SetComponent(heli, new Fdp.Toolkit.Navigation.NavigationStatus { Phase = Fdp.Toolkit.Navigation.NavigationPhase.Idle });
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now + 0.1 });
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 2f), 18f, MathF.PI * 1.45f, -0.30f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "airborne-4-ropes-cut.png"));
+        Assert.Equal(0, bodies.RopesDrawn);
+        Assert.Equal(2, bodies.CutRopesDrawn);
+        Assert.Equal(0, bodies.JumpsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t) — the (V) acceptance for a team carry: two medics carrying a wounded soldier on a stretcher,
     /// and a mortar team carrying a 120 mm mortar between them, all facing east. Side-on, then from above. Screenshots <c>team-*.png</c>.
     /// </summary>

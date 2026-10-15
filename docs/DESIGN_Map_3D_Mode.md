@@ -1533,7 +1533,7 @@ scaled, on the node that moves the man.
 | **C-1 carried / dragged** | DRAWING only. Carried: limp across the carrier's shoulders, crosswise, head to his left; the carrier leans forward, both hands on the load, rifle slung. Dragged: on his back ~1 m behind (the sim's place), head to the carrier, arms up to the carrier's hand; the carrier reaches back with his right arm. Neither casualty plays a gait |
 | **C-2 wounded** | WOUNDED: a limp (right leg stiff, steps shorter, upper body bent ~15°, also standing still). INCAPACITATED: lying on his back, one knee up, a hand on his chest, fallen into it over 0.6 s. ⭐ **+ slice I-b**: a wounded man moves at `WoundedSpeedFactor` (TKB `Gen.Injury`, default **0.6**) |
 | **C-3 seats** | `SeatDto` gains a place (`X, Y, Z` from the reference point), `FacingDegrees` and a `Pose`; a rider in an EXPOSED seat with a place is drawn sitting there. New type **UH-60A (doors off)** (`Heli_UH60_DoorsOff`, 404): 8 seats, 4 in each door, legs out over the sill |
-| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched |
+| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched. ⚠ **Amended `2026-10-16` (§6w AB-V6, Airborne D-8):** only for a hop ≤ 3 m — a rope or parachute descent is SIMULATED and drawn from its `Descent`, never as a jump |
 
 **Rejected — one line each:**
 - *A `Carrying` / `CarriedBy` component* — rejected before (Entity_Interactions §7.4.8): embarkation already says it, on every node.
@@ -2271,6 +2271,99 @@ embarked in a vehicle's station draws without its ground carriage (the ZU-23's j
 
 | ![](assets/map-3d/ad-1-zu23-stinger.png) | ![](assets/map-3d/ad-2-manpads-gunners.png) | ![](assets/map-3d/ad-3-technical.png) |
 |---|---|---|
+
+### 6w. CE-1119 — airborne drawn: the fast rope, the round and ram-air canopies, a pose for every descent phase — DESIGN `2026-10-16` (ui)
+
+📄 Owning design: [Airborne Insertion](designs/airborne/DESIGN_Airborne_Insertion.md) item **U-1** (approved with it, R-1003); this section is
+the drawing's own design. 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. Backend built the engine half (B-1…B-5, §7a / §7b there).
+
+**INVENTORY** (`search_graph` Map3D classes — 40, `BlockFigure`, `Carriage`, `DismountDrop`; `scripts/find.sh Descent` — no reader outside the
+engine and the NED translators):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a body coming down carries a replicated `Descent` (Kind, Phase, Canopy, PhaseSince, Anchor, AnchorIndex) | ✅ `Fdp.Toolkits/Motion/Descent.cs`; egress / ingress `EntityDescentTranslators.cs` | Airborne D-1, §7a |
+| the canopy's bank IS the body's roll in `SimTransform.Rotation` | ✅ `ParachuteModel` writes it; P3 put pitch / roll on the wire (CE-1102) | Airborne D-5 |
+| the rope's top is a world point the slide snaps to | ✅ `DescentRules.TryAnchor` / `DoorPoint` (`DescentModels.cs:46-87`), `CarrierDefDto.RopeAnchors` (404: one over each door) | Airborne §7a, §7b |
+| the helicopter says it is roping, on every node | ✅ `NavigationStatus.Phase == Roping` — `NavigationStatus` is a replicated descriptor | Airborne B-3 |
+| a figure in a held state skips the gait and the jump | ✅ `EntityBodyLayer3D.HeldFigure` (`:439`) → parts with `MotionPose.Still` | §6m |
+| a man who leaves a raised seat is drawn JUMPING from its height | ✅ `DismountDrop.Riding` / `Free` (`Carriage.cs:203-252`) | §6m C-4 |
+| every figure is the shared part order (legs, torso, head, arms, weapon), so poses blend | ✅ `BlockFigure` (`TorsoIndex`, `HeadIndex`, `WeaponIndex`) | §6j |
+| the 11 hit-location poses must not change | ✅ `PersonBodyParityTests` pin `BlockFigure.Parts(stance…)`; descent poses are NEW functions | Airborne §9 |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing>> HeldFigure · + DescentFigure · + DrawRopes · + DrawCanopy }
+    class DescentDraw { <<NEW pure>> Pose(phase, t, soldier) · Canopy(kind, phase, t, chute) · RopeTop · RopeBottom · Open(t) }
+    class BlockFigure { <<existing, grows>> + RopeSlide · + Tuck · + FreeFall · + UnderCanopy · + Flare · + Rolled · + SittingOut }
+    class Descent { <<existing, backend>> Kind Phase Canopy PhaseSince Anchor AnchorIndex }
+    class DescentRules { <<existing, backend>> TryAnchor · DoorPoint · RopeLength }
+    class ParachuteModel { <<existing, backend>> Of(world, jumper, canopy): OpenSeconds, FlareHeightM }
+    class NavigationStatus { <<existing, replicated>> Phase Roping }
+    class DismountDrop { <<existing>> Riding · Free }
+    EntityBodyLayer3D ..> Descent : reads
+    EntityBodyLayer3D ..> DescentDraw
+    DescentDraw ..> BlockFigure : the poses
+    DescentDraw ..> ParachuteModel : how long it opens
+    EntityBodyLayer3D ..> DescentRules : the rope's top
+    EntityBodyLayer3D ..> NavigationStatus : ropes out
+    EntityBodyLayer3D ..> DismountDrop : riding while he comes down
+```
+
+*Caption:* everything the drawing needs is already on the wire (`Descent`, the banked transform, `NavigationStatus`) — no new component. The
+rope's top is the SAME rule the slide snaps him to (`DescentRules.TryAnchor`), so the man is drawn on his rope by construction, not by a second
+copy of the anchor arithmetic.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant D as DescentDraw
+    participant R as DescentRules
+    L->>L: a person with a Descent (not Landed long ago)
+    L->>D: Pose(phase, time in phase)
+    D-->>L: the figure's parts (shared order), MotionPose.Still
+    L->>L: DismountDrop.Riding(his hips now): no jump drawn when he lands
+    alt a parachute phase with a canopy
+      L->>D: Canopy(kind, phase, opening, chute)
+      D-->>L: canopy parts + line ends, in his BODY frame (banks with his roll)
+    end
+    L->>L: pass 3: each carrier roping, or with a man on its rope
+    L->>R: TryAnchor(carrier, index) per rope
+    R-->>L: the rope's top (world)
+    L->>L: a rope from it down to the surface (its length at most), cut ropes lie where they fell
+```
+
+```mermaid
+graph TD
+    subgraph every map host - MapInteractionPack.AttachMapLayers
+      BL[EntityBodyLayer3D] --> DF[DescentFigure NEW]
+      BL --> RP[DrawRopes NEW, pass 3]
+    end
+    subgraph replicated - nothing new
+      DS[Descent · EntityDescent] --> DF
+      TF[SimTransform with roll] --> DF
+      NS[NavigationStatus Roping] --> RP
+      DS --> RP
+    end
+```
+
+*Caption:* who calls it each frame — the canvas draws `EntityBodyLayer3D` on every map host; the descent branch runs before the held-figure
+branch, the ropes after every body (they hang from the helicopter's drawn frame). A host without the `EntityDescent` translator (none today)
+would draw a jumper as a standing man falling.
+
+| decision | rule |
+|---|---|
+| **AB-V1 one pure helper** | `DescentDraw` (Hrot.Presentation/Map3D) turns a `Descent` into a pose, canopy parts and rope ends; the layer only places them — the rails test the helper without a window |
+| **AB-V2 a pose per phase** | `Exit` / `Deploying` (first half) — the TUCK (knees up, chin down, hands on the reserve); `Grip` / `Slide` / `Brake` — the ROPE SLIDE (hands above the head on the rope, legs wrapped, feet together; rifle slung); `FreeFalling` and `Falling` — the ARCH (belly down, arms forward and out, lower legs up); `Canopy` — UNDER CANOPY (hanging, hands up on the toggles, legs together a little forward); `Flare` — toggles pulled to the hips, legs forward, knees bent; `Landing` — the PLF, rolled onto his side (blended from the flare over the phase's first 0.6 s); `Landed` — sitting up on the ground out of the harness. Each a NEW `BlockFigure` pose in the shared order, so phases blend (0.3 s) |
+| **AB-V3 the canopies** | ROUND (T-11 class): a dome 10 m across (a flat cone) with a skirt, 6 m above his shoulders, eight lines to his shoulders; RAM-AIR (MC-4 class): a wing 8.5 m span × 3.4 m chord in three cells arched down at the tips, 4.5 m above him, four line groups. Drawn in his BODY frame ⇒ it banks with him (D-5). Olive drab (round), dark grey (ram-air) |
+| **AB-V4 opening and collapse** | `Deploying`: the canopy grows from a 0.6 m streamer to full over `OpenSeconds` (the type's `Gen.Parachute`, `ParachuteModel.Of`); `Landing` / `Landed`: it collapses and lies flat on the ground behind him (downwind of his heading) |
+| **AB-V5 the rope** | for each rope anchor of a carrier whose `NavigationStatus.Phase` is `Roping`, or that a man's `Descent` names: a rope 5 cm thick from `DescentRules.TryAnchor` straight down to the highest surface under it, at most `RopeLength`; the spare length lies coiled at its foot. When the carrier stops roping the ropes are CUT: they lie on the surface where they hung for 30 s |
+| **AB-V6 C-4 amended** | a body with a `Descent` is never drawn as a jump: while he comes down the drop tracker is told he is RIDING at his hips' height, so when the descent ends no fall from the seat is drawn. A step-out from a low hover (≤ 3 m, Airborne D-8) still jumps as §6m C-4 |
+
+**Rejected — one line each:** *drawing the canopy as its own entity* — no such entity exists and it would need a spawn on every node for a
+purely visual part; *a rope component* — the anchors and the roping phase already say where every rope is; *posing from the motion model's
+inputs (toggle u, brake b)* — they are not replicated; the bank (on the wire) and the phase carry what a viewer sees.
 
 ## 7. NOT VERIFIED — say so before it is built on
 
