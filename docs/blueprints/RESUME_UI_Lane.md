@@ -178,6 +178,13 @@ ahead (CE-2191 decoys / break, CE-2079) and `backend` 5 (CE-3213 DIS munition ty
 
 Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, SimHost 58/0; rulings 206/206; every item red-proved (CE-1111…1115: see their rows).
 
+### Later the same day (ui@HEAD after `03e74476f`): airborne + hit-location designs, then FPS AUDIO built
+
+| id | what | where |
+|---|---|---|
+| CE-1116…1119 | airborne insertion DESIGNED + approved (R-1003): fast-rope and parachute slice 1, ejection slice 2, three demos; handoffs CE-1117 (backend) / CE-1118 (behaviors) dispatched; CE-1119 (ui drawing) waits for backend B-1 | [DESIGN_Airborne_Insertion](../designs/airborne/DESIGN_Airborne_Insertion.md) |
+| CE-1120 | ⭐ **FPS audio A0–A3 BUILT** (R-1004, autonomously): sound only while a unit is possessed, raylib output, generated sounds, doors / boarding / town / rumble, F6–F10 + per-operator `audio.json`. ⏳ **needs the user's ear on Windows** (F9 left then right; `HROT_AUDIO_PAN_FLIP=1` if reversed). Night insects not wired — no time of day exists | [DESIGN_FPS_Audio §8](../designs/audio/DESIGN_FPS_Audio.md) |
+
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 
 | id | to | what | file |
