@@ -863,13 +863,14 @@ namespace Hrot.Map.Definitions.Tkb
                 dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
                 {
                     Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman,
-                    X = 3.0f, Y = 0.95f * side, Z = -0.85f, FacingDegrees = 90f * side,
+                    // ⭐ CE-1106 — in the door like the riders (|Y| 1.05, legs out): at 0.95 his body was inside the fuselage
+                    X = 3.0f, Y = 1.05f * side, Z = -0.85f, FacingDegrees = 90f * side, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut,
                 });
                 dto.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto
                 {
                     Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = Fdp.Toolkit.Tkb.Domain.MountKinds.Door,
                     OperatedBy = gunnerSeat, NeedsGunner = true, StartWith = TkbEntityTypes.WeaponSystem_M134Minigun,
-                    X = 3.2f, Y = 1.15f * side, Z = -0.2f, FacingDegrees = 90f * side,
+                    X = 3.0f, Y = 1.35f * side, Z = -0.7f, FacingDegrees = 90f * side,   // ⭐ CE-1106 — in front of him; its pivot (0.3 m up) at his chest
                     TraverseMinDeg = side > 0 ? 20f : -160f, TraverseMaxDeg = side > 0 ? 160f : -20f,
                 });
             }

@@ -490,6 +490,9 @@ possession HUD names a `Bomb` and `Rocket` mount. The rack stays mount 0 of 405,
 ⭐ **F4 as built:** the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404's seats 8–11 are
 per side a door gunner (rifleman) and a `Door` station with an M134 operated by him — the DoorGunOrbit profile's two guns; its 8 riders
 are unchanged. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree`.
+⚠ **`2026-10-15` (ui, CE-1106 — a cross-lane data edit):** the gunner's seat sat at |Y| 0.95, inside the drawn fuselage; it now sits in the
+door like the riders (|Y| 1.05, `SitLegsOut`) and the station stands in front of him (|Y| 1.35, Z −0.7: the pintle pivot at his chest). Seat
+indices, roles, presets and arcs unchanged ([DESIGN_Map_3D_Mode §6u](../../DESIGN_Map_3D_Mode.md)).
 
 ## 8. The bomb (A3, A4, A6, B6)
 

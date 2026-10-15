@@ -1736,7 +1736,7 @@ other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack 
 salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
 ⭐ **`2026-10-15` — after merging `behaviors` (T-a, F1–F4, IF-1, WS-4 landed):** UNBLOCKED — the stretcher and the two-man weapon (T-b:
 a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
-to the generic helicopter), the door gunners (404's seats 8–11; may already draw through the station path — check in a frame), a dense
+to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
 the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
 fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001).
@@ -2128,6 +2128,65 @@ team frame; the litter and the hands), frame rail `CE1104_V` (`team-*.png`).
 |---|---|
 | ![team side](assets/map-3d/team-1-side.png) | ![team above](assets/map-3d/team-2-above.png) |
 | *behind: two medics carry a wounded soldier on a stretcher; in front: a mortar team carries a 120 mm mortar between them* | *from above* |
+
+### 6u. CE-1105 — a burst you can see: automatic fire draws a stream from the muzzle — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** the plan (*"minigun / GAU-8 streams … build after the AH-64"*) *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a node sees only some rounds of a fast gun | ✅ only rounds whose munition has a look replicate (`FireProcessingSystem.cs`, `LightweightRound`): the M134 fires 7.62 ball with one tracer in five, so four in five rounds are invisible on every node | Visual Effects §8.5 LR-1 / LR-4 |
+| …and at the behaviour's cadence, not the gun's | ✅ one intent per shot at the action's `CooldownSeconds`; the catalogue's `RateOfFire` (3000 / 3900) reaches no mount (`WeaponMountDto` has none) | — |
+| every map host hears every shot | ✅ `WeaponFireNotification` (shooter, target, mount) reaches every map host; `EffectSpawnSystem` already writes `RecentShots` from it (CE-1090) | §6n N-4 |
+| where a muzzle is | ✅ `Muzzle.TryOf(world, shooter, mount, out muzzle, out forward)` — the round's own origin (E4b holds the drawing to it) | VE-L |
+
+```mermaid
+classDiagram
+    direction LR
+    class RecentShots { <<existing, grows>> + where the shot was aimed · Recent }
+    class FireStreams { <<NEW Hrot.Presentation.Effects>> IsAutomatic · Dashes · Window · Spacing · Speed }
+    class EffectSpawnSystem { <<existing>> records the aim point with the shot }
+    class ProjectileLayer { <<existing, grows>> draws the streams · StreamsDrawn }
+    EffectSpawnSystem ..> RecentShots
+    ProjectileLayer ..> RecentShots
+    ProjectileLayer ..> FireStreams
+```
+
+```mermaid
+sequenceDiagram
+    participant S as EffectSpawnSystem
+    participant R as RecentShots
+    participant P as ProjectileLayer
+    S->>R: a shot: shooter, mount, time, aim point
+    P->>R: shots within the window
+    P->>P: an automatic mount only, its muzzle from Muzzle.TryOf
+    P->>P: dashes from the muzzle toward the aim point, running outward at bullet speed, fading
+```
+
+*Caption:* the stream is drawn from what every node already hears — no entity, no wire; the real tracer rounds still fly as before.
+
+| decision | rule |
+|---|---|
+| **B-1 which guns** | a mount whose category is `MachineGun` or `Autocannon` (M134, M2, DShK, a coax, the Bradley's 25 mm, the GAU-8); rifles, launchers and big guns keep their single round |
+| **B-2 the stream** | for 0.35 s after each shot: dashes 1.8 m long every 5 m from the muzzle toward the aim point (its target, else where its posture aims, else straight out of the muzzle), running outward at 900 m/s, fading; at most 500 m |
+| **B-3 the look** | the tracer colour (additive), as wide as a tracer on screen |
+
+**Rejected — one line each:** *spawn the missing rounds on every node* — the wire carries one in five on purpose (LR-1); *read the catalogue's
+rate of fire* — no mount carries it; *a stream for every weapon* — a rifle shot or a tank round is one round, and a stream would lie.
+
+**As-built `2026-10-15`** — matches the diagrams. `FireStreams` (`Hrot.Presentation/Effects/FireStreams.cs`) is pure (`IsAutomatic`, `Dashes`);
+`RecentShots.Record` gained the aim point (`EffectSpawnSystem`: the target's position, else `AimPointOf` the shooter's posture) and `Recent(now,
+seconds)`; `ProjectileLayer.DrawStreams` runs after the rounds, skips a dead shooter or a non-automatic mount, and draws each dash as an additive
+cone in tracer orange whose alpha falls with the window. A station weapon (a door gun, a pintle M2) streams from ITS OWN muzzle — the shooter is
+the weapon entity. Rails `EffectTests.CE1105_*` ×3, frame rail `Map3DFrameRail.CE1105_V` (an AH-64's chin gun at a T-72, and a doors-off UH-60's
+right door gun):
+
+⭐ **CE-1106 — found by this rail:** the doors-off UH-60's door gunner (seats 8 / 10) sat 0.95 m off the centreline, INSIDE the fuselage box —
+only his legs and arms showed, below his gun. His seat moved into the door like the riders' (|Y| 1.05, `SitLegsOut`), and his station in front
+of him with its pivot at his chest (`BdcTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
+
+| ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
+|---|---|---|
 
 ## 7. NOT VERIFIED — say so before it is built on
 

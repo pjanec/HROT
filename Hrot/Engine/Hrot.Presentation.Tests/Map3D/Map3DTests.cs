@@ -1321,6 +1321,28 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐ CE-1106 — the doors-off Black Hawk's DOOR GUNNERS sit in the doors like its riders (at 0.95 m off the centreline his body was drawn
+    /// inside the fuselage, only his legs and arms showing), legs out, and his M134 stands in front of him, its pivot at his chest.
+    /// </summary>
+    [Fact]
+    public void CE1106_ADoorGunnerSitsInHisDoor_HisGunInFrontOfHim()
+    {
+        var seats = BuiltIn().GetByType(TkbEntityTypes.Heli_UH60_DoorsOff)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!.Seats;
+        float riders = seats.Where(s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Passenger).Min(s => MathF.Abs(s.Y));
+        foreach (int g in new[] { 8, 10 })
+        {
+            var (man, gun) = (seats[g], seats[g + 1]);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, man.Role);
+            Assert.Equal(g, gun.OperatedBy);
+            Assert.True(MathF.Abs(man.Y) >= riders - 1e-3f, $"in the door, not inside the fuselage (|Y| {MathF.Abs(man.Y)} < the riders' {riders})");
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, man.Pose);
+            Assert.True(MathF.Abs(gun.Y) > MathF.Abs(man.Y) && MathF.Sign(gun.Y) == MathF.Sign(man.Y), "the gun outboard of him");
+            Assert.InRange(gun.X - man.X, -0.3f, 0.3f);
+            Assert.InRange(gun.Z + 0.3f - man.Z, 0.3f, 0.6f);   // the pintle pivot 0.3 m above the station: at his chest
+        }
+    }
+
+    /// <summary>
     /// ⭐ CE-1084 (C-4) — the JUMP DOWN: a rider seen in a raised seat who is free the next frame is drawn that much higher, falling as
     /// 1 − t² over the free-fall time, then crouched on landing, then free; a seat no higher than standing hips + 0.5 m is a step, not a
     /// jump; a ride not seen ending (a jump in time) shows no fall.
