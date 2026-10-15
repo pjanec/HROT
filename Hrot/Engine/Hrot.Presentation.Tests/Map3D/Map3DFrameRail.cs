@@ -1945,6 +1945,73 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9) — the (V) acceptance for decoys: a UH-60 flying east 40 m up has released a salvo of
+    /// four flares (0.3 s apart, the oldest 1.2 s ago) and one chaff bundle — each a fire notification as backend's dispenser raises it,
+    /// drawn by the spawn system and the effect layer. Screenshot <c>decoy-1-flares.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1115_V_FlaresAndChaff()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        Hrot.Map.Common.PresentationComponentRegistry.RegisterEffects(world);
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();   // the host's full TKB: the expendables (6034 / 6035) and their effects
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        double now = 50.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float ground = query.GroundHeightAt(spot.X, spot.Y);
+
+        var velocity = new Vector3(45f, 0f, 0f);   // east, 45 m/s
+        var heliAt = new Vector3(spot.X, spot.Y, ground + 40f);
+        var heli = world.CreateEntity();
+        world.AddComponent(heli, new SimTransform { Position = heliAt, Rotation = Quaternion.Identity });
+        world.AddComponent(heli, new TkbIdentity { TkbType = TkbEntityTypes.Heli_UH60 });
+        void Release(long ammo, double ago)   // where the aircraft was then: it flew on at its velocity since
+            => world.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification
+            {
+                Shooter = heli, WeaponIndex = 1, AmmoGuid = ammo, Quantity = 1, FiredAt = now - ago,
+                Origin = heliAt - velocity * (float)ago + new Vector3(0f, 0f, -1f), Velocity = velocity,
+            });
+        for (int i = 0; i < 4; i++) Release(Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare, 1.2 - i * 0.3);
+        Release(Hrot.Core.Tkb.MunitionTkbCatalog.TkbChaff, 1.5);
+        world.Bus.SwapBuffers();
+        new Hrot.UI.Common.Effects.EffectSpawnSystem().Execute(world, 0.016f);
+        ((Fdp.Core.EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetCommandBuffer()).Playback(world);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var effects = new Hrot.UI.Common.Effects.EffectLayer(() => world, () => tkb, bodies) { GroundHeight = query.GroundHeightAt };
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(effects);
+        sw.Set(true, animate: false);
+
+        sw.Camera3D.Pose = new CameraPose(heliAt + new Vector3(-22f, 0f, -6f), 38f, MathF.PI * 1.5f, -0.05f);   // from the south, level, close
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "decoy-1-flares.png"));
+        var drawn = effects.Resolve();
+        Assert.Equal(4, drawn.Count(r => r.Look.Kind == EffectKind.Flare));   // four flares and the chaff cloud, no muzzle flash
+        Assert.Equal(1, drawn.Count(r => r.Look.Kind == EffectKind.Chaff));
+        Assert.Equal(5, drawn.Count);
+    }
+
+    /// <summary>
     /// ⭐ CE-1112 (docs/DESIGN_Map_3D_Mode.md §6v) — the (V) acceptance for backend's air defence, from the CATALOGUE types: a ZU-23-2 (615)
     /// stowed on its wheels beside one deployed on its jacks with its gunner SEATED on it, a Stinger (613) lying on the ground; a Stinger
     /// gunner (202) with his launcher on his back and an Igla gunner (203) aiming his on his shoulder; the ZU-23 technical (110) with the gun

@@ -27,6 +27,9 @@ namespace Hrot.Core.Tkb
         /// howitzer when it fires.</summary>
         public const long Backblast = 7161, GunBlast = 7162;
 
+        /// <summary>⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9) — a decoy flare burning as it falls, and a chaff cloud.</summary>
+        public const long Flare = 7171, ChaffCloud = 7172;
+
         /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit.</summary>
         public enum CalibreClass : byte { Small, Medium, Large }
 
@@ -79,6 +82,8 @@ namespace Hrot.Core.Tkb
                 [Smoke]             = ("Wreck smoke",         V(EffectKind.Smoke, 180f, 3f, "#2E2B28B0", 60f)),
                 [Backblast]         = ("Backblast",           V(EffectKind.Explosion, 0.8f, 2.6f, "#D8D0C0", 0.6f)),     // ⭐ CE-1090 — a dust cloud
                 [GunBlast]          = ("Gun blast",           V(EffectKind.Explosion, 1.1f, 6.0f, "#C8BA9C", 0.8f)),
+                [Flare]             = ("Decoy flare",         V(EffectKind.Flare, 5f, 2.2f, "#FFE9A8", 1.0f)),           // ⭐ CE-1115 — its life is the expendable's
+                [ChaffCloud]        = ("Chaff cloud",         V(EffectKind.Chaff, 8f, 15f, "#8A8A84C8", 3f)),
             };
 
         private static EffectVisualDto V(EffectKind kind, float duration, float size, string colour, float fade)
@@ -109,6 +114,9 @@ namespace Hrot.Core.Tkb
             // medium flash and bursts large.
             Set(tkb, MunitionTkbCatalog.TkbM67Grenade, new MunitionEffectsDto { Explosion = ExplosionMedium, Decal = DecalMedium });
             Set(tkb, MunitionTkbCatalog.Tkb81mmMortarHe, new MunitionEffectsDto { MuzzleFlash = MuzzleFlashMedium, Explosion = ExplosionLarge, Decal = DecalLarge });
+            // ⭐ CE-1115 (§9 DV-1) — the expendables (backend's 6034 / 6035, BS-1 §5.4c): their release draws a moving decoy, no flash
+            Set(tkb, MunitionTkbCatalog.TkbFlare, new MunitionEffectsDto { Release = Flare });
+            Set(tkb, MunitionTkbCatalog.TkbChaff, new MunitionEffectsDto { Release = ChaffCloud });
         }
 
         private static void Set(ITkbDatabase tkb, long ammoType, MunitionEffectsDto set)
