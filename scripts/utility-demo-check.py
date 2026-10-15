@@ -103,6 +103,14 @@ def launch(port):
     """Start a fresh ClusterRunner --mode all for this run; returns the process."""
     if not os.path.exists(RUNNER):
         sys.exit(f"build it first: dotnet build Hrot/Runner/Hrot.ClusterRunner ({RUNNER} missing)")
+    # ⭐ a merge does not rebuild the runner: 📌 2026-10-15 a live ua-air-strike ran a 10:08 binary after a 13:03 merge of the new fragment
+    #   law and "failed" ④ on the old law. Refuse a runner older than the newest engine source unless told otherwise.
+    stale = newest_source_after(os.path.getmtime(RUNNER))
+    if stale:
+        msg = f"the runner ({RUNNER}) is older than {stale} — rebuild: dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore"
+        if os.environ.get("HROT_ALLOW_STALE_RUNNER") != "1":
+            sys.exit(msg + "  (or HROT_ALLOW_STALE_RUNNER=1)")
+        print("   ⚠ " + msg)
     log = open(os.path.join("/tmp", f"utility-demo-cluster-{port}.log"), "w")
     env = dict(os.environ, HROT_DEBUG_API_PORT=str(port))
     proc = subprocess.Popen(["xvfb-run", "-a", "dotnet", RUNNER, "--mode", "all"], cwd=REPO, env=env,
@@ -112,6 +120,17 @@ def launch(port):
         sys.exit(f"the cluster did not answer on {BASE} within 180 s — see {log.name}")
     print(f"   launched ClusterRunner --mode all (pid {proc.pid}, log {log.name})")
     return proc
+
+
+def newest_source_after(t):
+    """The first engine .cs / .csproj file modified after time t (the runner's build), or None."""
+    for top in ("FDP", "Hrot"):
+        for root, dirs, files in os.walk(os.path.join(REPO, top)):
+            dirs[:] = [d for d in dirs if d not in ("bin", "obj", ".git") and not d.endswith(".Tests")]
+            for f in files:
+                if f.endswith((".cs", ".csproj")) and os.path.getmtime(os.path.join(root, f)) > t:
+                    return os.path.relpath(os.path.join(root, f), REPO)
+    return None
 
 
 def stop(proc):
