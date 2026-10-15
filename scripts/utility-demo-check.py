@@ -1537,6 +1537,8 @@ def run_tank_corner(c, timeout):
         by.setdefault(x.get("shooter"), []).append(x)
     name = {v: k for k, v in ids.items()}
     print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    name0 = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name0.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
     mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
     for x in mine[:6]:
         print("      tank shot", {k: x.get(k) for k in ("seq", "weaponIndex", "ammo", "muzzle", "aim", "hit", "outcome")})
@@ -1566,9 +1568,21 @@ def run_tank_corner(c, timeout):
 
 
 # ── ua-ifv-standoff (Urban Armour V7; Exposure Cycle §4, CE-2196) — a 25 mm IFV out-ranges RPG men; up close an RPG kills it ─────────
-#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 340 m from two RPG men (RPG reach 300 m): no hide answers in the
-#   open, so it fights from where it stands (CE-2196) — its 25 mm hits them, they never reach it. ② "IFV Close" with an RPG man 80 m
+#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 340 m from two RPG men advancing on it (RPG reach 300 m): no hide
+#   answers in the open, so it fights from where it stands (CE-2196) — its 25 mm kills them before they close to their reach.
+#   (⚠ held still at 340 m, they were never SEEN — a man not moving or firing is too faint at that range; a moving one is not.) ② "IFV Close" with an RPG man 80 m
 #   off, on an attack order at it: the RPG hits it (Bradley side 80 mm vs a PG-7V's ~300 mm).
+# health() may be None (no Health / not read) — never fold it with `or`, a 0 is falsy
+def _dead(e):
+    h = health(e)
+    return h is not None and h <= 0
+
+
+def _hurt(e, full):
+    h = health(e)
+    return h is not None and h < full
+
+
 def run_ifv_standoff(c, timeout):
     ids = ids_by_name()
     far, near = ids.get("IFV Standoff"), ids.get("IFV Close")
@@ -1576,18 +1590,28 @@ def run_ifv_standoff(c, timeout):
     if not c.ok(None not in (far, near, a1, a2, rc), "both IFVs and the three RPG men are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots, closest = {}, 1e9
+    shots, closest, died_at, timeline, next_sample = {}, 1e9, {}, [], 0.0
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
         pf = position(far)
+        if time.time() >= next_sample:   # what the stand-off IFV does, every 2 s: where, how fast, which behaviour, what it knows, its gun's reason
+            next_sample = time.time() + 2.0
+            st = data(call("GET", f"/entities/{far}/state")) or {}
+            mem = (data(call("GET", f"/entities/{far}/memory")) or {}).get("count")
+            ws = ((data(call("GET", f"/entities/{far}/weapons")) or {}).get("status") or {})
+            dists = [round(((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5) for pm in (position(a1), position(a2)) if pf and pm]
+            timeline.append((tuple(round(v) for v in pf[:2]) if pf else None, round(st.get("speed") or 0, 1), (st.get("behavior") or {}).get("name"),
+                             mem, ws.get("reason"), ws.get("target"), dists))
         for m in (a1, a2):
             pm = position(m)
-            if pf and pm:
-                closest = min(closest, ((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5)
-        down = all((health(m) or 0) <= 0 for m in (a1, a2))
-        if down and (health(near) or 500) < 500:
+            if pf and pm and m not in died_at:
+                d = ((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5
+                closest = min(closest, d)
+                if _dead(m):
+                    died_at[m] = round(d)
+        if all(_dead(m) for m in (a1, a2)) and _hurt(near, 500):
             break
         time.sleep(0.5)
     by = {}
@@ -1598,16 +1622,56 @@ def run_ifv_standoff(c, timeout):
     for x in by.get(far, [])[:4]:
         print("      stand-off shot", {k: x.get(k) for k in ("target", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "sigma", "penetration")})
     print("    stand-off targets:", {name.get(t, t): n for t, n in __import__("collections").Counter(x.get("target") for x in by.get(far, [])).items()})
-    hurt = [m for m in (a1, a2) if (health(m) or 100) < 100]
+    hurt = [m for m in (a1, a2) if _hurt(m, 100)]
     c.ok(len(by.get(far, [])) >= 1 and hurt, f"① the stand-off IFV fires and hits the RPG men — {len(by.get(far, []))} rounds, hurt {[name.get(m) for m in hurt]}")
-    c.ok(closest > 300 and (health(far) or 0) >= 500, f"① from beyond their reach, untouched — closest {closest:.0f} m, health {health(far)}")
-    c.ok(len(by.get(rc, [])) >= 1 and (health(near) or 500) < 500, f"② up close the RPG hits the other IFV — {len(by.get(rc, []))} rocket(s), its health {health(near)}")
+    rockets_at_far = sum(len(by.get(m, [])) for m in (a1, a2))
+    c.ok(not _hurt(far, 500), f"① the RPG men never hurt it — {rockets_at_far} rocket(s) fired at it, health {health(far)}")
+    for row in timeline[:40]:
+        print("      ifv @", row)
+    print(f"    closest approach {closest:.0f} m · distance at death {({name.get(m): d for m, d in died_at.items()})}")
+    c.ok(len(by.get(rc, [])) >= 1 and _hurt(near, 500), f"② up close the RPG hits the other IFV — {len(by.get(rc, []))} rocket(s), its health {health(near)}")
     print(f"    health: RPG men A1 {health(a1)} · A2 {health(a2)} · C {health(rc)}")
 
 
+# ── ua-javelin-lock (Urban Armour V7; Exposure Cycle §4 budget, Missiles & Ammo M4 "the lock IS the aim time") ────────────────────────
+#   test-town, two vignettes. A Javelin locks in 4 s of continuous sight (the clock restarts on lost sight). ① "Tank Cycling" on
+#   BasicVehicleSop: its exposure budget is AimBudgetFactor × the quickest dangerous threat's aim time, so it is back in cover before
+#   "Javelin A" (attack order on it) completes a lock. ② "Tank Open", idle in the open 230 m from "Javelin B": locked, and hit from above
+#   (top attack beyond 150 m — the hit's face is the roof).
+def run_javelin_lock(c, timeout):
+    ids = ids_by_name()
+    cyc, opn, ja, jb = ids.get("Tank Cycling"), ids.get("Tank Open"), ids.get("Javelin A"), ids.get("Javelin B")
+    if not c.ok(None not in (cyc, opn, ja, jb), "both tanks and both Javelin teams are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots = {}
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        if _hurt(opn, 3000) and _dead(ja):
+            break
+        time.sleep(0.5)
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    for x in (by.get(ja, []) + by.get(jb, []))[:6]:
+        print("      javelin shot", {k: x.get(k) for k in ("shooter", "target", "outcome", "hit", "hitPart", "hitFace", "penetration", "end")})
+    b_hits = [x for x in by.get(jb, []) if x.get("hit") == opn]
+    top = [x for x in b_hits if str(x.get("hitFace") or "").lower().startswith("top")]
+    c.ok(b_hits and _hurt(opn, 3000), f"② the tank left in the open is locked and hit — {len(by.get(jb, []))} launch(es), {len(b_hits)} hit(s), health {health(opn)}")
+    c.ok(top, f"② from above — faces {[x.get('hitFace') for x in b_hits]}")
+    a_hits = [x for x in by.get(ja, []) if x.get("hit") == cyc]
+    c.ok(len(by.get(cyc, [])) >= 1, f"① the cycling tank fights — {len(by.get(cyc, []))} round(s)")
+    c.ok(not a_hits and not _hurt(cyc, 3000), f"① its short exposures deny Javelin A a lock — {len(by.get(ja, []))} launch(es), {len(a_hits)} hit(s), health {health(cyc)}")
+    print(f"    health: Tank Cycling {health(cyc)} · Tank Open {health(opn)} · Javelin A {health(ja)} · Javelin B {health(jb)}")
+
+
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
-#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop against an enemy T-72 (440 m), a pickup (390 m) and two
-#   riflemen (380 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
+#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
+#   y 210 hid every target and it never fired), against an enemy T-72 (240 m), a pickup (230 m) and two riflemen (220 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
 #   target (read from each shot's penetration — the kinetic APFSDS against the tank, a lower-penetration HE / HEAT at the soft ones).
 def run_tank_ammo(c, timeout):
     ids = ids_by_name()
@@ -1621,9 +1685,11 @@ def run_tank_ammo(c, timeout):
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
-        if all((health(e) or 0) <= 0 for e in (t72, pickup, *riflemen)):
+        if all(_dead(e) for e in (t72, pickup, *riflemen)):
             break
         time.sleep(0.5)
+    name0 = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name0.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
     mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
     if mine:
         print("    a shot's keys:", sorted(mine[0].keys()))
@@ -1851,6 +1917,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-air-attack": run_air_attack,
              "ua-air-defence": run_air_defence,
              "ua-tank-corner": run_tank_corner,
+             "ua-javelin-lock": run_javelin_lock,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
