@@ -162,7 +162,9 @@ namespace Fdp.Toolkit.Combat
         public static int PrimaryMount(EntityRepository world, Entity unit, out Entity mount)
         {
             mount = unit;
-            if (world.HasComponent<Components.WeaponState>(unit)) return 0;
+            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a mount 0 that is only a flare / chaff dispenser is no primary: the doors-off UH-60's
+            //   primary stays its station's door gun
+            if (world.HasComponent<Components.WeaponState>(unit) && !Countermeasures.DispenserOnly(world, unit)) return 0;
             Span<Entity> weapons = stackalloc Entity[MaxControlled];
             int n = Controlled(world, unit, weapons);
             for (int k = 0; k < n; k++)
@@ -180,7 +182,7 @@ namespace Fdp.Toolkit.Combat
         public static Entity WeaponOf(EntityRepository world, Entity unit)
         {
             if (!world.IsComponentTypeRegistered<Components.WeaponState>()) return Entity.Null;
-            if (world.HasComponent<Components.WeaponState>(unit)) return unit;
+            if (world.HasComponent<Components.WeaponState>(unit) && !Countermeasures.DispenserOnly(world, unit)) return unit;   // ⛔ CE-2188
             return IsControlledIndex(PrimaryMount(world, unit, out var weapon)) ? weapon : Entity.Null;
         }
 

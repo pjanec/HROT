@@ -296,7 +296,9 @@ namespace Fdp.Toolkit.Utility
                 // Candidates = self (mount 0) + child mounts. ⭐ CE-3089 (G7, W2): the OWNER is mount 0 when it carries a
                 //   WeaponState (P0.2's intent, WeaponMountQuery.EnumerateMounts) — it never carries WeaponMountInfo in production,
                 //   so the old test excluded the primary weapon from every choice.
-                if (repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
+                //   ⛔ CE-2188 (BS-1-DESIGN §5.4c) — not when mount 0 is a flare / chaff dispenser (an unarmed aircraft): nothing to choose
+                if ((repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
+                    && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self))
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;

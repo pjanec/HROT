@@ -382,7 +382,8 @@ namespace Hrot.Map.Common.Tests
         {
             var db = BuildDatabase();
             var mounts = db.GetByType(TkbEntityTypes.Jet_AttackA10)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
-            Assert.Equal(2, mounts.Count);
+            Assert.Equal(3, mounts.Count);   // ⭐ CE-2188 (BS-1 §5.4c) — + the flare / chaff dispenser, last
+            Assert.Equal(WeaponCategory.Countermeasure, mounts[2].Category);
             Assert.Equal(WeaponCategory.Bomb, mounts[0].Category);
             var gun = mounts[1];
             Assert.Equal((WeaponCategory.Autocannon, -1, 5f, 1150), (gun.Category, gun.TurretIndex, gun.FixedConeDeg, gun.InitialAmmunition));
@@ -642,6 +643,47 @@ namespace Hrot.Map.Common.Tests
 
             Assert.True(w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e));
             Assert.Equal(800f, w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Max);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c; 🔒 user: "Chaff launcher can be weapon type and slot could be normal one") —
+        /// every crewed aircraft with a brain carries its flares and chaff as an ordinary weapon mount, its LAST one: category
+        /// Countermeasure, a loadout of the flare (DIS 8.2.2) and the chaff (8.2.1), a rate of fire. Through the production translators the
+        /// UH-60 — whose only mount it is — gets the counts on its own WeaponState and AmmoLoadout, the counter the HUD mirrors.
+        /// 🔴 Red-proof: before §5.4c no aircraft had a Countermeasure mount (the counts were a SimHost-only CountermeasureState).
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Heli_UH60, 30, 30)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff, 30, 30)]
+        [InlineData(TkbEntityTypes.Heli_AH64, 60, 60)]
+        [InlineData(TkbEntityTypes.Jet_AttackA10, 120, 240)]
+        public void CE2188_ACrewedAircraft_CarriesItsDispenser_AsItsLastWeaponMount(long type, int flares, int chaff)
+        {
+            var db = BuildDatabase();
+            var mounts = db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            var dispenser = mounts[^1];
+            Assert.Equal(WeaponCategory.Countermeasure, dispenser.Category);
+            Assert.Equal(1, mounts.Count(m => m.Category == WeaponCategory.Countermeasure));
+            Assert.True(dispenser.RateOfFire > 0f);
+            Assert.Equal(new[] { ((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare, flares), ((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbChaff, chaff) },
+                dispenser.Loadout.Select(l => (l.AmmoGuid, l.Rounds)).ToArray());
+
+            var munitions = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(munitions);
+            Assert.Equal(Fdp.Toolkit.Combat.Components.DecoyKind.Flare, Fdp.Toolkit.Combat.Munitions.DecoyOf(munitions, Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare));
+            Assert.Equal(Fdp.Toolkit.Combat.Components.DecoyKind.Chaff, Fdp.Toolkit.Combat.Munitions.DecoyOf(munitions, Hrot.Core.Tkb.MunitionTkbCatalog.TkbChaff));
+
+            if (mounts.Count != 1) return;
+            using var w = new Fdp.Core.EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(w);
+            // the Brain's weapon components (the Brain registry adds them in production)
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponState>()) w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.AmmoLoadout>()) w.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            var e = w.CreateEntity();
+            foreach (var t in Hrot.Core.Tkb.TkbTranslatorSet.Base()) t.Inject(w, e, db.GetByType(type)!);
+            Assert.Equal(flares + chaff, w.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(e).Ammo);
+            var load = w.GetComponentRO<Fdp.Toolkit.Combat.Components.AmmoLoadout>(e);
+            Assert.Equal((flares, chaff), (load.RoundsAt(0), load.RoundsAt(1)));
         }
 
         /// <summary>

@@ -85,9 +85,9 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new AudioTargetDetectedIngressTranslator(participant, entityMap));
             // ⭐ CE-3064 — a round passed close to one of its units (R-206).
             translators.Add(new NearMissIngressTranslator(participant, entityMap));
-            // ⭐ CE-2189 / CE-2188 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft in; its flare / chaff ask out.
+            // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft in. (⛔ CE-2188's flare / chaff ask is
+            //   an ordinary WeaponFireRequest now — BS-1-DESIGN §5.4c.)
             translators.Add(new MissileWarningIngressTranslator(participant, entityMap));
-            translators.Add(new DispenseCountermeasureEgressTranslator(participant, entityMap));
         }
 
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
@@ -98,7 +98,6 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
             translators.Add(new NearMissEgressTranslator(participant, entityMap));   // CE-3064
             translators.Add(new MissileWarningEgressTranslator(participant, entityMap));          // ⭐ CE-2189
-            translators.Add(new DispenseCountermeasureIngressTranslator(participant, entityMap));  // ⭐ CE-2188
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
         }

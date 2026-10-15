@@ -90,11 +90,20 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
+                // ⭐ CE-1111 (BS-1-DESIGN §5.4b F1) — the shot itself; the round's id when it is replicated (a visible round), else 0
+                long roundNetId = 0;
+                if (evt.Round != Entity.Null) _entityMap.TryGetNetworkId(evt.Round, out roundNetId);
                 _writer.Write(new WeaponFire
                 {
                     ShooterEntityId = shooterNetId,
                     TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
+                    AmmoGuid        = evt.AmmoGuid,
+                    RoundEntityId   = roundNetId,
+                    OriginX = evt.Origin.X, OriginY = evt.Origin.Y, OriginZ = evt.Origin.Z,
+                    VelocityX = evt.Velocity.X, VelocityY = evt.Velocity.Y, VelocityZ = evt.Velocity.Z,
+                    Quantity        = evt.Quantity,
+                    FiredAt         = evt.FiredAt,
                 });
                 SentSampleCount++;
             }

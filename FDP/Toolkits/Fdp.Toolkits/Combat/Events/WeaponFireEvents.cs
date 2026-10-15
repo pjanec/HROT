@@ -89,5 +89,27 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>True when this event originated from network ingress.</summary>
         public bool IsRemote;
+
+        // ⭐⭐ CE-1111 / CE-2188 (BS-1-DESIGN §5.4b F1–F3, §5.4c; DIS Fire PDU parity) — THE SHOT, appended (R-169). Every reader takes the
+        //   round from here, never from the slot's default. ⛔ Warhead / fuze are not copied: they are the munition TYPE's.
+
+        /// <summary>The munition type actually fired (the tracer when it was one; a flare / chaff for a dispenser — <c>Munitions.IsExpendable</c>).
+        /// 0 = unknown (an older sender).</summary>
+        public long AmmoGuid;
+
+        /// <summary>The round entity this shot spawned (a replicated one has a network id); <see cref="Entity.Null"/> when none — a decoy.</summary>
+        public Entity Round;
+
+        /// <summary>Where the round (or the decoy) left, world metres.</summary>
+        public System.Numerics.Vector3 Origin;
+
+        /// <summary>Its velocity at launch, m/s — for a decoy, the aircraft's (<c>DecoyFlight.At</c>).</summary>
+        public System.Numerics.Vector3 Velocity;
+
+        /// <summary>Rounds this event stands for — 1 per shot, 1 per decoy.</summary>
+        public int Quantity;
+
+        /// <summary>The synced sim time (s) it was fired; a viewer draws a decoy at <c>now − FiredAt</c>.</summary>
+        public double FiredAt;
     }
 }

@@ -303,6 +303,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Arc               = wm.Arc,            // ⭐ IF-1 (I2) — the indirect arcs and the elevation limits
                         MinElevationDeg   = wm.MinElevationDeg,
                         MaxElevationDeg   = wm.MaxElevationDeg,
+                        RateOfFire        = wm.RateOfFire,       // ⭐ CE-2188 (BS-1 §5.4c) — a dispenser's release interval
                     });
                 }
                 template.AddDescriptor(suite);
@@ -373,14 +374,6 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(weaponSystem ?? throw new ArgumentNullException(nameof(weaponSystem)));
-            return this;
-        }
-
-        /// <summary>⭐ <c>CE-2188</c> (DESIGN_Missiles_And_Ammo §3c) — an aircraft type's flare / chaff dispensers.</summary>
-        public NedTkbBuilder WithCountermeasures(long tkbId, Fdp.Toolkit.Tkb.Domain.CountermeasuresDto countermeasures)
-        {
-            var template = _db.GetByType(tkbId) ?? throw new InvalidOperationException($"Template {tkbId} not found");
-            template.AddDescriptor(countermeasures ?? throw new ArgumentNullException(nameof(countermeasures)));
             return this;
         }
 

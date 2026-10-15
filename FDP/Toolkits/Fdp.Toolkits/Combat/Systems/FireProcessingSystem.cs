@@ -104,6 +104,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 // --mode all: exactly one of three subsystems carries FireProcessingSystem).
                 // A runtime flag that is false by construction cannot express it.
 
+                // ⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER's release is not a shot: CountermeasureSystem
+                //   throws its decoy and publishes the fire. No round, no aim.
+                if (Countermeasures.IsDispenser(repo, shooter, evt.WeaponIndex)) continue;
+
                 // Skip if the shooter does not yet have a WeaponState (e.g. incomplete spawn).
                 if (!repo.HasComponent<WeaponState>(shooter)) continue;
 
@@ -379,6 +383,14 @@ namespace Fdp.Toolkit.Combat.Systems
                     Shooter     = shooter,
                     Target      = target,
                     WeaponIndex = evt.WeaponIndex,
+                    // ⭐ CE-1111 (BS-1-DESIGN §5.4b F1) — the shot itself: the round FIRED (the tracer when it was one), where and how
+                    //   fast it left, when. Viewers draw this — never the slot's default round.
+                    AmmoGuid    = roundType,
+                    Round       = bullet,
+                    Origin      = muzzlePos,
+                    Velocity    = velocity,
+                    Quantity    = 1,
+                    FiredAt     = now,
                 });
             }
         }

@@ -51,8 +51,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-2189</c> (DESIGN_Missiles_And_Ammo §3c) — event id of <see cref="Events.MissileWarningEvent"/>.</summary>
         public const int MissileWarningEventId = 5008;
 
-        /// <summary>⭐ <c>CE-2188</c> (§3c) — event id of <see cref="Events.DispenseCountermeasureIntent"/>.</summary>
-        public const int DispenseCountermeasureEventId = 5009;
+        /// <summary>⛔ RESERVED — was <c>DispenseCountermeasureIntent</c> (CE-2188), retired by BS-1 §5.4c: a release is an ordinary
+        /// <see cref="Events.WeaponFireIntent"/> on the dispenser mount. ⚠ Do NOT reuse 5009.</summary>
+        public const int RetiredDispenseCountermeasureEventId = 5009;
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;

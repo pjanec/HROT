@@ -68,5 +68,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2187</c> (DESIGN_Weapon_Systems §5c) — a surface-to-air MISSILE launcher (a MANPADS): fired like an ATGM (lock,
         /// one round per press, stands to fire), at aircraft only (its missile's <c>TargetDomain</c>). Appended.</summary>
         Sam = 11,
+        /// <summary>⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER: an ordinary mount whose loadout is
+        /// expendables (flare, chaff), counted and spent like any round, released by <c>Countermeasures.Release</c> — ⛔ NOT a weapon: no
+        /// target, no damage, never chosen to fire at anything (the "armed" readers skip it). The aircraft's LAST mount. Appended.</summary>
+        Countermeasure = 12,
     }
 }

@@ -434,7 +434,7 @@ viewer — the defect itself.
 ~~**Split:** `CE-1111` (ui) builds F1–F3 and F5 and the flare / chaff looks; `CE-2188` (backend, running) publishes its release by F4 and
 owns `DecoyFlight` (F6)~~ — ⛔ **SUPERSEDED by §5.4c** (user, `2026-10-15`: no split; no magic slot).
 
-#### ⭐⭐ 5.4c — **the dispenser is a WEAPON; backend builds everything but the drawing** *(backend, `2026-10-15`; build-state: READY-TO-BUILD — 🔒 user: "approved")*
+#### ⭐⭐ 5.4c — **the dispenser is a WEAPON; backend builds everything but the drawing** *(backend, `2026-10-15`; build-state: BUILT — 🔒 user: "approved"; as-built deviations in the table at the end of this section)*
 
 > 🔒 **User, `2026-10-15`:** *"No splitting. Ui lane will only add rendering the effect, you do all the rest."* · *"And no magic numbers
 > for weapon slot. Chaff launcher can be weapon type and slot could be normal one, couldnt it?"* · *"approved, write the design so ui
@@ -451,11 +451,11 @@ one `WeaponFireNotification` with `Quantity = 1`** (DIS sends one Fire PDU per e
 classDiagram
   direction LR
   class WeaponCategory { <<existing, grows>> +Countermeasure }
-  class WeaponMountDto { <<existing>> Category Loadout RateOfFire }
-  class ExpendableDto { <<new TKB, on the flare / chaff munition>> LifeSeconds SinkMps Decoys }
-  class Munitions { <<new, Fdp.Toolkits Combat>> +IsExpendable(tkb, ammoGuid) bool +ExpendableOf(tkb, ammoGuid) ExpendableDto }
+  class WeaponMountDto { <<existing, grows>> Category Loadout +RateOfFire }
+  class ExpendableDto { <<new TKB, on the flare / chaff munition>> LifeSeconds SinkMps }
+  class Munitions { <<new, Fdp.Toolkits Combat>> +IsExpendable(tkb, ammoGuid) bool +DecoyOf(tkb, ammoGuid) DecoyKind +ExpendableOf(tkb, ammoGuid) ExpendableDto }
   class DecoyFlight { <<new, Fdp.Toolkits Combat>> +At(origin, velocity, sinkMps, t) Vector3 }
-  class Countermeasures { <<new, Fdp.Toolkits Combat - the brain's one way to release>> +Release(world, unit, DecoyKind) bool }
+  class Countermeasures { <<new, Fdp.Toolkits Combat - the brain's one way to release>> +Release(world, unit, DecoyKind) bool +Left(world, unit, DecoyKind) int +IsDispenser(world, owner, mount) bool +DispenserOnly(view, unit) bool }
   class WeaponFireIntent { <<existing>> WeaponIndex = the dispenser mount, AmmoGuid = flare or chaff }
   class WeaponFireNotification { <<existing, grows F1>> AmmoGuid Round Origin Velocity Quantity FiredAt }
   class CountermeasureSystem { <<existing, SimHost - now reads the fire request>> spawn the decoy, seduce, publish the fire }
@@ -506,6 +506,19 @@ sequenceDiagram
 ⚠ **Timing:** a viewer's `now − FiredAt` uses the synced sim clock (R-2015's `RaisedAt` precedent); a late-joining viewer that sees a
 notification after `LifeSeconds` draws nothing.
 ⚠ **Not on the wire:** the decoy entity itself (it lives on the SimHost only, like the round that chases it) — the notification is enough.
+
+##### ⭐ As built *(backend, `2026-10-15`)* — where the build differs from the picture above, and why
+
+| as designed | as built | why |
+|---|---|---|
+| `ExpendableDto { LifeSeconds, SinkMps, Decoys }` | **`{ LifeSeconds, SinkMps }`**; which seeker it fools is **`Munitions.DecoyOf`** — from the munition's **DIS type** (8.2.2 flare, 8.2.1 chaff) | one source: the DIS category already says it |
+| `DecoyFlight.At(origin, velocity, sinkMps, t)` | the same signature; the decoy keeps the aircraft's velocity **decaying** with `DecoyFlight.SlowSeconds` = 1.5 s, then sinks | a flare does not fly on at 150 m/s for 5 s; the constant lives inside the one function, so ui's drawing gets it for free |
+| "the interval is the mount's rate of fire" | **`WeaponMountDto.RateOfFire`** (rpm, new, copied from the catalog's `WeaponMount.RateOfFire`); interval = 60 ÷ it, else 0.5 s | the mount DTO had no rate of fire |
+| "dispenser mounts on every crewed aircraft" | the **UH-60 ×2, AH-64, A-10** (`BdcTkbCatalog.Dispenser`, the LAST mount; 30/30 · 30/30 · 60/60 · 120/240) | ⚠ the F-16 and the C-130 have no combat block and **no brain** — nothing could release |
+| the "not a weapon" check at four readers | those four (`ThreatDanger` ×2, `AmmoChoice` value 0 — which `WeaponChoice` and `WeaponEffectivenessVsTarget` read — `UtilityScorer`) **plus** `WeaponSystems.PrimaryMount` / `WeaponOf` and the two fire executors | ⚠ the unarmed UH-60's ONLY mount is the dispenser, so mount 0 became it: without `PrimaryMount` skipping it the doors-off UH-60's primary would no longer be its door gun, and an `AimAndFire` / `FireAtPoint` on mount 0 would have "fired" a flare |
+| the release's request | `WeaponFireIntent { AtPoint = true, TargetPoint = the aircraft }` | the existing egress drops a target-less request that is not at a point |
+| one seduction draw per salvo | **one per decoy** (salt `0x2188` + the decoy's index) | a salvo is now N releases; N flares are N chances |
+
 
 ### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
 

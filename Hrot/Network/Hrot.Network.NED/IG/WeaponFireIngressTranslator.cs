@@ -75,12 +75,22 @@ namespace Hrot.Network.NED.IG
             _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooter);
             _entityMap.TryGetEntity(msg.TargetEntityId,  out var target);
 
+            var round = Entity.Null;   // ⭐ CE-1111 — a replicated round's id; 0 (a bullet, a decoy) stays null
+            if (msg.RoundEntityId != 0) _entityMap.TryGetEntity(msg.RoundEntityId, out round);
+
             cmd.PublishEvent(new WeaponFireNotification
             {
                 Shooter     = shooter,
                 Target      = target,
                 WeaponIndex = msg.WeaponIndex,
                 IsRemote    = true,
+                // ⭐ CE-1111 / CE-2188 (BS-1-DESIGN §5.4b F1, §5.4c) — the shot as the SimHost fired it
+                AmmoGuid    = msg.AmmoGuid,
+                Round       = round,
+                Origin      = new System.Numerics.Vector3(msg.OriginX, msg.OriginY, msg.OriginZ),
+                Velocity    = new System.Numerics.Vector3(msg.VelocityX, msg.VelocityY, msg.VelocityZ),
+                Quantity    = msg.Quantity,
+                FiredAt     = msg.FiredAt,
             });
         }
 
