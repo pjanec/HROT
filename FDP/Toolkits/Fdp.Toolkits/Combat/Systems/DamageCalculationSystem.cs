@@ -90,12 +90,23 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                     armour = ArmorModel.ArmourFor(CombatTkb.PlatformOf(repo, targetEntity), facing, CombatTkb.PenetratorOf(repo, evt.Ammo));
                 }
-                float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour);
+                // ⭐⭐ CE-3210 (hit location HL-4, HL-12) — a round on a body PART: that zone's armour on the face entered (a helmet, a
+                //   vest), its damage multiplier (the head ×4, a limb below 1). The type's zones resolve through its override, its own
+                //   armour (the torso's), its DIS-class profile, the engine — BodyZones. ⛔ No part ⇒ the whole body, as before.
+                float multiplier = 1f;
+                if (evt.HasBodyPart != 0 && Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity)?.ZoneOf(evt.BodyPart) is { } zone)
+                {
+                    if (evt.Penetration > 0f) armour = zone.ArmourOn((Facing)evt.Face);
+                    multiplier = zone.Multiplier;
+                }
+                float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour) * multiplier;
 
                 repo.Bus.Publish(new DamageAssessedEvent
                 {
                     HitEntity   = targetEntity,
                     TotalDamage = damage,
+                    HasBodyPart = evt.HasBodyPart,   // ⭐ CE-3210 — the Health owner records it on the part
+                    BodyPart    = evt.BodyPart,
                 });
             }
         }

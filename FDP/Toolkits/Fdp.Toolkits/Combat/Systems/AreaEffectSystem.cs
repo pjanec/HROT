@@ -162,6 +162,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow * susceptibility;
                 float total = fragDamage + blastDamage;
                 if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
+                // ⭐ CE-3210 (hit location HL-10) — fragments stay whole-body for damage until S3; the marks they leave on a man are
+                //   SAMPLED, as many as the fragments that struck him (capped), seeded by the burst so every run draws the same.
+                if (kind == AreaEffect.FragmentTarget.Person && strike is { Hits: >= 0.5f } s)
+                    MarkFragments(repo, e, (int)MathF.Round(s.Hits), record.Seq, ArmorModel.FacingOf(tf, burst, hull * 0.5f));
                 record.Effects.Add(new DetonationEffect(e, stance.ToString(), _points.Count, r, exposure, fragFall, armourChance, fragDamage,
                     blastFall, barrier, shadow, blastDamage, total, shieldedBy)
                     { At = tf.Position, BlastSusceptibility = susceptibility, FragmentHits = strike?.Hits ?? 0f, Target = kind });
@@ -169,6 +173,33 @@ namespace Fdp.Toolkit.Combat.Systems
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             log.Add(record);
+        }
+
+        /// <summary>⭐ <c>CE-3210</c> (HL-10) — at most this many fragment marks per man per burst (the ring holds 24).</summary>
+        internal const int MaxFragmentMarks = 6;
+
+        /// <summary>⭐ <c>CE-3210</c> (HL-10) — <paramref name="hits"/> fragment marks on <paramref name="body"/>'s parts, on the face toward the
+        /// burst, at points drawn from a hash of the burst and the body (deterministic: a replay draws the same).</summary>
+        internal static void MarkFragments(EntityRepository repo, Entity body, int hits, long burstSeq, Facing face)
+        {
+            int n = Math.Min(hits, MaxFragmentMarks);
+            uint h = (uint)(burstSeq * 2654435761L) ^ (uint)(body.Index * 40503);
+            for (int i = 0; i < n; i++)
+            {
+                h = Next(h); byte part = (byte)(h % Fdp.Toolkit.Physics.BodyParts.PersonPart.Count);
+                h = Next(h); float a = (h % 1000) / 1000f - 0.5f;
+                h = Next(h); float b = (h % 1000) / 1000f - 0.5f;
+                // the point lies on the face entered: front/rear on the part's x side, the side on its y, the top on its z
+                var local = face switch
+                {
+                    Facing.Front => new Vector3(0.5f, a, b),
+                    Facing.Rear  => new Vector3(-0.5f, a, b),
+                    Facing.Side  => new Vector3(a, 0.5f, b),
+                    _            => new Vector3(a, b, 0.5f),
+                };
+                Fdp.Toolkit.Physics.BodyParts.HitMarksWriter.Mark(repo, body, part, local, (byte)face, Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment);
+            }
+            static uint Next(uint x) { x ^= x << 13; x ^= x >> 17; x ^= x << 5; return x == 0 ? 2463534242u : x; }
         }
 
         /// <summary>

@@ -71,6 +71,23 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(30f, events[0].TotalDamage);
         }
 
+        /// <summary>⭐ <c>CE-3210</c> — the wire's id + 1 becomes the part; a sender that never set it (0) means no part, never ThighL.</summary>
+        [Fact]
+        public void CE3210_ThePartArrives_AndAnUnsetFieldMeansNoPart()
+        {
+            var translator = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(7L, entity);
+
+            var withPart = new EntityHitDamage { HitEntityId = 7L, TotalDamage = 5f, BodyPart = 6 /* Head + 1 */ };
+            var e = ProcessAndFlush(translator, in withPart);
+            Assert.Equal(((byte)1, (byte)5), (e[0].HasBodyPart, e[0].BodyPart));
+
+            var none = new EntityHitDamage { HitEntityId = 7L, TotalDamage = 5f };
+            e = ProcessAndFlush(translator, in none);
+            Assert.Equal((byte)0, e[0].HasBodyPart);
+        }
+
         // ── SC-2: Unknown entity → skipped ────────────────────────────────────
 
         [Fact]

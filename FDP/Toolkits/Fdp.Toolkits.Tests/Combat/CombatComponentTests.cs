@@ -155,8 +155,9 @@ namespace Fdp.Toolkit.Combat.Tests
         public void DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DamageAssessedEvent).IsValueType);
-            // Current actual layout: Entity(8) + float(4) + bool(1) padded to 16 bytes.
-            Assert.Equal(16, Marshal.SizeOf<DamageAssessedEvent>());
+            // Marshalled layout: Entity(8) + float(4) + bool(4, marshalled as a Win32 BOOL) + HasBodyPart(1) + BodyPart(1) (CE-3210),
+            // padded to 20 bytes.
+            Assert.Equal(20, Marshal.SizeOf<DamageAssessedEvent>());
         }
     }
 }

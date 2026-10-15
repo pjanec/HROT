@@ -188,5 +188,10 @@ namespace Hrot.NED.Messages
 
         /// <summary>Total computed HP loss.</summary>
         public float TotalDamage;
+
+        /// <summary>⭐ <c>CE-3210</c> (hit location HL-6, R-169 — APPENDED) — the body part it landed on, as its id + 1 (a person's
+        /// <c>PersonPart</c>); ⭐ 0 = none (an area effect, a vehicle until S2) — so a sender that never sets it reads as "no part", not
+        /// as part 0.</summary>
+        public byte BodyPart;
     }
 }

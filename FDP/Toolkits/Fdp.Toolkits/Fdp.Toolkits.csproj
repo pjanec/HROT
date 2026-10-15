@@ -96,6 +96,7 @@
     <EmbeddedResource Include="Tkb\Reference\Data\ammo.json" LogicalName="Fdp.Toolkit.Tkb.Reference.ammo.json" />
     <EmbeddedResource Include="Tkb\Reference\Data\weapons.json" LogicalName="Fdp.Toolkit.Tkb.Reference.weapons.json" />
     <EmbeddedResource Include="Tkb\Reference\Data\coefficients.json" LogicalName="Fdp.Toolkit.Tkb.Reference.coefficients.json" />
+    <EmbeddedResource Include="Tkb\Reference\Data\bodies.json" LogicalName="Fdp.Toolkit.Tkb.Reference.bodies.json" />   <!-- CE-3210 HL-12 -->
   </ItemGroup>
 
   <ItemGroup>

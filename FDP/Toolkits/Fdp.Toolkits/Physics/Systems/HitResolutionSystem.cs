@@ -159,6 +159,11 @@ namespace Fdp.Toolkit.Physics.Systems
                         Face        = hit.Face,
                     });
 
+                    // ⭐ CE-3210 (HL-8) — the mark the round left on the part, written here because this node resolved the hit (the
+                    //   Muscle owns HitMarks). Added on the first hit; a body never struck carries none.
+                    if (hit.HasBodyPart != 0) BodyParts.HitMarksWriter.Mark(repo, hit.HitEntity, hit.BodyPart, hit.LocalPoint, hit.Face,
+                        BodyParts.HitMarkKind.Bullet);
+
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
                     // query drops it (preventing further raycasts), while its component memory
                     // remains valid for DamageSystem to read BallisticProjectile.Damage on the

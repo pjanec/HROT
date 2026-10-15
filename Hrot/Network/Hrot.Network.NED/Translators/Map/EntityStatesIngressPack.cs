@@ -63,6 +63,8 @@ public class EntityStatesIngressPack : IEcsModule
             new EntityWeaponPostureIngressTranslator(participant, entityMap),
             new EntityPossessedByIngressTranslator(participant, entityMap),   // ⭐ CE-3172 S4e — a station sees who holds a unit
             new EntityWeaponAmmoIngressTranslator(participant, entityMap),    // ⭐ CE-3174 — and the ammunition its HUD shows
+            new EntityPartDamageIngressTranslator(participant, entityMap),    // ⭐ CE-3210 — a man's wounds, drawn and read on a pure IG too
+            new EntityHitMarksIngressTranslator(participant, entityMap),      // ⭐ CE-3210 — where rounds struck him
             new EntityPassengersIngressTranslator(participant, entityMap),    // ⭐ CE-3110 I-2b — who rides in what (I-2c hides them)
             new EntityWeaponSystemStateIngressTranslator(participant, entityMap),   // ⭐ Weapon systems WS-1 — stowed / deployed is drawn
         };
