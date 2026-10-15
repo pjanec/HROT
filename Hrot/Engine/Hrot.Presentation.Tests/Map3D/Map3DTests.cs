@@ -2661,13 +2661,43 @@ public sealed class Map3DTests
         Assert.False(turret.IsNull, "every shared-registry node can build a turret part");
         var source = new TurretPoseSource();
 
-        Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, tank));
+        Assert.Equal(new ArticulationPose(0f, 0f, Published: true), source.PoseOf(w, tank));   // ⭐ CE-1114 — a part's level pose is TRUE, not "none"
         w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
             new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 0.7f, Elevation = 0.1f };
-        Assert.Equal(new ArticulationPose(0.7f, 0.1f), source.PoseOf(w, tank));
+        Assert.Equal(new ArticulationPose(0.7f, 0.1f, Published: true), source.PoseOf(w, tank));
         Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, bare));
         w.DestroyEntity(turret);
         Assert.Equal(ArticulationPose.Neutral, source.PoseOf(w, tank));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1114 (§6n N-5) — a mortar / towed gun / ZU-23 is drawn at its turret part's PUBLISHED pose, azimuth and elevation (backend P2
+    /// lays it by W-9's replicated <c>TurretPose</c>) — a level gun at 0°, not the default; only a gun with no turret part is drawn at the
+    /// default lay (60° for a mortar).
+    /// </summary>
+    [Fact]
+    public void CE1114_AWeaponSystem_IsDrawnAtItsPublishedElevation_ALevelOneIncluded()
+    {
+        using var w = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(w);
+        var laid = w.CreateEntity();
+        var bare = w.CreateEntity();
+        var turret = Fdp.Toolkit.Combat.TurretParts.Ensure(w, laid, 0);
+        var source = new TurretPoseSource();
+        var layer = new EntityBodyLayer3D(() => w, () => null, source.PoseOf);
+        float mortarDefault = WeaponKits.DefaultElevation(WeaponKind.Mortar);
+
+        w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 1.2f, Elevation = 1.3f };   // laid at ~74°, turned left
+        var pose = layer.LaidPose(w, laid, mortarDefault);
+        Assert.Equal(1.2f, pose.TurretAzimuth);
+        Assert.Equal(1.3f, pose.GunElevation);
+
+        w.GetComponentRW<Fdp.Toolkit.Combat.Components.TurretPose>(turret) =
+            new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = 0.4f, Elevation = 0f };     // a gun laid level (a ZU-23 on the horizon)
+        Assert.Equal(0f, layer.LaidPose(w, laid, mortarDefault).GunElevation);
+
+        Assert.Equal(mortarDefault, layer.LaidPose(w, bare, mortarDefault).GunElevation);        // no turret part: the default lay
     }
 
     /// <summary>⭐ WL-1 — end to end from the catalog: an M1 spawned through the base translator set on a shared-registry world gets

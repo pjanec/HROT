@@ -29,7 +29,7 @@ public sealed class TurretPoseSource
         if (!_turretOf.TryGetValue(entity, out var child) || !world.IsAlive(child) || !world.HasComponent<TurretPose>(child))
             return ArticulationPose.Neutral;
         ref readonly var pose = ref world.GetComponentRO<TurretPose>(child);
-        return new ArticulationPose(pose.Azimuth, pose.Elevation);
+        return new ArticulationPose(pose.Azimuth, pose.Elevation, Published: true);   // ⭐ CE-1114 — azimuth AND elevation, as replicated
     }
 
     private void Refresh(EntityRepository world)

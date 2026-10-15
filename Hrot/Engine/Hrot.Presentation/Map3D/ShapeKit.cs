@@ -79,8 +79,10 @@ public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swi
 /// <summary>
 /// ⭐ CE-1033 — the pose of a kit's articulated parts: turret azimuth RELATIVE TO THE HULL (radians, counter-clockwise seen from
 /// above, 0 = forward) and gun elevation RELATIVE TO THE TURRET (radians, positive up). Default: everything forward and level.
+/// ⭐ CE-1114 — <see cref="Published"/>: the pose is a turret part's replicated <c>TurretPose</c> (every angle is true, a level gun
+/// included), not a stand-in.
 /// </summary>
-public readonly record struct ArticulationPose(float TurretAzimuth, float GunElevation)
+public readonly record struct ArticulationPose(float TurretAzimuth, float GunElevation, bool Published = false)
 {
     public static readonly ArticulationPose Neutral = default;
 }
