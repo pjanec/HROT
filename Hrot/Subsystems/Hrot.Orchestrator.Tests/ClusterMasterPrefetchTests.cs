@@ -6,6 +6,7 @@ using System.Threading;
 using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Transfer;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -745,5 +746,92 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Assert.DoesNotContain(sent, i => i.Operation == FdpNodeOpType.PrepareState);
         Assert.DoesNotContain(sent, i => i.DomainPayload is AbortTransactionPayload a && a.TargetTransactionId == loadTx);
         Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> <c>H5</c> (Q91 §4-H) — cancelling a PARKED load STOPS the staging copy its prefetch started: the
+    /// transfer is cancelled, the saga forgets it, and nothing more is reported for the request (the master already
+    /// answered <c>Cancelled</c>). ⛔ Before P6 the copy was abandoned and the bytes finished landing.
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public void P8_H5_Cancelling_a_parked_load_stops_its_staging_copy()
+    {
+        var scenarioDir = Path.Combine(
+            _nasDir, Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName, _scenarioId);
+        Directory.CreateDirectory(scenarioDir);
+        File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+
+        var stuck = new StuckProvider();
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(stuck), _nasDir, stagingDir);
+        RegisterNode(bus, master);
+
+        var reqId = Guid.NewGuid();
+        RequestTransition(master, reqId, ClusterState.LoadingEdit, _scenarioId);
+        saga.Tick();
+        master.Tick();
+        bus.SwapBuffers();
+        saga.Tick();                                         // the intent is readable now: the copy starts
+        Assert.Equal(reqId, master.ParkedRequestId);
+        Assert.True(stuck.Started.Wait(10_000), "the staging copy never started");
+        Assert.Equal(1, saga.CopiesInFlight);
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = reqId });
+        bus.SwapBuffers();
+        var seen = new List<ClusterOpCompletedEvent>();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((saga.CopiesInFlight > 0 || !stuck.Cancelled) && DateTime.UtcNow < deadline)
+        {
+            master.Tick();
+            saga.Tick();
+            bus.SwapBuffers();
+            seen.AddRange(bus.ReadManaged<ClusterOpCompletedEvent>());
+            Thread.Sleep(10);
+        }
+        for (int i = 0; i < 3; i++) { master.Tick(); saga.Tick(); bus.SwapBuffers(); seen.AddRange(bus.ReadManaged<ClusterOpCompletedEvent>()); }
+
+        try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        Assert.True(stuck.Cancelled, "the in-flight transfer must be CANCELLED, not left to finish");
+        Assert.Equal(0, saga.CopiesInFlight);
+        Assert.Null(master.ParkedRequestId);
+        Assert.Contains(seen, e => e.RequestId == reqId && e.StatusCode == OrchestrationStatusCode.Cancelled);
+        Assert.DoesNotContain(seen, e => e.RequestId == reqId && e.StatusCode != OrchestrationStatusCode.Cancelled);
+    }
+
+    /// <summary>A transport whose transfer never finishes on its own — only a cancel ends it.</summary>
+    private sealed class StuckProvider : IFileTransferProvider
+    {
+        public ManualResetEventSlim Started { get; } = new();
+        public volatile bool Cancelled;
+        public string Transport => "stuck";
+        public bool CanReach(TransferTarget target) => true;
+
+        public IFileTransfer Start(TransferRequest request)
+        {
+            Started.Set();
+            return new Transfer(this);
+        }
+
+        private sealed class Transfer : IFileTransfer
+        {
+            private readonly StuckProvider _owner;
+            private readonly System.Threading.Tasks.TaskCompletionSource _done =
+                new(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+            private volatile TransferStatus _status = new(OrchestrationStatusCode.InProgress, "stuck", 0, 1, 0, 0, 0, 1, Array.Empty<int>());
+
+            public Transfer(StuckProvider owner) => _owner = owner;
+            public Guid Id { get; } = Guid.NewGuid();
+            public TransferStatus Status => _status;
+            public System.Threading.Tasks.Task Completion => _done.Task;
+
+            public void Cancel()
+            {
+                _owner.Cancelled = true;
+                _status = _status with { Code = OrchestrationStatusCode.Cancelled, Message = "cancelled" };
+                _done.TrySetResult();
+            }
+        }
     }
 }

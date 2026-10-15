@@ -53,6 +53,13 @@ public sealed class AssetPrefetchProcessManager
     private readonly string _localStagingRoot;
     private readonly Dictionary<Guid, PrefetchAckTracker> _pendingPrefetchAcks = new();
 
+    /// <summary>⭐ P8 H5 — the staging copy of each prefetch in flight, by request id, so a cancel can stop it.
+    /// ⚠ Written on the frame thread, removed by the copy's continuation on a worker.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, System.Threading.CancellationTokenSource> _copies = new();
+
+    /// <summary>The prefetch copies in flight — for rails.</summary>
+    internal int CopiesInFlight => _copies.Count;
+
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for prefetch operations.</param>
     /// <param name="nasBasePath">NAS root from which scenario files are copied.</param>
@@ -82,6 +89,16 @@ public sealed class AssetPrefetchProcessManager
     public void Tick()
     {
         SyncTkbToJoinedNodes();
+
+        // ⭐⭐ P8 H5 — the operator cancelled the parked load: STOP its copy (the transfer cancels and removes its partial
+        //   files). Its continuation then publishes nothing — the master already answered the request Cancelled.
+        foreach (var cancel in _bus.ReadManaged<PrefetchCancelRequestedEvent>())
+            if (_copies.TryGetValue(cancel.RequestId, out var copy))
+            {
+                FdpLog<AssetPrefetchProcessManager>.Info(
+                    "[AssetPrefetchProcessManager] P8: the staging copy of request {0} is cancelled.", cancel.RequestId);
+                copy.Cancel();
+            }
 
         foreach (var intent in _bus.ReadManaged<ExecutePrefetchIntent>())
         {
@@ -115,9 +132,21 @@ public sealed class AssetPrefetchProcessManager
                 intent.ScenarioId, intent.RequestId);
 
             var capturedIntent = intent;
-            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath, _tkbName)
+            var copy = new System.Threading.CancellationTokenSource();
+            _copies[intent.RequestId] = copy;
+            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath, _tkbName, copy.Token)
                 .ContinueWith(task =>
                 {
+                    _copies.TryRemove(capturedIntent.RequestId, out _);
+                    copy.Dispose();
+                    if (task.IsCanceled)
+                    {
+                        FdpLog<AssetPrefetchProcessManager>.Info(
+                            "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' stopped — the load was cancelled.",
+                            capturedIntent.ScenarioId);
+                        return;   // ⭐ P8 H5 — the master already answered Cancelled; nothing more to say
+                    }
+
                     bool isSuccess = !task.IsFaulted && !task.IsCanceled
                                      && task.Result.FailureCount == 0;
                     if (!isSuccess)

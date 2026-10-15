@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Transfer;
 using Hrot.Network.Orchestration;
 using Fdp.Core.Serialization;
 
@@ -114,6 +115,49 @@ public sealed class StorageGatewayModule
     /// <see cref="PullToNasAsync"/> and <see cref="PushToNodesAsync"/>.
     /// </summary>
     public const int MaxParallelCopies = 8;
+
+    private readonly IFileTransferProvider _provider;
+
+    /// <param name="provider">⭐ <c>P6</c> (Q91 §4-E2) — the transport every PUSH site (NAS → node) goes through.
+    /// <see langword="null"/> = the share transport (<see cref="NodeShareProvider"/>), today's copy. ⛔ The PULL sites
+    /// (node → NAS) do not use it.</param>
+    public StorageGatewayModule(IFileTransferProvider? provider = null)
+        => _provider = provider ?? DefaultProvider;
+
+    /// <summary>The transport a push uses when none is given — the share (co-located: the staging root itself).</summary>
+    public static readonly IFileTransferProvider DefaultProvider = new NodeShareProvider();
+
+    /// <summary>The transport this gateway's pushes go through.</summary>
+    public IFileTransferProvider Provider => _provider;
+
+    /// <summary>
+    /// ⭐ <c>P6</c> — one push through the provider, awaited on the caller's worker. The target's root is the directory
+    /// the file lands in and the item is its name, so one item means the same file on every target of the request.
+    /// ⛔ Cancellation propagates as <see cref="OperationCanceledException"/> (the gateway's contract); the provider has
+    /// already removed any partial file.
+    /// </summary>
+    private static async Task<TransferStatus> DeliverAsync(
+        IFileTransferProvider provider, IReadOnlyList<TransferTarget> targets, IReadOnlyList<TransferItem> items,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var transfer = provider.Start(new TransferRequest(targets, items));
+        using (ct.Register(transfer.Cancel))
+            await transfer.Completion.ConfigureAwait(false);
+        var status = transfer.Status;
+        if (status.Code == OrchestrationStatusCode.Cancelled) throw new OperationCanceledException(ct);
+        if (status.FilesFailed > 0)
+            FdpLog<StorageGatewayModule>.Error("[Gateway] {0} transfer: {1}", provider.Transport, status.Message);
+        return status;
+    }
+
+    /// <summary>⭐ The push of ONE file into one directory per target (<c>{dir}/{fileName}</c>).</summary>
+    private static Task<TransferStatus> DeliverFileAsync(
+        IFileTransferProvider provider, string sourcePath, string fileName,
+        IEnumerable<(int NodeId, string Directory)> targets, CancellationToken ct = default)
+        => DeliverAsync(provider,
+            targets.Select(t => new TransferTarget(t.NodeId, t.Directory)).ToList(),
+            new[] { new TransferItem(sourcePath, fileName) }, ct);
 
     /// <summary>
     /// Comparison to use for filesystem path equality: case-insensitive on Windows
@@ -227,44 +271,18 @@ public sealed class StorageGatewayModule
         if (string.IsNullOrWhiteSpace(nasSourcePath)) throw new ArgumentNullException(nameof(nasSourcePath));
         if (targets == null) throw new ArgumentNullException(nameof(targets));
 
-        int successCount = 0;
-        int failureCount = 0;
-
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: one request per destination file name (a target may rename the file).
+        int successCount = 0, failureCount = 0;
+        var pushes = targets
+            .GroupBy(t => Path.GetFileName(t.DestinationPath))
+            .Select(g => DeliverFileAsync(_provider, nasSourcePath, g.Key,
+                g.Select(t => (t.NodeId, Path.GetDirectoryName(t.DestinationPath) ?? string.Empty)), ct))
+            .ToList();
+        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
         {
-            await Task.Run(() =>
-            {
-                Parallel.ForEach(targets, opts, target =>
-                {
-                    try
-                    {
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-
-                        partial.Add(target.DestinationPath);
-                        File.Copy(nasSourcePath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
+            successCount += status.FilesDone + status.FilesSkipped;
+            failureCount += status.FilesFailed;
         }
-        catch (OperationCanceledException)
-        {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
-        }
-
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
     }
 
@@ -284,11 +302,23 @@ public sealed class StorageGatewayModule
     /// <param name="tkbName">⭐ <c>R-4018</c> — the deployment's ONE TKB (<c>ClusterConfiguration.TkbName</c>), synced from
     /// <c>{nas}/tkb/&lt;name&gt;.zip</c> whatever the scenario says. ⚠ <see langword="null"/> skips the TKB sync — tests only;
     /// the production saga always passes the configured name.</param>
-    public async Task<GatewayResult> PrefetchScenarioAsync(
+    /// <param name="ct">⭐ P8 H5 — the operator's cancel STOPS the copy (the transfer removes its partial files).</param>
+    public Task<GatewayResult> PrefetchScenarioAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
-        string? tkbName = null)
+        string? tkbName = null,
+        CancellationToken ct = default)
+        // ⭐ R-4001 — ALL of it on a worker, the NAS directory scan included: the saga calls this from the frame thread,
+        //   and a transfer that finishes at once would otherwise resume the rest of the chain there.
+        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct), ct);
+
+    private async Task<GatewayResult> PrefetchScenarioCoreAsync(
+        string scenarioId,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        string? tkbName,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
@@ -315,50 +345,19 @@ public sealed class StorageGatewayModule
         var artifactNames = CheckTerrainNameConsensus(files);
 
         int success = 0, failure = 0;
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 
 		// eliminate duplicate destination paths (if multiple nodes share the same staging directory) to avoid redundant copies
 		var distinctTargets = targets.DistinctBy(t => t.DestinationPath).ToList();
 
-        // For each (file, target) pair: push the file to the target node's staging dir.
-        var pairs = new List<(string sourceFile, NodeDistributionTarget target)>(files.Length * targets.Count);
-        foreach (var file in files)
-            foreach (var target in distinctTargets)
-                pairs.Add((file, target));
-
-        await Task.Run(() =>
+        // ⭐ P6 — every slice to every target through the provider, ONE request per file (bundled: every target in it).
+        //   A target already holding the file (same length + mtime — including the NAS file itself) is skipped.
+        foreach (var srcFile in files)
         {
-            Parallel.ForEach(pairs, options, pair =>
-            {
-                var (srcFile, tgt) = pair;
-                try
-                {
-                    var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
-
-                    // Skip if source and destination are the exact same file. Path equality
-                    // is case-insensitive only on Windows; on Linux, case-differing paths
-                    // are distinct files.
-                    if (string.Equals(srcFile, destPath, PlatformPathComparison))
-                    {
-                        Interlocked.Increment(ref success);
-                        return;
-                    }
-
-                    var destDir  = Path.GetDirectoryName(destPath);
-                    if (!string.IsNullOrEmpty(destDir))
-                        Directory.CreateDirectory(destDir);
-                    File.Copy(srcFile, destPath, overwrite: true);
-                    Interlocked.Increment(ref success);
-                }
-                catch (Exception ex)
-                {
-                    FdpLog<StorageGatewayModule>.Error(
-                        "[Gateway] PrefetchScenario: failed to copy '{0}' → '{1}': {2}",
-                        Path.GetFileName(srcFile), tgt.DestinationPath, ex.Message);
-                    Interlocked.Increment(ref failure);
-                }
-            });
-        }).ConfigureAwait(false);
+            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(srcFile),
+                distinctTargets.Select(t => (t.NodeId, t.DestinationPath)), ct).ConfigureAwait(false);
+            success += status.FilesDone + status.FilesSkipped;
+            failure += status.FilesFailed;
+        }
 
         // ⭐⭐⭐ CE-280 — route the format-incompatible foreign slices back to THEIR origin nodes only.
         //   A distributed save keeps each foreign slice under <name>/foreign/node_<id>.json (§4c). On load
@@ -373,43 +372,26 @@ public sealed class StorageGatewayModule
             {
                 if (!TryParseForeignNodeId(Path.GetFileName(foreignFile), out var originNodeId))
                     continue;
-                foreach (var tgt in distinctTargets)
-                {
-                    if (tgt.NodeId != originNodeId) continue;
-                    try
-                    {
-                        var destPath = Path.Combine(tgt.DestinationPath, "foreign", Path.GetFileName(foreignFile));
-                        if (string.Equals(foreignFile, destPath, PlatformPathComparison))
-                        {
-                            Interlocked.Increment(ref success);
-                            continue;
-                        }
-                        var destDir = Path.GetDirectoryName(destPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-                        File.Copy(foreignFile, destPath, overwrite: true);
-                        Interlocked.Increment(ref success);
-                    }
-                    catch (Exception ex)
-                    {
-                        FdpLog<StorageGatewayModule>.Error(
-                            "[Gateway] PrefetchScenario: failed to route foreign '{0}' → node {1}: {2}",
-                            Path.GetFileName(foreignFile), originNodeId, ex.Message);
-                        Interlocked.Increment(ref failure);
-                    }
-                }
+                var owners = distinctTargets.Where(t => t.NodeId == originNodeId).ToList();
+                if (owners.Count == 0) continue;
+                var status = await DeliverFileAsync(_provider, foreignFile, Path.GetFileName(foreignFile),
+                    owners.Select(t => (t.NodeId, Path.Combine(t.DestinationPath, "foreign"))), ct).ConfigureAwait(false);
+                success += status.FilesDone + status.FilesSkipped;
+                failure += status.FilesFailed;
             }
         }
 
         // ⭐⭐⭐ S2c — stage the scenario's named terrain beside the scenario slices.
+        ct.ThrowIfCancellationRequested();
         StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
 
         // ⭐⭐⭐ R-4018 — the deployment's ONE TKB, before every scenario load: a freshness check that copies only what changed.
         if (!string.IsNullOrWhiteSpace(tkbName))
-            SyncTkb(tkbName!, distinctTargets, nasBasePath, ref success, ref failure);
+            SyncTkb(tkbName!, distinctTargets, nasBasePath, ref success, ref failure, _provider, ct);
 
         // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
         //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
+        ct.ThrowIfCancellationRequested();
         SyncBehaviourAssets(targets, nasBasePath, ref success, ref failure);
 
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
@@ -527,38 +509,56 @@ public sealed class StorageGatewayModule
         IReadOnlyList<NodeDistributionTarget> targets,
         string nasBasePath,
         ref int success,
-        ref int failure)
+        ref int failure,
+        IFileTransferProvider? provider = null,
+        CancellationToken ct = default)
     {
         var source = Path.Combine(nasBasePath, OrchestrationConstants.NasTkbDirectoryName,
             tkbName + OrchestrationConstants.TkbArtifactExtension);
-        bool hasMaster = File.Exists(source);
-        if (!hasMaster)
+        var staged = targets.Where(t => !string.IsNullOrEmpty(t.TkbDestinationPath)).ToList();
+
+        if (!File.Exists(source))
+        {
             FdpLog<StorageGatewayModule>.Info(
                 "[Gateway] TKB '{0}' has no master copy at '{1}' — nodes keep their built-in catalogue.", tkbName, source);
+            foreach (var target in staged)
+            {
+                try { StagedTkb.Clear(target.TkbDestinationPath); }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] TKB record of '{0}' could not be cleared: {1}", target.TkbDestinationPath, ex.Message);
+                    failure++;
+                }
+            }
+            return;
+        }
+        if (staged.Count == 0) return;
 
-        foreach (var target in targets)
+        // ⭐ P6 — ONE request to every target through the provider; a node already holding the same bytes is skipped
+        //   (S2d: an unchanged archive is never rewritten — the provider's freshness rule is IsAlreadyCurrent's).
+        var status = DeliverFileAsync(provider ?? DefaultProvider, source, Path.GetFileName(source),
+            staged.Select(t => (t.NodeId, t.TkbDestinationPath)), ct).GetAwaiter().GetResult();
+
+        foreach (var target in staged)
         {
-            if (string.IsNullOrEmpty(target.TkbDestinationPath)) continue;
+            if (status.FailedNodeIds.Contains(target.NodeId))
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] TKB sync of '{0}' → '{1}' failed: {2}", tkbName, target.TkbDestinationPath, status.Message);
+                failure++;
+                continue;
+            }
             try
             {
-                if (!hasMaster)
-                {
-                    StagedTkb.Clear(target.TkbDestinationPath);
-                    continue;
-                }
-
-                Directory.CreateDirectory(target.TkbDestinationPath);
-                var dest = Path.Combine(target.TkbDestinationPath, Path.GetFileName(source));
-                if (!IsAlreadyCurrent(source, dest))
-                    File.Copy(source, dest, overwrite: true);   // ⭐ S2d: an unchanged archive is never rewritten
                 StagedTkb.Write(target.TkbDestinationPath, tkbName);
-                Interlocked.Increment(ref success);
+                success++;
             }
             catch (Exception ex)
             {
                 FdpLog<StorageGatewayModule>.Error(
-                    "[Gateway] TKB sync of '{0}' → '{1}' failed: {2}", tkbName, target.TkbDestinationPath, ex.Message);
-                Interlocked.Increment(ref failure);
+                    "[Gateway] TKB record → '{0}' failed: {1}", target.TkbDestinationPath, ex.Message);
+                failure++;
             }
         }
     }
@@ -679,55 +679,24 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
                 $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
 
-        int successCount = 0;
-        int failureCount = 0;
-
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: each node gets ITS OWN recording (and the schema manifest beside it, so replay
+        //   validation succeeds), one request per node.
+        var pushes = targets.Select(target =>
         {
-            await Task.Run(() =>
-            {
-                Parallel.ForEach(targets, opts, target =>
-                {
-                    try
-                    {
-                        var fileName = OrchestrationConstants.GetNodeRecordingFileName(target.NodeId);
-                        var srcPath = Path.Combine(sourceDir, fileName);
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
+            var srcPath  = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId));
+            var destName = Path.GetFileName(target.DestinationPath);
+            var items = new List<TransferItem> { new(srcPath, destName) };
+            if (File.Exists(srcPath + ".meta.json")) items.Add(new TransferItem(srcPath + ".meta.json", destName + ".meta.json"));
+            return DeliverAsync(_provider,
+                new[] { new TransferTarget(target.NodeId, Path.GetDirectoryName(target.DestinationPath) ?? string.Empty) },
+                items, ct);
+        }).ToList();
 
-                        partial.Add(target.DestinationPath);
-                        File.Copy(srcPath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-
-                        // Pull the companion schema manifest file so replay validation succeeds.
-                        var metaSrcPath = srcPath + ".meta.json";
-                        var metaDestPath = target.DestinationPath + ".meta.json";
-                        if (File.Exists(metaSrcPath))
-                        {
-                            partial.Add(metaDestPath);
-                            File.Copy(metaSrcPath, metaDestPath, overwrite: true);
-                            partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        }
-
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
+        int successCount = 0, failureCount = 0;
+        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
         {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
+            if (status.FilesFailed > 0) failureCount++;
+            else successCount++;
         }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };

@@ -616,6 +616,34 @@ valid long operation, not an error.
 | N5 | the `hrot.transfer.share=<path>` token in each node's greeting | existing message, new token |
 | N6 | progress into `ClusterOpStatus` | existing message |
 
+#### ⏳ P6 part 1 AS BUILT `2026-10-15` — the seam and the share transport (N1, N3, N4 push sites); ⏳ N2, N5, N6 next
+
+```mermaid
+graph TD
+  APM[AssetPrefetchProcessManager<br/>prefetch saga + join sync, worker] --> GW[StorageGatewayModule]
+  SPM[StorageProcessManager<br/>replay import, worker] --> GW
+  GW -->|PrefetchScenarioAsync: slices, foreign| P[IFileTransferProvider]
+  GW -->|SyncTkb, PrefetchArchiveAsync, PushToNodesAsync| P
+  P --> SH[NodeShareProvider<br/>File.Copy to temp, rename]
+  P -.->|part 2| DDS[DdsFileTransferProvider<br/>NOT BUILT]
+  GW -->|terrain folder, behaviour trees: mirror with deletes| ATS[AssetTreeSync<br/>NOT behind the provider yet]
+  GW -->|PullToNasAsync: node to NAS| PULL[File.Copy, PULL, out of scope]
+  style DDS stroke-dasharray: 5 5
+  style ATS stroke-dasharray: 5 5
+```
+
+*What the picture shows that prose hid: every caller of the provider is already on a worker (the saga, the join sync, the
+replay import), so awaiting a transfer never touches the frame thread; and two push paths — the terrain folder and the
+behaviour trees — still go round the provider, because a MIRROR deletes files and the provider only delivers them.*
+
+| piece | as built | deviation from the class diagram above, and why |
+|---|---|---|
+| N1 | `Fdp.Toolkit.Orchestration.Transfer`: `IFileTransferProvider { Transport, CanReach(TransferTarget), Start }`, `IFileTransfer { Id, Status, Completion, Cancel }`, `TransferRequest(Targets, Items, CorrelationId)`, `TransferTarget(NodeId, Root)`, `TransferItem(SourcePath, RelativePath)`, `TransferStatus` | ⚠ `TransferRequest` carries a LIST of targets, not one `TargetNodeId` — the bundling rule (user K) needs one request to serve several nodes. ⚠ `TransferStatus` grew `FilesFailed` and `FailedNodeIds`: the TKB sync writes its `StagedTkb` record only on the nodes that received the file, and a status naming no node could not say which |
+| N3 | `NodeShareProvider`: copies on a worker (8 in parallel), each file to a temporary name then renamed; skips a file the target holds with the same length and mtime (the one freshness rule); a missing source or an unwritable target is a `Failure` naming the node; `Completion` never faults | the temp-and-rename is new — today's copies wrote in place |
+| N4 | `StorageGatewayModule(IFileTransferProvider? provider = null)` (null = the share). Through it: `PrefetchScenarioAsync` (one request per slice, every target bundled; foreign slices to their origin node), `SyncTkb` (one request to every target, the `IsAlreadyCurrent` skip now the provider's), `PrefetchArchiveAsync` (each node its own recording + `.meta.json`), `PushToNodesAsync` | ⚠ the push-site classification the handoff asked for: **PUSH** — `StorageGatewayModule` slices, foreign, TKB, archive, `PushToNodesAsync`, and `AssetTreeSync.cs:126` (terrain + behaviour trees, ⏳ part 2: a mirror deletes); **PULL** — `PullToNasAsync`, `StorageProcessManager.cs:261` (the save's foreign slices); **neither** — `ClusterDiagnosticsPanel.cs:401` (the operator's save-a-local-copy dialog) |
+| rails | `NodeShareProviderTests` (new suite: bundled delivery keeping the mtime, skip, a failing node named, a missing source, cancel leaves no partial, no share ⇒ unreachable) · `StorageGatewayTests` + `ClusterMasterPrefetchTests` unchanged and green through the share | — |
+| ⏳ not yet | N2 (DDS provider + receiver on every node), N5 (the share token — only load-bearing once a node can be reached WITHOUT a share, so it ships with N2), N6 (progress into `ClusterOpStatus`), `AssetTreeSync` behind the provider. ✅ P8's H5 (the cancel stops the copy) shipped with this part | — |
+
 ### 4-F ⭐ The possessing node leaves
 
 📐 `PossessionSystem` releases on `ReleasePossessionEvent` or the unit's death only (`Possession.cs:177-183`). A Player
@@ -784,14 +812,14 @@ clear, and it is the one op that belongs to EVERY handler holding a part of the 
 | **H9** | ⭐ **the chain claims an abort only for the load it holds** (by transaction id) and aborts from the context it stored at prepare | the abort op carries no load payload, so the steps' context must come from the prepare |
 | ⛔ | ⛔ **SUPERSEDES** the handoff's lean *"route it as an ordinary handler op — needs no `ClusterSlave` change"* | measured above: an ordinary op is queued behind the stuck prepare |
 
-#### ✅ P8 AS BUILT `2026-10-15` — H1–H4 and H6–H9 as drawn; ⏳ H5 waits for P6
+#### ✅ P8 AS BUILT `2026-10-15` — H1–H9 (H5 with P6 part 1)
 
 | piece | as built |
 |---|---|
 | master (H2, H3) | `ClusterMaster.TryCancelInFlightTransition` — a cancel naming a transition that is fanned out and not complete drops its tracker, fans out `AbortTransaction(target = its transaction)` to every roster node, answers the request `Cancelled`, then runs a `TransitionStep(Idle)` through `ExecuteTransitionTrajectory`; the cluster reports `Idle` when every node has answered. A parked transition still cancels as before; a completed one is not undone |
 | slave (H7, H8) | `ClusterSlave.DispatchAbort` gives an abort to EVERY claiming handler and sends one answer; `PreemptPendingPrepare` drops a stuck prepare of the named transaction and its queued intents, answering that op `Cancelled` |
 | chain (H1, H9) | `LoadPhaseChain` claims only the abort of the load it holds (transaction id from its `Loading*` prepare, cleared when the hold resolves), aborts every step with the context stored at prepare, cancels the hold |
-| ⏳ H5 | cancelling the in-flight FILE TRANSFER needs P6's `IFileTransfer.Cancel()`; until then the staging copy finishes landing, as before |
+| ✅ H5 *(built with P6 part 1)* | cancelling a PARKED load stops its staging copy: the master publishes `PrefetchCancelRequestedEvent`, the saga cancels the copy's token, the gateway's transfer is cancelled (`IFileTransfer.Cancel`, partial files removed) and the saga reports nothing more — the master already answered `Cancelled`. The whole prefetch now runs on a worker (the NAS scan included). Rail `ClusterMasterPrefetchTests.P8_H5_Cancelling_a_parked_load_stops_its_staging_copy`. ⚠ The terrain and behaviour-tree mirrors (`AssetTreeSync`) are not behind the provider: a cancel stops the chain before them, not inside one |
 | rails | `ClusterMasterPrefetchTests.P8_*` (cancel in flight ⇒ abort + Idle round ⇒ `Idle`, and the same load is admitted again; a completed transition is not undone) · `ClusterSlaveTests.P8_AnAbort_PreemptsTheStuckPrepareOfItsTransaction_AndReachesEveryClaimant` · `LoadPhaseChainTests.P8_AnAbortOfTheLoadInFlight_AbortsEveryStep_AndOnlyThatLoadsAbortIsClaimed` |
 
 ### 4-H.4 ⚠ What is NOT decided here

@@ -36,6 +36,16 @@ internal struct NodeJoinedRosterEvent
 }
 
 /// <summary>
+/// ⭐⭐ <c>P8</c> <c>H5</c> (Q91 §4-H) — the operator cancelled a PARKED transition: the staging copy its prefetch started
+/// is STOPPED, not left to finish. Published by <see cref="ClusterMaster"/>, consumed by
+/// <see cref="AssetPrefetchProcessManager"/>, which cancels the transfer (<c>IFileTransfer.Cancel</c>, P6).
+/// </summary>
+internal struct PrefetchCancelRequestedEvent
+{
+    public Guid RequestId;
+}
+
+/// <summary>
 /// Published by <see cref="AssetPrefetchProcessManager"/> when the gateway
 /// <c>PrefetchScenarioAsync</c> task completes (success or failure).
 /// Consumed by <see cref="AssetPrefetchProcessManager"/> to drive the PrefetchFiles fan-out or
