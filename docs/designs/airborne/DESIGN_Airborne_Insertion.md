@@ -373,6 +373,58 @@ index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and
 | ⭐ the lead aim stays on `InAir` — leading a falling man is right | `FireProcessingSystem` (`TargetLead`) | — |
 | a FALL hurts (§5.3): ≤ 6 m/s nothing (a canopy lands at ≤ 5.5), 6–10 m/s 75 % of his health (from full ⇒ under the injury's 0.3 ⇒ incapacitated), > 10 m/s all of it — a whole-body `DamageAssessedEvent` (no part: a zone multiplier would bend the thresholds), applied by his Health owner | `DescentRules.Fall` → `Impact` | `DescentModelsTests.B6_AFall_*` (1.5 m / 3.5 m / 20 m) |
 
+### 7d. Design for build — B-7…B-9, the ejecting pilot (`2026-10-16`, backend)
+
+```mermaid
+classDiagram
+    direction LR
+    class EjectionDto { <<NEW TKB Gen.Ejection, on the jet>> PilotType SeatX SeatY SeatZ AutoEjectBelowFraction }
+    class EjectRequestEvent { <<NEW event>> Aircraft }
+    class EjectExecutor { <<NEW interaction action 11, Brain>> raises EjectRequestEvent once, Success when the jet is down }
+    class EjectionSystem { <<NEW Hrot.Common, Interactions capability, every node>> gate OwnsHealth(jet) }
+    class EntityCreation { <<existing>> RequestEntityCreation(type, transform, components) }
+    class ScenarioEntityCreationRequestSource { <<existing world singleton>> Enqueue }
+    class HealthApplicationSystem { <<existing>> the jet's Health to 0 }
+    class FixedWingModel { <<existing>> Fall when not Alive }
+    class ParachuteModel { <<existing>> Ejection: the seat's arc, then a round canopy }
+    class Descent { <<existing>> Kind Ejection }
+    EjectExecutor ..> EjectRequestEvent : raises
+    EjectionSystem ..> EjectRequestEvent : reads
+    EjectionSystem ..> EjectionDto : reads the jet's type
+    EjectionSystem ..> ScenarioEntityCreationRequestSource : the pilot, FIRST
+    EjectionSystem ..> HealthApplicationSystem : DamageAssessedEvent(jet, all its health), THEN
+    HealthApplicationSystem ..> FixedWingModel : Health 0 ⇒ it falls and crashes
+    ScenarioEntityCreationRequestSource ..> Descent : the pilot is born with Descent{Ejection}
+    ParachuteModel ..> Descent
+```
+
+*Caption:* what the picture shows that prose hid — **two writers, one order, one node**: the pilot is a CREATION and the jet's end is a
+DAMAGE, both raised by `EjectionSystem` on the node that owns the jet's `Health` (the node that may kill it), in that order — so the pilot is
+never a rider who dies with it (R-2021). Nothing new moves anything: the pilot's descent is the existing parachute model's.
+
+```mermaid
+sequenceDiagram
+    participant B as behaviour Eject / the auto rule
+    participant E as EjectionSystem (the jet's Health owner)
+    participant C as entity creation (the arbiter)
+    participant H as HealthApplicationSystem
+    participant M as the pilot's Muscle (ParachuteModel)
+    B->>E: EjectRequestEvent(jet), or Health/Max at or below the type's AutoEjectBelowFraction
+    E->>E: once per jet (a latch), only while it is alive
+    E->>C: RequestEntityCreation(Pilot, the seat's world point, SimVelocity = jet + 40 m/s up, Descent{Ejection, Exit, Round})
+    E->>H: DamageAssessedEvent(jet, its health): the jet is abandoned
+    H->>H: Health 0 ⇒ FixedWingModel falls, DroneImpactSystem crashes it
+    C->>M: the pilot spawns and replicates
+    M->>M: Exit: the seat's arc (gravity, the air brakes the jet's speed) 1.5 s, Deploying 1.5 s, Canopy (round) by 3 s
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| **D-14** who ejects | `EjectionSystem` in the Interactions capability (every node, gated on `OwnsHealth`), reading `EjectRequestEvent` and the auto rule | the executor spawning by itself — it runs on the Brain of the JET, which need not own its Health; two triggers would be two spawn sites |
+| **D-15** the pilot's start | spawned with the jet's velocity PLUS the rocket (40 m/s up) as its `SimVelocity`; `Descent{Ejection}` in its initial components, no anchor | an anchor on the jet — the jet is being abandoned, and `Descent.Anchor` is a node-local handle |
+| **D-16** the type's figures | `Gen.Ejection` on the jet (pilot type, seat place, auto-eject fraction); the pilot type **206** carries `Gen.Parachute` round with `OpenSeconds` 1.5 (canopy by ~3 s, §7 B-7) | figures in code — every aircraft differs |
+| **D-17** once | a latch in `EjectionSystem` plus "only while alive" (the abandoned jet is at Health 0) | a replicated flag — only the Health owner ever ejects, so a local latch is enough |
+
 #### D-13 — how the scenario's wind reaches every node *(open — lean ③, user to approve)*
 
 | measured | code | design basis |
