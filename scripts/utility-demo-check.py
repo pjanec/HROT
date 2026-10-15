@@ -70,6 +70,15 @@ def load(name):
     #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an
     #   entity the file does not name is allowed when it sits in a seat (IsEmbarkedTag); anything else is the previous world.
     want = scenario_names(name)
+    # ⭐ CE-2176 IF-4 — a SECOND cluster left running on the same DDS domain doubles the world: every name twice, two SimHosts
+    #   materialising it, and orders landing on a copy whose roster another node owns. The name guard below cannot see it
+    #   (it reads names into a dict), so count them.
+    rows = data(call("GET", "/entities")) or []
+    names = [r.get("name") for r in rows if r.get("name") in want]
+    twice = sorted({n for n in names if names.count(n) > 1})
+    if twice:
+        sys.exit(f"the loaded world has {len(twice)} scenario name(s) twice ({twice[:5]}) — another ClusterRunner on the same DDS "
+                 f"domain? (ps -eo pid,args | grep [H]rot.ClusterRunner)")
     got = wait_for(lambda: (n := sorted(x for x in ids_by_name())) and set(want) <= set(n) and not _strangers(want) and n, 30)
     if got is None:
         sys.exit(f"the loaded world is not '{name}' (want {want} + seated presets, have {sorted(ids_by_name())}; strangers "
@@ -1311,6 +1320,126 @@ def run_air_strike(c, timeout):
          f"⑤ the A-10 flies on out, still in the air — {p1}")
 
 
+# ── ua-indirect-fire (CE-2176 IF-4; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §6) — mortars, artillery, the observer ───────
+#   ① the observer, 700 m north, calls the mortar section's fire on the enemy squad behind the ridge block: one tube adjusts, then all
+#   three fire for effect · ② the M109 battery, three guns at three ranges, time on target on the trucks in the open · ③ a Strike into
+#   the walled courtyard flies the HIGH arc (its time of flight ≫ ②'s at the same range) · ④ a Strike 400 m from friends is refused
+#   until it says danger close. Every order over HTTP (POST /entities/{id}/order), the way an operator gives it.
+
+def _if_bursts(shooters, after_seq=-1):
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        ds = (data(call("GET", "/combat/detonations?last=64")) or {}).get("detonations") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return [d for d in ds if d.get("shooter") in shooters and (d.get("seq") or 0) > after_seq]
+
+
+def _if_shots(shooters):
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        ss = (data(call("GET", "/combat/shots?last=64")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return [x for x in ss if x.get("shooter") in shooters]
+
+
+def _if_mark():
+    # the newest burst and shot sequence numbers so far (a phase looks only at what comes after its mark)
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        ds = (data(call("GET", "/combat/detonations?last=1")) or {}).get("detonations") or []
+        ss = (data(call("GET", "/combat/shots?last=1")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return (max([d.get("seq") or 0 for d in ds] + [-1]), max([x.get("seq") or 0 for x in ss] + [-1]))
+
+
+def _if_shots_since(shooters, seq):
+    return [x for x in _if_shots(shooters) if (x.get("seq") or 0) > seq]
+
+
+def _if_order(nid, kind, params):
+    r = call("POST", f"/entities/{nid}/order", {"kind": kind, "params": params})
+    ok = isinstance(r, dict) and "http" not in r and (data(r) or {}).get("accepted", True) is not False
+    print(f"    order {kind} → {nid}: {json.dumps(data(r) if ok else r)[:200]}")
+    return ok
+
+
+def run_indirect_fire(c, timeout):
+    ids = ids_by_name()
+    gunners = [ids.get(f"Mortar Gunner {i}") for i in (1, 2, 3)]
+    tubes = [ids.get(f"81mm Tube {i}") for i in (1, 2, 3)]
+    guns = [ids.get(f"M109 {i}") for i in (1, 2, 3)]
+    sec, bat, obs = ids.get("Mortar Section"), ids.get("Artillery Battery"), ids.get("Observer")
+    if not c.ok(None not in gunners + tubes + guns + [sec, bat, obs, ids.get("Friendly 1")], "the mortar section, the battery, the observer are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    call("POST", "/sim/timescale", {"scale": 4})
+    comps = lambda n: ((data(call("GET", f"/entities/{n}")) or {}).get("Components") or {})
+    boarded = wait_for(lambda: all("IsEmbarkedTag" in comps(g) for g in gunners), 60)
+    if not c.ok(boarded, "the three gunners man their tubes"):
+        return
+
+    # ① the observer calls the mortars (it runs while the battery does ② – ④)
+    target = (340, 300)
+    t0, _ = _if_mark()
+    c.ok(_if_order(obs, "ObserveFire", {"Location": [target[1], target[0]], "Battery": sec, "Sheaf": "Parallel", "Rounds": 2}),
+         "① the observer takes the ObserveFire order")
+
+    # ② time on target
+    p2 = (720, -195)
+    c.ok(_if_order(bat, "Strike", {"Location": [p2[1], p2[0]], "Control": "TimeOnTarget", "Sheaf": "Parallel", "Rounds": 1}), "② the battery takes the Strike")
+    b2 = wait_for(lambda: (x := _if_bursts(guns, t0)) and len({d.get("shooter") for d in x}) >= 3 and x, timeout + 120)
+    if c.ok(b2 is not None, f"② every gun's round burst — {len(_if_bursts(guns, t0))}"):
+        first = {}
+        for d in sorted(b2, key=lambda d: d.get("tick") or 0):
+            first.setdefault(d.get("shooter"), d)
+        ticks = [d.get("tick") or 0 for d in first.values()]
+        miss = max(flat(d.get("burst") or [9e9, 9e9], p2) for d in first.values())
+        print(f"    ② first-round ticks {ticks}, the farthest burst {miss:.0f} m from the point")
+        c.ok(max(ticks) - min(ticks) <= 60, f"② the three first rounds land within a second (time on target) — {max(ticks) - min(ticks)} ticks")
+        c.ok(miss <= 150, f"② on the trucks (≤ 150 m: dispersion + the parallel sheaf) — {miss:.0f} m")
+    tof2 = [(x.get("endTick") or 0) - (x.get("tick") or 0) for x in _if_shots(guns) if x.get("endTick")]
+    t3, s3 = _if_mark()
+
+    # ③ the courtyard: the low arc cannot clear the walls ⇒ high
+    p3 = (900, 150)
+    c.ok(_if_order(bat, "Strike", {"Location": [p3[1], p3[0]], "Rounds": 1}), "③ the battery takes the courtyard Strike")
+    b3 = wait_for(lambda: (x := _if_bursts(guns, t3)) and x, timeout + 240)
+    if c.ok(b3 is not None and bool(tof2), "③ a round burst in or by the courtyard"):
+        tof3 = [(x.get("endTick") or 0) - (x.get("tick") or 0) for x in _if_shots_since(guns, s3) if x.get("endTick")]
+        lo, hi = sum(tof2) / len(tof2), (max(tof3) if tof3 else 0)
+        print(f"    ② low-arc flights {tof2} ticks · ③ flights {tof3} ticks")
+        c.ok(hi >= 1.5 * lo, f"③ the courtyard round flew the HIGH arc — {hi} vs {lo:.0f} ticks")
+
+    # ④ danger close
+    pd = (1000, 800)
+    _, s4 = _if_mark()
+    c.ok(_if_order(bat, "Strike", {"Location": [pd[1], pd[0]], "Rounds": 1}), "④ the battery takes the Strike near the friends")
+    time.sleep(25)
+    c.ok(not _if_shots_since(guns, s4), "④ refused — no gun fires with friends 400 m from the point")
+    t4b, _ = _if_mark()
+    c.ok(_if_order(bat, "Strike", {"Location": [pd[1], pd[0]], "Rounds": 1, "DangerClose": True}), "④ resent with danger close")
+    b4 = wait_for(lambda: (x := _if_bursts(guns, t4b)) and x, timeout + 120)
+    c.ok(b4 is not None, "④ with danger close the battery fires")
+
+    # ① back to the observer: adjusting rounds from ONE tube, then every tube fires for effect
+    def ffe():
+        x = _if_bursts(tubes, t0)
+        return x if len({d.get("shooter") for d in x}) >= 3 else None
+    b1 = wait_for(ffe, timeout + 600, every=2)
+    allb = sorted(_if_bursts(tubes, t0), key=lambda d: d.get("tick") or 0)
+    print(f"    ① {len(allb)} mortar bursts: " + ", ".join(f"{d.get('shooter')}@{flat(d.get('burst') or [0, 0], target):.0f}m" for d in allb))
+    if not c.ok(b1 is not None, "① every tube fired — the observer called fire for effect"):
+        return
+    k = next(i for i, d in enumerate(allb) if len({e.get("shooter") for e in allb[: i + 1]}) >= 2)
+    c.ok(k >= 1 and len({d.get("shooter") for d in allb[:k]}) == 1, f"① {k} adjusting round(s) from ONE tube first")
+    effect = allb[k:]
+    near = [d for d in effect if flat(d.get("burst") or [9e9, 9e9], target) <= 120]
+    c.ok(len(near) >= 3, f"① the fire for effect lands on the enemy squad (≤ 120 m) — {len(near)}/{len(effect)}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -1337,7 +1466,9 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2161 — the D3 Bound choice over open ground (CE-3081)
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
-             "ua-air-strike": run_air_strike}
+             "ua-air-strike": run_air_strike,
+             # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
+             "ua-indirect-fire": run_indirect_fire}
 
 
 def main():

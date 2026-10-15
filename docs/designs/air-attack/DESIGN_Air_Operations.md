@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a); the rest of 3 and 5, the ui half of 1, and the rest of 6 remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), §10 decisions, §11 slices and rails — §1 is the measured ground.
+updated: 2026-10-15
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -384,9 +384,9 @@ only the way out. Every hold kind (Seconds, Unload, Pickup, none) leaves the sam
 | aircraft | best mount for the target | profile |
 |---|---|---|
 | plane | Bomb | **LevelBomb** (slice 1) · DiveBomb (an unguided bomb vs a small target, later) |
-| plane | Gun · Rockets | GunRun · RocketRun |
+| plane | Gun · Rockets | GunRun · **RocketRun** (slice 6, §9d) |
 | helicopter | Atgm, target armour | PopUp (the V4 exposure cycle, vertical: hide low, climb to sight, fire, sink) |
-| helicopter | Rockets · Gun (fixed) | RunningFire |
+| helicopter | Rockets · Gun (fixed) | **RunningFire** (slice 6, §9d — rockets, then the gun) |
 | helicopter | a side-traversing turret | DoorGunOrbit |
 | drone (FPV) | its warhead | Dive (FPV §3's sequence; B5) |
 
@@ -627,7 +627,7 @@ the weapon's `FireAtPoint` asking; the weapon brain decides the moment (§8a). A
 | as built | why / deviation |
 |---|---|
 | ★ `AirAttackNodes.Run` (`AirAttackParams` + `AirAttackState`, a stateful shared action) — one attack, the profile a parameter; only `LevelBomb` built | B4 / B5 |
-| ★ `AirAttackProfiles.Pick`: a FixedWing with a `Bomb` mount ⇒ LevelBomb (that mount); anything else ⇒ no profile — the attack FAILS at once, logged | ⚠ deviation from "a helicopter gets PopUp / RunningFire": those profiles are slice 6; failing loudly beats flying somewhere and doing nothing |
+| ~~★ `AirAttackProfiles.Pick`: a FixedWing with a `Bomb` mount ⇒ LevelBomb (that mount); anything else ⇒ no profile — the attack FAILS at once, logged~~ ⛔ SUPERSEDED by §9d (slice 6: RocketRun, RunningFire) | ⚠ deviation from "a helicopter gets PopUp / RunningFire": those profiles are slice 6; failing loudly beats flying somewhere and doing nothing |
 | ⭐⭐ the run-in steers at a point **4 km BEYOND the target** on the line from the plane through it (re-aimed every 0.5 s until 2.5 km out, then frozen), at the pass height (300 m) above the ground at the target | 📐 measured on the as-built `FixedWingModel.ToPoint`: a point move counts as arrived within `max(arrival radius, turn radius)` and then CIRCLES — an A-10's turn radius (~1.3 km) is longer than its bomb's throw (~1.2 km from 300 m at 150 m/s), so steering AT the target would turn the plane before the release |
 | the weapon is driven through `FireAtPointNodes.FireAtPoint` (one round, the bomb mount) — the release gate is in `FireAtPointExecutor` (§9b) | one weapon path for a point (A6, R-261) |
 | ★ `AirPlatformStrike` (resolved from `StrikeOrder`: the `Target`'s position when it names a live entity, else the `Location` on the ground there) — every `AirPlatform` | B4, R-278 |
@@ -637,6 +637,42 @@ the weapon's `FireAtPoint` asking; the weapon brain decides the moment (§8a). A
 | ⚠ **the live re-run `2026-10-15`**: ✅ released on the cue, ONE bomb, burst **20.4 m** from the target (≤ 25), the A-10 flies on out; ⛔ **the technical is not hurt** (Health 100). 📐 Measured (`GET /combat/detonations` on SimHost): the pickup's row has `fragmentArmourChance 0` at 15 m — the library's fragment is 0.5 g ⇒ a Mk-82 fragment penetrates ≈ 2.4 mm (Gurney v₀ ≈ 1760 m/s, `k·v₀·√m`), the pickup is 5 mm all round ⇒ chance 0; and blast is personnel-only (`AreaEffectSystem.cs:116`, Armour Hit Model §1). ⇒ as modelled no bomb short of a direct hit damages ANY vehicle. ⛔ Not a release defect — an effects-model gap, raised with the user — 🔒 *"A and B together"* (`2026-10-15`, R-2019): [Armour Hit Model §7](../vehicle-tactics/DESIGN_Armour_Hit_Model.md), handoff to backend (CE-2177) | ⏳ backend |
 | ⚠ **the re-run after AE1–AE4** (`d6bfb4b4d`, `2026-10-15`): ✅ ③ the target destroyed (fragments 41 638 + blast 59 at 20 m), ② one bomb, ⑤ flies on out. 🔴 ④ the **Far Technical at 121.6 m is destroyed too** (fragment falloff 0.022 × armour chance 1 = 1 253) — a hull takes the personnel fragment sum anywhere inside the 143 m fragment radius ⇒ [AE5 handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Fragments_On_Hulls.md). ⚠ ① the burst **26.7 m** off (20.4 m the run before, both along track, overshooting) — the release cue's timing spread; ours, open | ⏳ backend (AE5) · behaviors (①) |
 | rails: `AirAttackNodesTests.B6_ALevelBombRun_HitsThePoint` (the plane flown by a stand-in, the real `FireAtPointExecutor`: one bomb, at 300 m, its predicted impact within 15 m of the point, then out) · `B4_TheProfile_IsPickedFromTheAircraftAndItsWeapons` · `TacticalIntentResolutionSystemTests.B4_EveryAircraftsStrike_ResolvesTo_AirPlatformStrike_ALandVehicleHasNone` · `SR_R2` (+`AirPlatformStrike`) | red-proved by 3 mutants: steering at the target, no profile picked, the behaviour not registered — ⚠ the first version of the bomb rail let "steer at the target" SURVIVE (its stand-in plane arrived at 20 m); the stand-in now flies a point as `FixedWingModel.ToPoint` does (arrived within the turn radius, then circles) |
+
+### 9d. As-built `2026-10-15` — slice 6, the forward pass (behaviors): `AirAttack` RocketRun and RunningFire
+
+```mermaid
+stateDiagram-v2
+  [*] --> Start
+  Start --> ToRunIn : a run-in bearing given
+  Start --> RunIn : no bearing, straight at the point
+  ToRunIn --> RunIn : at the run-in start
+  state RunIn {
+    [*] --> Rockets
+    Rockets --> Gun : the ripple is gone, or the pod fails
+    Gun --> Done : the burst is gone, or the gun fails
+    Rockets --> Done : a plane, no gun
+  }
+  RunIn --> Out : the break range, a helicopter turns right and a little back
+  RunIn --> Out : the break range, a plane that fired flies through
+  RunIn --> ToRunIn : a plane overflies with nothing fired (3 passes at most)
+  Out --> RunIn : a helicopter at its break-away point with nothing fired (3 passes at most)
+  Out --> [*] : at the egress point
+```
+
+*What the picture shows that prose hid: the WINDOW, not a timer, starts and ends each weapon — a weapon starts when the point is inside
+its range (the rockets: min(fire range, the pod's range); the gun: 0.9 × its range) and the break range stops whatever is still on the
+channel. A helicopter never reaches the point; a plane does, and a pass with nothing fired is a way back in, for either.*
+
+| as built | why / deviation |
+|---|---|
+| ★ `AirAttackProfiles.Pick(world, aircraft, out mount, out gun)` — Air Ops §7's table: a plane with a bomb ⇒ LevelBomb; a plane with a rocket pod ⇒ **RocketRun**; a helicopter with rockets or a gun ⇒ **RunningFire** (the pod, the first machine gun / autocannon). A plane with only a gun ⇒ no profile (GunRun not built) | ⛔ SUPERSEDES §9c's "a helicopter fails at once" row; the mount scan is one helper (`Scan`) shared by Pick and `MountsFor` |
+| ★ a GIVEN profile (`AirAttackParams.Profile ≠ Auto`) takes its mounts from `MountsFor`; an aircraft with no weapon for it ⇒ the attack fails at once, logged | before, a given profile still took Pick's mount — a RocketRun given to a bomber would have fired the bomb |
+| the pass height by profile: LevelBomb 300 m, RocketRun 150 m, RunningFire 60 m above the point (`AttackHeightAgl` overrides) | low enough that the point stays inside an 8° fixed cone to ~430 m (helicopter) / ~1 070 m (plane) — `BodyAim.OutsideFixedCone` is a 3-D test on the body's nose |
+| rockets: `FireAtPoint` with `Ripple` rounds (8) every 0.25 s; the gun: a 30-round burst every 0.1 s | ⚠ the TKB has a rate of fire only for the PRIMARY weapon (`WeaponCapabilitiesDto.RateOfFire`), not per mount ⇒ constants here; a per-mount rate is a TKB item if a type needs another |
+| the break: a helicopter at `BreakRangeM` (400 m) hands the channel back (`StopFire`) and flies to 1 500 m to its right and 375 m back, at the pass height | 📐 measured on the rail: a forward-right break-away (750 m on, 1 500 m right) still closed to **357 m** — a break must never be a heading that closes on the point |
+| a plane's rockets stop at 800 m (`DefaultPlaneBreakM`) and it flies through to the run-out point 4 km beyond (as LevelBomb) | the plane pulls out over the point |
+| rails: `AirAttackNodesTests.S6_ARunningFire_RipplesTheRocketsThenTheGun_AndBreaksOffShort` (8 rockets in [400, 2 500] m, then 30 rounds in [400, 900] m, the rockets first, fired at 60 m, never nearer than the break, Success at the break-away) · `S6_ARocketRun_RipplesInsideTheWindow_AndFliesThrough` (8 rockets in [800, 2 500] m, fired at 150 m, overflies, Success) · `B4_TheProfile_IsPickedFromTheAircraftAndItsWeapons` (+ the helicopter, the rocket plane, the gun plane, a given profile with no weapon) — the helicopter's pod is a mount child, as `CombatTkbTranslator` spawns it | red-proved by 5 mutants: no helicopter break, the rocket window at the pod's 4 km range, the gun never started after the rockets, no profile for a rotorcraft, the rocket run flown at the bomb run's 300 m |
+| ⏸ not built: `AirPlatformAttack` (Attack on an entity) — now unblocked: a helicopter has a profile · GunRun · PopUp · DoorGunOrbit · Dive · the `ua-air-attack` demo (slice 6b) | — |
 
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 
