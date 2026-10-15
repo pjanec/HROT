@@ -95,7 +95,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// (<c>NeedsOperator = false</c>) also sees (a sensor) and so fights on its own.
         /// </summary>
         private static void WeaponSystemType(NedTkbBuilder builder, long type, string name, byte sub, WeaponSystemDto ws, WeaponMount weapon,
-                                             TurretDto? turret, float sensorRange = 0f)
+                                             TurretDto? turret, float sensorRange = 0f, byte category = 50)
         {
             builder
                 .DefineVehicle(type, name)
@@ -107,7 +107,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.Weapons.Add(weapon);
                 })
                 .WithWeaponSystem(type, ws)
-                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 50, Subcategory = sub })
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = category, Subcategory = sub })   // ⭐ IF-1 — a mortar 10, a towed gun 5
                 // ⭐ hidden from the Add Entity picker until the ui lane draws the class (WS-5: the stowed / deployed drawings and its
                 //   picker entries — a weapon has no 3-D family yet, Map3D S1). It is created by presets and scenarios meanwhile.
                 .HiddenFromPalette(type);
@@ -184,6 +184,95 @@ namespace Hrot.Map.Definitions.Tkb
                     DispersionMils = 3f, MagazineSize = 200, ReloadSeconds = 6f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0f) },
                 Pintle(-20f, 60f, 120f, 60f, 0.2f), sensorRange: 1200f);
+
+            // ⭐⭐ Indirect fire IF-1 (I8, IF-G; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the tubes and the towed gun: weapon
+            //   systems crewed through their Gunner seat (+ a loader's for a two-man tube), class Mortar 1.1.*.10 / TowedArtillery 1.1.*.5.
+            //   Each fires at a POINT by a fire solution (Arc HighOnly / Both + the elevation limits) at its round's charges (I7). Public
+            //   figures, rounded; the dispersion, rates and deploy times are starter values — tuning starts here.
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar60, "60 mm mortar", 1,
+                new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground, DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.8f },
+                IndirectMount("60mm_M224", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar60mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar81, "81 mm mortar", 2,
+                new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 60f, PackSeconds = 45f, CarrySpeedFactor = 0.5f },
+                IndirectMount("81mm_M252", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar81mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar120, "120 mm mortar", 3,
+                new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 90f, PackSeconds = 60f, CarrySpeedFactor = 0.4f },
+                IndirectMount("120mm_M120", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar120mmHeName,
+                              WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f),
+                turret: null, category: 10);
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Howitzer105, "105 mm towed howitzer", 1,
+                new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground },   // emplaced: no towing yet (IF-G)
+                IndirectMount("105mm_M119", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb105mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer105HeName,
+                              WeaponCategory.Howitzer, IndirectArc.Both, -5f, 70f, rounds: 40, rangeM: 11500f, dispersionMils: 3f, reloadSeconds: 8f),
+                turret: null, category: 5);
+        }
+
+        /// <summary>⭐ IF-1 (I8) — an INDIRECT mount: a point-firing gun whose round flies the fire solution's charge and arc. Its damage is
+        /// the round's library pair (the warhead does the work); it stands to fire.</summary>
+        private static WeaponMount IndirectMount(string name, long ammo, string libraryName, WeaponCategory category, IndirectArc arc,
+            float minElevationDeg, float maxElevationDeg, int rounds, float rangeM, float dispersionMils, float reloadSeconds)
+            => new()
+            {
+                WeaponType = name, Ammunition = rounds, Range = rangeM, RateOfFire = 60f / reloadSeconds,
+                DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(libraryName), DispersionMils = dispersionMils,
+                AimSeconds = 2f, MagazineSize = 1, ReloadSeconds = reloadSeconds, FireOnMove = false,
+                AmmoTkb = ammo, Category = category, Arc = arc, MinElevationDeg = minElevationDeg, MaxElevationDeg = maxElevationDeg,
+            };
+
+        /// <summary>
+        /// ⭐⭐ IF-1 (I8, IF-G, FM-1) — the 155 mm SELF-PROPELLED HOWITZER (M109 class): a tracked vehicle with a turret (all round, −3…+75°), a
+        /// brain (a Strike to it resolves to <c>SelfPropelledArtilleryStrike</c>, the behaviour lane's), and a preset crew (W-I: driver,
+        /// gunner, commander, two loaders). Class SelfPropelledArtillery 1.1.*.4. Public figures, rounded.
+        /// </summary>
+        private static void DefineSelfPropelledHowitzer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Sph_M109;
+            builder
+                .DefineVehicle(type, "M109 155 mm self-propelled howitzer")
+                .WithVisual(type, v => { v.SymbolCode = "SFGPUCFHE------"; v.ColorHex = "#5A5F52"; v.Scale = 1.2f; v.ShowLabel = true; })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 27_500; p.Length = 6.19f; p.Width = 3.15f; p.Height = 3.25f;
+                    p.MaxSpeed = 15f; p.MaxSpeedRev = 5f; p.Acceleration = 1.5f; p.TurnRate = 20f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 30; c.ArmorSide = 25; c.ArmorRear = 20; c.ArmorTop = 20;
+                    c.MaxHealth = 1200;
+                    c.EyeHeight = 2.8f;
+                    c.SensorRange = 2000;
+                    var gun = IndirectMount("155mm_M284", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb155mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer155HeName,
+                                            WeaponCategory.Howitzer, IndirectArc.Both, -3f, 75f, rounds: 39, rangeM: 18100f, dispersionMils: 3f, reloadSeconds: 10f);
+                    gun.TurretIndex = 0;
+                    gun.MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f);
+                    c.Weapons.Add(gun);
+                })
+                .WithTurrets(type, new TurretDto
+                {
+                    PivotX = -0.5f, PivotZ = 2.6f, TrunnionX = 0.8f,
+                    TraverseMinDeg = -180f, TraverseMaxDeg = 180f, ElevationMinDeg = -3f, ElevationMaxDeg = 75f,
+                    TraverseRateDegPerSec = 10f, ElevationRateDegPerSec = 5f,
+                })
+                .WithCarrier(type, new CarrierDefDto
+                {
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Enclosed,
+                    Seats =
+                    {
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, StartWith = TkbEntityTypes.Infantry_Rifleman },
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman },
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Commander, StartWith = TkbEntityTypes.Infantry_Officer },
+                        new SeatDto { StartWith = TkbEntityTypes.Infantry_Rifleman },   // the loaders
+                        new SeatDto { StartWith = TkbEntityTypes.Infantry_Rifleman },
+                    },
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 4, Subcategory = 1 });
         }
 
         public static void RegisterAll(TkbDatabase tkbDb)
@@ -536,6 +625,22 @@ namespace Hrot.Map.Definitions.Tkb
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
+
+            // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
+            //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_ArtilleryBattery, "Artillery Battery")
+                .WithVisual(TkbEntityTypes.Unit_ArtilleryBattery, v => { v.SymbolCode = "SFGPUCF---E----"; v.ColorHex = "#0000FF"; v.Scale = 1.2f; })
+                .WithFaction(TkbEntityTypes.Unit_ArtilleryBattery, 1)
+                .WithBehavior(TkbEntityTypes.Unit_ArtilleryBattery)
+                .AsComposite(TkbEntityTypes.Unit_ArtilleryBattery, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Sph_M109, Count = 3, Designation = TacticalDesignation.Wingman });
+                    comp.Echelon = "Company";   // a battery is a company-level echelon
+                    comp.AutoCreateChildren = false;
+                })
+                .AsLandUnit(TkbEntityTypes.Unit_ArtilleryBattery, Hrot.Core.Tkb.UnitArm.Artillery, UnitedStates);   // 11.1.225.4.5.1
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);

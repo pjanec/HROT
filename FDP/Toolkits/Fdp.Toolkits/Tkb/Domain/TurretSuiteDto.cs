@@ -62,5 +62,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ Air Ops slice 6a (AW-3, DESIGN_Air_Operations §7a) — an unguided ROCKET pod (a Hydra-70 class): the per-shot path; a
         /// held trigger keeps firing at the cooldown (the ripple), so it is not fired per press. Appended (no wire struct carries it).</summary>
         Rocket = 9,
+        /// <summary>⭐ Indirect fire IF-1 (I8, IF-G) — a HOWITZER (towed or self-propelled): fires per shot, at a point by a fire solution
+        /// (<c>WeaponMountDto.Arc</c>); stands to fire; one round per press. Appended.</summary>
+        Howitzer = 10,
     }
 }

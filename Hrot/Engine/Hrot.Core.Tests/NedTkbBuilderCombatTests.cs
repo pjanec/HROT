@@ -428,6 +428,60 @@ namespace Hrot.Map.Common.Tests
             Assert.InRange(maxZ, dto.HoverHeightM - 0.5f, dto.HoverHeightM + 0.5f);   // its hover height over the ground
         }
 
+        /// <summary>
+        /// ⭐⭐ Indirect fire IF-1 (I8, IF-G, FM-1; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the guns: three mortars (60 mm
+        /// one-man, 81 / 120 mm two-man; class Mortar 1.1.*.10, HighOnly 45–85°) and a 105 mm towed howitzer (class TowedArtillery 1.1.*.5,
+        /// Both −5–70°, emplaced) — weapon systems crewed through their Gunner seat, each loading its own round; the M109 (class
+        /// SelfPropelledArtillery 1.1.225.4, a turret, Both −3–75°, a preset crew of five); the battery (11.1.225.4, three M109s, placed by
+        /// hand). No existing type changed: every pre-IF-1 mount still declares no arc.
+        /// </summary>
+        [Fact]
+        public void IF1_TheMortars_TheHowitzers_AndTheBattery()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, cat, sub, portable, seats, category, arc, minEl, maxEl, ammo) in new[]
+                     {
+                         (TkbEntityTypes.WeaponSystem_Mortar60, 10, 1, WeaponPortability.OneMan, 1, WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe),
+                         (TkbEntityTypes.WeaponSystem_Mortar81, 10, 2, WeaponPortability.TwoMan, 2, WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe),
+                         (TkbEntityTypes.WeaponSystem_Mortar120, 10, 3, WeaponPortability.TwoMan, 2, WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe),
+                         (TkbEntityTypes.WeaponSystem_Howitzer105, 5, 1, WeaponPortability.Static, 1, WeaponCategory.Howitzer, IndirectArc.Both, -5f, 70f, Hrot.Core.Tkb.MunitionTkbCatalog.Tkb105mmHowitzerHe),
+                     })
+            {
+                var t = db.GetByType(type)!;
+                var ws = t.GetDescriptor<WeaponSystemDto>()!;
+                Assert.Equal((portable, true), (ws.Portable, ws.NeedsOperator));
+                Assert.Equal((1, 1, cat, sub), (t.DisType.Kind, t.DisType.Domain, t.DisType.Category, (int)t.DisType.Subcategory));
+                var mount = Assert.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+                Assert.Equal((category, arc, minEl, maxEl, (ulong)ammo), (mount.Category, mount.Arc, mount.MinElevationDeg, mount.MaxElevationDeg, mount.AmmoGuid));
+                Assert.True(mount.DispersionMils > 0f && mount.Range > 0f && mount.FireOnMove != true, $"{t.Name}");
+                var crew = t.GetDescriptor<CarrierDefDto>()!.Seats;
+                Assert.Equal(seats, crew.Count);
+                Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, crew[0].Role);   // a man fires it from its Gunner seat
+                Assert.NotNull(t.GetDescriptor<BehaviorProfileDto>());
+            }
+
+            var m109 = db.GetByType(TkbEntityTypes.Sph_M109)!;
+            Assert.Equal((1, 1, 225, 4), (m109.DisType.Kind, m109.DisType.Domain, (int)m109.DisType.Country, m109.DisType.Category));
+            var gun = Assert.Single(m109.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+            Assert.Equal((WeaponCategory.Howitzer, IndirectArc.Both, 0, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.Tkb155mmHowitzerHe),
+                         (gun.Category, gun.Arc, gun.TurretIndex, gun.AmmoGuid));
+            Assert.NotNull(m109.GetDescriptor<TurretSuiteDto>());
+            Assert.Equal(5, System.Linq.Enumerable.Count(m109.GetDescriptor<CarrierDefDto>()!.Seats, s => s.StartWith != 0));   // the preset crew (W-I)
+            Assert.NotNull(m109.GetDescriptor<BehaviorProfileDto>());
+
+            var battery = db.GetByType(TkbEntityTypes.Unit_ArtilleryBattery)!;
+            Assert.Equal((11, 1, 225, 4), (battery.DisType.Kind, battery.DisType.Domain, (int)battery.DisType.Country, battery.DisType.Category));
+            var roster = Assert.Single(battery.GetDescriptor<TkbCompositionDef>()!.Subordinates);
+            Assert.Equal((TkbEntityTypes.Sph_M109, 3), (roster.TkbType, roster.Count));
+
+            // no existing type moved: every mount outside the new guns declares no arc (ThrowArc keeps flying it)
+            var fresh = new System.Collections.Generic.HashSet<long> { TkbEntityTypes.WeaponSystem_Mortar60, TkbEntityTypes.WeaponSystem_Mortar81,
+                TkbEntityTypes.WeaponSystem_Mortar120, TkbEntityTypes.WeaponSystem_Howitzer105, TkbEntityTypes.Sph_M109 };
+            foreach (var t in db.GetAll())
+                if (!fresh.Contains(t.TkbType) && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
+                    Assert.All(suite.Mounts, m => Assert.Equal(IndirectArc.Unset, m.Arc));
+        }
+
         private sealed class OneRoute : Fdp.Toolkit.Navigation.IRouteSource
         {
             public readonly System.Collections.Generic.List<Fdp.Toolkit.Navigation.NavRouteWaypoint> Waypoints = new();

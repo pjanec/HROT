@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   else the mount's own. Its warhead, penetration and damage are that round's (CombatTkb.RoundOf).
                 long mountAmmo = firedMount != null ? unchecked((long)firedMount.AmmoGuid) : 0L;
                 long ammo = evt.AmmoGuid != 0 ? evt.AmmoGuid : mountAmmo;
-                byte warheadBits = 0; float fuze = 0f;
+                byte warheadBits = 0; float fuze = 0f; uint arcLifetime = 0;
                 if (CombatTkb.WarheadOf(repo, ammo) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
                 {
                     if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
@@ -177,7 +177,24 @@ namespace Fdp.Toolkit.Combat.Systems
                         // ⭐ WL-4 L-1 (Weapon_Layers §5f) — a throw whose low arc the terrain would stop (the wall the target is
                         //   behind) is LOBBED: ThrowArc walks the arc through the same terrain rule the flight uses.
                         float arcPen = firedMount != null && firedMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, firedMount) : 0f;
-                        velocity = ThrowArc.Launch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen);
+                        // ⭐⭐ Indirect fire IF-1 (I3) — the brain's fire solution: the intent's CHARGE at the intent's ARC, flown as given
+                        //   (no second decision here). Charge 0 = no solution: today's arc (ThrowArc — a hand throw, every older mount).
+                        var charges = evt.Charge > 0 && firedMount != null
+                            ? FireSolution.ChargesOf(repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null, firedMount, ammo)
+                            : null;
+                        velocity = charges != null && evt.Charge <= charges.Count
+                            ? ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0)
+                            : ThrowArc.Launch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen);
+                        // ⭐⭐ IF-1 (I4, IF-F) — the arc keeps the mount's SPREAD (it replaced the dispersed direction before): the azimuth by
+                        //   θ (the same sequence a direct round turns by), the range by a speed factor on a second stream — ½·σ·d₂, since the
+                        //   range goes with v², so range and azimuth errors are alike (≈ σ × the range). σ = 0 ⇒ exactly as before.
+                        if (sigma > 0f)
+                        {
+                            velocity = HitModel.Rotate(velocity, theta) * (1f + 0.5f * sigma * HitModel.RangeSequence(ordinal));
+                        }
+                        // ⭐ IF-1 (I5) — it lives its time of flight + 10 s (never less than the old flat 60 s): a high-angle howitzer
+                        //   round flies longer than 60 s and vanished in the air.
+                        arcLifetime = ArcLifetimeTicks(origin, targetPos, velocity);
                     }
                 }
 
@@ -266,6 +283,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Ammo             = roundType,   // ⭐ CE-1032 W-2 — what the round IS (⭐ LR-1: the tracer, one in N)
                     Warhead          = warheadBits,
                     FuzeRemaining    = fuze,
+                    ArcLifetimeTicks = arcLifetime,   // ⭐ IF-1 (I5) — 0 = the flat arc lifetime
                 });
 
                 // ⭐⭐ LR-2 (§8.5, R-271) — a VISIBLE round (its munition has a look: a shell, a bomb, a grenade, a rocket, a missile, a
@@ -337,6 +355,23 @@ namespace Fdp.Toolkit.Combat.Systems
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())
                 repo.AddComponent(round, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
             return true;
+        }
+
+        /// <summary>The seconds an arc round launched at <paramref name="velocity"/> outlives its flight to <paramref name="to"/>'s height.</summary>
+        public const float ArcLifetimeMarginSeconds = 10f;
+
+        /// <summary>
+        /// ⭐ Indirect fire IF-1 (I5) — an arc round's lifetime in ticks: its time of flight (the descending root of
+        /// <c>z(t) = z₀ + v_z·t − ½·g·t²</c> at the aim point's height) + <see cref="ArcLifetimeMarginSeconds"/>, never less than the flat
+        /// <see cref="CombatConstants.ArcRoundLifetimeTicks"/> (so no round lives shorter than before).
+        /// </summary>
+        public static uint ArcLifetimeTicks(Vector3 from, Vector3 to, Vector3 velocity)
+        {
+            float g = CombatConstants.Gravity, drop = from.Z - to.Z;
+            float disc = velocity.Z * velocity.Z + 2f * g * drop;
+            float tof = disc > 0f ? (velocity.Z + MathF.Sqrt(disc)) / g : 0f;
+            uint ticks = (uint)MathF.Ceiling((tof + ArcLifetimeMarginSeconds) * GuidedRound.TicksPerSecond);
+            return Math.Max(ticks, CombatConstants.ArcRoundLifetimeTicks);
         }
 
         /// <summary>

@@ -88,6 +88,17 @@ namespace Fdp.Toolkit.Combat
             return (float)(2.0 * f - 1.0);
         }
 
+        /// <summary>⭐ Indirect fire IF-1 (I4, IF-F) — the SECOND stream for an arc round's range error: <c>2·frac(k·(√2 − 1)) − 1</c>, a
+        /// Weyl sequence on another irrational, so azimuth (<see cref="Sequence"/>) and range spread independently over a 2-D pattern —
+        /// still no random source, still the same on every run.</summary>
+        public static float RangeSequence(uint k)
+        {
+            double f = (k * RangeFraction) % 1.0;
+            return (float)(2.0 * f - 1.0);
+        }
+
+        private const double RangeFraction = 0.41421356237309515;   // √2 − 1
+
         /// <summary>The deflection angle (radians) of the shooter's <paramref name="ordinal"/>-th shot.</summary>
         public static float Deflection(float sigma, uint ordinal) => sigma <= 0f ? 0f : sigma * Sequence(ordinal);
 

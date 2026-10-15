@@ -41,6 +41,8 @@ public static class VisualFamilies
         ["Unit"] = VisualFamily.Unit,
         ["Person"] = VisualFamily.Person,
         ["Tank"] = VisualFamily.Tank,
+        // ⭐ Indirect fire IF-1 (I8) — the M109 draws as a tracked, turreted body (the tank kit) until the ui lane gives artillery its own
+        ["SelfPropelledArtillery"] = VisualFamily.Tank,
         ["Afv"] = VisualFamily.Afv,
         ["Car"] = VisualFamily.WheeledCar,
         ["WheeledUtility"] = VisualFamily.WheeledUtility,

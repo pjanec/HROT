@@ -165,6 +165,27 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(_world.IsAlive(bullet), "Bullet entity should have been destroyed after lifetime expired.");
         }
 
+        /// <summary>⭐ Indirect fire IF-1 (I5) — an ARC round lives its own flight + 10 s: a 90 s high-angle round is still flying at 70 s (the
+        /// flat 60 s killed it in the air) and is gone after its lifetime. ✅ Red-proof: without the ArcLifetimeTicks read ⇒ gone at 60 s ⇒ red.</summary>
+        [Fact]
+        public void IF1_AnArcRound_LivesItsTimeOfFlight_NotAFlat60s()
+        {
+            uint life = FireProcessingSystem.ArcLifetimeTicks(Vector3.Zero, new Vector3(15000f, 0f, 0f),
+                new Vector3(0f, 0f, 441.45f));   // straight up and down: ~90 s
+            Assert.InRange(life / GuidedRound.TicksPerSecond, 99f, 101f);
+            var round = SpawnBullet(new Vector3(1f, 0f, 500f), spawnTick: 0);
+            ref var proj = ref _world.GetComponentRW<BallisticProjectile>(round);
+            proj.Warhead = WarheadRound.Arc;
+            proj.ArcLifetimeTicks = life;
+            SetCurrentTick(70 * 60);
+            _sys.Execute(_world, 0.016f);
+            Assert.True(_world.IsAlive(round), "a 90 s shell is still in the air at 70 s");
+            SetCurrentTick(life + 1);
+            _sys.Execute(_world, 0.016f);
+            Assert.False(_world.IsAlive(round));
+            Assert.Equal(CombatConstants.ArcRoundLifetimeTicks, FireProcessingSystem.ArcLifetimeTicks(Vector3.Zero, new Vector3(20f, 0f, 0f), new Vector3(10f, 0f, 10f)));   // never shorter
+        }
+
         // ── Test 4 ────────────────────────────────────────────────────────────
 
         /// <summary>

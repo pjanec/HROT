@@ -58,6 +58,13 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         NoGunner,
         /// <summary>⭐ WS-3 (W-C) — the weapon system is stowed, deploying or packing.</summary>
         NotDeployed,
+        /// <summary>⭐ Indirect fire IF-1 (I6, FM-4) — laid on the point, waiting for the fire time (<c>FireAtPointParams.FireAt</c>): time on
+        /// target fires each gun at T − its time of flight.</summary>
+        AwaitingFireTime,
+        /// <summary>⭐ IF-1 (I1) — no charge reaches the point on an allowed arc (<c>FireRefusal.TooFar</c>).</summary>
+        OutOfRange,
+        /// <summary>⭐ IF-1 (I1) — a charge reaches, but the terrain or a building stops every allowed arc (<c>FireRefusal.Masked</c>).</summary>
+        Masked,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>

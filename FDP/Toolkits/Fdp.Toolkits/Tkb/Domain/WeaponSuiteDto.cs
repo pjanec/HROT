@@ -119,6 +119,35 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         [EditUnit("deg")]
         public float FixedConeDeg { get; init; }
+
+        /// <summary>
+        /// ⭐ Indirect fire IF-1 (I2, IF-C; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.3) — which arcs an INDIRECT round from this
+        /// mount may fly: a mortar <see cref="IndirectArc.HighOnly"/>, a howitzer <see cref="IndirectArc.Both"/>. <b><see cref="IndirectArc.Unset"/>
+        /// = today's rule</b> (<c>ThrowArc</c>: a launcher high, a throw low unless masked) and no fire solution — a hand throw and every mount
+        /// before IF-1 are unchanged. Any other value makes the weapon brain solve the charge and the arc (<c>FireSolution.For</c>).
+        /// </summary>
+        public IndirectArc Arc { get; init; }
+
+        /// <summary>⭐ IF-1 (I2) — the barrel's elevation limits for an indirect solution, degrees above the horizontal; 0 = no limit.</summary>
+        [EditUnit("deg")]
+        public float MinElevationDeg { get; init; }
+        /// <inheritdoc cref="MinElevationDeg"/>
+        [EditUnit("deg")]
+        public float MaxElevationDeg { get; init; }
+    }
+
+    /// <summary>⭐ Indirect fire IF-1 (I2, IF-C) — the arcs a mount's indirect round may fly.</summary>
+    public enum IndirectArc : byte
+    {
+        /// <summary>Today's rule (<c>ThrowArc</c>), no fire solution: every mount declared before IF-1, a hand throw. ⚠ Not "Default": the
+        /// IDL generator scopes a descriptor file's enum members together, and <c>default</c> is an IDL keyword.</summary>
+        Unset = 0,
+        /// <summary>A mortar: the high arc only.</summary>
+        HighOnly = 1,
+        /// <summary>A howitzer, a grenade launcher: low when it clears, else high.</summary>
+        Both = 2,
+        /// <summary>A flat-trajectory gun firing indirect: the low arc only.</summary>
+        LowOnly = 3,
     }
 
     /// <summary>⭐ M8 — one munition type in a mount's <see cref="WeaponMountDto.Loadout"/> and how many rounds of it.</summary>

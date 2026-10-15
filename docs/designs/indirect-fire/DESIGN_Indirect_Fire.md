@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: READY-TO-BUILD (slices IF-1…IF-4); IF-5 smoke and IF-6 counter-battery are DESIGN
-current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §5 slices, §6 the demo
+updated: 2026-10-15
+build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2…IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
+current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §5 slices, §6 the demo
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -108,14 +108,18 @@ classDiagram
   direction LR
   class FireSolution {
     <<static ★ Fdp.Toolkits Combat>>
-    +For(world, from, to, mount, ammoProfile, pref) Solution
+    +ChargesOf(db, mount, ammo) speeds
+    +For(world, from, to, mount, charges, pref, penetration) Solution
   }
   class Solution {
     <<struct ★>>
-    Ok · Refusal · Charge · High · Launch · TimeOfFlight · Elevation
+    Ok · Refusal FireRefusal · Charge 1-based · High · Launch · TimeOfFlight · Elevation
   }
   class ArcPreference { <<enum ★>> Auto · Low · High }
-  class IndirectArc { <<enum ★>> HighOnly · Both · LowOnly }
+  class FireRefusal { <<enum ★>> None · TooFar · TooClose · Masked }
+  class IndirectArc { <<enum ★>> Unset · HighOnly · Both · LowOnly }
+  class ActionReason { existing · +AwaitingFireTime ★ · +OutOfRange ★ · +Masked ★ }
+  class BallisticProjectile { existing · +ArcLifetimeTicks ★ }
   class WeaponMountDto { existing · +Arc IndirectArc ★ · +MinElevationDeg ★ · +MaxElevationDeg ★ }
   class AmmoWeaponBallisticsDto { existing MuzzleSpeed · Damage · PenetrationMm · +ChargeSpeedsMps ★ }
   class ThrowArc { existing Launch · Clears }
@@ -137,6 +141,9 @@ classDiagram
   FireSolution ..> AmmoWeaponBallisticsDto : charges
   FireSolution ..> WeaponMountDto : arc, elevation
   FireSolution --> Solution
+  Solution --> FireRefusal
+  FireAtPointExecutor ..> ActionReason : why it holds / fails
+  FireProcessingSystem --> BallisticProjectile : lifetime from TOF
   FireAtPointExecutor ..> FireSolution
   FireAtPointExecutor ..> WeaponSystems : controlled mount
   FireAtPointExecutor --> WeaponFireIntent
@@ -150,6 +157,9 @@ classDiagram
   ObserveFireBehavior --> FireMissionAdjustEvent
   BatteryFireMissionPlay ..> FireMissionAdjustEvent
 ```
+
+*As built (IF-1, `2026-10-15`): `IndirectArc` gained `Unset` = 0 (today's `ThrowArc` rule — every pre-IF-1 mount), `FireRefusal`, three
+`ActionReason`s and `BallisticProjectile.ArcLifetimeTicks` — §3.6.*
 
 *What the picture shows that prose hid: the only new runtime type on the combat side is `FireSolution` (a pure function); the charge table
 lives on the EXISTING ammo × weapon profile, the arc mode on the EXISTING mount, the timing in the EXISTING `FireAtPoint` params (32 bytes
@@ -215,6 +225,24 @@ sequenceDiagram
   O->>P: Adjust(Kind EndOfMission)
 ```
 
+### 3.6 IF-1 as built — backend, `2026-10-15`
+
+| item | where it landed | deviation from §3.2 / §5, and why |
+|---|---|---|
+| **I1** `FireSolution` | `Fdp.Toolkits/Combat/FireSolution.cs` — `ChargesOf` (the weapon's own ammo × weapon profile first, else the round's generic one) and `For` (low then high, charges ascending, `ArcLaunch` per charge, elevation window, `ThrowArc.Clears` sampled every 25 m, 12–400 samples) | ⭐ a masked LOW arc stops the low search (a faster low arc is flatter — it will not clear either), a masked HIGH arc tries the next charge (a faster high arc is steeper). `Clears` gained a `samples` overload; hand throws keep 12 |
+| **I2** mount / ammo fields | `WeaponMountDto.Arc / MinElevationDeg / MaxElevationDeg`; `AmmoWeaponBallisticsDto.ChargeSpeedsMps` | ⭐ `IndirectArc.Unset = 0` added: the field defaults to "no solution, `ThrowArc` as today", so no existing mount moved. ⛔ named `Unset`, not `Default` — `default` is an IDL keyword and the IDL generator scopes a descriptor file's enum members together |
+| **I3** intent | `WeaponFireIntent.Charge` (1-based, 0 = none) + `HighArc`; the wire `WeaponFireRequest` APPENDS both (R-169) | — |
+| **I4** arc dispersion | `FireProcessingSystem`: an indirect round's launch = the charge's `ArcLaunch` (or `ThrowArc` when Charge = 0), then rotated by θ = `HitModel.Deflection` and scaled by `1 + ½·σ·HitModel.RangeSequence(k)` (a second Weyl stream on √2 − 1) | ⭐ every existing indirect mount (M67, 2005) has `DispersionMils = 0` ⇒ σ = 0 ⇒ no number moved |
+| **I5** lifetime | `FireProcessingSystem.ArcLifetimeTicks` = max(60 s, time of flight + 10 s) onto `BallisticProjectile.ArcLifetimeTicks`; `BallisticsSystem` honours it | never shorter than the 60 s it was |
+| **I6** `FireAtPoint` | a controlled weapon (32 + k, or mount 0 on a unit with no weapon of its own = its primary) fires AS ITSELF (shooter = the tube, mount 0), behind `SystemHold` + the station arc; holds Running + `AwaitingFireTime` until `FireAt`; a mount with an `Arc` gets a solution or fails `OutOfRange` / `TooClose` / `Masked` | `FireAtPointParams` = 32 bytes (12 + 4 + 4 + 1 + 1 + pad 2 + 8). ⛔ the shared node `FireAtPointNodeParams` and the behaviour DTO `fireAt` / `arc` are **IF-2** (behaviors lane) — not touched |
+| **I7** rounds | `MunitionTkbCatalog` 6026 60 mm · 6002 81 mm (charges added) · 6027 120 mm · 6028 105 mm · 6029 155 mm HE; `ammo.json` + "105mm howitzer HE", "155mm howitzer HE"; charges `v = √(g·R)` per charge range table | charges on the round's GENERIC profile (each round has one gun today) |
+| **I8** guns | weapon systems 609 60 mm (OneMan) · 610 81 mm · 611 120 mm (TwoMan) — Mortar 1.1.*.10, HighOnly 45–85° · 612 105 mm towed (Static) — TowedArtillery 1.1.*.5, Both −5–70°; vehicle 107 M109 — 1.1.225.4, turret, Both −3–75°, crew of five; unit 304 Artillery Battery — 11.1.225.4, three M109s | ⭐ `WeaponCategory.Howitzer = 10` appended (a howitzer is neither `Mortar` nor `Cannon`: per-shot brain, no fire on the move). `MortarTeam` 2005 unchanged |
+
+Rails: `FireSolutionTests` (4) · `BallisticsSystemTests.IF1_*` · `FireProcessingSystemTests.IF1_*` · `AimAndFireExecutorTests.IF1_*` (the
+weapon-systems fixture: a gunner fires the mortar he mans, nothing before `FireAt`; no solution fails with why; params ≤ 32) ·
+`NedTkbBuilderCombatTests.IF1_*` · `HrotEnvironmentTests.IF1_*` · the LR-1 explosive set and the type-picker golden re-pinned on purpose.
+Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Backend_Indirect_Fire.md).
+
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 
 | # | decision | rejected (one line each) |
@@ -239,7 +267,7 @@ sequenceDiagram
 
 | # | lane | what | rails (the features' own suites) |
 |---|---|---|---|
-| **IF-1** | backend | `FireSolution` + `Solution`; `WeaponMountDto.Arc / Min/MaxElevationDeg`; `AmmoWeaponBallisticsDto.ChargeSpeedsMps`; `WeaponFireIntent.Charge / HighArc` (APPENDED, R-169); `FireProcessingSystem` flies the intent's charge and arc, adds arc dispersion (IF-F); an arc round lives its time of flight + 10 s; `FireAtPointExecutor` fires a CONTROLLED weapon as itself and holds until `FireAt`; the munitions (IF-A) and the guns (IF-G) | `ThrowArcTests` / a new `FireSolutionTests` in the same folder: lowest charge, low vs high by clearance, too far / too close / masked; `FireProcessingSystemTests`: the round lands at the point within the dispersion, a 90 s flight still lands; `FireAtPointExecutorTests`: a gunner fires his ground mortar, nothing before `FireAt` |
+| **IF-1** ✅ BUILT `2026-10-15` (§3.6) | backend | `FireSolution` + `Solution`; `WeaponMountDto.Arc / Min/MaxElevationDeg`; `AmmoWeaponBallisticsDto.ChargeSpeedsMps`; `WeaponFireIntent.Charge / HighArc` (APPENDED, R-169); `FireProcessingSystem` flies the intent's charge and arc, adds arc dispersion (IF-F); an arc round lives its time of flight + 10 s; `FireAtPointExecutor` fires a CONTROLLED weapon as itself and holds until `FireAt`; the munitions (IF-A) and the guns (IF-G) | `ThrowArcTests` / a new `FireSolutionTests` in the same folder: lowest charge, low vs high by clearance, too far / too close / masked; `FireProcessingSystemTests`: the round lands at the point within the dispersion, a 90 s flight still lands; `FireAtPointExecutorTests`: a gunner fires his ground mortar, nothing before `FireAt` |
 | **IF-2** | behaviors | `StrikeOrder` fields (IF-D); `MemberOrderKind.FireAtPoint`; `FireAtPoint` DTO `fireAt` / `arc`; `BatteryFireMissionPlay` (fire for effect, sheaf, time on target, danger close, rounds complete); `IndirectFireNodes`; `ArtilleryUnitStrike`, `SelfPropelledArtilleryStrike` | `SquadManeuverTests` (the play's own suite): three guns' first rounds land within one tick of T; a parallel sheaf's aim points; a gun out of range is left out; danger close refuses · `TacticalIntentResolutionSystemTests`: Strike on a battery / SP gun resolves, on a rifleman does not |
 | **IF-3** | behaviors | `ObserveFire`, `FireMissionAdjustEvent`, the adjust phase, target-location error, observer lost. ⛔ **measure first**: how the observer learns where a round burst (no detonation event a brain reads was found — `Combat/Events`, `Perception` searched; hearing exists in `HeardTraces`) and whether the adjust event crosses nodes the way `AssignTacticalIntentEvent` does | `SquadManeuverTests`: the bracket closes 800 → 50 and turns to fire for effect; observer killed ⇒ end of mission |
 | **IF-4** | behaviors | the demo `ua-indirect-fire` (§6) + its range terrain; `utility-demo-check.py` entry | the live check |

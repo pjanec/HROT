@@ -39,7 +39,7 @@ public sealed class Map3DTests
         var d = t.DisType;
         if (d.Kind == 3) return "_person";
         if (d.Kind == 1 && d.Domain == 1)
-            return d.Category switch { 1 => "_tank", 2 => "_afv", 3 or 6 or 7 or 81 => "_wheeled", _ => null };
+            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 81 => "_wheeled", _ => null };   // ⭐ IF-1: 4 (SP artillery) moved on purpose
         return null;
     }
 
@@ -407,7 +407,7 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
-                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                1 or 4 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,   // ⭐ IF-1 (I8): 4 = SelfPropelledArtillery → the tank kit, moved on purpose
                 3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
             };
         if (d.Kind == 1 && d.Domain == 2)

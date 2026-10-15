@@ -23,11 +23,13 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.HoldFriendlyOnLine or ActionReason.HoldRoe or ActionReason.Slewing or ActionReason.Guiding
                 or ActionReason.Turning   // ⭐ CE-3195 — held while the body turns, still aimed (the gait turns him toward it)
                 or ActionReason.AwaitingRelease   // ⭐ Air Ops slice 4 — a bomb on the run-in, waiting for its cue
+                or ActionReason.AwaitingFireTime  // ⭐ IF-1 — laid, waiting for the time on target
                 => WeaponPostureKind.Aimed,
             ActionReason.HoldNotSeen or ActionReason.Reloading or ActionReason.Throwing or ActionReason.OutOfArc
                 or ActionReason.Done or ActionReason.Failed or ActionReason.OutOfAmmo
                 or ActionReason.TooClose or ActionReason.HoldMoving   // ⭐ M4 / D-L — held, weapon ready
                 or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed   // ⭐ WS-3 — the weapon system holds
+                or ActionReason.OutOfRange or ActionReason.Masked   // ⭐ IF-1 — no fire solution
                 => WeaponPostureKind.Ready,
             _ => null,
         };

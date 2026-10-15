@@ -2254,5 +2254,112 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(pickup, new SimVelocity { Linear = new Vector3(10f, 0f, 0f) });
             Assert.Equal(still * HitModel.MovingFactor, HitModel.Sigma(_world, m2, mount, 0d), 5);
         }
+
+        // ── ⭐⭐ Indirect fire IF-1 (I6; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.2, FM-4, IF-C) ─────────────────────────
+
+        private const long IfMortarType = 9953, IfBombType = 9954;
+
+        /// <summary>A ground mortar (a weapon system, HighOnly 45–85°, one Gunner seat) at the origin, its bomb with charges 60 / 80 / 100
+        /// m/s, and a soldier manning it; the soldier's channel holds <paramref name="p"/>. The tube is the weapon; he is its controller.</summary>
+        private unsafe (Entity Man, Entity Tube, WeaponChannel Channel) MannedMortar(FireAtPointParams p)
+        {
+            RegisterWeaponSystems();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var tubeType = new Fdp.Interfaces.TkbTemplate("Mortar", IfMortarType);
+            tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, AmmoGuid = (ulong)IfBombType, MuzzleVelocity = 100f,
+                  Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.HighOnly, MinElevationDeg = 45f, MaxElevationDeg = 85f } } });
+            tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSystemDto
+                { NeedsOperator = true, MountKinds = Fdp.Toolkit.Tkb.Domain.MountKinds.Ground });
+            tubeType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+                { Exposure = PassengerExposure.Open, Seats = { new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Gunner } } });
+            db.Register(tubeType);
+            var bomb = new Fdp.Interfaces.TkbTemplate("if bomb", IfBombType);
+            bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true });
+            bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { ChargeSpeedsMps = new() { 60f, 80f, 100f } });
+            db.Register(bomb);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            var tube = _world.CreateEntity();
+            _world.AddComponent(tube, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            _world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = IfMortarType });
+            _world.AddComponent(tube, new WeaponState { Ammo = 10, MuzzleVelocity = 100f });
+            new WeaponSystemTkbTranslator().Inject(_world, tube, tubeType);
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(_world, tube, tubeType);
+            var man = WsSoldier(new Vector3(-1f, 0f, 0f));
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, man, tube, SeatRole.Gunner));
+            Assert.Equal(man, WeaponSystems.ControllerOf(_world, tube));   // premise: he mans it
+
+            var channel = new WeaponChannel { Status = NodeStatus.Running };
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
+            _world.AddComponent(man, channel);
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>())
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            _world.AddComponent(man, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            channel = _world.GetComponent<WeaponChannel>(man);
+            return (man, tube, channel);
+        }
+
+        private WeaponFireIntent[] FireAtPointStep(Entity man, ref WeaponChannel channel, double now)
+        {
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = 1f / 60f, TimeScale = 1f });
+            new FireAtPointExecutor().Execute(man, ref channel, _world, 1f / 60f);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<WeaponFireIntent>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ IF-1 (I6, §3.2) — a gunner fires the GROUND MORTAR HE MANS through <c>FireAtPoint</c> (mount 0: he has no weapon of his own,
+        /// so his primary is the tube): the round leaves the TUBE (its mount 0, its ammunition), carrying the brain's fire solution — the
+        /// lowest charge that reaches (80 m/s for 500 m), on the HIGH arc a HighOnly mortar must use. ⭐ FM-4: laid on the point, nothing
+        /// leaves before <c>FireAt</c> (Running, <c>AwaitingFireTime</c>). ✅ Red-proof: the executor's old MountEntity path (the owner) ⇒
+        /// the man has no WeaponState ⇒ Failure, no round ⇒ red; the FireAt hold removed ⇒ a round at t = 1 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void IF1_AGunnerFiresTheMortarHeMans_AsTheTube_WithTheSolution_AndNotBeforeFireAt()
+        {
+            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(500f, 0f, 0f), Rounds = 1, CooldownSeconds = 3f, FireAt = 5d });
+            new FireAtPointExecutor().OnEnter(man, ref channel, _world);
+
+            Assert.Empty(FireAtPointStep(man, ref channel, now: 1d));
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(10, _world.GetComponent<WeaponState>(tube).Ammo);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.AwaitingFireTime, LastWeaponReason(man));
+
+            var shots = FireAtPointStep(man, ref channel, now: 5d);
+            var shot = Assert.Single(shots);
+            Assert.Equal(tube, shot.Shooter);
+            Assert.Equal(0, shot.WeaponIndex);
+            Assert.True(shot.AtPoint);
+            Assert.Equal((byte)2, shot.Charge);   // 60 m/s reaches ≈ 367 m; 80 m/s ≈ 652 m — the lowest that reaches 500 m
+            Assert.Equal((byte)1, shot.HighArc);
+            Assert.Equal(9, _world.GetComponent<WeaponState>(tube).Ammo);
+            Assert.Equal(NodeStatus.Success, channel.Status);
+        }
+
+        /// <summary>⭐ IF-1 (I6, IF-C) — no solution, no round: a point beyond the top charge fails <c>OutOfRange</c>; one inside the
+        /// mortar's 85° limit fails <c>TooClose</c>. Nothing spent. ✅ Red-proof: the solution gate removed ⇒ the round leaves on the
+        /// legacy one-speed arc ⇒ red.</summary>
+        [Theory]
+        [InlineData(1500f, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfRange)]
+        [InlineData(10f, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.TooClose)]
+        public void IF1_NoFireSolution_Fails_WithWhy_AndSpendsNothing(float metres, Fdp.Toolkit.Behavior.Diagnostics.ActionReason why)
+        {
+            var (man, tube, channel) = MannedMortar(new FireAtPointParams { Point = new Vector3(metres, 0f, 0f), Rounds = 1 });
+            new FireAtPointExecutor().OnEnter(man, ref channel, _world);
+            Assert.Empty(FireAtPointStep(man, ref channel, now: 1d));
+            Assert.Equal(NodeStatus.Failure, channel.Status);
+            Assert.Equal(why, LastWeaponReason(man));
+            Assert.Equal(10, _world.GetComponent<WeaponState>(tube).Ammo);
+        }
+
+        /// <summary>⭐ IF-1 (I6) — <see cref="FireAtPointParams"/> still fits the 32-byte <see cref="WeaponChannel.Params"/> with the
+        /// arc preference and the fire time added.</summary>
+        [Fact]
+        public unsafe void IF1_FireAtPointParams_StillFitTheChannel()
+            => Assert.True(sizeof(FireAtPointParams) <= 32, $"{sizeof(FireAtPointParams)} bytes");
+
+        private Fdp.Toolkit.Behavior.Diagnostics.ActionReason LastWeaponReason(Entity unit)
+            => _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason;
     }
 }

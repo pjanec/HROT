@@ -276,6 +276,7 @@ namespace Hrot.UI.Common.Map3D
                 Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade => "GRENADE",
                 Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb => "BOMB",        // ⭐ Air Ops (backend, cross-lane: a name only)
                 Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket => "ROCKETS",   // ⭐ Air Ops 6a (AW-3)
+                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => "HOWITZER",   // ⭐ IF-1 (I8)
                 _ => "WEAPON",
             };
 

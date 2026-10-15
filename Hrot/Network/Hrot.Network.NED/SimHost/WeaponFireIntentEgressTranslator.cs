@@ -115,6 +115,8 @@ namespace Hrot.Network.NED.SimHost
                     PointY          = evt.TargetPoint.Y,
                     PointZ          = evt.TargetPoint.Z,
                     AmmoGuid        = evt.AmmoGuid,   // ⭐ M8 — the loaded round (R-169: the one new wire field)
+                    Charge          = evt.Charge,     // ⭐ IF-1 (I3, R-169 appended) — the fire solution
+                    HighArc         = evt.HighArc,
                 });
                 SentSampleCount++;
             }

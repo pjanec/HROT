@@ -21,6 +21,8 @@
     "81mm mortar HE":  { "type": "he",     "calibreMm": 81,   "massG": 4200,  "velocity": 260,  "explosiveKg": 0.95, "indirect": true },
     "120mm mortar HE": { "type": "he",     "calibreMm": 120,  "massG": 13600, "velocity": 320,  "explosiveKg": 3.0, "indirect": true },
     "Mk-82 bomb":      { "type": "he",     "calibreMm": 273,  "massG": 227000, "velocity": 150, "explosiveKg": 94,  "indirect": true },
-    "70mm rocket HE":  { "type": "he",     "calibreMm": 70,   "massG": 4500,  "velocity": 700,  "explosiveKg": 1.04 }
+    "70mm rocket HE":  { "type": "he",     "calibreMm": 70,   "massG": 4500,  "velocity": 700,  "explosiveKg": 1.04 },
+    "105mm howitzer HE": { "type": "he",   "calibreMm": 105,  "massG": 15000, "velocity": 494,  "explosiveKg": 2.1, "indirect": true },
+    "155mm howitzer HE": { "type": "he",   "calibreMm": 155,  "massG": 43200, "velocity": 684,  "explosiveKg": 6.6, "indirect": true }
   }
 }

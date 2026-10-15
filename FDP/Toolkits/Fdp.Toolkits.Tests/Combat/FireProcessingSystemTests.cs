@@ -336,6 +336,74 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (var r in rockets) AssertNear(before[r], _world.GetComponent<SimVelocity>(r).Linear);
         }
 
+        /// <summary>
+        /// ⭐⭐ Indirect fire IF-1 (I3, I4; DESIGN_Indirect_Fire §3.1, IF-F) — the SimHost flies the brain's fire solution exactly: the intent's
+        /// CHARGE (its speed from the round's charge table) on the intent's ARC — no second decision; charge 0 keeps today's arc. A tube's
+        /// rounds scatter round the point by the mount's dispersion (azimuth AND range), the SAME on every run (no random source).
+        /// ✅ Red-proof: the arc ignoring the intent ⇒ ThrowArc's 60 m/s ⇒ red; dropping the dispersion ⇒ one landing point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void IF1_TheIntentsChargeAndArc_AreFlown_AndATubesRoundsScatter_TheSameEveryRun()
+        {
+            const long Tube = 9610, Bomb = 9002;
+            Vector3[] Fire(int rounds, byte charge, byte high)
+            {
+                using var w = new EntityRepository();
+                w.RegisterComponent<SimTransform>();
+                w.RegisterComponent<SimVelocity>();
+                w.RegisterComponent<WeaponState>();
+                w.RegisterComponent<BallisticProjectile>();
+                w.RegisterComponent<PhysicsCollider>();
+                w.RegisterComponent<TkbIdentity>();
+                w.RegisterComponent<ShotOrdinal>();
+                w.RegisterEvent<WeaponFireIntent>();
+                w.RegisterEvent<WeaponFireNotification>();
+                var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                var tube = new Fdp.Interfaces.TkbTemplate("tube", Tube);
+                tube.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar, AmmoGuid = Bomb, InitialAmmunition = 30, DamagePerHit = 100,
+                      DispersionMils = 5f, Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.HighOnly, MuzzleVelocity = 60f } } });
+                db.Register(tube);
+                var bomb = new Fdp.Interfaces.TkbTemplate("bomb", Bomb);
+                bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true,
+                    BlastInjuryRadiusM = 10f, BlastLethalRadiusM = 3f, BlastLethalDamage = 150f });
+                bomb.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AmmoWeaponBallisticsDto { ChargeSpeedsMps = new() { 99f, 147f, 183f } });
+                db.Register(bomb);
+                w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+                var shooter = w.CreateEntity();
+                w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                w.AddComponent(shooter, new WeaponState { MuzzleVelocity = 60f, Ammo = 30 });
+                w.AddComponent(shooter, new TkbIdentity { TkbType = Tube });
+                var sys = new FireProcessingSystem();
+                var velocities = new Vector3[rounds];
+                for (int i = 0; i < rounds; i++)
+                {
+                    w.Bus.Publish(new WeaponFireIntent { Shooter = shooter, AtPoint = true, TargetPoint = new Vector3(2000f, 0f, 0f), Charge = charge, HighArc = high });
+                    w.Bus.SwapBuffers();
+                    sys.Execute(w, 0.016f);
+                    foreach (var e in w.Query().With<BallisticProjectile>().Build()) { velocities[i] = w.GetComponent<SimVelocity>(e).Linear; w.DestroyEntity(e); }
+                }
+                return velocities;
+            }
+
+            // the solution flown: charge 3 (183 m/s), high — within the spread of the exact launch
+            var first = Fire(8, charge: 3, high: 1);
+            foreach (var v in first)
+            {
+                Assert.InRange(v.Length(), 183f * 0.99f, 183f * 1.01f);
+                Assert.True(v.Z > new Vector2(v.X, v.Y).Length(), $"high: {v}");
+            }
+            // it scatters: no two rounds on one launch, both azimuth (Y) and range (speed) vary, within ±σ
+            Assert.Equal(8, System.Linq.Enumerable.Count(System.Linq.Enumerable.Distinct(first)));
+            Assert.Contains(first, v => v.Y > 0f);
+            Assert.Contains(first, v => v.Y < 0f);
+            foreach (var v in first) Assert.InRange(MathF.Abs(MathF.Atan2(v.Y, v.X)), 0f, 0.005f + 1e-4f);
+            // the same on every run
+            Assert.Equal(first, Fire(8, charge: 3, high: 1));
+            // charge 0 = today's arc: ThrowArc at the mount's 60 m/s (high, a launcher)
+            Assert.Equal(60f, Fire(1, charge: 0, high: 0)[0].Length(), 0);
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();
