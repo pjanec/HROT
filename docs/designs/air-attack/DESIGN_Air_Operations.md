@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-15
 build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -510,7 +510,7 @@ collateral-damage sensitive targets"* · *"moving target accepted"* · *"attack 
 | 🔒 APPROVED `2026-10-15` (*"w1-w4 accepted"*) | decision | rejected — one line |
 |---|---|---|
 | **W1** a point target's kind | `StrikeOrder.TargetKind` (enum, appended): `Unspecified` · `Personnel` · `Vehicles` · `Building` · `Fortification` (bunker) · `Bridge` · `Runway`; `Unspecified` on a terrain building's footprint ⇒ `Building`; it picks the weapon class (W2) | a free-text reason (no rule can read it) · a DIS cultural-feature type (no TKB entry for a point) |
-| **W2** enough, not most | per munition a relative **cost** (TKB, backend); the choice = the CHEAPEST weapon whose expected effect on the target reaches the need (an entity: `ValueOf`; a point: the kind's weapon class), else the most effective | the strongest round always (a bomb on a rifleman) · cost only (a gun on a bunker) |
+| **W2** enough, not most | per munition a relative **cost** (TKB, backend — CE-2186, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Munition_Cost.md); one sufficiency rule in `AmmoChoice` the mount pick also calls); the choice = the CHEAPEST weapon whose expected effect on the target reaches the need (an entity: `ValueOf`; a point: the kind's weapon class), else the most effective | the strongest round always (a bomb on a rifleman) · cost only (a gun on a bunker) |
 | **W3** collateral | a weapon is out when a friend or a `Neutral` stands within its warhead's injury radius of the aim point (Mk-82 ≈ 27 m), re-checked each pass; `DangerClose` on the order overrides, as for artillery | a target-kind flag (collateral is who is near NOW, not what the target is) |
 | **W4** a helicopter's Attack | fire from a **battle position**: an EQS point that sees the target from beyond every known threat's reach (`BeyondThreatRange`, V3), reached low; unmask, fire, remask, move to another before firing again (A9's pop-up, for any weapon that outranges the threats); RunningFire only when no such point exists; never hover where it is | hover and shoot from where it is (today's `PlatformAttack` fallback — a stationary helicopter in RPG range) |
 
@@ -538,6 +538,20 @@ translator set (`TkbTranslatorSet.Base()`, `HrotEnvironment.CreateTkb()`), its c
 | ⛔ no lead: a round is aimed where the target IS — a 60 m/s helicopter at 300 m is ~24 m on by the time a bullet arrives | `Fdp.Toolkits/Combat` (the only lead is guided dive geometry) | a soldier hits only a hovering or slow aircraft; the lead is the same led point as B13, in the aim path |
 | ⛔ a killed aircraft does not fall: death strips CanMove ⇒ the move ends (intent None, `LocomotionDispatcherSystem.cs:56-71`) ⇒ a helicopter HOVERS where it died (`RotorcraftModel.cs:53`), a plane flies straight on (`FixedWingModel.cs:49`) | — | needs a fall: a killed flyer loses lift, falls, and crashes through the existing `DroneImpactSystem` (an aircraft meeting the ground is destroyed, `DroneImpactSystem.cs:95`), killing its riders (embarkation I-2c) |
 | ⚠ the plain UH-60 (400) has no flight model and no health; the doors-off UH-60 (404) flies but has no health | `BdcTkbCatalog.cs` (`DefineAircraft` adds no combat platform) | both need a health and armour entry before anything can down them |
+
+🔒 **APPROVED `2026-10-15` (R-2021)** — *"accepted you leans on 'What's missing' please record them and update the design. write handoffs."*
+→ B15–B18 in §10, handed to backend: [Air Targets handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md).
+
+| # | decision | owner · row | rejected — one line |
+|---|---|---|---|
+| **AT1** | a round has its OWN collision bit (not 2): the combat layer then means "can be hit" — one constant; every combat-only body (flyers, and any other — weapon systems checked) becomes hittable | backend · CE-2182 | layer 1 in `FlightTkbTranslator` only (the shared bit bites the next type) |
+| **AT2** | a direct-fire round at an AIRCRAFT is aimed at the LED point (target position + velocity × the round's flight time, solved twice); ground targets unchanged; one helper, `TargetLead.Point`, used by the aim path AND by `AirAttack` (B13) | backend (aim path) · CE-2183; the helper: behaviors, first step of B13 | lead for every target (moves every ground-combat number) · a lead inside each caller (two predictors) |
+| **AT3** | a killed aircraft falls: no lift, its velocity kept, gravity; the existing `DroneImpactSystem` crashes it on the ground (destroyed, no burst unless it is a munition); its riders die with it (embarkation I-2c) | backend (Air module) · CE-2184 | hover / fly on (today) · delete it at death (no wreck, no crash, breaks `Health ≤ 0` = dead) |
+| **AT4** | both UH-60s (400, 404) get a health and armour entry in the catalogue | backend (catalogue) · CE-2185 | — |
+
+⚠ Also measured, NOT approved: the A-10 and the AH-64 have health but NO armour entry (every round penetrates once AT1 lands) — the
+handoff asks backend for numbers; they come back to the user.
+
 
 ## 8. The bomb (A3, A4, A6, B6)
 
@@ -746,6 +760,10 @@ channel. A helicopter never reaches the point; a plane does, and a pass with not
 | **B12** | 🔒 `2026-10-15` (R-2020, §7b) — Attack (an entity) prefers direct fire (gun, rockets); the bomb only if nothing else is aboard; Strike (a point) prefers the bomb — the weapon follows the target's kind, and never an unreasonably strong or expensive one, nor one that endangers others (W2, W3) | the bomb on everything |
 | **B13** | 🔒 `2026-10-15` — a moving target: the attack re-reads its position (`ReplicatedMotion`) every 0.5 s until the run-in freezes, and aims at the LED point (velocity × the round's flight or fall time), handed to `FireAtPoint` — no executor change | aiming at where it is now |
 | **B14** | 🔒 `2026-10-15` — an Attack flies passes until the target is destroyed, the chosen ammunition is gone, or 3 passes; a Strike is one pass | one pass for both |
+| **B15** | 🔒 `2026-10-15` (R-2021, §7c AT1) — a round has its own collision bit, so the combat layer is hittable | patching the flight translator only |
+| **B16** | 🔒 `2026-10-15` (§7c AT2) — rounds at an aircraft are led (`TargetLead.Point`, one helper for the aim path and B13); ground targets unchanged | lead for every target |
+| **B17** | 🔒 `2026-10-15` (§7c AT3) — a killed aircraft falls and crashes through `DroneImpactSystem` | hover / fly on · delete at death |
+| **B18** | 🔒 `2026-10-15` (§7c AT4) — both UH-60s get health and armour | — |
 
 ## 11. Slices and rails — in the features' own suites
 
