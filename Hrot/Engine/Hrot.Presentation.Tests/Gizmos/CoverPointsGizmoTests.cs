@@ -90,6 +90,42 @@ public sealed class CoverPointsGizmoTests : IDisposable
         Assert.Empty(Cover());
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> (Dead Reckoning R6) — on a node that does not own the vehicle's motion (no <c>VehicleState</c>, the zero
+    /// <c>SimVelocity</c> every entity is given, the live velocity only in <c>NetworkVelocity</c>), a DRIVING vehicle is not standing;
+    /// a stopped one is. 🔴 Red-proof: reading <c>SimVelocity</c> (the old fallback) calls the driving car standing ⇒ 6 points ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2173_AVehicleAnotherNodeDrives_IsNotStanding()
+    {
+        _w.RegisterComponent<SimTransform>();
+        _w.RegisterComponent<SimVelocity>();
+        _w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        _w.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+        _w.RegisterComponent<global::CarKinem.Core.VehicleState>();
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+        _w.RegisterComponent<StaticObstacle>();
+        _w.SetSingletonManaged<ICoverProvider>(TerrainCoverProvider.Build(new TerrainWorld()));
+        var car = _w.CreateEntity();
+        var at = new Vector3(30, 30, 0);
+        _w.AddComponent(car, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        _w.AddComponent(car, new SimVelocity());
+        _w.AddComponent(car, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2.4f, Height = 1.5f, CollisionLayer = 1 });
+        _w.AddComponent(car, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.PersonalCar, Length = 4.5f, Width = 1.8f });
+        _w.AddComponent(car, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = at, LastRotation = Quaternion.Identity });
+        _w.AddComponent(car, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = new Vector3(5f, 0f, 0f) });
+        _w.SetAuthority<SimTransform>(car, false);
+
+        new CoverPointsGizmo().Draw(_w, _draw);
+        Assert.Empty(Cover());                                                                       // driving: no points beside it
+
+        _w.SetComponent(car, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = Vector3.Zero });
+        _draw.Clear();
+        new CoverPointsGizmo().Draw(_w, _draw);
+        Assert.Equal(6, Cover().Count(p => p.Shape == DebugPrimitiveShape.Sphere));                // stopped: standing again
+    }
+
     [Fact]
     public void CE3134_NoTerrainCoverDatabase_DrawsNothing()
     {
