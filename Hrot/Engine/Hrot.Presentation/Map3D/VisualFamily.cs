@@ -31,6 +31,9 @@ public enum VisualFamily : byte
     SpArtillery,
     /// <summary>⭐ CE-1092 (§6n N-8) — an attack plane (class <c>AttackAircraft</c>, the A-10): straight wings, rear engines, twin fins, pylons.</summary>
     AttackJet,
+    /// <summary>⭐ CE-1103 (§6s) — an attack helicopter (class <c>AttackHelicopter</c>, the AH-64): a slim fuselage, a tandem canopy, stub
+    /// wings with rocket pods and missile rails, a chin gun on a turret.</summary>
+    AttackHelicopter,
 }
 
 /// <summary>
@@ -61,6 +64,7 @@ public static class VisualFamilies
         ["TowedArtillery"] = VisualFamily.WeaponSystem,
         ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
+        ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>

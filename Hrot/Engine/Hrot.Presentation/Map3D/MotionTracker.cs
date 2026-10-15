@@ -104,6 +104,7 @@ public sealed class MotionTracker
                 break;
             }
             case VisualFamily.Helicopter:
+            case VisualFamily.AttackHelicopter:   // ⭐ CE-1103 — its rotors spool as a helicopter's
             {
                 // ⭐ CE-1093 (§6n N-9) — the rotor RUNS while it is airborne or has moved in the last RotorRunOnSeconds (taking off,
                 //   landing, taxiing — the height test alone stood it still on the ground), and spools up / down over RotorSpoolSeconds

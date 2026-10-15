@@ -2005,6 +2005,65 @@ frame rails `CE1097_V` / `CE1099_V` (`FacesPainted`, `CamoPainted`).
 | ![camouflage](assets/map-3d/surface-1-camo.png) | ![faces](assets/map-3d/surface-2-faces.png) |
 | *painted by the shader, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* | *eyes with irises, brows, the nose's shade and the mouth, per man* |
 
+### 6s. CE-1103 — the AH-64: an attack helicopter's own body, its chin gun turning with its aim — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Maybe also an attack helicopter ah64 might be needed"* → the plan *"APPROVED"*.
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| the type exists, drawn as the generic helicopter | ✅ 406 `Heli_AH64`, DIS 1.2.225.20 (`BdcTkbCatalog.DefineAttackHelicopter`); the class table names `AttackHelicopter` 1.2.*.20 (`EntityClassTable.cs:159`) but the map maps no family to it | Air Operations §7a AW-5 |
+| its body is CG-referenced | ✅ `Body.Geometry` 17.73 × 14.63 × 3.87, `BodyCentreX = −1.5`, `BodyCentreZ = 0.6` | G4 (Body Geometry) |
+| its chin gun is turret 0 / mount 0 | ✅ `TurretDto` pivot (4.3, 0, −1.0), trunnion +0.2; mount 0 the M134, muzzle +0.8 | AW-5 |
+| ⛔ `KitFromTkb` reads the TKB pivot as a box-frame offset | ✅ `KitFromTkb.cs:24` — `turret.PivotX / size.X`, no reference-point shift: right for a ground-referenced tank (offset 0), **wrong for a CG body** (1.5 m aft, 1.3 m low on the AH-64) | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class VisualFamily { <<existing, grows>> + AttackHelicopter }
+    class VisualFamilies { <<existing, grows>> AttackHelicopter class to the AttackHelicopter family }
+    class ShapeKits { <<existing, grows>> + AttackHelicopter kit, its size }
+    class KitFromTkb { <<existing, fixed>> the TKB pivot shifted from the body reference to the kit box }
+    class MotionTracker { <<existing, grows>> the attack helicopter's rotor spools like a helicopter's }
+    class EntityBodyLayer3D { <<existing>> poseOf, the chin turret's TurretPose }
+    VisualFamilies ..> VisualFamily
+    ShapeKits ..> VisualFamily
+    EntityBodyLayer3D ..> KitFromTkb
+    EntityBodyLayer3D ..> MotionTracker
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant K as KitFromTkb
+    participant P as TurretPoseSource
+    L->>K: the AH-64 kit, its template, its size
+    K-->>L: turret and barrel at the TKB pivot, shifted into the kit box
+    L->>P: the chin turret's azimuth and elevation
+    L->>L: draw: the gun turns and lifts with its aim, the rotors spin while it lives
+```
+
+*Caption:* nothing new reaches the map — the family, a kit, and one fix that makes a CG-referenced turret land where the TKB puts it.
+
+| decision | rule |
+|---|---|
+| **H-1 the body** | a slim fuselage with a stepped tandem canopy (gunner low in front, pilot raised behind), a nose sensor ball, engine nacelles either side of the mast, stub wings with a rocket pod and a missile rail each side, a long tail boom with a swept fin, a horizontal stabiliser and a tail rotor on the left, a four-blade main rotor |
+| **H-2 the chin gun** | an articulated turret + barrel under the nose, placed by the TKB turret and turned by the replicated `TurretPose` (as a tank's) |
+| **H-3 rotors** | spin while it lives, as the helicopter's (S4 spool) |
+
+**Rejected — one line each:** *the UH-60 kit for the AH-64* — wide cabin, no wings, no chin gun, so an attack helicopter reads as a
+transport; *a turret fix only for this type* — every CG-referenced body with a turret would carry the same error.
+
+**AS-BUILT** — as drawn. The kit is authored in the AH-64's own centre-of-gravity metres and put into its box by the geometry's offsets, so
+it agrees with the TKB's wheels and turret. `KitFromTkb` now shifts the TKB pivot by the box offset (zero for every ground-referenced type,
+so tanks are unchanged — the E4b rail still holds them). ⭐ The E4b rail (the drawn barrel tip within 5 cm of `Muzzle.TryOf`) gained the
+AH-64 AND the renderer's box offset (`kitToBody`) — without it the rail could never have seen this class of error. Rails
+`Map3DTests.CE1103_*`, `E4b_*` (+ AH-64), frame rail `CE1103_V` (`ah64-*.png`).
+
+| | |
+|---|---|
+| ![AH-64 side](assets/map-3d/ah64-1-side.png) | ![AH-64 close](assets/map-3d/ah64-2-close.png) |
+| *one hovering with its rotors turning, one on its wheels, a UH-60 in front for scale* | *the tandem canopy, the nose sensor, the stub wing's pod and rail, the tail rotor on the left* |
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

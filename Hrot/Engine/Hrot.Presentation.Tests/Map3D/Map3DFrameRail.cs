@@ -1551,6 +1551,64 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the (V) acceptance for the AH-64: one on its wheels, one hovering at 18 m with its rotors
+    /// turning, a UH-60 beside them for scale. Side-on, then from above and ahead. Screenshots <c>ah64-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1103_V_TheAttackHelicopter()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Aircraft(long type, float dx, float dy, float up)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + 1.33f + up), Rotation = Quaternion.Identity });   // CG above its wheels
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+        }
+        Aircraft(TkbEntityTypes.Heli_AH64, 0f, 0f, 0f);
+        Aircraft(TkbEntityTypes.Heli_AH64, 4f, 20f, 18f);
+        Aircraft(TkbEntityTypes.Heli_UH60, 2f, -20f, 0f);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        for (int k = 0; k < 20; k++)   // the hovering one's rotors spool up
+        {
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = k / 10.0 });
+            sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2f, spot.Y, ground + 6f), 52f, MathF.PI * 0.5f, -0.10f);
+            frame.Step(canvas.Draw);
+        }
+        frame.Screenshot(Path.Combine(shots, "ah64-1-side.png"));
+        Assert.Equal(3, bodies.BodiesDrawn);
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y, ground + 1.5f), 16f, MathF.PI + 0.6f, -0.45f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ah64-2-close.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q) — the (V) acceptance for what people wear: a row of ten civilians (each dressed from his
     /// own seed), three children, and soldiers of each side — two friends (woodland), two hostiles (fleck), one neutral (plain). Face-on,
     /// then from above. Screenshots <c>dress-*.png</c>.

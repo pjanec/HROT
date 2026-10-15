@@ -415,7 +415,8 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 2)
             return d.Category switch
             {
-                >= 20 and <= 25 => VisualFamily.Helicopter,
+                20 => VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — the attack helicopter has its own kit now
+                >= 21 and <= 25 => VisualFamily.Helicopter,
                 2 => VisualFamily.AttackJet,   // ⭐ CE-1092 — the attack plane has its own kit now
                 1 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet,
                 3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,
@@ -1055,6 +1056,32 @@ public sealed class Map3DTests
         var red = new Raylib_cs.Color(180, 30, 30, 255);
         Assert.All(Enumerable.Range(1, 20).Select(s => Outfits.CarColour(s, 1002, red)), c => Assert.True(c.R > 3 * c.G, "a red car stays red"));
         Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
+    }
+
+    /// <summary>⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the AH-64 is an ATTACK helicopter, not a UH-60: its own kit (a chin gun on a
+    /// turret, four rotor blades, a tail rotor, two rocket pods), sized by its TKB box; its rotors spool as a helicopter's.</summary>
+    [Fact]
+    public void CE1103_TheAh64_HasItsOwnKit_AChinGunTurret_AndRotors()
+    {
+        var look = EntityBodyLayer3D.Resolve(BuiltIn().GetByType(TkbEntityTypes.Heli_AH64));
+        Assert.Equal(VisualFamily.AttackHelicopter, look.Family);
+        Assert.Same(ShapeKits.AttackHelicopter, ShapeKits.For(VisualFamily.AttackHelicopter));
+        Assert.Equal(new Vector3(17.73f, 14.63f, 3.87f), look.Size);
+        var kit = ShapeKits.AttackHelicopter;
+        Assert.True(kit.IsArticulated);
+        Assert.Single(kit.Parts, p => p.Role == PartRole.Turret);
+        Assert.Single(kit.Parts, p => p.Role == PartRole.Gun);
+        Assert.Equal(2, kit.Parts.Count(p => p.Role == PartRole.Rotor));
+        Assert.Equal(2, kit.Parts.Count(p => p.Role == PartRole.TailRotor));
+        Assert.Equal(2, kit.Parts.Count(p => p.Shape == PartShape.Cylinder && p.Axis == PartAxis.X && p.Colour == ColourRole.Dark));   // the pods
+        Assert.Equal(VisualFamily.Helicopter, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(TkbEntityTypes.Heli_UH60)).Family);   // the UH-60 stays
+
+        var motion = new MotionTracker();
+        var e = new Entity(1, 1);
+        float last = 0f;
+        for (int k = 0; k < 120; k++)
+            last = motion.Advance(e, new Vector3(0f, 0f, 30f), Quaternion.Identity, VisualFamily.AttackHelicopter, look.Size, k / 30.0, rotorTurning: true).Rotor;
+        Assert.NotEqual(0f, last);   // its rotor turns
     }
 
     /// <summary>⭐ CE-1099 (§6q O-3) — the CivilianChild type is a person 1.25 m tall, drawn as a child; a grown pedestrian is not.</summary>
@@ -2425,6 +2452,7 @@ public sealed class Map3DTests
     [InlineData(TkbEntityTypes.Tank_M1Abrams)]
     [InlineData(TkbEntityTypes.Tank_T72)]
     [InlineData(TkbEntityTypes.IFV_Bradley)]
+    [InlineData(TkbEntityTypes.Heli_AH64)]   // ⭐ CE-1103 — a CG-referenced body: its chin gun is placed through the box offset
     public void E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm(long type)
     {
         var tkb = HrotEnvironment.CreateTkb();
@@ -2446,7 +2474,10 @@ public sealed class Map3DTests
         var gun = parts.First(p => p.Role == PartRole.Gun);
         var pose = new TurretPoseSource().PoseOf(w, tank);
         var body = Matrix4x4.CreateFromQuaternion(hullRotation) * Matrix4x4.CreateTranslation(new Vector3(30f, -20f, 4f));
-        var tip = Vector3.Transform(new Vector3(0f, 0f, 1f), gun.BodyTransform(look.Size, pivots, pose) * body);   // the unit cylinder's far end
+        // ⭐ CE-1103 — the kit is drawn in its box; a Body.Geometry shifts the box off the reference point (the renderer's kitToBody)
+        var kitToBody = look.Geometry is { } g
+            ? Matrix4x4.CreateTranslation(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ - look.Size.Z / 2f) : Matrix4x4.Identity;
+        var tip = Vector3.Transform(new Vector3(0f, 0f, 1f), gun.BodyTransform(look.Size, pivots, pose) * kitToBody * body);   // the unit cylinder's far end
 
         Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle));
         Assert.True(Vector3.Distance(tip, muzzle) < 0.05f, $"drawn tip {tip} vs muzzle {muzzle}: {Vector3.Distance(tip, muzzle):F3} m");

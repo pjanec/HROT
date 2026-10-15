@@ -135,7 +135,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
-                                           || look.Family == VisualFamily.Helicopter && IsAirborne(world, tf.Position, look.Geometry));
+                                           || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry));
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning);
 
             KitPart[] parts;
@@ -1098,6 +1098,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
         VisualFamily.WheeledUtility => new Color(128, 120, 92, 255),
         VisualFamily.Helicopter => new Color(96, 104, 92, 255),
+        VisualFamily.AttackHelicopter => new Color(86, 96, 79, 255),
         VisualFamily.Jet => new Color(128, 136, 146, 255),
         VisualFamily.CargoPlane => new Color(118, 124, 116, 255),
         VisualFamily.Drone => new Color(74, 74, 74, 255),

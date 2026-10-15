@@ -378,6 +378,54 @@ public static class ShapeKits
         Box(0.02f, -0.15f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
     }, default);
 
+    // ── ⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the AH-64: authored in its own CENTRE-OF-GRAVITY metres (x forward, y left, z up from
+    //    the CG), then put into the kit box by the geometry's own offsets (Body.Geometry: 17.73 × 14.63 × 3.87, BodyCentreX −1.5, the box
+    //    bottom 1.335 m below the CG) — so a part lands where the TKB's own numbers (the turret pivot, the wheels) put things ──────────
+    private const float AhL = 17.73f, AhW = 14.63f, AhH = 3.87f, AhRefX = -1.5f, AhBottom = -1.335f;
+
+    private static KitPart AhBox(float x, float y, float z, float lx, float wy, float hz, ColourRole c, float pitch = 0f, PartRole role = PartRole.Hull)
+        => Box((x - AhRefX) / AhL, y / AhW, (z - AhBottom) / AhH, lx / AhL, wy / AhW, hz / AhH, c, pitch, role: role);
+
+    private static KitPart AhCylX(float x, float y, float z, float length, float diameter, ColourRole c, PartRole role = PartRole.Hull)
+        => Cyl(PartAxis.X, (x - AhRefX) / AhL, y / AhW, (z - AhBottom) / AhH, length / AhL, 0f, diameter / AhH, c, role);
+
+    /// <summary>
+    /// ⭐ CE-1103 (§6s H-1, H-2) — an attack helicopter (AH-64-like): a slim fuselage, the gunner's canopy low in front and the pilot's
+    /// raised behind it, a sensor ball on the nose, engine nacelles beside the mast, stub wings each with a rocket pod (inboard) and a
+    /// missile rail (outboard), a long tail boom with a swept fin, a stabiliser and the tail rotor on its left, a four-blade main rotor, and
+    /// the CHIN GUN — an articulated turret and barrel, placed by the TKB turret (<see cref="KitFromTkb"/>) and turned by its pose.
+    /// </summary>
+    public static readonly ShapeKit AttackHelicopter = new(new[]
+    {
+        AhBox(0.9f, 0f, -0.15f, 6.6f, 1.0f, 1.55f, ColourRole.Body),                   // fuselage
+        AhBox(5.0f, 0f, -0.35f, 1.6f, 0.85f, 1.1f, ColourRole.Body),                   // nose
+        AhBox(6.05f, 0f, -0.45f, 0.55f, 0.6f, 0.6f, ColourRole.Dark),                  // the nose sensor ball
+        AhBox(4.2f, 0f, 0.55f, 1.4f, 0.8f, 0.55f, ColourRole.Glass),                   // the gunner's canopy, low in front
+        AhBox(2.85f, 0f, 0.85f, 1.5f, 0.82f, 0.62f, ColourRole.Glass),                 // the pilot's, raised behind
+        AhCylX(-0.4f, 0.8f, 0.6f, 2.4f, 0.62f, ColourRole.Body),                       // engine nacelles
+        AhCylX(-0.4f, -0.8f, 0.6f, 2.4f, 0.62f, ColourRole.Body),
+        AhBox(0f, 0f, 0.85f, 1.6f, 0.8f, 0.5f, ColourRole.Body),                       // the rotor pylon
+        Cyl(PartAxis.Z, (0f - AhRefX) / AhL, 0f, (1.45f - AhBottom) / AhH, 0.3f / AhL, 0f, 0.75f / AhH, ColourRole.Metal),   // mast
+        AhBox(0f, 0f, 1.95f, 14.6f, 0.55f, 0.08f, ColourRole.Dark, role: PartRole.Rotor),   // main rotor, four blades
+        AhBox(0f, 0f, 1.95f, 0.55f, 14.6f, 0.08f, ColourRole.Dark, role: PartRole.Rotor),
+        AhBox(-5.4f, 0f, 0.15f, 6.2f, 0.5f, 0.65f, ColourRole.Body),                   // tail boom
+        AhBox(-8.4f, 0f, 1.05f, 1.1f, 0.12f, 1.9f, ColourRole.Body, pitch: -20f),      // the swept fin
+        AhBox(-8.6f, 0f, 0.0f, 0.8f, 3.4f, 0.07f, ColourRole.Body),                    // horizontal stabiliser
+        AhBox(-8.7f, 0.25f, 1.6f, 2.8f, 0.05f, 0.2f, ColourRole.Dark, role: PartRole.TailRotor),   // tail rotor, on the left
+        AhBox(-8.7f, 0.25f, 1.6f, 0.2f, 0.05f, 2.8f, ColourRole.Dark, role: PartRole.TailRotor),
+        AhBox(0.7f, 1.55f, 0.35f, 1.1f, 2.0f, 0.12f, ColourRole.Body),                 // stub wings
+        AhBox(0.7f, -1.55f, 0.35f, 1.1f, 2.0f, 0.12f, ColourRole.Body),
+        AhCylX(0.6f, 1.3f, 0.0f, 1.7f, 0.42f, ColourRole.Dark),                        // rocket pods, inboard
+        AhCylX(0.6f, -1.3f, 0.0f, 1.7f, 0.42f, ColourRole.Dark),
+        AhBox(0.7f, 2.3f, 0.0f, 1.7f, 0.45f, 0.42f, ColourRole.Metal),                 // missile rails, outboard
+        AhBox(0.7f, -2.3f, 0.0f, 1.7f, 0.45f, 0.42f, ColourRole.Metal),
+        AhBox(4.3f, 0f, -0.95f, 0.5f, 0.5f, 0.35f, ColourRole.Dark, role: PartRole.Turret),   // the chin turret (KitFromTkb places it)
+        AhCylX(5.0f, 0f, -1.0f, 1.0f, 0.1f, ColourRole.Metal, PartRole.Gun),           // its barrel (KitFromTkb sizes it to the muzzle)
+        AhBox(1.8f, 1.0f, -0.95f, 0.15f, 0.12f, 0.75f, ColourRole.Dark, role: PartRole.Gear),   // gear, when the TKB gives none
+        AhBox(1.8f, -1.0f, -0.95f, 0.15f, 0.12f, 0.75f, ColourRole.Dark, role: PartRole.Gear),
+        AhBox(-8.6f, 0f, -0.8f, 0.12f, 0.1f, 0.9f, ColourRole.Dark, role: PartRole.Gear),
+    }, new KitPivots(new Vector2((4.3f - AhRefX) / AhL, 0f), new Vector2((4.5f - AhRefX) / AhL, (-1.0f - AhBottom) / AhH)));
+
     /// <summary>⭐ CE-1092 — the attack plane's bombs on their wing pylons (Mk-82: 2.2 m, 0.27 m), outboard first; a pylon each.</summary>
     public static readonly KitPart[] AttackJetBombs =
     [
@@ -426,6 +474,7 @@ public static class ShapeKits
         VisualFamily.Drone => Drone,
         VisualFamily.SpArtillery => SpArtillery,
         VisualFamily.AttackJet => AttackJet,
+        VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -444,6 +493,7 @@ public static class ShapeKits
         VisualFamily.Drone => new Vector3(0.6f, 0.6f, 0.3f),
         VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
         VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
+        VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }

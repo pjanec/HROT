@@ -210,7 +210,7 @@ public sealed class EntityTypeCatalogTests
         403 FPV drone | dis 1.2.0.50.0.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         404 UH-60A Black Hawk (doors off) | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         405 A-10C Thunderbolt II | dis 1.2.225.2.0.0.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
-        406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family Helicopter | folder Platform/Air/United States/Attack Helicopter | icon -
+        406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
