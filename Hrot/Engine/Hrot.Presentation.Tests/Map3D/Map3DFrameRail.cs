@@ -1473,6 +1473,7 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "face-1-front.png"));
         Assert.True(LitShader.Shared.IsValid, "the shader with the body surface compiled");   // ⭐ CE-1101 — else Raylib draws unlit, silently
+        Assert.Equal(BodySurface.Glsl, LitShader.Surface);       // ⭐ CE-1101 — and it IS the body surface (else the counters lie: nothing is painted)
         Assert.Equal(5, bodies.FacesPainted);                    // ⭐ CE-1101 (§6r) — five faces painted by the shader
         Assert.InRange(bodies.FaceDetailsDrawn, 4, 5);           // and a helmet or hair box each (a civilian may be bald)
 
