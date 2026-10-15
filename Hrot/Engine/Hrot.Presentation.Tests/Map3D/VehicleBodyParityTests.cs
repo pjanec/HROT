@@ -40,7 +40,9 @@ public class VehicleBodyParityTests
         _ => VehiclePart.Hull,
     };
 
-    private static readonly (float Az, float El)[] Poses = { (0f, 0f), (0.7f, 0.1f), (-1.9f, 0.25f) };
+    /// <summary>The turret poses checked — ⭐ the last two are a gun LAID as a howitzer is (25°, 60°): ui's CE-1114 draws the SP gun from the
+    /// replicated <c>TurretPose</c>, so the drawn lay and the sim's boxes must agree there too (ui steer, `2026-10-15`).</summary>
+    private static readonly (float Az, float El)[] Poses = { (0f, 0f), (0.7f, 0.1f), (-1.9f, 0.25f), (0.3f, 0.436f), (0f, 1.047f) };
 
     [Fact]
     public void CE3211_TheBoxesTheRoundsMeet_AreThePartsTheMapDraws_ForEveryCatalogVehicle()
