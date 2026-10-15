@@ -1551,6 +1551,99 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1105 (docs/DESIGN_Map_3D_Mode.md §6u) — the (V) acceptance for a burst you can see: an AH-64 hovering at 20 m fires its chin M134
+    /// at a T-72 80 m ahead; 0.12 s later the stream of tracer dashes runs from the chin turret toward the tank. Side-on, then from behind the
+    /// helicopter; then a doors-off UH-60's door gunners, the south one firing. Screenshots <c>stream-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1105_V_TheAttackHelicopterFiresABurst()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Put(long type, float dx, float dy, float up)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y) + up), Rotation = Quaternion.Identity });   // facing +x
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            return e;
+        }
+        var heli = Put(TkbEntityTypes.Heli_AH64, 0f, 0f, 1.33f + 20f);
+        var tank = Put(TkbEntityTypes.Tank_T72, 80f, 0f, 0f);
+        const double now = 3.0;
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now });
+        Hrot.UI.Common.Effects.RecentShots.In(world).Record(heli, 0, now - 0.12, world.GetComponentRO<SimTransform>(tank).Position + new Vector3(0, 0, 1.2f));
+
+        // a doors-off Black Hawk (404) hovering 15 m up behind it, its two door gunners at their M134s (seats 8 / 10, stations 9 / 11 — the
+        //   preset's own); the south door gun fires at the ground to the south-east
+        var hawk = Put(TkbEntityTypes.Heli_UH60_DoorsOff, -14f, 30f, 1.75f + 15f);
+        var hawkAt = world.GetComponentRO<SimTransform>(hawk).Position;
+        var doorGun = Entity.Null;
+        var doorSeats = tkb.GetByType(TkbEntityTypes.Heli_UH60_DoorsOff)!.GetDescriptor<CarrierDefDto>()!.Seats;
+        foreach (var (gunnerSeat, side) in new[] { (8, 1f), (10, -1f) })
+        {
+            var man = Put(TkbEntityTypes.Infantry_Rifleman, 0f, 0f, 0f);
+            world.SetComponent(man, world.GetComponent<SimTransform>(hawk));   // the sim keeps a rider at the vehicle's reference point
+            world.AddComponent(man, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hawk, Exposed = 1, Seat = (byte)gunnerSeat });
+            var gun = world.CreateEntity();
+            world.AddComponent(gun, new SimTransform { Position = hawkAt + new Vector3(doorSeats[gunnerSeat + 1].X, doorSeats[gunnerSeat + 1].Y, doorSeats[gunnerSeat + 1].Z), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, side * MathF.PI / 2f) });
+            world.AddComponent(gun, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_M134Minigun });
+            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+            world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hawk, Exposed = 1, Seat = (byte)(gunnerSeat + 1) });
+            if (side < 0) doorGun = gun;
+        }
+        float gx = hawkAt.X + 45f, gy = hawkAt.Y - 55f;
+        Hrot.UI.Common.Effects.RecentShots.In(world).Record(doorGun, 0, now - 0.10, new Vector3(gx, gy, G(gx, gy)));
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 40f, spot.Y, ground + 16f), 75f, MathF.PI * 0.5f, -0.10f);   // from the south, above the roofs
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "stream-1-side.png"));
+        Assert.Equal(2, rounds.StreamsDrawn);   // the chin gun and the door gun
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 40f, spot.Y, ground + 4f), 62f, 0.25f, -0.65f);   // behind the helicopter, looking down the stream
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "stream-2-behind.png"));
+
+        sw.Camera3D.Pose = new CameraPose(hawkAt + new Vector3(3.1f, -1.0f, -0.4f), 5.5f, MathF.PI * 0.62f, -0.05f);   // from the south-east, close: the door gunners
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "stream-3-door-gun.png"));
+        Assert.Equal(2, rounds.StreamsDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t) — the (V) acceptance for a team carry: two medics carrying a wounded soldier on a stretcher,
     /// and a mortar team carrying a 120 mm mortar between them, all facing east. Side-on, then from above. Screenshots <c>team-*.png</c>.
     /// </summary>

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Fdp.Core;
 
 namespace Hrot.UI.Common.Effects;
@@ -10,10 +11,11 @@ namespace Hrot.UI.Common.Effects;
 /// </summary>
 public sealed class RecentShots
 {
-    private readonly Dictionary<Entity, (int Mount, double At)> _last = new();
+    private readonly Dictionary<Entity, (int Mount, double At, Vector3 Toward)> _last = new();
 
-    /// <summary><paramref name="shooter"/> fired mount <paramref name="mount"/> at <paramref name="at"/>.</summary>
-    public void Record(Entity shooter, int mount, double at) => _last[shooter] = (mount, at);
+    /// <summary><paramref name="shooter"/> fired mount <paramref name="mount"/> at <paramref name="at"/>. ⭐ CE-1105 (§6u) — aimed at
+    /// <paramref name="toward"/> (its target or its aim point; zero when neither is known).</summary>
+    public void Record(Entity shooter, int mount, double at, Vector3 toward = default) => _last[shooter] = (mount, at, toward);
 
     /// <summary>The last shot of <paramref name="shooter"/>, if any.</summary>
     public bool TryGet(Entity shooter, out int mount, out double at)
@@ -21,6 +23,13 @@ public sealed class RecentShots
         if (_last.TryGetValue(shooter, out var s)) { mount = s.Mount; at = s.At; return true; }
         mount = 0; at = 0;
         return false;
+    }
+
+    /// <summary>⭐ CE-1105 (§6u) — every shot fired within <paramref name="seconds"/> before <paramref name="now"/>, with where it was aimed.</summary>
+    public IEnumerable<(Entity Shooter, int Mount, double At, Vector3 Toward)> Recent(double now, double seconds)
+    {
+        foreach (var (shooter, s) in _last)
+            if (now >= s.At && now - s.At <= seconds) yield return (shooter, s.Mount, s.At, s.Toward);
     }
 
     /// <summary>Did <paramref name="shooter"/> fire within <paramref name="seconds"/> before <paramref name="now"/>?</summary>

@@ -388,6 +388,36 @@ public sealed class ProjectileLayer : IMapLayer
             }
         }
         Drawn = rounds.Count;
+        DrawStreams(w, now, camera);
+    }
+
+    private readonly List<(Vector3 From, Vector3 To)> _dashes = new();
+
+    /// <summary>⭐ CE-1105 (§6u) — streams drawn by the last frame (rails).</summary>
+    public int StreamsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1105 (docs/DESIGN_Map_3D_Mode.md §6u) — every automatic weapon that fired within the window draws its burst stream
+    /// from its muzzle (the round's own origin) toward where it aimed, in tracer orange, fading.</summary>
+    private void DrawStreams(EntityRepository? w, double now, MapCamera3D? camera)
+    {
+        StreamsDrawn = 0;
+        if (w == null || RecentShots.Of(w) is not { } shots) return;
+        foreach (var (shooter, mount, at, toward) in shots.Recent(now, FireStreams.Window))
+        {
+            if (!w.IsAlive(shooter) || !FireStreams.IsAutomatic(Fdp.Toolkit.Combat.CombatTkb.MountOf(w, shooter, mount))) continue;
+            if (!Fdp.Toolkit.Combat.Muzzle.TryOf(w, shooter, mount, out var muzzle, out var forward)) continue;
+            float strength = FireStreams.Dashes(muzzle, toward, forward, now - at, _dashes);
+            if (_dashes.Count == 0) continue;
+            float width = 0.03f;
+            if (camera != null)
+                width = MathF.Max(width, TracerMinPixels * camera.MetresPerPixel / MathF.Max(1f, camera.Distance) * Vector3.Distance(camera.Eye, muzzle) / 2f);
+            var glow = new Color((byte)255, (byte)154, (byte)48, (byte)(60 + 195 * strength));
+            Raylib.BeginBlendMode(BlendMode.Additive);
+            foreach (var (from, to) in _dashes)
+                Raylib.DrawCylinderEx(HrotToRaylib.Position(from), HrotToRaylib.Position(to), width * 0.4f, width, 6, glow);
+            Raylib.EndBlendMode();
+            StreamsDrawn++;
+        }
     }
 
     /// <summary>A grenade's tumble: its axis turned end over end about the horizontal perpendicular to its flight.</summary>
