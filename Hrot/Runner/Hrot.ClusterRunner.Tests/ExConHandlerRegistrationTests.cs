@@ -8,9 +8,9 @@ namespace Hrot.ClusterRunner.Tests;
 /// after initialization (CGF1-S0104 / BATCH-23 Part A.3).
 ///
 /// Uses <see cref="ExConSubsystem.TestHook_ClusterSlave"/> for assertions.
-/// ExCon is a listener node — it registers ReferenceReplayLoadHandler and
-/// ReferenceLiveLoadHandler as thin stubs; it does NOT register brain-level
-/// persistence handlers (no SerializeLocal / checkpoint).
+/// ⭐⭐ C10 (Q91 §4-L L5, R-4011) — ExCon holds NO record/replay controller and registers NO live/replay load handler: it
+/// has no world, so ClusterSlave's no-handler path answers those rounds (Success, not participating) and nothing stalls.
+/// ⛔ Was: two thin stub handlers fed by a listen-only controller, whose only job was that same ACK.
 /// </summary>
 public sealed class ExConHandlerRegistrationTests
 {
@@ -24,34 +24,25 @@ public sealed class ExConHandlerRegistrationTests
 
     // ── A.3: ExCon listener stubs (BATCH-23) ────────────────────────────────────
 
-    /// <summary>ExCon must register a ReferenceReplayLoadHandler as a listener stub.</summary>
-    [Fact]
-    public void AfterInit_RegistersReferenceReplayLoadHandler()
+    /// <summary>
+    /// ⭐⭐ C10 — no handler on ExCon claims a live or replay load round, so ClusterSlave answers it itself (Success, not
+    /// participating). ⛔ FLIPPED: was "ExCon must register ReferenceReplayLoadHandler / ReferenceLiveLoadHandler".
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Toolkit.Orchestration.NodeOpType.PrepareReplay)]
+    [InlineData(Fdp.Toolkit.Orchestration.NodeOpType.FinalizeReplay)]
+    [InlineData(Fdp.Toolkit.Orchestration.NodeOpType.PrepareLive)]
+    [InlineData(Fdp.Toolkit.Orchestration.NodeOpType.FinalizeLive)]
+    public void AfterInit_NoHandlerClaimsALiveOrReplayLoadRound(Fdp.Toolkit.Orchestration.NodeOpType op)
     {
         var subsystem = new ExConSubsystem();
         subsystem.Initialize(HeadlessConfig());
 
         var slave = subsystem.TestHook_ClusterSlave;
         Assert.NotNull(slave);
-        Assert.True(
-            slave!.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
-            "ExCon must register ReferenceReplayLoadHandler so replay fan-outs do not stall cluster.");
-
-        subsystem.Shutdown();
-    }
-
-    /// <summary>ExCon must register a ReferenceLiveLoadHandler as a listener stub.</summary>
-    [Fact]
-    public void AfterInit_RegistersReferenceLiveLoadHandler()
-    {
-        var subsystem = new ExConSubsystem();
-        subsystem.Initialize(HeadlessConfig());
-
-        var slave = subsystem.TestHook_ClusterSlave;
-        Assert.NotNull(slave);
-        Assert.True(
-            slave!.IsHandlerRegistered<ReferenceLiveLoadHandler>(),
-            "ExCon must register ReferenceLiveLoadHandler so live fan-outs are acknowledged.");
+        Assert.False(slave!.IsHandlerRegistered<ReferenceReplayLoadHandler>());
+        Assert.False(slave.IsHandlerRegistered<ReferenceLiveLoadHandler>());
+        Assert.DoesNotContain(slave.RegisteredHandlers, h => h.CanHandle(op));
 
         subsystem.Shutdown();
     }

@@ -1062,6 +1062,15 @@ and the gate closes the window between "the readers exist" and "the world can be
 | **L4** | ⭐ **rename "best-effort node" to "OBSERVER node"** — ✅ 🔒 **user, `2026-10-15`: "renaming to Observer node is fine"** | ⭐ "Best-effort" is also a DDS reliability setting, used in this same design. The meaning and limits are §4-L.4 |
 
 
+#### ✅ L5 + L4 AS BUILT `2026-10-15` (C10, C11)
+
+| item | as built |
+|---|---|
+| **C10 / L5 ①** | `CgfRecordReplayController` deleted (zero construction sites; R-4010) |
+| **C10 / L5 ②** | `EcsRecordReplayController` on every ECS host with no role gate — done under P5 (`EcsRecordReplayController.ForNode`; SimHost's Brain/MuscleGround gate removed) |
+| **C10 / L5 ③** | ⭐ the "to verify" is settled: ExCon's `IsReplayActive` was read ONLY by its two stub load handlers. ExCon now holds no controller and registers neither handler; its live/replay rounds are answered by `ClusterSlave`'s no-handler path (Success, not participating). `ListenerRecordReplayController` then had no user and is deleted — one record/replay controller. Rail: `ExConHandlerRegistrationTests.AfterInit_NoHandlerClaimsALiveOrReplayLoadRound` (flipped) |
+| **C11 / L4** | nothing left to rename in code: P2 already named the predicate `IsObserver` and its rails `P2_…observer…`; the remaining "best-effort" words in the tree are unrelated (DDS reliability, cleanup comments) |
+
 ### 4-L.4 ⭐⭐ What an OBSERVER may and may not do *(answers "do Player nodes stay completely passive?")*
 
 ⭐ **Not passive.** An observer is defined by what NOTHING ELSE DEPENDS ON, not by what it does. It holds no simulation

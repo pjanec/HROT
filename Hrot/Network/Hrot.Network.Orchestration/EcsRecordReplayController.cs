@@ -41,8 +41,9 @@ namespace Hrot.SimHost.Modules.Orchestration
     /// </para>
     /// </summary>
     /// <remarks>
-    /// ⭐⭐ <c>P5a</c> (Q91 §4-G, <c>R-4003</c>/<c>R-4011</c>) — lives in <c>Hrot.Network.Orchestration</c>, beside the listener
-    /// controller, so EVERY ECS host can compose it: IG references this assembly and not <c>Hrot.SimHost</c>.
+    /// ⭐⭐ <c>P5a</c> (Q91 §4-G, <c>R-4003</c>/<c>R-4011</c>) — lives in <c>Hrot.Network.Orchestration</c> so EVERY ECS host can
+    /// compose it: IG references this assembly and not <c>Hrot.SimHost</c>. ⭐ It is the ONE record/replay controller —
+    /// C10 deleted the CGF skeleton and the listen-only one (ExCon, the only non-ECS host, holds none).
     /// ⚠ The namespace is still <c>Hrot.SimHost.Modules.Orchestration</c> so no caller changed in the move; renaming it is a
     /// Roslyn job for later. Build one through <see cref="ForNode"/>.
     /// </remarks>

@@ -373,8 +373,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐⭐ P5a (Q91 §4-G, R-4003/R-4011) — IG RECORDS like every ECS host: the same controller, composed the one way
         //   (EcsRecordReplayController.ForNode). ⛔ Was: a listen-only ListenerRecordReplayController — "IG carries no ECS
-        //   frame data" predates the unification; IG holds a world and may own entities (R-4008). ExCon keeps the listener:
-        //   it holds no world, so there is nothing to record — a missing dependency, not a role exception.
+        //   frame data" predates the unification; IG holds a world and may own entities (R-4008). ExCon holds no controller at
+        //   all (C10): it has no world, so there is nothing to record — a missing dependency, not a role exception.
         var igRrController = RecordReplayController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
             context.Kernel, _effectiveInstanceId, context.World,
             (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
