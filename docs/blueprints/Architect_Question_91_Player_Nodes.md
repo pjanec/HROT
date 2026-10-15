@@ -1133,7 +1133,7 @@ entity lives as long as its primary owner on EVERY node; nothing about that is s
 
 ---
 
-## 4-M ⭐⭐⭐ BUILD DESIGN — `C3` + `C5` + `C7` SHIP TOGETHER *(design `2026-10-15`, coordinator; `build-state: BUILDING`)*
+## 4-M ⭐⭐⭐ BUILD DESIGN — `C3` + `C5` + `C7` SHIP TOGETHER *(design `2026-10-15`, coordinator; `build-state: BUILT` — see the as-built table at the end)*
 
 ⭐ Builds the approved I1, I2, J1, J2, K4, K5′, K6, K7 and L2′ (`R-4006`, `R-4007`, `R-4013`–`R-4015`, `R-4017`) on top of
 `CE-4000` F2 (`R-4019`: Idle is empty everywhere).
@@ -1229,6 +1229,21 @@ host with a world; the debugger's predicate stays separate because it HOLDS even
 | **the catch-up is node ops only** (K4, R-4017) and **never reads the scenario** (K5′, R-4015) | ⭐ `IsCatchUp` on the load payload; the chain runs the universal parts (KB, terrain) whatever the node's role |
 | **one attempt per node per cluster commit** (K7) | ⭐ a failure is logged and shown; the next cluster commit or a new process (new id, R-4016) tries again |
 | ⚠ **not in this change** | the committed ZONE set (§4-E′), the reliable-init wait-set (C6, uses the published `InSync`), replay catch-up (C9) |
+
+#### ✅ AS BUILT `2026-10-15` — and where it deviates from the tables above
+
+| piece | as built |
+|---|---|
+| C5 seam | `TranslatorClass.WorldEvent` + `IDiscardableIngress` (`Fdp.Core`); `CycloneNetworkIngressSystem.IsJoinFrozen` + `WireJoinGate(systems, predicate)`; the debugger's `IsWorldStateFrozen` now HOLDS events too (they were world state before) |
+| C5 predicate | `ClusterSlave.IsJoinFrozen` — following a master ∧ local `Idle` ∧ the cluster's last announced state not `Idle` (the `ClusterStateUpdateEvent` the C2 session code already reads) |
+| C5 wiring | `SharedApplicationBootstrapper` step `join-gate` after `kernel-initialize` (IG, SimHost, Stride), `CgfSubsystem` beside its debugger sweep, `CgfApplication` after its lazy `Kernel.Initialize()`. ⚠ The editor is not wired: it is an offline node with no network ingress |
+| C5 event set | ⚠ **five**, not seven: `EntityHitDamage`, `MunitionDetonation`, `WeaponFire`, `WeaponFireRequest`, `MissionControlRequest`. `Spawn…`/`UpdateEntityCommandEgressTranslator` were listed by the inventory but only SEND (their `PollIngress` drains the local bus), so they stay world state |
+| C3 | `ClusterMaster.InSync.cs` (partial): `_inSync`, `Participants()`; a node joining while the cluster is at rest is in sync; `EjectNode` forgets it; a trajectory through `Idle` targets the roster and `CompleteRound` makes its targets the in-sync set (`GenericTransactionTracker.ResyncsOnSuccess`); operator rounds — checkpoint (×2), save, export, seek, zone load, terrain build, episodes — target `Participants()` |
+| C7 | `TickCatchUps` after `ConsumeNodeOpStatuses`: a roster node not in sync while the cluster is `OperatingLive`/`OperatingEdit` and no transition is open gets, alone, a prefetch through the ORDINARY saga (`ExecutePrefetchIntent` with one target, when the cluster's scenario is known), then `PrepareState`/`CommitState Idle`, `PrepareLive`/`PrepareEdit` `{IsCatchUp, IsWorldBoundary, TerrainName, no ScenarioId}` + commit, the operating state + commit; in sync after three answers if the cluster epoch did not move (else E3: again); one attempt per epoch (K7) |
+| C7 node side | `EditLoadHandlerPayload.IsCatchUp` → `NodeTransitionPayloadDto.IsCatchUp` (wire, additive) → `LoadPhaseContext.IsCatchUp`; `LoadPhaseChain.StepsFor` drops the scenario step |
+| 🔴 found while building | `_inflightTransitionTx` is never cleared — it keeps the LAST transition for history and cancel. "A transition is open" is therefore `TransitionInFlight` (its tracker still pending). 📐 Caught by `A_node_joining_a_running_cluster_is_caught_up_alone_then_is_in_sync` (red before) |
+| rails | `TheFrozenWorldStillHearsItsResumeTests.R4007_*` (2) · `ClusterSlaveTests.R4007_ANodeIsJoinFrozen_OnlyWhileItIsBehindTheClusterItFollows` · `EveryWorldEventTranslatorCanDiscardTests` · `ClusterMasterCatchUpTests` (4, new suite) · `LoadPhaseChainTests.C7_ACatchUpLoad_RunsTheUniversalPartsOnly_NeverTheScenario` |
+| ⏳ not verified | a LIVE late Player against a running multi-process cluster (UC-13/UC-2 with `ddsmonitor`) — the unit and integration suites drive the master and the chain, not a real joiner's ingress |
 
 ## 5. OUT OF SCOPE
 

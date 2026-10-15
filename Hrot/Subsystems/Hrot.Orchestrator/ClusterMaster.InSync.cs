@@ -63,9 +63,16 @@ public sealed partial class ClusterMaster
     /// <summary>I1 — a node entering the roster while the cluster is at rest in Idle has nothing to catch up.</summary>
     private void AdmitJoinedNode(int nodeId)
     {
-        if (_currentDsmState == ClusterState.Idle && _inflightTransitionTx == null && _parked == null)
+        if (_currentDsmState == ClusterState.Idle && !TransitionInFlight && _parked == null)
             _inSync.Add(nodeId);
     }
+
+    /// <summary>
+    /// A transition's round is still open. ⚠ <c>_inflightTransitionTx</c> alone does not say so: it keeps the LAST transition
+    /// (history, cancel) after its round completed — only its pending tracker means it is still in flight.
+    /// </summary>
+    private bool TransitionInFlight =>
+        _inflightTransitionTx is { } tx && _pendingTransactions.ContainsKey(tx.TransactionId);
 
     /// <summary>I1 — a node that left is no longer in sync, and its catch-up (if any) is dropped.</summary>
     private void ForgetSync(int nodeId)
@@ -88,7 +95,7 @@ public sealed partial class ClusterMaster
         if (_eventBus == null) return;
         AdvanceCatchUps();
 
-        if (!IsOperating(_currentDsmState) || _inflightTransitionTx != null || _parked != null) return;
+        if (!IsOperating(_currentDsmState) || TransitionInFlight || _parked != null) return;
         foreach (var nodeId in _roster.ActiveNodes.Keys.ToList())
         {
             if (_inSync.Contains(nodeId) || _catchUps.ContainsKey(nodeId)) continue;
