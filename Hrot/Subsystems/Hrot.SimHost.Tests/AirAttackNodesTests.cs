@@ -766,5 +766,230 @@ namespace Hrot.SimHost.Tests
             Assert.True(shots.Count > 0);
             Assert.InRange(ws.Swept, 2f * MathF.PI, 2f * MathF.PI + 0.1f);
         }
+
+        // ── CE-2191 (§7e) — the aircraft's answer to a missile warning ──────────────────────────────────────────────────────────────
+
+        private const long CmHeli = 9414, TestFlare = 9415, TestChaff = 9416;
+
+        /// <summary>The attack helicopter of <see cref="SpawnHeli"/> with a flare / chaff dispenser as its LAST mount (2), as
+        /// <c>BdcTkbCatalog.Dispenser</c> gives the AH-64: 60 flares, 60 chaff, 120 rpm.</summary>
+        private Entity SpawnCmHeli(Vector3 at, out Entity pod, out Entity dispenser)
+        {
+            Reg<AmmoLoadout>();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (!db.TryGetByType(CmHeli, out _))
+            {
+                var h = new Fdp.Interfaces.TkbTemplate("countermeasure heli", CmHeli);
+                h.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                {
+                    new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, TurretIndex = 0,
+                        Range = 1000f, InitialAmmunition = 4000, DamagePerHit = 30 },
+                    new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket, FixedConeDeg = 8f,
+                        Range = 4000f, InitialAmmunition = 38, DamagePerHit = 400 },
+                    new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Countermeasure, RateOfFire = 120f,
+                        InitialAmmunition = 120, AmmoGuid = TestFlare,
+                        Loadout = { new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = TestFlare, Rounds = 60 },
+                                    new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = TestChaff, Rounds = 60 } } },
+                } });
+                db.Register(h);
+                db.Register(new Fdp.Interfaces.TkbTemplate("test flare", TestFlare) { DisType = new DISEntityType { Kind = 8, Domain = 2, Category = 2 } });
+                db.Register(new Fdp.Interfaces.TkbTemplate("test chaff", TestChaff) { DisType = new DISEntityType { Kind = 8, Domain = 2, Category = 1 } });
+            }
+            var e = SpawnPlane(at, CmHeli, 4000, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            pod = _w.CreateEntity();
+            _w.AddComponent(pod, new WeaponMountInfo { MountIndex = 1 });
+            _w.AddComponent(pod, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = e, InstanceId = 1 });
+            _w.AddComponent(pod, new WeaponState { Ammo = 38 });
+            dispenser = _w.CreateEntity();
+            _w.AddComponent(dispenser, new WeaponMountInfo { MountIndex = 2 });
+            _w.AddComponent(dispenser, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = e, InstanceId = 2 });
+            _w.AddComponent(dispenser, new WeaponState { Ammo = 120, MaxAmmo = 120 });
+            _w.AddComponent(dispenser, AmmoLoadout.From(new[]
+            {
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = TestFlare, Rounds = 60 },
+                new Fdp.Toolkit.Tkb.Domain.AmmoLoadDto { AmmoGuid = TestChaff, Rounds = 60 },
+            }));
+            return e;
+        }
+
+        /// <summary>The warning the SimHost's <c>MissileWarningSensingSystem</c> writes on the aircraft's brain: a missile launched from
+        /// <paramref name="from"/> (the bearing to it from the aircraft, 0 = north, clockwise).</summary>
+        private void Warn(Entity aircraft, Vector3 from, Fdp.Toolkit.Tkb.Domain.GuidanceKind seeker, float timeToImpact, double now)
+        {
+            Reg<MissileWarning>();
+            var at = _w.GetComponentRO<SimTransform>(aircraft).Position;
+            float bearing = MathF.Atan2(from.X - at.X, from.Y - at.Y) * (180f / MathF.PI);
+            var w = new MissileWarning { At = now, From = from, BearingDeg = bearing < 0f ? bearing + 360f : bearing, Seeker = seeker, TimeToImpactS = timeToImpact };
+            if (_w.HasComponent<MissileWarning>(aircraft)) _w.GetComponentRW<MissileWarning>(aircraft) = w;
+            else _w.AddComponent(aircraft, w);
+        }
+
+        /// <summary>One frame with the clock: the node, the real weapon executor, the cooldowns drained (the dispenser's too); every
+        /// intent of the frame as (mount, ammo, frame).</summary>
+        private NodeStatus TimedStep(ref AirAttackParams p, ref AirAttackState ws, Entity aircraft, FireAtPointExecutor executor, ref uint entered,
+            int frame, System.Collections.Generic.List<(int Mount, long Ammo, int Frame)> intents, float speed, params Entity[] mounts)
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+            var status = AirAttackNodes.Run(ref p, ref ws, aircraft, _w);
+            ref var wc = ref _w.GetComponentRW<WeaponChannel>(aircraft);
+            if (wc.ActiveAction == CombatConstants.ActionIdFireAtPoint)
+            {
+                if (wc.ActionInstanceId != entered) { executor.OnEnter(aircraft, ref wc, _w); entered = wc.ActionInstanceId; }
+                executor.Execute(aircraft, ref wc, _w, Dt);
+            }
+            foreach (var m in mounts)
+            {
+                ref var w = ref _w.GetComponentRW<WeaponState>(m);
+                w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
+            }
+            _w.Bus.SwapBuffers();
+            foreach (ref readonly var i in _w.Bus.Read<WeaponFireIntent>()) intents.Add((i.WeaponIndex, i.AmmoGuid, frame));
+            FlyStandIn(aircraft, speed, plane: false);
+            return status;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2191</c> (§7e) — a helicopter on a running-fire pass is warned of an infra-red missile launched off its left bow: its
+        /// weapons stop at once (no round while it evades), it drops <see cref="AirAttackNodes.DecoySalvo"/> FLARES from its dispenser (one
+        /// per 0.5 s interval, the dispenser's 120 rpm — never chaff, the seeker is infra-red), it turns to put the missile on its BEAM and a
+        /// little away (its track within 35° of square to the line to the missile, never closing on it) and dives to
+        /// <see cref="AirAttackNodes.EvadeHeightAglRotor"/>; when the missile is past it comes round — a fresh run-in, the aborted pass
+        /// counted — fires its rockets and gun on the new pass and succeeds.
+        /// ✅ Red-proofs (mutants): no evasion stage ⇒ the rockets ripple through the warning ⇒ red; chaff for an infra-red seeker ⇒ red;
+        /// the break flown AT the missile ⇒ the track closes on it ⇒ red; no come-round ⇒ the attack ends without a rocket ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S7e_AWarnedHelicopter_StopsFiring_DropsFlares_BreaksOntoTheMissilesBeam_ThenComesRound()
+        {
+            var heli = SpawnCmHeli(new Vector3(-4000f, 300f, 60f), out var pod, out var dispenser);
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var intents = new System.Collections.Generic.List<(int Mount, long Ammo, int Frame)>();
+            uint entered = 0;
+            var status = NodeStatus.Running;
+            int warnedAt = -1;
+            var launcher = new Vector3(-1500f, 1800f, 0f);   // off the left bow of a run-in flown east
+            float maxCosToMissile = -1f, lowest = float.MaxValue;
+            int frame = 0;
+            for (; frame < 60 * 300 && status == NodeStatus.Running; frame++)
+            {
+                var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                if (warnedAt < 0 && new Vector2(at.X, at.Y).Length() < 3200f)
+                {
+                    warnedAt = frame;
+                    Warn(heli, launcher, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 5f, frame * Dt);
+                }
+                status = TimedStep(ref p, ref ws, heli, executor, ref entered, frame, intents, 60f, heli, pod, dispenser);
+                if (warnedAt >= 0 && frame > warnedAt + 60 * 2 && frame < warnedAt + 60 * 7)
+                {
+                    var v = _w.GetComponentRO<SimVelocity>(heli).Linear;
+                    var flat = new Vector2(v.X, v.Y);
+                    var now = _w.GetComponentRO<SimTransform>(heli).Position;
+                    var toMissile = Vector2.Normalize(new Vector2(launcher.X - now.X, launcher.Y - now.Y));
+                    if (flat.LengthSquared() > 1f) maxCosToMissile = MathF.Max(maxCosToMissile, Vector2.Dot(Vector2.Normalize(flat), toMissile));
+                    lowest = MathF.Min(lowest, now.Z);
+                }
+            }
+
+            Assert.True(warnedAt > 0, "the warning was raised on the run-in");
+            int evadeEnd = warnedAt + (int)((5f + AirAttackNodes.EvadeMarginS) / Dt);
+            var during = intents.FindAll(i => i.Frame >= warnedAt && i.Frame < evadeEnd);
+            Assert.DoesNotContain(during, i => i.Mount != 2);   // no round while it evades
+            var flares = intents.FindAll(i => i.Mount == 2);
+            Assert.Equal(AirAttackNodes.DecoySalvo, flares.Count);
+            Assert.All(flares, f => Assert.Equal(TestFlare, f.Ammo));
+            Assert.All(flares, f => Assert.InRange(f.Frame, warnedAt, warnedAt + 60 * 3));
+            Assert.Equal(60 - AirAttackNodes.DecoySalvo, Countermeasures.Left(_w, heli, DecoyKind.Flare));
+            Assert.Equal(60, Countermeasures.Left(_w, heli, DecoyKind.Chaff));
+            Assert.InRange(maxCosToMissile, -1f, MathF.Sin(35f * MathF.PI / 180f));   // on the beam, never closing on the missile
+            Assert.InRange(lowest, AirAttackNodes.EvadeHeightAglRotor - 5f, AirAttackNodes.EvadeHeightAglRotor + 10f);
+            var rocketsAfter = intents.FindAll(i => i.Mount == 1 && i.Frame >= evadeEnd);
+            Assert.Equal(AirAttackNodes.DefaultRipple, rocketsAfter.Count);   // the come-round pass fires
+            Assert.True(ws.Passes >= 1, "the aborted pass is counted");
+            Assert.Equal(NodeStatus.Success, status);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2191</c> — the decoy follows the seeker: a radar missile gets CHAFF; a command-guided one (a wire / beam rider no decoy
+        /// fools) gets none — the break alone; and a warning older than its missile's flight (an attack that starts after it) is ignored.
+        /// ✅ Red-proof (mutant): flares for every seeker ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S7e_TheDecoyFollowsTheSeeker_ChaffForRadar_NoneForCommand_AStaleWarningIsIgnored()
+        {
+            Assert.Equal(DecoyKind.Flare, AirAttackNodes.DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed));
+            Assert.Equal(DecoyKind.Chaff, AirAttackNodes.DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar));
+            Assert.Null(AirAttackNodes.DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind.Command));
+            Assert.Null(AirAttackNodes.DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget));
+
+            foreach (var (seeker, ammo, decoys) in new[] { (Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar, TestChaff, AirAttackNodes.DecoySalvo),
+                                                           (Fdp.Toolkit.Tkb.Domain.GuidanceKind.Command, 0L, 0) })
+            {
+                var heli = SpawnCmHeli(new Vector3(-4000f, 300f, 60f), out var pod, out var dispenser);
+                var p = new AirAttackParams { Point = Vector3.Zero };
+                var ws = default(AirAttackState);
+                var executor = new FireAtPointExecutor();
+                var intents = new System.Collections.Generic.List<(int Mount, long Ammo, int Frame)>();
+                uint entered = 0;
+                for (int frame = 0; frame < 60 * 8; frame++)
+                {
+                    if (frame == 60) Warn(heli, new Vector3(-3000f, 2000f, 0f), seeker, 5f, frame * Dt);
+                    TimedStep(ref p, ref ws, heli, executor, ref entered, frame, intents, 60f, heli, pod, dispenser);
+                }
+                var released = intents.FindAll(i => i.Mount == 2);
+                Assert.Equal(decoys, released.Count);
+                Assert.All(released, r => Assert.Equal(ammo, r.Ammo));
+            }
+
+            // a warning raised 30 s before the attack starts (its 5 s missile long gone) changes nothing
+            var late = SpawnCmHeli(new Vector3(-4000f, 300f, 60f), out var pod2, out var dispenser2);
+            Warn(late, new Vector3(-3000f, 2000f, 0f), Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 5f, 1.0);
+            var p2 = new AirAttackParams { Point = Vector3.Zero };
+            var ws2 = default(AirAttackState);
+            var ex2 = new FireAtPointExecutor();
+            var in2 = new System.Collections.Generic.List<(int Mount, long Ammo, int Frame)>();
+            uint en2 = 0;
+            for (int frame = 60 * 31; frame < 60 * 34; frame++)
+                TimedStep(ref p2, ref ws2, late, ex2, ref en2, frame, in2, 60f, late, pod2, dispenser2);
+            Assert.DoesNotContain(in2, i => i.Mount == 2);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2191</c> — a door-gun orbit warned mid-circle breaks (its door gun stops) and, the missile past, goes back to the SAME
+        /// orbit — its turn kept, no new pass counted — and its door gun fires again.
+        /// ✅ Red-proof (mutant): resuming to a run-in instead of the orbit ⇒ the orbit's turn is lost ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S7e_ADoorGunOrbitWarnedMidCircle_Breaks_ThenResumesTheSameOrbit()
+        {
+            var heli = SpawnDoorHeli(new Vector3(-1500f, 0f, 100f), out var leftGun, out var rightGun, out _, out _);
+            var tech = SpawnTechnical(Vector3.Zero);
+            var p = new AirAttackParams { Target = tech, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var shots = new System.Collections.Generic.List<(Entity Gun, float Miss)>();
+            uint entered = 0;
+            int warnedAt = -1, firedBefore = 0;
+            float sweptAtWarn = 0f;
+            for (int frame = 0; frame < 60 * 70; frame++)
+            {
+                if (warnedAt < 0 && ws.Swept > MathF.PI / 2f)
+                {
+                    warnedAt = frame;
+                    sweptAtWarn = ws.Swept;
+                    firedBefore = shots.Count;
+                    Warn(heli, new Vector3(1500f, 1500f, 0f), Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 4f, frame * Dt);
+                }
+                OrbitStep(ref p, ref ws, heli, executor, ref entered, frame, Vector3.Zero, shots, leftGun, rightGun);
+                if (warnedAt >= 0 && frame > warnedAt + 2 && frame < warnedAt + 60 * 6)
+                    Assert.Equal(firedBefore, shots.Count);   // the door gun is silent while it breaks
+            }
+            Assert.True(warnedAt > 0, "warned on the circle");
+            Assert.True(firedBefore > 0, "the gun fired before the warning");
+            Assert.Equal(0, ws.Passes);
+            Assert.True(ws.Swept > sweptAtWarn + MathF.PI / 2f, $"the same orbit carried on: swept {sweptAtWarn:F2} → {ws.Swept:F2} rad");
+            Assert.True(shots.Count > firedBefore, "the door gun fires again on the resumed orbit");
+        }
     }
 }

@@ -6,6 +6,7 @@ using Fbt.Compiler;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Motion;
 using Hrot.AI.Behaviors.Logging;
 using Hrot.AI.Behaviors.Orders;
@@ -94,6 +95,14 @@ namespace Hrot.AI.Behaviors.Brains
         public sbyte Turn;
         /// <summary>⭐ Slice 6d — door guns that ran dry (bit k = mount 32 + k).</summary>
         public byte DoorDry;
+        /// <summary>⭐ <c>CE-2191</c> (§7e) — the sim time of the last missile warning this attack answered (its <c>MissileWarning.At</c>).</summary>
+        public double WarnedAt;
+        /// <summary>⭐ <c>CE-2191</c> — the evasion holds until this sim time (the missile's time to impact, and a margin).</summary>
+        public double EvadeUntil;
+        /// <summary>⭐ <c>CE-2191</c> — decoys released in this evasion.</summary>
+        public byte Decoys;
+        /// <summary>⭐ <c>CE-2191</c> — the stage the evasion returns to: the orbit, or (any other) a fresh run-in.</summary>
+        public byte Resume;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -281,7 +290,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6d — the orbit is steered at the point this far round the circle ahead of the helicopter (rad, 30°).</summary>
         public const float OrbitLeadRad = MathF.PI / 6f;
 
-        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4;
+        /// <summary>⭐ <c>CE-2191</c> (§7e) — decoys an evasion releases (one per dispenser interval).</summary>
+        public const int DecoySalvo = 4;
+        /// <summary>⭐ <c>CE-2191</c> — the evasion holds at least this long (s), and this margin past the missile's time to impact.</summary>
+        public const float MinEvadeS = 4f, EvadeMarginS = 2f;
+        /// <summary>⭐ <c>CE-2191</c> — a helicopter breaks DOWN to this height above the target's ground (m); a plane keeps its pass height.</summary>
+        public const float EvadeHeightAglRotor = 25f;
+        /// <summary>⭐ <c>CE-2191</c> — how much of the break turns AWAY from the missile (the rest puts it on the beam).</summary>
+        public const float EvadeDragFraction = 0.3f;
+
+        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
 
         /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
@@ -337,6 +355,10 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.NextSteer = 0;
                 }
             }
+
+            // ⭐ CE-2191 (§7e) — a missile warning interrupts any stage: decoys, a break onto the missile's beam, then the attack comes round
+            if (NewWarning(world, self, ref ws, now)) BeginEvade(ref p, ref ws, self, world, at);
+            if (ws.Stage == StageEvade) return Evade(ref p, ref ws, self, world, at, target, now);
 
             if (ws.Stage == StageOrbit) return Orbit(ref p, ref ws, self, world, at, target, now, entity);
 
@@ -446,6 +468,82 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Weapon = WeaponRockets;
             ws.Stage = StageRunIn;
             ws.NextSteer = 0;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its
+        /// time to impact and the margin is a missile already gone — an attack that starts later ignores it).</summary>
+        private static bool NewWarning(EntityRepository world, Entity self, ref AirAttackState ws, double now)
+        {
+            if (!world.IsComponentTypeRegistered<MissileWarning>() || !world.HasComponent<MissileWarning>(self)) return false;
+            var w = world.GetComponentRO<MissileWarning>(self);
+            if (w.At <= ws.WarnedAt) return false;
+            ws.WarnedAt = w.At;
+            return now <= w.At + MathF.Max(w.TimeToImpactS, MinEvadeS) + EvadeMarginS;
+        }
+
+        /// <summary>⭐ <c>CE-2191</c> — the decoy that fools the warned seeker: a flare an infra-red one, chaff a radar one; none for a
+        /// command-guided or fire-and-forget missile (the break alone).</summary>
+        public static DecoyKind? DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind seeker) => seeker switch
+        {
+            Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed => DecoyKind.Flare,
+            Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar => DecoyKind.Chaff,
+            _ => null,
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-2191</c> — the break: the weapon stops, and the aircraft turns to put the missile on its BEAM (90° to the line to the missile,
+        /// on the side nearer its heading, a little away from it — the line-of-sight rate a 30°/s seeker cannot follow) and flies
+        /// <see cref="BreakAwayM"/> out; a helicopter also drops to <see cref="EvadeHeightAglRotor"/>. A second warning re-breaks.
+        /// </summary>
+        private static void BeginEvade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at)
+        {
+            StopFire(world, self, ref ws);
+            if (ws.Stage != StageEvade) ws.Resume = ws.Stage == StageOrbit ? StageOrbit : StageRunIn;
+            ws.Stage = StageEvade;
+            ws.Decoys = 0;
+            var w = world.GetComponentRO<MissileWarning>(self);
+            ws.EvadeUntil = w.At + MathF.Max(w.TimeToImpactS, MinEvadeS) + EvadeMarginS;
+            float b = w.BearingDeg * (MathF.PI / 180f);
+            var toMissile = new Vector2(MathF.Sin(b), MathF.Cos(b));   // 0 = north (+Y), clockwise
+            var beam = new Vector2(toMissile.Y, -toMissile.X);
+            var heading = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out _, out var v) && v.X * v.X + v.Y * v.Y > 1f
+                ? Vector2.Normalize(new Vector2(v.X, v.Y)) : ws.Dir;
+            if (Vector2.Dot(beam, heading) < 0f) beam = -beam;
+            var dir = Vector2.Normalize(beam - toMissile * EvadeDragFraction);
+            bool rotor = Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+            float height = rotor ? EvadeHeightAglRotor : at.Z - p.Point.Z;
+            var to = at + new Vector3(dir * BreakAwayM, 0f);
+            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2191</c> — the evasion: up to <see cref="DecoySalvo"/> decoys of the warned seeker's kind, one per dispenser interval
+        /// (<see cref="Countermeasures.Release"/>), while the break flies; when the missile is past, the attack comes round — the orbit
+        /// carries on where it was; any other profile flies a fresh run-in from where it is now, and the aborted pass counts (B14: three).
+        /// </summary>
+        private static NodeStatus Evade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world,
+                                        Vector3 at, Vector3 target, double now)
+        {
+            var w = world.GetComponentRO<MissileWarning>(self);
+            if (ws.Decoys < DecoySalvo && DecoyFor(w.Seeker) is { } kind && Countermeasures.Release(world, self, kind)) ws.Decoys++;
+            if (now < ws.EvadeUntil) return NodeStatus.Running;
+
+            ws.Stage = ws.Resume;
+            ws.NextSteer = 0;
+            if (ws.Resume == StageOrbit) return NodeStatus.Running;
+            if (++ws.Passes >= MaxPasses)
+            {
+                BehaviorLog.Error(self, world, $"AirAttack: driven off — {MaxPasses} passes, the last broken off by a missile.");
+                return NodeStatus.Failure;
+            }
+            if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
+            ws.Dir = Flat(target - at);
+            ws.Weapon = WeaponRockets;
+            ws.Fired = 0;
+            var start = target - new Vector3(ws.Dir * RunIn(in p, world, self), 0f);
+            if (!Fly(world, self, start, in p, ws.Profile)) return NodeStatus.Failure;
+            ws.Stage = StageToRunIn;
             return NodeStatus.Running;
         }
 
