@@ -216,7 +216,7 @@ namespace CarKinem.Systems
                     break;
                     
                 case KinematicsMode.CustomTrajectory:
-                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D);
+                    (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav, in @params, pos2D, fwd2D, state.Speed);
                     progressTangent = targetHeading;
                     // ⭐ CE-3115 — PURE PURSUIT ON THE PATH (📄 FDP.Toolkit.CarKinem.md "Pure Pursuit — geometric path-following
                     //   using lookahead points"): steer at the path point a lookahead ahead of the progress, so a sideways error —
@@ -295,12 +295,8 @@ namespace CarKinem.Systems
                          // MaxDecel <= 0 means the profile is unknown (a default-constructed
                          // VehicleParams — see CE-103); cap nothing rather than freeze the vehicle.
                          targetSpeed = nav.TargetSpeed;
-                         if (@params.MaxDecel > 0f)
-                         {
-                             float brakingDistance = MathF.Max(0f, toDest.Length() - nav.ArrivalRadius);
-                             float approachSpeed   = MathF.Sqrt(2f * @params.MaxDecel * brakingDistance);
-                             targetSpeed = MathF.Min(targetSpeed, approachSpeed);
-                         }
+                         // ⭐ CE-2198 — the envelope less the controller's lag (StoppingSpeed)
+                         targetSpeed = MathF.Min(targetSpeed, StoppingSpeed(in @params, toDest.Length() - nav.ArrivalRadius, state.Speed));
                     }
                     else
                     {
@@ -485,6 +481,29 @@ namespace CarKinem.Systems
                     planar = Vector2.Zero;
                 }
             }
+            // ⭐ CE-2198 — A VEHICLE NEVER ENTERS A BUILDING: a step whose hull-height line crosses a CLOSED BARRIER (a building's wall, a
+            //   closed door — R-252's meaning, never a geometry type), or that rises like a wall (steeper than VehicleMaxClimbSlope and
+            //   taller than VehicleMaxStepM — inside a solid footprint the sampler offers only the roof), is not taken: it stops there.
+            if (!person && _terrain != null)
+            {
+                var here = new Vector2(tf.Position.X, tf.Position.Y);
+                float rise = z - tf.Position.Z;
+                bool wall = rise > VehicleMaxStepM && rise > VehicleMaxClimbSlope * Vector2.Distance(here, pos2D);
+                if (!wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
+                {
+                    _crossings.Clear();
+                    _terrain.Trace(new Vector3(here, tf.Position.Z + HullProbeM), new Vector3(pos2D, z + HullProbeM),
+                                   Fdp.Toolkit.World.TracePurpose.Fire, _crossings);
+                    foreach (var c in _crossings) if (c.ClosedBarrier) { wall = true; break; }
+                }
+                if (wall)
+                {
+                    pos2D = here;
+                    z = tf.Position.Z;
+                    state.Speed = 0f;
+                    planar = Vector2.Zero;
+                }
+            }
             float dz = z - tf.Position.Z;
             tf.Position = new Vector3(pos2D.X, pos2D.Y, z);
             float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
@@ -504,7 +523,8 @@ namespace CarKinem.Systems
             repo.SetComponent(entity, vel);
         }
         
-        private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D)
+        private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D,
+                                                                               Vector2 fwd2D, float speedNow)
         {
             // Check if we reached the end of the trajectory
             bool haveTraj = _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var traj);
@@ -519,12 +539,16 @@ namespace CarKinem.Systems
                     var endXY   = new Vector2(endWp.Position.X, endWp.Position.Y);
                     float tol   = nav.ArrivalRadius > 0f ? nav.ArrivalRadius : DefaultTrajectoryArrivalRadius;
                     float toEnd = Vector2.Distance(pos2D, endXY);
-                    if (toEnd > tol)
+                    // ⭐⭐ CE-2198 — homing is for a vehicle that has NOT arrived yet (progress ran ahead). 🔴 Once arrived it rolled past the
+                    //   radius on its lag, homing re-engaged on a point now BEHIND it, at a speed capped only by the distance — which it
+                    //   could not turn to, so the distance grew and it drove off at full speed (measured: 37 m sent, 440 m driven).
+                    if (toEnd > tol && nav.HasArrived == 0)
                     {
                         Vector2 dir   = (endXY - pos2D) / toEnd;
                         float homing  = nav.TargetSpeed > 0f ? nav.TargetSpeed : MathF.Max(endWp.DesiredSpeed, TrajectoryEndCrawlSpeed);
-                        if (@params.MaxDecel > 0f)
-                            homing = MathF.Min(homing, MathF.Max(MathF.Sqrt(2f * @params.MaxDecel * (toEnd - tol)), TrajectoryEndCrawlSpeed));
+                        homing = MathF.Min(homing, MathF.Max(StoppingSpeed(in @params, toEnd - tol, speedNow), TrajectoryEndCrawlSpeed));
+                        // ⭐ CE-2198 — the end BEHIND the hull: creep while it turns, never speed away from it
+                        if (Vector2.Dot(dir, fwd2D) < 0f) homing = MathF.Min(homing, TrajectoryEndCrawlSpeed);
                         return (pos2D + dir, dir, homing);
                     }
 
@@ -560,7 +584,7 @@ namespace CarKinem.Systems
                 float straight  = Vector2.Distance(pos2D, new Vector2(endWp2.Position.X, endWp2.Position.Y));
                 // ⭐ the larger of the two: progress that ran ahead must not brake the vehicle early.
                 float remaining = MathF.Max(MathF.Max(0f, traj.TotalLength - nav.ProgressS), straight);
-                float approach  = MathF.Max(MathF.Sqrt(2f * @params.MaxDecel * remaining), TrajectoryEndCrawlSpeed);
+                float approach  = MathF.Max(StoppingSpeed(in @params, remaining, speedNow), TrajectoryEndCrawlSpeed);   // ⭐ CE-2198 — less the lag
                 speed = MathF.Min(speed, approach);
             }
             return (new Vector2(pos.X, pos.Y), tangent, speed);
@@ -626,6 +650,30 @@ namespace CarKinem.Systems
         /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
         /// 0 at the end) still lets it get there.</summary>
         private const float TrajectoryEndCrawlSpeed = 0.5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2198</c> — the speed that still stops <paramref name="distance"/> ahead: the braking envelope sqrt(2·MaxDecel·d), with
+        /// the speed controller's LAG taken off the distance first — a proportional controller (<c>AccelGain</c>) follows a braking ramp
+        /// late, so the vehicle carries ~v / gain metres more than the envelope promises. 🔴 Without it a tank sent 37 m at 20 m/s met its
+        /// end point at 5.4 m/s and rolled past the 2 m arrival radius. MaxDecel ≤ 0 (an unknown profile, CE-103) caps nothing.
+        /// </summary>
+        internal static float StoppingSpeed(in VehicleParams p, float distance, float currentSpeed)
+        {
+            if (p.MaxDecel <= 0f) return float.MaxValue;
+            float lag = p.AccelGain > 0f ? MathF.Abs(currentSpeed) / p.AccelGain : 0f;
+            return MathF.Sqrt(2f * p.MaxDecel * MathF.Max(0f, distance - lag));
+        }
+
+        /// <summary>⭐ <c>CE-2198</c> — a ground vehicle never climbs a WALL: a step up of more than this (m), or steeper than
+        /// <see cref="VehicleMaxClimbSlope"/>, is not taken (it stops there). 🔴 Inside a building's footprint the surface sampler offers
+        /// only the roof (the footprint is solid), and a tank that overshot into a building was lifted onto its 15 m roof.</summary>
+        public const float VehicleMaxStepM = 0.5f, VehicleMaxClimbSlope = 1.0f;
+
+        /// <summary>⭐ <c>CE-2198</c> — the height above its wheels a vehicle's step is traced at (m): below a window's sill, so a wall with a
+        /// window is still a wall.</summary>
+        public const float HullProbeM = 0.5f;
+
+        private readonly System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing> _crossings = new();
 
         /// <summary>⭐ CE-2059 — the arrival tolerance at a trajectory's end when the move set no <c>ArrivalRadius</c>.</summary>
         private const float DefaultTrajectoryArrivalRadius = 2f;
