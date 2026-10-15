@@ -80,6 +80,8 @@ namespace Fdp.Toolkit.Orchestration
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
+        /// <summary>⭐ C2 (R-4006 I5) — the cluster session this node follows; empty until it has seen one.</summary>
+        public Guid   SessionId;
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
@@ -115,6 +117,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
         public Guid ExerciseId;
+        /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session.</summary>
+        public Guid SessionId;
+        /// <summary>⭐ C4 (R-4006 I4) — telemetry: completed rounds so far.</summary>
+        public int TransactionEpoch;
     }
 
     /// <summary>
@@ -143,6 +149,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>New cluster state.</summary>
         public ClusterState CurrentState;
         public Guid ExerciseId;
+        /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session (empty from a sender that does not set it).</summary>
+        public Guid SessionId;
+        /// <summary>⭐ C2 — the master's cluster-state writer is GONE (its instance went not-alive): the session has ended.</summary>
+        public bool MasterGone;
     }
 
     /// <summary>

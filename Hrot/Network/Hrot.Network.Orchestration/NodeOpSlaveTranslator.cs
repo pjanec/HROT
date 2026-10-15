@@ -30,6 +30,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
     private readonly DdsWriter<NodeHeartbeat>   _heartbeatWriter;
     private readonly DdsWriter<NodeCapabilitiesTopic>? _capabilitiesWriter;   // CE-285 (C-cap): null in tests / offline.
+    private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -45,8 +46,10 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         FdpEventBus                bus,
         int                        nodeId,
         JsonSerializerOptions?     jsonOptions = null,
-        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null)
+        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
+        DdsReader<ClusterStateTopic>?     clusterStateReader = null)
     {
+        _clusterStateReader = clusterStateReader;
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
@@ -61,6 +64,25 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
+        // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
+        //   node's ClusterSlave knows which SESSION it follows. A not-alive instance means the master's writer is gone.
+        if (_clusterStateReader != null)
+        {
+            using var stateScope = _clusterStateReader.Take();
+            foreach (var s in stateScope)
+            {
+                if (s.IsValid)
+                    _bus.PublishManaged(new ClusterStateUpdateEvent
+                    {
+                        CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)s.Data.CurrentState,
+                        ExerciseId   = s.Data.ExerciseId,
+                        SessionId    = s.Data.SessionId,
+                    });
+                else if (s.Info.InstanceState != DdsInstanceState.Alive)
+                    _bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+            }
+        }
+
         // ── Ingress: DDS NodeOpCommand → Bus ExecuteNodeOpIntent ─────────────
         using var scope = _commandReader.Take();
         foreach (var sample in scope)
@@ -87,6 +109,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             _heartbeatWriter.Write(new NodeHeartbeat
             {
                 NodeId            = hb.NodeId,
+                SessionId         = hb.SessionId,   // ⭐ C2
                 SubsystemName     = hb.SubsystemName ?? string.Empty,
                 LocalClusterState = (NedClusterState)hb.LocalStateId,
                 WallTicksUtc      = hb.WallTicksUtc,

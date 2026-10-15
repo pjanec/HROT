@@ -97,7 +97,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         public ClusterState CurrentState;
         public Guid ExerciseId;
         public long StateStartWallTicks;
+        /// <summary>⭐ C4 (Q91 §4-I I4, R-4006) — telemetry only: incremented by the master on every completed round. ⛔ Never
+        /// decides membership (the master's InSync set does).</summary>
         public int TransactionEpoch;
+        /// <summary>⭐⭐ C2 (Q91 §4-I I5, R-4006) — THE CLUSTER SESSION: minted by the master when it starts (one master = one
+        /// session; the master is not restartable). A node that sees a DIFFERENT session — or this writer gone — knows the
+        /// world it belonged to has ended and drops to <c>Idle</c>.</summary>
+        public Guid SessionId;
     }
 
     /// <summary>
@@ -193,6 +199,8 @@ namespace Hrot.NED.Descriptors.Orchestration
     public partial struct NodeHeartbeat
     {
         [DdsKey] public int NodeId;
+        /// <summary>⭐ C2 (Q91 §4-I I5) — the cluster session this node follows (empty until it has seen one).</summary>
+        public Guid SessionId;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;

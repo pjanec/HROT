@@ -196,6 +196,59 @@ public sealed class ClusterSlaveTests
         Assert.Equal(0, stuck.CommitCallCount);
     }
 
+    /// <summary>
+    /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — a node follows ONE cluster session: the first one it sees is adopted (no reset), a
+    /// DIFFERENT one drops it to <c>Idle</c> and forgets the old master's queued work, and the master's writer gone does the
+    /// same. The heartbeat carries the session it follows.
+    /// </summary>
+    [Fact]
+    public void C2_ANodeFollowsOneSession_AndANewSessionOrAGoneMasterDropsItToIdle()
+    {
+        const int opId = 5;
+        var stuck = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(stuck);
+
+        var first = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = first });
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal(first, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);   // ⭐ adopting the first session resets nothing
+
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.SwapBuffers();
+        slave.Tick();                                              // a prepare of the old session is now stuck
+        var second = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = second });
+        bus.SwapBuffers();
+        slave.Tick();
+
+        Assert.Equal(second, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);   // ⭐ a new session ⇒ Idle
+
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);   // ⭐ the old stuck prepare no longer blocks it
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal(Guid.Empty, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);   // ⭐ the master gone ⇒ Idle
+    }
+
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────
 
     /// <summary>

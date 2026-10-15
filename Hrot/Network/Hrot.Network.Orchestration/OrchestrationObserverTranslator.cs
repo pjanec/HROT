@@ -68,6 +68,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                     {
                         CurrentState = (FdpClusterState)(int)s.Data.CurrentState,
                         ExerciseId   = s.Data.ExerciseId,
+                        SessionId    = s.Data.SessionId,   // ⭐ C2
                     });
 
         // AssetInventoryTopic → AssetInventoryUpdateEvent
@@ -92,6 +93,7 @@ public sealed class OrchestrationObserverTranslator : IDisposable
                         LocalStateId  = (int)s.Data.LocalClusterState,
                         WallTicksUtc  = s.Data.WallTicksUtc,
                         SubsystemName = s.Data.SubsystemName ?? string.Empty,
+                        SessionId     = s.Data.SessionId,   // ⭐ C2
                         // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
                     });
 

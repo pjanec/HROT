@@ -558,6 +558,7 @@ public sealed class ClusterMaster : IDisposable
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                SessionId               = hb.SessionId,   // ⭐ C2 — the session the node follows (telemetry)
                 Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
@@ -1778,16 +1779,30 @@ public sealed class ClusterMaster : IDisposable
     {
         _eventBus.PublishManaged(new ClusterStateTransitionedEvent
         {
-            NewStateId    = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
-            SubsystemName = "Cluster",
-            ExerciseId    = _activeExerciseId,
+            NewStateId       = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
+            SubsystemName    = "Cluster",
+            ExerciseId       = _activeExerciseId,
+            SessionId        = SessionId,          // ⭐ C2
+            TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             ExerciseId   = _activeExerciseId,
+            SessionId    = SessionId,
         });
     }
+
+    /// <summary>
+    /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — THE CLUSTER SESSION: minted once, when this master is created. One master = one session
+    /// (the master is not restartable), so it needs no counter. It rides every cluster-state publication; a node that sees
+    /// a different one — or this master's writer gone — drops to <c>Idle</c>.
+    /// </summary>
+    public Guid SessionId { get; } = Guid.NewGuid();
+
+    /// <summary>⭐ C4 (Q91 §4-I I4) — telemetry only: rounds completed successfully so far. ⛔ Never decides membership.</summary>
+    public int TransactionEpoch => _transactionEpoch;
+    private int _transactionEpoch;
 
     /// <summary>
     /// Publishes a node-level operation to each target node via the event bus (bus path)
@@ -1946,6 +1961,7 @@ public sealed class ClusterMaster : IDisposable
         }
         else
         {
+            _transactionEpoch++;   // ⭐ C4 — telemetry: one more round completed successfully
             var aggregated = TryAggregate(txId, tracker.NodeResponses);
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
         }

@@ -214,10 +214,14 @@ namespace Fdp.Toolkit.Orchestration
                     LocalStateId  = _localStateId,
                     WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                     SubsystemName = _subsystemName,
+                    SessionId     = _followingSessionId,   // ⭐ C2
                     // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
                     // tokens on the durable NodeCapabilities descriptor (published once at join above).
                 });
             }
+
+            // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
+            FollowClusterSession();
 
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
@@ -584,6 +588,56 @@ namespace Fdp.Toolkit.Orchestration
                 IsParticipating = participating,
                 ResultPayload   = null,
             });
+        }
+
+        // ── C2 — the cluster session this node follows ────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — the cluster session this node follows (empty until it has seen one). Rides the heartbeat.
+        /// </summary>
+        public Guid FollowingSessionId => _followingSessionId;
+        private Guid _followingSessionId;
+
+        /// <summary>
+        /// ⭐⭐ C2 — a DIFFERENT session id, or the master's cluster-state writer gone, means the world this node belonged to has
+        /// ended: drop to <c>Idle</c> and forget whatever that world's master had asked for. ⭐ Deterministic, no timer: the node
+        /// learns it is stale the moment the new master's durable sample arrives. ⚠ What the node does with the WORLD it still
+        /// holds is not decided here (Q91 §4-I I6 ties it to <c>CE-4000</c>); the next load's world boundary clears it.
+        /// </summary>
+        private void FollowClusterSession()
+        {
+            if (_eventBus == null) return;
+            foreach (var ev in _eventBus.ReadManaged<ClusterStateUpdateEvent>())
+            {
+                if (ev.MasterGone)
+                {
+                    if (_followingSessionId != Guid.Empty)
+                        DropToIdle($"the master of session {_followingSessionId} is gone");
+                    _followingSessionId = Guid.Empty;
+                    continue;
+                }
+                if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
+                if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
+                    DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
+                _followingSessionId = ev.SessionId;
+            }
+        }
+
+        private void DropToIdle(string why)
+        {
+            if (_pendingPrepare.HasValue)
+            {
+                var stale = _pendingPrepare.Value;
+                _pendingPrepare = null;
+                stale.Handler.Abort(stale.Intent, repo: null);
+            }
+            _pendingIntents.Clear();
+
+            int previous = _localStateId;
+            _localStateId = (int)ClusterState.Idle;
+            if (previous != _localStateId)
+                _eventBus?.Publish(new TkClusterStateChangedEvent { PreviousStateId = previous, NextStateId = _localStateId });
+            FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0} drops to Idle: {1}.", _nodeId, why);
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────

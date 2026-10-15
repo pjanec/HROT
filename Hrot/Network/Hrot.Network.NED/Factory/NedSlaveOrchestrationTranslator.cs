@@ -29,7 +29,8 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
             heartbeatWriter:    new DdsWriter<NodeHeartbeat>(participant),
             bus:                bus,
             nodeId:             nodeId,
-            capabilitiesWriter: new DdsWriter<NodeCapabilitiesTopic>(participant));   // CE-285 (C-cap)
+            capabilitiesWriter: new DdsWriter<NodeCapabilitiesTopic>(participant),   // CE-285 (C-cap)
+            clusterStateReader: new DdsReader<ClusterStateTopic>(participant));      // ⭐ C2 — the session this node follows
 
         _egressTranslator = new ClusterOpEgressTranslator(bus, participant);
     }

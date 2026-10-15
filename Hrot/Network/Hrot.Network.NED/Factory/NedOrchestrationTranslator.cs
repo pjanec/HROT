@@ -67,6 +67,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 LocalStateId  = (int)sample.Data.LocalClusterState,
                 WallTicksUtc  = sample.Data.WallTicksUtc,
                 SubsystemName = sample.Data.SubsystemName ?? string.Empty,
+                SessionId     = sample.Data.SessionId,   // ⭐ C2 — the session the node follows
                 // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
             });
         }

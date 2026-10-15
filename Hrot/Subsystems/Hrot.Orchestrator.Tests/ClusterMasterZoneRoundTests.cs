@@ -293,6 +293,36 @@ public sealed class ClusterMasterZoneRoundTests
         Assert.Equal(2, ReadOps(bus, FdpNodeOpType.CommitZone).Count);
     }
 
+    /// <summary>
+    /// ⭐⭐ C2 + C4 (Q91 §4-I I4/I5, R-4006) — every cluster-state publication carries the master's SESSION (fixed for its
+    /// life, distinct per master) and the TRANSACTION EPOCH, which a completed round increments (telemetry only).
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void C2_C4_The_cluster_state_carries_the_session_and_a_completed_round_moves_the_epoch()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround));
+        using var _ = master;
+        using var other = new ClusterMaster(new FdpEventBus());
+        Assert.NotEqual(Guid.Empty, master.SessionId);
+        Assert.NotEqual(master.SessionId, other.SessionId);   // ⭐ one master = one session
+
+        int before = master.TransactionEpoch;
+        var (committed, outcome) = ZoneRoundWithOneFailure(master, bus, failing: -1);   // nobody fails
+        Assert.True(committed);
+        Assert.Equal(OrchestrationStatusCode.Success, outcome);
+        Assert.True(master.TransactionEpoch > before);
+
+        var requestId = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = requestId, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        foreach (var op in ReadOps(bus, FdpNodeOpType.PrepareLive).Concat(ReadOps(bus, FdpNodeOpType.PrepareState)).ToList())
+            AckAll(bus, new[] { op });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var published = bus.ReadManaged<ClusterStateTransitionedEvent>();
+        Assert.NotEmpty(published);
+        Assert.All(published, e => Assert.Equal(master.SessionId, e.SessionId));
+    }
+
     [Fact(Timeout = 5_000)]
     public void P2_An_observers_failure_is_recorded_but_does_not_fail_the_round()
     {
