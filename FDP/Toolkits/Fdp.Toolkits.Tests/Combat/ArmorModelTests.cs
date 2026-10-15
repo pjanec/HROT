@@ -50,5 +50,24 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(90f,  ArmorModel.ArmourFor(p, Facing.Top, Penetrator.ShapedCharge));
             Assert.Equal(0f,   ArmorModel.ArmourFor(null, Facing.Top, Penetrator.ShapedCharge));
         }
+
+        /// <summary>
+        /// ⭐ R-2019 D-M2 (DESIGN_Armour_Hit_Model §7.5) — the share of the blast a target takes: a person (hull height 0) and a hull with no
+        /// platform record take it all; a stated value is used (clamped to 0..1); −1 (unstated) derives it from the side armour,
+        /// <c>1 − side / 40 mm</c> — a 5 mm pickup 0.875, an APC's 20 mm 0.5, 40 mm and more 0.
+        /// </summary>
+        [Fact]
+        public void AE2_BlastSusceptibility_PersonAll_StatedValue_ElseFromTheSideArmour()
+        {
+            var stated = new CombatPlatformDefDto { ArmorSide = 350, BlastSusceptibility = 0.3f };
+            Assert.Equal(1f, ArmorModel.BlastSusceptibility(stated, hullHeight: 0f));   // a person: the hull rule never applies
+            Assert.Equal(1f, ArmorModel.BlastSusceptibility(null, hullHeight: 2f));
+            Assert.Equal(0.3f, ArmorModel.BlastSusceptibility(stated, 2f));
+            Assert.Equal(1f, ArmorModel.BlastSusceptibility(stated with { BlastSusceptibility = 7f }, 2f));
+            Assert.Equal(-1f, new CombatPlatformDefDto().BlastSusceptibility);   // unstated by default
+            Assert.Equal(0.875f, ArmorModel.BlastSusceptibility(new CombatPlatformDefDto { ArmorSide = 5 }, 2f), 4);
+            Assert.Equal(0.5f, ArmorModel.BlastSusceptibility(new CombatPlatformDefDto { ArmorSide = 20 }, 2f), 4);
+            Assert.Equal(0f, ArmorModel.BlastSusceptibility(new CombatPlatformDefDto { ArmorSide = 60 }, 2f));
+        }
     }
 }

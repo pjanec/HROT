@@ -169,7 +169,8 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 7.0f, Width = 3.5f, MaxSpeedFwd = 12.0f, MaxAccel = 2.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierHsm, CanMove = true, CanInteract = true });
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = ApcMaxHealth, MobilityKillBelowFraction = 1f,   // CE-3092 — the APC's mobility kill (PACK-M002)
-                    ArmorFront = ApcArmorFront, ArmorSide = ApcArmorSide, ArmorRear = ApcArmorRear, ArmorTop = ApcArmorTop });   // ⭐ M6
+                    ArmorFront = ApcArmorFront, ArmorSide = ApcArmorSide, ArmorRear = ApcArmorRear, ArmorTop = ApcArmorTop,   // ⭐ M6
+                    BlastSusceptibility = 0.3f });   // ⭐ R-2019 D-M2 (AE3) — a light APC (20 mm sides): close blast hurts it
                 t.AddDescriptor(Sounds(ApcEngineRange, SoundSourceClass.WheeledEngine));
                 tkb.Register(t);
             }

@@ -53,6 +53,7 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.ArmorFront = 5; c.ArmorSide = 5; c.ArmorRear = 5; c.ArmorTop = 3;
                     c.MaxHealth = 300;
+                    c.BlastSusceptibility = 1f;   // ⭐ R-2019 D-M2 (AE3) — a soft skin (5 mm sheet): a near burst wrecks it
                     c.MobilityKillBelowFraction = 0.6f;
                     c.EyeHeight = 2.2f;   // standing in the bed
                     c.SensorRange = 2000;
@@ -103,6 +104,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 60;
+                    c.BlastSusceptibility = 1f;   // ⭐ R-2019 D-M2 (AE3) — a weapon on a mount or tripod: no hull
                     if (sensorRange > 0f) { c.SensorRange = sensorRange; c.EyeHeight = 1f; }
                     c.Weapons.Add(weapon);
                 })
@@ -244,6 +246,7 @@ namespace Hrot.Map.Definitions.Tkb
                 {
                     c.ArmorFront = 30; c.ArmorSide = 25; c.ArmorRear = 20; c.ArmorTop = 20;
                     c.MaxHealth = 1200;
+                    c.BlastSusceptibility = 0.25f;   // ⭐ R-2019 D-M2 (AE3) — aluminium hull, 25 mm sides
                     c.EyeHeight = 2.8f;
                     c.SensorRange = 2000;
                     var gun = IndirectMount("155mm_M284", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb155mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer155HeName,
@@ -312,6 +315,7 @@ namespace Hrot.Map.Definitions.Tkb
                     //   STATED (the value front × 5 gave it, so no fight moves on that number)
                     c.ArmorTop = 60; c.ArmorFrontCe = 900; c.ArmorSideCe = 450;
                     c.MaxHealth = 3000;
+                    c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT shrugs off blast; its fragments and direct hits still count
                     c.EyeHeight = 2.5f;   // ⭐ M5 — the gunner's sight / the commander's hatch
                     c.Weapons.Add(new WeaponMount
                     {
@@ -368,6 +372,7 @@ namespace Hrot.Map.Definitions.Tkb
                     // ⭐ M6 — aluminium + spaced steel: the roof, the spaced front against a shaped charge, the health as before (100 × 5)
                     c.ArmorTop = 30; c.ArmorFrontCe = 150; c.ArmorSideCe = 80;
                     c.MaxHealth = 500;
+                    c.BlastSusceptibility = 0.1f;   // ⭐ R-2019 D-M2 (AE3) — IFV: blast damages optics and running gear only
                     c.EyeHeight = 2.7f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200, Penetration = 60, DamagePerHit = 60,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT,   // ⭐ LR-1
@@ -446,6 +451,7 @@ namespace Hrot.Map.Definitions.Tkb
                     // ⭐ M6 — the roof, Kontakt ERA on the front and sides against a shaped charge, the health as before (500 × 5)
                     c.ArmorTop = 40; c.ArmorFrontCe = 700; c.ArmorSideCe = 350;
                     c.MaxHealth = 2500;
+                    c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds,   // ⭐ LR-1
@@ -701,6 +707,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 10;
+                    c.BlastSusceptibility = 1f;   // ⭐ R-2019 D-M2 (AE3) — a drone: plastic and foam
                     c.EyeHeight = 0.1f;   // the camera on its nose
                     c.SensorRange = 1500;
                     c.Weapons.Add(new WeaponMount { WeaponType = "FPV_warhead", Ammunition = 1, Range = flight.ContactRadiusM, DamagePerHit = 450,
@@ -745,6 +752,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 600;
+                    c.BlastSusceptibility = 0.5f;   // ⭐ R-2019 D-M2 (AE3) — the titanium cockpit tub; wings and engines are soft
                     c.EyeHeight = 1f;
                     c.SensorRange = 5000;
                     c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
@@ -806,6 +814,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 800;
+                    c.BlastSusceptibility = 0.8f;   // ⭐ R-2019 D-M2 (AE3) — a helicopter's armour covers the crew, not the rotors
                     c.EyeHeight = 1f;
                     c.SensorRange = 6000;
                     c.Weapons.Add(new WeaponMount

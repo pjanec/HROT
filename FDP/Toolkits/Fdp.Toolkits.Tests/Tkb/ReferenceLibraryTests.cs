@@ -151,6 +151,35 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.True(b.FragmentRadiusM > 2f * m.FragmentRadiusM);
         }
 
+        /// <summary>
+        /// ⭐⭐ R-2019 D-M1 (AE1; DESIGN_Armour_Hit_Model §7.5) — a bigger shell throws HEAVIER fragments (Mott: <c>m₀ · (casing / 1.5 kg)^0.78</c>
+        /// above the anchor), so its fragments penetrate more. ⛔ The fence: the hand grenade, the 40 mm and the RPG keep 0.5 g — their
+        /// penetration is exactly the one-mass number <c>k · v₀ · √0.0005</c> — and a shaped charge never scales. The heavy ones go through a
+        /// pickup's 5 mm sheet or come close. ✅ Red-proof: the mass back to one 0.5 g for all ⇒ the Mk-82 at ≈ 2.4 mm ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AE1_ABiggerShell_ThrowsHeavierFragments_TheGrenade40mmAndRpgKeepHalfAGram()
+        {
+            static WarheadDto W(string name) { Assert.True(Lib.TryGetAmmo(name, out var a), name); return a.Warhead!.Dto; }
+            static float OneMass(float explosiveKg, float massKg)   // the pre-R-2019 penetration: k · v₀ · √(0.5 g)
+            {
+                float casing = MathF.Max(massKg - explosiveKg, 0.05f * massKg), beta = explosiveKg / casing;
+                return 0.06f * 2440f * MathF.Sqrt(beta / (1f + beta / 2f)) * MathF.Sqrt(0.0005f);
+            }
+            foreach (var (name, w, m) in new[] { ("M67 grenade", 0.24f, 0.4f), ("40mm HEDP", 0.045f, 0.23f), ("PG-7V HEAT", 0.73f, 2.2f),
+                                                 ("60mm mortar HE", 0.4f, 1.7f), ("TOW-2 HEAT", 3.1f, 21.5f), ("120mm HEAT", 1.6f, 13.5f) })
+                Assert.Equal(OneMass(w, m), W(name).FragmentPenetrationMm, 3);   // the fence, and shaped charges never scale
+
+            float mortar81 = W("81mm mortar HE").FragmentPenetrationMm, mortar120 = W("120mm mortar HE").FragmentPenetrationMm;
+            float shell155 = W("155mm howitzer HE").FragmentPenetrationMm, bomb = W("Mk-82 bomb").FragmentPenetrationMm;
+            Assert.True(mortar81 > OneMass(0.95f, 4.2f), $"81 mm {mortar81}");
+            Assert.InRange(mortar120, 3f, 4.5f);   // ≈ 3.5 mm (2.3 g)
+            Assert.InRange(shell155, 4f, 5.5f);    // ≈ 4.6 mm (6 g): a fair chance through a pickup's 5 mm
+            Assert.InRange(bomb, 12f, 16f);        // ≈ 13.6 mm (16.5 g): through any soft skin, not through armour
+            Assert.True(bomb > shell155 && shell155 > mortar120 && mortar120 > mortar81);
+            Assert.Contains("· (", Lib.TryGetAmmo("Mk-82 bomb", out var mk82) ? mk82.Warhead!.FragmentFormula : "");   // the formula shows the scaling
+        }
+
         /// <summary>⭐ Stage 6 (W-1) — the warhead chain: the type's own <c>Gen.Warhead</c> → the library by the type's NAME → none;
         /// <c>ResolveAll</c> lists it for a munition (DIS kind 2), so <c>GET /tkb/resolve</c> reports what the area effect uses.</summary>
         [Fact]

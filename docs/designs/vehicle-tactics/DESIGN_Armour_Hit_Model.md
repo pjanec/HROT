@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§7 D-M area effects vs vehicles, behaviors — R-2019)
+updated: 2026-10-15 (§7 D-M area effects vs vehicles — frame by behaviors, R-2019; §7.5 designed and §7.6 as built by backend)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-A, D-B, D-C, D-F, D-G approved earlier the same day)
-current-answer: §2 (classes), §3 (sequences), §4 (who runs it), §5 (rails) — §1 is the measured ground; §6 as-built; §7 D-M (area effects against vehicles, a frame — DESIGN).
+current-answer: §2 (classes), §3 (sequences), §4 (who runs it), §5 (rails) — §1 is the measured ground; §6 as-built; §7 D-M (area effects against vehicles: frame §7.1–7.4, design §7.5, BUILT §7.6).
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -264,7 +264,7 @@ took a tank for a person. With B8's loadouts the weapon brain then picked HEAT-M
 states the hull's `Body.Geometry` (ground-centred size; people excluded) and `VehicleKinematicsTkbTranslator` falls back to its height. Rail
 `NedTkbBuilderCombatTests.B8_ANedHull_StatesItsSizeAndLocomotion_…`; the live hill attack is the proof (handoff report).
 
-## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: DESIGN — a FRAME to backend, who designs the classes as step 1)*
+## 7. Area effects against vehicles — D-M *(🔒 user, `2026-10-15`, R-2019; build-state: BUILT `2026-10-15` — §7.5 design, §7.6 as built)*
 
 🔒 **User, `2026-10-15`:** *"A and B together is the most realistic … chosing this one, most realistic.*
 *Blast should be reduced by buildings (later we will be destructing buildings, backend can think about that, but not needed immediately)."*
@@ -319,3 +319,94 @@ and a blast susceptibility per hull.*
 | ⑤ | `ua-air-strike` ③ passes live (the behaviours lane re-runs it) |
 
 ⭐ **Handoff:** [HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Area_Effects_Vehicles.md).
+
+### 7.5 Classes and sequence — backend's design step (`2026-10-15`)
+
+📐 **Measured first:** the area rule has TWO readers that must agree (R-212 A1) — `AreaEffectSystem.Assess` (the burst) and
+`AmmoChoice.Split` (the weapon brain's expected area damage, `AmmoChoice.cs:54-60`, which copies *"blast harms personnel only"*). The fragment
+mass is one coefficient (`coefficients.json fragments.fragmentMassG`) read once, by `ReferenceLibrary.Warhead`. A vehicle is told from a person
+by `PhysicsColliderReaders.HullHeight > 0`. ⇒ two pure functions and one TKB field; no new system, no new component, no wire.
+
+```mermaid
+classDiagram
+  class ReferenceLibrary {
+    <<existing, grows>>
+    -Warhead(ammo, coefficients) RefWarhead
+    fragment mass m = m0 · max(1, casing / anchor)^exponent ★ (HE / frag only)
+  }
+  class Coefficients {
+    <<coefficients.json fragments, grows>>
+    fragmentMassG m0 = 0.5
+    massAnchorCasingKg = 1.5 ★
+    massExponent = 0.78 ★
+  }
+  class WarheadDto { <<TKB, existing>> FragmentPenetrationMm — a TKB warhead still overrides }
+  class CombatPlatformDefDto {
+    <<TKB, existing, grows>>
+    ArmorFront · ArmorSide · …
+    BlastSusceptibility = −1 ★ «−1 ⇒ derived from ArmorSide»
+  }
+  class ArmorModel {
+    <<static, existing, grows>>
+    +SoftSkinArmourMm = 40 ★
+    +BlastSusceptibility(platform, hullHeight) float ★
+  }
+  class AreaEffectSystem { <<existing>> blast × barrier × shadow × BlastSusceptibility ★ }
+  class AmmoChoice { <<existing>> area blast × BlastSusceptibility ★ }
+  class DetonationEffect { <<record, existing>> +BlastSusceptibility ★ }
+  class HealthApplicationSystem { <<existing>> MobilityKillBelowFraction → MobilityKill (AE4, unchanged) }
+  ReferenceLibrary ..> Coefficients
+  ReferenceLibrary --> WarheadDto : generates
+  ArmorModel ..> CombatPlatformDefDto
+  AreaEffectSystem ..> ArmorModel
+  AmmoChoice ..> ArmorModel
+  AreaEffectSystem --> DetonationEffect : logs
+  AreaEffectSystem ..> HealthApplicationSystem : DamageAssessedEvent
+```
+
+*What the picture shows that prose hid: the brain's ammo choice and the burst read the SAME susceptibility function — a technical stops looking
+blast-proof to the AI the moment it stops being blast-proof in the sim. And no TKB warhead changes: the mass rule lives only in the library
+generator, so a template that states its own `WarheadDto` (the RPG and TOW, M3) keeps its numbers.*
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem (Simulation, Muscle node)
+  participant AM as ArmorModel
+  participant W as World query (terrain + colliders)
+  participant HA as HealthApplicationSystem (every live node)
+  AE->>AE: r, fragFall, blastFall = BlastFalloff(r, lethal, injury) — now for hulls too
+  AE->>W: trace each body point: fragment transmission, closed barrier, shadow (unchanged)
+  AE->>AM: BlastSusceptibility(PlatformOf(e), hull)
+  AM-->>AE: 1 for a person · the stated value · else clamp(1 − side / 40 mm)
+  AE->>AE: blast = lethalDamage × blastFall × barrier × shadow × susceptibility
+  AE->>AM: fragments: PenetrationChance(heavier fragment pen, face armour) (unchanged rule)
+  AE-->>HA: DamageAssessedEvent(fragments + blast)
+  HA->>HA: Health −= damage, below MobilityKillBelowFraction ⇒ MobilityKill (AE4 exists)
+```
+
+| decision (confirming §7.3) | as designed | rejected |
+|---|---|---|
+| **D-M1** mass law | **Mott scaling**: `m = m₀ · (casing / 1.5 kg)^0.78` above the anchor, `m₀` (0.5 g) at or below it. For a geometrically scaled shell the mean Mott fragment mass grows as `t^(5/3) · d^(2/3)` ∝ s^(7/3) while the casing grows as s³ ⇒ exponent 7/9 ≈ 0.78. The anchor 1.5 kg is the RPG's casing (1.47 kg), the heaviest the fence keeps; the grenade (0.16) and 40 mm (0.185) sit below it. **Only HE and fragmentation warheads scale** — a shaped charge's "casing" here is a whole rocket or missile body | the frame's example `^⅓` (a Mk-82 fragment 2.2 g, 5 mm — too light against light armour) · scaling shaped charges (a TOW's casing is its motor) |
+| **D-M2** susceptibility | `CombatPlatformDefDto.BlastSusceptibility`, **−1 = derived** `clamp(1 − ArmorSide / 40 mm, 0, 1)`; a person (hull 0) and a hull with no platform record = 1. Every catalogued vehicle STATES it (AE3) | 0 as "unset" (0 must mean immune — an MBT) · a threshold on armour |
+| **D-M3** mobility kill | **no new code**: blast is a `DamageAssessedEvent`, and `HealthApplicationSystem` already immobilises a type below its `MobilityKillBelowFraction` (the technicals: 0.6) | a blast-only mobility rule |
+| **D-M4** where breakable buildings plug in | the closed barrier and the shadow come from `IWorldQuery.Trace` crossings (`TraceCrossing.Loss`, `.ClosedBarrier`, `.TopZ`) — a damaged wall changes its crossing (a hole = no barrier; a collapse = a new prism), and `AreaEffect.ClosedBarrierTransmission` / `TerrainShadow` need no change. The burst's own breach precedent is `BreachDoors` (W-9) | — (not this batch) |
+| what does NOT change | the distance `r` is to the hull's centre axis, not its skin (a hull's radius is small against a bomb's radii) | the skin distance (moves every fragment number on vehicles) |
+
+### 7.6 As built `2026-10-15` (backend, handoff AE1–AE4)
+
+The §7.5 diagrams are what was built: no deviation from them. What the build adds:
+
+| item | built | where |
+|---|---|---|
+| **AE1** | the mass law in the library generator (`ReferenceLibrary.FragmentMassG`), its two coefficients optional in `coefficients.json` (absent ⇒ one mass, so a hand-written coefficient file keeps working); the fragment formula on `GET /tkb/resolve` shows the scaling | `ReferenceLibrary.cs`, `coefficients.json` |
+| **AE2** | `ArmorModel.BlastSusceptibility`; `AreaEffectSystem` multiplies the blast by it (a hull at 0 skips the blast falloff); `AmmoChoice` reads the same rule; `DetonationEffect.BlastSusceptibility` and `blastSusceptibility` on `GET /combat/detonations` | `ArmorModel.cs`, `AreaEffectSystem.cs`, `AmmoChoice.cs`, `DetonationLog.cs`, `CombatReport.cs` |
+| **AE3** | every catalogued platform with a combat record states it (§7.6 table in the report); `SimCombatDef.BlastSusceptibility` → `BdcTkbBuilder` | `BdcTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs` |
+| **AE4** | nothing to build: blast is an ordinary `DamageAssessedEvent`, so `HealthApplicationSystem` immobilises a technical below 60 % health as it does for any hit | — |
+
+Fragment penetration, before → after (every other library warhead unchanged): 81 mm 1.65 → 2.24 mm · 70 mm rocket 1.67 → 2.32 ·
+105 mm 1.27 → 2.94 · 120 mm mortar 1.63 → 3.49 · 125 mm HE-frag 1.31 → 3.56 · 155 mm 1.33 → 4.63 · Mk-82 2.37 → 13.6.
+
+Rails: `ReferenceLibraryTests.AE1_ABiggerShell_ThrowsHeavierFragments_…` · `ArmorModelTests.AE2_BlastSusceptibility_…` ·
+`AreaEffectSystemTests.AE2_AMk82_WrecksAPickupInTheOpen_LessBehindABuilding_AndLeavesAnMbtUnhurt` (red-proved) ·
+`NedTkbBuilderCombatTests.AE3_EveryVehicle_StatesItsBlastSusceptibility`. Report:
+[REPORT_Backend_Area_Effects_Vehicles.md](../../blueprints/batches/REPORT_Backend_Area_Effects_Vehicles.md).

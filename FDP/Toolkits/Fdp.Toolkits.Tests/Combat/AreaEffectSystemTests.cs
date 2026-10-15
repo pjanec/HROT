@@ -188,6 +188,71 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, dBeside[0]);
         }
 
+        // ── ⭐ R-2019 (D-M1 + D-M2; DESIGN_Armour_Hit_Model §7.5) — area effects against vehicles ──────────────
+
+        private const long Bomb = 6020, Pickup = 778, Mbt = 779;
+
+        private Entity Hull(long type, float x, float y, float health, float radius, float height)
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new PhysicsCollider { Radius = radius, Height = height });
+            _w.AddComponent(e, new Health { Current = health, Max = health });
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            return e;
+        }
+
+        private void VehicleTypes()
+        {
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            db.Register(new TkbTemplate("Mk-82 bomb", Bomb) { DisType = new DISEntityType { Kind = 2 } });
+            var pickup = new TkbTemplate("blast test pickup", Pickup);
+            pickup.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 300, ArmorFront = 5, ArmorSide = 5, ArmorRear = 5, ArmorTop = 3, BlastSusceptibility = 1f });
+            db.Register(pickup);
+            var mbt = new TkbTemplate("blast test MBT", Mbt);
+            mbt.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 3000, ArmorFront = 600, ArmorSide = 350, ArmorRear = 200, ArmorTop = 60, BlastSusceptibility = 0f });
+            db.Register(mbt);
+        }
+
+        /// <summary>
+        /// ⭐⭐ R-2019 (AE1 + AE2, acceptance ①–③) — a Mk-82 bursting 20 m from a pickup in the open WRECKS it (its 16 g fragments go through
+        /// the 5 mm sheet, and the blast reaches the hull); the same pickup 20 m away BEHIND a building takes no fragments and only the blast
+        /// the walls pass (the closed-barrier rule a person gets); an MBT 15 m away takes nothing — no blast (susceptibility 0) and fragments
+        /// that cannot pass 350 mm. ⛔ Before: the pickup took 0 (one 0.5 g fragment ≈ 2.4 mm against 5 mm; blast skipped every hull).
+        /// ✅ Red-proof: blast back to "personnel only" ⇒ the open pickup's BlastDamage 0 ⇒ red; the fragment mass back to 0.5 g ⇒ its
+        /// FragmentArmourChance 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AE2_AMk82_WrecksAPickupInTheOpen_LessBehindABuilding_AndLeavesAnMbtUnhurt()
+        {
+            VehicleTypes();
+            _w.SetSingletonManaged(TerrainWorldParser.Parse(OneStoreyHouse, "range"));   // the house spans x 20–30, y 20–28
+            var open = Hull(Pickup, 45f, 12f, 300f, 2f, 1.9f);
+            var behind = Hull(Pickup, 25f, 32f, 300f, 2f, 1.9f);
+            var tank = Hull(Mbt, 25f, -3f, 3000f, 3f, 2.4f);
+            var (rec, damage) = Burst(Bomb, new Vector3(25f, 12f, 0.1f), open, behind, tank);
+
+            var o = rec.Effects.Single(x => x.Entity == open);
+            var b = rec.Effects.Single(x => x.Entity == behind);
+            var t = rec.Effects.Single(x => x.Entity == tank);
+            Assert.Equal(1f, o.FragmentArmourChance);                 // AE1: the bomb's fragments defeat the 5 mm sheet
+            Assert.True(o.BlastDamage > 30f, $"open blast {o.BlastDamage}");   // AE2: the blast reaches a hull (0.4 of 150 at 20 m)
+            Assert.True(damage[0] >= 300f, $"the open pickup took {damage[0]} of 300");
+            Assert.Equal(1f, o.BlastSusceptibility);
+
+            Assert.Equal(0f, b.FragmentExposure);                     // the house stops the fragments
+            Assert.True(b.BlastBarrier < 0.1f, $"barrier {b.BlastBarrier}");   // the walls pass a few per cent of the blast
+            Assert.True(b.BlastDamage < 0.2f * o.BlastDamage, $"behind {b.BlastDamage} vs open {o.BlastDamage}");
+            Assert.True(damage[1] < damage[0]);
+
+            Assert.Equal(0f, t.BlastSusceptibility);
+            Assert.Equal(0f, t.BlastDamage);
+            Assert.Equal(0f, t.FragmentArmourChance);                 // 13.6 mm fragments against 350 mm
+            Assert.Equal(0f, damage[2]);
+        }
+
         // ── W-7′ — a roof burst spares the floor below (closed barrier), not the man on the roof ──
 
         [Fact]

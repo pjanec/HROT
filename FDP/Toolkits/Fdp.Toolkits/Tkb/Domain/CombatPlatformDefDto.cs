@@ -53,5 +53,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ M2 (D-B) — roof armour against a shaped charge. <b>0 = the roof's kinetic value</b>.</summary>
         [EditUnit("mm RHA")]
         public float ArmorTopCe { get; init; }
+
+        /// <summary>
+        /// ⭐ R-2019 D-M2 (DESIGN_Armour_Hit_Model §7.5) — how much of a burst's BLAST this hull takes (0..1): a soft skin (a pickup, a car) ≈ 1,
+        /// armour low, an MBT 0. Multiplies the blast after the building barrier and shadow, as for a person. <b>−1 (default) = derived from
+        /// <see cref="ArmorSide"/></b> (<c>ArmorModel.BlastSusceptibility</c>); a person always takes the full blast.
+        /// </summary>
+        public float BlastSusceptibility { get; init; } = -1f;
     }
 }

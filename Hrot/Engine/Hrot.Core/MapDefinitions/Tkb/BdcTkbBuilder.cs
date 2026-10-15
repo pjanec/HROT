@@ -254,6 +254,7 @@ namespace Hrot.Map.Definitions.Tkb
                 ArmorSideCe  = combatDef.ArmorSideCe,
                 ArmorRearCe  = combatDef.ArmorRearCe,
                 ArmorTopCe   = combatDef.ArmorTopCe,
+                BlastSusceptibility = combatDef.BlastSusceptibility,   // ⭐ R-2019 D-M2
             });
 
             // Derived capability DTO for the general TKB pipeline.

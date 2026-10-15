@@ -123,6 +123,10 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ M6 — light vehicles opt into a mobility kill below this fraction of health (0 = none). <c>CombatPlatformDefDto</c>.</summary>
         public float MobilityKillBelowFraction { get; set; }
 
+        /// <summary>⭐ R-2019 D-M2 — the share of a burst's blast this hull takes (0..1; a soft skin ≈ 1, an MBT 0); −1 ⇒ derived from the side
+        /// armour. <c>CombatPlatformDefDto.BlastSusceptibility</c>.</summary>
+        public float BlastSusceptibility { get; set; } = -1f;
+
         /// <summary>⭐ M5 — where the crew sees from, m above the ground (the sight / the commander's hatch); 0 ⇒ a standing man's.</summary>
         public float EyeHeight { get; set; }
 

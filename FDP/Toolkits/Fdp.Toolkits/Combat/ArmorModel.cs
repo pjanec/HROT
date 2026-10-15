@@ -92,6 +92,23 @@ namespace Fdp.Toolkit.Combat
             return ce > 0f ? ce : kinetic;
         }
 
+        /// <summary>⭐ R-2019 D-M2 — the side armour at which a hull with no stated <c>BlastSusceptibility</c> shrugs off blast (derived:
+        /// <c>1 − side / this</c>, clamped).</summary>
+        public const float SoftSkinArmourMm = 40f;
+
+        /// <summary>
+        /// ⭐ R-2019 D-M2 (DESIGN_Armour_Hit_Model §7.5) — the share of a burst's blast a target takes: a PERSON (<paramref name="hullHeight"/>
+        /// ≤ 0) or a hull with no platform record takes it all; a hull takes its type's stated
+        /// <see cref="CombatPlatformDefDto.BlastSusceptibility"/>, or one derived from its side armour when it states none (−1). The ONE rule the
+        /// burst (<c>AreaEffectSystem</c>) and the weapon brain's estimate (<c>AmmoChoice</c>) read (R-212 A1).
+        /// </summary>
+        public static float BlastSusceptibility(CombatPlatformDefDto? platform, float hullHeight)
+        {
+            if (hullHeight <= 0f || platform == null) return 1f;
+            if (platform.BlastSusceptibility >= 0f) return Math.Clamp(platform.BlastSusceptibility, 0f, 1f);
+            return Math.Clamp(1f - platform.ArmorSide / SoftSkinArmourMm, 0f, 1f);
+        }
+
         /// <summary>The chance a round of <paramref name="penetration"/> mm defeats <paramref name="armour"/> mm.</summary>
         public static float PenetrationChance(float penetration, float armour)
         {
