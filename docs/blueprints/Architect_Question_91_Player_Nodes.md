@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§4-I: I3 SUPERSEDED by I5 — a cluster SESSION ID, none exists today) ·
+updated: 2026-10-15 (⭐ §4-I APPROVED as R-4006 · ⭐ §4-J NEW, OPEN — servicing a late joiner beside a running session; finds the reliable-init barrier and operator rounds gate the running game on a joiner) ·
+  2026-10-15 (§4-I: I3 SUPERSEDED by I5 — a cluster SESSION ID, none exists today) ·
   2026-10-15 (⭐ §4-I NEW, OPEN — rejoin, outages and stale nodes: the master trusts only what it witnessed;
   does not affect the dispatched batch) ·
   2026-10-15 (REVIEW AMENDMENTS, before any run started: §4-A′ the authority predicate must FAIL SAFE ·
@@ -48,6 +49,7 @@ related-designs:
     PARTITION that decide WHAT moves; §4-E2 here owns only HOW the bytes travel (the provider) and reuses that diff as
     its "already cached?" check.
   - docs/DESIGN_Artifact_Staging.md — owns the NAS layout and the staged TKB/terrain artifacts the provider carries.
+  - docs/DESIGN_Cross_Node_Construction_Barrier.md — owns the reliable-init wait-set and the late-joiner READ path (§2a, A7 unbuilt) that §4-J J3 narrows and relies on.
 -->
 
 # Architect Question 91 — **the Player node: a disposable IG node in a unified, robust cluster**
@@ -700,10 +702,12 @@ state in `Loading*` with nothing loading, which is the half-cancelled condition 
 
 ---
 
-## 4-I ⭐⭐ REJOIN, OUTAGES AND STALE NODES — **the master trusts only what it witnessed** *(`2026-10-15`, OPEN — leans await the user)*
+## 4-I ⭐⭐ REJOIN, OUTAGES AND STALE NODES — **the master trusts only what it witnessed** *(`2026-10-15`, ✅ APPROVED — `R-4006`)*
+
+> 🔒 **User, `2026-10-15`:** *"I-x accepted."* — I1, I2, I4, I5, I6 as leaned (I3 was already superseded by I5).
 
 ⚠ **Does not affect the dispatched batch** (scope frozen at `fe1095d68`). It sharpens P7's catch-up *trigger*; the
-batch builds P7 as written, and this section is the next handoff if approved.
+batch builds P7 as written, and this section is the NEXT handoff.
 
 ### 4-I.1 📐 What is there today
 
@@ -772,6 +776,65 @@ otherwise does what the master says.*
   question — ⛔ not folded in here.
 - ⚠ **Not measured:** whether a node's replicas of a departed owner's entities are destroyed when that writer's
   descriptors go not-alive, i.e. whether I3's reset is what clears them or something already does.
+
+---
+
+## 4-J ⭐⭐ SERVICING A LATE JOINER BESIDE A RUNNING SESSION — **the joiner may never gate the running game** *(`2026-10-15`, OPEN — leans await the user)*
+
+⚠ **Does not affect the dispatched batch.** It sets the rules P7's catch-up must obey; three of them are new findings.
+
+### 4-J.1 ⭐ The sequence
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant J as Joiner (not InSync)
+  participant R as running nodes (InSync)
+  participant G as transfer provider
+  J->>M: heartbeat + capabilities (session id: none)
+  Note over M: J is in the roster, not InSync (I1)
+  M->>J: AbortTransaction + PrepareState/CommitState Idle (I2, own tx)
+  M->>G: transfer for J only (own partition)
+  G-->>J: chunks, paced by J's ACK window
+  M->>J: PrepareState/CommitState LoadingLive (own tx)
+  Note over J: loads on its frame thread, non-blocking (4-B2), heartbeat keeps beating
+  J-->>M: InProgress ... Success
+  M->>J: CommitState OperatingLive + each committed zone (4-E')
+  Note over J: entities, clock mode, zone set arrive as durable DDS state
+  J-->>M: ACK at the cluster's current commit
+  Note over M: J enters InSync, is a target from the NEXT round on
+  M->>R: operator rounds meanwhile go to InSync only (J1)
+  Note over M,R: if a round commits during catch-up, J restarts from the new state (E3)
+```
+
+*What the picture shows that prose hid: every arrow to the joiner is a SEPARATE transaction addressed to it alone, and
+no arrow runs from the joiner to a running node. The only shared resources are the network and the DDS writers'
+history, which is why those are the two unmeasured rows below.*
+
+### 4-J.2 📐 What isolates it today, and what does not
+
+| channel | isolated? | evidence |
+|---|---|---|
+| ⭐ addressing: a catch-up op reaches the joiner only | ✅ `FanOutNodeOp` takes an explicit target list; each round has its own `GenericTransactionTracker` keyed by tx id ⇒ concurrent rounds are already representable | `ClusterMaster.cs:55-67,1731` |
+| ⭐ the master's ONE busy slot is the PARKED transition | ⚠ a second transition is **rejected** while one is parked waiting for files | `ClusterMaster.cs:1072-1082` |
+| ⭐ operator rounds target the ROSTER | 🔴 **a catching-up node is a target of every operator round** and its ACK is awaited — the joiner gates the running game | `ClusterMaster.cs:1226,1279` (`_roster.ActiveNodes.Keys`) |
+| ⭐ files | ✅ per-transfer partition, only the targets receive; the gateway works off the master's thread | §4-E2 (measured: bystander 0 bytes) |
+| ⭐ the step barrier | 🔴 today a Player is in it by NAME (`"IG"`) ⇒ a loading Player would gate every step | §4-D′ — fixed by P3 (roster = authoritative nodes) |
+| ⭐⭐ **the reliable-init barrier** | 🔴🔴 **the running game waits for the joiner.** Every NED node advertises `fdp.reliable-init` (`NedNetworkFactory.cs:113`), and a creator's wait-set is *every present peer that advertises it* (`ClusterCacheExpectedPeersProvider.cs:33-37`). A joiner is present from its first heartbeat. ⇒ a spawn in the running game waits **~1 s** if the joiner is silent (phase-1 probe, `NetworkGatewaySystem.cs:60`), and is **ABORTED after 300 frames** if the joiner answered *Constructing* but never *Active* (`DeferredConstructionParticipant.cs:52`; abort, never force-ack — CE-289) | measured |
+| ⭐ the "unsupported" mark | 🔴 a peer that misses one phase-1 probe is marked `!fdp.reliable-init` **forever** — never cleared, not on departure, not when it returns, and node ids are reused after a restart | `SimpleClusterStateCache.cs:25,75-81` (only `Add`, no `Remove`) |
+| ⭐ the joiner's own load | ✅ once §4-B2 lands it costs only the joiner; before it, a long load also blocks the joiner's replies, which is what triggers the two rows above | §4-B2 |
+| ⚠ durable entity state delivered to the new reader | ⛔ **not measured** — DDS serves `TransientLocal` history from each WRITER, so the running nodes' DDS stacks do the work; whether a slow reader can back-pressure a Reliable writer is untested here | — |
+| ⚠ the transfer's bandwidth against game traffic | ⛔ **not measured** — the ACK window paces the transfer to the RECEIVER, not to the link | §4-E2 |
+
+### 4-J.3 ⭐ The decisions
+
+| # | decision | lean |
+|---|---|---|
+| **J1** | ⭐⭐ **an operator round targets the `InSync` set, never the roster** | ⭐ **LEAN.** Follows from I1: a node not in sync is not a participant. A round that commits during a catch-up restarts the catch-up from the new state (E3) |
+| **J2** | ⭐⭐ **the catch-up never uses the parked slot** — it is its own per-node saga with its own trackers | ⭐ **LEAN.** Otherwise a joiner's download makes the operator's next load "busy" |
+| **J3** | ⭐⭐⭐ **the reliable-init wait-set holds only peers in the creator's session and state** (I5's session id and the heartbeat's `LocalClusterState`, both already reaching every node's cluster cache) | ⭐ **LEAN.** A catching-up node is not waited for, so no spawn in the running game is delayed or aborted by it; once `InSync` it is waited for again. ⛔ Rejected: a per-node opt-out token — capabilities are static, and readiness is not a capability. ⚠ The joiner then relies on the late-joiner READ path for entities created meanwhile — `DESIGN_Cross_Node_Construction_Barrier.md` §2a, **A7 "hold the ghost until the owner is `Active`" is NOT built** (§3a.7) |
+| **J4** | ⭐ **clear the "unsupported" mark when the node departs** | ⭐ **LEAN.** A one-line fix: a node that missed one probe while loading would otherwise never be waited for again, across restarts |
+| **J5** | ⚠ **a bandwidth cap on the transfer provider** | ⚠ **LEAN: a setting, off by default, until measured.** 🔒 user K said *"ignore real network measurement"* for chunk sizing; this is a different question — whether a transfer starves game traffic. ⭐ Measure first: one 64 MB transfer during a running `--mode all` session, watching entity update latency |
 
 ---
 
