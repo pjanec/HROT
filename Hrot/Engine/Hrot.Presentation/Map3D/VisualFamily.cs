@@ -50,8 +50,6 @@ public static class VisualFamilies
         ["Unit"] = VisualFamily.Unit,
         ["Person"] = VisualFamily.Person,
         ["Tank"] = VisualFamily.Tank,
-        // ⭐ Indirect fire IF-1 (I8) — the M109 draws as a tracked, turreted body (the tank kit) until the ui lane gives artillery its own
-        ["SelfPropelledArtillery"] = VisualFamily.Tank,
         ["Afv"] = VisualFamily.Afv,
         ["Car"] = VisualFamily.WheeledCar,
         ["WheeledUtility"] = VisualFamily.WheeledUtility,
@@ -61,7 +59,7 @@ public static class VisualFamilies
         ["WeaponSystem"] = VisualFamily.WeaponSystem,   // ⭐ CE-1087 — and its subclasses (HMG, Minigun, ATGM, Launcher, Sentry)
         ["Mortar"] = VisualFamily.WeaponSystem,         // ⭐ CE-1087 — a tube is a weapon system (Indirect Fire IF-G)
         ["TowedArtillery"] = VisualFamily.WeaponSystem,
-        ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089
+        ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
     };
 
@@ -92,7 +90,7 @@ public static class VisualFamilies
     {
         VisualFamily.Unit => "_unit",
         VisualFamily.Person => "_person",
-        VisualFamily.Tank => "_tank",
+        VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
         VisualFamily.WheeledCar or VisualFamily.WheeledUtility => "_wheeled",
         _ => null,

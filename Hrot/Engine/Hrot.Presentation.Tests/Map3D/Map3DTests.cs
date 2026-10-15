@@ -407,15 +407,10 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
-<<<<<<< HEAD
                 1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
                 3 or 6 or 7 => VisualFamily.WheeledUtility,
                 4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
                 _ => VisualFamily.Unknown,
-=======
-                1 or 4 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,   // ⭐ IF-1 (I8): 4 = SelfPropelledArtillery → the tank kit, moved on purpose
-                3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
->>>>>>> origin/behaviors
             };
         if (d.Kind == 1 && d.Domain == 2)
             return d.Category switch
