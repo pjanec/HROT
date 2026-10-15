@@ -131,6 +131,7 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.SquadRide,             // CE-2173 slice 3 (B8)
             Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformStrike,     // CE-2173 slice 5 (B4)
             Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformMove,       // CE-2173 B4
+            Hrot.Map.Definitions.Behavior.BehaviorNames.ManWeapon,             // CE-2176 (Weapon Systems §4b)
         };
 
         foreach (var name in curated)

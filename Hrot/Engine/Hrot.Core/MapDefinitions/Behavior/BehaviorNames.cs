@@ -89,6 +89,8 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Embark = "Embark";
+        /// <summary>⭐ <c>CE-2176</c> (Weapon Systems §4b) — walk to a crew weapon and take its Gunner seat.</summary>
+        public const string ManWeapon = "ManWeapon";
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a passenger leaves its vehicle, beside the hull (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Disembark = "Disembark";
