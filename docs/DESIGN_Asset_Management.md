@@ -42,7 +42,11 @@ waited; both are leans the builder follows, stated so a reader can push on them.
 known-rot: ⛔ §7.3's "derive from RoleLoadRequirements" is TRUE but INSUFFICIENT — read §7.3a with it,
   which measures the vocabulary gap and carries the ruled adapter. ⚠ §7.6 records an inherited
   constraint this design does not remove (the orchestrator stats and writes every node's disk).
-known-conflict: none. ⚠ DESIGN_Artifact_Staging.md is a BUILT SUBSET — §2.1 says exactly what it already
+known-conflict: ⚠ CE-4004 (2026-10-15, user, not yet decided): "those assets must live primarily on the NAS … Whenever
+  the files are saved or changed, I guess they should be synchronized to the master copy on NAS" — re-opens Q72-I / §7.5
+  (publish is explicit, never on save), and asks whether non-authoring nodes need local copies at all and whether behaviour
+  assets join the TKB's join-time sync (R-4018). Until CE-4004 is settled, this design stands.
+  Previously: none. ⚠ DESIGN_Artifact_Staging.md is a BUILT SUBSET — §2.1 says exactly what it already
   does and what this generalises; ⛔ this document does not re-decide any of it.
 related-designs:
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2 puts the push behind one IFileTransferProvider (a node share or DDS) and reuses THIS doc's (length, mtime) diff as the receiver's "already cached?" check; it adds no second freshness rule.

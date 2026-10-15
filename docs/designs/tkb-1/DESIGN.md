@@ -41,7 +41,8 @@ related-designs:
     `ITkbDatabase.ActiveTkbName` has exactly one writer and that writer reads the header back.
 known-rot: ⛔⛔ R-4018 (2026-10-15, §0 below) OVERTURNS §1's "loaded before scenario content during
   PrepareLive / PrepareEdit" and "reloaded only when TkbName … changes", and every statement that a SCENARIO names
-  its TKB (§7.3's read of Header.TkbName). ONE TKB per deployment, loaded at process start. Build item CE-4003.
+  its TKB (§7.3's read of Header.TkbName). ONE TKB per deployment, synced from its master copy when a node
+  joins and re-checked before every scenario load. Build item CE-4003.
   §6.5's closing sentence ("an IG node would include BIG-specific translators; a SimHost
   node would not") reads as if per-node LIST curation were the intended narrowing lever. It is not;
   §6.5b corrects that reading. Do not quote that sentence without §6.5b.
@@ -54,20 +55,25 @@ known-rot: ⛔⛔ R-4018 (2026-10-15, §0 below) OVERTURNS §1's "loaded before 
 
 ---
 
-## 0. ⛔⛔ R-4018 — ONE TKB PER DEPLOYMENT, LOADED AT PROCESS START *(user, `2026-10-15`)*
+## 0. ⛔⛔ R-4018 — ONE TKB PER DEPLOYMENT; A SCENARIO NEVER NAMES IT; SYNCED WHEN A NODE JOINS *(user, `2026-10-15`)*
 
-> 🔒 **User, verbatim:** *"If the TKB is mentioned as part of the scenario, I think this is wrong, because keeping multiple TKBs, which are full of technical information, is unmaintainable, so you need to keep just one copy and reuse it everywhere."* · *"TKB is static. It is not part of loading scenario or terrain, so you do not
-> need to load it. As such, it can be loaded up front and can stay there in the same state all the time."*
+> 🔒 **User, verbatim:** *"If the TKB is mentioned as part of the scenario, I think this is wrong, because keeping multiple TKBs, which are full of technical information, is unmaintainable, so you need to keep just one copy and reuse it everywhere."* · *"Scenario shouldn't be mentioning it. Do not read it from the scenario. Ignore it."* · *"We have to keep copying TKB files. It cannot be removed if its master copy is living where it used to live before."* · *"It is a way how to synchronize some important data files when the process starts before it even starts a scenario. The scenario time load is only just another check if that file is up to date."* · *"I didn't mean only when the node is late joining, but when the node is loading at all and becoming part of the cluster."*
 
 | ⭐ the rule | ⛔ what it overturns below |
 |---|---|
-| every node loads THE TKB once, at process start, from its own installed copy (name from node configuration; the built-in `HrotEnvironment.CreateTkb()` catalogue is the fallback), and it never changes for the process's life | §1 "loaded before scenario content during `PrepareLive` / `PrepareEdit`" · "reloaded only when TkbName or file timestamp changes" |
-| a scenario does NOT name a TKB — `Header.TkbName` is no longer written, and nothing reads it: an old file's value is ignored, so a scenario can never be refused over it | §7.3's resolve-from-header path · `ITkbDatabase.ActiveTkbName` as a scenario stamp |
-| the knowledge-base step leaves the cluster load; the orchestrator stops staging the TKB per scenario | `DESIGN_Artifact_Staging.md`'s TKB half (terrain staging stays) · `DESIGN_Cluster_Load_Phase.md`'s TKB row |
-| a late joiner's catch-up runs terrain only | `R-4015`'s "knowledge base and terrain" |
+| **one TKB per deployment.** Its master copy stays where it lives today (`{nas}/tkb/<name>.zip`); its name comes from the orchestrator's configuration | every "the scenario names its TKB" statement |
+| **a scenario never names a TKB** — `Header.TkbName` leaves the scenario format: never written, never read; an old file's value is ignored, so a scenario can never be refused over it | §7.3's resolve-from-header path · `ITkbDatabase.ActiveTkbName` as a scenario stamp · `DESIGN_Terrain_Zones_And_Assets.md` §2.1e ⑤ |
+| **synced when a node JOINS the cluster** — at its first start, a restart or a late join, one path: the orchestrator copies the master copy into that node's staging (skipped when the node already holds the same bytes) and tells that node to load it. The node loads it once and keeps it | §1 "loaded before scenario content during `PrepareLive` / `PrepareEdit`" |
+| **re-checked before every scenario load** — the same copy runs as a freshness check; an unchanged master copy copies and reloads nothing, a changed one is copied and reloaded before the scenario is built, so the whole cluster moves together | — |
+| **the name travels with the FILE SYNC, never with the load command** — the cluster's "prepare to load" message carries the scenario id and the terrain name only | `DESIGN_Cluster_Load_Phase.md` L1's `TkbName` on the load payload |
+| a late joiner's catch-up runs terrain only — its TKB arrives by the join sync | `R-4015`'s "knowledge base and terrain" |
 
-📐 **Why this costs nothing in practice, measured `2026-10-15`:** all 10 scenario files in the repository name the same
-TKB (`HrotDefault`) and no TKB archive is checked in — every node already runs on the built-in catalogue.
+📐 **Measured `2026-10-15`:** all 10 scenario files in the repository name the same TKB (`HrotDefault`) and no TKB archive is
+checked in — every node runs on the built-in catalogue (`HrotEnvironment.CreateTkb()`), which stays the fallback. The copy
+today is started only by a scenario transition (`ClusterMaster.cs:1182`, `:1468`) — the join trigger is new and shares the
+late-join catch-up's per-node ops (`R-4017`).
+⛔ **SUPERSEDED the same day:** an earlier wording of this section said *"loaded at process start from the node's own installed
+copy; the orchestrator stops staging the TKB"*. The user kept the staging — a fresh node has no copy until one is synced.
 ⚠ This document is otherwise unchanged until `CE-4003` is built; the as-built folds in then.
 
 ## 1. Overview

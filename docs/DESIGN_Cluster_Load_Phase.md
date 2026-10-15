@@ -15,8 +15,9 @@ current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance)
   three-copy drift it retires.
 stale-below: §2 describes the world BEFORE this batch. It is kept because the defect it measures is the
   whole argument for §3-§4; ⛔ do not read it as current.
-known-rot: ⛔⛔ R-4018 (2026-10-15): the knowledge base is NOT a load part — one TKB per deployment, loaded at
-  process start (docs/designs/tkb-1/DESIGN.md §0); TkbName leaves the load payload. Retired by CE-4003.
+known-rot: ⛔⛔ R-4018 (2026-10-15): the knowledge base is NOT a scenario load part — one TKB per deployment, synced
+  and loaded when a node joins the cluster and re-checked before every scenario load (docs/designs/tkb-1/DESIGN.md §0);
+  TkbName leaves the load payload and travels with the file sync. Build item CE-4003.
 known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride the scenario-load
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.

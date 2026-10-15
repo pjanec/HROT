@@ -10,9 +10,9 @@ current-answer: §2 is the measured gap, §3-§5 are the model, §6 is the skip 
 stale-below: §8-V1 is ANSWERED — read §9.1, not §8. §4's sequence omits the named-but-unpublished
   artifact arm, which §9.3 adds.
 stale-below: nothing — new document.
-known-rot: ⛔⛔ R-4018 (2026-10-15): the TKB is NOT staged per scenario any more — one TKB per deployment, loaded
-  at process start (docs/designs/tkb-1/DESIGN.md §0). The TKB half of this design is retired by CE-4003; terrain staging
-  stays.
+known-rot: ⛔⛔ R-4018 (2026-10-15): the TKB is no longer NAMED by the scenario — one TKB per deployment, its name
+  from the orchestrator's configuration (docs/designs/tkb-1/DESIGN.md §0). ⭐ The TKB COPY STAYS, from the same NAS master
+  copy, and also runs when a node joins the cluster; the scenario-header consensus on TkbName goes. Build item CE-4003.
   ALSO: TWO things this design assumed that the build measured false, both in §9 —
   (a) §2/§4 speak only of the TKB NAME, but the terrain name rides the SAME staged header and had to be
   carried too, or S4 was impossible; (b) §5's "terrain inherits everything here unchanged" is true of the
