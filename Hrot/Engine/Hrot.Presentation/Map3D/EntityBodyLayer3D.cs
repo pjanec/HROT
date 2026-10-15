@@ -37,8 +37,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>What a TKB type looks like — resolved once per type.</summary>
     /// <para>⭐ CE-1087 — a weapon system's <paramref name="Weapon"/> kind picks its kit.</para>
+    /// <para>⭐ CE-1099 (§6q) — <paramref name="TypeColoured"/>: the TYPE names a colour (else <paramref name="Colour"/> is the family
+    /// default); <paramref name="Child"/>: a person shorter than <see cref="ChildHeight"/>.</para>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
-                                           BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg);
+                                           BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
+                                           bool TypeColoured = false, bool Child = false);
+
+    /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
+    public const float ChildHeight = 1.5f;
+
+    /// <summary>⭐ CE-1099 — how much larger a child's head is than the figure's scaled one.</summary>
+    public const float ChildHead = 1.3f;
 
     /// <param name="poseOf">⭐ CE-1033 §3.11 — the turret azimuth and gun elevation of an entity with an articulated kit. ⭐ WL-1 — in
     /// production it is <see cref="TurretPoseSource.PoseOf"/> (the turret part's <c>TurretPose</c>, DESIGN_Weapon_Layers W-9), plugged in
@@ -68,7 +77,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = 0;
         _carried.Clear();
         _shouldering.Clear();
         _figureFrames.Clear();
@@ -183,9 +192,26 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 ? Matrix4x4.Identity
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
             int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet) : 0;   // ⭐ CE-1098 (§6p)
+            // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
+            Outfit? outfit = null;
+            var headFace = FaceOn.Front;
+            if (look.Family == VisualFamily.Person)
+            {
+                long seed = SeedOf(world, e, hasNet);
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e));
+                Outfits.Details(outfit.Value, seed, _details);
+                if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
+            }
+            int details = outfit != null ? _details.Count : 0;
             for (int pi = 0; pi < parts.Length; pi++)
             {
                 var part = parts[pi];
+                if (look.Child && pi == BlockFigure.HeadIndex)   // ⭐ CE-1099 (O-3) — a child's head is larger, sitting on his shoulders
+                    part = part with
+                    {
+                        Extent = part.Extent * ChildHead,
+                        Centre = part.Face == FaceOn.Front ? part.Centre + new Vector3(0f, 0f, part.Extent.Z * (ChildHead - 1f) / 2f) : part.Centre,
+                    };
                 if (geometry != null && part.Role == PartRole.Gear) continue;
                 // ⭐ CE-1070 — a figure's rifle (its weapon part): remember where its muzzle end was drawn, for the muzzle flash.
                 //   ⭐ CE-1090 — a shouldered launcher is that part too; its tip is also the CARRIED weapon's muzzle (its shot is the weapon's)
@@ -205,9 +231,19 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
                 var model = HrotToRaylib.ModelFromHrot(placed);
                 var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-                Raylib.DrawMesh(mesh, shader.Tinted(PartColour(part.Colour, colour, wreck)), model);
+                var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+                Raylib.DrawMesh(mesh, shader.Tinted(tint), model);
                 PartsDrawn++;
-                if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader);   // ⭐ CE-1097 (§6o)
+                if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
+                for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
+                    if (_details[k].Part == pi)
+                    {
+                        var d = _details[k];
+                        var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
+                        if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
+                        Raylib.DrawMesh(_cube, shader.Tinted(d.Colour), HrotToRaylib.ModelFromHrot(local * placed));
+                        DetailsDrawn++;
+                    }
                 for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
                     if (_stains[k].Part == pi)
                     {
@@ -478,6 +514,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — the blood spots drawn this frame.</summary>
     public int StainsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q) — the outfit details (tie, skirt, long hair, camouflage) drawn this frame.</summary>
+    public int DetailsDrawn { get; private set; }
 
     /// <summary>
     /// ⭐ CE-1092 (N-8) — how many bombs an attack plane still carries (at most its pylons): its bomb mount's rounds from the replicated
@@ -767,11 +806,14 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o) — the face on a figure's head: each detail is a box in the head box's own unit
     /// frame, turned onto the side the face is on (<see cref="BlockFigure.FaceFrame"/>) and then placed by the head's own transform
     /// (<paramref name="head"/>), so it follows every lean, twist, blend and fall.</summary>
-    private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader)
+    /// ⭐ CE-1099 (§6q) — in his <paramref name="outfit"/>'s skin and hair; no hair when he has none.
+    private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader, Outfit? outfit = null)
     {
         foreach (var d in BlockFigure.FaceParts(soldier))
         {
-            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform)), HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)));
+            if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
+            Raylib.DrawMesh(_cube, shader.Tinted(FaceColour(d.Shade, uniform, outfit?.Skin, outfit?.Hair)),
+                            HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)));
             FaceDetailsDrawn++;
         }
     }
@@ -786,13 +828,33 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         ref readonly var hp = ref world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e);
         int n = BlockFigure.StainCount(hp.Current, hp.Max);
         if (n == 0) return 0;
-        long seed = hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0 ? net : e.Index;
+        long seed = SeedOf(world, e, hasNet);
         _stains.Clear();
         for (int k = 0; k < n; k++) _stains.Add(BlockFigure.StainOf(seed, k));
         return n;
     }
 
     private readonly List<Stain> _stains = new(BlockFigure.MaxStains);
+
+    /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
+    private static long SeedOf(EntityRepository world, Entity e, bool hasNet)
+        => hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is long net && net != 0 ? net : e.Index;
+
+    /// <summary>⭐ CE-1099 (§6q O-4) — his side (replicated <see cref="EntityInfo.ForceId"/>); Neutral where there is none.</summary>
+    private static ForceId SideOf(EntityRepository world, Entity e)
+        => world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+
+    /// <summary>⭐ CE-1099 (§6q O-1) — true when his colour is HIS (authored on the entity, or named by his type), not the family default.</summary>
+    private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look)
+    {
+        if (look.TypeColoured) return true;
+        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e) && world.GetComponentRO<EntityAppearance>(e).HasColour)
+            return true;
+        return world.IsComponentTypeRegistered<VisualData>() && world.HasComponent<VisualData>(e)
+            && ParseHex(world.GetComponentRO<VisualData>(e).ColorHex) != null;
+    }
+
+    private readonly List<PartDetail> _details = new(Outfits.FleckPatches + 4);
 
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
@@ -802,12 +864,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>⭐ CE-1097 (§6o F-2, F-3) — a face detail's colour: the helmet is the uniform a step darker (so the side still reads from
     /// above, where the helmet is most of what is seen of a man).</summary>
-    public static Color FaceColour(FaceShade shade, Color uniform) => shade switch
+    /// ⭐ CE-1099 (§6q) — with a man's own <paramref name="skin"/> (the nose a shade of it) and <paramref name="hair"/> when given.
+    public static Color FaceColour(FaceShade shade, Color uniform, Color? skin = null, Color? hair = null) => shade switch
     {
         FaceShade.Eye => new Color(28, 24, 22, 255),
-        FaceShade.Nose => new Color(184, 142, 108, 255),
+        FaceShade.Nose => skin is { } s ? new Color((byte)(s.R * 0.88f), (byte)(s.G * 0.86f), (byte)(s.B * 0.84f), (byte)255) : new Color(184, 142, 108, 255),
         FaceShade.Mouth => new Color(132, 52, 48, 255),
-        FaceShade.Hair => new Color(62, 44, 32, 255),
+        FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
     };
 
@@ -913,8 +976,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         {
             size *= tall / size.Z;
         }
-        var colour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex) ?? DefaultColour(family);
-        return new TypeLook(family, size, colour, VisualFamilies.IsSoldier(t), geometry, weapon);
+        var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
+        return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
+                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight);
     }
 
     /// <summary>

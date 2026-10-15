@@ -1858,6 +1858,64 @@ hit is not.
 | ![blood front](assets/map-3d/blood-1-front.png) | ![blood above](assets/map-3d/blood-2-above.png) |
 | *health 15, 50, 85, 100 (left to right) — the more hurt, the more spots* | *from above; the dead man shows all 8 (some on the sides he lies on)* |
 
+### 6q. CE-1099 — what people wear: civilians in varied clothes, children, a soldier's camouflage by his side — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"Pedestrians body should not be green, color should vary, derived from tkb type, also some variation of dresses,
+short sleeves, skirts, shorts, suits etc. Children also needed. Soldiers also need to differ a bit based on their affiliation, maybe by
+different texture of their body uniform?"*
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a pedestrian is green because his TYPE has no colour | ✅ `CivilianPedestrian` (1001) has no `VisualDefinitionDto` (`UrbanCombatTkbCatalog.cs`), so `Resolve` falls to `DefaultColour(Person)` = green | ⛔ searched `docs/`, `.dev/` for clothing / camouflage / children: none found |
+| a figure's height comes from its type | ✅ `Resolve` scales the figure by `StrideRenderModelDefDto.ShapeHeight` | — |
+| every node knows a man's side | ✅ `EntityInfo.ForceId` (Neutral / Friend / Hostile) crosses the wire (`EntityInfoIngressTranslator`) | §3.7 M15 / M16 (the side palette) |
+| a soldier is told from a civilian by his type | ✅ `VisualFamilies.IsSoldier`: DIS 3.x.x.1 | — |
+| per-man detail can be repeatable on every node | ✅ the blood (§6p) seeds by the network id | §6p B-3 |
+
+```mermaid
+classDiagram
+    direction LR
+    class Outfits { <<NEW static>> For seed, soldier, child, type colour, side · ColourOfPart · Details }
+    class Outfit { <<NEW>> Top · Sleeve · Bottom · Shin · Skin · Hair · HairStyle · Legwear · Suit · Camo · Child }
+    class PartDetail { <<NEW>> Part · Centre · Extent · Colour · Frame }
+    class TypeLook { <<existing, grows>> + TypeColoured · Child }
+    class EntityBodyLayer3D { <<existing, grows>> each part in its outfit colour · the outfit's details · DetailsDrawn }
+    class UrbanCombatTkbCatalog { <<existing, grows>> + CivilianChild 1003 }
+    class EntityInfo { <<existing, replicated>> ForceId }
+    Outfits ..> Outfit
+    Outfits ..> PartDetail
+    EntityBodyLayer3D ..> Outfits
+    EntityBodyLayer3D ..> TypeLook
+    EntityBodyLayer3D ..> EntityInfo
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant O as Outfits
+    L->>O: For his network id, soldier or not, child or not, his type's colour, his side
+    O-->>L: the outfit, every choice drawn from the seed
+    L->>L: draw each part in its outfit colour
+    L->>O: Details of the outfit
+    L->>L: after each part, its details in that part's frame
+```
+
+*Caption:* the outfit is one value computed from facts every node already has, so a man looks the same everywhere and from frame to frame; the
+kit and its part order do not change — the outfit only colours the parts and adds details in their frames (as the face and the blood do).
+
+| decision (⭐ lean, built) | rule |
+|---|---|
+| **O-1 a civilian's colours** | his TYPE's colour when it has one (each man a little lighter or darker, the hue nudged); a type with none picks from a palette of everyday clothes — tops in many colours, trousers in jeans blue, khaki, grey, black, brown |
+| **O-2 what a civilian wears** | per man: long or short sleeves (short = skin-coloured forearms); trousers, shorts (skin shins) or — for a woman — a skirt to the knee; sometimes a dark suit with a white shirt and a tie; hair short, long or none, in a natural colour; skin in one of several tones |
+| **O-3 children** | a new type `CivilianChild` (1003): a pedestrian 1.25 m tall, slower; drawn smaller with a larger head, in brighter clothes |
+| **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — fleck (many small tan, brown and green spots); Neutral — plain |
+| **O-5 the same everywhere** | every choice is seeded by the network id (the entity index where there is none) and the type id |
+
+**Rejected — one line each:** *a real texture on the uniform* — the bodies are lit flat-coloured cubes with no texture binding in the shader;
+patches in the block style need no shader change and read the same at every distance the boxes do; *colour by side for the whole uniform* —
+the side palette is the 2-D map's symbol code, and a red or blue soldier stops reading as a soldier; *the outfit stored as a component* —
+nothing would write it on a replica, and the seed already makes it the same everywhere.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

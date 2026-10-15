@@ -538,9 +538,19 @@ public static class BlockFigure
         bool torso = part == TorsoIndex;
         int side = (int)(U() * (torso ? 6 : 4));
         float w = 0.36f + U() * 0.28f, h = w * (0.7f + U() * 0.6f);
-        float a = (U() - 0.5f) * 2f * (0.5f - w / 2f) * 0.9f, b = (U() - 0.5f) * 2f * (0.5f - h / 2f) * 0.9f;   // the whole spot on its side
+        var (c, e) = SpotOnSide(torso, side, U(), U(), w, h);
+        return new Stain(part, c, e, Fresh: U() < 0.5f);
+    }
+
+    /// <summary>⭐ CE-1098 / CE-1099 — a flat box lying on one SIDE of a figure part, in the part's unit frame: for the torso
+    /// (<paramref name="torso"/>) side 0–1 its chest, 2 its back, 3 / 4 its sides, 5 its shoulders; for a limb (which runs along its own x)
+    /// sides 0–3 the four faces along it. <paramref name="w"/> × <paramref name="h"/> is its size (fractions of the side), and
+    /// <paramref name="u"/>, <paramref name="v"/> (0..1) place it so the WHOLE box stays on the side. Shared by the blood and the camouflage.</summary>
+    internal static (Vector3 Centre, Vector3 Extent) SpotOnSide(bool torso, int side, float u, float v, float w, float h)
+    {
+        float a = (u - 0.5f) * 2f * (0.5f - w / 2f) * 0.9f, b = (v - 0.5f) * 2f * (0.5f - h / 2f) * 0.9f;
         const float Proud = 0.51f, Thin = 0.03f;
-        (Vector3 c, Vector3 e) = torso
+        return torso
             ? side switch
             {
                 0 or 1 => (new Vector3(Proud, a, b), new Vector3(Thin, w, h)),   // chest (twice as often: the side a man is seen from)
@@ -556,7 +566,6 @@ public static class BlockFigure
                 2 => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),
                 _ => (new Vector3(a, b, -Proud), new Vector3(w, h, Thin)),
             };
-        return new Stain(part, c, e, Fresh: U() < 0.5f);
     }
 
     /// <summary>⭐ CE-1098 — where spot <paramref name="st"/> is drawn: a unit box sized and placed in its part's frame, carried by that part's

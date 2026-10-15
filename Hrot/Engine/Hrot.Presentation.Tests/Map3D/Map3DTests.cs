@@ -937,6 +937,106 @@ public sealed class Map3DTests
         Assert.Equal(FaceOn.Up, BlockFigure.Fall(standing, 0.6f, true)[BlockFigure.HeadIndex].Face);
     }
 
+    /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-1, O-2, O-5) — civilians of a type with no colour are NOT the family green and
+    /// VARY: across sixty men every kind of clothes appears — long and short sleeves, trousers, shorts and skirts, a suit, long hair and
+    /// none; each man's outfit is repeatable. A type WITH a colour dresses its men in that colour, lighter or darker.</summary>
+    [Fact]
+    public void CE1099_Civilians_VaryInWhatTheyWear_AndATypesColourIsKept()
+    {
+        var green = EntityBodyLayer3D.DefaultColour(VisualFamily.Person);
+        var men = Enumerable.Range(1, 60).Select(s => Outfits.For(s, 1001, soldier: false, child: false, own: null, Fdp.Core.ForceId.Neutral)).ToArray();
+        Assert.DoesNotContain(men, o => o.Top.Equals(green));
+        Assert.True(men.Select(o => (o.Top.R, o.Top.G, o.Top.B)).Distinct().Count() >= 8, "their tops vary");
+        Assert.Contains(men, o => !o.Suit && o.Sleeve.Equals(o.Skin));                    // short sleeves
+        Assert.Contains(men, o => !o.Suit && o.Sleeve.Equals(o.Top));                     // long sleeves
+        Assert.Contains(men, o => o.Legwear == Legwear.Trousers);
+        Assert.Contains(men, o => o.Legwear == Legwear.Shorts);
+        Assert.Contains(men, o => o.Legwear == Legwear.Skirt);
+        Assert.Contains(men, o => o.Suit);
+        Assert.Contains(men, o => o.HairStyle == HairStyle.Long);
+        Assert.Contains(men, o => o.HairStyle == HairStyle.None);
+        Assert.True(men.Select(o => (o.Skin.R, o.Skin.G, o.Skin.B)).Distinct().Count() >= 3, "their skin varies");
+        Assert.Equal(Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral), Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral));
+
+        var red = new Raylib_cs.Color(200, 50, 50, 255);
+        var reds = Enumerable.Range(1, 40).Select(s => Outfits.For(s, 1001, false, false, red, Fdp.Core.ForceId.Neutral)).Where(o => !o.Suit).ToArray();
+        Assert.All(reds, o => Assert.True(o.Top.R > 2 * o.Top.G && o.Top.R > 2 * o.Top.B, $"a red type's man wears red ({o.Top.R},{o.Top.G},{o.Top.B})"));
+        Assert.True(reds.Select(o => o.Top.R).Distinct().Count() >= 5, "lighter or darker, man by man");
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-2) — what the clothes do to the figure: short sleeves bare the forearms, shorts and a skirt the shins (a
+    /// skirt the thighs too, under it), and the details come with them — a skirt, a suit's shirt and tie, long hair down the back.</summary>
+    [Fact]
+    public void CE1099_TheClothesColourTheParts_AndBringTheirDetails()
+    {
+        var all = Enumerable.Range(1, 200).Select(s => Outfits.For(s, 1001, false, false, null, Fdp.Core.ForceId.Neutral)).ToArray();
+        var details = new List<PartDetail>();
+
+        var skirt = all.First(o => o.Legwear == Legwear.Skirt);
+        Assert.Equal(skirt.Skin, Outfits.ColourOfPart(skirt, 0));
+        Assert.Equal(skirt.Skin, Outfits.ColourOfPart(skirt, 1));
+        Outfits.Details(skirt, 1, details);
+        Assert.Contains(details, d => d.Part == BlockFigure.TorsoIndex && d.Centre.Z < -0.5f && d.Colour.Equals(skirt.Bottom) && d.Turned);
+
+        var shorts = all.First(o => o.Legwear == Legwear.Shorts);
+        Assert.Equal(shorts.Bottom, Outfits.ColourOfPart(shorts, 0));
+        Assert.Equal(shorts.Skin, Outfits.ColourOfPart(shorts, 3));
+
+        var suit = all.First(o => o.Suit);
+        Outfits.Details(suit, 1, details);
+        Assert.Equal(2, details.Count(d => d.Part == BlockFigure.TorsoIndex && d.Centre.X > 0.5f));   // the shirt and the tie, on his chest
+        Assert.Equal(suit.Top, Outfits.ColourOfPart(suit, 9));                                        // a jacket's sleeves
+
+        var longHair = all.First(o => o.HairStyle == HairStyle.Long && !o.Suit && o.Legwear != Legwear.Skirt);
+        Outfits.Details(longHair, 1, details);
+        Assert.Single(details, d => d.Part == BlockFigure.HeadIndex && d.Centre.X < 0f && d.Colour.Equals(longHair.Hair));
+
+        Assert.Equal(all[0].Skin, Outfits.ColourOfPart(all[0], BlockFigure.HeadIndex));
+        Assert.Null(Outfits.ColourOfPart(all[0], BlockFigure.WeaponIndex));
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-4) — a soldier keeps his uniform (his trousers the same cloth darker, no longer black) and his SIDE adds
+    /// camouflage: a friend's woodland is fewer, larger patches, a hostile's fleck more, smaller ones; a neutral's uniform is plain.</summary>
+    [Fact]
+    public void CE1099_ASoldiersSide_GivesHisUniformItsCamouflage()
+    {
+        var olive = new Raylib_cs.Color(85, 107, 47, 255);
+        var friend = Outfits.For(9, 200, soldier: true, child: false, olive, Fdp.Core.ForceId.Friend);
+        var hostile = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Hostile);
+        var neutral = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Neutral);
+        Assert.Equal(olive, friend.Top);
+        Assert.Equal(olive, Outfits.ColourOfPart(friend, 7));
+        Assert.True(friend.Bottom.G < olive.G && friend.Bottom.G > friend.Bottom.R, "his trousers are the uniform's green, darker");
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Fleck, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+
+        var d = new List<PartDetail>();
+        Outfits.Details(friend, 9, d);
+        Assert.Equal(Outfits.WoodlandPatches, d.Count);
+        float woodlandSize = d.Average(p => MathF.Max(p.Extent.X, MathF.Max(p.Extent.Y, p.Extent.Z)));
+        Assert.All(d, p => Assert.NotEqual(BlockFigure.HeadIndex, p.Part));
+        Outfits.Details(hostile, 9, d);
+        Assert.Equal(Outfits.FleckPatches, d.Count);
+        float fleckSize = d.Average(p => MathF.Max(p.Extent.X, MathF.Max(p.Extent.Y, p.Extent.Z)));
+        Assert.True(woodlandSize > 1.6f * fleckSize, $"woodland patches ({woodlandSize}) are larger than fleck ({fleckSize})");
+        Outfits.Details(neutral, 9, d);
+        Assert.Empty(d);
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-3) — the CivilianChild type is a person 1.25 m tall, drawn as a child; a grown pedestrian is not.</summary>
+    [Fact]
+    public void CE1099_TheChildType_IsASmallPerson_DrawnAsAChild()
+    {
+        var db = BuiltIn();
+        var child = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianChild));
+        Assert.Equal(VisualFamily.Person, child.Family);
+        Assert.True(child.Child);
+        Assert.False(child.Soldier);
+        Assert.InRange(child.Size.Z, 1.2f, 1.3f);
+        var grown = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian));
+        Assert.False(grown.Child);
+        Assert.False(grown.TypeColoured);   // ⇒ his clothes come from the everyday palette, not the family green
+    }
+
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,
     /// all eight at none left (a dead man), none for a pool with no maximum.</summary>
     [Fact]

@@ -1471,7 +1471,7 @@ public sealed class Map3DFrameRail
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "face-1-front.png"));
-        Assert.Equal(5 * 5, bodies.FaceDetailsDrawn);   // five heads, each four features and a helmet or hair
+        Assert.InRange(bodies.FaceDetailsDrawn, 5 * 5 - 1, 5 * 5);   // five heads, each four features and a helmet or hair (⭐ CE-1099 — a civilian may be bald)
 
         // close on the standing riflemen
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y + 1.1f, ground + 1.55f), 1.6f, MathF.PI, -0.05f);
@@ -1544,6 +1544,76 @@ public sealed class Map3DFrameRail
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 1.2f, spot.Y, ground + 0.4f), 5.5f, 0.35f, -0.75f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "blood-2-above.png"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q) — the (V) acceptance for what people wear: a row of ten civilians (each dressed from his
+    /// own seed), three children, and soldiers of each side — two friends (woodland), two hostiles (fleck), one neutral (plain). Face-on,
+    /// then from above. Screenshots <c>dress-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1099_V_Civilians_Children_AndSoldiersBySide()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<EntityInfo>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        void Person(long type, float dx, float dy, ForceId side = ForceId.Neutral)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = side });
+        }
+        long civilian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, child = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianChild;
+        for (int i = 0; i < 10; i++) Person(civilian, 0f, 4.5f - i * 0.9f);
+        Person(child, 1.0f, 2.2f); Person(child, 1.0f, 1.3f); Person(child, 1.0f, 0.4f);
+        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 3.0f, ForceId.Friend);
+        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 2.0f, ForceId.Friend);
+        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 0.5f, ForceId.Hostile);
+        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -0.5f, ForceId.Hostile);
+        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -2.0f);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.9f), 9.5f, MathF.PI, -0.08f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "dress-1-front.png"));
+        Assert.True(bodies.DetailsDrawn >= 2 * Outfits.WoodlandPatches + 2 * Outfits.FleckPatches, $"details {bodies.DetailsDrawn}");
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2.0f, spot.Y + 0.5f, ground + 1.0f), 4.2f, MathF.PI, -0.12f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "dress-2-soldiers.png"));
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 0.5f, spot.Y, ground + 0.3f), 9f, 0.3f, -0.8f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "dress-3-above.png"));
     }
 
     /// <summary>A point of plain ground (not inside a building footprint) closest to the town's middle.</summary>
