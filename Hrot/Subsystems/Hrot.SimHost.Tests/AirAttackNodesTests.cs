@@ -486,5 +486,243 @@ namespace Hrot.SimHost.Tests
             Assert.True(closest < 200f, $"closest {closest} m — a plane flies through over the point");
             Assert.Equal(NodeStatus.Success, status);
         }
+
+        // ── ⭐ Slice 6d (Air Operations §9f) — DoorGunOrbit ─────────────────────────────────────────────────────────────────────────
+
+        private const long DoorHeli = 9412, DoorGun = 9413;
+        private const float DoorGunMuzzle = 850f;
+
+        private void Reg<T>() where T : unmanaged { if (!_w.IsComponentTypeRegistered<T>()) _w.RegisterComponent<T>(); }
+
+        /// <summary>The doors-off UH-60 as 404 has it (BdcTkbCatalog DoorSeats): no weapon of its own; per side a door gunner (seat 8 left,
+        /// 10 right) and a Door station operated by him (9, 11) holding an M134, its arc 20…160° on its side. The M134s are mounts 32 / 33.</summary>
+        private Entity SpawnDoorHeli(Vector3 at, out Entity leftGun, out Entity rightGun, out Entity leftGunner, out Entity rightGunner)
+        {
+            Reg<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            Reg<IsEmbarkedTag>();
+            Reg<PassengerBuffer>();
+            Reg<CarrierStations>();
+            Reg<Health>();
+            var db = _w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() as Fdp.Toolkit.Tkb.TkbDatabase;
+            if (!db!.TryGetByType(DoorGun, out _))
+            {
+                db.Register(new Fdp.Interfaces.TkbTemplate("door-heli", DoorHeli));
+                var g = new Fdp.Interfaces.TkbTemplate("m134", DoorGun);
+                g.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, Range = 1000f, InitialAmmunition = 3000, DamagePerHit = 30,
+                      MuzzleVelocity = DoorGunMuzzle } } });
+                db.Register(g);
+            }
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new SimVelocity());
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = DoorHeli });
+            _w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            _w.AddComponent(e, new LocomotionChannel());
+            _w.AddComponent(e, new WeaponChannel());
+            _w.AddComponent(e, new Fdp.Toolkit.Motion.FlightParams { TurnRadiusM = 60f });
+            var stations = new CarrierStations { StationMask = (ushort)((1 << 9) | (1 << 11)) };
+            float deg = MathF.PI / 180f;
+            stations.Seats[9] = new StationSeat { OperatedBy = 8, NeedsGunner = 1, HasArc = 1, TraverseMin = 20f * deg, TraverseMax = 160f * deg,
+                                                  ElevationMin = -90f * deg, ElevationMax = 90f * deg };
+            stations.Seats[11] = new StationSeat { OperatedBy = 10, NeedsGunner = 1, HasArc = 1, TraverseMin = -160f * deg, TraverseMax = -20f * deg,
+                                                   ElevationMin = -90f * deg, ElevationMax = 90f * deg };
+            _w.AddComponent(e, stations);
+            Entity Rider(byte seat, bool gun)
+            {
+                var r = _w.CreateEntity();
+                _w.AddComponent(r, new IsEmbarkedTag { VehicleEntity = e, Seat = seat, Exposed = 1 });
+                if (gun)
+                {
+                    _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+                    _w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = DoorGun });
+                    _w.AddComponent(r, new WeaponState { Ammo = 3000, MuzzleVelocity = DoorGunMuzzle });
+                }
+                else _w.AddComponent(r, new Health { Current = 100f, Max = 100f });
+                return r;
+            }
+            leftGunner = Rider(8, false); leftGun = Rider(9, true); rightGunner = Rider(10, false); rightGun = Rider(11, true);
+            var list = new PassengerBuffer { Count = 4 };
+            list.Passengers[8] = leftGunner; list.Passengers[9] = leftGun; list.Passengers[10] = rightGunner; list.Passengers[11] = rightGun;
+            _w.AddComponent(e, list);
+            return e;
+        }
+
+        private Entity SpawnTechnical(Vector3 at)
+        {
+            var t = _w.CreateEntity();
+            _w.AddComponent(t, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(t, new SimVelocity());
+            _w.AddComponent(t, new Health { Current = 100f, Max = 100f });
+            return t;
+        }
+
+        /// <summary>One frame of a door-gun orbit: the node, the real executor, the stand-in flight at 70 m/s; returns the frame's rounds
+        /// as (the gun that fired, the closest the round — the aim's direction at the gun's speed PLUS the helicopter's velocity, A4 — passes
+        /// the target).</summary>
+        private NodeStatus OrbitStep(ref AirAttackParams p, ref AirAttackState ws, Entity heli, FireAtPointExecutor executor, ref uint entered,
+            int frame, Vector3 target, System.Collections.Generic.List<(Entity Gun, float Miss)> shots, params Entity[] guns)
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+            var status = AirAttackNodes.Run(ref p, ref ws, heli, _w);
+            ref var wc = ref _w.GetComponentRW<WeaponChannel>(heli);
+            if (wc.ActiveAction == CombatConstants.ActionIdFireAtPoint)
+            {
+                if (wc.ActionInstanceId != entered) { executor.OnEnter(heli, ref wc, _w); entered = wc.ActionInstanceId; }
+                executor.Execute(heli, ref wc, _w, Dt);
+            }
+            foreach (var g in guns)
+            {
+                ref var w = ref _w.GetComponentRW<WeaponState>(g);
+                w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
+            }
+            _w.Bus.SwapBuffers();
+            var at = _w.GetComponentRO<SimTransform>(heli).Position;
+            var v = _w.GetComponentRO<SimVelocity>(heli).Linear;
+            foreach (ref readonly var i in _w.Bus.Read<WeaponFireIntent>())
+            {
+                var round = Vector3.Normalize(i.TargetPoint - at) * DoorGunMuzzle + v;
+                float miss = float.MaxValue;
+                for (float t = 0f; t < 2f; t += 0.0005f) miss = MathF.Min(miss, Vector3.Distance(at + round * t, target));
+                shots.Add((i.Shooter, miss));
+            }
+            FlyStandIn(heli, 70f, plane: false);
+            return status;
+        }
+
+        /// <summary>
+        /// ⭐ The doors-off UH-60 ordered to Attack a technical from 1.5 km: it picks <b>DoorGunOrbit</b> (it has no gun of its own), flies
+        /// onto a 400 m circle round the target at 100 m and goes round COUNTER-CLOCKWISE, the target on its left door — never hovering
+        /// (W4) — and only the LEFT M134 fires, every round (from the gun's aim at its speed plus the helicopter's 70 m/s, A4) passing within
+        /// 2 m of the target; when the target is destroyed the attack ends, Success.
+        /// ✅ Red-proofs (mutants): the turn's sign flipped ⇒ the target on the right door, whose gun is the one that fires ⇒ red; the lead
+        /// without the helicopter's velocity ⇒ the rounds miss by ~30 m ⇒ red; the orbit steered AT the target ⇒ it arrives and hovers ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6d_TheDoorsOffHelicopter_OrbitsTheTarget_ItsLeftDoorGunFires_UntilTheTargetIsDown()
+        {
+            var heli = SpawnDoorHeli(new Vector3(-1500f, 0f, 100f), out var leftGun, out var rightGun, out _, out _);
+            var tech = SpawnTechnical(Vector3.Zero);
+            Assert.Equal(AirAttackProfile.DoorGunOrbit, AirAttackProfiles.Pick(_w, heli, out _, out _, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0));
+            var p = new AirAttackParams { Target = tech, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var shots = new System.Collections.Generic.List<(Entity Gun, float Miss)>();
+            uint entered = 0;
+            var status = NodeStatus.Running;
+            bool onCircle = false;
+            float nearest = float.MaxValue, farthest = 0f, turned = 0f, lowest = float.MaxValue, slowest = float.MaxValue;
+            float last = MathF.Atan2(0f, -1500f);
+            int frame = 0;
+            for (; frame < 60 * 120 && status == NodeStatus.Running; frame++)
+            {
+                if (frame == 60 * 80) _w.GetComponentRW<Health>(tech).Current = 0f;   // the target is destroyed after ~2 turns
+                status = OrbitStep(ref p, ref ws, heli, executor, ref entered, frame, Vector3.Zero, shots, leftGun, rightGun);
+                var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                float r = new Vector2(at.X, at.Y).Length(), bearing = MathF.Atan2(at.Y, at.X);
+                if (!onCircle && r < 1.1f * AirAttackNodes.DefaultOrbitRadiusM) onCircle = true;
+                if (!onCircle) { last = bearing; continue; }
+                nearest = MathF.Min(nearest, r);
+                farthest = MathF.Max(farthest, r);
+                lowest = MathF.Min(lowest, at.Z);
+                slowest = MathF.Min(slowest, _w.GetComponentRO<SimVelocity>(heli).Linear.Length());
+                turned += MathF.IEEERemainder(bearing - last, 2f * MathF.PI);
+                last = bearing;
+            }
+
+            Assert.True(onCircle, "it reached the orbit");
+            Assert.InRange(nearest, 0.75f * AirAttackNodes.DefaultOrbitRadiusM, AirAttackNodes.DefaultOrbitRadiusM);
+            Assert.InRange(farthest, AirAttackNodes.DefaultOrbitRadiusM, 1.25f * AirAttackNodes.DefaultOrbitRadiusM);
+            Assert.True(turned > 2f * MathF.PI, $"counter-clockwise, more than a full turn: {turned:F2} rad");
+            Assert.True(slowest > 60f, $"never hovers (W4): slowest {slowest:F1} m/s on the circle");
+            Assert.InRange(lowest, AirAttackNodes.DefaultOrbitHeightAgl - 10f, AirAttackNodes.DefaultOrbitHeightAgl + 10f);
+            Assert.True(shots.Count >= 60, $"the door gun fired: {shots.Count} rounds");
+            Assert.All(shots, s => Assert.Equal(leftGun, s.Gun));
+            Assert.All(shots, s => Assert.True(s.Miss < 2f, $"a round passed {s.Miss:F1} m from the target"));
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.InRange(frame, 60 * 80, 60 * 80 + 2);
+        }
+
+        /// <summary>
+        /// ⭐ Vignette ⑤'s rule — <i>"a door gunner shot ⇒ his gun falls silent"</i>: the left gunner is hit mid-orbit ⇒ the left M134 never
+        /// fires again, the orbit REVERSES (clockwise) and the right door's gun takes over; the right gunner hit too ⇒ every door gun is
+        /// silent ⇒ the attack fails (logged), and no round leaves after it.
+        /// ✅ Red-proof (mutant): no reversal ⇒ the right gun never bears ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6d_ADoorGunnerShot_HisGunFallsSilent_TheOrbitTurnsTheOtherDoorIn()
+        {
+            var heli = SpawnDoorHeli(new Vector3(-1500f, 0f, 100f), out var leftGun, out var rightGun, out var leftGunner, out var rightGunner);
+            var tech = SpawnTechnical(Vector3.Zero);
+            var p = new AirAttackParams { Target = tech, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var shots = new System.Collections.Generic.List<(Entity Gun, float Miss)>();
+            uint entered = 0;
+            var status = NodeStatus.Running;
+            int leftDown = 60 * 40, rightDown = 60 * 90, leftShotsBefore = 0, rightShotsBetween = 0, after = 0;
+            float turnedBefore = 0f, turnedAfter = 0f, last = MathF.Atan2(0f, -1500f);
+            int frame = 0;
+            for (; frame < 60 * 120 && status == NodeStatus.Running; frame++)
+            {
+                if (frame == leftDown) _w.GetComponentRW<Health>(leftGunner).Current = 0f;
+                if (frame == rightDown) _w.GetComponentRW<Health>(rightGunner).Current = 0f;
+                int before = shots.Count;
+                status = OrbitStep(ref p, ref ws, heli, executor, ref entered, frame, Vector3.Zero, shots, leftGun, rightGun);
+                for (int i = before; i < shots.Count; i++)
+                {
+                    if (frame < leftDown && shots[i].Gun == leftGun) leftShotsBefore++;
+                    if (frame >= leftDown && shots[i].Gun == leftGun) Assert.Fail($"the left gun fired at frame {frame}, its gunner down at {leftDown}");
+                    if (frame >= leftDown && frame < rightDown && shots[i].Gun == rightGun) rightShotsBetween++;
+                    if (frame >= rightDown) after++;
+                }
+                var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                float bearing = MathF.Atan2(at.Y, at.X), d = MathF.IEEERemainder(bearing - last, 2f * MathF.PI);
+                last = bearing;
+                if (frame > leftDown - 60 * 10 && frame < leftDown) turnedBefore += d;
+                if (frame > leftDown + 60 * 20 && frame < rightDown) turnedAfter += d;
+            }
+
+            Assert.True(leftShotsBefore > 0, "the left gun fired while its gunner stood");
+            Assert.True(turnedBefore > 0f, $"counter-clockwise before: {turnedBefore:F2}");
+            Assert.True(turnedAfter < -1f, $"clockwise after the left gunner fell: {turnedAfter:F2}");
+            Assert.True(rightShotsBetween > 0, "the right door's gun took over");
+            Assert.Equal(0, after);
+            Assert.Equal(NodeStatus.Failure, status);
+            Assert.InRange(frame, rightDown, rightDown + 2);
+        }
+
+        /// <summary>
+        /// ⭐ A STRIKE (a point, no entity) by the door guns ends after ONE full turn ON THE CIRCLE with rounds out — Success.
+        /// ✅ Red-proofs (mutants): the end at two turns ⇒ red; the approach's own turning counted as orbit ⇒ it ends short of a turn
+        /// on the circle ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6d_ADoorGunOrbitOnAPoint_EndsAfterOneFullTurn()
+        {
+            var heli = SpawnDoorHeli(new Vector3(-1500f, 0f, 100f), out var leftGun, out var rightGun, out _, out _);
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var shots = new System.Collections.Generic.List<(Entity Gun, float Miss)>();
+            uint entered = 0;
+            var status = NodeStatus.Running;
+            int frame = 0;
+            bool onCircle = false;
+            float turned = 0f, last = 0f;
+            for (; frame < 60 * 120 && status == NodeStatus.Running; frame++)
+            {
+                status = OrbitStep(ref p, ref ws, heli, executor, ref entered, frame, Vector3.Zero, shots, leftGun, rightGun);
+                var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                float bearing = MathF.Atan2(at.Y, at.X);
+                if (onCircle) turned += MathF.Abs(MathF.IEEERemainder(bearing - last, 2f * MathF.PI));
+                else onCircle = new Vector2(at.X, at.Y).Length() < 1.1f * AirAttackNodes.DefaultOrbitRadiusM;
+                last = bearing;
+            }
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.True(turned > 2f * MathF.PI - 0.15f, $"a full turn ON the circle before it ends: {turned:F2} rad");
+            Assert.True(shots.Count > 0);
+            Assert.InRange(ws.Swept, 2f * MathF.PI, 2f * MathF.PI + 0.1f);
+        }
     }
 }

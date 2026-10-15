@@ -1310,7 +1310,7 @@ def run_squad_bound_open_ground(c, timeout):
 # ── ua-air-strike (CE-2173 slice 5; docs/designs/air-attack/DESIGN_Air_Operations.md §9c) — a plane bombs a point ─────────────
 #   The A-10 is ordered AirPlatformStrike on the Target Technical from 3.8 km out: it flies straight at the target at 300 m, its weapon
 #   brain releases ONE Mk-82 on the cue (where a bomb dropped now lands has reached the target), the bomb falls and bursts on the target,
-#   and the A-10 flies on out. The Far Technical, 125 m away, is outside the burst. ⭐ NO HTTP WRITE but play.
+#   and the A-10 flies on out. The Far Technical, 125 m away, is outside the lethal burst (holed at most). ⭐ NO HTTP WRITE but play.
 
 def run_air_strike(c, timeout):
     ids = ids_by_name()
@@ -1337,7 +1337,9 @@ def run_air_strike(c, timeout):
     wait_for(lambda: (h := health(target)) is not None and h < 100, 5)   # ⚠ a predicate, not the value: Health 0 is falsy
     ht, hf = health(target), health(far)
     c.ok(ht is not None and ht < 100, f"③ the target is hit — Health {ht}")
-    c.ok(hf is not None and hf >= 100, f"④ the far technical is not — Health {hf}")
+    # ⭐ AE5 / CE-3203 (DESIGN_Armour_Hit_Model §7.7): a Mk-82's fragments HOLE a pickup at ~120 m (by design — "holed and mobile"), so
+    #   ④ is "not destroyed", not "untouched". 📌 backend measured 3 of 4 live runs below Health 100 at 123 m (RESUME_Backend_Lane §000).
+    c.ok(hf is not None and hf > 0, f"④ the far technical (≈123 m) is not destroyed — Health {hf}")
     p0 = position(plane)
     time.sleep(3)
     p1 = position(plane)

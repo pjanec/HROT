@@ -28,6 +28,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6c — a plane's very low level pass (it stands for the shallow dive the model cannot fly): its fixed gun inside
         /// the window, then through and out (§9e).</summary>
         GunRun = 4,
+        /// <summary>⭐ Slice 6d — a helicopter whose guns are its DOOR guns (the doors-off UH-60) circles the target with the door that bears
+        /// turned to it, its door gunners firing; a gunner shot ⇒ his gun falls silent and the orbit turns the other door in (§9f).</summary>
+        DoorGunOrbit = 5,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -59,6 +62,9 @@ namespace Hrot.AI.Behaviors.Brains
         public StrikeTargetKind Kind;
         /// <summary>⭐ Slice 6c (W3) — 1 ⇒ fire although friends or neutrals stand inside the weapon's burst.</summary>
         public byte DangerClose;
+        /// <summary>⭐ Slice 6d — a door-gun orbit's radius (m); 0 ⇒ <see cref="AirAttackNodes.DefaultOrbitRadiusM"/>, at least two turn
+        /// radii, at most 0.8 × the door gun's range.</summary>
+        public float OrbitRadiusM;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — the attack's working state (the stage of the pass, the weapon's release node).</summary>
@@ -81,6 +87,13 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Fired;
         /// <summary>⭐ Slice 6c (B14) — mounts that ran dry (bit i = mount i): the next pass picks among the others.</summary>
         public ushort Spent;
+        /// <summary>⭐ Slice 6d — the bearing turned round the target on the orbit so far (rad), and the last bearing it was at.</summary>
+        public float Swept;
+        public float LastBearing;
+        /// <summary>⭐ Slice 6d — the orbit's turn: +1 counter-clockwise (the target on the LEFT door), −1 clockwise (the right).</summary>
+        public sbyte Turn;
+        /// <summary>⭐ Slice 6d — door guns that ran dry (bit k = mount 32 + k).</summary>
+        public byte DoorDry;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -120,6 +133,8 @@ namespace Hrot.AI.Behaviors.Brains
                       : firstGun != None ? AirAttackProfile.GunRun : null;
             else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && (rockets != None || firstGun != None))
                 picked = AirAttackProfile.RunningFire;
+            else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && !heavy && DoorGuns(world, aircraft, stackalloc byte[MaxDoorGuns]) > 0)
+                picked = AirAttackProfile.DoorGunOrbit;   // ⭐ slice 6d — its only guns are in its doors
             mount = gun = None;
             if (picked is { } p) MountsFor(bomb, rockets, firstGun, p, out mount, out gun);
             return picked;
@@ -136,6 +151,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6c — the same, passing over the mounts in <paramref name="excluded"/>.</summary>
         public static bool MountsFor(EntityRepository world, Entity aircraft, AirAttackProfile profile, ushort excluded, out byte mount, out byte gun)
         {
+            if (profile == AirAttackProfile.DoorGunOrbit)
+            {
+                mount = gun = None;
+                return DoorGuns(world, aircraft, stackalloc byte[MaxDoorGuns]) > 0;
+            }
             Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
             return MountsFor(bomb, rockets, firstGun, profile, out mount, out gun);
         }
@@ -170,6 +190,22 @@ namespace Hrot.AI.Behaviors.Brains
                         if (gun == None) gun = (byte)i; break;
                 }
             }
+        }
+
+        public const int MaxDoorGuns = 4;
+
+        /// <summary>⭐ Slice 6d (§9f) — the aircraft's DOOR guns: the weapon systems it controls (mount <c>32 + k</c>,
+        /// <see cref="WeaponSystems.Controlled"/>) whose own mount is a machine gun or an autocannon, written to <paramref name="mounts"/>;
+        /// returns the count. A gun whose gunner is down is still listed (<see cref="WeaponSystems.CanFire(EntityRepository, Entity)"/> says whether it may fire).</summary>
+        public static int DoorGuns(EntityRepository world, Entity aircraft, Span<byte> mounts)
+        {
+            Span<Entity> weapons = stackalloc Entity[WeaponSystems.MaxControlled];
+            int n = WeaponSystems.Controlled(world, aircraft, weapons), count = 0;
+            for (int k = 0; k < n && count < mounts.Length; k++)
+                if (CombatTkb.MountOf(world, weapons[k], 0)?.Category is Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun
+                                                                    or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon)
+                    mounts[count++] = (byte)(WeaponSystems.ControlledMountBase + k);
+            return count;
         }
 
         /// <summary>⭐ Slice 6c (W3, R-2020) — the mounts whose round would hurt a friend or a neutral standing near
@@ -238,7 +274,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6c — a gun run stops firing this far from the target (m) and flies through.</summary>
         public const float DefaultGunRunBreakM = 600f;
 
-        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3;
+        /// <summary>⭐ Slice 6d — a door-gun orbit's radius round the target (m) and its height above it (m): 📐 at 400 m / 100 m the guns
+        /// look down 14°, inside the M134 pintle's −60°, and the 404 (70 m/s) goes round in ~36 s (Air Operations §9f).</summary>
+        public const float DefaultOrbitRadiusM = 400f;
+        public const float DefaultOrbitHeightAgl = 100f;
+        /// <summary>⭐ Slice 6d — the orbit is steered at the point this far round the circle ahead of the helicopter (rad, 30°).</summary>
+        public const float OrbitLeadRad = MathF.PI / 6f;
+
+        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
 
         /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
@@ -269,19 +312,33 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Stage == StageStart)
             {
                 if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
-                ws.Dir = p.BearingGiven != 0
-                    ? new Vector2(MathF.Sin(p.RunInBearingDeg * MathF.PI / 180f), MathF.Cos(p.RunInBearingDeg * MathF.PI / 180f))
-                    : Flat(target - at);
-                if (p.BearingGiven != 0)
+                if (ws.Profile == AirAttackProfile.DoorGunOrbit)
                 {
-                    var start = target - new Vector3(ws.Dir * RunIn(in p, world, self), 0f);
-                    if (!Fly(world, self, start, in p, ws.Profile)) return NodeStatus.Failure;
-                    ws.Stage = StageToRunIn;
-                    return NodeStatus.Running;
+                    // ⭐ slice 6d — no run-in: it flies onto the circle from wherever it is
+                    ws.Stage = StageOrbit;
+                    ws.Turn = 0;
+                    ws.Swept = 0f;
+                    ws.LastBearing = MathF.Atan2(at.Y - target.Y, at.X - target.X);
+                    ws.NextSteer = 0;
                 }
-                ws.Stage = StageRunIn;
-                ws.NextSteer = 0;
+                else
+                {
+                    ws.Dir = p.BearingGiven != 0
+                        ? new Vector2(MathF.Sin(p.RunInBearingDeg * MathF.PI / 180f), MathF.Cos(p.RunInBearingDeg * MathF.PI / 180f))
+                        : Flat(target - at);
+                    if (p.BearingGiven != 0)
+                    {
+                        var start = target - new Vector3(ws.Dir * RunIn(in p, world, self), 0f);
+                        if (!Fly(world, self, start, in p, ws.Profile)) return NodeStatus.Failure;
+                        ws.Stage = StageToRunIn;
+                        return NodeStatus.Running;
+                    }
+                    ws.Stage = StageRunIn;
+                    ws.NextSteer = 0;
+                }
             }
+
+            if (ws.Stage == StageOrbit) return Orbit(ref p, ref ws, self, world, at, target, now, entity);
 
             if (ws.Stage == StageToRunIn)
             {
@@ -392,6 +449,142 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>
+        /// ⭐ Slice 6d (§9f) — the door-gun orbit: steered round the target at <see cref="OrbitRadius"/> with the door that bears turned to it
+        /// (counter-clockwise ⇒ the LEFT door), every frame the first door gun that may fire (<see cref="WeaponSystems.CanFire(EntityRepository, Entity)"/> — a gunner
+        /// down silences his gun, WS-3), is not dry, and has the led point in its station arc and in range fires a burst through
+        /// <c>FireAtPoint(32 + k)</c>; no able gun on the turning side but one on the other ⇒ the orbit reverses. Ends: an entity dead
+        /// (handled in <see cref="Run"/>) · a point after one full turn with rounds out ⇒ Success · every door gun silent or dry, or
+        /// <see cref="MaxPasses"/> turns with the target alive ⇒ Failure, logged.
+        /// </summary>
+        private static NodeStatus Orbit(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world,
+                                        Vector3 at, Vector3 target, double now, bool entity)
+        {
+            float radius = OrbitRadius(in p, world, self);
+            float bearing = MathF.Atan2(at.Y - target.Y, at.X - target.X);
+            // the turn counts from the moment it is ON the circle (within 1.1 R), then on — 📐 a 1.5 R gate counted the approach's own
+            //   swing, and a point strike ended 23° short of a full turn on the circle (rail-measured)
+            if (ws.Swept > 0f || new Vector2(at.X - target.X, at.Y - target.Y).Length() < 1.1f * radius)
+                ws.Swept += MathF.Abs(MathF.IEEERemainder(bearing - ws.LastBearing, 2f * MathF.PI));
+            ws.LastBearing = bearing;
+
+            Span<byte> guns = stackalloc byte[AirAttackProfiles.MaxDoorGuns];
+            int n = AirAttackProfiles.DoorGuns(world, self, guns);
+            // the turn: the door whose gun may fire, turned to the target — a gunner down on this side ⇒ the other side (the reversal
+            //   stops the silenced gun's burst; 404 has one gun a side, so no other stop is needed — mutant-measured, §9f)
+            bool left = false, right = false;
+            for (int i = 0; i < n; i++)
+            {
+                if (!Able(world, self, guns[i], ws.DoorDry)) continue;
+                int side = Side(world, self, guns[i]);
+                left |= side > 0;
+                right |= side < 0;
+            }
+            if (!left && !right)
+            {
+                StopFire(world, self, ref ws);
+                BehaviorLog.Error(self, world, "AirAttack: every door gun is silent or empty.");
+                return NodeStatus.Failure;
+            }
+            if (ws.Turn == 0 || (ws.Turn > 0 ? !left : !right))
+            {
+                if (ws.Turn != 0) StopFire(world, self, ref ws);
+                ws.Turn = left ? (sbyte)1 : (sbyte)-1;
+                ws.NextSteer = 0;
+            }
+
+            if (now >= ws.NextSteer)
+            {
+                float ahead = bearing + ws.Turn * OrbitLeadRad;
+                var to = new Vector3(target.X + radius * MathF.Cos(ahead), target.Y + radius * MathF.Sin(ahead), target.Z);
+                if (!Fly(world, self, to, in p, ws.Profile)) return NodeStatus.Failure;
+                ws.NextSteer = now + SteerPeriod;
+            }
+
+            // the fire: the running burst follows the led point; else the first gun that bears starts one
+            if (ws.Fire.Started == 0)
+            {
+                ws.GunMount = AirAttackProfiles.None;
+                for (int i = 0; i < n && ws.GunMount == AirAttackProfiles.None; i++)
+                {
+                    if (!Able(world, self, guns[i], ws.DoorDry)) continue;
+                    var weapon = WeaponSystems.ControlledAt(world, self, guns[i]);
+                    ws.GunMount = guns[i];
+                    var lead = AimPoint(in p, in ws, self, world);
+                    float range = MountDto(world, self, guns[i])?.Range ?? 0f;
+                    if ((range > 0f && Vector3.Distance(at, lead) > 0.9f * range) || !WeaponSystems.InStationArc(world, weapon, lead))
+                        ws.GunMount = AirAttackProfiles.None;
+                }
+            }
+            if (ws.GunMount != AirAttackProfiles.None)
+            {
+                var aim = AimPoint(in p, in ws, self, world);
+                var fire = new FireAtPointNodeParams
+                {
+                    Point = aim, Mount = ws.GunMount, Started = ws.Fire.Started, Rounds = GunBurst, CooldownSeconds = GunIntervalS,
+                };
+                var status = FireAtPointNodes.FireAtPoint(ref fire, self, world);
+                ws.Fire = fire;
+                if (status == NodeStatus.Running) Retarget(world, self, ws.Fire.Started, aim);
+                else
+                {
+                    if (status == NodeStatus.Success) ws.Fired = 1;
+                    else ws.DoorDry |= (byte)(1 << (ws.GunMount - WeaponSystems.ControlledMountBase));   // dry (or refused)
+                    ws.Fire = default;
+                    ws.GunMount = AirAttackProfiles.None;
+                }
+            }
+
+            const float FullTurn = 2f * MathF.PI;
+            if (!entity && ws.Fired != 0 && ws.Swept >= FullTurn) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+            if (ws.Swept >= FullTurn * MaxPasses)
+            {
+                StopFire(world, self, ref ws);
+                BehaviorLog.Error(self, world, $"AirAttack: the target survived {MaxPasses} turns of the door guns.");
+                return NodeStatus.Failure;
+            }
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ Slice 6d — may door gun <paramref name="mount"/> (32 + k) fire now: listed, not dry, <see cref="WeaponSystems.CanFire(EntityRepository, Entity)"/>.</summary>
+        private static bool Able(EntityRepository world, Entity self, byte mount, byte dry)
+        {
+            if (!WeaponSystems.IsControlledIndex(mount) || (dry & (1 << (mount - WeaponSystems.ControlledMountBase))) != 0) return false;
+            var weapon = WeaponSystems.ControlledAt(world, self, mount);
+            return !weapon.IsNull && WeaponSystems.CanFire(world, weapon);
+        }
+
+        /// <summary>⭐ Slice 6d — which door <paramref name="mount"/> covers: +1 the left (its station arc holds a point abeam to the left),
+        /// −1 the right, 0 neither.</summary>
+        private static int Side(EntityRepository world, Entity self, byte mount)
+        {
+            var weapon = WeaponSystems.ControlledAt(world, self, mount);
+            if (weapon.IsNull || !world.HasComponent<SimTransform>(self)) return 0;
+            ref readonly var tr = ref world.GetComponentRO<SimTransform>(self);
+            if (WeaponSystems.InStationArc(world, weapon, tr.Position + Vector3.Transform(new Vector3(0f, 100f, -25f), tr.Rotation))) return 1;
+            if (WeaponSystems.InStationArc(world, weapon, tr.Position + Vector3.Transform(new Vector3(0f, -100f, -25f), tr.Rotation))) return -1;
+            return 0;
+        }
+
+        /// <summary>⭐ Slice 6d — the orbit's radius: the order's, else <see cref="DefaultOrbitRadiusM"/> held inside 0.8 × the first door
+        /// gun's range and outside two turn radii.</summary>
+        private static float OrbitRadius(in AirAttackParams p, EntityRepository world, Entity self)
+        {
+            if (p.OrbitRadiusM > 0f) return p.OrbitRadiusM;
+            float r = DefaultOrbitRadiusM;
+            Span<byte> guns = stackalloc byte[AirAttackProfiles.MaxDoorGuns];
+            if (AirAttackProfiles.DoorGuns(world, self, guns) > 0 && MountDto(world, self, guns[0]) is { Range: > 0f } gun) r = MathF.Min(r, 0.8f * gun.Range);
+            float turn = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self).TurnRadius : 0f;
+            return MathF.Max(r, 2f * turn);
+        }
+
+        /// <summary>The TKB mount behind <paramref name="mount"/>: the aircraft's own, or — a controlled index (32 + k) — the weapon
+        /// system's own mount 0.</summary>
+        private static Fdp.Toolkit.Tkb.Domain.WeaponMountDto? MountDto(EntityRepository world, Entity self, byte mount)
+            => mount == AirAttackProfiles.None ? null
+             : WeaponSystems.IsControlledIndex(mount) ? CombatTkb.MountOf(world, WeaponSystems.ControlledAt(world, self, mount), 0)
+             : CombatTkb.MountOf(world, self, mount);
+
         /// <summary>⭐ Slice 6c — picks the pass's profile and mounts: the order's profile or the table's (B12, W1), passing over the mounts
         /// that ran dry (<see cref="AirAttackState.Spent"/>) and — unless danger close — those whose round would hurt a friend or a neutral
         /// near the point (W3). False (logged) when nothing is left.</summary>
@@ -445,7 +638,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// engine's fallback (the order <c>AimAndFireExecutor.GuidedFlightSeconds</c> reads them in).</summary>
         private static float RoundSpeed(EntityRepository world, Entity self, byte mount)
         {
-            var m = mount == AirAttackProfiles.None ? null : CombatTkb.MountOf(world, self, mount);
+            var m = MountDto(world, self, mount);   // ⭐ slice 6d — a door gun's own mount
             if (m == null) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
             return CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is { SpeedMps: > 0f } missile ? missile.SpeedMps
                  : m.MuzzleVelocity > 0f ? m.MuzzleVelocity
@@ -538,6 +731,7 @@ namespace Hrot.AI.Behaviors.Brains
                 AirAttackProfile.RocketRun => DefaultRocketRunHeightAgl,
                 AirAttackProfile.RunningFire => DefaultRunningFireHeightAgl,
                 AirAttackProfile.GunRun => DefaultGunRunHeightAgl,
+                AirAttackProfile.DoorGunOrbit => DefaultOrbitHeightAgl,
                 _ => DefaultAttackHeightAgl,
             };
             return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);

@@ -337,6 +337,37 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 6d (docs/designs/air-attack/DESIGN_Air_Operations.md §9f; A4, WS-3) — a DOOR GUN on a flying helicopter:
+        /// the shooter of the intent is the weapon SYSTEM (an M134 in the 404's door station), which has no locomotion of its own; its round
+        /// still leaves at its muzzle speed along the aim PLUS the helicopter's velocity — the carrier is the body it sits in
+        /// (<see cref="HitModel.BodyOf"/>, the one WS-3 already aims from). ✅ Red-proof: the A4 rule read from the weapon itself ⇒ the round
+        /// leaves at the muzzle speed alone, 70 m/s short along the track.
+        /// </summary>
+        [Fact]
+        public void S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var carrier = new Vector3(70f, 0f, 0f);
+            var heli = SpawnTarget(new Vector3(0f, 0f, 100f));
+            _world.AddComponent(heli, new SimVelocity { Linear = carrier });
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            var m134 = SpawnShooter(new Vector3(3f, 1.35f, 99.3f), muzzleVelocity: 850f);
+            _world.AddComponent(m134, new WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(m134, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Seat = 9 });
+            var target = SpawnTarget(new Vector3(0f, 400f, 0f));   // abeam to the left
+
+            PublishIntent(m134, target);
+            _sys.Execute(_world, 0.016f);
+            var round = Assert.Single(Rounds());
+            var own = _world.GetComponent<SimVelocity>(round).Linear - carrier;
+            Assert.Equal(850f, own.Length(), 1);                                        // its own speed along the aim …
+            Assert.True(own.Y > 800f, $"towards the target abeam: {own}");             // … which points left, at the target …
+            Assert.True(MathF.Abs(own.X) < 1f, $"… so the helicopter's 70 m/s is ALL carrier: {own}");
+        }
+
+        /// <summary>
         /// ⭐⭐ Indirect fire IF-1 (I3, I4; DESIGN_Indirect_Fire §3.1, IF-F) — the SimHost flies the brain's fire solution exactly: the intent's
         /// CHARGE (its speed from the round's charge table) on the intent's ARC — no second decision; charge 0 keeps today's arc. A tube's
         /// rounds scatter round the point by the mount's dispersion (azimuth AND range), the SAME on every run (no random source).
