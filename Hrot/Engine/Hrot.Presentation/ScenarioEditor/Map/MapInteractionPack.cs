@@ -312,6 +312,8 @@ namespace Hrot.ScenarioEditor.Map
             var menuOrders = new MenuOrders(ctx.World) { Selected = () => selection.SelectedEntities };   // ⭐ CE-1059 — O6
             Hrot.UI.Common.AddEntity.EntityAuthoring? authoringForForm = null;
             Hrot.Presentation.Orders.OrderForm? orderForm = null;
+            // ⭐ §6x (DESIGN_Map_3D_Mode FX-1..FX-3) — the fire mission's aim points: drawn from what each gun publishes, so a replay too
+            globalManager.Register(GlobalGizmoManager.NewId(), new Hrot.Presentation.Orders.FireMissionOverlayGizmo(() => selection.SelectedEntities));
             if (ctx.IsReplayActive?.Invoke() != true)
             {
                 menuOrders.RegisterOn(actions);

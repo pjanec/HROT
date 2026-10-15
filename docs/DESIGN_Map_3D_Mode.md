@@ -2384,6 +2384,67 @@ Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the ca
 |---|---|
 | ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
 
+### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built
+([Indirect Fire §3.7](designs/indirect-fire/DESIGN_Indirect_Fire.md)).
+
+**INVENTORY** (grep + graph: `BatteryFireMissionPlay`, `FireAtPointExecutor`, `WeaponPostureOf`, the order form):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| each gun of a battery mission runs `FireAtPoint` on ITS OWN aim point (the sheaf), and holds laid until its fire time | ✅ `IndirectFireBehaviors.cs:100` `AimPoint`; `FireAtPointExecutor` holds with `AwaitingFireTime` | Indirect Fire §3.4, FM-3 |
+| while it holds or fires, the gun's replicated `WeaponPosture` is AIMED at that POINT | ✅ `WeaponPostureOf.For` (`AwaitingFireTime`, `Firing` ⇒ Aimed) and `Report` (`Point` when no target), called from `FireAtPointExecutor.Say` (`:277`) | Weapon Layers W-13b, R-272 |
+| an indirect weapon is a mount with an `IndirectArc` | ✅ `WeaponMountDto.Arc` (`CombatTkb.MountOf`); a controlled weapon by its index 32 + k (`WeaponSystems.ControlledAt`) | IF-1 I2 |
+| the order form is the ONE reflected form over the order struct | ✅ `OrderForm` + `OrderMenu.FieldsOf`; `StrikeOrder` carries Method · Rounds · Sheaf · SheafWidthM · Control · ImpactInS · DangerClose | §13.12 (Orders design), IF-2 |
+| a passive overlay on every map host has a home | ✅ `DesignationOverlayGizmo` registered by `MapInteractionPack` | §13.12 O8 |
+
+```mermaid
+classDiagram
+    direction LR
+    class FireMissionOverlayGizmo { <<NEW passive global gizmo>> AimsOf(world) · UpdateAndDraw }
+    class WeaponPosture { <<existing, replicated>> Kind Point Target ActiveMount }
+    class CombatTkb { <<existing>> MountOf · WarheadOf }
+    class WeaponSystems { <<existing>> ControlledAt }
+    class SidePalette { <<existing>> Of(force) }
+    class DesignationOverlayGizmo { <<existing, the pattern>> }
+    class MapInteractionPack { <<existing>> registers both }
+    FireMissionOverlayGizmo ..> WeaponPosture : aimed at a point
+    FireMissionOverlayGizmo ..> CombatTkb : an indirect arc? the burst radius
+    FireMissionOverlayGizmo ..> WeaponSystems : a manned tube
+    FireMissionOverlayGizmo ..> SidePalette
+    MapInteractionPack ..> FireMissionOverlayGizmo
+    MapInteractionPack ..> DesignationOverlayGizmo
+```
+
+```mermaid
+sequenceDiagram
+    participant B as battery (Brain)
+    participant G as gun (FireAtPoint)
+    participant W as WeaponPosture (replicated)
+    participant O as FireMissionOverlayGizmo (every map host)
+    B->>G: FireAtPoint(aim i, fireAt)
+    G->>W: Aimed, Point = aim i (laid, waiting)
+    O->>W: every gun Aimed at a POINT with an indirect mount
+    O->>O: a ring of the round's burst radius + a cross at each aim point, in the gun's side colour
+    O->>O: a selected gun: a dashed line from it to its aim point
+    G->>W: rounds gone: Ready, then AtEase - its mark goes
+```
+
+*Caption:* nothing new on the wire or in the Brain — the sheaf is drawn from what each gun already publishes about its own aim, so a CGF, IG or
+editor map shows the same pattern, and a gun that has fired its rounds drops its mark by itself.
+
+| decision | rule |
+|---|---|
+| **FX-1 what** | at each aim point of a gun laid or firing on a POINT with an INDIRECT mount: a ring the size of its round's blast injury radius (20 m when the round names none) and a small cross, in the gun's side colour — the parallel / open / converged sheaf reads from the rings' pattern |
+| **FX-2 the line** | only for a SELECTED gun (or a selected battery's members): a dashed line from the gun to its aim point — a battery 10 km away drawing a line per gun all the time would cross the whole map |
+| **FX-3 layer** | the Entities layer (on by default): a mark exists only during a mission, so it adds nothing to a quiet map (CE-1065's complaint was standing clutter) |
+| **FX-4 the form** | no fire-mission screen: the reflected order form already carries every Strike field, and a battery and an SP gun are offered Strike and "Order with options › Strike…" — measured by a rail, built by construction |
+
+**Rejected — one line each:** *drawing the battery's plan from the Brain's play params* — they are not replicated, so only the Brain node
+could draw it; *a new layer bit* — the layer panel, its persistence and its rails for a mark that only exists during a mission;
+*a Strike-specific form* — a second form for one order is what §13.12 retired.
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
