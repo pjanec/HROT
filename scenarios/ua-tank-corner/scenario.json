@@ -64,10 +64,10 @@
         "Value": 8311
       },
       "TkbIdentity": {
-        "TkbType": 2003
+        "TkbType": 2007
       },
       "EntityInfo": {
-        "Name": "RPG Man",
+        "Name": "AT Gunner",
         "ForceId": "Hostile"
       },
       "Health": {

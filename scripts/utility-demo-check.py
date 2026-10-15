@@ -1507,13 +1507,14 @@ def run_air_defence(c, timeout):
 
 
 # ── ua-tank-corner (Urban Armour V7; docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4) — the tank's exposure cycle ─────
-#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against an RPG man and a rifleman north of it in test-town:
-#   ① it fires · ② its first rounds go at the RPG man, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
+#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against an NLAW gunner
+#   and a rifleman north of it in test-town (⚠ not an RPG man: a PG-7V's ~300 mm cannot pass an M1's 450 / 900 mm, so he is as harmless as a rifle):
+#   ① it fires · ② its first rounds go at the AT gunner, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
 #   than one point (an exposure is short and a point burns) · ④ between exposures it withdraws (it does not sit in the open).
 def run_tank_corner(c, timeout):
     ids = ids_by_name()
-    tank, rpg, rifle = ids.get("Tank"), ids.get("RPG Man"), ids.get("Rifleman")
-    if not c.ok(None not in (tank, rpg, rifle), "the tank, the RPG man and the rifleman are loaded"):
+    tank, rpg, rifle = ids.get("Tank"), ids.get("AT Gunner"), ids.get("Rifleman")
+    if not c.ok(None not in (tank, rpg, rifle), "the tank, the AT gunner (NLAW — top attack, a real danger to an M1) and the rifleman are loaded"):
         return
     p_rpg, p_rifle = position(rpg), position(rifle)
     call("POST", "/sim/play", {})
@@ -1546,13 +1547,13 @@ def run_tank_corner(c, timeout):
         d = lambda p: ((a[0] - p[0]) ** 2 + (a[1] - p[1]) ** 2) ** 0.5
         return "rpg" if d(p_rpg) <= d(p_rifle) else "rifle"
     first = [nearer(x) for x in mine[:2]]
-    c.ok(bool(first) and first[0] == "rpg", f"② the first rounds go at the RPG man — {first}")
+    c.ok(bool(first) and first[0] == "rpg", f"② the first rounds go at the AT gunner, not the rifleman (danger to my armour) — {first}")
     muzzles = [tuple(x.get("muzzle") or ()) for x in mine]
     points = []
     for m in muzzles:
         if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 4 for q in points):
             points.append(m)
-    c.ok(len(points) >= 2 or (health(rpg) or 0) <= 0, f"③ it fires from more than one point (or the RPG man is down first) — {[(round(p[0]), round(p[1])) for p in points]}")
+    c.ok(len(points) >= 2 or (health(rpg) or 0) <= 0, f"③ it fires from more than one point (or the AT gunner is down first) — {[(round(p[0]), round(p[1])) for p in points]}")
     far = max((((p[0] - track[0][1][0]) ** 2 + (p[1] - track[0][1][1]) ** 2) ** 0.5 for t, p in track), default=0.0) if track else 0.0
     c.ok(len(track) > 2 and far > 5, f"④ the tank moves through hide and firing points — furthest {far:.0f} m from its start")
     stops = []
@@ -1560,7 +1561,7 @@ def run_tank_corner(c, timeout):
         if not stops or ((p[0] - stops[-1][1][0]) ** 2 + (p[1] - stops[-1][1][1]) ** 2) ** 0.5 > 3:
             stops.append((round(t, 1), (round(p[0]), round(p[1]))))
     print(f"    tank path (3 m steps): {stops[:24]}")
-    print(f"    health: tank {health(tank)} · RPG man {health(rpg)} · rifleman {health(rifle)}")
+    print(f"    health: tank {health(tank)} · AT gunner {health(rpg)} · rifleman {health(rifle)}")
 
 
 def _turn(bearings, start, stop):
