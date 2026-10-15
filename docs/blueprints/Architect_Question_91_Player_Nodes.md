@@ -1,6 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (REVIEW AMENDMENTS, before any run started: §4-A′ the authority predicate must FAIL SAFE ·
+updated: 2026-10-15 (⭐ §4-I NEW, OPEN — rejoin, outages and stale nodes: the master trusts only what it witnessed;
+  does not affect the dispatched batch) ·
+  2026-10-15 (REVIEW AMENDMENTS, before any run started: §4-A′ the authority predicate must FAIL SAFE ·
   §4-D′ two name-match sites + the departure channel · §4-E′ the committed zone set is ANNOUNCED durably ·
   §4-G′ no source-scan rail · ⭐ §4-H NEW — operator cancel returns the cluster to Idle, R-4004) ·
   2026-10-15 (APPROVED; amended by R-4001 heartbeat-only time limits — §4-B, §4-B2 — and R-4002 the file-transfer provider — §4-E2)
@@ -22,6 +24,9 @@ known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Polici
   ReferenceArchiveHandler, CE-275 ③) — RESOLVED by R-4003: that premise is superseded, IG records. Also: ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
   C:\FDP_Temp; the as-built gateway copies into {FDP_STAGING_ROOT}/nodes/node-N on the ORCHESTRATOR's own disk
   (AssetPrefetchProcessManager.cs:272-287), which reaches a node only when that tree is shared. §4-E2 takes the design's side.
+  ⚠ mgmt-1/DESIGN.md §5 ("late-joiner support": the node reads OrchestratorContextTopic and runs its own join) and
+  §4.2 (a node compares the epoch and self-heals) design a NODE-DRIVEN join; §4-E and §4-I here choose MASTER-DRIVEN.
+  §4-I keeps the epoch as telemetry only (I4). Unreconciled in mgmt-1 until §4-I is approved.
 related-designs:
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.3 / R-4000 is the rule this question obeys (one code path on every node;
     a behaviour that must differ comes from the ROLE). It owns the role table that §4-A reads.
@@ -691,6 +696,77 @@ state in `Loading*` with nothing loading, which is the half-cancelled condition 
 
 - ⛔ **Cancelling a `Replay` or an archive Export/Import** — those have their own `_activeCancellations` path and are unchanged.
 - ⛔ **What a node does if its abort itself fails.** ⭐ Report the code + message; a node that cannot reach `Idle` is a node whose heartbeat is the next thing to watch (`R-4001`).
+
+---
+
+## 4-I ⭐⭐ REJOIN, OUTAGES AND STALE NODES — **the master trusts only what it witnessed** *(`2026-10-15`, OPEN — leans await the user)*
+
+⚠ **Does not affect the dispatched batch** (scope frozen at `fe1095d68`). It sharpens P7's catch-up *trigger*; the
+batch builds P7 as written, and this section is the next handoff if approved.
+
+### 4-I.1 📐 What is there today
+
+| fact | evidence |
+|---|---|
+| ⭐ **joining is not a request — a heartbeat appearing IS the join.** The master `Upsert`s any heartbeat into the roster; nothing reacts to a node being new | `ClusterMaster.cs:536-555` |
+| ⭐ **a node waits in `Idle` forever on its own** — `ClusterSlave` starts at state `0` (`Idle`) and heartbeats at 1 Hz whether or not a master exists; nothing on the node times out | `ClusterSlave.cs:61,206-219`; `ClusterState.cs:10` |
+| ⭐ **"present at start" vs "late" is only TIMING** — a round's targets are the roster snapshot at fan-out, and the commit goes to the same list ⇒ a node whose first heartbeat lands after that snapshot gets nothing from that round | `ClusterMaster.cs:1226,1279` |
+| ⭐ **an ejected node that heartbeats again is silently re-admitted** — no record that it was ejected, no catch-up, its claimed state is taken at face value | `ClusterMaster.cs:690-700` (non-mandatory ⇒ only `_roster.Remove`) + `:553` |
+| ⭐ **two different clocks decide "gone"**: the master ejects after **5 s** of heartbeat silence; every ECS node raises `NodeDeparted` on DDS liveliness loss, **~10 s** | `ClusterConfiguration.cs:20`; `ClusterCapabilityIngestSystem.cs` (*"lease expiry: NotAliveDisposed after ~10 s, measured"*) |
+| ⭐ **a node sees the master leave, and does nothing with it** — the orchestrator runs a `ClusterSlave` and heartbeats like any node, so its departure IS observed; no code treats it as the end of the world | `OrchestratorSubsystem.cs:154`; `ClusterCapabilityIngestSystem.Departed` publishes only `NodeDeparted` |
+| ⛔ **the epoch was DESIGNED and never built** — `ClusterStateTopic.TransactionEpoch` is declared and **written nowhere**; the egress writes only `CurrentState` + `ExerciseId` | `OrchestrationMessages.cs:100`; `ClusterOpMasterTranslator.cs:89-93` · design: `mgmt-1/DESIGN.md` §4.2 *"incremented on every successful commit. A node that 'missed' a commit detects this…"* |
+| ⛔ **`ExerciseId` cannot tell two clusters apart** — it is caller-supplied per load, `Guid.Empty` when the caller gives none | `ClusterMaster.cs:1095-1101` |
+| ⭐ **a stale world IS cleared if the node is a target of the next load** — the load carries `IsWorldBoundary` and the slave accepts a commit from any state | `ClusterMaster.cs:1275`; `ClusterSlave.cs:411-421` |
+
+### 4-I.2 ⭐ The proposal — two views of one rule
+
+```mermaid
+stateDiagram-v2
+  [*] --> NotInSync: first heartbeat
+  NotInSync --> CatchingUp: reset to Idle, then replay the ops (4-E)
+  CatchingUp --> InSync: ACKed the latest commit
+  CatchingUp --> NotInSync: cluster moved meanwhile (E3)
+  InSync --> Gone: 5 s heartbeat silence, EjectNode
+  CatchingUp --> Gone: 5 s heartbeat silence
+  Gone --> NotInSync: heartbeats again
+```
+
+*The master's view of ONE node. What the picture shows that prose hid: there is no edge from `Gone` back to `InSync`.
+A new node, a restarted node, a node from a dead cluster and a node back from an outage all enter at the same state,
+so the master never has to tell them apart.*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Idle: process start, heartbeat 1 Hz
+  Idle --> Following: commands from a master arrive
+  Following --> Idle: the master's ClusterState writer is gone
+  Following --> Idle: the master orders a reset
+```
+
+*The node's view. The node needs no epoch of its own: it drops to `Idle` when the world it belonged to ends, and
+otherwise does what the master says.*
+
+| # | decision | lean |
+|---|---|---|
+| **I1** | ⭐⭐ **the master keeps an `InSync` set**: a node enters it only by ACKing the commit the master is currently at, and leaves it on ejection | ⭐ **LEAN.** The master is not restartable (`§4-E′`), so its memory IS the truth. Replaces "is the node's claimed state equal to the cluster's?" — a check that a node back from an outage passes while having missed a reload, and that a node from a dead cluster passes while holding another scenario |
+| **I2** | ⭐⭐ **the catch-up trigger is "in the roster and not `InSync`"**, and its FIRST step is a reset to `Idle` with the world boundary set | ⭐ **LEAN.** One path for every case. ⚠ Cost: a 6 s network blip makes a Player reload. The asset diff (`DESIGN_Asset_Management.md` §4) means no bytes move twice; only the load chain reruns |
+| **I3** | ⭐⭐ **a node drops to `Idle` on its own when the master's `ClusterState` writer goes not-alive** (the same reset as `§4-H`) | ⭐ **LEAN.** 🔒 *"master is not restartable, if it dies, the world ends."* ⭐ Keyed on the TOPIC's writer, ⛔ never on a subsystem name (`§4-D′`). On the editor the master is in-process and never departs ⇒ no special case (`R-4005`) |
+| **I4** | ⚠ **write `TransactionEpoch`** (mgmt-1 §4.2) | ⭐ **LEAN: yes, but as telemetry.** Increment it on every committed transition and zone commit so the panel and the logs can show who is behind. ⛔ It does NOT decide membership — I1 does, and a node-side epoch comparison would be a second way to drive a node's state (rejected in `§4-E`) |
+
+| outage length | today | with I1–I3 |
+|---|---|---|
+| **< 5 s** | nothing happens; Reliable commands are retransmitted | the same |
+| **5–10 s** | master ejects; node keeps its world; on return it is silently re-admitted, and if a round ran meanwhile it never sees it | ⭐ master ejects; on return the node is `NotInSync` ⇒ reset + catch-up |
+| **> 10 s** | both sides also raise `NodeDeparted`: ownership reclaim (`R-167`), possession released (`§4-F`), then as above | ⭐ the node also drops to `Idle` itself (I3) ⇒ it comes back clean |
+| **master dies, node lives** | the node keeps showing a dead world in `OperatingLive`; a new master re-admits it at face value | ⭐ the node drops to `Idle` (I3); a new cluster sees an ordinary `Idle` late joiner |
+
+### 4-I.3 ⚠ What is NOT decided here
+
+- ⛔ **A > 10 s partition of an AUTHORITATIVE node is split-brain for OWNERSHIP**: both sides run the `R-167` reclaim.
+  A Player owns nothing (`R-161`, Map2D claims nothing), so it is not exposed; a SimHost or CGF is. ⭐ Needs its own
+  question — ⛔ not folded in here.
+- ⚠ **Not measured:** whether a node's replicas of a departed owner's entities are destroyed when that writer's
+  descriptors go not-alive, i.e. whether I3's reset is what clears them or something already does.
 
 ---
 
