@@ -156,7 +156,7 @@ public static class WeaponKits
     public static bool IsLauncher(ITkbDatabase? tkb, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount)
     {
         if (mount == null) return false;
-        if (mount.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm) return true;
+        if (mount.Category is Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam) return true;   // ⭐ CE-2187 (backend, cross-lane: a MANPADS is a launcher)
         return MunitionTkbCatalog.VisualOf(tkb, unchecked((long)mount.AmmoGuid)) is { Shape: Fdp.Toolkit.Tkb.Domain.MunitionShape.Rocket or Fdp.Toolkit.Tkb.Domain.MunitionShape.Missile };
     }
 

@@ -100,6 +100,15 @@ namespace Hrot.Core.Tkb
         public const int Tkb105mmHowitzerHe = 6028;
         /// <summary>⭐ IF-1 (I7) — the 155 mm howitzer's HE shell (library <c>"155mm howitzer HE"</c>, by name), with its charges.</summary>
         public const int Tkb155mmHowitzerHe = 6029;
+        /// <summary>⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c, Weapon Systems §5c) — a Stinger-class MANPADS missile: an IR seeker
+        /// (cone, flare rejection), air targets only, a proximity-fused fragmentation warhead (the library's <c>"Stinger warhead"</c>).</summary>
+        public const int TkbStingerMissile = 6030;
+        /// <summary>⭐ <c>CE-2187</c> — an Igla-class MANPADS missile: slower, a smaller warhead, an older seeker (more easily decoyed).</summary>
+        public const int TkbIglaMissile = 6031;
+        /// <summary>⭐ <c>CE-2190</c> (Weapon Systems §5c) — the ZU-23-2's 23 mm HE-I (the library's <c>"23mm HEI"</c>): no proximity fuze.</summary>
+        public const int Tkb23mmHei = 6032;
+        /// <summary>⭐ <c>CE-2190</c> — the ZU-23-2's 23 mm API (the library's <c>"23mm API"</c>).</summary>
+        public const int Tkb23mmApi = 6033;
 
         public const string Mortar60mmHeName = "60mm mortar HE", Mortar120mmHeName = "120mm mortar HE",
                             Howitzer105HeName = "105mm howitzer HE", Howitzer155HeName = "155mm howitzer HE";
@@ -127,7 +136,15 @@ namespace Hrot.Core.Tkb
                             JavelinName = "Javelin missile", KornetName = "Kornet missile", FpvWarheadName = "FPV warhead",
                             TankHeatMpName = "120mm HEAT-MP round", TankHeFragName = "tank HE-FRAG round", HmgApName = "12.7mm AP round",
                             Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb",
-                            Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket";
+                            Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket",
+                            StingerName = "Stinger missile", IglaName = "Igla missile", Zu23HeiName = "ZU-23 23mm HE-I", Zu23ApiName = "ZU-23 23mm API";
+
+        /// <summary>⭐ <c>CE-2187</c> / <c>CE-2190</c> — the library entries the air-defence rounds take their numbers from.</summary>
+        public const string StingerLibraryName = "Stinger warhead", IglaLibraryName = "Igla warhead",
+                            Zu23HeiLibraryName = "23mm HEI", Zu23ApiLibraryName = "23mm API";
+
+        /// <summary>⭐ <c>CE-2187</c> (§3c, AD2) — the SAMs' proximity fuze reach (m).</summary>
+        public const float SamProximityFuzeM = 4f;
 
         /// <summary>⭐ Air Ops 6a — the reference-library entries the air weapons' rounds take their numbers from (the template's own names
         /// match no entry, so nothing is picked up by name — LR-1).</summary>
@@ -153,7 +170,8 @@ namespace Hrot.Core.Tkb
             //   NED builder derives from its range), the PG-7V an unguided 300 m/s (its mount's own muzzle speed) for 4.5 s (self-destruct).
             //   Their penetration and damage stay on the mounts (LR-1: every mount states its own).
             Register(tkb, TowName, TkbTowMissile, new DISEntityType { Kind = 2, Domain = 9, Category = 1 }, ShapedChargeOf(TowLibraryName),
-                     missile: new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 280f, MaxFlightSeconds = 15f, MinRangeM = 65f });
+                     missile: new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 280f, MaxFlightSeconds = 15f, MinRangeM = 65f,
+                                               TargetDomain = TargetDomain.Ground });   // ⭐ CE-2187 (AD1) — the ATGMs: ground targets only
             Register(tkb, Rpg7Name, TkbRpg7Rocket, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, ShapedChargeOf(Rpg7LibraryName),
                      missile: Rocket(300f, 4.5f));
 
@@ -165,13 +183,13 @@ namespace Hrot.Core.Tkb
             Register(tkb, Pg7vrName, TkbPg7vrRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName, tandem: true), 650f, 500f, Rocket(280f, 4.5f));
             Register(tkb, LawName, TkbLawRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName), 300f, 350f, Rocket(145f, 3f));
             Register(tkb, NlawName, TkbNlawMissile, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 500f, 900f,
-                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f,
+                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f, TargetDomain = TargetDomain.Ground,
                                       Overfly = true, OverflyHeightM = 1f });   // ⭐ CE-3198 — the overfly top attack (§3b)
             Register(tkb, JavelinName, TkbJavelinMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,
-                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f,
+                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f, TargetDomain = TargetDomain.Ground,
                                       TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f });
             Register(tkb, KornetName, TkbKornetMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 1100f, 2000f,
-                     new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 300f, MaxFlightSeconds = 20f, MinRangeM = 100f });
+                     new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 300f, MaxFlightSeconds = 20f, MinRangeM = 100f, TargetDomain = TargetDomain.Ground });
             Register(tkb, FpvWarheadName, TkbFpvWarhead, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 400f, 450f);
             Register(tkb, TankHeatMpName, TkbTankHeatMp, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, ShapedChargeOf(TankHeatLibraryName), 600f, 1200f);
             Register(tkb, TankHeFragName, TkbTankHeFrag, new DISEntityType { Kind = 2, Domain = 8, Category = 2 }, LibraryWarhead(TankHeLibraryName), 50f, 600f);
@@ -196,7 +214,29 @@ namespace Hrot.Core.Tkb
             Register(tkb, Mortar120mmHeName, Tkb120mmMortarHe, indirect, charges: ChargesFor(Mortar120RangesKm));
             Register(tkb, Howitzer105HeName, Tkb105mmHowitzerHe, indirect, charges: ChargesFor(Howitzer105RangesKm));
             Register(tkb, Howitzer155HeName, Tkb155mmHowitzerHe, indirect, charges: ChargesFor(Howitzer155RangesKm));
+
+            // ⭐⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c, AD1/AD2) — the MANPADS: an IR seeker, AIR targets only, a proximity-fused
+            //   fragmentation warhead (the library's, its fuze switched to proximity). Public figures, rounded: Stinger Mach ~2.2, 8 km
+            //   flight, 200 m minimum; Igla ~570 m/s, 500 m minimum, an older seeker (more easily decoyed). The cone and rejections are
+            //   starter values — tuning starts here.
+            var antiAir = new DISEntityType { Kind = 2, Domain = 2, Category = 1 };   // DIS domain 2: anti-air, guided
+            Register(tkb, StingerName, TkbStingerMissile, antiAir, ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),
+                     new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, MinRangeM = 200f,
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f });
+            Register(tkb, IglaName, TkbIglaMissile, antiAir, ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),
+                     new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f });
+            // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
+            Register(tkb, Zu23HeiName, Tkb23mmHei, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
+            Register(tkb, Zu23ApiName, Tkb23mmApi, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     null, LibraryPenetration(Zu23ApiLibraryName), LibraryDamage(Zu23ApiLibraryName));
         }
+
+        /// <summary>⭐ <c>CE-2187</c> — the library's warhead for <paramref name="libraryName"/>, its fuze a proximity fuze of
+        /// <see cref="SamProximityFuzeM"/>.</summary>
+        private static WarheadDto? ProximityFused(string libraryName)
+            => LibraryWarhead(libraryName) is { } w ? w with { Fuze = FuzeKind.Proximity, ProximityFuzeM = SamProximityFuzeM } : null;
 
         /// <summary>⭐ M5 — an unguided rocket's flight: its speed and how long until it self-destructs.</summary>
         private static MissileDto Rocket(float speed, float seconds)
@@ -257,6 +297,8 @@ namespace Hrot.Core.Tkb
                 [Tkb155mmHowitzerHe] = 100,                                                      // shells
                 [TkbFpvWarhead] = 50, [TkbHydra70Rocket] = 100, [TkbTowMissile] = 300, [TkbNlawMissile] = 300,
                 [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
+                [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
+                [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
@@ -293,10 +335,15 @@ namespace Hrot.Core.Tkb
                 [Tkb120mmMortarHe] = new() { Shape = MunitionShape.Bomb, Length = 0.7f, Diameter = 0.12f, ColorHex = "#5A5E3A" },
                 [Tkb105mmHowitzerHe] = new() { Shape = MunitionShape.Shell, Length = 0.5f, Diameter = 0.105f, ColorHex = "#5A5E3A" },
                 [Tkb155mmHowitzerHe] = new() { Shape = MunitionShape.Shell, Length = 0.7f, Diameter = 0.155f, ColorHex = "#5A5E3A" },
+                // ⭐ CE-2187 / CE-2190 — the MANPADS missiles trail smoke; the 23 mm traces
+                [TkbStingerMissile] = new() { Shape = MunitionShape.Missile, Length = 1.52f, Diameter = 0.07f, ColorHex = "#6B6E4A", SmokeTrail = true },
+                [TkbIglaMissile] = new() { Shape = MunitionShape.Missile, Length = 1.57f, Diameter = 0.072f, ColorHex = "#5A5E3A", SmokeTrail = true },
+                [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
+                [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
             };
 
-        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6029), whether or not it has a look: a round, never a body.</summary>
-        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= Tkb155mmHowitzerHe;
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6033), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= Tkb23mmApi;
 
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>

@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             if (deltaTime <= 0f || view is not EntityRepository repo || !repo.IsComponentTypeRegistered<GuidedRound>()) return;
             var world = Fdp.Toolkit.World.WorldQuery.Of(repo);
+            uint tick = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u;
             _rounds = repo.Query().With<GuidedRound>().With<SimTransform>().With<SimVelocity>().Build();
             foreach (var e in _rounds)
             {
@@ -43,10 +44,12 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.HasComponent<BallisticProjectile>(e) && repo.GetComponentRO<BallisticProjectile>(e).StoppedTick != 0) continue;
                 var pos = repo.GetComponentRO<SimTransform>(e).Position;
                 ref var vel = ref repo.GetComponentRW<SimVelocity>(e).Linear;
-                if (Steer(repo, world, ref g, pos, out var desired))
+                if (Steer(repo, world, ref g, pos, vel, out var desired))
                     vel = Turn(vel, desired, TurnRateDegPerSec * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
                 // ⭐ CE-3198 (§3b) — the overfly fuze: fires DOWN as the round passes over the roof
-                if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) repo.DestroyEntity(e);
+                if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) { repo.DestroyEntity(e); continue; }
+                // ⭐ CE-2187 (§3c, AD2) — the proximity fuze: bursts where its step passes closest to its target
+                if (g.ProximityM > 0f && ProximityFuze(repo, e, in g, pos, vel, deltaTime, tick)) repo.DestroyEntity(e);
             }
         }
 
@@ -83,12 +86,50 @@ namespace Fdp.Toolkit.Combat.Systems
             return true;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c, AD2) — the proximity fuze: when the round's NEXT step (pos → pos + v·dt)
+        /// passes within <see cref="GuidedRound.ProximityM"/> of its target's middle, it bursts at the closest point of that step — the
+        /// off-target burst every fuzed round uses (<see cref="BallisticsSystem.Detonate"/> ⇒ the area effect), so what is hurt is decided by
+        /// the fragments' distance, not by a rule: a round seduced by a flare bursts at the flare. True when it burst.
+        /// </summary>
+        public static bool ProximityFuze(EntityRepository repo, Entity round, in GuidedRound g, Vector3 pos, Vector3 vel, float dt, uint tick)
+        {
+            if (!repo.IsAlive(g.Target) || !repo.HasComponent<SimTransform>(g.Target)) return false;
+            var target = TargetPoint(repo, g.Target);
+            var step = vel * dt;
+            float len2 = step.LengthSquared();
+            float t = len2 > 1e-8f ? Math.Clamp(Vector3.Dot(target - pos, step) / len2, 0f, 1f) : 0f;
+            var closest = pos + step * t;
+            if (Vector3.DistanceSquared(closest, target) > g.ProximityM * g.ProximityM) return false;
+            var proj = repo.HasComponent<BallisticProjectile>(round) ? repo.GetComponentRO<BallisticProjectile>(round) : default;
+            BallisticsSystem.Detonate(repo, in proj, closest, ShotLog.Peek(repo)?.Of(round), tick);
+            return true;
+        }
+
+        /// <summary>Where a round aims at <paramref name="target"/>: the middle of a body (<see cref="AimPoint.Middle"/>), the point
+        /// itself for a decoy (<c>CE-2188</c>).</summary>
+        private static Vector3 TargetPoint(EntityRepository repo, Entity target)
+            => repo.IsComponentTypeRegistered<Decoy>() && repo.HasComponent<Decoy>(target)
+                ? repo.GetComponentRO<SimTransform>(target).Position
+                : AimPoint.Middle(repo, target, out _, out _);
+
+        /// <summary>⭐ <c>CE-2187</c> (§3c) — does a seeker flying along <paramref name="vel"/> from <paramref name="pos"/> see
+        /// <paramref name="point"/>: inside its cone (always, with no cone).</summary>
+        public static bool InCone(in GuidedRound g, Vector3 pos, Vector3 vel, Vector3 point)
+        {
+            if (g.SeekerCos <= 0f) return true;
+            var to = point - pos;
+            float d = to.Length(), v = vel.Length();
+            if (d < 1e-3f || v < 1e-3f) return true;
+            return Vector3.Dot(to, vel) / (d * v) >= g.SeekerCos;
+        }
+
         /// <summary>The direction the round wants to fly, or false when it flies on as it is (lost, no target).</summary>
-        private static bool Steer(EntityRepository repo, Fdp.Toolkit.World.IWorldQuery? world, ref GuidedRound g, Vector3 pos, out Vector3 desired)
+        private static bool Steer(EntityRepository repo, Fdp.Toolkit.World.IWorldQuery? world, ref GuidedRound g, Vector3 pos, Vector3 vel, out Vector3 desired)
         {
             desired = default;
             bool targetKnown = repo.IsAlive(g.Target) && repo.HasComponent<SimTransform>(g.Target);
-            var targetPoint = targetKnown ? AimPoint.Middle(repo, g.Target, out _, out _) : g.LastSeen;
+            var targetPoint = targetKnown ? TargetPoint(repo, g.Target) : g.LastSeen;
             // ⭐ CE-3198 (§3b) — an overfly round's goal is above the roof, not the middle: it passes over and fires down
             if (g.Overfly != 0 && targetKnown)
                 targetPoint = repo.GetComponentRO<SimTransform>(g.Target).Position
@@ -111,9 +152,16 @@ namespace Fdp.Toolkit.Combat.Systems
                 return true;
             }
 
-            // fire-and-forget: the round's own seeker
-            if (targetKnown && (world == null || !world.SightBlocked(pos, targetPoint))) g.LastSeen = targetPoint;
+            // fire-and-forget (⭐ CE-2187: an IR / radar seeker too): the round's own seeker — inside its cone only
+            bool sees = targetKnown && InCone(in g, pos, vel, targetPoint) && (world == null || !world.SightBlocked(pos, targetPoint));
+            if (sees) g.LastSeen = targetPoint;
             var goal = g.LastSeen;
+            // ⭐ CE-2187 (§3c) — a HOMING seeker (IR, radar) leads a target it sees: it steers at where the target will be when it arrives
+            //   (TargetLead.Point — the one predictor, AT2's), not at where it is. ⛔ Pure pursuit at the 30°/s turn limit fell 6.8 m behind a
+            //   helicopter crossing at 60 m/s — outside a 4 m proximity fuze (measured, rail CE2187_AnIrRound_…).
+            if (sees && g.Guidance is GuidanceKind.InfraRed or GuidanceKind.Radar
+                && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, g.Target, out _, out var targetVelocity))
+                goal = TargetLead.Point(pos, Vector3.Zero, g.SpeedMps, targetPoint, targetVelocity);
             var toGoal = goal - pos;
             if (toGoal.LengthSquared() < 1e-6f) return false;
             if (g.TopAttack == 0 || g.Phase == GuidedPhase.Dive) { desired = Vector3.Normalize(toGoal); return true; }

@@ -43,9 +43,23 @@ namespace Fdp.Toolkit.Combat
             return direct + area;
         }
 
+        /// <summary>⭐ <c>CE-2187</c> (§3c) — may <paramref name="ammo"/> be fired at <paramref name="target"/>: its missile's
+        /// <c>TargetDomain</c> (Either for every other round) against what the target is — Air for an aircraft (<c>Locomotions.InAir</c>,
+        /// by its locomotion class: a helicopter on its pad too), Ground otherwise.</summary>
+        public static bool InDomain(EntityRepository world, Entity target, long ammo)
+        {
+            var domain = CombatTkb.MissileOf(world, ammo)?.TargetDomain ?? Fdp.Toolkit.Tkb.Domain.TargetDomain.Either;
+            if (domain == Fdp.Toolkit.Tkb.Domain.TargetDomain.Either || target.IsNull || !world.IsAlive(target)) return true;
+            bool air = Fdp.Toolkit.Motion.Locomotions.InAir(world, target);
+            return domain == (air ? Fdp.Toolkit.Tkb.Domain.TargetDomain.Air : Fdp.Toolkit.Tkb.Domain.TargetDomain.Ground);
+        }
+
         /// <summary>The direct-hit and the area part of <see cref="ExpectedDamage"/>.</summary>
         private static (float Direct, float Area) Split(EntityRepository world, Entity shooter, Entity target, WeaponMountDto? mount, long ammo)
         {
+            // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c, AD1) — a guided round of the WRONG domain is worth nothing: a MANPADS against a truck,
+            //   an ATGM against a flying helicopter. The one gate for the round choice, the mount ranking and Sufficient.
+            if (!InDomain(world, target, ammo)) return (0f, 0f);
             var (pen, dmg) = CombatTkb.RoundOf(world, mount, ammo);
             var penetrator = CombatTkb.PenetratorOf(world, ammo);
             float armour = pen > 0f ? ArmourFacing(world, shooter, target, penetrator) : 0f;

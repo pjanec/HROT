@@ -40,5 +40,12 @@ namespace Fdp.Toolkit.Combat.Components
         public byte Overfly;
         /// <summary>⭐ <c>CE-3198</c> — the height above the roof it passes at.</summary>
         public float OverflyHeightM;
+        /// <summary>⭐ <c>CE-2187</c> (§3c) — cos(half the seeker cone); 0 = it sees all round. The seeker sees a point when the angle
+        /// between the flight and the line to it is inside the cone.</summary>
+        public float SeekerCos;
+        /// <summary>⭐ <c>CE-2187</c> (§3c, AD2) — the proximity fuze's reach (m); 0 = none.</summary>
+        public float ProximityM;
+        /// <summary>⭐ <c>CE-2188</c> (§3c, AD3) — the chance its seeker ignores a decoy salvo of its kind (flare for IR, chaff for radar).</summary>
+        public float Rejection;
     }
 }

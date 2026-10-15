@@ -204,6 +204,30 @@ namespace Fdp.Toolkit.Combat.Tests
             return e;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c, AD2) — a SAM's proximity burst does its damage by the fragment law alone: the
+        /// Stinger's warhead (the library's <c>"Stinger warhead"</c>) bursting 4 m from a UH-60-class helicopter 300 m up hurts it badly,
+        /// the same burst 20 m off much less — so a missile seduced by a flare (bursting at the flare) spares the aircraft by GEOMETRY.
+        /// </summary>
+        [Fact]
+        public void CE2187_AStingerBurstFourMetresFromAHelicopter_HurtsIt_TwentyMetresOff_FarLess()
+        {
+            const long Stinger = 6030, Helicopter = 780;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            db.Register(new TkbTemplate("Stinger warhead", Stinger) { DisType = new DISEntityType { Kind = 2 } });
+            var heliType = new TkbTemplate("burst test helicopter", Helicopter);
+            heliType.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 800, BlastSusceptibility = 0.8f });
+            db.Register(heliType);
+            var near = Hull(Helicopter, 0f, 0f, 800f, 4f, 3f);
+            var far = Hull(Helicopter, 200f, 0f, 800f, 4f, 3f);
+            _w.GetComponentRW<SimTransform>(near).Position = new Vector3(0f, 0f, 300f);
+            _w.GetComponentRW<SimTransform>(far).Position = new Vector3(200f, 0f, 300f);
+            var (_, nearDamage) = Burst(Stinger, new Vector3(0f, 4f + 4f, 301.5f), near);   // 4 m outside its 4 m radius
+            var (_, farDamage) = Burst(Stinger, new Vector3(200f, 24f, 301.5f), far);       // 20 m outside it
+            Assert.True(nearDamage[0] >= 150f, $"4 m from the hull: {nearDamage[0]:0} of 800");
+            Assert.True(farDamage[0] < nearDamage[0] / 3f, $"20 m off: {farDamage[0]:0} against {nearDamage[0]:0}");
+        }
+
         private void VehicleTypes()
         {
             var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();

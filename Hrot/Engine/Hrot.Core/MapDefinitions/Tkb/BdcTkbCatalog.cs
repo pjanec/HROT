@@ -164,6 +164,39 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         private readonly record struct WeaponBreaks(float AreaM2, float CasingMm, float Health, float BlastShare = 1f);
 
+        /// <summary>
+        /// ⭐ <c>CE-2187</c> (DESIGN_Weapon_Systems §5c) — a MANPADS gunner: the rifleman (body, rifle as mount 0, sensor, injury) whose
+        /// person-carrier carry station starts with <paramref name="launcher"/> (W-I: <c>SeatPresets</c> fills it once on the creating node).
+        /// The launcher fires carried (<c>FireWhileCarried</c>); his weapon brain picks it only against an aircraft (its missile's
+        /// <c>TargetDomain</c>), the rifle otherwise.
+        /// </summary>
+        private static void ManpadsGunner(NedTkbBuilder builder, long type, string name, long launcher, ushort country, byte faction = 1)
+        {
+            var carrier = Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier();
+            carrier.Seats[1] = carrier.Seats[1] with { StartWith = launcher };   // seat 1 = the carry station
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v => { v.IconName = "rifleman"; v.SymbolCode = "SFGPUCDM-------"; v.ModelPath = "models/soldier.obj"; v.ColorHex = "#556B2F"; v.Scale = 0.6f; })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
+                    p.MaxSpeed = 2.5f; p.Acceleration = 1.0f; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 5;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+                        DispersionMils = RifleDispersionMils, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball,
+                        TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, Category = WeaponCategory.SmallArms });
+                    c.SensorRange = 5000;   // the launcher's sight: he must see an aircraft as far as the missile reaches
+                })
+                .WithFaction(type, faction)
+                .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
+                .WithCarrier(type, carrier)
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
+        }
+
         /// <summary>⭐ WS-4 — a pintle / tripod turret of a weapon system: all round, its pivot <see cref="WeaponPivotZ"/> above its base.</summary>
         private static TurretDto Pintle(float elevationMinDeg, float elevationMaxDeg, float traverseRate, float elevationRate, float trunnionX)
             => new() { PivotZ = WeaponPivotZ, TrunnionX = trunnionX, TraverseMinDeg = -180f, TraverseMaxDeg = 180f,
@@ -250,6 +283,27 @@ namespace Hrot.Map.Definitions.Tkb
                 Laid(IndirectMount("105mm_M119", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb105mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer105HeName,
                               WeaponCategory.Howitzer, IndirectArc.Both, -5f, 70f, rounds: 40, rangeM: 11500f, dispersionMils: 3f, reloadSeconds: 8f)),
                 LayingTurret(-5f, 70f, pivotZ: 1.0f), new(3.0f, 6f, 400f, BlastShare: 0.5f), category: 5);
+
+            // ⭐⭐ CE-2187 / CE-2190 (DESIGN_Weapon_Systems §5c; Air Ops §7d AD1/AD5) — air defence. The MANPADS are the shoulder pattern
+            //   (the Javelin's: carried, fires carried); the lock is the aim time. The ZU-23-2 is the M2's station pattern with a two-man
+            //   ground crew: twin 23 mm, −10…+90°, a fast traverse; its rounds are aimed by AT2's lead (no proximity fuze). Public figures,
+            //   rounded — tuning starts here.
+            var manpads = shoulder with { CarrySpeedFactor = 0.85f };
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Stinger, "Stinger (MANPADS)", 6, manpads,
+                new WeaponMount { WeaponType = "Stinger_SAM", Ammunition = 1, Range = 4800, RateOfFire = 3, DamagePerHit = 400,
+                    AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 8f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile, Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Igla, "Igla (MANPADS)", 6, manpads,
+                new WeaponMount { WeaponType = "Igla_SAM", Ammunition = 1, Range = 5200, RateOfFire = 3, DamagePerHit = 300,
+                    AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 8f, FireOnMove = false,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile, Category = WeaponCategory.Sam }, turret: null, new(0.15f, 0f, 15f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Zu23, "ZU-23-2", 7, heavy with { DeploySeconds = 30f, PackSeconds = 20f, CarrySpeedFactor = 0.3f },
+                new WeaponMount { WeaponType = "2A14_23mm", Ammunition = 100, Range = 2500, RateOfFire = 400,
+                    DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Zu23ApiLibraryName),
+                    DispersionMils = 3f, MagazineSize = 50, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmApi, MuzzleOffset = new System.Numerics.Vector3(1.8f, 0f, 0f),
+                    Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmApi, 50), (Hrot.Core.Tkb.MunitionTkbCatalog.Tkb23mmHei, 50) } },   // one box each
+                Pintle(-10f, 90f, 70f, 50f, 0.4f), new(1.0f, 3f, 120f));
         }
 
         /// <summary>
@@ -538,6 +592,9 @@ namespace Hrot.Map.Definitions.Tkb
                 weapon: TkbEntityTypes.WeaponSystem_DshkHmg, gunner: TkbEntityTypes.Infantry_Rifleman);
             Pickup(builder, TkbEntityTypes.Technical_Minigun, "Technical (minigun)", "hmmwv",
                 weapon: TkbEntityTypes.WeaponSystem_M134Minigun, gunner: TkbEntityTypes.Infantry_Rifleman);
+            // ⭐ CE-2190 (DESIGN_Weapon_Systems §5c, AD5) — the ZU-23-2 in the same bed (its own −10…+90°, all round)
+            Pickup(builder, TkbEntityTypes.Technical_Zu23, "Technical (ZU-23-2)", "hmmwv",
+                weapon: TkbEntityTypes.WeaponSystem_Zu23, gunner: TkbEntityTypes.Infantry_Rifleman);
             
             // Infantry Rifleman
             builder
@@ -575,6 +632,11 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCarrier(TkbEntityTypes.Infantry_Rifleman, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())   // ⭐ CE-2152 — carries or drags one casualty (R-2011 C1)
                 .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
                 .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
+
+            // ⭐ CE-2187 (DESIGN_Weapon_Systems §5c) — the MANPADS gunners: a rifleman whose carry station starts with the launcher
+            //   (W-I SeatPresets fills it once on the creating node) — the first soldier preset with a weapon on his back
+            ManpadsGunner(builder, TkbEntityTypes.Infantry_StingerGunner, "Rifleman (Stinger)", TkbEntityTypes.WeaponSystem_Stinger, UnitedStates);
+            ManpadsGunner(builder, TkbEntityTypes.Infantry_IglaGunner, "Rifleman (Igla)", TkbEntityTypes.WeaponSystem_Igla, Russia, faction: 2);
             
             // Tank Platoon (Composite)
             builder

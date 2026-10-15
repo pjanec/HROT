@@ -679,6 +679,47 @@ namespace Hrot.Map.Common.Tests
             Assert.True(javelin.TopAttack);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2187</c> / <c>CE-2190</c> (DESIGN_Missiles_And_Ammo §3c, DESIGN_Weapon_Systems §5c) — the air-defence catalogue: the
+        /// Stinger and the Igla are IR, AIR-only, proximity-fused (the Igla more easily decoyed); every ATGM is GROUND-only; the two MANPADS
+        /// launchers are carried shoulder weapons of the Sam category that fire carried; the MANPADS gunners start with them in their carry
+        /// station; the ZU-23-2 elevates to +90° with an AP / HE-I loadout and rides technical 110's bed.
+        /// </summary>
+        [Fact]
+        public void CE2187_TheAirDefenceCatalogue_MissilesLaunchersGunnersAndTheZu23()
+        {
+            var munitions = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(munitions);
+            MissileDto M(long t) => munitions.GetByType(t)!.GetDescriptor<MissileDto>()!;
+            foreach (var sam in new long[] { Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile, Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile })
+            {
+                Assert.Equal((GuidanceKind.InfraRed, TargetDomain.Air), (M(sam).Guidance, M(sam).TargetDomain));
+                Assert.True(M(sam).SeekerConeDeg > 0f);
+                var w = munitions.GetByType(sam)!.GetDescriptor<WarheadDto>()!;
+                Assert.Equal(FuzeKind.Proximity, w.Fuze);
+                Assert.True(w.ProximityFuzeM > 0f && w.FragmentRadiusM > w.ProximityFuzeM, "the fragments reach past the fuze");
+            }
+            Assert.True(M(Hrot.Core.Tkb.MunitionTkbCatalog.TkbIglaMissile).FlareRejection < M(Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile).FlareRejection);
+            foreach (var atgm in new long[] { Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile, Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile,
+                                              Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile, Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile })
+                Assert.Equal(TargetDomain.Ground, M(atgm).TargetDomain);
+
+            var db = BuildDatabase();
+            foreach (var (launcher, gunner) in new[] { (TkbEntityTypes.WeaponSystem_Stinger, TkbEntityTypes.Infantry_StingerGunner),
+                                                       (TkbEntityTypes.WeaponSystem_Igla, TkbEntityTypes.Infantry_IglaGunner) })
+            {
+                var ws = db.GetByType(launcher)!.GetDescriptor<WeaponSystemDto>()!;
+                Assert.True(ws.FireWhileCarried && (ws.MountKinds & MountKinds.Carried) != 0);
+                Assert.Equal(WeaponCategory.Sam, db.GetByType(launcher)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Category);
+                var seats = db.GetByType(gunner)!.GetDescriptor<CarrierDefDto>()!.Seats;
+                Assert.Equal(launcher, seats.Single(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station).StartWith);
+            }
+            var zu = db.GetByType(TkbEntityTypes.WeaponSystem_Zu23)!;
+            Assert.Equal(90f, zu.GetDescriptor<TurretSuiteDto>()!.Turrets[0].ElevationMaxDeg);
+            Assert.Equal(2, zu.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Loadout.Count);
+            Assert.Contains(db.GetByType(TkbEntityTypes.Technical_Zu23)!.GetDescriptor<CarrierDefDto>()!.Seats, x => x.StartWith == TkbEntityTypes.WeaponSystem_Zu23);
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();

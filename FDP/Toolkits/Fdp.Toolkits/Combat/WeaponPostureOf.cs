@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.TooClose or ActionReason.HoldMoving   // ⭐ M4 / D-L — held, weapon ready
                 or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed   // ⭐ WS-3 — the weapon system holds
                 or ActionReason.OutOfRange or ActionReason.Masked   // ⭐ IF-1 — no fire solution
+                or ActionReason.WrongDomain   // ⭐ CE-2187 — a SAM held at a truck: the weapon stays ready
                 => WeaponPostureKind.Ready,
             _ => null,
         };

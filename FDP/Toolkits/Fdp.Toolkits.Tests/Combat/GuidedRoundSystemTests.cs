@@ -196,5 +196,60 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.Bus.SwapBuffers();
             Assert.Empty(_w.Bus.Read<Fdp.Toolkit.Combat.Contracts.DetonationNotification>().ToArray());
         }
+
+        // ── ⭐⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — the IR seeker and the proximity fuze ─────────────────────────────────────
+
+        /// <summary>A Stinger-like IR round: 700 m/s, a 20° seeker cone, a 4 m proximity fuze.</summary>
+        private Entity IrRound(Vector3 at, Vector3 velocity, Entity target, Vector3 lastSeen)
+            => Round(at, velocity, new GuidedRound
+            {
+                Guidance = GuidanceKind.InfraRed, Phase = GuidedPhase.Cruise, Target = target, LastSeen = lastSeen,
+                SeekerCos = MathF.Cos(10f * MathF.PI / 180f), ProximityM = 4f,
+            });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2187</c> (AD1 + AD2) — an IR round launched from the ground at a helicopter crossing at 60 m/s, 300 m up and 1.2 km out,
+        /// homes on it — LEADING it, as a homing seeker does — and BURSTS within its 4 m proximity fuze of the helicopter: an off-target
+        /// burst (no target on the detonation: the area effect does the damage by distance), and is spent. 🔴 Red-proof (measured): pure
+        /// pursuit (no lead) passes 6.8 m behind it and never bursts.
+        /// </summary>
+        [Fact]
+        public void CE2187_AnIrRound_HomesOnACrossingHelicopter_AndBurstsWithinItsProximityFuze()
+        {
+            var heli = Unit(new Vector3(1200, -100, 300));
+            var heliVelocity = new Vector3(0, 60, 0);
+            _w.AddComponent(heli, new SimVelocity { Linear = heliVelocity });   // what the seeker's lead reads (ReplicatedMotion)
+            var aim = Vector3.Normalize(new Vector3(1200, -40, 300));
+            var round = IrRound(Vector3.Zero, aim * 700f, heli, new Vector3(1200, -100, 300));
+            float closest = float.MaxValue;
+            for (int f = 0; f < 240 && _w.IsAlive(round); f++)
+            {
+                ref var h = ref _w.GetComponentRW<SimTransform>(heli);
+                h.Position += heliVelocity * Dt;
+                closest = MathF.Min(closest, Vector3.Distance(_w.GetComponentRO<SimTransform>(round).Position, AimPoint.Middle(_w, heli, out _, out _)));
+                StepAlive(round);
+            }
+            Assert.False(_w.IsAlive(round), $"the round must burst (closest {closest:0.0} m)");
+            _w.Bus.SwapBuffers();
+            var d = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Combat.Contracts.DetonationNotification>().ToArray());
+            Assert.True(d.Target.IsNull, "a proximity burst names no target: the fragments decide");
+            float miss = Vector3.Distance(new Vector3(d.HitX, d.HitY, d.HitZ), AimPoint.Middle(_w, heli, out _, out _));
+            Assert.True(miss <= 4.5f, $"it burst {miss:0.0} m from the helicopter — the fuze reaches 4 m");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2187</c> — an IR seeker sees only inside its cone: a target 90° off its flight is never seen, so the round flies to where
+        /// it last saw it (the launch point it was given) and does not turn toward the target. 🔴 Red-proof: with no cone (all round) it
+        /// updates <c>LastSeen</c> to the target and turns.
+        /// </summary>
+        [Fact]
+        public void CE2187_AnIrSeeker_DoesNotSeeATargetOutsideItsCone()
+        {
+            var off = Unit(new Vector3(0, 400, 0));
+            var round = IrRound(Vector3.Zero, new Vector3(700, 0, 0), off, new Vector3(2000, 0, 0));
+            for (int f = 0; f < 30; f++) StepAlive(round);
+            Assert.Equal(new Vector3(2000, 0, 0), _w.GetComponentRO<GuidedRound>(round).LastSeen);
+            Assert.True(MathF.Abs(_w.GetComponentRO<SimTransform>(round).Position.Y) < 1f, "it flew on, not toward the unseen target");
+        }
 }
 }
