@@ -262,14 +262,17 @@ section states only **which role needs what**, and is not restated there.
 | ⭐⭐ **prefer a more robust SHARED path to a per-role exception** | ⭐ a role-driven exception is the fallback, ⛔ not the first move |
 | ⛔ **the role → behaviour map is APPLICATION code** | 🔒 `NodeRole.cs` header (user, `2026-09-12`): the engine *"may never map one to a set of components, a system, or a behaviour"* ⇒ the map lives in Hrot, never in FDP |
 
-📐 **The precedent already in the tree** *(measured `2026-10-15`)*: IG registers the same replay and live-load handlers
-as SimHost and CGF (`IgNodeBootstrapper.cs:412,423`) and differs only in the HOW it hands them —
-`ListenerRecordReplayController`, which *"participate[s] in the cluster handshake but do[es] not record or replay ECS
-frame data"* and ACKs every phase. During a replay the owning nodes restore and their egress re-publishes the world, so
-a listener node sees it over the network (`docs/designs/mgmt-1/DESIGN.md` §8.10). ⚠ **That HOW is still chosen by the
-IG bootstrap, not derived from the role** — making it role-derived is `CE-279`'s deferred A2.
-⚠ **One gap against the rule:** IG registers no `ReferenceArchiveHandler` (CGF, SimHost and ExCon do), so it abstains
-from `SerializeLocal` through the no-handler path (`ClusterSlave.cs:473`) rather than through the shared handler.
+📐 **Measured `2026-10-15` — the two places IG still differs by a missing piece:**
+
+| | IG today | every other ECS host |
+|---|---|---|
+| record / replay controller | `ListenerRecordReplayController` — ACKs, records nothing (`IgNodeBootstrapper.cs:374`) | `EcsRecordReplayController` — SimHost `NodeBootstrapper.cs:272`, CGF `CgfApplication.cs:163`, Editor `EditorSubsystem.cs:1512`, Stride `EditorStrideSubsystem.cs:851` |
+| `.fdp` archive handler | none (`archiveHandler: null`, `IgNodeBootstrapper.cs:455-459`) | `ReferenceArchiveHandler` |
+
+⛔ **Both are SUPERSEDED by R-4003** (§7.1's banner): IG records like every ECS host. ⚠ The real controller lives in
+`Hrot.SimHost`, which IG does not reference (CGF, the Editor and Stride do) — moving it down is `CE-279`'s deferred A2.
+⚠ `CgfRecordReplayController` (a "Phase 3 skeleton") has ZERO constructions — CGF already uses the real one. Unreferenced
+is not unintentional: its own comment says it was a placeholder until CGF had a recordable kernel, which it now has.
 
 ⭐ **OPEN, not ruled — the multiplayer Player node.** Measured: a Player that is an IG node already takes part in
 recording and replay as a listener, so it needs NO role-driven exception there. What it needs is a 2PC that a
@@ -500,11 +503,17 @@ which is what keeps the next reader honest.
 > DOES hold the gated scenario handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4.
 > The `2026-09-02` reasoning below is retained as HISTORY.
 >
-> ⚠ **`2026-10-15` — R-4000 retires the remaining ABSENCE here too.** The surviving invariant *"IG must not hold a
-> CHECKPOINT save handler"* (`NodeRolePersistenceRails`, which bans `ReferenceArchiveHandler` on IG) is still the
-> "behaviour by a missing handler" form. ⭐ Its premise stays — IG records no ECS frames — but it is enforced by IG's
-> `ListenerRecordReplayController` producing no `.fdp`, with the handler registered like on every ECS host.
-> 📄 [`Architect_Question_91_Player_Nodes.md`](blueprints/Architect_Question_91_Player_Nodes.md) §4-G (approved; the rail is rewritten, not deleted).
+> ⛔⛔ **SUPERSEDED `2026-10-15` (R-4003) — the surviving invariant below, AND its premise.** 🔒 **User, verbatim:**
+> *"that premise is old and not valid anymore, it must be a pre-unification one. pls mark it superseded. IG can create its
+> own entities if it wants to. So it might need to run its own recording. I prefer the unification over optimization at
+> this stage, still the disabling would be controlled by the role or by some optimization settings later."*
+> ⇒ ⛔ *"IG carries no ECS frame data, so it must not hold a checkpoint save handler / must not record"* is a
+> PRE-UNIFICATION premise and is no longer true: IG can own entities, so it records like every ECS host — the same
+> `EcsRecordReplayController` and the same `ReferenceArchiveHandler`. ⭐ If recording on some node is ever switched off, it
+> is by ROLE or an optimisation setting (R-4000), never by a missing handler. The rail `NodeRolePersistenceRails.
+> IgCompositionRoot_RegistersNoCheckpointSaveHandler` is superseded with it. ⚠ **R-140 is NOT touched**: it is about
+> SCENARIO persistence (IG owns no persistable entity), and the gated scenario save still enforces it.
+> 📄 Build: [`STEER_Coordinator_Player_Nodes_P5.md`](blueprints/batches/STEER_Coordinator_Player_Nodes_P5.md).
 
 > 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
 > the IG subsystem handle the clusterwide scenario save operation."*
