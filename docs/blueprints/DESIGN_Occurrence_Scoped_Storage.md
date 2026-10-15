@@ -1763,7 +1763,7 @@ before paying for `O6`)*.
 | `PredicateCompiler` *(replay search)* | typeId triple + RO resolve triple | 1 |
 | `BlueprintBlackboardTiers.RegisterAll` | the registration triple | 1 |
 | 🔴 `BlueprintTickSystem.TickWorldSingletons` | ⛔ **MISSED BY THE TRUNCATED CENSUS** — a `switch` over `BlackboardTier`, each arm calling `EnsureAndTickSingleton<T>` with that tier's `TotalSize` and `MaxSlots` re-quoted | 1 |
-| 🔴 `BlueprintStateTranslator` | ⛔ **MISSED** — `GetConsumedComponentsMask` sets a bit per tier type; ⚠ **and a LEGACY-KEY list that must NOT follow the ladder** *(see `N4`)* | 2 |
+| 🔴 `BlueprintStateTranslator` | ⛔ **MISSED** — `GetConsumedComponentsMask` sets a bit per tier type; ⚠ **and a LEGACY-KEY list that must NOT follow the ladder** *(see `N4`)* · 📐 **`2026-10-15` (`CE-3204`): as built the mask is EMPTY** — `SetBitIfRegistered` takes the `BitMask512` struct by value. Measured: scenario SAVE unaffected (all tiers `NoScenario`, the saveable mask drops them); a debug dump with the snapshot mask carries the raw tier (`BlueprintBlackboard1024`, 2 KB) next to `BlueprintAssignments`; a mask without tier bits still runs the translator (the gate treats an empty mask as header-native) | 2 |
 | `EditorSubsystem:1145` · `CgfSubsystem:879` | the renderer-accessor triple, **twice** | 2 |
 | `BlueprintBlackboard{1024,4096,16384}Renderer` | 3 near-identical ~80-line files | 3 |
 
