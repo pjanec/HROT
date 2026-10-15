@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+doc-type: EXPERIMENT, not a design
+updated: 2026-10-15
+current-answer: the whole file (how to re-run the probe)
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2 owns the design and the measured numbers; this is only the probe.
+-->
 # DDS file-transfer experiment (Q91 §4-E2)
 
 The probe behind the measurements in `docs/blueprints/Architect_Question_91_Player_Nodes.md` §4-E2.
