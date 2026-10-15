@@ -66,7 +66,9 @@ namespace Hrot.SimHost.Tests
         /// </summary>
         private static readonly string[] CheckpointSaveHandlersAPassiveNodeMustNotHold =
         {
-            "ReferenceArchiveHandler",
+            // ⛔⛔ P5c (Q91 §4-G, R-4003) — "ReferenceArchiveHandler" REMOVED from this list: IG now RECORDS and ARCHIVES
+            //   like every ECS host. The premise "IG carries no ECS frame data, so it must not record" predates the
+            //   unification (IG holds a world and may own entities — R-4008).
             "GlobalContextClusterOpHandler",
         };
 
@@ -84,6 +86,8 @@ namespace Hrot.SimHost.Tests
         /// global orchestrator context, so it must not hold a <b>checkpoint / global-context</b> save handler
         /// (<see cref="CheckpointSaveHandlersAPassiveNodeMustNotHold"/>), which write EVERYTHING ungated.</para>
         /// </summary>
+        /// <remarks>⛔ P5c (R-4003) — what survives is the orchestrator's OWN context writer, which no node holds. The archive
+        /// half moved to <see cref="EveryEcsHostRecordsAndArchives_ThroughTheOneComposition"/>.</remarks>
         [Fact]
         public void IgCompositionRoot_RegistersNoCheckpointSaveHandler()
         {
@@ -93,11 +97,9 @@ namespace Hrot.SimHost.Tests
             foreach (var handler in CheckpointSaveHandlersAPassiveNodeMustNotHold)
             {
                 Assert.False(code.Contains(handler),
-                    $"{IgRoot} registers {handler}, an UNGATED checkpoint/global-context save handler. IG " +
-                    "carries no ECS frame data and no global orchestrator context, so it must not record " +
-                    "either. ⚠ Note this is NOT about the scenario save: IG DOES register the gated " +
-                    "HrotScenarioSaveHandler (CE-275), whose ownership gate keeps IG's scenario file empty. " +
-                    "See docs/DESIGN_Node_Roles_And_Policies.md §7.1.");
+                    $"{IgRoot} registers {handler}, the orchestrator's own global-context writer. No node holds " +
+                    "it. ⚠ Recording and archiving are NOT this rail's business any more: IG records like every " +
+                    "ECS host (R-4003, P5). See docs/DESIGN_Node_Roles_And_Policies.md §7.1.");
             }
         }
 
@@ -127,25 +129,26 @@ namespace Hrot.SimHost.Tests
         /// ⚠⚠ <b>NON-VACUITY — the rails above are two <c>Assert.False(contains)</c> calls, which is the
         /// single easiest assertion in this codebase to make pass for the wrong reason.</b>
         ///
-        /// <para>📌 Rename <c>ReferenceArchiveHandler</c>, move IG's registrations behind a factory, or
-        /// mistype a path, and both go green while saying nothing. ⇒ this rail proves the tokens are real
-        /// by finding them where they SHOULD be: <c>CgfApplication</c> and <c>ExConSubsystem</c> both
-        /// register <c>ReferenceArchiveHandler</c> — measured <c>2026-09-02</c> at
-        /// <c>CgfApplication.cs:227</c> and <c>ExConSubsystem.cs:305</c>.</para>
+        /// <para>📌 Rename a handler, move IG's registrations behind a factory, or mistype a path, and both go green
+        /// while saying nothing. ⇒ this rail proves the token is real by finding it where it SHOULD be: the
+        /// orchestrator composes <c>GlobalContextClusterOpHandler</c>. ⛔ P5c — the <c>ReferenceArchiveHandler</c> half of
+        /// this rail is retired: the registrar builds it (P5b), so no host's source names it any more.</para>
         ///
         /// <para>⭐ This is the <c>CE-049</c>/<c>CE-053</c>/<c>CE-064</c> rail-blindness family: a correct
         /// assertion over a set that quietly became unreachable.</para>
         /// </summary>
-        [Theory]
-        [InlineData("Hrot/Subsystems/Hrot.CGF/CgfApplication.cs")]
-        [InlineData("Hrot/Subsystems/Hrot.ExCon/ExConSubsystem.cs")]
-        public void APersistingRootDoesRegisterTheArchiveHandler(string relativePath)
+        [Fact]
+        public void TheOrchestratorDoesComposeItsGlobalContextWriter()
         {
             var code = CompositionRootSource.StripComments(
-                CompositionRootSource.ReadRepoSource(relativePath));
+                CompositionRootSource.ReadRepoSource("Hrot/Subsystems/Hrot.Orchestrator/OrchestratorCore.cs"));
 
-            Assert.Contains("ReferenceArchiveHandler", code);
+            Assert.Contains("GlobalContextClusterOpHandler", code);
         }
+
+        // ⭐ P5c′ — the positive invariant ("IG records and archives like every ECS host") is asserted on the CONSTRUCTED
+        //   node, not on source text (§4-G′): Hrot.IG.Tests/IgRecordsAndArchivesTests. The archive half is also a
+        //   compile-time fact — SerializeLocalRegistrar has no archive parameter to pass null to.
 
         /// <summary>
         /// ⚠ <b><see cref="SaveCapableHandlers"/> is a hard-coded set, and a hard-coded set rots.</b>

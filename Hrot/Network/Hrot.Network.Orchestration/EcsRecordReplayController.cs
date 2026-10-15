@@ -40,8 +40,40 @@ namespace Hrot.SimHost.Modules.Orchestration
     /// class (CGF1-S0304 / S0305).
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <c>P5a</c> (Q91 §4-G, <c>R-4003</c>/<c>R-4011</c>) — lives in <c>Hrot.Network.Orchestration</c>, beside the listener
+    /// controller, so EVERY ECS host can compose it: IG references this assembly and not <c>Hrot.SimHost</c>.
+    /// ⚠ The namespace is still <c>Hrot.SimHost.Modules.Orchestration</c> so no caller changed in the move; renaming it is a
+    /// Roslyn job for later. Build one through <see cref="ForNode"/>.
+    /// </remarks>
     public sealed class EcsRecordReplayController : IClusterOpHandler, IRecordReplayController
     {
+        /// <summary>
+        /// ⭐⭐ <c>P5a</c> — THE one composition of a node's recording controller, used by every ECS host (ruling 9: it was
+        /// written out by hand on CGF and SimHost, and IG would have been the third copy). A seek is a world
+        /// replacement: the lifecycle module's in-flight bookkeeping is cleared (resuming to live is NOT armed — a seek
+        /// stays inside the replay), then the transport's own post-seek hook runs; and the lifecycle module is gated
+        /// while a replay is active (DESIGN.md §2.1m step 1).
+        /// </summary>
+        /// <param name="transportAfterSeek">The replication module's post-seek hook (<c>INedReplicationModule.AfterSeekCallback</c>), or null.</param>
+        /// <param name="lifecycle">The node's <c>EntityLifecycleModule</c>, or null when it has none.</param>
+        public static EcsRecordReplayController ForNode(
+            ModuleHostKernel kernel, int nodeId, EntityRepository world,
+            Action? transportAfterSeek, Fdp.Toolkit.Lifecycle.EntityLifecycleModule? lifecycle)
+        {
+            Action? afterSeek = transportAfterSeek;
+            if (lifecycle != null)
+            {
+                var chained = afterSeek;
+                afterSeek = () => { lifecycle.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
+            }
+
+            var controller = new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
+            if (lifecycle != null)
+                lifecycle.IsReplayActive = () => controller.IsReplayActive;
+            return controller;
+        }
+
         private readonly ModuleHostKernel _kernel;
         private readonly int              _nodeId;
         private readonly EntityRepository _repo;

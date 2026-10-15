@@ -1115,27 +1115,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
             capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(DefaultRole));
 
-        var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
-        Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
-
-        // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Resolved BEFORE the controller so the
-        //   clear composes into the same afterSeek chain the NetworkEntityMap rebuild already uses.
-        //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+        // ⭐⭐ P5a — the ONE composition every ECS host uses: a seek clears the ELM's bookkeeping (§2.1m step 3) before the
+        //   transport's own post-seek hook, and the ELM is gated while a replay is active (§2.1m step 1).
         var cgfGateElm = _context.BaseModules?
             .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
-        if (cgfGateElm != null)
-        {
-            var chained = afterSeekAction;
-            afterSeekAction = () => { cgfGateElm.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
-        }
-
-        var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-            _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
-
-        // ⭐⭐ Step 1 of DESIGN.md §2.1m — gate the ELM during replay (mgmt-1/DESIGN.md §8.10: "the ELM
-        //    pipeline is never invoked"). ⭐ Reuses the existing IRecordReplayController.IsReplayActive.
-        if (cgfGateElm != null)
-            cgfGateElm.IsReplayActive = () => rrController.IsReplayActive;
+        var rrController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
+            _context.Kernel, _context.NodeId, _context.World,
+            (replicationModule as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback, cgfGateElm);
 
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
@@ -1340,7 +1326,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
             newClusterSlave,
             cgfScenarioSaveHandler,
-            new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
+            recordingRoot: isolatedTempRoot, nodeId: _context.NodeId);
         // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host.
         //   ⭐ C8 — `service:` is NO LONGER null. CGF composes a real TerrainLoadService, so a zone op
         //   does actual residency work here rather than ACKing with nothing to do. 🔒 The brain having

@@ -21,9 +21,12 @@ namespace Fdp.Toolkit.Orchestration
     /// each handler's payload-aware <see cref="IClusterStateHandler.CanHandle(ExecuteNodeOpIntent)"/> claims only
     /// its own payload (CE-279 Layer C) — but a fixed order keeps behaviour reproducible across hosts.</para>
     ///
-    /// <para>⛔ The handler INSTANCES are still built by each host (they need host-specific inputs — a serializer
-    /// and world for the ECS save, an observer state for ExCon's, a temp root for the archive), but the SELECTION
-    /// and ORDER are unified here. 📄 docs/DESIGN_Unified_Cluster_Handler_Registration.md §6 (Layer A).</para>
+    /// <para>⛔ The scenario-save INSTANCE is still built by each host (it needs host-specific inputs — a serializer
+    /// and world for the ECS save, an observer state for ExCon's), but the SELECTION and ORDER are unified here.
+    /// ⭐⭐ <c>P5b</c> (Q91 §4-G, <c>R-4003</c>) — the ARCHIVE handler is built HERE, from the two things it needs (the
+    /// folder the node records to and its id), so no host can register none: an export over a cluster then includes
+    /// every node's <c>.fdp</c>. ⛔ Was: a nullable parameter, and IG and the Editor passed <c>null</c>.
+    /// 📄 docs/DESIGN_Unified_Cluster_Handler_Registration.md §6 (Layer A).</para>
     /// </summary>
     public static class SerializeLocalRegistrar
     {
@@ -36,19 +39,21 @@ namespace Fdp.Toolkit.Orchestration
         /// <param name="slave">The node's cluster slave to register into. Required.</param>
         /// <param name="scenarioSaveHandler">The host's scenario-save handler (ECS: <c>HrotScenarioSaveHandler</c>;
         /// observer: <c>ExConScenarioSaveHandler</c>), or <see langword="null"/> if this host saves no scenario.</param>
-        /// <param name="archiveHandler">The host's <c>ReferenceArchiveHandler</c> for the <c>.fdp</c> archive, or
-        /// <see langword="null"/> if this host reports no recordings.</param>
+        /// <param name="recordingRoot">The folder this node records its <c>.fdp</c> to — the same folder its load chain's
+        /// recording controller is given. A node that has recorded nothing reports an empty manifest.</param>
+        /// <param name="nodeId">This node's id, which names its recording files.</param>
         public static void Register(
             ClusterSlave slave,
             IClusterStateHandler? scenarioSaveHandler,
-            IClusterStateHandler? archiveHandler)
+            string recordingRoot,
+            int nodeId)
         {
             if (slave is null) throw new ArgumentNullException(nameof(slave));
 
             // ⭐ Scenario save FIRST, archive SECOND — one order for every host. With payload-aware CanHandle
             //   the order is not load-bearing, but keeping it fixed makes every host's slave identical.
             if (scenarioSaveHandler is not null) slave.RegisterHandler(scenarioSaveHandler);
-            if (archiveHandler      is not null) slave.RegisterHandler(archiveHandler);
+            slave.RegisterHandler(new Handlers.ReferenceArchiveHandler(recordingRoot, nodeId));
         }
     }
 }

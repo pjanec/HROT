@@ -1564,7 +1564,7 @@ namespace Hrot.Editor
                 clusterSlave,
                 new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                     scenarioSerializer, _world!, EditorNodeId),
-                archiveHandler: null);
+                recordingRoot: isolatedTempRoot, nodeId: EditorNodeId);   // ⭐ P5b — the editor's recording is archived too
             // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
             //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and
             //   the editor IS a single-node cluster, so its own zone load arrives here as a NodeOp.

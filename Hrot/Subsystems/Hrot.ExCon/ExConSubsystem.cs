@@ -399,7 +399,7 @@ namespace Hrot.ExCon
             Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
                 _clusterSlave,
                 new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId),
-                new ReferenceArchiveHandler(OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
+                recordingRoot: OrchestrationConstants.ResolveStagingRoot(), nodeId: iosNodeId);
 
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);

@@ -672,6 +672,15 @@ host passes `archiveHandler: null`** (G1 should remove the parameter, which make
 | ⚠ **it needs a source checkout to run at all** | `ReadRepoSource` walks up for a `docs/` folder and **throws** if there is none ⇒ these rails cannot run from a packaged test drop. ⭐ Deliberate (*"an absent file must be a loud RED, never a vacuous pass"*) — ⛔ but it is a reason not to add more of them |
 | ⛔ **scope** | retiring the family is NOT this batch. ⭐ **Not adding to it is.** |
 
+#### ✅ P5 AS BUILT `2026-10-15`
+
+| item | as built |
+|---|---|
+| **P5a** | `EcsRecordReplayController` moved from `Hrot.SimHost` to `Hrot.Network.Orchestration` (beside the listener; IG reaches it through `Hrot.Common` and `Hrot.Network.NED`; no new project reference). ⚠ Its namespace is still `Hrot.SimHost.Modules.Orchestration` so no caller changed in the move — a Roslyn rename is left for later. ⭐ One composition, `EcsRecordReplayController.ForNode(kernel, nodeId, world, transportAfterSeek, lifecycle)` — the seek's lifecycle reset + the lifecycle module's replay gate — replaces the hand-written copies on CGF and SimHost and is what IG now uses. IG's load chain is given the controller, so IG starts recording when its world is whole, like every host. SimHost composes it for EVERY role (`R-4000`; it was Brain/MuscleGround only). ExCon keeps the listener: no world |
+| **P5b** | `SerializeLocalRegistrar.Register(slave, scenarioSave, recordingRoot, nodeId)` BUILDS the archive handler — the nullable parameter is gone, so no host can register none (IG and the Editor used to pass `null`) |
+| **P5c / P5c′** | `NodeRolePersistenceRails`: `ReferenceArchiveHandler` removed from IG's forbidden list (the orchestrator's own context writer stays); its non-vacuity rail re-anchored on `OrchestratorCore`. ⭐ The positive invariant is asserted on the CONSTRUCTED node — `Hrot.IG.Tests/IgRecordsAndArchivesTests` (IG holds the ECS controller; its slave holds the archive handler) — plus the registrar's own constructed-slave rail (`ReferenceArchiveHandlerTests`). ⛔ No source-scan rail was added (§4-G′) |
+| ⚠ not done | the Editor and Stride already held the ECS controller and still construct it directly — routing them through `ForNode` (they would then also gate their lifecycle module during replay) is a follow-up, not done here; the namespace rename |
+
 ---
 
 ## 4-H ⭐⭐⭐ A STUCK OR FAILED LOAD — **the operator cancels and the cluster returns to `Idle`** *(`R-4004`, `2026-10-15`)*

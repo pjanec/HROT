@@ -331,6 +331,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 5: Build orchestration ─────────────────────────────────────────
 
     /// <inheritdoc/>
+    /// <summary>⭐ P5a — IG's recording controller, the same one every ECS host composes (null until orchestration is built).</summary>
+    public Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? RecordReplayController { get; private set; }
+
     protected override ClusterSlave BuildOrchestration(
         HrotNodeContext context,
         TogglableSimulationGroup simGroup,
@@ -368,10 +371,14 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    ingress half by hand is what dropped the EGRESS half, and with it every transition intent IG
         //    ever published. ⭐ IgApplication now ticks context.SlaveTranslator, like every other host.
 
-        // CGF1-BATCH-23 A.2: IG participates in recording/replay cluster operations as a
-        // listen-only node.  Shared controller tracks IsReplayActive so the
-        // Live-from-Replay branch (CGF1-S0305) is correctly gated.
-        var igRrController = new Hrot.Common.Orchestration.ListenerRecordReplayController("IG");
+        // ⭐⭐ P5a (Q91 §4-G, R-4003/R-4011) — IG RECORDS like every ECS host: the same controller, composed the one way
+        //   (EcsRecordReplayController.ForNode). ⛔ Was: a listen-only ListenerRecordReplayController — "IG carries no ECS
+        //   frame data" predates the unification; IG holds a world and may own entities (R-4008). ExCon keeps the listener:
+        //   it holds no world, so there is nothing to record — a missing dependency, not a role exception.
+        var igRrController = RecordReplayController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
+            context.Kernel, _effectiveInstanceId, context.World,
+            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
+            context.BaseModules?.OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault());
 
         string storageDirectory = !string.IsNullOrWhiteSpace(_hrotConfig.LocalTempRoot)
             ? _hrotConfig.LocalTempRoot
@@ -404,7 +411,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         };
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World, hostLabel: "IG",
+            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World,
+            recordingController: igRrController,      // ⭐ P5a — the recording starts when the world is whole, as everywhere
+            storageDirectory:    storageDirectory,
+            hostLabel: "IG",
             entityMap: context.EntityMap));   // CE-2101 — the world boundary clears it
 
         // Wire ReferenceReplayLoadHandler (PrepareReplay / FinalizeReplay
@@ -418,8 +428,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             bypassLifecycleToggle: null,
             storageDirectory:      storageDirectory));
 
-        // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive
-        // without recording (IG carries no ECS frame data).
+        // Wire ReferenceLiveLoadHandler: PrepareLive / FinalizeLive with IG's own recording (P5a).
         slave.RegisterHandler(new ReferenceLiveLoadHandler(
             checkpointWorker: null,
             controller:       igRrController,
@@ -456,7 +465,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             slave,
             new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
                 serializer, context.World, _effectiveInstanceId),
-            archiveHandler: null);
+            recordingRoot: storageDirectory, nodeId: _effectiveInstanceId);   // ⭐ P5b — IG's recording is archived too
 
         // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
         var archService = new ArchitectureDiagnosticsService(context.Kernel);
