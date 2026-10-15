@@ -65,6 +65,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         OutOfRange,
         /// <summary>⭐ IF-1 (I1) — a charge reaches, but the terrain or a building stops every allowed arc (<c>FireRefusal.Masked</c>).</summary>
         Masked,
+        /// <summary>⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c) — the loaded missile is for the other domain (a MANPADS at a truck, an
+        /// ATGM at a flying helicopter): the weapon holds.</summary>
+        WrongDomain,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -141,13 +144,14 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.TooClose           => "hold: too close",
             ActionReason.HoldMoving         => "hold: moving",
             ActionReason.AwaitingRelease    => "release: waiting for the cue",
+            ActionReason.WrongDomain        => "hold: wrong target domain",
             _                               => "",
         };
 
         /// <summary>True for the reasons that mean "wants to act and cannot" — the gizmo draws them amber.</summary>
         public static bool IsHold(ActionReason r) => r is ActionReason.HoldNotSeen or ActionReason.HoldFriendlyOnLine
             or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc
-            or ActionReason.TooClose or ActionReason.HoldMoving;
+            or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain;
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

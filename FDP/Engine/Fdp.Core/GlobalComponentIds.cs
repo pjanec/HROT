@@ -901,5 +901,18 @@ namespace Fdp.Core
         /// <summary><c>RecentDetonations</c> — ⭐ CE-2176 IF-3 (DESIGN_Indirect_Fire §3.8): the last bursts a node saw, a managed singleton a
         /// fire-mission observer reads (a recorded world singleton, CE-3117 style); node-local, never saved or replicated. ⚠ 385 measured free on backend, ui and behaviors 2026-10-15.</summary>
         public const int RecentDetonations = 385;
+
+        /// <summary><c>Decoy</c> — ⭐ CE-2188 (DESIGN_Missiles_And_Ammo §3c, AD3): a flare or a chaff cloud an aircraft dispensed; a
+        /// homing round may take it as its target. SimHost-local, lives seconds; never saved. ⚠ 386–388 measured free on backend, ui
+        /// and behaviors 2026-10-15.</summary>
+        public const int Decoy = 386;
+
+        /// <summary><c>CountermeasureState</c> — ⭐ CE-2188 (§3c, AD3): an aircraft's flares and chaff left and when it may dispense next
+        /// (from its <c>Combat.Countermeasures</c> TKB entry). Written by the SimHost; never saved.</summary>
+        public const int CountermeasureState = 387;
+
+        /// <summary><c>MissileWarning</c> — ⭐ CE-2189 (§3c, AD4): the last missile launched at this aircraft, as its BRAIN was warned
+        /// (bearing, seeker kind, time to impact). Written on the brain node; never saved.</summary>
+        public const int MissileWarning = 388;
     }
 }

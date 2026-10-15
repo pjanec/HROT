@@ -20,6 +20,8 @@ namespace Hrot.Map.Common
         public const long Technical_Dshk = 108;
         /// <summary>⭐ ui handoff P1 — the pickup (106) with an M134 minigun in the bed and a rifleman at it.</summary>
         public const long Technical_Minigun = 109;
+        /// <summary>⭐ <c>CE-2190</c> (DESIGN_Weapon_Systems §5c) — the pickup (106) with a ZU-23-2 in the bed and a rifleman at it.</summary>
+        public const long Technical_Zu23 = 110;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;
@@ -37,10 +39,20 @@ namespace Hrot.Map.Common
         public const long WeaponSystem_Mortar81 = 610;
         public const long WeaponSystem_Mortar120 = 611;
         public const long WeaponSystem_Howitzer105 = 612;
+        /// <summary>⭐ <c>CE-2187</c> (§5c) — a Stinger-class MANPADS launcher (carried, fires carried).</summary>
+        public const long WeaponSystem_Stinger = 613;
+        /// <summary>⭐ <c>CE-2187</c> (§5c) — an Igla-class MANPADS launcher.</summary>
+        public const long WeaponSystem_Igla = 614;
+        /// <summary>⭐ <c>CE-2190</c> (§5c) — the ZU-23-2 twin 23 mm anti-aircraft gun (two-man, ground or a pintle).</summary>
+        public const long WeaponSystem_Zu23 = 615;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;
         public const long Infantry_Officer = 201;
+        /// <summary>⭐ <c>CE-2187</c> (§5c) — a rifleman carrying a Stinger (his carry station starts with 613).</summary>
+        public const long Infantry_StingerGunner = 202;
+        /// <summary>⭐ <c>CE-2187</c> (§5c) — a rifleman carrying an Igla (614).</summary>
+        public const long Infantry_IglaGunner = 203;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

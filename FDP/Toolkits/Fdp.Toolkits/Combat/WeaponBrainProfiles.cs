@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Combat
             WeaponCategory.Bomb => PerShot,
             WeaponCategory.Rocket => PerShot,
             WeaponCategory.Howitzer => PerShot,   // ⭐ IF-1 (I8) — a gun firing at a point by its fire solution   // ⭐ Air Ops 6a (AW-3) — a rocket pod: each round its own intent; the ripple is the round count   // ⭐ Air Ops slice 4 — the Release profile: the per-shot path, held by its cue (AimAndFireExecutor.HoldOf)
-            WeaponCategory.Atgm => Guided,
+            WeaponCategory.Atgm or WeaponCategory.Sam => Guided,   // ⭐ CE-2187 — a MANPADS locks and fires like an ATGM
             _ => Turret,   // TankGun, Autocannon, MachineGun (a hull one names no turret), Unknown
         };
 
@@ -69,6 +69,6 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool FiresPerPress(WeaponCategory category)
             => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade
-                         or WeaponCategory.Bomb or WeaponCategory.Howitzer;
+                         or WeaponCategory.Bomb or WeaponCategory.Howitzer or WeaponCategory.Sam;
     }
 }

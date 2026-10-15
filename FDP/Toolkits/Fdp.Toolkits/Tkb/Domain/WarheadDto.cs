@@ -25,6 +25,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         Impact = 0,
         /// <summary><see cref="WarheadDto.FuzeDelayS"/> after it is fired, or on contact if it stops first.</summary>
         Time = 1,
+        /// <summary>⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c, AD2) — a guided round bursts when it passes within
+        /// <see cref="WarheadDto.ProximityFuzeM"/> of its target (or on contact): a SAM rarely strikes the hull.</summary>
+        Proximity = 2,
     }
 
     /// <summary>
@@ -93,6 +96,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("s")]
         [Description("Time fuze: seconds from firing to detonation.")]
         public float FuzeDelayS { get; init; }
+
+        /// <summary>⭐ <c>CE-2187</c> (§3c, AD2) — a proximity fuze's reach: the guided round bursts the tick it passes this close to its
+        /// target's middle.</summary>
+        [EditUnit("m")]
+        [Description("Proximity fuze: bursts when the guided round passes this close to its target.")]
+        public float ProximityFuzeM { get; init; }
 
         [Description("Fired on a high arc at a point (mortar, thrown grenade), not straight at a target.")]
         public bool Indirect { get; init; }

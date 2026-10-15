@@ -335,6 +335,11 @@ namespace Fdp.Toolkit.Combat.Systems
                         Overfly       = (byte)(missile.Overfly && missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && !evt.AtPoint
                                                && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target) > 0f ? 1 : 0),
                         OverflyHeightM = missile.OverflyHeightM > 0f ? missile.OverflyHeightM : 1f,
+                        // ⭐ CE-2187 / CE-2188 (DESIGN_Missiles_And_Ammo §3c) — the seeker's cone, the proximity fuze, the decoy rejection
+                        SeekerCos     = missile.SeekerConeDeg > 0f ? MathF.Cos(0.5f * missile.SeekerConeDeg * (MathF.PI / 180f)) : 0f,
+                        ProximityM    = CombatTkb.WarheadOf(repo, ammo) is { Fuze: Fdp.Toolkit.Tkb.Domain.FuzeKind.Proximity, ProximityFuzeM: > 0f } pw
+                                        ? pw.ProximityFuzeM : 0f,
+                        Rejection     = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar ? missile.ChaffRejection : missile.FlareRejection,
                     });
                 }
 

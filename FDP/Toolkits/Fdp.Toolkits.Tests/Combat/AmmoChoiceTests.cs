@@ -193,6 +193,62 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(Atgm, PickFor(Spawn(Man, new Vector3(300, 0, 0), 100, 0f), rounds: 3, costs: false));
         }
 
+        // ── ⭐⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c, AD1) — a guided round's target DOMAIN ───────────────────────────────────
+
+        private const long Sam = 9301, GroundAtgm = 9302, Heli = 9303;
+
+        /// <summary>A SAM (Air only) and an ATGM (Ground only), both strong enough to kill anything here, and a helicopter type.</summary>
+        private (Entity Shooter, Entity Truck, Entity Helicopter) DomainWorld()
+        {
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            foreach (var (name, type, domain) in new[] { ("SAM", Sam, TargetDomain.Air), ("ground ATGM", GroundAtgm, TargetDomain.Ground) })
+            {
+                var t = new TkbTemplate(name, type);
+                t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = 900, Damage = 3000 });
+                t.AddDescriptor(new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 600, TargetDomain = domain });
+                db.Register(t);
+            }
+            db.Register(Target("helicopter", Heli, new CombatPlatformDefDto { MaxHealth = 800 }));
+            _w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var shooter = _w.CreateEntity();
+            _w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var truck = Spawn(Technical, new Vector3(300, 0, 0), 400, 2f);
+            var heli = Spawn(Heli, new Vector3(800, 0, 200), 800, 3f);
+            _w.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Rotorcraft });
+            return (shooter, truck, heli);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2187</c> — a SAM is worth NOTHING against a truck and full value against a helicopter; an ATGM the other way round. The
+        /// one gate (<see cref="AmmoChoice.InDomain"/>, inside the value) is what the round choice, the mount ranking and <c>Sufficient</c>
+        /// all read. 🔴 Red-proof: without the gate both rounds are worth 1 against both targets.
+        /// </summary>
+        [Fact]
+        public void CE2187_ASamIsWorthNothingAgainstATruck_AnAtgmNothingAgainstAHelicopter()
+        {
+            var (shooter, truck, heli) = DomainWorld();
+            WeaponMountDto Launcher(long ammo) => new() { AmmoGuid = unchecked((ulong)ammo), DamagePerHit = 3000 };
+            Assert.Equal(0f, AmmoChoice.ValueOf(_w, Sam, Launcher(Sam), shooter, truck));
+            Assert.Equal(1f, AmmoChoice.ValueOf(_w, Sam, Launcher(Sam), shooter, heli), 3);
+            Assert.Equal(0f, AmmoChoice.ValueOf(_w, GroundAtgm, Launcher(GroundAtgm), shooter, heli));
+            Assert.Equal(1f, AmmoChoice.ValueOf(_w, GroundAtgm, Launcher(GroundAtgm), shooter, truck), 3);
+            Assert.False(AmmoChoice.Sufficient(_w, Launcher(Sam), Sam, shooter, truck, 1));
+            Assert.True(AmmoChoice.Sufficient(_w, Launcher(Sam), Sam, shooter, heli, 1));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2187</c> — when the wrong-domain missile is all the unit has (the choice falls back to mount 0 when everything scores 0),
+        /// the weapon brain HOLDS (<c>WrongDomain</c>) rather than fire a SAM at a truck. 🔴 Red-proof: without the hold it returns null.
+        /// </summary>
+        [Fact]
+        public void CE2187_TheWeaponBrain_HoldsAWrongDomainMissile()
+        {
+            var (shooter, truck, heli) = DomainWorld();
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.WrongDomain,
+                Executors.AimAndFireExecutor.HoldOf(_w, shooter, truck, null, Sam));
+            Assert.Null(Executors.AimAndFireExecutor.HoldOf(_w, shooter, heli, null, Sam));
+        }
+
         /// <summary>⭐ M8 — the value of a round is the expected damage of one hit on the face the shot meets, ÷ the target's maximum
         /// health, capped at 1: the APFSDS on the tank's front does 1100 / 2500; the HEAT does nothing there.</summary>
         [Fact]

@@ -23,6 +23,10 @@
     "Mk-82 bomb":      { "type": "he",     "calibreMm": 273,  "massG": 227000, "velocity": 150, "explosiveKg": 94,  "indirect": true },
     "70mm rocket HE":  { "type": "he",     "calibreMm": 70,   "massG": 4500,  "velocity": 700,  "explosiveKg": 1.04 },
     "105mm howitzer HE": { "type": "he",   "calibreMm": 105,  "massG": 15000, "velocity": 494,  "explosiveKg": 2.1, "indirect": true },
-    "155mm howitzer HE": { "type": "he",   "calibreMm": 155,  "massG": 43200, "velocity": 684,  "explosiveKg": 6.6, "indirect": true }
+    "155mm howitzer HE": { "type": "he",   "calibreMm": 155,  "massG": 43200, "velocity": 684,  "explosiveKg": 6.6, "indirect": true },
+    "23mm HEI": {"type": "he", "calibreMm": 23, "massG": 190, "velocity": 970, "explosiveKg": 0.013},
+    "23mm API": {"type": "ap", "calibreMm": 23, "massG": 190, "velocity": 970},
+    "Stinger warhead": {"type": "frag", "calibreMm": 70, "massG": 3000, "velocity": 700, "explosiveKg": 1.0},
+    "Igla warhead": {"type": "frag", "calibreMm": 72, "massG": 1270, "velocity": 570, "explosiveKg": 0.39}
   }
 }
