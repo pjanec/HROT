@@ -334,6 +334,47 @@ public sealed class LoadPhaseChainTests
         await prepare;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> (Q91 §4-H, H1/H9) — an abort naming the load the chain holds, arriving while a step is still working:
+    /// the chain claims it (and ONLY it — an abort of another transaction is not its), every step's <c>Abort</c> runs, and
+    /// the chain forgets the load. ⛔ Before: the chain claimed no abort, so the node auto-ACKed and nothing rolled back.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task P8_AnAbortOfTheLoadInFlight_AbortsEveryStep_AndOnlyThatLoadsAbortIsClaimed()
+    {
+        var kb       = new FakeStep(LoadPart.KnowledgeBase);
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround, new ILoadPartProvider[] { kb, blocking }, world: null, hostLabel: "TestHost");
+
+        var load = LoadIntent();
+        var prepare = chain.PrepareAsync(load, CancellationToken.None);
+        Assert.True(blocking.Started.Wait(5_000));
+
+        var other = new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.AbortTransaction, TransactionId = Guid.NewGuid(),
+            DomainPayload = new AbortTransactionPayload(Guid.NewGuid()),
+        };
+        Assert.False(chain.CanHandle(other));   // ⭐ not its load
+
+        var abort = new ExecuteNodeOpIntent
+        {
+            Operation = NodeOpType.AbortTransaction, TransactionId = Guid.NewGuid(),
+            DomainPayload = new AbortTransactionPayload(load.TransactionId),
+        };
+        Assert.True(chain.CanHandle(abort));
+        await chain.PrepareAsync(abort, CancellationToken.None);
+        chain.Commit(abort, null);
+
+        Assert.True(kb.Aborted);
+        Assert.True(blocking.Aborted);
+        Assert.False(chain.CanHandle(abort));   // ⭐ the load is forgotten — a second abort is nobody's
+
+        blocking.Release.SetResult();
+        await prepare;
+    }
+
     /// <summary>⭐ A pure step that waits on a gate, recording the thread it ran on.</summary>
     private sealed class BlockingStep : ILoadPartProvider
     {
@@ -352,7 +393,8 @@ public sealed class LoadPhaseChainTests
         }
 
         public void Commit(LoadPhaseContext context, EntityRepository? world) { }
-        public void Abort(LoadPhaseContext context) { }
+        public bool Aborted { get; private set; }
+        public void Abort(LoadPhaseContext context) => Aborted = true;
         public bool IsResolved(EntityRepository? world) => true;
     }
 

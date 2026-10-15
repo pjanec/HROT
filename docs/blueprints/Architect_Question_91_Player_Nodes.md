@@ -774,6 +774,16 @@ clear, and it is the one op that belongs to EVERY handler holding a part of the 
 | **H9** | ⭐ **the chain claims an abort only for the load it holds** (by transaction id) and aborts from the context it stored at prepare | the abort op carries no load payload, so the steps' context must come from the prepare |
 | ⛔ | ⛔ **SUPERSEDES** the handoff's lean *"route it as an ordinary handler op — needs no `ClusterSlave` change"* | measured above: an ordinary op is queued behind the stuck prepare |
 
+#### ✅ P8 AS BUILT `2026-10-15` — H1–H4 and H6–H9 as drawn; ⏳ H5 waits for P6
+
+| piece | as built |
+|---|---|
+| master (H2, H3) | `ClusterMaster.TryCancelInFlightTransition` — a cancel naming a transition that is fanned out and not complete drops its tracker, fans out `AbortTransaction(target = its transaction)` to every roster node, answers the request `Cancelled`, then runs a `TransitionStep(Idle)` through `ExecuteTransitionTrajectory`; the cluster reports `Idle` when every node has answered. A parked transition still cancels as before; a completed one is not undone |
+| slave (H7, H8) | `ClusterSlave.DispatchAbort` gives an abort to EVERY claiming handler and sends one answer; `PreemptPendingPrepare` drops a stuck prepare of the named transaction and its queued intents, answering that op `Cancelled` |
+| chain (H1, H9) | `LoadPhaseChain` claims only the abort of the load it holds (transaction id from its `Loading*` prepare, cleared when the hold resolves), aborts every step with the context stored at prepare, cancels the hold |
+| ⏳ H5 | cancelling the in-flight FILE TRANSFER needs P6's `IFileTransfer.Cancel()`; until then the staging copy finishes landing, as before |
+| rails | `ClusterMasterPrefetchTests.P8_*` (cancel in flight ⇒ abort + Idle round ⇒ `Idle`, and the same load is admitted again; a completed transition is not undone) · `ClusterSlaveTests.P8_AnAbort_PreemptsTheStuckPrepareOfItsTransaction_AndReachesEveryClaimant` · `LoadPhaseChainTests.P8_AnAbortOfTheLoadInFlight_AbortsEveryStep_AndOnlyThatLoadsAbortIsClaimed` |
+
 ### 4-H.4 ⚠ What is NOT decided here
 
 - ⛔ **Cancelling a `Replay` or an archive Export/Import** — those have their own `_activeCancellations` path and are unchanged.

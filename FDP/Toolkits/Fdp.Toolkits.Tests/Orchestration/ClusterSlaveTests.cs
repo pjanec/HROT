@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -131,6 +132,68 @@ public sealed class ClusterSlaveTests
             if (ev.TransactionId == txId) seen.Add(ev.StatusCode);
 
         Assert.Equal(new[] { OrchestrationStatusCode.InProgress, OrchestrationStatusCode.Success }, seen);
+    }
+
+    /// <summary>A handler that claims every abort and counts them — the shape <c>TerrainAssetHandler</c> has.</summary>
+    private sealed class AbortCounter : IClusterStateHandler
+    {
+        public int Aborts;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.AbortTransaction;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) => Aborts++;
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> (Q91 §4-H.3a, H7 + H8) — an abort naming the transaction of a STUCK prepare does not wait behind it:
+    /// it preempts it (the stuck op is answered <c>Cancelled</c>, its queued <c>CommitState</c> is dropped), and it reaches
+    /// EVERY handler that claims aborts. ⛔ Before: the abort queued behind the prepare forever, and only the first claimant
+    /// would ever have seen one.
+    /// </summary>
+    [Fact]
+    public void P8_AnAbort_PreemptsTheStuckPrepareOfItsTransaction_AndReachesEveryClaimant()
+    {
+        const int opId = 5;
+        var stuck = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };   // never completes
+        var first = new AbortCounter();
+        var second = new AbortCounter();
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(stuck);
+        slave.RegisterHandler(first);
+        slave.RegisterHandler(second);
+
+        var loadTx = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = loadTx, TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = loadTx, TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();                    // the prepare is now stuck; CommitState is queued behind it
+        bus.SwapBuffers();
+        _ = bus.ReadManaged<NodeOpCompletedEvent>().ToList();
+
+        var abortTx = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = abortTx, TargetNodeId = 0, Operation = NodeOpType.AbortTransaction,
+            DomainPayload = new AbortTransactionPayload(loadTx),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        bus.SwapBuffers();
+        var answers = bus.ReadManaged<NodeOpCompletedEvent>().ToList();
+
+        Assert.Equal(1, first.Aborts);
+        Assert.Equal(1, second.Aborts);   // ⭐ H7 — every claimant, not the first only
+        Assert.Contains(answers, a => a.TransactionId == loadTx && a.StatusCode == OrchestrationStatusCode.Cancelled);
+        Assert.Contains(answers, a => a.TransactionId == abortTx && a.StatusCode == OrchestrationStatusCode.Success && a.IsParticipating);
+
+        slave.Tick();   // ⭐ the queued CommitState of the aborted load was dropped — the node never reaches OperatingLive
+        Assert.NotEqual((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);
+        Assert.Equal(0, stuck.CommitCallCount);
     }
 
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────

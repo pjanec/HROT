@@ -1638,6 +1638,48 @@ public sealed class ClusterMaster : IDisposable
         };
     }
 
+    /// <summary>
+    /// ⭐⭐ P8 (Q91 §4-H.2) — cancel is TWO rounds: an <c>AbortTransaction</c> naming the transition's own transaction
+    /// to every roster node (each node's load chain undoes its load — it may even preempt a stuck prepare, H8), then a
+    /// round to <c>Idle</c> through the ordinary transition path, which reports the cluster in <c>Idle</c> when every
+    /// node has answered. ⛔ A cancel that sent only the abort would leave every node reporting <c>Loading*</c> with
+    /// nothing loading. Returns <c>false</c> when <paramref name="targetId"/> names no transition still in flight.
+    /// </summary>
+    private bool TryCancelInFlightTransition(Guid targetId)
+    {
+        var tx = _inflightTransitionTx;
+        if (tx == null || tx.IsAborted) return false;
+        if (tx.OriginRequestId != targetId && tx.TransactionId != targetId) return false;
+        if (!_pendingTransactions.TryGetValue(tx.TransactionId, out var tracker)) return false;   // already complete
+
+        _pendingTransactions.Remove(tx.TransactionId);
+        _owedAcks.Remove(tx.TransactionId);
+        tx.IsAborted = true;
+
+        var nodes = new List<int>(_roster.ActiveNodes.Keys);
+        if (nodes.Count > 0)
+            FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), new AbortTransactionPayload(tx.TransactionId), nodes);
+        PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Cancelled);
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] P8: transition {0} (transaction {1}) CANCELLED — aborted on {2} node(s); returning to Idle.",
+            targetId, tx.TransactionId, nodes.Count);
+
+        // ── round 2: back to Idle, the state every load starts from (R-4004, H2).
+        var idleRequest = Guid.NewGuid();
+        var toIdle = new Queue<ISysOpStep>();
+        toIdle.Enqueue(new TransitionStep(ClusterState.Idle));
+        _activeExerciseId = Guid.Empty;
+        ExecuteTransitionTrajectory(new ParkedTransition(
+            idleRequest,
+            new TransitionStateIntent
+            {
+                TransactionId = idleRequest,
+                TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            },
+            toIdle, _currentDsmState, ClusterState.Idle, toIdle.Count, UtcNowSeconds()));
+        return true;
+    }
+
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)
     {
         var targetId = intent.TargetRequestId;
@@ -1660,6 +1702,11 @@ public sealed class ClusterMaster : IDisposable
             PublishOpStatus(targetId, OrchestrationStatusCode.Cancelled);
             return;
         }
+
+        // ⭐⭐ P8 (Q91 §4-H, R-4004) — a transition already fanned out and not yet complete: abort it on every node, then
+        //   return the cluster to Idle so the same load can simply be issued again. ⛔ Still no timer (R-4001, H4).
+        if (targetId != Guid.Empty && TryCancelInFlightTransition(targetId))
+            return;
 
         if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
         {

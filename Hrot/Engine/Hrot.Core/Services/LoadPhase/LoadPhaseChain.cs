@@ -42,6 +42,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     private readonly string _hostLabel;
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
 
+    // ⭐ P8 — the load in flight (from its Loading* prepare until its hold resolves), which an abort may name.
+    private Guid               _loadTransactionId;
+    private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
 
@@ -137,6 +140,13 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     /// </remarks>
     public bool CanHandle(ExecuteNodeOpIntent intent)
     {
+        // ⭐⭐ P8 (Q91 §4-H, H1/H9) — the abort of the load THIS chain holds, and only that one. ⛔ The op-level
+        //   CanHandle does not claim aborts: an abort names a transaction, and only the intent says which.
+        if (intent.Operation == NodeOpType.AbortTransaction)
+            return _loadTransactionId != Guid.Empty
+                && intent.DomainPayload is AbortTransactionPayload abort
+                && abort.TargetTransactionId == _loadTransactionId;
+
         if (intent.Operation == NodeOpType.PrepareLive || intent.Operation == NodeOpType.PrepareEdit)
             return true;
 
@@ -149,6 +159,13 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     /// <inheritdoc/>
     public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
+        // ⭐⭐ P8 — the operator's cancel reaches the chain as an ordinary op naming the load (CanHandle checked that).
+        if (intent.Operation == NodeOpType.AbortTransaction)
+        {
+            AbortLoad();
+            return null;
+        }
+
         var maybe = LoadPhaseContext.From(intent);
         if (maybe is not { } context) return null;
 
@@ -175,6 +192,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         if (!context.IsLoadingPhase) return null;
 
         _pendingExerciseId = context.ExerciseId;
+        _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
+        _loadContext       = context;
 
         // ── The content itself. ⭐⭐ P4 (Q91 §4-B2, R-4001) — THE FRAME THREAD COORDINATES; only pure work leaves it.
         //    📐 Before: every step was awaited inline with no prior yield (the comment here said "off the main thread";
@@ -220,14 +239,26 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     /// <inheritdoc/>
     public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
     {
-        var maybe = LoadPhaseContext.From(intent);
-        if (maybe is { } context)
+        if (LoadPhaseContext.From(intent) is { } context) _loadContext = context;
+        AbortLoad();
+    }
+
+    /// <summary>
+    /// ⭐⭐ P8 (Q91 §4-H) — undo the load in flight: every step frees what its prepare built (from the context stored
+    /// at prepare — the abort op carries no load payload), the hold is cancelled, and the chain forgets the load.
+    /// ⚠ A step still preparing on a worker finishes on its own; its result is never committed (H6).
+    /// </summary>
+    private void AbortLoad()
+    {
+        if (_loadContext is { } context)
             foreach (var step in _steps)
                 step.Abort(context);
 
         _holdTcs?.TrySetCanceled();
         _holdTcs = null;
         _pendingExerciseId = Guid.Empty;
+        _loadTransactionId = Guid.Empty;
+        _loadContext       = null;
     }
 
     /// <inheritdoc/>
@@ -245,5 +276,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
 
         _holdTcs.TrySetResult(null);
         _holdTcs = null;
+        _loadTransactionId = Guid.Empty;   // ⭐ P8 — the load is done; nothing left to abort
+        _loadContext       = null;
     }
 }

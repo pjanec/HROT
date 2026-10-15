@@ -236,7 +236,18 @@ namespace Fdp.Toolkit.Orchestration
                     if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
                         continue;
 
-                    if (_pendingPrepare.HasValue)
+                    // ⭐⭐ P8 (Q91 §4-H.3a, H8) — an abort naming the PENDING prepare's transaction does not wait in the
+                    //   queue it exists to clear: it preempts, then runs now. ⛔ Otherwise a stuck load could never be
+                    //   cancelled — the case R-4001 hands to the operator.
+                    if (_pendingPrepare.HasValue
+                     && intent.Operation == NodeOpType.AbortTransaction
+                     && intent.DomainPayload is AbortTransactionPayload preempting
+                     && preempting.TargetTransactionId == _pendingPrepare.Value.Intent.TransactionId)
+                    {
+                        PreemptPendingPrepare(preempting.TargetTransactionId);
+                        DispatchIntent(intent);
+                    }
+                    else if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
                         ClusterState sd = intent.DomainPayload switch
@@ -421,6 +432,13 @@ namespace Fdp.Toolkit.Orchestration
                 return;
             }
 
+            // ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort goes to EVERY handler that claims it, never the first only.
+            if (intent.Operation == NodeOpType.AbortTransaction)
+            {
+                DispatchAbort(intent);
+                return;
+            }
+
             // Handler dispatch with async-prepare deferral.
             foreach (var handler in _handlers)
             {
@@ -488,6 +506,82 @@ namespace Fdp.Toolkit.Orchestration
                 NodeId          = _nodeId,
                 StatusCode      = OrchestrationStatusCode.Success,
                 IsParticipating = false,
+                ResultPayload   = null,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H8) — drop the pending prepare of <paramref name="transactionId"/> and every queued intent
+        /// of that transaction. ⚠ The prepare's task runs on to its end; its result is discarded, never committed — it
+        /// built only private objects (§4-B2, H6). Its op is answered <c>Cancelled</c>.
+        /// </summary>
+        private void PreemptPendingPrepare(Guid transactionId)
+        {
+            var dropped = _pendingPrepare!.Value.Intent;
+            _pendingPrepare = null;
+
+            int before = _pendingIntents.Count;
+            var keep = new Queue<ExecuteNodeOpIntent>(_pendingIntents.Count);
+            foreach (var queued in _pendingIntents)
+                if (queued.TransactionId != transactionId) keep.Enqueue(queued);
+            _pendingIntents.Clear();
+            foreach (var queued in keep) _pendingIntents.Enqueue(queued);
+
+            FdpLog<ClusterSlave>.Warn(
+                "[ClusterSlave] Abort preempts the pending {0} of transaction {1}; {2} queued intent(s) of it dropped.",
+                dropped.Operation, transactionId, before - _pendingIntents.Count);
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = dropped.TransactionId,
+                Operation       = dropped.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Cancelled,
+                IsParticipating = true,
+                ResultPayload   = null,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort names a TRANSACTION, so every handler holding part of it rolls its part
+        /// back; a handler holding nothing for it no-ops. ⛔ First-match dispatch let whichever handler registered first
+        /// swallow every abort. One answer is sent for the abort op.
+        /// </summary>
+        private void DispatchAbort(ExecuteNodeOpIntent intent)
+        {
+            bool participating = false;
+            bool failed        = false;
+            foreach (var handler in _handlers)
+            {
+                if (!handler.CanHandle(intent)) continue;
+                participating = true;
+
+                var task = handler.PrepareAsync(intent, default);
+                if (!task.IsCompleted)
+                {
+                    // ⛔ An abort must not wait: a handler whose abort is asynchronous is a defect, reported loudly.
+                    FdpLog<ClusterSlave>.Error(
+                        "[ClusterSlave] {0} answered AbortTransaction asynchronously — its rollback was not committed.",
+                        handler.GetType().Name);
+                    failed = true;
+                    continue;
+                }
+                if (task.IsFaulted)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] {0} failed to abort: {1}",
+                        handler.GetType().Name, task.Exception?.GetBaseException().ToString() ?? "unknown");
+                    failed = true;
+                    continue;
+                }
+                handler.Commit(intent, repo: null);
+            }
+
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = failed ? OrchestrationStatusCode.Failure : OrchestrationStatusCode.Success,
+                IsParticipating = participating,
                 ResultPayload   = null,
             });
         }

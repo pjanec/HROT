@@ -657,4 +657,93 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
 
         Assert.Equal(1, joins);
     }
+
+    // ── P8 (Q91 §4-H, R-4004) — the operator cancels a load in flight; the cluster returns to Idle ────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> — cancel a transition that was FANNED OUT and is still waiting for its node: the master sends every
+    /// node an <c>AbortTransaction</c> naming the transition's own transaction, reports the request <c>Cancelled</c>,
+    /// then runs a round to <c>Idle</c>; when the node answers it, the cluster is <c>Idle</c> — and the same load is
+    /// admitted again. ⛔ Before: only a PARKED transition could be cancelled; this one would sit in <c>Loading*</c>.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P8_Cancelling_a_load_in_flight_aborts_it_on_every_node_then_returns_the_cluster_to_Idle()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master);
+
+        var load = Guid.NewGuid();
+        RequestTransition(master, load, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        var loadTx = bus.ReadManaged<ExecuteNodeOpIntent>().First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
+        // ⭐ the node never answers — the load is stuck
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = load });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var sent = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var abort = Assert.Single(sent, i => i.Operation == FdpNodeOpType.AbortTransaction);
+        Assert.Equal(loadTx, Assert.IsType<AbortTransactionPayload>(abort.DomainPayload).TargetTransactionId);
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == load && e.StatusCode == OrchestrationStatusCode.Cancelled);
+        var toIdle = Assert.Single(sent, i => i.Operation == FdpNodeOpType.PrepareState);
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
+
+        // the node answers the abort and the Idle round
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = abort.TransactionId, Operation = abort.Operation, NodeId = 1 });
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = toIdle.TransactionId, Operation = toIdle.Operation, NodeId = 1 });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterStateUpdateEvent>(),
+            e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Idle);
+
+        // ⭐ "the whole procedure can be repeated" (R-4004): the same load is admitted, not rejected as busy
+        var again = Guid.NewGuid();
+        RequestTransition(master, again, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == again && e.StatusCode == OrchestrationStatusCode.Rejected);
+        Assert.True(SawPrepare(bus), "after the cancel the same load must be issued again");
+    }
+
+    /// <summary>
+    /// ⭐ A cancel naming a transition that already COMPLETED does not undo it: no abort of the load's transaction, no
+    /// round to <c>Idle</c>, the cluster stays where it is. ⚠ The pre-existing cancel path still broadcasts an abort naming
+    /// the REQUEST (the archive cancels rely on it) — no node holds a load under that id, so it is a no-op.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P8_Cancelling_a_completed_transition_sends_nothing()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master);
+
+        var load = Guid.NewGuid();
+        RequestTransition(master, load, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        var loadOps = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var loadTx  = loadOps.First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
+        foreach (var op in loadOps.Where(i => i.Operation != FdpNodeOpType.CommitState))
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = 1 });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = load });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var sent = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.DoesNotContain(sent, i => i.Operation == FdpNodeOpType.PrepareState);
+        Assert.DoesNotContain(sent, i => i.DomainPayload is AbortTransactionPayload a && a.TargetTransactionId == loadTx);
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);
+    }
 }
