@@ -50,7 +50,8 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Map3D.EntityBodyLayer3D Bodies,
         Hrot.UI.Common.Effects.EffectLayer Effects,
         Hrot.UI.Common.Effects.ProjectileLayer? Projectiles = null,
-        Hrot.UI.Common.Map3D.PossessionStation? Possession = null);
+        Hrot.UI.Common.Map3D.PossessionStation? Possession = null,
+        Hrot.UI.Common.Audio.AudioLayer? Audio = null);
 
     public static class MapInteractionPack
     {
@@ -456,9 +457,12 @@ namespace Hrot.ScenarioEditor.Map
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies);   // ⭐ CE-1073 — the drawn heads
             canvas.AddLayer(possession);
+            // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3) — the scene's sound, only while the station holds a unit
+            var audio = Hrot.UI.Common.Audio.AudioLayer.For(possession, viewSwitch, worldProvider, tkb);
+            canvas.AddLayer(audio);
             // ⭐ CE-1076 — the keys typed on the map go to the map's MenuShortcuts (the unit menu's M, A, H, P, C …), every host
             canvas.AddLayer(new MenuShortcutKeyLayer(bus, () => canvas.Camera));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: DESIGN — awaiting the user's approval of §3 (AU-1…AU-10); nothing built
+build-state: BUILDING — §3 APPROVED 2026-10-15 (R-1004: "Once design written pls go implementing the sounds, autonomously overnight, do as much you can without asking me"); slices A0–A3 being built
 current-answer: §1 the diagrams, §3 the decisions, §4 the spatial rules, §5 the sound catalogue, §7 the slices.
 stale-below: nothing.
 known-rot: none.
@@ -54,7 +54,7 @@ classDiagram
     class IAudioOutput { <<NEW seam>> Load Play Stop SetGainPanPitch }
     class RaylibAudioOutput { <<NEW>> raudio }
     class NullAudioOutput { <<NEW>> tests and headless }
-    class SoundTkbCatalog { <<NEW Hrot.Core>> sound types 7201+ SoundsFor ClassDefault }
+    class SoundTkbCatalog { <<NEW Hrot.Core>> sound types 7301+ SoundsFor ClassDefault }
     class SoundDto { <<NEW TKB descriptor>> Files Volume Range Loop PitchJitter Category Priority }
     class AcousticSignatureDto { <<existing>> ranges and classes }
     class EffectTkbCatalog { <<existing>> the pattern }
@@ -141,7 +141,7 @@ stateDiagram-v2
 | **doors, boarding** | the door state, embark / disembark | one-shots |
 | **ambient** | the scenario: terrain, time of day | beds: wind (always), birds (day), insects (night), a town hum (built-up), and a **distant battle rumble** whose level follows the shots fired out of earshot |
 
-## 3. Decisions (leans for approval)
+## 3. Decisions — ✅ APPROVED `2026-10-15` (R-1004), as written
 
 | # | decision | lean | rejected — one line each |
 |---|---|---|---|
@@ -149,7 +149,7 @@ stateDiagram-v2
 | **AU-2** | 3-D positioning | **ours, pure C#** (`Spatializer`): distance gain, stereo pan from the bearing to the ear, Doppler pitch, the speed-of-sound delay | relying on the library — raylib has no 3-D |
 | **AU-3** | when sound exists | **only while `PossessionStation` holds a unit**: the device opens on the first Enter, every voice stops on Leave; the ear is the FPS camera | always on in 3-D — the 3-D map's free camera has no "ear"; a sound map of the battle is a later idea |
 | **AU-4** | how far a sound carries | the type's **`AcousticSignatureDto` ranges** (the AI's hearing ranges) as the distance where the gain reaches ~0; the curve inside it per `SoundDto` | separate playback ranges — the operator would hear what the AI cannot, or the reverse |
-| **AU-5** | how sounds are defined | the **Visual Effects pattern**: sound TYPES in the TKB (`SoundTkbCatalog`, ids 7201+, a `SoundDto` look each); a munition / weapon / type names its sounds, else the **class default** (calibre class for shots and bursts, `SoundSourceClass` for movement) — overridable per type, like HL-12's body zones | hard-coded sound names in the layer — every new weapon would need code |
+| **AU-5** | how sounds are defined | the **Visual Effects pattern**: sound TYPES in the TKB (`SoundTkbCatalog`, ids 7301+, a `SoundDto` look each); a munition / weapon / type names its sounds, else the **class default** (calibre class for shots and bursts, `SoundSourceClass` for movement) — overridable per type, like HL-12's body zones | hard-coded sound names in the layer — every new weapon would need code |
 | **AU-6** | no sound device (CI, headless, a server) | a `NullAudioOutput` that RECORDS what would play — the rails assert on it; FPS runs unchanged | failing to start — a missing sound card must never stop the editor |
 | **AU-7** | the voice budget | **32 voices**, priority own > shot near > explosion > bullet pass > shot far > movement > ambient; one alias per playing copy (`LoadSoundAlias`), the quietest of the lowest priority dropped first | no budget — a firefight would clip and stutter |
 | **AU-8** | the files | **OGG**, in `assets/audio/`, each listed in a **licence table** (file · source · licence · author); **CC0 only** (Freesound filtered to CC0, Kenney, OpenGameArt CC0) plus **procedurally generated placeholders** made by a script in the repo (noise bursts, filtered noise, hums) | Sonniss GDC bundles and BBC Sound Effects in the repo — their licences restrict redistributing the raw files / commercial use · CC-BY by default — allowed only with the table's attribution column filled |
@@ -171,15 +171,15 @@ stateDiagram-v2
 
 | id | sound type | used by | starting asset |
 |---|---|---|---|
-| 7201–7203 | shot near: small · medium · large calibre | the calibre class default (as VE-D) | generated, then CC0 rifle / cannon / tank-gun recordings |
-| 7204–7206 | shot distant: small · medium · large | beyond 150 m | generated (low-passed, longer tail) |
-| 7207 | burst loop (machine gun) | automatic mounts while firing (CE-1105's window) | generated |
-| 7211–7213 | explosion: small · medium · large | the warhead size | generated, then CC0 |
-| 7221 | bullet pass (crack / whiz) | a round passing within 5 m | generated |
-| 7231–7232 | impact: soft · hard (ricochet) | hits | generated |
-| 7241–7245 | movement loops: footsteps · wheeled engine · tracked engine · rotor · jet | `SoundSourceClass` 1, 2, 3, 7 + fixed wing | generated hums / noise, then CC0 |
-| 7251–7254 | own: reload · empty click · breathing · door | the station | CC0 |
-| 7261–7265 | ambient beds: wind · birds · insects · town · battle rumble | the scenario | generated wind / rumble, CC0 birds / insects |
+| 7301–7303 | shot near: small · medium · large calibre | the calibre class default (as VE-D) | generated, then CC0 rifle / cannon / tank-gun recordings |
+| 7304–7306 | shot distant: small · medium · large | beyond 150 m | generated (low-passed, longer tail) |
+| 7307 | burst loop (machine gun) | automatic mounts while firing (CE-1105's window) | generated |
+| 7311–7313 | explosion: small · medium · large | the warhead size | generated, then CC0 |
+| 7321 | bullet pass (crack / whiz) | a round passing within 5 m | generated |
+| 7331–7332 | impact: soft · hard (ricochet) | hits | generated |
+| 7341–7345 | movement loops: footsteps · wheeled engine · tracked engine · rotor · jet | `SoundSourceClass` 1, 2, 3, 7 + fixed wing | generated hums / noise, then CC0 |
+| 7351–7354 | own: reload · empty click · breathing · door | the station | CC0 |
+| 7361–7365 | ambient beds: wind · birds · insects · town · battle rumble | the scenario | generated wind / rumble, CC0 birds / insects |
 
 `SoundDto`: `Files[]` (variants, one picked at random), `VolumeDb`, `ReferenceM`, `Loop`, `PitchJitter`, `Category`, `Priority`. A munition /
 weapon mount / type carries an optional `SoundsDto { Shot, ShotFar, Burst, Detonation, Moving }` naming sound types — the `MunitionEffectsDto`
