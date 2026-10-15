@@ -91,7 +91,7 @@ Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3073` (F10, fixe
 ```mermaid
 graph LR
   TT["test-town (exists)<br/>400 x 400 m urban<br/>6 buildings, walls, streets, garage deck"]
-  BD["basic-desert (exists, extended)<br/>600 x 600 m open<br/>track road, rocks, compound<br/>+ NEW ridge (two ramps) + wadi"]
+  BD["basic-desert (exists, extended)<br/>600 x 600 m open<br/>track road, rocks, compound<br/>+ ridge + wadi on a height grid (H4)"]
   TT --> U1["U1 posture"]
   TT --> U2["U2 threat ranking"]
   TT --> U3["U3 three hosts"]
@@ -107,7 +107,7 @@ target type and squad movement need open ground — and no third terrain is need
 | decision | why | rejected |
 |---|---|---|
 | ⭐ reuse `test-town` unchanged | cover, LOS blockers and streets already exist; `tt-take-cover`/`tt-posture` prove EQS answers there | — |
-| ⭐ extend `basic-desert` with a ridge (two ramps meeting at a crest) and a wadi | ramps are walkable AND block sight (`TerrainWorld.cs:157-165` — sight lines test walkable triangles), so a ridge works as a hill without a heightfield; the tests pin only its NAME | a third terrain (the user prefers 2–3; nothing needs it) · a heightfield (not built) |
+| ⭐ extend `basic-desert` with a ridge and a wadi — ⛔ *the "two ramps" form is SUPERSEDED `2026-10-15`: built as a height grid, [`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md) §5d* | ramps are walkable AND block sight (`TerrainWorld.cs:157-165` — sight lines test walkable triangles), so a ridge works as a hill without a heightfield; the tests pin only its NAME | a third terrain (the user prefers 2–3; nothing needs it) · a heightfield (not built) |
 | ⚠ to MEASURE when building | that the navmesh bakes over the ramps and `SurfaceZ` puts a unit on top of them, not on the ground below | — |
 
 ## 4. The scenarios
@@ -252,7 +252,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | **G7** `CE-3089` → backend | weapon mounts: register `WeaponMountInfo`, per-mount range, effectiveness vs armour (not a copy of range fit), the fire executor fires the chosen mount, a `SelectWeapon` step in the engage path; `TopCandidate` passes the target as context (F2) | L | U5 | G1 |
 | **G8** `CE-3088` → backend | call `ThreatMatrixAssignmentSystem` from `SquadCoordinationSystem`; feed it the merged pool (F4); an infantry squad hierarchy in a scenario | M | U6 | G1, G3 |
 | **G9** | CE-507 D2/D3: a danger-area provider (interim: features authored in the terrain file), F5, F6, a squad-maneuver behaviour on the commander, members reading their role | L | U7 | user decisions |
-| **G10** `CE-3086` → backend | `basic-desert` ridge + wadi; measure navmesh and `SurfaceZ` on the ramps | S | U5–U7 | — |
+| **G10** `CE-3086` → backend ✅ | `basic-desert` ridge + wadi — ⭐ BUILT `2026-10-15` as a height grid, not ramps ([`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md) §5d: crest 10 m at y = 210, x 230–320; wadi at x = 520); navmesh measured on both layers | S | U5–U7 | — |
 | **G11** ⚠ PARTIAL `2026-10-05` (U1/U2 rails: `CE-3085`) | the seven scenario folders, `utility-demo-check.py` (asserting; `--launch` = a fresh cluster per run, CE-295), the runbook, one in-process rail each — ✅ U1 `ua-posture` and U2 `ua-threat-ranking` built and PASS ×2 live; ⏳ their in-process rails, U3–U7 | M | all | per scenario |
 
 ## 7. Out of scope — and why
