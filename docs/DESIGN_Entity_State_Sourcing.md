@@ -14,6 +14,7 @@ known-conflict: docs/designs/others/DESIGN-NetworkSpawning.md:112 says "Initial 
   the LIFECYCLE ESSENTIALS only (things that are also published descriptors). ⛔ It must NOT be read as
   licence for arbitrary scenario-authored overrides — see §1.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — relies on §1 here for a late-joining Player seeing every live entity.
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
     routes back to its owner, including this one. Read it FIRST if you do not already know where in

@@ -33,6 +33,8 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — the multiplayer Player node (an IG node, no new role): which
+    nodes may fail or hang a 2PC round is derived from the ROLE (§4-A there), the open item at the end of §3.3 here.
   - docs/DESIGN_Unified_Cluster_Handler_Registration.md — owns WHICH cluster handlers each host registers and in
     what ORDER (CE-279); §3.3 here owns the rule that the set is the same everywhere and a ROLE, not a missing
     handler, makes a node behave differently.
@@ -273,7 +275,7 @@ from `SerializeLocal` through the no-handler path (`ClusterSlave.cs:473`) rather
 recording and replay as a listener, so it needs NO role-driven exception there. What it needs is a 2PC that a
 volatile node can neither veto nor hang (`EjectNode` returns early for a non-mandatory node and the round keeps
 waiting — `ClusterMaster.cs:700`, `:1828`) and a step barrier that drops a node that has gone
-(`MasterSyncController.cs:566-580`). No owning design yet.
+(`MasterSyncController.cs:566-580`). ⭐ Owned by [`Architect_Question_91_Player_Nodes.md`](blueprints/Architect_Question_91_Player_Nodes.md) — no Player role; authority derived from the simulation roles.
 
 ---
 
