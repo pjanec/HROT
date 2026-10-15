@@ -1566,7 +1566,7 @@ def run_tank_corner(c, timeout):
 
 
 # ── ua-ifv-standoff (Urban Armour V7; Exposure Cycle §4, CE-2196) — a 25 mm IFV out-ranges RPG men; up close an RPG kills it ─────────
-#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 400 m from two RPG men (RPG reach 300 m): no hide answers in the
+#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 340 m from two RPG men (RPG reach 300 m): no hide answers in the
 #   open, so it fights from where it stands (CE-2196) — its 25 mm hits them, they never reach it. ② "IFV Close" with an RPG man 80 m
 #   off, on an attack order at it: the RPG hits it (Bradley side 80 mm vs a PG-7V's ~300 mm).
 def run_ifv_standoff(c, timeout):
@@ -1595,6 +1595,9 @@ def run_ifv_standoff(c, timeout):
         by.setdefault(x.get("shooter"), []).append(x)
     name = {v: k for k, v in ids.items()}
     print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    for x in by.get(far, [])[:4]:
+        print("      stand-off shot", {k: x.get(k) for k in ("target", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "sigma", "penetration")})
+    print("    stand-off targets:", {name.get(t, t): n for t, n in __import__("collections").Counter(x.get("target") for x in by.get(far, [])).items()})
     hurt = [m for m in (a1, a2) if (health(m) or 100) < 100]
     c.ok(len(by.get(far, [])) >= 1 and hurt, f"① the stand-off IFV fires and hits the RPG men — {len(by.get(far, []))} rounds, hurt {[name.get(m) for m in hurt]}")
     c.ok(closest > 300 and (health(far) or 0) >= 500, f"① from beyond their reach, untouched — closest {closest:.0f} m, health {health(far)}")
