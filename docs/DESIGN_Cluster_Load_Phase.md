@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -869,6 +869,71 @@ longer exists. Measured after: 2/2 second-load runs engage and kill both hostile
 the load both CGF and SimHost still read the LAST world's time (14.9 s) until Play, which then restarts it near 0. Anything
 stamped during the load carries the old clock — the commander's `BehaviorState.RunSince` = 14.9 s, so
 `SopConditions.SensedFresh` ignores senses from the new world's first ~15 s.
+
+### 8.2 ⭐⭐⭐ `CE-4000` (F2, `R-4019`) — **IDLE IS EMPTY EVERYWHERE: entering `Idle` wipes the world AND deletes what the node owned** *(design `2026-10-15`, coordinator; `build-state: BUILDING`)*
+
+🔒 User, `2026-10-15`: *"F2 approved."* 📐 The defect it fixes (`CE-4000`, measured live): the §8 clear destroys locally and
+deliberately writes no "deleted" (`CycloneNetworkCleanupSystem.cs:46`), so `EntityMaster` — `TransientLocal`, depth 1
+(`GenericDescriptors.cs:96`) — keeps the dead run alive on the wire and every late joiner receives it.
+
+```mermaid
+sequenceDiagram
+  participant S as ClusterSlave (every node)
+  participant C as LoadPhaseChain (IIdleResetHandler)
+  participant W as WorldBoundaryReset
+  participant X as CycloneNetworkCleanupSystem
+  participant R as other node: EntityMasterIngressTranslator
+  Note over S: CommitState to Idle, OR DropToIdle (C2: new session / master gone)
+  S->>C: OnEnteredIdle() (only when the state CHANGED to Idle)
+  C->>W: Clear(world, map, host)
+  W->>W: destroy every entity, WorldEpoch++
+  X->>X: next Export pass: WorldEpoch moved - DisposeAll(each OWNED id it tracked), then forget
+  X-->>R: EntityMaster dispose (key only)
+  R->>R: sender (sender tracking) != recorded owner? ignore + log. else destroy as today
+```
+
+*What the picture shows that prose hid:* the deletes go out when the cluster ENTERS Idle — a whole load cycle before the
+next run reuses any id — and the only new code is one hook, one changed line in the cleanup system, and one guard; the wipe,
+the dispose fan-out and the sender identity all exist already.
+
+```mermaid
+classDiagram
+  class IIdleResetHandler { <<NEW, optional on IClusterStateHandler>> +OnEnteredIdle() }
+  class ClusterSlave { <<existing, grows>> commit to Idle and DropToIdle call OnEnteredIdle }
+  class LoadPhaseChain { <<existing, grows>> implements IIdleResetHandler }
+  class WorldBoundaryReset { <<existing>> +Clear(world, map, host)$ }
+  class CycloneNetworkCleanupSystem { <<existing, changed>> epoch moved: DisposeAll tracked, then forget }
+  class EntityMasterIngressTranslator { <<existing, grows>> ProcessDispose(netId, sender) guard }
+  class SenderRegistry { <<existing, CycloneDDS.NET>> GetSender(index).AppInstanceId }
+  ClusterSlave ..> IIdleResetHandler
+  LoadPhaseChain ..|> IIdleResetHandler
+  LoadPhaseChain ..> WorldBoundaryReset
+  CycloneNetworkCleanupSystem ..> WorldBoundaryReset : sees its WorldEpoch move
+  EntityMasterIngressTranslator ..> SenderRegistry
+```
+
+```mermaid
+graph TD
+  SL[ClusterSlave.Tick - every ECS host: SimHost, CGF, IG, editor] -->|enters Idle| CH[LoadPhaseChain - registered on all five composition roots]
+  CH --> WB[WorldBoundaryReset.Clear]
+  K[kernel Export phase, every frame] --> CL[CycloneNetworkCleanupSystem]
+  CL -->|DisposeAll| EG[egress translators' Dispose]
+  ING[kernel Input phase] --> EMI[EntityMasterIngressTranslator.PollIngress]
+  EX[ExCon: no chain, no world] -.->|not reached: owns no entities| CH
+  style EX stroke-dasharray: 5 5
+```
+
+*What the module picture shows:* the hook is reached on exactly the hosts that own a world — every ECS host registers the
+chain (`IgNodeBootstrapper.cs:413`, `CgfApplication.cs:206`, `CgfSubsystem.cs:1264`, `NodeBootstrapper.cs:410`,
+`EditorSubsystem.cs:1550`); ExCon has none and owns nothing, so nothing is missed there.
+
+| ⭐ decision | why · rejected |
+|---|---|
+| the trigger is a direct handler hook, the way `ITickableClusterStateHandler` already is | it fires in the same frame on BOTH routes into Idle (`ClusterSlave.cs:431` commit, `:639` drop). ⛔ Rejected: reading `TkClusterStateChangedEvent` in the chain — the chain reads no bus today and the event is double-buffered (a frame late) |
+| the deletes reuse `DisposeAll`, the in-game destruction path | ⭐ a wiped world sends exactly what a destroyed entity sends. ⚠ Which is also its LIMIT: most egress translators' `Dispose` only drop a cache — `CE-4007` |
+| the guard: a delete whose sender is KNOWN and differs from the entity's KNOWN owner is ignored and logged | 📐 measured: a key-only dispose sample still names its writer (`EntityMasterTranslatorTests.CE4000_ADisposeSample_NamesTheNodeThatDisposedIt`). ⭐ Either side unknown ⇒ accepted, as today — rejecting a real delete would leave exactly the stale entity this fixes |
+| the §8 load-start clear stays | after an Idle wipe it finds an empty world; it still protects a load that did not pass through Idle |
+| ⚠ accepted cost | after Stop the final world can no longer be inspected — only replay shows it (the user's F2 trade) |
 
 ## 9. ⭐⭐⭐ `CE-295` — **A LOAD OVER A LOADED CLUSTER UNLOADS FIRST — the caller asks** *(AS-BUILT `2026-10-05`, backend)*
 

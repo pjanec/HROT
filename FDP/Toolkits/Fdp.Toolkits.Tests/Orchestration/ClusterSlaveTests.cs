@@ -249,6 +249,55 @@ public sealed class ClusterSlaveTests
         Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);   // ⭐ the master gone ⇒ Idle
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node ENTERING <c>Idle</c> tells every world-owning handler, once, on BOTH
+    /// routes: a committed transition and a drop to <c>Idle</c> (here: the master gone). ⛔ Not on a commit to another state, and
+    /// not again while it stays in <c>Idle</c>.
+    /// </summary>
+    [Fact]
+    public void CE4000_EnteringIdle_TellsTheWorldOwner_OnceOnEachRoute()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        var owner = new IdleCounter();
+        slave.RegisterHandler(owner);
+
+        void Commit(ClusterState to)
+        {
+            bus.PublishManaged(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+                DomainPayload = new CommitStatePayload(to),
+            });
+            bus.SwapBuffers();
+            slave.Tick();
+        }
+
+        Commit(ClusterState.OperatingLive);
+        Assert.Equal(0, owner.Entered);
+        Commit(ClusterState.Idle);
+        Assert.Equal(1, owner.Entered);          // ⭐ the committed route
+        Commit(ClusterState.Idle);
+        Assert.Equal(1, owner.Entered);          // ⛔ staying in Idle is not entering it
+
+        Commit(ClusterState.OperatingLive);
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
+        Assert.Equal(2, owner.Entered);          // ⭐ the drop route
+    }
+
+    private sealed class IdleCounter : IIdleResetHandler
+    {
+        public int Entered { get; private set; }
+        public void OnEnteredIdle() => Entered++;
+        public bool CanHandle(NodeOpType operation) => false;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+        public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
+    }
+
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────
 
     /// <summary>

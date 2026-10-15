@@ -433,6 +433,7 @@ namespace Fdp.Toolkit.Orchestration
                     PreviousStateId = previousStateId,
                     NextStateId     = nextStateId,
                 });
+                if (previousStateId != nextStateId) NotifyIfEnteredIdle();
                 return;
             }
 
@@ -636,8 +637,30 @@ namespace Fdp.Toolkit.Orchestration
             int previous = _localStateId;
             _localStateId = (int)ClusterState.Idle;
             if (previous != _localStateId)
+            {
                 _eventBus?.Publish(new TkClusterStateChangedEvent { PreviousStateId = previous, NextStateId = _localStateId });
+                NotifyIfEnteredIdle();
+            }
             FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0} drops to Idle: {1}.", _nodeId, why);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node has just ENTERED <c>Idle</c> (either route): every handler that owns
+        /// the world empties it, so the node deletes what it owned on the wire and <c>Idle</c> is empty everywhere.
+        /// </summary>
+        private void NotifyIfEnteredIdle()
+        {
+            if (_localStateId != (int)ClusterState.Idle) return;
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IIdleResetHandler idle) continue;
+                try { idle.OnEnteredIdle(); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnEnteredIdle failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
+            }
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────

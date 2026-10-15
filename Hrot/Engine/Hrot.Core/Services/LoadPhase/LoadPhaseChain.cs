@@ -33,7 +33,7 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// never from a hand-written registration order, so <i>"this host forgot to register a step"</i> cannot be
 /// expressed — a required part with no provider throws at startup instead of being silently absent.</para>
 /// </summary>
-public sealed class LoadPhaseChain : ITickableClusterStateHandler
+public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler
 {
     private readonly IReadOnlyList<ILoadPartProvider> _steps;
     private readonly EntityRepository? _world;
@@ -264,6 +264,18 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         _pendingExerciseId = Guid.Empty;
         _loadTransactionId = Guid.Empty;
         _loadContext       = null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node entered <c>Idle</c>: empty its world. The same clear as the world
+    /// boundary (<see cref="WorldBoundaryReset"/>); the network cleanup sees the <c>WorldEpoch</c> move and deletes, on the
+    /// wire, every entity this node owned — so a late joiner never receives the dead run. ⚠ Any load still held is
+    /// forgotten (its abort already ran on the cancel path). 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §8.2.
+    /// </summary>
+    public void OnEnteredIdle()
+    {
+        if (_world != null)
+            WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
     }
 
     /// <inheritdoc/>

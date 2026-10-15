@@ -42,9 +42,21 @@ namespace Fdp.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
-            // ⭐ CE-2101 — the world boundary wiped these entities without a DestructionOrder; forget them locally
-            //   (⛔ no Dispose: that writes "entity deleted" to the wire, and the next world reuses the ids).
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _trackedEntities.Clear(); _trackedLightweight.Clear(); }
+            // ⭐⭐ CE-4000 F2 / R-4019 — the world was wiped (entering Idle, or a load's world boundary) without a
+            //   DestructionOrder: DELETE on the wire every entity this node owned, then forget them — so a late joiner never
+            //   receives a dead run (EntityMaster is TransientLocal). ⛔ SUPERSEDED (CE-2101): "forget, no Dispose — the next
+            //   world reuses the ids". The deletes now go out when the cluster ENTERS Idle, a load cycle before any id is
+            //   reused, and a receiver ignores a delete from a node that is not the entity's owner.
+            //   📄 docs/DESIGN_Cluster_Load_Phase.md §8.2.
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                foreach (var netId in _trackedEntities.Keys.ToList())
+                    DisposeAll(netId);
+                if (_trackedEntities.Count > 0)
+                    FdpLog<CycloneNetworkCleanupSystem>.Info("World wiped: deleted {0} owned entities on the wire.", _trackedEntities.Count);
+                _trackedEntities.Clear();
+                _trackedLightweight.Clear();
+            }
 
             // 1. Scan for new entities to track (all lifecycle states — entities may be in
             //    Constructing, Active, or TearDown when they first need to be tracked).

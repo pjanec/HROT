@@ -361,6 +361,30 @@ public class EntityMasterTranslatorTests
             "DestroyEntityCommand.Reason must carry a non-empty disposal message for diagnostics");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the guard: a delete whose sender is known and is NOT the entity's known owner is
+    /// ignored (a node's late delete of an id the next run gave to another node must not destroy it); the owner's delete, and a
+    /// delete whose sender or owner is unknown, tear the entity down as before.
+    /// </summary>
+    [Theory]
+    [InlineData(2, 2, true)]     // the owner deletes it
+    [InlineData(7, 2, false)]    // ⭐ a stranger's delete is ignored
+    [InlineData(-1, 2, true)]    // sender unknown ⇒ accepted, as before
+    [InlineData(7, -1, true)]    // owner unknown ⇒ accepted, as before
+    public void CE4000_ADeleteFromANodeThatIsNotTheOwner_IsIgnored(int sender, int owner, bool tornDown)
+    {
+        var (repo, entityMap, eventBus, translator) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = 1 });
+        entityMap.Register(TestNetworkId, entity);
+
+        translator.ProcessDispose(TestNetworkId, sender, repo);
+
+        eventBus.SwapBuffers();
+        Assert.Equal(tornDown ? 1 : 0, eventBus.ReadManaged<DestroyEntityCommand>().Count);
+    }
+
     // ── Test-mode safety ─────────────────────────────────────────────────────
 
     /// <summary>

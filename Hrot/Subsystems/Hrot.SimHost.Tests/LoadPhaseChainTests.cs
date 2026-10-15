@@ -339,6 +339,30 @@ public sealed class LoadPhaseChainTests
         Assert.True(map.TryGetEntity(1000, out var mapped) && mapped.Equals(arrived));
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the chain is the world owner the slave tells when the node enters Idle: it empties
+    /// the world (every entity destroyed, the map cleared, the <c>WorldEpoch</c> moved — which is what makes the network
+    /// cleanup delete the node's own entities on the wire).
+    /// </summary>
+    [Fact]
+    public void CE4000_EnteringIdle_EmptiesTheWorld()
+    {
+        var world = new EntityRepository();
+        var stale = world.CreateEntity();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        map.Register(1001, stale);
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase) }, world, entityMap: map);
+        int epochBefore = Fdp.Toolkit.Replication.Services.WorldEpoch.Of(world);
+
+        Assert.IsAssignableFrom<IIdleResetHandler>(chain);
+        chain.OnEnteredIdle();
+
+        Assert.False(world.IsAlive(stale));
+        Assert.False(map.TryGetEntity(1001, out _));
+        Assert.NotEqual(epochBefore, Fdp.Toolkit.Replication.Services.WorldEpoch.Of(world));
+    }
+
     private static ExecuteNodeOpIntent BoundaryLoad(bool boundary) => new()
     {
         Operation     = NodeOpType.PrepareLive,

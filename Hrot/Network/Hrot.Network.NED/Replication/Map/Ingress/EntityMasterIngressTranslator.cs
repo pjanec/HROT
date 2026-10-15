@@ -113,7 +113,8 @@ namespace Hrot.Map.Common.Replication.Ingress
                     // NOTE: dispose notifications have IsValid == false (no data payload,
                     // only key fields are valid). Must check instance state BEFORE IsValid.
                     var keyData = DdsTypeSupport.FromNative<EntityMaster>(sample.NativePtr);
-                    ProcessDispose(keyData.EntityId);
+                    // ⭐ CE-4000 F2 — a dispose sample still names its writer (measured), so the guard can check it.
+                    ProcessDispose(keyData.EntityId, loan.GetSender(index) is { } who ? who.AppInstanceId : UnknownOwner, view);
                     continue;
                 }
 
@@ -146,8 +147,30 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// Publishes a <see cref="DestroyEntityCommand"/> for a disposed DDS instance.
         /// Extracted as <c>internal</c> so tests can verify the teardown path without DDS.
         /// </summary>
-        internal void ProcessDispose(long networkEntityId)
+        /// <param name="senderNodeId">⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node that wrote the dispose, or -1 when unknown.</param>
+        /// <param name="view">The world, to read the entity's recorded owner; <see langword="null"/> skips the guard.</param>
+        /// <remarks>
+        /// ⭐⭐ <b>The guard:</b> a delete whose sender is KNOWN and differs from the entity's KNOWN primary owner is ignored and
+        /// logged — a node's late delete of an id the next run gave to another node must not destroy it. ⭐ Either side unknown ⇒
+        /// accepted, as before: rejecting a real delete would leave exactly the stale entity <c>CE-4000</c> removes.
+        /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §8.2.
+        /// </remarks>
+        internal void ProcessDispose(long networkEntityId, int senderNodeId = UnknownOwner, ISimulationView? view = null)
         {
+            if (senderNodeId != UnknownOwner && view != null
+                && _entityMap.TryGetEntity(networkEntityId, out var target) && view.IsAlive(target)
+                && view.HasComponent<NetworkAuthority>(target))
+            {
+                int owner = view.GetComponentRO<NetworkAuthority>(target).PrimaryOwnerId;
+                if (owner != UnknownOwner && owner != senderNodeId)
+                {
+                    FdpLog<EntityMasterIngressTranslator>.Warn(
+                        "[Node-{0}] Ignored a delete of NetID {1} from node {2}: its owner is node {3} (CE-4000).",
+                        _localNodeId, networkEntityId, senderNodeId, owner);
+                    return;
+                }
+            }
+
             _ownerUnresolved.Remove(networkEntityId);
             // ⭐ LR-2 (R-271) — a lightweight round has no lifecycle to tear down: it simply goes (the map prunes it as dead).
             if (_lightweight.Remove(networkEntityId) && _entityMap.TryGetEntity(networkEntityId, out var round) && _world is { } world

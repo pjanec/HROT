@@ -896,7 +896,7 @@ otherwise does what the master says.*
 | **> 10 s** | both sides also raise `NodeDeparted`: ownership reclaim (`R-167`), possession released (`§4-F`), then as above | ⭐ as 5–10 s; the session id is unchanged, so the node keeps its world until the master resets it |
 | **master dies, node lives** | the node keeps showing a dead world in `OperatingLive`; a new master re-admits it at face value | ⭐ the new master's session id differs ⇒ the node drops to `Idle` (I5); the new cluster sees an ordinary `Idle` late joiner |
 
-#### ✅ C2 + C4 AS BUILT `2026-10-15` (I5, I4) — ⏳ I6 waits for `CE-4000`
+#### ✅ C2 + C4 AS BUILT `2026-10-15` (I5, I4, and I6 with `CE-4000` F2)
 
 | piece | as built |
 |---|---|
@@ -904,7 +904,7 @@ otherwise does what the master says.*
 | master | `ClusterMaster.SessionId` minted at construction, on every `ClusterStateTransitionedEvent` / `ClusterStateUpdateEvent`; `TransactionEpoch` incremented by every round that completes successfully (telemetry only); each node's followed session lands in `NodeHealthProfile.SessionId` |
 | every node | `NodeOpSlaveTranslator` reads `ClusterStateTopic` (built by `NedSlaveOrchestrationTranslator`, so IG/CGF/SimHost — before, only ExCon's observer read it) → `ClusterStateUpdateEvent{SessionId}`; a not-alive instance → `ClusterStateUpdateEvent{MasterGone}` |
 | slave | `ClusterSlave.FollowingSessionId`: the first session seen is adopted; a DIFFERENT one, or `MasterGone`, drops the node to `Idle` — its stuck prepare is aborted and its queued intents dropped — and the heartbeat reports the session followed |
-| ⏳ **I6** | what the node does with the WORLD it still holds (dispose its own published instances at once) is the `CE-4000` decision (F1 / F2); until then the next load's world boundary clears it |
+| ✅ **I6** *(with `CE-4000` F2, `R-4019`)* | a node that drops to `Idle` (new session, master gone) EMPTIES its world and deletes on the wire what it owned — the same `ClusterSlave` → `IIdleResetHandler.OnEnteredIdle` hook as a committed transition to `Idle`. 📄 [`DESIGN_Cluster_Load_Phase.md`](../DESIGN_Cluster_Load_Phase.md) §8.2 |
 | rails | `ClusterSlaveTests.C2_ANodeFollowsOneSession_AndANewSessionOrAGoneMasterDropsItToIdle` · `NodeOpSlaveTranslatorTests.ClusterState_ReachesTheNodeWithItsSession_AndTheWriterGoingAwayIsMasterGone` (real DDS) · `ClusterMasterZoneRoundTests.C2_C4_The_cluster_state_carries_the_session_and_a_completed_round_moves_the_epoch` |
 
 ### 4-I.3 ⚠ What is NOT decided here
