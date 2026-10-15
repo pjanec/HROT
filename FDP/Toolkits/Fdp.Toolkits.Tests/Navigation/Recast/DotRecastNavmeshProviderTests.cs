@@ -382,6 +382,29 @@ public sealed class DotRecastNavmeshProviderTests
         Assert.NotSame(fake, retrieved);
     }
 
+    /// <summary>
+    /// ⭐ CE-3206 — id 212 belongs to the <see cref="INavmeshProvider"/> SLOT, not to one implementation.
+    /// The concrete class carried the same <c>[ComponentId]</c>, so an assembly scan that registers every
+    /// attributed type (<c>RepositoryPriming</c>) bound 212 to whichever it met first and silently failed the
+    /// other. No two types across the navigation assemblies may share an id.
+    /// </summary>
+    [Fact]
+    public void CE3206_NoTwoNavigationTypes_ShareAComponentId_TheSlotIsTheInterface()
+    {
+        var byId = new Dictionary<int, List<string>>();
+        foreach (var asm in new[] { typeof(INavmeshProvider).Assembly, typeof(DotRecastNavmeshProvider).Assembly, typeof(ComponentIdAttribute).Assembly })
+            foreach (var t in asm.GetTypes())
+                if (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ComponentIdAttribute>(t, inherit: false) is { } a)
+                {
+                    if (!byId.TryGetValue(a.Id, out var names)) byId[a.Id] = names = new List<string>();
+                    names.Add(t.FullName!);
+                }
+
+        var dupes = byId.Where(kv => kv.Value.Count > 1).Select(kv => $"{kv.Key}: {string.Join(", ", kv.Value)}").ToList();
+        Assert.True(dupes.Count == 0, "duplicate component ids: " + string.Join(" · ", dupes));
+        Assert.Equal(GlobalComponentIds.INavmeshProvider, ComponentTypeRegistry.GetOrRegisterManaged(typeof(INavmeshProvider)));
+    }
+
     // ── T2-SC8: Slope obstacle — Infantry bakes ramp polys, Vehicle does not ──
 
     /// <summary>

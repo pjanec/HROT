@@ -26,6 +26,8 @@ carrier back and flies the bomb forward in cue steps; live `ua-air-strike` burst
 technical's ④ fails 3 of 4 live runs (AE5 holes a 100-health technical into a mobility kill at ~125 m) — reported, not changed; the whole
 SimHost suite is red at base too (CE-3183 broadened).
 
+⭐ **`2026-10-15` (later):** CE-3207 ✅ (`2e3f4d441`, scenario saves carry no runtime diagnostics) · CE-3205 ✅ (`645eb2886`, the module host registers a module's component in ITS world) · CE-3206 ✅ (`c05dd2723`, id 212 is the `INavmeshProvider` slot alone) · CE-3119 ✅ (`f96b1c295`, the exercise archive carries the scenario as it was at the start — mgmt-1 §13.3a) · CE-3086 ✅ (`e41882ee0`, Terrain Height H4: basic-desert ridge + wadi on a grid, §5d). CE-3158 was already built (`fa0cf54a0`); its row stays open on the live "fires from cover" check. Not built, need a nod: CE-3200 (a wire field). `Fdp.ModuleHost.Tests` carries 6 known reds (TM-023).
+
 ## 00. NOW (`2026-10-10`) — the behaviour LIBRARY: generic, squad-aware *(this session is the ACTIVE backend session; 🔒 user: "the other one is on hold")*
 
 | what | where | state |

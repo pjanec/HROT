@@ -1,7 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: DESIGN — waiting for the user's answer per sub-question (§4). Nothing is built.
+build-state: DESIGN — waiting for the user's answer per sub-question (§4); PARKED by the user 2026-10-15. ⭐ Built ahead of the
+  answers because they need no decision: §4-B (CE-3206, 212 is the interface's alone; a duplicate-id rail over the navigation
+  assemblies) and the ModuleHost half of §4-D (CE-3205, the kernel asks its own world). §4-A's production-wide rail is NOT built.
 current-answer: §4 (sub-questions A–H, each with a lean) over §3 (the three diagrams). §1 is the measured INVENTORY, §2 the claim table.
 stale-below: nothing.
 known-rot: none.

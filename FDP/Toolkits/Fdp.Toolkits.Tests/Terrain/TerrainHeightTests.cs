@@ -406,5 +406,129 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.NotNull(planner.Plan(in alongHighway, in roads.Blob, navmesh: null, doors: null, out _));
             Assert.All(planner.Points, p => Assert.Equal(g(p.X, p.Y), p.Z, 1));                          // under it, on the ground
         }
+
+        // ── H4 — basic-desert's ridge and wadi on a real grid (CE-3086, TH-G; §5d) ──
+
+        private static string RepoRoot()
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            return dir!.FullName;
+        }
+
+        internal static TerrainWorld BasicDesert()
+        {
+            var folder = System.IO.Path.Combine(RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "basic-desert");
+            return TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "basic-desert.world.geojson")),
+                "basic-desert", TerrainAssets.ForFolder(folder));
+        }
+
+        /// <summary>
+        /// ⭐ H4 — the relief is where the design puts it, within the vehicles' 20°, and it moves NOTHING that already stood on
+        /// basic-desert: the ground is 0 under every rock, the compound, and every grounded entity of every scenario on this terrain.
+        /// </summary>
+        [Fact]
+        public void H4_BasicDesert_HasItsRidgeAndWadi_AndThePlainUnderEverythingThatStoodOnItIsUnchanged()
+        {
+            var w = BasicDesert();
+            Assert.NotNull(w.Height);
+            Assert.Empty(w.Warnings);
+            Assert.Equal(10f, w.GroundHeightAt(275f, 210f), 1);      // the crest
+            Assert.Equal(-3f, w.GroundHeightAt(520f, 400f), 1);      // the wadi's bed
+            Assert.Equal(0f, w.GroundHeightAt(275f, 295f), 2);       // the track, north of the ridge's foot
+
+            // steepest ground anywhere: a 1 m probe in four directions, every 5 m
+            float steepest = 0f;
+            for (float x = 0; x < 600; x += 5)
+            for (float y = 0; y < 600; y += 5)
+            {
+                float z = w.GroundHeightAt(x, y);
+                steepest = MathF.Max(steepest, MathF.Max(MathF.Abs(w.GroundHeightAt(x + 1, y) - z), MathF.Abs(w.GroundHeightAt(x, y + 1) - z)));
+            }
+            Assert.True(MathF.Atan(steepest) * 180f / MathF.PI < 20f, $"steepest ground {MathF.Atan(steepest) * 180f / MathF.PI:F1}° — vehicles climb 20°");
+
+            // under every feature (each vertex and its box, every 2 m)
+            Assert.NotEmpty(w.Prisms);
+            foreach (var b in w.Prisms.Select(pr => pr.Footprint))   // the rocks, the hut and the compound wall
+            {
+                float x0 = b.Min(p => p.X), x1 = b.Max(p => p.X), y0 = b.Min(p => p.Y), y1 = b.Max(p => p.Y);
+                for (float x = x0; x <= x1; x += 2f)
+                for (float y = y0; y <= y1; y += 2f)
+                    Assert.Equal(0f, w.GroundHeightAt(x, y), 3);
+            }
+
+            // under every grounded entity of every scenario on basic-desert
+            int checkedEntities = 0;
+            foreach (var file in System.IO.Directory.GetFiles(System.IO.Path.Combine(RepoRoot(), "scenarios"), "scenario.json", System.IO.SearchOption.AllDirectories))
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
+                if (!doc.RootElement.TryGetProperty("header", out var h) || !h.TryGetProperty("terrainName", out var t) || t.GetString() != "basic-desert") continue;
+                foreach (var e in doc.RootElement.GetProperty("entities").EnumerateObject())
+                {
+                    if (!e.Value.TryGetProperty("SimTransform", out var st)) continue;
+                    var p = st.GetProperty("Position");
+                    if (p[2].GetSingle() != 0f) continue;                // airborne
+                    Assert.True(MathF.Abs(w.GroundHeightAt(p[0].GetSingle(), p[1].GetSingle())) < 0.01f, $"{file}: {e.Name} would stand off the ground");
+                    checkedEntities++;
+                }
+            }
+            Assert.True(checkedEntities >= 10, $"only {checkedEntities} grounded entities found — the scenarios moved?");
+        }
+
+        /// <summary>
+        /// ⭐ H4 — the ridge does the job a ridge is for (two men either side cannot see each other, a round between them meets the
+        /// ground), yet adds no block to the weapon-choice demo's lines (U5: the Bradley to the insurgent and to the T-72).
+        /// </summary>
+        [Fact]
+        public void H4_BasicDesert_TheRidgeHidesOneSideFromTheOther_AndLeavesTheWeaponChoiceLinesOpen()
+        {
+            var w = BasicDesert();
+            float G(float x, float y) => w.GroundHeightAt(x, y);
+            var north = new Vector3(275f, 270f, G(275f, 270f) + 1.8f);
+            var south = new Vector3(275f, 150f, G(275f, 150f) + 1.8f);
+            Assert.True(w.Height!.Crosses(north, south), "the ridge must hide one side from the other");
+            Assert.False(w.Height.Crosses(new Vector3(275f, 160f, 12f), new Vector3(275f, 260f, 12f)), "a line over the crest is clear");
+
+            var bradley = new Vector3(100f, 520f, 2.5f);
+            Assert.False(w.Height.Crosses(bradley, new Vector3(100f, 220f, 1.6f)), "U5: the Bradley to the insurgent");
+            Assert.False(w.Height.Crosses(bradley, new Vector3(480f, 160f, 2.2f)), "U5: the Bradley to the T-72");
+        }
+
+        /// <summary>
+        /// ⭐ H4 — the navmesh bakes over the ridge and through the wadi on BOTH layers (CE-1048 measured an empty vehicle layer on
+        /// slopes once), and the track drapes into the wadi like a car drives it (TH-J).
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Infantry)]
+        [InlineData(Fdp.Toolkit.Navigation.NavLayerMask.Vehicle)]
+        public void H4_BasicDesert_TheNavmesh_GoesOverTheRidge_AndThroughTheWadi(Fdp.Toolkit.Navigation.NavLayerMask layer)
+        {
+            var w = BasicDesert();
+            var provider = new RecastNavmeshFactory { TileCache = null }.Build(w)!;
+            uint mask = (uint)layer;
+            float g(float x, float y) => w.GroundHeightAt(x, y);
+
+            Assert.True(provider.ProjectToNavmesh(new Vector3(275f, 210f, 10.5f), out var crest, mask), "no navmesh on the crest");
+            Assert.InRange(crest.Z, 9.4f, 10.6f);
+            Assert.True(provider.PathExists(new Vector3(275f, 280f, g(275f, 280f)), crest, mask), "no way up the north face");
+            Assert.True(provider.PathExists(crest, new Vector3(275f, 140f, g(275f, 140f)), mask), "no way down the south face");
+            Assert.True(provider.ProjectToNavmesh(new Vector3(520f, 400f, -2.5f), out var bed, mask), "no navmesh in the wadi");
+            Assert.InRange(bed.Z, -3.6f, -2.4f);
+            Assert.True(provider.PathExists(new Vector3(480f, 400f, 0f), new Vector3(560f, 400f, 0f), mask), "no way across the wadi");
+        }
+
+        [Fact]
+        public void H4_BasicDesert_TheTrack_DipsIntoTheWadi_OnTheGround()
+        {
+            var w = BasicDesert();
+            using var roads = new RoadsHolder(global::CarKinem.Road.RoadNetworkLoader.LoadFromJson(System.IO.Path.Combine(
+                RepoRoot(), "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "basic-desert", "roads.json")));
+            var planner = new Fdp.Toolkit.Navigation.RoutePlanner { World = new TerrainWorldQuery(w) };
+            var q = new Fdp.Toolkit.Navigation.RouteQuery(new Vector3(20f, 295f, 0f), new Vector3(580f, 295f, 0f),
+                Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, Fdp.Toolkit.Navigation.NavigationBackend.NavRoadGraph);
+            Assert.NotNull(planner.Plan(in q, in roads.Blob, navmesh: null, doors: null, out _));
+            Assert.All(planner.Points, p => Assert.Equal(w.GroundHeightAt(p.X, p.Y), p.Z, 1));
+            Assert.Contains(planner.Points, p => p.X > 510f && p.X < 530f && p.Z < -2f);
+        }
     }
 }

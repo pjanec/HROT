@@ -68,6 +68,7 @@ public sealed class AssetInventoryProcessManager
             if (_lastState != ClusterState.OperatingLive && ev.CurrentState == ClusterState.OperatingLive)
             {
                 _currentRecording = new RecordingLedgerEntry(ev.ExerciseId, _pendingScenarioId, DateTime.UtcNow, TimeSpan.Zero);
+                SnapshotScenario(ev.ExerciseId, _pendingScenarioId);
             }
             else if (_lastState == ClusterState.OperatingLive && ev.CurrentState != ClusterState.OperatingLive)
             {
@@ -106,7 +107,10 @@ public sealed class AssetInventoryProcessManager
                 _pendingExports.TryGetValue(ev.RequestId, out var exerciseId))
             {
                 if (_unarchivedLedger.TryGetValue(exerciseId, out var ledgerEntry))
+                {
                     WriteExerciseSidecar(exerciseId, ledgerEntry);
+                    ArchiveScenario(exerciseId, ledgerEntry);
+                }
 
                 _unarchivedLedger.Remove(exerciseId);
                 DeleteLedgerEntry(exerciseId);
@@ -187,9 +191,73 @@ public sealed class AssetInventoryProcessManager
             var path = Path.Combine(_ledgerDirectory, $"{exerciseId}.json");
             if (File.Exists(path))
                 File.Delete(path);
+
+            var snapshot = SnapshotDirectory(exerciseId);
+            if (Directory.Exists(snapshot))
+                Directory.Delete(snapshot, recursive: true);
         }
         catch
         {
+        }
+    }
+
+    /// <summary>The name of the archive's copy of the scenario, beside the recordings (CE-3119).</summary>
+    public const string ArchivedScenarioDirectoryName = "scenario";
+
+    /// <summary>Where the start-time copy of an exercise's scenario waits for the export — beside its ledger entry.</summary>
+    private string SnapshotDirectory(Guid exerciseId) => Path.Combine(_ledgerDirectory, $"{exerciseId}.scenario");
+
+    /// <summary>
+    /// ⭐ CE-3119 — copies the scenario the exercise starts from into the ledger, once per exercise, so the archive
+    /// files what RAN even if the scenario is saved over later (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
+    /// Best-effort, like the sidecar: a failure must not stop the exercise.
+    /// </summary>
+    private void SnapshotScenario(Guid exerciseId, string? scenarioId)
+    {
+        if (exerciseId == Guid.Empty || string.IsNullOrWhiteSpace(scenarioId)) return;
+        var snapshot = SnapshotDirectory(exerciseId);
+        if (Directory.Exists(snapshot)) return; // a resumed exercise keeps the copy it started with
+
+        try
+        {
+            var copied = StorageGatewayModule.CopyScenarioFiles(
+                Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, scenarioId!), snapshot);
+            if (copied == 0)
+                FdpLog<AssetInventoryProcessManager>.Warn(
+                    "[AssetInventory] scenario '{0}' has no files on the NAS; exercise {1} archives without a scenario copy.",
+                    scenarioId, exerciseId);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<AssetInventoryProcessManager>.Warn(
+                "[AssetInventory] could not snapshot scenario '{0}' for exercise {1}: {2}", scenarioId, exerciseId, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3119 — files the scenario copy into <c>&lt;nas&gt;/exercises/&lt;exerciseId&gt;/scenario/</c>: the start-time
+    /// snapshot when there is one, else (a ledger entry from before CE-3119) the scenario as it is on the NAS now.
+    /// </summary>
+    private void ArchiveScenario(Guid exerciseId, RecordingLedgerEntry entry)
+    {
+        var dest = Path.Combine(
+            _nasBasePath, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(), ArchivedScenarioDirectoryName);
+        try
+        {
+            var snapshot = SnapshotDirectory(exerciseId);
+            if (StorageGatewayModule.CopyScenarioFiles(snapshot, dest) > 0) return;
+
+            if (string.IsNullOrWhiteSpace(entry.ScenarioId)) return;
+            var copied = StorageGatewayModule.CopyScenarioFiles(
+                Path.Combine(_nasBasePath, OrchestrationConstants.ScenariosDirectoryName, entry.ScenarioId!), dest);
+            FdpLog<AssetInventoryProcessManager>.Warn(
+                "[AssetInventory] exercise {0} had no start-time scenario snapshot; archived the CURRENT '{1}' ({2} file(s)).",
+                exerciseId, entry.ScenarioId, copied);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<AssetInventoryProcessManager>.Warn(
+                "[AssetInventory] failed to archive the scenario of exercise {0}: {1}", exerciseId, ex.Message);
         }
     }
 
