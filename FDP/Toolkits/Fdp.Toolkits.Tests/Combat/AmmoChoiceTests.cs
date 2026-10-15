@@ -237,6 +237,29 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ Airborne insertion B-6 (D-4) — a man coming DOWN (under a canopy, on a rope) is no target for a guided round of either domain —
+        /// a Stinger never locks a parachutist, a Javelin never picks him — while a gun's round (Either) still may; the same man on the
+        /// ground is a ground target again. ✅ Red-proof: InDomain without the descent branch ⇒ the parachutist reads Air ⇒ the SAM is worth
+        /// 1 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B6_ASamAndAnAtgmAreWorthNothingAgainstAParachutist_AGunsRoundIsNot()
+        {
+            var (shooter, _, _) = DomainWorld();
+            _w.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            var man = Spawn(Heli, new Vector3(300, 0, 250), 100, 0.4f);
+            _w.AddComponent(man, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Pedestrian });
+            _w.AddComponent(man, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Canopy });
+            Assert.False(AmmoChoice.InDomain(_w, man, Sam));
+            Assert.False(AmmoChoice.InDomain(_w, man, GroundAtgm));
+            Assert.True(AmmoChoice.InDomain(_w, man, 0));                                   // a gun's round: no missile, either domain
+            Assert.False(Fdp.Toolkit.Motion.Locomotions.IsAircraft(_w, man));
+            _w.RemoveComponent<Fdp.Toolkit.Motion.Descent>(man);                            // landed: a man on the ground
+            Assert.True(AmmoChoice.InDomain(_w, man, GroundAtgm));
+            Assert.False(AmmoChoice.InDomain(_w, man, Sam));
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2187</c> — when the wrong-domain missile is all the unit has (the choice falls back to mount 0 when everything scores 0),
         /// the weapon brain HOLDS (<c>WrongDomain</c>) rather than fire a SAM at a truck. 🔴 Red-proof: without the hold it returns null.
         /// </summary>

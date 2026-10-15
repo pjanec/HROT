@@ -65,6 +65,15 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | gates | `Fdp.Toolkits.Tests` 3 605 / 1 fail (`SquadCoordinationSystemTests.Execute_DoesNotAllocate` — the known flaky one) / 1 skip; `Hrot.SimHost.Tests` 1 437 / 0 / 6; `Hrot.Core.Tests` 267 / 0; `Hrot.Presentation.Tests` 644 / 0 / 22 (the catalogue pin gains 204 / 205); `Hrot.Editor.Tests` 509 / 0 / 2; release-point red-proof red |
 | ⚠ found while gating | `EditorCapabilitiesTests` ×2 had been RED since WS-1 (`5c3fe8974`, `2026-10-14`, this lane): `WeaponDeploySystem` joined the Interactions capability and the rail's hand-written list never did. Fixed in the rail (the system belongs there). ⚠ the B-1…B-4 gate above did not RUN `Hrot.Editor.Tests` (built only) — so that row was missing, not green |
 
+## 3c. B-6 (`2026-10-16`) — as-built [design §7c](../../designs/airborne/DESIGN_Airborne_Insertion.md)
+
+| | |
+|---|---|
+| built | guided rounds of either domain refuse a man coming down, a gun's round does not; air contacts and missile warnings are for aircraft; a fall hurts by its speed |
+| gates | `Fdp.Toolkits.Tests` 3 611 / 1 (the known flaky allocation test) / 1; `Hrot.SimHost.Tests` 1 437 / 0 / 6; `Hrot.Presentation.Tests` 651 / 1 / 23 — ⚠ `RtsCommandToolTests.CE1077_…` (ui's) red once in the suite run, GREEN 3 / 3 alone, nothing it reads was touched ⇒ intermittent, not chased; `Hrot.Editor.Tests` 509 / 0; `Hrot.Core.Tests` 267 / 0 |
+| red-proofs | 3 / 3 red: the descent branch of `InDomain`, the fall's impact (2 rows); the CE-2199 turret path (same run) |
+| ⚠ not railed | `AirContacts.IsAir` → `IsAircraft` (a one-line swap; its suite has no TargetMemory fixture — the B-1 `IsAircraft` rail covers the predicate) |
+
 ## 4. Next (this lane)
 B-5 (TKB: `Gen.Parachute`, rope anchors on UH-60 400 / 404, Paratrooper + SF operator, the scenario's `Wind`, the release-point helper) ·
 B-6 (`IsAircraft` in `AmmoChoice` / `AirContacts`, fall damage) · B-7…B-9 (the ejecting pilot).

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b); B-6…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c); B-7…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
 current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
@@ -362,7 +362,32 @@ index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and
 | types **204 Paratrooper** (round canopy) · **205 SF operator** (ram-air), the rifleman's body / M4 / injury / person carrier / brain + `Gen.Parachute` | `BdcTkbCatalog.Jumper`, `NedTkbBuilder.WithParachute` | every canopy figure is `ParachuteModel.Defaults` (§2) — nothing invented per type. DIS 3.1.225.1 like the rifleman: SISO-REF-010 v37 sorts US lifeforms by the WEAPON carried, not by role |
 | fast ropes on the **doors-off UH-60 (404)**: one over each cabin door (`RopeAnchors` (1.5, ±1.6, 0.4) — outboard of the door guns), 60 ft (18.3 m) | `BdcTkbCatalog.DoorSeats` | ⚠ the arm's place is estimated from the drawn fuselage. ⛔ **Not on the plain UH-60 (400)**: it has no `Gen.Carrier` and no flight — Air Ops keeps it "a static body" — so ropes there would be dead data |
 | the **release point** — `ReleasePoint.For(point, height, chute, wind, carrierVelocity)`: upwind by the drift under the canopy (round) or of the fall before the pull (ram-air), short by the door throw `(v − wind)·OpenSeconds/3` | `DescentModels.cs` | ★ a static-line jumper leaving a 35 m/s helicopter 400 m up in a 4 m/s crosswind lands within 30 m of the DZ point |
-| ⏳ **the scenario's wind** — design pending below | — | ⛔ my first lean (an "environment ENTITY", the terrain-zone precedent) is OVERRULED by [tkb-1 DESIGN.md:873-893](../tkb-1/DESIGN.md) *"Global Weather is a SINGLETON, not a positionless entity"* (a transform-less entity breaks the engine's "is this spatial?" test). ⇒ `Wind` stays a singleton; the scenario carries it as a top-level section like `TerrainObjects` (one writer / reader for the save, the distributed merge and the load). ⚠ Open: whether every node that runs the parachute model also runs `ScenarioLoadStep` — measured next |
+| ⏳ **the scenario's wind — NOT BUILT, a decision for the user (D-13 below)** | — | absent = calm, which every model and the release point already handle; the three demos (§8) need no wind |
+
+### 7c. As-built — B-6 (`2026-10-16`, backend)
+
+| built | where | ★ rail |
+|---|---|---|
+| a man coming down is no target for a GUIDED round of either domain (a Stinger never locks him, a Javelin never picks him); a gun's round (Either) still is | `AmmoChoice.InDomain` | `AmmoChoiceTests.B6_*` |
+| an air contact (what one shelters from, what cues a SAM) and a missile warning are for an AIRCRAFT (`Locomotions.IsAircraft`) — a descent is not one | `AirContacts.IsAir`, `FireProcessingSystem` (the warning) | the B-1 class rail (`IsAircraft` false for both descents) |
+| ⭐ the lead aim stays on `InAir` — leading a falling man is right | `FireProcessingSystem` (`TargetLead`) | — |
+| a FALL hurts (§5.3): ≤ 6 m/s nothing (a canopy lands at ≤ 5.5), 6–10 m/s 75 % of his health (from full ⇒ under the injury's 0.3 ⇒ incapacitated), > 10 m/s all of it — a whole-body `DamageAssessedEvent` (no part: a zone multiplier would bend the thresholds), applied by his Health owner | `DescentRules.Fall` → `Impact` | `DescentModelsTests.B6_AFall_*` (1.5 m / 3.5 m / 20 m) |
+
+#### D-13 — how the scenario's wind reaches every node *(open — lean ③, user to approve)*
+
+| measured | code | design basis |
+|---|---|---|
+| ⛔ only BRAIN nodes read the scenario file (CGF, the editor); SimHost, Stride SimHost and IG never construct `ScenarioLoadStep` | `RoleLoadRequirements.cs:64-65` (*"Brain is the only role that reads the scenario file … every other role receives a replicated world"*), `SimHostNodeBootstrapper.cs:442-462` | `DESIGN_Cluster_Load_Phase.md` §4.1c |
+| ⛔ the parachute model runs on the MUSCLE (the man's position owner) ⇒ a scenario SECTION alone never reaches it | `AirMotionSystem.cs` (`WithOwned<SimTransform>`) | this design D-2 |
+| ⛔ no translator writes a world SINGLETON from the wire | searched every `[DdsTopic]` and `Hrot/Network` translator | — |
+| ⭐ a scenario-wide value every role needs already exists: the TKB and terrain NAMES ride the load message (`NodeTransitionPayloadDto.TkbName / TerrainName`), with a staged `ScenarioHeader.json` fallback — *"four of the five roles never open the scenario file"* | `OrchestrationPayloadDtos.cs:139-147`, `StorageGatewayModule.cs:429,606`, `TerrainLoadStep.cs:44-46` | ⛔ `ScenarioHeader.cs` forbids growing the header into an ASSET block — wind is not an asset, but the line is the user's to draw |
+| ⛔ an environment ENTITY is ruled out | — | [tkb-1 DESIGN.md:873-893](../tkb-1/DESIGN.md) *"Global Weather is a SINGLETON, not a positionless entity"* |
+
+| option | | |
+|---|---|---|
+| ① a top-level scenario section only (the `TerrainObjects` shape) | ⛔ reaches only the Brain — the parachute model on the Muscle stays calm | rejected |
+| ② a new keyed DDS topic the loading Brain publishes and every node writes into the singleton | a NEW pattern (singleton-from-wire) for one value | rejected unless weather grows |
+| ⭐ **③ the load message, like the terrain name**: an `Environment` section in the scenario (one writer / reader, merged like `TerrainObjects`), copied by the orchestrator into `NodeTransitionPayloadDto` (APPENDED wind fields) and the staged `ScenarioHeader.json`; each node's load sets the `Wind` singleton | ⭐ the existing channel for exactly this shape of value; ⚠ blast radius: the orchestration payload (appended, R-169), the storage gateway's staging, one load step | **lean** — would change if weather is to VARY in time (then ②) |
 
 ### Slice 2 — the ejecting pilot (✅ READY — the user's third demo needs it)
 The jet's crew is the type itself, so ejection **spawns a Pilot entity** (the existing entity-creation path) at the canopy BEFORE the kill (R-2021):

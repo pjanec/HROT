@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.RegisterComponent<Descent>();
             _w.RegisterComponent<NavigationIntent>();
             _w.RegisterComponent<Health>();
+            _w.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
             _w.SetSingleton(new GlobalTime());
         }
 
@@ -117,6 +118,33 @@ namespace Fdp.Toolkit.Tests.Motion
             for (int i = 0; i < 60 * 3 && _w.GetComponent<Descent>(man).Phase != DescentPhase.Landed; i++) Step(1f / 60f);
             Assert.Equal(DescentPhase.Landed, _w.GetComponent<Descent>(man).Phase);
             Assert.Equal(0f, _w.GetComponent<SimTransform>(man).Position.Z, 3);
+        }
+
+        /// <summary>
+        /// ⭐ B-6 (§5.3) — a fall hurts by the speed he hits at: 1.5 m (5.4 m/s) nothing, 3.5 m (8.3 m/s) 75 % of his health (incapacitated),
+        /// 20 m all of it — a whole-body damage, through the existing chain. ✅ Red-proof: Fall without the impact ⇒ no damage ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(1.5f, 0f)]
+        [InlineData(3.5f, 75f)]
+        [InlineData(20f, 100f)]
+        public void B6_AFall_HurtsByTheSpeedItHitsAt(float height, float damage)
+        {
+            var heli = Hover(new Vector3(0, 0, 40));
+            _w.SetComponent(heli, new Health { Current = 0, Max = 100 });                   // the anchor is dead: he falls from where he is
+            var man = Body(new Vector3(5, 5, height), new Descent { Kind = DescentKind.FastRope, Phase = DescentPhase.Falling, Anchor = heli });
+            _w.AddComponent(man, new Health { Current = 100, Max = 100 });
+            float hurt = 0f;
+            for (int i = 0; i < 60 * 5 && _w.GetComponent<Descent>(man).Phase != DescentPhase.Landed; i++)
+            {
+                Step(1f / 60f);
+                _w.Bus.SwapBuffers();
+                foreach (var e in _w.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) if (e.HitEntity == man) hurt += e.TotalDamage;
+            }
+            _w.Bus.SwapBuffers();
+            foreach (var e in _w.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) if (e.HitEntity == man) hurt += e.TotalDamage;
+            Assert.Equal(DescentPhase.Landed, _w.GetComponent<Descent>(man).Phase);
+            Assert.Equal(damage, hurt, 3);
         }
 
         /// <summary>Flies a ram-air jumper from <paramref name="height"/> above <paramref name="start"/> to the ground; returns where he landed.</summary>

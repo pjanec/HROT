@@ -71,6 +71,22 @@ namespace Fdp.Toolkit.Motion
             => CombatTkb.TryGetTemplate(world, carrier, out var t) && t.GetDescriptor<CarrierDefDto>() is { RopeLengthM: > 0f } c
                 ? c.RopeLengthM : DefaultRopeLengthM;
 
+        /// <summary>
+        /// ⭐ B-6 (§5.3) — a man hits the ground at <paramref name="speed"/>: above <see cref="FallKillMps"/> all of his health, above
+        /// <see cref="FallSafeMps"/> <see cref="FallIncapacitateShare"/> of it, through the existing chain — a whole-body
+        /// <c>DamageAssessedEvent</c> (no body PART: a zone's multiplier would bend the thresholds), applied by his Health owner (on the
+        /// wire when that is another node). A canopy's landing (≤ 5.5 m/s) never hurts.
+        /// </summary>
+        public static void Impact(EntityRepository world, Entity man, float speed)
+        {
+            if (speed <= FallSafeMps || !world.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) return;
+            float max = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(man)
+                ? world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(man).Max : 0f;
+            if (max <= 0f) return;
+            world.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent
+                { HitEntity = man, TotalDamage = speed > FallKillMps ? max : FallIncapacitateShare * max });
+        }
+
         /// <summary>⭐ B-4 — the world point of <paramref name="carrier"/>'s rope or door <paramref name="index"/> (its <c>RopeAnchors</c>,
         /// else <see cref="DefaultAnchor"/>); false when it has no transform.</summary>
         public static bool DoorPoint(EntityRepository world, Entity carrier, int index, out Vector3 point)
@@ -94,13 +110,22 @@ namespace Fdp.Toolkit.Motion
             return best;
         }
 
-        /// <summary>A man who lost his anchor (or never opened): gravity; true once he is down on <paramref name="surface"/>.</summary>
+        /// <summary>⭐ B-6 (§5.3) — a fall's landing speed (m/s) up to which he walks away; above <see cref="FallKillMps"/> it kills; between,
+        /// it incapacitates him (<see cref="FallIncapacitateShare"/> of his health — from full, under the injury's 0.3).</summary>
+        public const float FallSafeMps = 6f, FallKillMps = 10f, FallIncapacitateShare = 0.75f;
+
+        /// <summary>A man who lost his anchor (or never opened): gravity; true once he is down on <paramref name="surface"/> — and then
+        /// ⭐ B-6 (§5.3) he is hurt by the speed he hit at (<see cref="Impact"/>).</summary>
         public static bool Fall(ref MotionFrame f, float surface, float dt)
         {
             var v = f.Velocity.Linear;
             v = new Vector3(v.X * MathF.Max(0f, 1f - 0.3f * dt), v.Y * MathF.Max(0f, 1f - 0.3f * dt), v.Z - Gravity * dt);
             var p = f.Transform.Position + v * dt;
-            if (p.Z <= surface) { p.Z = surface; f.Velocity.Linear = Vector3.Zero; f.Transform.Position = p; return true; }
+            if (p.Z <= surface)
+            {
+                Impact(f.World, f.Self, v.Length());
+                p.Z = surface; f.Velocity.Linear = Vector3.Zero; f.Transform.Position = p; return true;
+            }
             f.Velocity.Linear = v;
             f.Transform.Position = p;
             return false;
