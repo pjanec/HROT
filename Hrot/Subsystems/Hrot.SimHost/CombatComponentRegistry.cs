@@ -43,6 +43,9 @@ namespace Hrot.SimHost
             // Health is registered in HrotSharedComponentRegistry (shared across all nodes).
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.GuidedRound>();   // ⭐ M4 — a guided round (Muscle)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Decoy>();                 // ⭐ CE-2188 — a flare / chaff (Muscle)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.CountermeasureState>();   // ⭐ CE-2188 — an aircraft's dispensers (Muscle)
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.MissileWarning>();        // ⭐ CE-2189 — the last warning (Brain)
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();
@@ -61,6 +64,8 @@ namespace Hrot.SimHost
             world.RegisterEvent<WeaponFireNotification>();
             world.RegisterEvent<DetonationNotification>();
             world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.MissileWarningEvent>();            // ⭐ CE-2189 — Muscle → Brain
+            world.RegisterEvent<Fdp.Toolkit.Combat.Events.DispenseCountermeasureIntent>();   // ⭐ CE-2188 — Brain → Muscle
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<DamageAssessedEvent>();
             world.RegisterEvent<FireRequestEvent>();

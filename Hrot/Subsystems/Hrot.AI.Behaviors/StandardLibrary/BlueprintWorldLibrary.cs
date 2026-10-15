@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Determinism;   // ⭐ CE-2188 — SimRng moved to Fdp.Toolkits
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;

@@ -217,7 +217,9 @@ namespace Hrot.SimHost.Tests
             // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
-            Assert.Equal(20, pack.SimulationSystems.Count);
+            // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
+            Assert.Equal(21, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
@@ -445,7 +447,9 @@ namespace Hrot.SimHost.Tests
             // ⛔ CE-2144 (2026-10-13, R-2008) — 1 FEWER: HealthApplicationSystem left the pack for the shared plan head
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
-            Assert.Equal(20, pack.SimulationSystems.Count);
+            // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
+            Assert.Equal(21, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
@@ -483,7 +487,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(25, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+            Assert.Equal(26, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

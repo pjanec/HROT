@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Numerics;
 using Fdp.Core;
@@ -506,6 +507,51 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(tank, new PhysicsCollider { Radius = 2f, Height = 2.4f });
             Assert.Equal(1, OverflyAt(tank));
             Assert.Equal(0, OverflyAt(SpawnTarget(new Vector3(200f, 0f, 0f))));   // no hull: direct
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2189</c> (DESIGN_Missiles_And_Ammo §3c, AD4) — an IR missile launched at a HELICOPTER warns it at launch: one
+        /// <see cref="MissileWarningEvent"/> on the helicopter, from the launch point, with its seeker and the flight time (distance /
+        /// speed); none for the same missile at a ground target. 🔴 Red-proof: without the publish no warning is ever read.
+        /// </summary>
+        [Fact]
+        public void CE2189_AMissileAtAHelicopter_WarnsIt_NoneAtAGroundTarget()
+        {
+            _world.RegisterComponent<GuidedRound>();
+            _world.RegisterComponent<TkbIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.RegisterEvent<MissileWarningEvent>();
+            const long Launcher = 9600, Sam = 9630;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var launcher = new Fdp.Interfaces.TkbTemplate("sam gunner", Launcher);
+            launcher.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam, AmmoGuid = Sam, InitialAmmunition = 1, DamagePerHit = 400 } } });
+            db.Register(launcher);
+            var sam = new Fdp.Interfaces.TkbTemplate("sam", Sam);
+            sam.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto
+                { Guidance = Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, TargetDomain = Fdp.Toolkit.Tkb.Domain.TargetDomain.Air });
+            db.Register(sam);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            MissileWarningEvent[] WarningsAt(Entity target)
+            {
+                var gunner = SpawnShooter(Vector3.Zero, muzzleVelocity: 700f);
+                _world.AddComponent(gunner, new TkbIdentity { TkbType = Launcher });
+                PublishIntent(gunner, target);
+                _sys.Execute(_world, 0.016f);
+                _world.Bus.SwapBuffers();
+                var read = _world.Bus.Read<MissileWarningEvent>().ToArray();
+                foreach (var r in Rounds()) _world.DestroyEntity(r);
+                return read;
+            }
+
+            var heli = SpawnTarget(new Vector3(1400f, 0f, 300f));
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            var w = Assert.Single(WarningsAt(heli));
+            Assert.Equal(heli, w.Unit);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, w.Seeker);
+            Assert.InRange(w.TimeToImpactS, 1.9f, 2.2f);   // ≈ 1430 m / 700 m/s
+            Assert.Empty(WarningsAt(SpawnTarget(new Vector3(300f, 0f, 0f))));
         }
 
         private System.Collections.Generic.List<Entity> Rounds()

@@ -28,6 +28,9 @@ namespace Fdp.Toolkit.Combat.Components
         public Entity Owner;
         /// <summary>Sim time (s) it burns out.</summary>
         public double Until;
+        /// <summary>Its own velocity: it leaves at the aircraft's and sinks. ⭐ Integrated by <c>CountermeasureSystem</c> itself — no
+        /// <c>SimVelocity</c>, so no host's integrator (narrowed to projectiles on Stride, CE-238) has to know about it.</summary>
+        public System.Numerics.Vector3 Velocity;
     }
 
     /// <summary>
@@ -44,6 +47,8 @@ namespace Fdp.Toolkit.Combat.Components
         public double NextAt;
         /// <summary>1 once the counts were taken from the TKB (0 = a fresh aircraft).</summary>
         public byte Filled;
+        /// <summary>Salvoes thrown so far — mixed into each salvo's draw, so two salvoes in one second do not draw alike.</summary>
+        public uint Salvoes;
     }
 
     /// <summary>

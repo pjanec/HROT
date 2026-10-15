@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Behavior.Shared
             "Sensor.SquadLeaderDown",   // ⭐ CE-2125 — id 0xFF0E, on the commander
             "Sensor.SquadMemberDown",   // ⭐ CE-2152 C-c — id 0xFF0F, on the commander
             "Sensor.AirThreat",         // ⭐ CE-2165 V8 — id 0xFF10, an air contact entered memory
+            "Sensor.MissileWarning",    // ⭐ CE-2189 — id 0xFF11, a missile launched at this aircraft
         };
 
         /// <summary>The reserved id of a sensor change (its <c>SensorChange</c> value, 1-based).</summary>
