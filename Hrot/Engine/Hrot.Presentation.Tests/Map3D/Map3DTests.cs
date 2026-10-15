@@ -1012,11 +1012,11 @@ public sealed class Map3DTests
         var d = new List<PartDetail>();
         Outfits.Details(friend, 9, d);
         Assert.Equal(Outfits.WoodlandPatches, d.Count);
-        float woodlandSize = d.Average(p => MathF.Max(p.Extent.X, MathF.Max(p.Extent.Y, p.Extent.Z)));
+        float woodlandSize = d.Average(p => MathF.Min(p.Extent.X, MathF.Min(p.Extent.Y, p.Extent.Z)));   // the patch's own size (it goes through its part)
         Assert.All(d, p => Assert.NotEqual(BlockFigure.HeadIndex, p.Part));
         Outfits.Details(hostile, 9, d);
         Assert.Equal(Outfits.FleckPatches, d.Count);
-        float fleckSize = d.Average(p => MathF.Max(p.Extent.X, MathF.Max(p.Extent.Y, p.Extent.Z)));
+        float fleckSize = d.Average(p => MathF.Min(p.Extent.X, MathF.Min(p.Extent.Y, p.Extent.Z)));
         Assert.True(woodlandSize > 1.6f * fleckSize, $"woodland patches ({woodlandSize}) are larger than fleck ({fleckSize})");
         Outfits.Details(neutral, 9, d);
         Assert.Empty(d);

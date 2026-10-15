@@ -54,7 +54,7 @@ public static class Outfits
     private static readonly Color[] Fleck = [new(206, 186, 134, 255), new(120, 70, 42, 255), new(40, 44, 30, 255)];
 
     /// <summary>How many camouflage patches each pattern lays on a man.</summary>
-    public const int WoodlandPatches = 14, FleckPatches = 22;
+    public const int WoodlandPatches = 18, FleckPatches = 26;
 
     /// <summary>
     /// ⭐ CE-1099 — the outfit of the man seeded <paramref name="seed"/> (his network id) of TKB type <paramref name="type"/>.
@@ -137,10 +137,22 @@ public static class Outfits
             var r = new Draw(seed, 0x5EED + k);
             int part = CamoParts[r.Pick(CamoParts.Length)];
             bool torso = part == BlockFigure.TorsoIndex;
-            int side = r.Pick(torso ? 6 : 4);
             float w = woodland ? 0.40f + r.Next() * 0.30f : 0.16f + r.Next() * 0.14f;
-            float h = w * (0.6f + r.Next() * 0.8f);
-            var (c, e) = BlockFigure.SpotOnSide(torso, side, r.Next(), r.Next(), w, MathF.Min(h, 0.9f));
+            float h = MathF.Min(0.9f, w * (0.6f + r.Next() * 0.8f));
+            // ⚠ measured: a patch on ONE side mostly faced away from the camera ⇒ a patch goes THROUGH its part (it shows on two opposite
+            //   sides), and a woodland patch on a limb wraps it as a band (it shows from every side)
+            float a = (r.Next() - 0.5f) * 2f * (0.5f - w / 2f), b = (r.Next() - 0.5f) * 2f * (0.5f - h / 2f);
+            const float Through = 1.04f;
+            (Vector3 c, Vector3 e) = torso
+                ? r.Pick(3) switch
+                {
+                    0 => (new Vector3(0f, a, b), new Vector3(Through, w, h)),   // chest and back
+                    1 => (new Vector3(a, 0f, b), new Vector3(w, Through, h)),   // both sides
+                    _ => (new Vector3(a, b, 0f), new Vector3(w, h, Through)),   // shoulders (and under)
+                }
+                : woodland
+                    ? (new Vector3(a, 0f, 0f), new Vector3(w, Through, Through))   // a band round the limb
+                    : r.Chance(0.5f) ? (new Vector3(a, 0f, b), new Vector3(w, Through, h)) : (new Vector3(a, b, 0f), new Vector3(w, h, Through));
             into.Add(new PartDetail(part, c, e, palette[r.Pick(palette.Length)]));
         }
     }

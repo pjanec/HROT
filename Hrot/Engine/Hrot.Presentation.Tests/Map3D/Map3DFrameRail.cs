@@ -1582,11 +1582,11 @@ public sealed class Map3DFrameRail
         long civilian = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianPedestrian, child = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianChild;
         for (int i = 0; i < 10; i++) Person(civilian, 0f, 4.5f - i * 0.9f);
         Person(child, 1.0f, 2.2f); Person(child, 1.0f, 1.3f); Person(child, 1.0f, 0.4f);
-        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 3.0f, ForceId.Friend);
-        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 2.0f, ForceId.Friend);
-        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 0.5f, ForceId.Hostile);
-        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -0.5f, ForceId.Hostile);
-        Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -2.0f);
+        Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, 2.0f, ForceId.Friend);    // in front of the civilians (the camera is east)
+        Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, 1.0f, ForceId.Friend);
+        Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, -0.5f, ForceId.Hostile);
+        Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, -1.5f, ForceId.Hostile);
+        Person(TkbEntityTypes.Infantry_Rifleman, 2.6f, -3.0f);
         long car = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar;   // ⭐ CE-1100 — three cars behind them, each its own paint
         Person(car, -7.0f, 4.0f); Person(car, -7.0f, 0.0f); Person(car, -7.0f, -4.0f);
 
@@ -1603,13 +1603,13 @@ public sealed class Map3DFrameRail
         sw.Set(true, animate: false);
 
         float ground = G(spot.X, spot.Y);
-        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.9f), 9.5f, MathF.PI, -0.08f);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.9f), 11.5f, MathF.PI, -0.08f);
         frame.Step(canvas.Draw);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "dress-1-front.png"));
         Assert.True(bodies.DetailsDrawn >= 2 * Outfits.WoodlandPatches + 2 * Outfits.FleckPatches, $"details {bodies.DetailsDrawn}");
 
-        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X - 2.0f, spot.Y + 0.5f, ground + 1.0f), 4.2f, MathF.PI, -0.12f);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 2.6f, spot.Y - 0.5f, ground + 1.1f), 4.6f, MathF.PI, -0.10f);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "dress-2-soldiers.png"));
 
