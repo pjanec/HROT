@@ -19,8 +19,8 @@
         "Rotation": [
           0,
           0,
-          0,
-          1
+          1,
+          0
         ]
       },
       "NetworkIdentity": {
@@ -130,8 +130,8 @@
         "Rotation": [
           0,
           0,
-          0,
-          1
+          -0.7071,
+          0.7071
         ]
       },
       "NetworkIdentity": {
