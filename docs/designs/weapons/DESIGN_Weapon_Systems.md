@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
 related-designs:
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — S2 gives a weapon system its parts, so a round meets a deployed weapon (§6's CE-2182 row)
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: mortar tubes and towed howitzers as weapon systems; FireAtPoint firing a controlled weapon
   - docs/DESIGN_Weapon_Layers.md — OWNS the three weapon layers (R-261), the turret task (R-267) and the weapon posture (R-272); this file only widens WHICH mounts a unit's weapon brain fires (the controlled weapon systems) and keeps the one firing path
   - docs/DESIGN_Entity_Interactions.md — OWNS embarkation, seats, roles, the person carrier (§7, R-2009) and the TEAM CARRY (§7.5, R-2017 — the two-man weapon); this file adds the Station seat role and the weapon carry, so mounting / carrying / manning are all boarding

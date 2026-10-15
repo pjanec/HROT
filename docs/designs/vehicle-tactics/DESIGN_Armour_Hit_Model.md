@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS where a round lands on a body (parts as colliders, part ids, PartDamage, HitMarks); replaces THIS file's arrival-angle face with the face entered for a part hit, and lifts D-G in its S2
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS destructible structures (D-M4's plug-in point: the barrier changes when the building breaks)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — §9c the live miss (a Mk-82 15 m from a pickup did nothing) that produced §7
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the falling mortar / howitzer round whose roof hit this model already takes
