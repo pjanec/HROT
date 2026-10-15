@@ -1376,7 +1376,7 @@ def run_air_attack(c, timeout):
         return
     guns, gunners = _crew()
     print(f"    the door guns {sorted(guns)}, the door gunners by seat {gunners}")
-    bomb_point, apache_point, orbit_at = (1000.0, -3000.0), (1000.0, 3000.0), position(otruck)
+    bomb_point, apache_point, orbit_at = (-400.0, -550.0), (500.0, 400.0), position(otruck)   # every target inside the collider grid (±750 m)
     call("POST", "/sim/play", {})
     shots = {}   # seq → shot (the SimHost's shot log is a ring of 64: collect it as it fills)
     apache_closest, ring, bearings, track = 9e9, [], [], []
@@ -1394,7 +1394,8 @@ def run_air_attack(c, timeout):
             bearings.append((t, math.atan2(pu[1] - orbit_at[1], pu[0] - orbit_at[0])))
             track.append((t, pu))
         door = [x for x in shots.values() if x.get("shooter") in guns]
-        if door and down_at is None:
+        # the gunner is shot once the orbit has gone HALF a turn counter-clockwise with his gun firing (a "before" to compare against)
+        if door and down_at is None and _turn(bearings, None, None) > math.pi:
             first = max(door, key=lambda x: x.get("seq") or 0).get("shooter")
             down = gunners.get(8)   # counter-clockwise ⇒ the LEFT door (seat 8's gun) fires first (§9f)
             print(f"    the door guns opened at {t:.1f} s (shooter {first}); shooting the left door gunner {down}")
@@ -1419,7 +1420,8 @@ def run_air_attack(c, timeout):
     settled = ring[len(ring) // 3:]
     c.ok(settled and 250 <= min(settled) and max(settled) <= 550,
          f"⑤ the UH-60 orbits the truck — {min(settled or [0]):.0f}…{max(settled or [0]):.0f} m ({len(settled)} samples)")
-    tail = track[len(track) // 3:]
+    # the attack's own window: ON the circle (not the run-in), until 30 s after the gunner fell (after a target survives 3 turns it holds, by design)
+    tail = [(t, pu) for t, pu in track if 250 <= flat(pu, orbit_at) <= 550 and (down_at is None or t <= down_at + 30)]
     speeds = sorted(flat(p1, p0) / (t1 - t0) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0)
     slow = speeds[len(speeds) // 10] if speeds else 0.0
     c.ok(slow > 20, f"⑤ … never hovering (W4) — 10th-percentile speed {slow:.1f} m/s over ≥ 1 s")
@@ -1429,6 +1431,11 @@ def run_air_attack(c, timeout):
     misses = sorted(flat(x["end"], orbit_at) for x in door if x.get("end") and orbit_at)
     hits = sum(1 for x in door if x.get("hit") == otruck)
     print(f"    the door-gun rounds: {len(door)}, {hits} hit the truck; their ends from it: median {misses[len(misses) // 2] if misses else 0:.1f} m")
+    ds = sorted(door, key=lambda x: x.get("seq") or 0)
+    for x in ds[len(ds) // 2:len(ds) // 2 + 2] + sorted(g, key=lambda x: x.get("seq") or 0)[:2]:   # mid-orbit door shots
+        print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "penetration", "damage")})
+    stops = [(round(t0, 1), round(flat(p1, p0) / (t1 - t0), 1)) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0]
+    print(f"    the UH-60's speed over its orbit (t, m/s), slowest: {sorted(stops, key=lambda v: v[1])[:5]}")
     c.ok(bool(before), f"⑤ its door guns fired — shooters {sorted(before)}")
     c.ok(down is not None, f"⑤ the left door gunner found and shot — {down}")
     c.ok(bool(after) and not (after & before), f"⑤ … his gun fell silent and the other door's gun took over — after {sorted(after)}")
