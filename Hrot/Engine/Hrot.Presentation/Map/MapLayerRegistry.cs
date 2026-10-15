@@ -37,6 +37,14 @@ public static class MapLayerRegistry
     /// <summary>DIS Kind: Platform (armored vehicles, aircraft).</summary>
     private const byte KindPlatform = 1;
 
+    /// <summary>DIS Kinds whose domain is not a unit's: a Munition (its domain is its TARGET) and an Expendable (its medium).</summary>
+    private const byte KindMunition = 2, KindExpendable = 8;
+
+    /// <summary>⭐ <c>CE-3213</c> (backend, cross-lane) — a domain means "land / air" only for a unit: a platform, a life form, a composite
+    /// unit (kind 11). A munition's domain is its target (1 anti-air, 2 anti-armour …) and an expendable's its medium, so neither belongs in
+    /// a units layer.</summary>
+    private static bool IsUnit(DISEntityType dis) => dis.Kind is not (KindMunition or KindExpendable);
+
     // ── Bit allocations ──────────────────────────────────────────────────────
     //
     // ⭐ UXI-23 S1: these five constants used to be DECLARED here and copied into
@@ -76,11 +84,11 @@ public static class MapLayerRegistry
             // 1. Ground units — any entity assigned to the DIS Land domain.
             //    Includes both wheeled/tracked platforms (Kind=1) and infantry (Kind=3).
             new("units_ground", GroundUnitsBit,
-                (entity, dis, view) => dis.Value != 0 && dis.Domain == DomainLand),
+                (entity, dis, view) => dis.Value != 0 && IsUnit(dis) && dis.Domain == DomainLand),
 
             // 2. Air units — any entity in the DIS Air domain.
             new("units_air", AirUnitsBit,
-                (entity, dis, view) => dis.Value != 0 && dis.Domain == DomainAir),
+                (entity, dis, view) => dis.Value != 0 && IsUnit(dis) && dis.Domain == DomainAir),
 
             // 3. Vehicles — DIS Platforms (Kind=1) on land or in the air.
             //    Excludes lifeforms (Kind=3) and munitions (Kind=2).
