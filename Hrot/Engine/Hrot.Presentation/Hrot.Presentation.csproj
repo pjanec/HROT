@@ -49,4 +49,9 @@
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
     <PackageReference Include="rlImgui-cs" Version="3.2.0" />
   </ItemGroup>
+  <!-- ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-8): sound files named by a SoundDto are looked up in assets/audio beside
+       the executable; every file here must have a row in assets/audio/LICENSES.md (CC0, or CC-BY with the attribution filled). -->
+  <ItemGroup>
+    <None Update="assets\audio\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

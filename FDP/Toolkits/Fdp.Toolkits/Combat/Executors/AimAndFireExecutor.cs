@@ -272,12 +272,21 @@ namespace Fdp.Toolkit.Combat.Executors
 
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
             AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8 — and that type's count
-            weapon.CooldownSecondsRemaining = p.CooldownSeconds;
+            weapon.CooldownSecondsRemaining = CooldownFor(p.CooldownSeconds, mountDto);   // ⭐ CE-2199 — 0 = the mount's own rate
 
             int fired = ++RoundsFired(ref channel);
             channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
             Say(world, entity, ActionReason.Firing, p.Target, fired, p.Rounds);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2199</c> — the interval between two rounds of a burst: the one the behaviour asked for, or — asked 0 ("the weapon's own",
+        /// as <c>VehicleFightFromCover</c> and <c>AirSense.FireAt</c> pass it) — the FIRED mount's own 60 / <c>RateOfFire</c> (only the
+        /// executor knows which mount <c>MountAuto</c> picked: a tank's 120 mm 10 s, its coax 0.1 s). A mount stating no rate keeps 0. 🔴 It
+        /// used to take 0 as given: a tank fired 8 main-gun rounds in ~1.3 s against a catalogue 6 per minute (live <c>ua-tank-corner</c>).
+        /// </summary>
+        public static float CooldownFor(float asked, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount)
+            => asked > 0f ? asked : mount is { RateOfFire: > 0f } m ? 60f / m.RateOfFire : 0f;
 
         /// <summary>
         /// ⭐⭐ <c>CE-3172</c> S4d (M-8, C-2; docs/DESIGN_Entity_Control.md §8b) — OPERATOR fire: a possessing station aims at
@@ -495,7 +504,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 Point = atPoint ? p.Point : default,
                 MountIndex = (byte)mountIndex,
                 RoundsGranted = (ushort)System.Math.Min(grant, ushort.MaxValue),
-                CooldownSeconds = p.CooldownSeconds,
+                CooldownSeconds = CooldownFor(p.CooldownSeconds, mountDto),   // ⭐ CE-2199 — the muscle times the rounds by it
                 Epoch = epoch,
                 AmmoGuid = unchecked((ulong)loadedAmmo),   // ⭐ M8 — the loaded round (0 = the mount's own); it rides EntityWeaponTask
             };

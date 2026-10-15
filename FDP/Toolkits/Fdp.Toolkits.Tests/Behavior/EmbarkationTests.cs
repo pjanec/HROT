@@ -286,5 +286,104 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.False(_world.HasComponent<IsEmbarkedTag>(a));
             Assert.Equal(Embarkation.StrippedAboard, Caps(a) & Embarkation.StrippedAboard);
         }
+
+        // ── ⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §1, D-8) — out of a rope or door into a descent ──
+
+        private void Airborne()
+        {
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            _world.RegisterManagedComponent<DescriptorOwnership>();
+            _world.RegisterEvent<StartDescentCommand>();
+        }
+
+        /// <summary>⭐ B-4 — a man leaving a hovering helicopter by its rope starts AT THE DOOR (the rope's anchor, at its height), with a
+        /// fast-rope <c>Descent</c> anchored to it — never beside the hull on the ground. ✅ Red-proof: Disembark without the exit branch ⇒ he
+        /// stands at the hull column, no Descent ⇒ red.</summary>
+        [Fact]
+        public void B4_ARopedMan_StartsAtTheDoor_NotBesideTheHull()
+        {
+            Airborne();
+            var heli = Vehicle(new Vector3(100, 50, 20));
+            var man = Soldier(new Vector3(100, 50, 20));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, man, heli));
+
+            _world.Bus.Publish(new DisembarkEntityCommand { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, AnchorIndex = 1 });
+            Frame();
+
+            Assert.True(Fdp.Toolkit.Motion.DescentRules.DoorPoint(_world, heli, 1, out var door));
+            Assert.Equal(new Vector3(100, 50 - 1.2f, 20.5f), door);                      // the right door, 0.5 m up (no RopeAnchors stated)
+            Assert.Equal(door, _world.GetComponent<SimTransform>(man).Position);
+            Assert.NotEqual(Embarkation.DismountPoint(_world, heli, 0, 1), _world.GetComponent<SimTransform>(man).Position);
+            var d = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(man);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, Fdp.Toolkit.Motion.DescentPhase.Exit, heli, (byte)1),
+                         (d.Kind, d.Phase, d.Anchor, d.AnchorIndex));
+            Assert.False(Embarkation.IsAboard(_world, man, heli));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rope, Fdp.Toolkit.Motion.Locomotions.Of(_world, man));
+        }
+
+        /// <summary>⭐ B-4 — a jumper: a static line under a round canopy unless his type flies a ram-air one (then a free fall).</summary>
+        [Fact]
+        public void B4_AJumper_GoesByHisParachute_StaticLineRound_OrFreeFallRamAir()
+        {
+            Airborne();
+            var heli = Vehicle(new Vector3(0, 0, 400));
+            var para = Soldier(new Vector3(0, 0, 400));
+            var sf = _world.CreateEntity();
+            _world.AddComponent(sf, new SimTransform { Rotation = Quaternion.Identity });
+            _world.AddComponent(sf, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            _world.RegisterComponent<TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new TkbTemplate("SF", 991L);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = Fdp.Toolkit.Motion.CanopyKind.RamAir });
+            db.Register(t);
+            _world.SetSingletonManaged<ITkbDatabase>(db);
+            _world.AddComponent(sf, new TkbIdentity { TkbType = 991L });
+            foreach (var m in new[] { para, sf }) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, m, heli));
+
+            foreach (var m in new[] { para, sf })
+                _world.Bus.Publish(new DisembarkEntityCommand { Passenger = m, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.JumpOut });
+            Frame();
+
+            var a = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(para);
+            var b = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(sf);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.CanopyKind.Round), (a.Kind, a.Canopy));
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FreeFall, Fdp.Toolkit.Motion.CanopyKind.RamAir), (b.Kind, b.Canopy));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.LocomotionClass.Parachute, Fdp.Toolkit.Motion.Locomotions.Of(_world, para));
+        }
+
+        /// <summary>
+        /// ⭐⭐ B-4 — the CE-3059 split, closed for a descent: the CARRIER's owner (this node, the passenger list's) does not own the man's
+        /// POSITION ⇒ it adds no Descent (its write would not stick) and sends a <see cref="StartDescentCommand"/>; on the node that owns his
+        /// position the command (remote, off the interaction transport) starts the descent there. A local, not-remote command is never
+        /// applied by a non-owner. ✅ Red-proof: ExitIntoDescent without the ownership branch ⇒ the Descent is written here ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B4_WhenAnotherNodeOwnsHisPosition_TheCarrierOwnerSendsTheDescent_AndThatNodeStartsIt()
+        {
+            Airborne();
+            var heli = Vehicle(new Vector3(0, 0, 15));
+            var man = Soldier(new Vector3(0, 0, 15));
+            _world.AddComponent(man, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var ownership = new DescriptorOwnership();
+            ownership.Map[Embarkation.PositionKey] = 2;                                      // the Muscle elsewhere owns his position
+            _world.SetManagedComponent(man, ownership);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, man, heli));
+
+            _world.Bus.Publish(new DisembarkEntityCommand { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown });
+            Frame();
+            Assert.False(_world.HasComponent<Fdp.Toolkit.Motion.Descent>(man));
+            Frame();                                                                         // last frame's publish is readable now
+            var sent = _world.Bus.Read<StartDescentCommand>();
+            Assert.Equal(1, sent.Length);
+            Assert.Equal((man, heli, Fdp.Toolkit.Motion.ExitKind.RopeDown, false), (sent[0].Passenger, sent[0].Anchor, sent[0].Exit, sent[0].IsRemote));
+            Assert.False(_world.HasComponent<Fdp.Toolkit.Motion.Descent>(man));            // the local command is not applied here
+
+            ownership.Map[Embarkation.PositionKey] = 1;                                      // now: the position owner, receiving it
+            _world.Bus.Publish(new StartDescentCommand { Passenger = man, Anchor = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, IsRemote = true });
+            Frame();
+            var d = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(man);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, heli), (d.Kind, d.Anchor));
+        }
     }
 }

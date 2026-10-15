@@ -928,5 +928,14 @@ namespace Fdp.Core
         /// <summary><c>HitMarks</c> — ⭐ CE-3210 (HL-8): a ring of where rounds struck a body (part-local), written by the Muscle, every node
         /// draws it; never saved. ⚠ 391 measured free 2026-10-16.</summary>
         public const int HitMarks = 391;
+
+        /// <summary><c>Descent</c> — ⭐ airborne insertion B-1 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-1): a body coming down a
+        /// rope or under a canopy — present ⇒ its class is Rope / Parachute on every node; Muscle group (it moves with the position). ⚠ 392
+        /// measured free on backend, ui and behaviors 2026-10-16.</summary>
+        public const int Descent = 392;
+
+        /// <summary>⭐ Airborne insertion D-6 — the scenario's wind (a world singleton, <c>Fdp.Toolkit.Motion.Wind</c>): absent ⇒ calm.
+        /// ⚠ 393 measured free on backend, ui and behaviors 2026-10-16.</summary>
+        public const int Wind = 393;
     }
 }

@@ -13,7 +13,8 @@ namespace Hrot.AI.Behaviors.Brains
     /// about the stop it is making: the motion side holds it at an <c>Unload</c> / <c>Pickup</c> waypoint (<see cref="NavigationPhase.Unloading"/> /
     /// <see cref="NavigationPhase.Loading"/>) and only the brain can say the hold is over — it knows who is aboard and the rosters.
     /// <list type="bullet">
-    ///   <item><b>Unload</b>: released when nobody alive is aboard.</item>
+    ///   <item><b>Unload</b>: released when nobody alive is aboard. <b>Drop</b> (airborne insertion B-3): the same.</item>
+    ///   <item><b>Rope</b> (B-3): released when nobody alive is aboard AND nobody is on its ropes (<see cref="AnyOnRopes"/>).</item>
     ///   <item><b>Pickup</b>: released when every live member of the waypoint's <c>HoldUnit</c> is aboard THIS aircraft (a man they carried
     ///     seated too — <see cref="SquadEmbarkBehavior.AllAboard"/>). A Pickup that names no unit, or a unit this node cannot find, holds.</item>
     /// </list>
@@ -29,7 +30,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<NavigationStatus>(aircraft)) return false;
             var phase = world.GetComponentRO<NavigationStatus>(aircraft).Phase;
-            if (phase == NavigationPhase.Unloading) return !AnyLiveAboard(world, aircraft);
+            if (phase is NavigationPhase.Unloading or NavigationPhase.Dropping) return !AnyLiveAboard(world, aircraft);
+            // ⭐ airborne insertion B-3 (D-7) — Unload's rule alone would fly off with men hanging: they leave the passenger list at the door
+            if (phase == NavigationPhase.Roping) return !AnyLiveAboard(world, aircraft) && !AnyOnRopes(world, aircraft);
             if (phase != NavigationPhase.Loading) return false;
             var unit = PickupUnitAt(world, routeNetworkId, aircraft);
             return !unit.IsNull && SquadEmbarkBehavior.AllAboard(world, unit, aircraft);
@@ -42,6 +45,19 @@ namespace Hrot.AI.Behaviors.Brains
             var buffer = world.GetComponentRO<PassengerBuffer>(vehicle);
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
                 if (!buffer.Passengers[i].IsNull && world.IsAlive(buffer.Passengers[i])) return true;
+            return false;
+        }
+
+        /// <summary>⭐ Airborne insertion B-3 — true while a live man hangs on <paramref name="aircraft"/>'s ropes: a fast-rope
+        /// <see cref="Descent"/> anchored to it, not <see cref="DescentPhase.Landed"/> yet.</summary>
+        public static bool AnyOnRopes(EntityRepository world, Entity aircraft)
+        {
+            if (!world.IsComponentTypeRegistered<Descent>()) return false;
+            foreach (var e in world.Query().With<Descent>().Build())
+            {
+                ref readonly var d = ref world.GetComponentRO<Descent>(e);
+                if (d.Kind == DescentKind.FastRope && d.Anchor == aircraft && d.Phase != DescentPhase.Landed) return true;
+            }
             return false;
         }
 
@@ -78,7 +94,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var phase = world.GetComponentRO<NavigationStatus>(vehicle).Phase;
                 if (phase is NavigationPhase.Landed or NavigationPhase.Unloading or NavigationPhase.Loading) return true;
-                if (phase is NavigationPhase.TakingOff or NavigationPhase.Landing) return false;
+                if (phase is NavigationPhase.TakingOff or NavigationPhase.Landing or NavigationPhase.Roping or NavigationPhase.Dropping) return false;
             }
             if (!world.HasComponent<SimTransform>(vehicle)) return false;
             var p = world.GetComponentRO<SimTransform>(vehicle).Position;

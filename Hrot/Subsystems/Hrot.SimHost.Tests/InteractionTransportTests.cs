@@ -287,6 +287,104 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ownersHelper, Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>().ToArray()).Assistant);
         }
 
+        /// <summary>
+        /// ⭐⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7a — CE-3059 closed for a descent) — the BRAIN
+        /// node (it owns the helicopter's passenger list, not the man's position) applies a rope exit: the man leaves the list, and a
+        /// <c>StartDescentCommand</c> crosses as its union case (target = the man, actor = the helicopter, the exit and the rope index) to
+        /// the MUSCLE node owning his position, whose <c>EmbarkationSystem</c> starts the descent on ITS entities. The disembark's own
+        /// exit and rope index cross too. ✅ Red-proof: the codec missing from <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B4_ARopeExitDecidedOnTheBrain_StartsTheDescentOnTheNodeOwningHisPosition()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<SimTransform>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+                w.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+                w.RegisterManagedComponent<DescriptorOwnership>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();
+                return w;
+            }
+            static Entity Man(EntityRepository w, int local)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
+                w.AddComponent(m, new NetworkAuthority(primaryOwnerId: 1, localNodeId: local));
+                var own = new DescriptorOwnership();
+                own.Map[Fdp.Toolkit.Behavior.Embarkation.PositionKey] = 2;   // the Muscle (node 2) owns his position
+                w.SetManagedComponent(m, own);
+                return m;
+            }
+
+            using var brain = Node();
+            var map = new NetworkEntityMap();
+            var heli = brain.CreateEntity();
+            brain.AddComponent(heli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
+            brain.AddComponent(heli, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            var man = Man(brain, local: 1);
+            map.Register(900L, heli);
+            map.Register(45L, man);
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(brain, man, heli));
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+            var brainApplier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
+
+            brain.Bus.Publish(new Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand
+                { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, AnchorIndex = 1 });
+            brain.Bus.SwapBuffers();
+            egress.ScanAndPublish(brain);                                                              // the brain owns the heli: nothing sent
+            Assert.Empty(writer.Written);
+            brainApplier.Execute(brain, 0f);                                                           // applied: out of the list, the descent sent
+            Assert.Equal(0, brain.GetComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(heli).Count);
+            Assert.False(brain.HasComponent<Fdp.Toolkit.Motion.Descent>(man));
+            brain.Bus.SwapBuffers();
+            egress.ScanAndPublish(brain);
+            var start = Assert.Single(writer.Written);
+            Assert.Equal((45L, 900L, EInteractionKind.StartDescent), (start.TargetId, start.ActorId, start.Payload.Kind));
+            Assert.Equal(((byte)Fdp.Toolkit.Motion.ExitKind.RopeDown, (byte)1), (start.Payload.StartDescent.Exit, start.Payload.StartDescent.AnchorIndex));
+
+            using var muscle = Node();
+            var muscleMap = new NetworkEntityMap();
+            var musclesHeli = muscle.CreateEntity();
+            muscle.AddComponent(musclesHeli, new SimTransform { Position = new System.Numerics.Vector3(0, 0, 24), Rotation = System.Numerics.Quaternion.Identity });
+            var musclesMan = Man(muscle, local: 2);
+            muscleMap.Register(900L, musclesHeli);
+            muscleMap.Register(45L, musclesMan);
+            var ingress = new InteractionIngressTranslator(participant: null, muscleMap);
+            using (var cmd = new EntityCommandBuffer())
+            {
+                ingress.ProcessSample(in start, cmd);
+                cmd.Playback(muscle);
+            }
+            muscle.Bus.SwapBuffers();
+            new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem().Execute(muscle, 0f);
+            var d = muscle.GetComponent<Fdp.Toolkit.Motion.Descent>(musclesMan);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FastRope, musclesHeli, (byte)1), (d.Kind, d.Anchor, d.AnchorIndex));
+            Assert.Equal(new System.Numerics.Vector3(0, -1.2f, 24.5f), muscle.GetComponent<SimTransform>(musclesMan).Position);   // at the right door
+
+            // the disembark itself carries its exit and rope index when it crosses (a soldier's node asking a remote vehicle)
+            var asked = InteractionCodecs.All;
+            Assert.Contains(asked, c => c.Kind == EInteractionKind.StartDescent);
+            var payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { Exit = 2, AnchorIndex = 3 } };
+            using var other = Node();
+            var otherMap = new NetworkEntityMap();
+            otherMap.Register(900L, other.CreateEntity());
+            otherMap.Register(45L, other.CreateEntity());
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, otherMap).ProcessSample(new EntityInteractionRequest { TargetId = 900L, ActorId = 45L, Payload = payload }, cmd);
+                cmd.Playback(other);
+            }
+            other.Bus.SwapBuffers();
+            var cmdIn = Assert.Single(other.Bus.Read<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>().ToArray());
+            Assert.Equal((Fdp.Toolkit.Motion.ExitKind.JumpOut, (byte)3), (cmdIn.Exit, cmdIn.AnchorIndex));
+        }
+
         [Fact]
         public void R221_AKindThisBuildDoesNotKnow_IsDroppedAndCounted()
         {

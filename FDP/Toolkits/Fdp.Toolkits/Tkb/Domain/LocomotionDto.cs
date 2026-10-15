@@ -21,6 +21,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         Surface = 6,
         /// <summary>Later — ONE ground model composing the wheeled and boat integrators by the surface below (MD-F).</summary>
         Amphibious = 7,
+        /// <summary>⭐ Airborne insertion B-2 (D-2) — a man sliding down a fast rope (<c>RopeSlideModel</c>). Never a type's class: implied by
+        /// his <c>Descent</c>.</summary>
+        Rope = 8,
+        /// <summary>⭐ Airborne insertion B-2 (D-2) — a man under (or falling before) a canopy (<c>ParachuteModel</c>). Never a type's class.</summary>
+        Parachute = 9,
     }
 
     /// <summary>⭐ CE-2168 (MD-A) — the TKB descriptor <c>Gen.Locomotion</c>: the type's <see cref="LocomotionClass"/>.</summary>

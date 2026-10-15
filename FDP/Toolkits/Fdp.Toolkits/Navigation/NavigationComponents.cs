@@ -112,6 +112,12 @@ namespace Fdp.Toolkit.Navigation
         Unloading = 8,
         /// <summary>Holding at a <c>Pickup</c> waypoint until its Brain releases it.</summary>
         Loading = 9,
+
+        // ⭐ Airborne insertion B-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-7) — appended.
+        /// <summary>Hovering at a <c>Rope</c> waypoint, ropes down, until its Brain releases it (nobody aboard, nobody on the ropes).</summary>
+        Roping = 10,
+        /// <summary>Flying the DZ leg from a <c>Drop</c> waypoint until its Brain releases it (nobody aboard).</summary>
+        Dropping = 11,
     }
 
     /// <summary>

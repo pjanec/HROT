@@ -114,6 +114,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityPartDamageIngressTranslator(participant, entityMap);
             yield return new EntityHitMarksEgressTranslator(participant);
             yield return new EntityHitMarksIngressTranslator(participant, entityMap);
+            yield return new EntityDescentEgressTranslator(participant);                  // ⭐ airborne B-1 — a man coming down
+            yield return new EntityDescentIngressTranslator(participant, entityMap);
             // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list (its owner → every node; each derives the passenger's side).
             yield return new EntityPassengersEgressTranslator(participant);
             yield return new EntityPassengersIngressTranslator(participant, entityMap);

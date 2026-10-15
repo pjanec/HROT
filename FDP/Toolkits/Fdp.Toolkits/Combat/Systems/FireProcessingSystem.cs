@@ -348,7 +348,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c, AD4) — a GUIDED missile launched at an aircraft warns it: its brain (local, or
                     //   over the wire) learns where from, the seeker and the flight time. One warning per round, at launch.
                     if (missile.Guidance != Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided && !evt.AtPoint && repo.IsAlive(target)
-                        && Fdp.Toolkit.Motion.Locomotions.InAir(repo, target) && repo.Bus.IsRegistered<Events.MissileWarningEvent>())
+                        && Fdp.Toolkit.Motion.Locomotions.IsAircraft(repo, target) && repo.Bus.IsRegistered<Events.MissileWarningEvent>())   // ⭐ B-6 — an aircraft, not a jumper
                     {
                         float speed = MathF.Max(velocity.Length(), 1f);
                         repo.Bus.Publish(new Events.MissileWarningEvent

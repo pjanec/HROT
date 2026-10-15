@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
-build-state: READY-TO-BUILD — slice 1 (fast-rope + parachute) and slice 2 (the ejecting pilot) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §8 the three demos, §9 hit by part during a descent.
+updated: 2026-10-16
+build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c); B-7…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -226,7 +226,8 @@ killed mid-rope: gravity, then fall damage (§5.3).
 
 ### 5.1 `RopeSlideModel`
 Each frame: the anchor's WORLD point (the helicopter's transform × the anchor place) gives x, y; z falls at `SlideMps` (eased in over 0.3 s),
-slowing to 1 m/s below `BrakeHeightM`; the surface under the anchor (`IWorldQuery.SurfaceZ` — the ground or a roof) ends it ⇒ `Landed`. The
+slowing to 1 m/s below `BrakeHeightM` *(⚠ as-built §7a: a RAMP from the slide speed down to 1 m/s at the surface — a flat 1 m/s over 3 m alone
+takes 3 s and misses B-2's "12 m in ~3.5 s")*; the surface under the anchor (`IWorldQuery.SurfaceZ` — the ground or a roof) ends it ⇒ `Landed`. The
 anchor dead or out of the hold ⇒ `Falling` (§5.3). Yaw = facing the helicopter's side.
 
 ### 5.2 `ParachuteModel`
@@ -283,6 +284,162 @@ incapacitates (the existing injury path).
 | **H-1** | behaviors | SOP rows + `SquadFastRope`, `SquadAirborneExit` (jumpmaster), `ParachuteDescent`, `AssembleAfterDrop`, the release point | ★ 8 men down two ropes in ≤ 15 s and in a 360° ring; ★ a stick of 8 from 400 m lands along the DZ and assembles |
 | **H-2** | behaviors | demo `ua-airborne`: ① SF fast-rope onto a rooftop, the helicopter then orbits ② a static-line stick onto a DZ ③ a free-fall team spirals down onto a point | live, PASS per vignette |
 | **U-1** | ui | the 3-D drawing: the rope from the anchor to the surface (dropped after the hold); round and ram-air canopies with lines, banked with the body; poses per phase (exit tuck, free-fall arch, under canopy hands on toggles, flare, PLF roll, rope slide); amend §6m C-4 (D-8) | frame rails + screenshots per phase |
+
+### 7a. As-built — B-1…B-4 (`2026-10-16`, backend)
+
+```mermaid
+classDiagram
+    direction LR
+    class Descent { <<component 392, Muscle group, dtDescent 137>> Kind Phase Canopy AnchorIndex PhaseSince Anchor Target Class }
+    class Wind { <<singleton 393>> Velocity Of(world) }
+    class DescentRules { <<static>> SurfaceBelow HighestSurface TryAnchor DoorPoint RopeLength Fall DefaultRopeLengthM 18 }
+    class Descents { <<static NEW>> Start(world, man, carrier, exit, anchorIndex) }
+    class RopeSlideModel { SlideMps 5 BrakeHeightM 3 brake ramp }
+    class ParachuteModel { Defaults(canopy) Of(world, jumper, canopy) Guide() }
+    class DescentLandingSystem { <<PostSimulation, AirMotionModule>> }
+    class AirMotionSystem { AirborneHolds() StepDownMaxM 3 DefaultRopeHoverM 12 }
+    class RotorcraftModel { Rope hold / Drop leg }
+    class AirPath { Dropping NEW }
+    class AirHolds { <<behaviors lane>> ShouldRelease AnyOnRopes NEW }
+    class Embarkation { Disembark(exit, anchorIndex) ExitIntoDescent() NEW }
+    class EmbarkationSystem { applies StartDescentCommand on the POSITION owner }
+    class DisembarkEntityCommand { +Exit +AnchorIndex appended }
+    class StartDescentCommand { <<event 3204 NEW>> Passenger Anchor Exit AnchorIndex IsRemote }
+    class InteractionCodecs { StartDescent = kind 8 NEW }
+    Embarkation ..> Descents : owns his position
+    Embarkation ..> StartDescentCommand : else publishes
+    InteractionCodecs ..> StartDescentCommand : carries to the position owner
+    EmbarkationSystem ..> Descents
+    Descents ..> Descent : adds
+    AirMotionSystem ..> RopeSlideModel
+    AirMotionSystem ..> ParachuteModel
+    ParachuteModel ..> Wind
+    RotorcraftModel ..> AirPath
+    AirHolds ..> Descent : reads the ropes
+```
+
+*Caption:* what the picture shows that §1 did not — the **second interaction** (`StartDescentCommand`) that closes CE-3059 for a descent: the
+carrier's owner decides the exit, but only the man's POSITION owner may add the `Descent` (a Muscle-group component whose egress is gated
+on that ownership).
+
+```mermaid
+sequenceDiagram
+    participant B as Brain node (the carrier's dtPassengerBuffer)
+    participant T as interaction transport
+    participant M as Muscle node (the man's dtWorldPos)
+    B->>B: EmbarkationSystem: Disembark(man, heli, exit RopeDown, anchor k)
+    B->>B: out of the list, Leave(door point) (a no-op write here)
+    alt this node owns his position (one node, the editor)
+      B->>B: Descents.Start: Descent{FastRope, Exit, Anchor heli}
+    else another node owns it
+      B->>T: StartDescentCommand (target = the man, actor = the heli)
+      T->>M: StartDescentCommand, IsRemote
+      M->>M: EmbarkationSystem: OwnsPosition ⇒ Descents.Start
+    end
+    M->>M: AirMotionSystem: RopeSlideModel snaps him to the anchor (Exit), Grip, Slide, Brake, Landed
+    M->>B: EntityDescent (dtDescent) + the transform: every node sees a Rope body
+```
+
+*Caption:* the message that crosses is the DECISION, not a position — the Muscle re-derives the door point from the same carrier and anchor
+index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and no second copy of the column rule CE-3059 warned against.
+
+| deviation from §1 / §5 / §7, and why | where |
+|---|---|
+| ⭐ **CE-3059 resolved for a descent** by a new interaction kind `StartDescent = 8` (`StartDescentCommand`, event 3204, payload `{Exit, AnchorIndex}`) applied by the man's POSITION owner; one node applies it at once. ⚠ The plain step-out dismount is unchanged — CE-3059 stays open for it | `Embarkation.ExitIntoDescent`, `InteractionCodecs.StartDescent` |
+| ⭐ an Unload **or Pickup** hover > 3 m above the ground is refused as a hover and **lands** instead (warned) — Pickup added: boarding a 30 m hover is the same teleport upwards | `AirMotionSystem.AirborneHolds` |
+| ⭐ a Rope waypoint's `HeightAgl` counts above the ROOF (the highest surface); unstated ⇒ **12 m**; the rope unstated on the type ⇒ **18 m** (60 ft); refused ⇒ flown through (hold dropped, warned) | same; `DescentRules.RopeLength` |
+| ⭐ a Drop waypoint is **flown through** at speed (not a stop); `Dropping` runs until the Brain releases it or the next REAL stop; a route ending on its DZ hovers there still `Dropping` | `RotorcraftModel.FollowRoute`, `AirRoute.IsFlownThrough`, `AirPath.Dropping` |
+| the rope: `SlideMps` **5** (§2: 3–5) and a brake **ramp** (§5.1 above) — 12 m in ~3.5 s | `RopeSlideModel` |
+| `Wind` needed a component id (**393**) — a singleton lookup on an id-less type THROWS, so every parachute frame would have crashed | `GlobalComponentIds.Wind` |
+| IDL forbids two enumerators of one name in a module (case-insensitive): `DescentPhase.FreeFalling`, `CanopyKind.NoCanopy`, `ExitKind.StepOut / RopeDown / JumpOut` | `Descent.cs` |
+| a jump is a free fall under a ram-air canopy, a static line under a round one — by the man's `Gen.Parachute` (none ⇒ round) | `Descents.Start` |
+| ★ (ui steer) a man with a `Descent` is still `IsPerson` — it keys on `VehicleParams`, never on `Locomotions.Of` — and a round through his torso under a canopy hits Torso | `RaycastSolverSystemTests.B1_AManUnderACanopy_IsStillAPerson…` |
+
+### 7b. As-built — B-5 (`2026-10-16`, backend)
+
+| built | where | note |
+|---|---|---|
+| types **204 Paratrooper** (round canopy) · **205 SF operator** (ram-air), the rifleman's body / M4 / injury / person carrier / brain + `Gen.Parachute` | `BdcTkbCatalog.Jumper`, `NedTkbBuilder.WithParachute` | every canopy figure is `ParachuteModel.Defaults` (§2) — nothing invented per type. DIS 3.1.225.1 like the rifleman: SISO-REF-010 v37 sorts US lifeforms by the WEAPON carried, not by role |
+| fast ropes on the **doors-off UH-60 (404)**: one over each cabin door (`RopeAnchors` (1.5, ±1.6, 0.4) — outboard of the door guns), 60 ft (18.3 m) | `BdcTkbCatalog.DoorSeats` | ⚠ the arm's place is estimated from the drawn fuselage. ⛔ **Not on the plain UH-60 (400)**: it has no `Gen.Carrier` and no flight — Air Ops keeps it "a static body" — so ropes there would be dead data |
+| the **release point** — `ReleasePoint.For(point, height, chute, wind, carrierVelocity)`: upwind by the drift under the canopy (round) or of the fall before the pull (ram-air), short by the door throw `(v − wind)·OpenSeconds/3` | `DescentModels.cs` | ★ a static-line jumper leaving a 35 m/s helicopter 400 m up in a 4 m/s crosswind lands within 30 m of the DZ point |
+| ⏳ **the scenario's wind — NOT BUILT, a decision for the user (D-13 below)** | — | absent = calm, which every model and the release point already handle; the three demos (§8) need no wind |
+
+### 7c. As-built — B-6 (`2026-10-16`, backend)
+
+| built | where | ★ rail |
+|---|---|---|
+| a man coming down is no target for a GUIDED round of either domain (a Stinger never locks him, a Javelin never picks him); a gun's round (Either) still is | `AmmoChoice.InDomain` | `AmmoChoiceTests.B6_*` |
+| an air contact (what one shelters from, what cues a SAM) and a missile warning are for an AIRCRAFT (`Locomotions.IsAircraft`) — a descent is not one | `AirContacts.IsAir`, `FireProcessingSystem` (the warning) | the B-1 class rail (`IsAircraft` false for both descents) |
+| ⭐ the lead aim stays on `InAir` — leading a falling man is right | `FireProcessingSystem` (`TargetLead`) | — |
+| a FALL hurts (§5.3): ≤ 6 m/s nothing (a canopy lands at ≤ 5.5), 6–10 m/s 75 % of his health (from full ⇒ under the injury's 0.3 ⇒ incapacitated), > 10 m/s all of it — a whole-body `DamageAssessedEvent` (no part: a zone multiplier would bend the thresholds), applied by his Health owner | `DescentRules.Fall` → `Impact` | `DescentModelsTests.B6_AFall_*` (1.5 m / 3.5 m / 20 m) |
+
+### 7d. Design for build — B-7…B-9, the ejecting pilot (`2026-10-16`, backend)
+
+```mermaid
+classDiagram
+    direction LR
+    class EjectionDto { <<NEW TKB Gen.Ejection, on the jet>> PilotType SeatX SeatY SeatZ AutoEjectBelowFraction }
+    class EjectRequestEvent { <<NEW event>> Aircraft }
+    class EjectExecutor { <<NEW interaction action 11, Brain>> raises EjectRequestEvent once, Success when the jet is down }
+    class EjectionSystem { <<NEW Hrot.Common, Interactions capability, every node>> gate OwnsHealth(jet) }
+    class EntityCreation { <<existing>> RequestEntityCreation(type, transform, components) }
+    class ScenarioEntityCreationRequestSource { <<existing world singleton>> Enqueue }
+    class HealthApplicationSystem { <<existing>> the jet's Health to 0 }
+    class FixedWingModel { <<existing>> Fall when not Alive }
+    class ParachuteModel { <<existing>> Ejection: the seat's arc, then a round canopy }
+    class Descent { <<existing>> Kind Ejection }
+    EjectExecutor ..> EjectRequestEvent : raises
+    EjectionSystem ..> EjectRequestEvent : reads
+    EjectionSystem ..> EjectionDto : reads the jet's type
+    EjectionSystem ..> ScenarioEntityCreationRequestSource : the pilot, FIRST
+    EjectionSystem ..> HealthApplicationSystem : DamageAssessedEvent(jet, all its health), THEN
+    HealthApplicationSystem ..> FixedWingModel : Health 0 ⇒ it falls and crashes
+    ScenarioEntityCreationRequestSource ..> Descent : the pilot is born with Descent{Ejection}
+    ParachuteModel ..> Descent
+```
+
+*Caption:* what the picture shows that prose hid — **two writers, one order, one node**: the pilot is a CREATION and the jet's end is a
+DAMAGE, both raised by `EjectionSystem` on the node that owns the jet's `Health` (the node that may kill it), in that order — so the pilot is
+never a rider who dies with it (R-2021). Nothing new moves anything: the pilot's descent is the existing parachute model's.
+
+```mermaid
+sequenceDiagram
+    participant B as behaviour Eject / the auto rule
+    participant E as EjectionSystem (the jet's Health owner)
+    participant C as entity creation (the arbiter)
+    participant H as HealthApplicationSystem
+    participant M as the pilot's Muscle (ParachuteModel)
+    B->>E: EjectRequestEvent(jet), or Health/Max at or below the type's AutoEjectBelowFraction
+    E->>E: once per jet (a latch), only while it is alive
+    E->>C: RequestEntityCreation(Pilot, the seat's world point, SimVelocity = jet + 40 m/s up, Descent{Ejection, Exit, Round})
+    E->>H: DamageAssessedEvent(jet, its health): the jet is abandoned
+    H->>H: Health 0 ⇒ FixedWingModel falls, DroneImpactSystem crashes it
+    C->>M: the pilot spawns and replicates
+    M->>M: Exit: the seat's arc (gravity, the air brakes the jet's speed) 1.5 s, Deploying 1.5 s, Canopy (round) by 3 s
+```
+
+| decision | lean | rejected — one line each |
+|---|---|---|
+| **D-14** who ejects | `EjectionSystem` in the Interactions capability (every node, gated on `OwnsHealth`), reading `EjectRequestEvent` and the auto rule | the executor spawning by itself — it runs on the Brain of the JET, which need not own its Health; two triggers would be two spawn sites |
+| **D-15** the pilot's start | spawned with the jet's velocity PLUS the rocket (40 m/s up) as its `SimVelocity`; `Descent{Ejection}` in its initial components, no anchor | an anchor on the jet — the jet is being abandoned, and `Descent.Anchor` is a node-local handle |
+| **D-16** the type's figures | `Gen.Ejection` on the jet (pilot type, seat place, auto-eject fraction); the pilot type **206** carries `Gen.Parachute` round with `OpenSeconds` 1.5 (canopy by ~3 s, §7 B-7) | figures in code — every aircraft differs |
+| **D-17** once | a latch in `EjectionSystem` plus "only while alive" (the abandoned jet is at Health 0) | a replicated flag — only the Health owner ever ejects, so a local latch is enough |
+
+#### D-13 — how the scenario's wind reaches every node *(open — lean ③, user to approve)*
+
+| measured | code | design basis |
+|---|---|---|
+| ⛔ only BRAIN nodes read the scenario file (CGF, the editor); SimHost, Stride SimHost and IG never construct `ScenarioLoadStep` | `RoleLoadRequirements.cs:64-65` (*"Brain is the only role that reads the scenario file … every other role receives a replicated world"*), `SimHostNodeBootstrapper.cs:442-462` | `DESIGN_Cluster_Load_Phase.md` §4.1c |
+| ⛔ the parachute model runs on the MUSCLE (the man's position owner) ⇒ a scenario SECTION alone never reaches it | `AirMotionSystem.cs` (`WithOwned<SimTransform>`) | this design D-2 |
+| ⛔ no translator writes a world SINGLETON from the wire | searched every `[DdsTopic]` and `Hrot/Network` translator | — |
+| ⭐ a scenario-wide value every role needs already exists: the TKB and terrain NAMES ride the load message (`NodeTransitionPayloadDto.TkbName / TerrainName`), with a staged `ScenarioHeader.json` fallback — *"four of the five roles never open the scenario file"* | `OrchestrationPayloadDtos.cs:139-147`, `StorageGatewayModule.cs:429,606`, `TerrainLoadStep.cs:44-46` | ⛔ `ScenarioHeader.cs` forbids growing the header into an ASSET block — wind is not an asset, but the line is the user's to draw |
+| ⛔ an environment ENTITY is ruled out | — | [tkb-1 DESIGN.md:873-893](../tkb-1/DESIGN.md) *"Global Weather is a SINGLETON, not a positionless entity"* |
+
+| option | | |
+|---|---|---|
+| ① a top-level scenario section only (the `TerrainObjects` shape) | ⛔ reaches only the Brain — the parachute model on the Muscle stays calm | rejected |
+| ② a new keyed DDS topic the loading Brain publishes and every node writes into the singleton | a NEW pattern (singleton-from-wire) for one value | rejected unless weather grows |
+| ⭐ **③ the load message, like the terrain name**: an `Environment` section in the scenario (one writer / reader, merged like `TerrainObjects`), copied by the orchestrator into `NodeTransitionPayloadDto` (APPENDED wind fields) and the staged `ScenarioHeader.json`; each node's load sets the `Wind` singleton | ⭐ the existing channel for exactly this shape of value; ⚠ blast radius: the orchestration payload (appended, R-169), the storage gateway's staging, one load step | **lean** — would change if weather is to VARY in time (then ②) |
 
 ### Slice 2 — the ejecting pilot (✅ READY — the user's third demo needs it)
 The jet's crew is the type itself, so ejection **spawns a Pilot entity** (the existing entity-creation path) at the canopy BEFORE the kill (R-2021):

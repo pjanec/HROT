@@ -205,6 +205,8 @@ public sealed class EntityTypeCatalogTests
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         203 Rifleman (Igla) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        204 Paratrooper | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        205 SF operator | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit

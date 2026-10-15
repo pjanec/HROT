@@ -31,6 +31,14 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// Null on a vehicle.</summary>
         public PersonCarryDto? Person { get; init; }
 
+        /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — the fast ropes a helicopter drops: one
+        /// per door, in the carrier's frame (x forward, y left, z up from its reference point). Empty ⇒ no ropes (a roped exit then uses one
+        /// at each side door, <c>RopeSlideModel.DefaultAnchor</c>).</summary>
+        public List<RopeAnchorDto> RopeAnchors { get; init; } = new();
+
+        /// <summary>⭐ Airborne insertion §4 — the ropes' length (m): a Rope hold higher than this above the surface is refused (B-3).</summary>
+        public float RopeLengthM { get; init; }
+
         /// <summary>⭐ <c>CE-2152</c> — a soldier who can carry or drag one casualty: one open seat, the casualty survives his fall.</summary>
         /// <remarks>⭐ Weapon systems WS-2 (R-2016 W-G, DESIGN_Weapon_Systems §5) — and one CARRY STATION (a <see cref="SeatRole.Station"/>
         /// accepting <see cref="MountKinds.Carried"/>): the portable weapon system he carries, beside the casualty seat.</remarks>

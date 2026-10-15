@@ -1485,6 +1485,33 @@ namespace Hrot.SimHost.Tests
             Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 2179));                                // flying: nothing to release
         }
 
+        /// <summary>⭐ Airborne insertion B-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-7) — a ROPE hold ends only when nobody is
+        /// aboard AND nobody hangs on its ropes (a fast-rope Descent anchored to it, short of Landed): the men leave the passenger list at
+        /// the door, so Unload's rule alone would fly off with them on the ropes. A DROP leg ends when nobody is aboard. Neither is "on the
+        /// ground". ✅ Red-proof: Roping released on "nobody aboard" alone ⇒ released with a man mid-rope ⇒ red.</summary>
+        [Fact]
+        public void B3_TheHelicoptersBrain_ReleasesARopeHold_OnlyWhenNobodyIsOnItsRopes_AndADropWhenEmpty()
+        {
+            var s = new Squad(members: 1);
+            var heli = AirCarrier(s, new Vector3(0f, 0f, 24f), NavigationPhase.Roping, 2190, 0);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 0));                                   // a man still aboard
+            Assert.False(AirHolds.OnTheGround(s.Repo, heli));                                         // a hover is not the ground
+            Embarkation.Disembark(s.Repo, s.Members[0], heli);
+            s.Repo.AddComponent(s.Members[0], new Fdp.Toolkit.Motion.Descent
+                { Kind = Fdp.Toolkit.Motion.DescentKind.FastRope, Phase = Fdp.Toolkit.Motion.DescentPhase.Slide, Anchor = heli });
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 0));                                   // out, but on the rope
+            s.Repo.GetComponentRW<Fdp.Toolkit.Motion.Descent>(s.Members[0]).Phase = Fdp.Toolkit.Motion.DescentPhase.Landed;
+            Assert.True(AirHolds.ShouldRelease(s.Repo, heli, 0));                                    // down: release
+
+            SetPhase(s, heli, NavigationPhase.Dropping);
+            Assert.True(AirHolds.ShouldRelease(s.Repo, heli, 0));                                    // the stick is out
+            Assert.False(AirHolds.OnTheGround(s.Repo, heli));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 0));                                   // a jumper still aboard
+        }
+
         // ── CE-2158 F-c — bounding overwatch: suppress on contact, cover-point bounds ───────────────────────────────────────────────
 
         private static Entity BoQuery(Squad s) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, BoundingOverwatchPlay.CoverSite);

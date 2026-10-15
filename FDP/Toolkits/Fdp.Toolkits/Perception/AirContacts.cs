@@ -15,8 +15,8 @@ namespace Fdp.Toolkit.Perception
         {
             if (TargetMemory.IsAnonymous(in mem, slot)) return mem.SourceClass[slot] == (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor;
             var e = new Entity((ulong)mem.EntityIds[slot]);
-            return view is EntityRepository repo && repo.IsAlive(e)
-                && Fdp.Toolkit.Motion.Locomotions.DomainOf(Fdp.Toolkit.Motion.Locomotions.Of(repo, e)) == Fdp.Toolkit.Motion.MotionDomain.Air;
+            // ⭐ airborne insertion B-6 (D-4) — an AIRCRAFT: nobody shelters from a paratrooper, and no SAM is cued at one
+            return view is EntityRepository repo && repo.IsAlive(e) && Fdp.Toolkit.Motion.Locomotions.IsAircraft(repo, e);
         }
 
         /// <summary>How many air contacts <paramref name="mem"/> holds.</summary>

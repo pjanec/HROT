@@ -81,6 +81,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
                 // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
                 RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now, toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter));
+                // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-10) — the sound of it, queued only while an FPS station listens
+                if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb)
+                    heard.Add(new Hrot.UI.Common.Audio.SoundEvents.Shot(fire.Shooter, fire.WeaponIndex, fire.Origin != Vector3.Zero ? fire.Origin : at,
+                        fired, mount?.DamagePerHit ?? 0f, FireStreams.IsAutomatic(mount),
+                        view.HasComponent<TkbIdentity>(fire.Shooter) ? view.GetComponentRO<TkbIdentity>(fire.Shooter).TkbType : 0L));
                 // ⭐ CE-1094 (§6n N-10) — a bomb leaves its rack: no fire at the nose
                 if (mount?.Category != WeaponCategory.Bomb) Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
                 // ⭐ CE-1090 (§6n N-4) — a recoilless launcher throws dust BEHIND its tube; a howitzer raises a ground blast round it
@@ -113,6 +118,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 Spawn(cmd, tkb, set.Explosion, point, null, now);
                 // ⭐ VE-M — a decal marks the static world only: none when the round hit a vehicle or a person.
                 bool hitABody = hit.Target != Entity.Null && view.IsAlive(hit.Target);
+                Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, hit.Damage, hitABody));   // ⭐ CE-1120
                 if (!hitABody)
                 {
                     float gz = ground?.GroundHeightAt(point.X, point.Y) ?? 0f;
