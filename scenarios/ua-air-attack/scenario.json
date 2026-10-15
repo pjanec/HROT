@@ -1,0 +1,261 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert"
+ },
+ "entities": {
+  "a2173600-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     -4000,
+     -3000,
+     300
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7961
+   },
+   "TkbIdentity": {
+    "TkbType": 405
+   },
+   "EntityInfo": {
+    "Name": "Bomber A-10",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": "{\"Location\":[-3000,1000],\"TargetKind\":4}",
+    "Origin": "Superior"
+   }
+  },
+  "a2173600-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     -4000,
+     0,
+     300
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7962
+   },
+   "TkbIdentity": {
+    "TkbType": 405
+   },
+   "EntityInfo": {
+    "Name": "Gunship A-10",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": "{\"Target\":7972}",
+    "Origin": "Superior"
+   }
+  },
+  "a2173600-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     1000,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7972
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Column Lead",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     1040,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7973
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Column Second",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     -3000,
+     3000,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7963
+   },
+   "TkbIdentity": {
+    "TkbType": 406
+   },
+   "EntityInfo": {
+    "Name": "Apache",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": "{\"Location\":[3000,1000],\"TargetKind\":2}",
+    "Origin": "Superior"
+   }
+  },
+  "a2173600-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     1000,
+     3000,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7974
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Position Truck",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "a2173600-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     -1500,
+     6000,
+     100
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7964
+   },
+   "TkbIdentity": {
+    "TkbType": 404
+   },
+   "EntityInfo": {
+    "Name": "Door Gunship UH-60",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": "{\"Target\":7975}",
+    "Origin": "Superior"
+   }
+  },
+  "a2173600-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     0,
+     6000,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 7975
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Orbit Truck",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  }
+ }
+}

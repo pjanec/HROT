@@ -1347,6 +1347,114 @@ def run_air_strike(c, timeout):
          f"⑤ the A-10 flies on out, still in the air — {p1}")
 
 
+# ── ua-air-attack (CE-2173 slice 6b; docs/designs/air-attack/DESIGN_Air_Operations.md §9c-§9f) — the air showcase, four vignettes ──────
+#   ① the Bomber A-10 strikes a fortification POINT: a heavy kind ⇒ the bomb (LevelBomb) · ② the Gunship A-10 attacks the lead of a column:
+#   an entity ⇒ its gun first (GunRun), the lead destroyed · ③④ the Apache's running fire on a position: its rockets, then its gun on the
+#   move, breaking off short of the point · ⑤ the doors-off UH-60 orbits a truck while its door gunners fire (DoorGunOrbit, §9f); the
+#   check shoots the firing door's gunner (Health 0 over HTTP) ⇒ that gun falls silent and the orbit turns the other door in.
+#   The targets are bare Toyotas (106): nothing shoots back. ⭐ The only HTTP writes are play and the gunner's health.
+
+def _door_gunners(heli):
+    """(seat, network id) of the UH-60's door gunners (seats 8 and 10), read from its PassengerBuffer."""
+    buf = (comps(heli) or {}).get("PassengerBuffer") or {}
+    seats = buf.get("Passengers") or buf.get("passengers") or []
+    out = []
+    for i in (8, 10):
+        if i < len(seats):
+            v = seats[i]
+            nid = v.get("NetworkId") or v.get("networkId") if isinstance(v, dict) else v
+            if nid:
+                out.append((i, nid))
+    return out
+
+
+def run_air_attack(c, timeout):
+    ids = ids_by_name()
+    bomber, gunship, apache, uh60 = (ids.get(n) for n in ("Bomber A-10", "Gunship A-10", "Apache", "Door Gunship UH-60"))
+    lead, ptruck, otruck = ids.get("Column Lead"), ids.get("Position Truck"), ids.get("Orbit Truck")
+    if not c.ok(None not in (bomber, gunship, apache, uh60, lead, ptruck, otruck), "the four aircraft and their targets are loaded"):
+        return
+    named = set(ids.values())
+    bomb_point, apache_point, orbit_at = (1000.0, -3000.0), (1000.0, 3000.0), position(otruck)
+    call("POST", "/sim/play", {})
+    apache_closest, ring, bearings, speeds = 9e9, [], [], []
+    gunner_down_at, door_shooters_before, door_shooters_after, down = None, set(), set(), None
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        t = sim_time() or 0.0
+        pa, pu = position(apache), position(uh60)
+        if pa:
+            apache_closest = min(apache_closest, flat(pa, apache_point))
+        if pu and orbit_at:
+            r = flat(pu, orbit_at)
+            if r < 600:
+                ring.append(r)
+                bearings.append((t, math.atan2(pu[1] - orbit_at[1], pu[0] - orbit_at[0])))
+                speeds.append((t, pu))
+        door = [x for x in _if_shots_all() if x.get("shooter") not in named and x.get("aim") and orbit_at and flat(x["aim"], orbit_at) < 60]
+        if door and gunner_down_at is None:
+            first = door[-1].get("shooter")
+            door_shooters_before = {x.get("shooter") for x in door}
+            gunners = _door_gunners(uh60)
+            print(f"    the door guns opened at {t:.1f} s (shooter {first}); the door gunners {gunners}")
+            # the gun that fired is the LEFT one while it turns counter-clockwise (§9f): shoot the left door's gunner (seat 8)
+            down = next((nid for seat, nid in gunners if seat == 8), None)
+            if down:
+                set_health(down, 0)
+            gunner_down_at = t
+            seq_down = max((x.get("seq") or 0) for x in door)
+        elif gunner_down_at is not None:
+            door_shooters_after = {x.get("shooter") for x in door if (x.get("seq") or 0) > seq_down}
+        done = all((h := health(n)) is not None and h <= 0 for n in (lead, otruck)) and _if_bursts({bomber}) and apache_closest < 2000
+        if done and gunner_down_at is not None and t > gunner_down_at + 20:
+            break
+        time.sleep(0.5)
+
+    bursts = _if_bursts({bomber})
+    b = (bursts[0].get("burst") if bursts else None) or [9e9, 9e9, 0]
+    c.ok(bursts and flat(b, bomb_point) <= 25, f"① the Bomber's bomb burst on the fortification point (≤ 25 m) — {flat(b, bomb_point):.1f} m")
+    g = _if_shots({gunship})
+    c.ok(len(g) >= 10, f"② the Gunship flew a gun run — {len(g)} rounds")
+    c.ok((health(lead) or 0) <= 0, f"② the column lead is destroyed — Health {health(lead)}")
+    a = _if_shots({apache})
+    kinds = sorted({x.get("weaponIndex") for x in a})
+    c.ok(len(kinds) >= 2, f"③④ the Apache fired its rockets AND its gun — mounts {kinds}, {len(a)} rounds")
+    c.ok(apache_closest >= 300, f"④ the Apache broke off short of the position — closest {apache_closest:.0f} m")
+    settled = ring[len(ring) // 3:]
+    c.ok(settled and 250 <= min(settled) and max(settled) <= 550,
+         f"⑤ the UH-60 orbits the truck — {min(settled or [0]):.0f}…{max(settled or [0]):.0f} m")
+    tail = speeds[len(speeds) // 3:]   # the speed over each ~0.5 s sample (the view's SimVelocity may be a ghost's)
+    slow = min((flat(p1, p0) / (t1 - t0) for (t0, p0), (t1, p1) in zip(tail, tail[1:]) if t1 - t0 > 0.2), default=0)
+    c.ok(slow > 20, f"⑤ … never hovering (W4) — slowest {slow:.1f} m/s")
+    c.ok(bool(door_shooters_before), f"⑤ its door guns fired — shooters {sorted(door_shooters_before)}")
+    c.ok(down is not None, f"⑤ the left door gunner found and shot — {down}")
+    c.ok(bool(door_shooters_after) and not (door_shooters_after & door_shooters_before),
+         f"⑤ … his gun fell silent and the other door's gun took over — after {sorted(door_shooters_after)}")
+    turn_before = _turn(bearings, None, gunner_down_at)
+    turn_after = _turn(bearings, (gunner_down_at or 0) + 10, None)
+    c.ok(turn_before > 0 > turn_after, f"⑤ … the orbit reversed — {turn_before:+.2f} rad before, {turn_after:+.2f} after")
+    c.ok((health(otruck) or 0) <= 0, f"⑤ the orbited truck is destroyed — Health {health(otruck)}")
+
+
+def _turn(bearings, start, stop):
+    total, last = 0.0, None
+    for t, b in bearings:
+        if (start is not None and t < start) or (stop is not None and t > stop):
+            continue
+        if last is not None:
+            total += math.remainder(b - last, 2 * math.pi)
+        last = b
+    return total
+
+
+def _if_shots_all():
+    call("POST", "/perspective", {"name": "SimHost"})
+    try:
+        return (data(call("GET", "/combat/shots?last=64")) or {}).get("shots") or []
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
 # ── ua-indirect-fire (CE-2176 IF-4; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §6) — mortars, artillery, the observer ───────
 #   ① the observer, 700 m north, calls the mortar section's fire on the enemy squad behind the ridge block: one tube adjusts, then all
 #   three fire for effect · ② the M109 battery, three guns at three ranges, time on target on the trucks in the open · ③ a Strike into
@@ -1535,6 +1643,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-squad-bound-open-ground": run_squad_bound_open_ground,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
              "ua-air-strike": run_air_strike,
+             "ua-air-attack": run_air_attack,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 
