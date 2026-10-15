@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-15 (§3c air defence: IR seeker, proximity fuze, flares / chaff, missile warning — CE-2187…CE-2189, designed)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -362,6 +362,108 @@ sequenceDiagram
 | the fuze fires when the round's NEXT step enters the hull's footprint (its collider circle) while it is above the roof and no more than `OverflyHeightM` + 2 m over it | a pass over the roof, not a pass beside it or far above it |
 | the detonation: `Travel` straight down, the round's own penetration and damage (muzzle values — a missile is not carried through terrain), its ammo for the fragments | the unchanged chain decides the face (Top) and the damage |
 | Javelin keeps its dive (§3); only the NLAW states `Overfly` | `ua-javelin-lock` unchanged |
+
+## 3c. Air defence — the IR seeker, the proximity fuze, flares and chaff, the missile warning (`CE-2187`…`CE-2189`, backend, `2026-10-15`; build-state: BUILDING)
+
+🔒 Frame: [Air Operations §7d](../air-attack/DESIGN_Air_Operations.md) AD1–AD6 (behaviors' leans, sent with
+[the handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Defence.md)); 🔒 user `2026-10-15`: *"approved, start air defence"*,
+including moving `SimRng` down to `Fdp.Toolkits`. The launchers and the ZU-23 are [Weapon Systems §5c](../weapons/DESIGN_Weapon_Systems.md).
+
+**INVENTORY** (`2026-10-15`, graph CLI `search_graph` + grep): `.*Countermeasure.*|.*Decoy.*|.*Flare.*|.*Chaff.*` → **0**;
+`.*Seeker.*|.*Fuze.*|.*Proximity.*` → `FuzeKind` (Impact, Time), `GuidedRoundSystem.OverflyFuze`; `.*Guided.*` → `GuidedRound`,
+`GuidedRoundSystem`, `AimAndFireExecutor.GuidedFlightSeconds`; `.*MissileWarning.*` → **0**; `.*SimRng.*` → `SimRng` (Hrot.AI.Behaviors —
+the brain side; the SimHost combat code has **no** random draw: dispersion is a fixed sequence, `HitModel.Deflection`). Prior art reused:
+the near-miss path (`CE-3064`: SimHost event → DDS → `…SensingSystem` → `SensorChange`), the off-target burst (`BallisticsSystem.Detonate`
+→ the area effect, 3-D distance to the body), `AmmoChoice.Split` (the one place both the round and the mount choice value a round).
+
+```mermaid
+classDiagram
+  direction LR
+  class MissileDto { <<existing, grows>> Guidance +TargetDomain +SeekerConeDeg +FlareRejection +ChaffRejection }
+  class GuidanceKind { <<existing, grows>> Unguided Command FireAndForget +InfraRed +Radar }
+  class WarheadDto { <<existing, grows>> Fuze +ProximityFuzeM }
+  class FuzeKind { <<existing, grows>> Impact Time +Proximity }
+  class TargetDomain { <<new>> Any Ground Air }
+  class CountermeasuresDto { <<new TKB, on an aircraft type>> Flares Chaff Salvo IntervalS DecoySeconds }
+  class CountermeasureState { <<new component 387, SimHost>> Flares Chaff NextAt }
+  class Decoy { <<new component 386>> Kind Owner Until }
+  class GuidedRound { <<existing, grows>> +SeekerCos +Rejection +ProximityM }
+  class DispenseCountermeasureIntent { <<new event 5009, brain to SimHost>> Unit Kind }
+  class MissileWarningEvent { <<new event 5008, SimHost to brain>> Unit From Seeker TimeToImpact }
+  class MissileWarning { <<new component 388, brain>> At From BearingDeg Seeker TimeToImpact }
+  class CountermeasureSystem { <<new, SimHost>> dispense, seduce }
+  class GuidedRoundSystem { <<existing, grows>> +ProximityFuze }
+  class MissileWarningSensingSystem { <<new, brain>> }
+  class AmmoChoice { <<existing>> Split +domain gate }
+  class SimRng { <<MOVED to Fdp.Toolkits>> FromSim }
+  MissileDto --> GuidanceKind
+  MissileDto --> TargetDomain
+  WarheadDto --> FuzeKind
+  CountermeasureSystem ..> CountermeasuresDto : reads
+  CountermeasureSystem --> CountermeasureState
+  CountermeasureSystem --> Decoy : spawns
+  CountermeasureSystem ..> GuidedRound : re-targets
+  CountermeasureSystem ..> SimRng : one draw per round per salvo
+  GuidedRoundSystem --> GuidedRound
+  MissileWarningSensingSystem --> MissileWarning
+  AmmoChoice ..> MissileDto : TargetDomain
+```
+
+*What the picture shows that prose hid: nothing new STEERS — a seduced round simply has a decoy as its `Target`, so the existing steering,
+lifetime and proximity fuze do the rest; and the only new random draw sits in one system on one node.*
+
+```mermaid
+sequenceDiagram
+  participant GB as gunner brain (CGF)
+  participant FP as FireProcessingSystem (SimHost)
+  participant GS as GuidedRoundSystem (SimHost)
+  participant CS as CountermeasureSystem (SimHost)
+  participant AB as aircraft brain (CGF)
+  participant AE as AreaEffectSystem (SimHost)
+  GB->>FP: WeaponFireIntent (Stinger at the helicopter)
+  FP->>FP: GuidedRound InfraRed, cone, rejection, proximity 5 m
+  FP-->>AB: MissileWarningEvent over DDS (from, seeker, time to impact)
+  AB->>AB: SensorChange.MissileWarning + MissileWarning component
+  AB-->>CS: DispenseCountermeasureIntent over DDS (flares)
+  CS->>CS: salvo left and interval passed - spawn decoys, count down
+  CS->>GS: every IR round with a decoy in its cone - SimRng draw above Rejection - Target = decoy
+  GS->>GS: steer at the target (the decoy, or the aircraft)
+  GS->>AE: within ProximityM of its target - off-target burst
+  AE->>AE: fragments by 3-D distance - the aircraft is hit only if the burst is near it
+```
+
+```mermaid
+graph TD
+  subgraph SimHost["SimHost (Muscle) - CombatModule"]
+    FP[FireProcessingSystem] --> GS[GuidedRoundSystem]
+    CS[CountermeasureSystem] --> GS
+    GS --> BS[BallisticsSystem] --> AE[AreaEffectSystem]
+    EG1[MissileWarningEgressTranslator]
+    IG2[DispenseCountermeasureIngressTranslator]
+  end
+  subgraph CGF["CGF (Brain) - CgfLogicPack"]
+    IG1[MissileWarningIngressTranslator] --> MWS[MissileWarningSensingSystem]
+    BT[behaviours - CE-2191] --> EG2[DispenseCountermeasureEgressTranslator]
+  end
+  FP -- MissileWarningEvent --> EG1
+  EG1 -- "DDS MissileWarning (dt 133)" --> IG1
+  EG2 -- "DDS DispenseCountermeasure (dt 134)" --> IG2
+  IG2 -- DispenseCountermeasureIntent --> CS
+```
+
+*What the picture shows that prose hid: the loop crosses the wire twice, and both halves ride the SimHost auxiliary pack beside
+`NearMiss` — on a one-world host (editor, `--mode all`'s combat node) the events are local and the translators are not involved.*
+
+| rule | why |
+|---|---|
+| `GuidanceKind.InfraRed` steers like `FireAndForget` (its own seeker, `LastSeen`) but sees its target only inside its **cone** (`SeekerConeDeg` about its velocity) | only an IR round can be seduced by a flare; out of the cone it flies to where it last saw the target |
+| `GuidanceKind.Radar` exists for chaff only — **no munition uses it** (AD6) | chaff is railed against a test round |
+| `MissileDto.TargetDomain` Air / Ground / Any: `AmmoChoice.Split` values a round at **0** against the wrong domain (the target is Air when `Locomotions.InAir`) | ⭐ one gate for the round choice, the mount ranking (`StandardInputs`) and behaviors' `Sufficient` — a MANPADS is never chosen against a truck, an ATGM never against a flying helicopter; a LANDED helicopter is a ground target |
+| the proximity fuze: `WarheadDto.Fuze = Proximity`, `ProximityFuzeM`; the round bursts (the off-target `DetonationNotification`, the existing area effect) the tick its step passes within `ProximityFuzeM` of its target's middle | a SAM rarely strikes the hull; the fragments' 3-D distance does the damage, so a burst at a decoy spares the aircraft by geometry, not by a rule |
+| a dispense: the aircraft type's `CountermeasuresDto` ⇒ `CountermeasureState` on the SimHost; a `DispenseCountermeasureIntent` spawns `Salvo` decoys (flare or chaff) at the aircraft, its velocity, falling, for `DecoySeconds`; ignored while the interval has not passed or the count is 0 | the BRAIN decides when (CE-2191); the engine decides what happens |
+| seduction: each homing round of the matching seeker (flare ↔ InfraRed, chaff ↔ Radar) with a new decoy in its cone draws ONCE per salvo — `SimRng.FromSim(round, salt, simTime)`; above its `FlareRejection` / `ChaffRejection` it re-targets the nearest such decoy | deterministic (replay, R-3009's spirit); a round that ignored one salvo can still take the next |
+| the warning: published by `FireProcessingSystem` the moment a guided round is launched at an **air** target; one per round | AD4; "on lock" needs no second event — the brain's lock is the gunner's aim time, the launch follows it |
+| `SimRng` moves to `Fdp.Toolkits` (namespace `Fdp.Toolkit.Determinism`), unchanged | ⭐ one generator for brain and engine (user-approved); its callers in `Hrot.AI.Behaviors` change only their `using` (cross-lane, named) |
 
 ## 4. Firing on the move (D-L)
 
