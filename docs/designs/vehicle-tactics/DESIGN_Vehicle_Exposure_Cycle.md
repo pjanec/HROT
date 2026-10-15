@@ -244,6 +244,10 @@ stateDiagram-v2
   Withdrawing --> Hidden : REVERSE back to the hide
   Withdrawing --> MoveToHide : SCOOT forward to the next hide
   Hidden --> Choose : every firing point near this hide burned
+  Choose --> StandAndFight : no hide for NoCoverSeconds (CE-2196)
+  Hidden --> StandAndFight : mobility kill (CE-2197)
+  StandAndFight --> MoveToHide : a hide answers and it can drive
+  Engaging --> Withdrawing : firepower kill - it never exposes again (CE-2197)
 ```
 
 | rule | why |
@@ -268,6 +272,25 @@ stateDiagram-v2
 | `VehicleFightFromCover = Sequence(the node)` | `Parallel(1){ UntilTargetDown ‖ the node }` for both the library tree and `LandPlatformAttack` | an ATTACK names its target: `UntilTargetDown` designates it (the ranking puts it first, so `TopAim` fights IT) and ends the order with Success when it is down — `CombatPostureBehavior`'s C-5 reading, reused (its `Resolve` fills the designation) |
 | state `NextHide · SeenAtFor · Reversing` | `SeenSince` (since when a dangerous threat has seen me); the next hide is picked at the withdraw, so no `NextHide`; `Scoot` (the resolved mode) replaces `Reversing` | fewer fields, one decision point |
 | — | ⚠ **open:** the budget is NOT floored at my own aim time (PeekAndFire's G8 floors an exposure at 2 × it). A tank slower to aim than the RPG man is fast (aim 2 s ⇒ budget 1.4 s) withdraws before it fires | the design's rule is the enemy's clock; the gun is already on him from the hide (T4 tracking), which shortens my aim — ⛔ not measured live; the demo (`ua-tank-corner`) is where it is settled |
+
+⭐ **As-built `2026-10-15` — CE-2196 / CE-2197 (the cycle answers its own damage; backend's hit location S2 strips the bits):**
+
+| case | built | why |
+|---|---|---|
+| no hide for `NoCoverSeconds` | `StandAndFight`: hold, track, fire at the seen threat; take a hide the moment one answers (was: Failure) | an attack order should attack — the no-hide Failure hung a target-named `LandPlatformAttack` (CE-2196) |
+| mobility kill — `CanMove` stripped or `Wounds.Has(Mobility)` | `StandAndFight` and never drives again | a hull that cannot reach a hide fights where it stands |
+| firepower kill — `CanShoot` stripped or `Wounds.Has(Firepower)` | withdraws into its hide (the normal reverse / scoot) and never exposes again; still Success when nothing is left to fight | a broken gun has no business in the open |
+| both | Failure (nothing it can do; the crew's bail-out is R-263's damage states) | — |
+| drive speed | `Speed` 0 ⇒ **5 m/s** (was: the type's own) | CE-2198: at 20 m/s an M1 overshot its hide by its braking distance (~26 m) into a building — the follower does not brake for a short leg (backend [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Vehicle_Overshoot.md)) |
+
+Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).
+
+⭐ **Found live `2026-10-15` (`ua-tank-corner`), fixed — CE-2195:** the `Parallel(1)` above is RequireOne, which FAILS only when every
+child failed — and `UntilTargetDown` with no target named was Running for ever, so a cycle that failed (no hide for `NoCoverSeconds`)
+left the behaviour running dead and the SOP could not react again. ⇒ with no target it now ABSTAINS (Failure) and the cycle's result is
+the behaviour's. ⚠ Open — **CE-2196**: with a target named, the same failure still hangs `LandPlatformAttack` (lean: fight from where it
+stands — BUILT, CE-2196 below). ⚠ And a plain `VehicleFightFromCover` order given BEFORE contact ends on its first tick ("nothing left to fight") — a vehicle
+that must wait for its enemy runs `BasicVehicleSop`, which reacts with it on the first contact.
 
 Rails: `VehicleFightFromCoverNodesTests` (`Hrot.SimHost.Tests`, beside `PeekAndFireNodesTests`, the same faked body/weapon/EQS
 harness) · `TacticalIntentResolutionSystemTests.V4_ATanksAttackOrder_ResolvesTo_LandPlatformAttack` (production registry) ·

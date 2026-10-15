@@ -303,12 +303,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<see cref="DesignatedTarget"/> — the threat ranking's one reader puts it first, so every branch fights IT) and ends the
         /// posture with Success once it is out of the fight (<see cref="CombatLife"/>) — the order succeeded. On the first tick the
         /// unit is TOLD where it is: the target enters its memory as a reported contact (no sensor modality, so it does not read as
-        /// in sight); after that fog of war applies. No target named = Running for ever (the posture runs as authored).
+        /// in sight); after that fog of war applies. No target named = Failure: it ABSTAINS, so the RequireOne Parallel it sits in ends
+        /// with its siblings (⭐ CE-2195 — as Running it outlived a failed sibling: a vehicle whose cycle found no hide sat in a dead
+        /// reaction for ever, and the SOP could not react again).
         /// </summary>
         [SharedAiAction]
         public static NodeStatus UntilTargetDown(ref DesignateParams p, ref DesignateState ws, Entity self, EntityRepository world)
         {
-            if (p.TargetPacked == 0) return NodeStatus.Running;
+            if (p.TargetPacked == 0) return NodeStatus.Failure;
             var target = new Entity((ulong)p.TargetPacked);
             if (!CombatLife.IsAlive(world, target)) return NodeStatus.Success;
             if (!DesignatedTarget.Of(world, self, out var designated) || !designated.Equals(target))
