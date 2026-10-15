@@ -2,12 +2,14 @@
 state: LIVE
 updated: 2026-10-15 (APPROVED; amended by R-4001 heartbeat-only time limits — §4-B, §4-B2 — and R-4002 the file-transfer provider — §4-E2)
 build-state: DESIGN — ✅ APPROVED 2026-10-15 (user: "accepted.") with two amendments (§0 rows I, J). Not dispatched; §4-B2
-  and §4-E2 carry the measurements the amendments asked for.
+  and §4-E2 carry the measurements the amendments asked for. ⭐ DISPATCHED 2026-10-15: the backend half (P1–P7) as
+  batches/HANDOFF_Coordinator_Player_Nodes.md (a session on `coordinator`), §4-F as batches/HANDOFF_Coordinator_To_Behaviors_Possession_Release.md.
 current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the answer; §4 carries each decision
   with its options, lean, blast radius and what would change the lean. §2 is the picture; §3 is what already works.
 stale-below: nothing
 known-rot: none
-known-conflict: none reconciled away. ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
+known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Policies §7.1 (IG must not hold
+  ReferenceArchiveHandler, CE-275 ③) — resolved toward R-4000 in §4-G (the rail is rewritten, not deleted). Also: ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
   C:\FDP_Temp; the as-built gateway copies into {FDP_STAGING_ROOT}/nodes/node-N on the ORCHESTRATOR's own disk
   (AssetPrefetchProcessManager.cs:272-287), which reaches a node only when that tree is shared. §4-E2 takes the design's side.
 related-designs:
@@ -495,6 +497,17 @@ that crashes while possessing leaves the unit possessed forever, its task paused
 |---|---|
 | ⭐ **G1 — `SerializeLocalRegistrar` builds the archive handler itself** (it needs only the temp root and node id), so no ECS host can omit it | ⭐ **LEAN.** Removes the choice that produced the gap |
 | G2 — IG and the Editor pass one | ⚠ fixes today, leaves the optional parameter that let it happen |
+
+⚠⚠ **A DESIGN RECORD THIS SECTION FIRST MISSED** *(found `2026-10-15` while writing the dispatch)*: IG's missing archive
+handler is NOT an accident. `NodeRolePersistenceRails.IgCompositionRoot_RegistersNoCheckpointSaveHandler`
+(`Hrot.SimHost.Tests/NodeRolePersistenceRails.cs:67-100`, CE-275 ③, `2026-09-14`) asserts IG must NOT hold
+`ReferenceArchiveHandler`, reasoning *"IG carries no ECS frame data … so it must not record"* —
+`DESIGN_Node_Roles_And_Policies.md` §7.1. ⭐ **The PREMISE still holds; the MECHANISM is what R-4000 retires:** IG records
+nothing because its record/replay controller is the listener one (`ListenerRecordReplayController`), so its archive collect
+returns no file. Enforcing "IG does not record" by IG LACKING the handler is the "behaviour by a missing handler" form R-4000
+forbids. ⇒ ✅ **G proceeds, and the rail is REWRITTEN to R-4000's form**: every ECS host holds the archive handler; a node
+whose controller is the listener one produces no `.fdp`, and the collect returns nothing (asserted on the CONSTRUCTED
+handler, not on source text). ⚠ The user approved G before this record was known — it is surfaced in the dispatch reply.
 
 ---
 

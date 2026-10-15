@@ -499,6 +499,12 @@ which is what keeps the next reader honest.
 > `NodeRolePersistenceRails` was rewritten to match: IG must not hold a CHECKPOINT save handler (ungated), but
 > DOES hold the gated scenario handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4.
 > The `2026-09-02` reasoning below is retained as HISTORY.
+>
+> ⚠ **`2026-10-15` — R-4000 retires the remaining ABSENCE here too.** The surviving invariant *"IG must not hold a
+> CHECKPOINT save handler"* (`NodeRolePersistenceRails`, which bans `ReferenceArchiveHandler` on IG) is still the
+> "behaviour by a missing handler" form. ⭐ Its premise stays — IG records no ECS frames — but it is enforced by IG's
+> `ListenerRecordReplayController` producing no `.fdp`, with the handler registered like on every ECS host.
+> 📄 [`Architect_Question_91_Player_Nodes.md`](blueprints/Architect_Question_91_Player_Nodes.md) §4-G (approved; the rail is rewritten, not deleted).
 
 > 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
 > the IG subsystem handle the clusterwide scenario save operation."*
