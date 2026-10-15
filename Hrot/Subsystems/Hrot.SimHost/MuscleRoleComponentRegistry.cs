@@ -20,5 +20,7 @@ public static class MuscleRoleComponentRegistry
         world.RegisterEvent<WeaponFireNotification>();
         world.RegisterEvent<DetonationNotification>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();   // ⭐ CE-3064 — BallisticsSystem publishes it
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.MissileWarningEvent>();            // ⭐ CE-2189 — FireProcessingSystem publishes it
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.DispenseCountermeasureIntent>();   // ⭐ CE-2188 — CountermeasureSystem reads it
     }
 }

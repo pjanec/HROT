@@ -483,6 +483,30 @@ without the fuze) · `…CE2187_AnIrSeeker_DoesNotSeeATargetOutsideItsCone` · `
 (red without the gate) · `…CE2187_TheWeaponBrain_HoldsAWrongDomainMissile` · `AreaEffectSystemTests.CE2187_AStingerBurstFourMetres…` ·
 `NedTkbBuilderCombatTests.CE2187_TheAirDefenceCatalogue_…`.
 
+⛔ **SUPERSEDED IN PART `2026-10-15` — CE-2188's TRANSPORT and COUNT** ([BS-1 §5.4c](../brain-split/BS-1-DESIGN.md), 🔒 user: *"no magic
+numbers for weapon slot … chaff launcher can be weapon type"*, *"approved"*): the release is a **fire on a dispenser weapon mount**
+(`WeaponCategory.Countermeasure`, a flare / chaff loadout counted on the brain like any round), reported by `WeaponFireNotification`.
+⇒ `CountermeasuresDto`, `CountermeasureState`, `DispenseCountermeasureIntent` and DDS `DispenseCountermeasure` (dt 134) below are being
+removed; the decoy, its `DecoyFlight` path and the seduction stay here. The two rows below that name them are history once that lands.
+
+**As built — CE-2188 / CE-2189 (`2026-10-15`)** — as the class, sequence and module diagrams above, with these details:
+
+| piece | as built |
+|---|---|
+| dispensers | `CountermeasuresDto` (`Combat.Countermeasures`) on every crewed aircraft: UH-60 ×2 30/30, AH-64 60/60, A-10 120/240, F-16 60/60, C-130 120/120 (flares / chaff), salvo 2, interval 1 s, decoys 5 s; the FPV drone none |
+| ⚠ a decoy moves ITSELF | its velocity is in `Decoy` and `CountermeasureSystem` integrates it — ⛔ no `SimVelocity`: the Stride host narrows `LinearKinematicsSystem` to projectiles (CE-238), so a flare with one would hang in the air there |
+| the draw | `SimRng.FromSim(round index, 0x2188 + the aircraft's salvo count, sim time)` — the salvo count keeps two salvoes in one second from drawing alike; a round already on a decoy is not drawn again |
+| `SimRng` | MOVED to `Fdp.Toolkits/Determinism` (namespace `Fdp.Toolkit.Determinism`), unchanged; its 6 callers in `Hrot.AI.Behaviors` + `SimRngRails` gained one `using` (cross-lane, behaviors' files) |
+| the warning | published by `FireProcessingSystem` for any GUIDED round (command, fire-and-forget, IR, radar) launched at an Air target; time to impact = distance / the round's speed at launch |
+| the wire | `MissileWarning` (dt 133, Muscle → Brain) and `DispenseCountermeasure` (dt 134, Brain → Muscle), both `Reliable`, in `SimHostAuxiliaryTranslatorPack` beside `NearMiss`; each ingress has a `ProcessSample` (the detonation translator's testable shape) |
+| the brain | `MissileWarningSensingSystem` in `CgfLogicPack` beside `NearMissSensingSystem`: `SensorChange.MissileWarning` (17, HSM `Sensor.MissileWarning` 0xFF11) + the `MissileWarning` component (bearing 0 = north, clockwise) |
+
+Rails: `CountermeasureSystemTests.CE2188_*` ×4 (the seduction red-proved: 3 of 4 redden without it) ·
+`FireProcessingSystemTests.CE2189_AMissileAtAHelicopter_WarnsIt_NoneAtAGroundTarget` ·
+`AirDefenceTranslatorsTests.CE2189_AMissileWarning_CrossesToTheAircraftsBrain_…` + `.CE2188_AFlareRequest_CrossesToTheSimHost` (two
+worlds, two entity maps — the egress sample is what the other node's ingress reads). ⚠ **Not gated by a cluster run:** the DDS
+transport is the shared machinery every topic rides; the end-to-end check is behaviors' `ua-air-defence` demo (CE-2191).
+
 ## 4. Firing on the move (D-L)
 
 | mount | `FireOnMove` default (from `Category`, overridable per mount) |

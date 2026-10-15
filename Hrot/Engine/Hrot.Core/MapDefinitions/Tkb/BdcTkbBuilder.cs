@@ -376,6 +376,14 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ <c>CE-2188</c> (DESIGN_Missiles_And_Ammo §3c) — an aircraft type's flare / chaff dispensers.</summary>
+        public NedTkbBuilder WithCountermeasures(long tkbId, Fdp.Toolkit.Tkb.Domain.CountermeasuresDto countermeasures)
+        {
+            var template = _db.GetByType(tkbId) ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(countermeasures ?? throw new ArgumentNullException(nameof(countermeasures)));
+            return this;
+        }
+
         /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
         public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
         {

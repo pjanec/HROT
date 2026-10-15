@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Determinism;   // ⭐ CE-2188 — SimRng moved to Fdp.Toolkits
 using System.Collections.Generic;
 using Hrot.AI.Behaviors.Brains;
 using Xunit;

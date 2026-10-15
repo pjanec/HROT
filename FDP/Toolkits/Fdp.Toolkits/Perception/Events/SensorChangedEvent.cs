@@ -57,6 +57,11 @@ namespace Fdp.Toolkit.Perception.Events
         /// flyer (its <c>Locomotion</c> is in the Air domain) or a heard <c>Rotor</c> sound. Published by <c>ThreatEvaluationSystem</c>
         /// once per new air slot (a second drone raises it again; the same one staying in memory does not).</summary>
         AirThreat = 16,
+
+        /// <summary>⭐ <c>CE-2189</c> (DESIGN_Missiles_And_Ammo §3c, AD4) — a guided missile was launched at this AIRCRAFT. Published by
+        /// <c>MissileWarningSensingSystem</c> on the aircraft's brain; the details (bearing, seeker, time to impact) are in its
+        /// <c>MissileWarning</c> component.</summary>
+        MissileWarning = 17,
     }
 
     /// <summary>

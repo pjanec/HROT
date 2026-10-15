@@ -97,6 +97,42 @@ namespace Hrot.NED.Messages
         public float Z;
     }
 
+    // ── Air defence (CE-2188 / CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
+
+    /// <summary>
+    /// ⭐ <c>CE-2189</c> — a guided missile was launched at an aircraft (Muscle → its Brain): where from, its seeker, the flight time to it.
+    /// The near-miss pattern; the brain turns it into <c>SensorChange.MissileWarning</c>.
+    /// </summary>
+    [DdsTopic("MissileWarning")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct MissileWarning
+    {
+        /// <summary>Network entity ID of the aircraft the missile was launched at.</summary>
+        public long UnitEntityId;
+        public float FromX;
+        public float FromY;
+        public float FromZ;
+        /// <summary>The seeker (<c>GuidanceKind</c>).</summary>
+        public byte Seeker;
+        public float TimeToImpactS;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2188</c> — the aircraft's Brain asks for one salvo of flares (1) or chaff (2) (Brain → Muscle); the SimHost's
+    /// <c>CountermeasureSystem</c> throws it.
+    /// </summary>
+    [DdsTopic("DispenseCountermeasure")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
+    public partial struct DispenseCountermeasure
+    {
+        /// <summary>Network entity ID of the aircraft.</summary>
+        public long UnitEntityId;
+        /// <summary>1 = flares, 2 = chaff (<c>DecoyKind</c>).</summary>
+        public byte Kind;
+    }
+
     // ── Detonation / Damage Pipeline (POC simplified) ─────────────────────────
 
     /// <summary>

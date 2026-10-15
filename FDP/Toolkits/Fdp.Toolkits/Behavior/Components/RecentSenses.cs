@@ -31,6 +31,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public double SquadMemberDown;
         /// <summary>⭐ <c>CE-2165</c> V8 — kind 16: an air contact (a drone, a helicopter) entered the unit's memory.</summary>
         public double AirThreat;
+        /// <summary>⭐ <c>CE-2189</c> — the last missile warning.</summary>
+        public double MissileWarning;
         /// <summary>Bit <c>1 &lt;&lt; (int)kind</c> set once that kind has happened at least once (kinds up to 31; ⚠ a ushort until CE-2165 V8 — kind 16 would have been dropped).</summary>
         public uint SeenMask;
 
@@ -55,6 +57,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 case SensorChange.SquadLeaderDown: SquadLeaderDown = now; break;
                 case SensorChange.SquadMemberDown: SquadMemberDown = now; break;
                 case SensorChange.AirThreat:      AirThreat      = now; break;
+                case SensorChange.MissileWarning: MissileWarning = now; break;
                 default: return;
             }
             SeenMask |= 1u << (int)kind;
@@ -86,6 +89,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 SensorChange.SquadAllClear  => SquadAllClear,
                 SensorChange.SquadLeaderDown => SquadLeaderDown,
                 SensorChange.SquadMemberDown => SquadMemberDown,
+                SensorChange.MissileWarning  => MissileWarning,   // ⭐ CE-2189
                 SensorChange.AirThreat       => AirThreat,
                 _                        => double.NegativeInfinity,
             };

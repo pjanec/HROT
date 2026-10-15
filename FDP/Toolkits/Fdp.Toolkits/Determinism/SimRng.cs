@@ -1,10 +1,13 @@
 using System;
 
-namespace Hrot.AI.Behaviors.Brains
+namespace Fdp.Toolkit.Determinism
 {
     /// <summary>
     /// The simulation's pseudo-random source: reproducible by default, and derived from sim state
     /// rather than from a global generator.
+    /// <para>⭐ <c>CE-2188</c> (DESIGN_Missiles_And_Ammo §3c; 🔒 user-approved 2026-10-15) — MOVED here from
+    /// <c>Hrot.AI.Behaviors.Brains</c>, unchanged, so the brain and the engine draw from ONE generator (the flare seduction on the
+    /// SimHost is its first engine caller).</para>
     /// </summary>
     /// <remarks>
     /// <para>🔒 <b>User, <c>2026-09-04</c> and again <c>2026-09-05</c>:</b> <i>"the randomization in the

@@ -186,6 +186,10 @@ namespace Fdp.Toolkit.Combat
         public static CombatPlatformDefDto? PlatformOf(EntityRepository world, Entity entity)
             => TryGetTemplate(world, entity, out var t) ? t.GetDescriptor<CombatPlatformDefDto>() : null;
 
+        /// <summary>⭐ <c>CE-2188</c> (DESIGN_Missiles_And_Ammo §3c) — <paramref name="entity"/>'s type's flare / chaff dispensers, or null.</summary>
+        public static CountermeasuresDto? CountermeasuresOf(EntityRepository world, Entity entity)
+            => TryGetTemplate(world, entity, out var t) ? t.GetDescriptor<CountermeasuresDto>() : null;
+
         /// <summary>Mount <paramref name="mountIndex"/> of <paramref name="owner"/>'s type, or null.</summary>
         public static WeaponMountDto? MountOf(EntityRepository world, Entity owner, int mountIndex)
         {

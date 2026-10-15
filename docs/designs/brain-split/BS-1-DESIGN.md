@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§5.4b CE-1111 / R-1002: the fire notification carries the shot; a countermeasure release is a fire)
+updated: 2026-10-15 (§5.4c: the dispenser is a weapon mount — no magic slot, no split; the interface for ui's drawing. §5.4b CE-1111 / R-1002: the fire notification carries the shot)
 current-answer: whole document; §5.1a carries the executor's no-fire guards (CE-321, CE-2075 ROE), §5.4a the CE-198 authority correction, §5.4b the fire notification's fields (CE-1111, R-1002 — supersedes §4.1's "POC simplified" WeaponFire).
 stale-below: nothing marked; the "Currently …" phrasing in §5 describes the pre-BS-1 state.
-known-rot: §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
+known-rot: §5.4b's F4 slot (`WeaponSlots.Countermeasures = -1`) and its "Split" — superseded by §5.4c. §5.6 — the IG ingress publishes WeaponFireNotification (IsRemote), not IgWeaponFireEvent (registered, never published).
 known-conflict: none.
 related-designs:
   - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS flares / chaff and the decoy's seduction (§3c, CE-2188); their RELEASE travels as §5.4b's fire.
@@ -431,8 +431,81 @@ event or the ingressed one — the one-world editor reads the local event and ha
 `LightweightRound` (R-271) — streams positions a known start already fixes · leaving `WeaponFire` thin and deriving the round on the
 viewer — the defect itself.
 
-**Split:** `CE-1111` (ui) builds F1–F3 and F5 and the flare / chaff looks; `CE-2188` (backend, running) publishes its release by F4 and
-owns `DecoyFlight` (F6) — see [`STEER_Backend_CE2188_Release_Is_A_Fire.md`](../../blueprints/batches/STEER_Backend_CE2188_Release_Is_A_Fire.md).
+~~**Split:** `CE-1111` (ui) builds F1–F3 and F5 and the flare / chaff looks; `CE-2188` (backend, running) publishes its release by F4 and
+owns `DecoyFlight` (F6)~~ — ⛔ **SUPERSEDED by §5.4c** (user, `2026-10-15`: no split; no magic slot).
+
+#### ⭐⭐ 5.4c — **the dispenser is a WEAPON; backend builds everything but the drawing** *(backend, `2026-10-15`; build-state: READY-TO-BUILD — 🔒 user: "approved")*
+
+> 🔒 **User, `2026-10-15`:** *"No splitting. Ui lane will only add rendering the effect, you do all the rest."* · *"And no magic numbers
+> for weapon slot. Chaff launcher can be weapon type and slot could be normal one, couldnt it?"* · *"approved, write the design so ui
+> branch knows what to interface its rendering part to"*
+
+⭐ **What changes against §5.4b:** F4's `WeaponSlots.Countermeasures = -1` is GONE. A flare / chaff **dispenser is a weapon mount** of the
+aircraft type (`WeaponCategory.Countermeasure`), on an ordinary slot, with a loadout of flare and chaff rounds. Its rounds are counted,
+spent, reloaded and shown exactly as any weapon's (`WeaponState` + `AmmoLoadout` on the brain, `Magazine.Spend`, the `WeaponAmmo` mirror to
+the HUD). A **salvo is the action's round count**, as a burst is; the interval is the mount's rate of fire. **One release = one decoy =
+one `WeaponFireNotification` with `Quantity = 1`** (DIS sends one Fire PDU per expendable launch). This also SUPERSEDES Missiles & Ammo
+§3c's `CountermeasuresDto` / `CountermeasureState` (the SimHost-side count) — one counter, the brain's, as for every round.
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponCategory { <<existing, grows>> +Countermeasure }
+  class WeaponMountDto { <<existing>> Category Loadout RateOfFire }
+  class ExpendableDto { <<new TKB, on the flare / chaff munition>> LifeSeconds SinkMps Decoys }
+  class Munitions { <<new, Fdp.Toolkits Combat>> +IsExpendable(tkb, ammoGuid) bool +ExpendableOf(tkb, ammoGuid) ExpendableDto }
+  class DecoyFlight { <<new, Fdp.Toolkits Combat>> +At(origin, velocity, sinkMps, t) Vector3 }
+  class Countermeasures { <<new, Fdp.Toolkits Combat - the brain's one way to release>> +Release(world, unit, DecoyKind) bool }
+  class WeaponFireIntent { <<existing>> WeaponIndex = the dispenser mount, AmmoGuid = flare or chaff }
+  class WeaponFireNotification { <<existing, grows F1>> AmmoGuid Round Origin Velocity Quantity FiredAt }
+  class CountermeasureSystem { <<existing, SimHost - now reads the fire request>> spawn the decoy, seduce, publish the fire }
+  class FireProcessingSystem { <<existing>> skips a Countermeasure mount }
+  Countermeasures --> WeaponFireIntent : one per release
+  WeaponFireIntent --> CountermeasureSystem : the dispenser mount
+  WeaponFireIntent --> FireProcessingSystem : every other mount
+  CountermeasureSystem --> WeaponFireNotification : Quantity 1
+  CountermeasureSystem ..> DecoyFlight
+  Munitions ..> ExpendableDto
+```
+
+*What the picture shows that prose hid: there is no countermeasure message and no countermeasure counter — the dispenser rides the
+weapon path end to end, and the ONLY new branch anywhere is "this mount is a Countermeasure / this AmmoGuid is an expendable".*
+
+```mermaid
+sequenceDiagram
+  participant B as aircraft brain (CE-2191 behaviour)
+  participant S as SimHost
+  participant N as DDS WeaponFire
+  participant V as every map host (ui rendering)
+  B->>B: Countermeasures.Release(unit, Flare) - the dispenser mount ready? spend 1 flare (Magazine.Spend)
+  B->>S: WeaponFireIntent / WeaponFireRequest (WeaponIndex = dispenser mount, AmmoGuid = flare 6034) - the existing path
+  S->>S: FireProcessingSystem skips it, CountermeasureSystem takes it
+  S->>S: Decoy entity at DecoyFlight.At(origin, velocity, sink, t), seduction draw for IR rounds that see it
+  S->>S: WeaponFireNotification(Shooter = aircraft, AmmoGuid = 6034, Origin, Velocity, Quantity = 1, FiredAt)
+  S->>N: egress, as every fire
+  N->>V: ingress, IsRemote
+  V->>V: Munitions.IsExpendable(6034): draw the flare at DecoyFlight.At(Origin, Velocity, sink, now - FiredAt) for LifeSeconds, no flash
+```
+
+| who | builds |
+|---|---|
+| **backend** (CE-1111's engine half + CE-2188's rework) | F1–F3 (the fields, the wire, egress / ingress, every non-drawing reader uses `AmmoGuid`), F5 for sound and heat, `WeaponCategory.Countermeasure`, the dispenser mounts, flare 6034 / chaff 6035 with `ExpendableDto`, `Munitions`, `DecoyFlight`, `Countermeasures.Release`, the slot skip, `CountermeasureSystem` on the request; removing dt 134, its translators, `DispenseCountermeasureIntent`, `CountermeasuresDto` and `CountermeasureState`; and the "a Countermeasure mount is not a weapon" check at the four readers that mean "armed" (`ThreatDanger.cs:28`, `:226`, `WeaponChoice` / `AmmoChoice` value 0, `UtilityScorer.cs:299`) |
+| **ui** | ⭐ the DRAWING only — the interface below |
+
+##### ⭐ The interface the ui rendering builds against
+
+| you read | what it is | notes |
+|---|---|---|
+| `WeaponFireNotification` (local, or `IsRemote` from the `WeaponFire` ingress) | `Shooter` (the aircraft), `AmmoGuid` (6034 flare / 6035 chaff — or the round fired, for a gun), `Origin`, `Velocity` (the aircraft's at release), `Quantity` (1 per release), `FiredAt` (sim time, s), `Round` (null for an expendable) | the same event every gun shot raises; `EffectSpawnSystem` already reads it |
+| `Munitions.IsExpendable(ITkbDatabase? tkb, long ammoGuid)` | true for DIS kind 8 (flare 8.2.2, chaff 8.2.1) | ⇒ no muzzle flash, no tracer; draw the decoy instead |
+| `Munitions.ExpendableOf(tkb, ammoGuid)` → `ExpendableDto { LifeSeconds, SinkMps }` | how long it burns / hangs, how fast it sinks | ⭐ the SAME numbers the SimHost's decoy uses |
+| `DecoyFlight.At(Vector3 origin, Vector3 velocity, float sinkMps, float t)` → `Vector3` | where the decoy is `t` seconds after `FiredAt` | ⭐ THE path: the seeker chases exactly this point, so draw it here — never stream or guess |
+| the look | yours: a flare (bright, burning, smoke trail) / a chaff cloud (a spreading grey bloom) | add it as a `MunitionVisualDto` in `MunitionTkbCatalog.BuiltInLooks` for 6034 / 6035 (a named cross-lane edit), or key your effect on `AmmoGuid` — your call |
+| the legacy IG reader (`Hrot.IG/Systems/EventToEffectSystem.cs`) | yours, if the IG should draw flares | it gets the same notification |
+
+⚠ **Timing:** a viewer's `now − FiredAt` uses the synced sim clock (R-2015's `RaisedAt` precedent); a late-joining viewer that sees a
+notification after `LifeSeconds` draws nothing.
+⚠ **Not on the wire:** the decoy entity itself (it lives on the SimHost only, like the round that chases it) — the notification is enough.
 
 ### 5.5 Muscle Egress — WeaponFireNotificationEgressTranslator
 

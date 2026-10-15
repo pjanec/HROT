@@ -716,6 +716,10 @@ namespace Hrot.Map.Common.Tests
             }
             var zu = db.GetByType(TkbEntityTypes.WeaponSystem_Zu23)!;
             Assert.Equal(90f, zu.GetDescriptor<TurretSuiteDto>()!.Turrets[0].ElevationMaxDeg);
+            // ⭐ CE-2190 (AD5) — it elevates onto a helicopter OVERHEAD; the M2 on the same pintle cannot (its +70°)
+            float overhead = 88f * System.MathF.PI / 180f;
+            Assert.True(Fdp.Toolkit.Combat.TurretSlew.InArc(zu.GetDescriptor<TurretSuiteDto>()!.Turrets[0], 1f, overhead));
+            Assert.False(Fdp.Toolkit.Combat.TurretSlew.InArc(db.GetByType(TkbEntityTypes.WeaponSystem_M2Hmg)!.GetDescriptor<TurretSuiteDto>()!.Turrets[0], 1f, overhead));
             Assert.Equal(2, zu.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Loadout.Count);
             Assert.Contains(db.GetByType(TkbEntityTypes.Technical_Zu23)!.GetDescriptor<CarrierDefDto>()!.Seats, x => x.StartWith == TkbEntityTypes.WeaponSystem_Zu23);
         }

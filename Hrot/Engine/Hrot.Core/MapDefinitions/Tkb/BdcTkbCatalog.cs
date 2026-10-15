@@ -775,6 +775,14 @@ namespace Hrot.Map.Definitions.Tkb
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            // ⭐⭐ CE-2188 (DESIGN_Missiles_And_Ammo §3c, AD3) — every crewed aircraft carries flares and chaff (the FPV drone none). Public
+            //   loads, rounded; a salvo of two a second, decoys living 5 s — tuning starts here.
+            foreach (var (aircraft, flares, chaff) in new[]
+                     {
+                         (TkbEntityTypes.Heli_UH60, 30, 30), (TkbEntityTypes.Heli_UH60_DoorsOff, 30, 30), (TkbEntityTypes.Heli_AH64, 60, 60),
+                         (TkbEntityTypes.Jet_AttackA10, 120, 240), (TkbEntityTypes.Jet_F16, 60, 60), (TkbEntityTypes.Cargo_C130, 120, 120),
+                     })
+                builder.WithCountermeasures(aircraft, new Fdp.Toolkit.Tkb.Domain.CountermeasuresDto { Flares = flares, Chaff = chaff });
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;

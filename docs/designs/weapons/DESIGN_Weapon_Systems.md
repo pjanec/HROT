@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — designed; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
+updated: 2026-10-15 (§5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — BUILT; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
 build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — SetUpWeapon / PackUpWeapon / CarryWeapon and the demo not yet; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
@@ -325,6 +325,14 @@ class here** — data on the existing weapon-system types (§3), so the class an
 | munitions | **6030** Stinger · **6031** Igla · **6032** 23 mm HE-I · **6033** 23 mm API | §3c's `MissileDto` (InfraRed, `TargetDomain = Air`) and a proximity `WarheadDto` on 6030/6031; the 23 mm rounds are plain (no proximity fuze — the real one has none, AT2's lead aims them) |
 
 ⚠ `WeaponCategory.Sam` is a new enum member (appended) — the weapon brain's `Atgm` / `MachineGun` paths must not mistake a SAM for an ATGM.
+
+**As built (`2026-10-15`, CE-2187 `7104ea35c`, CE-2190)** — as the tables above. `WeaponCategory.Sam` = 11: the `Guided` profile, one
+round per press, does not fire on the move. The gunners are `BdcTkbCatalog.ManpadsGunner` (the rifleman's body, sensor range 5 km for the
+launcher's sight, the carry station's `StartWith`); the Igla gunner is Russian, faction 2. ⚠ The ZU-23's muzzle speed is the BDC
+derivation (range × 0.5 = 1250 m/s against a real ≈ 970) like every BDC gun — the lead and the flight read the same value, so it hits;
+⭐ it holds 2 × 50 (AP, HE-I) and the weapon brain picks between them (CE-2186). Rails: `CreateEntityRequestSystemTests.P1_…` (+110) and
+`.CE2187_APlacedStingerGunner_CarriesALauncherHeCanFire` · `NedTkbBuilderCombatTests.CE2187_TheAirDefenceCatalogue_…` (the ZU-23 elevates
+overhead, the M2 cannot) · `FireProcessingSystemTests.CE2190_AZu23RoundAtAHelicopterCrossingAtAKilometre_MeetsIt` (red without the lead).
 
 ## 6. Rules
 

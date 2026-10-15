@@ -90,6 +90,11 @@ namespace Hrot.NED.Descriptors
         // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state, its owner (Brain group) → every node.
         //   📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §2, §6
         dtWeaponSystemState           = 132,
+        // ⭐ CE-2189 — a missile launched at an aircraft (Muscle → its Brain). 📄 docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §3c
+        dtMissileWarning              = 133,
+        // ⭐ CE-2188 — a flare / chaff salvo the Brain asks of its aircraft (Brain → Muscle). ⚠ 133/134 measured free on backend, ui and
+        //   behaviors 2026-10-15.
+        dtDispenseCountermeasure      = 134,
         // etc., all known descriptor types here
     }
 
