@@ -163,89 +163,100 @@ namespace Hrot.Core.Tkb
         public static void RegisterAll(ITkbDatabase tkb)
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
-            Register(tkb, M67GrenadeName, TkbM67Grenade, new DISEntityType { Kind = 2, Domain = 8 });                   // anti-personnel
-            Register(tkb, Mortar81mmHeName, Tkb81mmMortarHe, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },   // anti-personnel, ballistic
+            // ⭐⭐ CE-3213 (R-3011) — every round carries its FULL SISO DIS munition type, cited beside it from SISO-REF-010 v37 (2026-05-25,
+            //   the XML the opendis7 generator ships): kind.domain.country.category.subcategory.specific. A round the catalog NAMES
+            //   exactly gets its specific; a generic one stops at its calibre; a field the enumeration does not give stays 0 (a
+            //   wildcard) — ⛔ never invented. ⚠ The coarse domains of 2026-10-08 were WRONG (anti-armour coded 9, the SAMs 2): SISO's
+            //   munition domain is 1 anti-air · 2 anti-armour · 8 anti-personnel · 9 battlefield support.
+            Register(tkb, M67GrenadeName, TkbM67Grenade, Dis(9, Usa, 2, 85, 1));                 // "Grenade, Hand / Fragmentation M67"
+            Register(tkb, Mortar81mmHeName, Tkb81mmMortarHe, Dis(9, Usa, 2, 8),                   // "81 mm" (battlefield support)
                      charges: ChargesFor(Mortar81RangesKm));   // ⭐ IF-1 (I7) — charges only (no pen/damage: the MortarTeam 2005 reads nothing new)
             // ⭐ LR-1 — DIS kind 2 (munition), domain 9 anti-armour / 8 anti-personnel, category 2 ballistic / 1 guided
-            Register(tkb, Ball556Name, Tkb556Ball, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
-            Register(tkb, Tracer556Name, Tkb556Tracer, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
-            Register(tkb, Apds25Name, Tkb25mmApdsT, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
-            Register(tkb, Apfsds120Name, Tkb120mmApfsds, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
-            Register(tkb, Apfsds125Name, Tkb125mmApfsds, new DISEntityType { Kind = 2, Domain = 9, Category = 2 });
+            Register(tkb, Ball556Name, Tkb556Ball, Dis(8, Usa, 2, 1, 4));                         // "5.56 mm / 5.56 x 45"
+            Register(tkb, Tracer556Name, Tkb556Tracer, Dis(8, Usa, 2, 1));                        // "5.56 mm"
+            Register(tkb, Apds25Name, Tkb25mmApdsT, Dis(2, Usa, 2, 3, 2));                        // "25 mm / M791 APDS-T" (the Bradley's)
+            Register(tkb, Apfsds120Name, Tkb120mmApfsds, Dis(2, Usa, 2, 13));                     // "120 mm"
+            Register(tkb, Apfsds125Name, Tkb125mmApfsds, Dis(2, Russia, 2, 11));                  // "125 mm"
             // ⭐ M5 — the TOW and the RPG gain their flight (§5): the TOW a command-guided 280 m/s for 15 s (it flew at the 1875 m/s the
             //   NED builder derives from its range), the PG-7V an unguided 300 m/s (its mount's own muzzle speed) for 4.5 s (self-destruct).
             //   Their penetration and damage stay on the mounts (LR-1: every mount states its own).
-            Register(tkb, TowName, TkbTowMissile, new DISEntityType { Kind = 2, Domain = 9, Category = 1 }, ShapedChargeOf(TowLibraryName),
+            Register(tkb, TowName, TkbTowMissile, Dis(2, Usa, 1, 1, 3), ShapedChargeOf(TowLibraryName),   // "BGM-71 TOW / BGM-71D TOW 2"
                      missile: new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 280f, MaxFlightSeconds = 15f, MinRangeM = 65f,
                                                TargetDomain = TargetDomain.Ground });   // ⭐ CE-2187 (AD1) — the ATGMs: ground targets only
-            Register(tkb, Rpg7Name, TkbRpg7Rocket, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, ShapedChargeOf(Rpg7LibraryName),
+            Register(tkb, Rpg7Name, TkbRpg7Rocket, Dis(2, Russia, 2, 8), ShapedChargeOf(Rpg7LibraryName),   // "85 mm" (the PG-7V's warhead)
                      missile: Rocket(300f, 4.5f));
 
             // ⭐ M5 — the §5 table: name, id, DIS (domain 9 anti-armour / 8 anti-personnel, category 1 guided / 2 ballistic), warhead,
             //   penetration (mm RHA), damage, flight.
-            var antiArmourRocket = new DISEntityType { Kind = 2, Domain = 9, Category = 2 };
-            var antiArmourGuided = new DISEntityType { Kind = 2, Domain = 9, Category = 1 };
-            Register(tkb, Pg7vlName, TkbPg7vlRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName), 500f, 450f, Rocket(300f, 4.5f));
-            Register(tkb, Pg7vrName, TkbPg7vrRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName, tandem: true), 650f, 500f, Rocket(280f, 4.5f));
-            Register(tkb, LawName, TkbLawRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName), 300f, 350f, Rocket(145f, 3f));
-            Register(tkb, NlawName, TkbNlawMissile, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 500f, 900f,
+            Register(tkb, Pg7vlName, TkbPg7vlRocket, Dis(2, Russia, 2, 27, 1), ShapedChargeOf(Rpg7LibraryName), 500f, 450f, Rocket(300f, 4.5f));   // "93 mm / PG-7VL HEAT"
+            Register(tkb, Pg7vrName, TkbPg7vrRocket, Dis(2, Russia, 2, 23, 5), ShapedChargeOf(Rpg7LibraryName, tandem: true), 650f, 500f, Rocket(280f, 4.5f));   // "105 mm / PG-7VR HEAT Tandem"
+            Register(tkb, LawName, TkbLawRocket, Dis(2, Usa, 2, 5), ShapedChargeOf(Rpg7LibraryName), 300f, 350f, Rocket(145f, 3f));   // "66 mm 72 LAW"
+            Register(tkb, NlawName, TkbNlawMissile, Dis(2, Sweden, 1, 2), ShapedChargeOf(Rpg7LibraryName), 500f, 900f,   // "NLAW/MBT-LAW"
                      new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f, TargetDomain = TargetDomain.Ground,
                                       Overfly = true, OverflyHeightM = 1f });   // ⭐ CE-3198 — the overfly top attack (§3b)
-            Register(tkb, JavelinName, TkbJavelinMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,
+            Register(tkb, JavelinName, TkbJavelinMissile, Dis(2, Usa, 1, 8), ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,   // "Javelin"
                      new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f, TargetDomain = TargetDomain.Ground,
                                       TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f });
-            Register(tkb, KornetName, TkbKornetMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 1100f, 2000f,
+            Register(tkb, KornetName, TkbKornetMissile, Dis(2, Russia, 1, 15), ShapedChargeOf(TowLibraryName, tandem: true), 1100f, 2000f,   // "AT-14"
                      new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 300f, MaxFlightSeconds = 20f, MinRangeM = 100f, TargetDomain = TargetDomain.Ground });
-            Register(tkb, FpvWarheadName, TkbFpvWarhead, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 400f, 450f);
-            Register(tkb, TankHeatMpName, TkbTankHeatMp, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, ShapedChargeOf(TankHeatLibraryName), 600f, 1200f);
-            Register(tkb, TankHeFragName, TkbTankHeFrag, new DISEntityType { Kind = 2, Domain = 8, Category = 2 }, LibraryWarhead(TankHeLibraryName), 50f, 600f);
-            Register(tkb, HmgApName, TkbHmgAp, new DISEntityType { Kind = 2, Domain = 9, Category = 2 }, null, 25f, 60f);
-            Register(tkb, Ball762Name, Tkb762Ball, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
-            Register(tkb, Tracer762Name, Tkb762Tracer, new DISEntityType { Kind = 2, Domain = 8, Category = 2 });
+            Register(tkb, FpvWarheadName, TkbFpvWarhead, Dis(2, 0, 1), ShapedChargeOf(Rpg7LibraryName), 400f, 450f);   // no entry: anti-armour, guided
+            Register(tkb, TankHeatMpName, TkbTankHeatMp, Dis(2, Usa, 2, 13, 6), ShapedChargeOf(TankHeatLibraryName), 600f, 1200f);   // "120 mm / M830A1 HEAT-MP-T"
+            Register(tkb, TankHeFragName, TkbTankHeFrag, Dis(9, 0, 2), LibraryWarhead(TankHeLibraryName), 50f, 600f);   // no calibre named: battlefield support, ballistic
+            Register(tkb, HmgApName, TkbHmgAp, Dis(8, Usa, 2, 5), null, 25f, 60f);               // "12.7 mm"
+            Register(tkb, Ball762Name, Tkb762Ball, Dis(8, Usa, 2, 2));                            // "7.62 mm"
+            Register(tkb, Tracer762Name, Tkb762Tracer, Dis(8, Usa, 2, 2));                        // "7.62 mm"
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
-            Register(tkb, Mk82Name, TkbMk82Bomb, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+            Register(tkb, Mk82Name, TkbMk82Bomb, Dis(9, Usa, 2, 73),                                // "Mk-82" (ballistic)
                      LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
             // ⭐ Air Ops 6a (AW-2, AW-4) — the air weapons' rounds: every number from the library entry (its generic pair: penetration
             //   and damage; its generated warhead); the rocket's flight is its own (700 m/s, self-destruct after 6 s, ~4 km).
-            Register(tkb, Gau8HeiName, TkbGau8Hei, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+            Register(tkb, Gau8HeiName, TkbGau8Hei, Dis(2, Usa, 2, 4),     // "30 mm" (SISO lists only the PGU-14 / PGU-13 belts, not each round)
                      LibraryWarhead(Gau8HeiLibraryName), LibraryPenetration(Gau8HeiLibraryName), LibraryDamage(Gau8HeiLibraryName));
-            Register(tkb, Gau8ApiName, TkbGau8Api, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+            Register(tkb, Gau8ApiName, TkbGau8Api, Dis(2, Usa, 2, 4),     // "30 mm"
                      null, LibraryPenetration(Gau8ApiLibraryName), LibraryDamage(Gau8ApiLibraryName));
-            Register(tkb, Hydra70Name, TkbHydra70Rocket, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+            Register(tkb, Hydra70Name, TkbHydra70Rocket, Dis(9, Usa, 2, 21),   // "Hydra 70 Rocket System (70 mm, 2.75 in)"
                      LibraryWarhead(Hydra70LibraryName), LibraryPenetration(Hydra70LibraryName), LibraryDamage(Hydra70LibraryName),
                      Rocket(700f, 6f));
             // ⭐ IF-1 (I7, IF-A) — the indirect rounds: warheads BY NAME from the library (like the 81 mm), their charges on the generic profile
-            var indirect = new DISEntityType { Kind = 2, Domain = 8, Category = 2 };
-            Register(tkb, Mortar60mmHeName, Tkb60mmMortarHe, indirect, charges: ChargesFor(Mortar60RangesKm));
-            Register(tkb, Mortar120mmHeName, Tkb120mmMortarHe, indirect, charges: ChargesFor(Mortar120RangesKm));
-            Register(tkb, Howitzer105HeName, Tkb105mmHowitzerHe, indirect, charges: ChargesFor(Howitzer105RangesKm));
-            Register(tkb, Howitzer155HeName, Tkb155mmHowitzerHe, indirect, charges: ChargesFor(Howitzer155RangesKm));
+            Register(tkb, Mortar60mmHeName, Tkb60mmMortarHe, Dis(9, Usa, 2, 5), charges: ChargesFor(Mortar60RangesKm));            // "60 mm"
+            Register(tkb, Mortar120mmHeName, Tkb120mmMortarHe, Dis(9, Usa, 2, 11), charges: ChargesFor(Mortar120RangesKm));       // "120 mm"
+            Register(tkb, Howitzer105HeName, Tkb105mmHowitzerHe, Dis(9, Usa, 2, 10), charges: ChargesFor(Howitzer105RangesKm));   // "105 mm"
+            Register(tkb, Howitzer155HeName, Tkb155mmHowitzerHe, Dis(9, Usa, 2, 14), charges: ChargesFor(Howitzer155RangesKm));   // "155 mm"
 
             // ⭐⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c, AD1/AD2) — the MANPADS: an IR seeker, AIR targets only, a proximity-fused
             //   fragmentation warhead (the library's, its fuze switched to proximity). Public figures, rounded: Stinger Mach ~2.2, 8 km
             //   flight, 200 m minimum; Igla ~570 m/s, 500 m minimum, an older seeker (more easily decoyed). The cone and rejections are
             //   starter values — tuning starts here.
-            var antiAir = new DISEntityType { Kind = 2, Domain = 2, Category = 1 };   // DIS domain 2: anti-air, guided
-            Register(tkb, StingerName, TkbStingerMissile, antiAir, ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),
+            Register(tkb, StingerName, TkbStingerMissile, Dis(1, Usa, 1, 15), ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),   // "Stinger" (anti-air)
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, MinRangeM = 200f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f });
-            Register(tkb, IglaName, TkbIglaMissile, antiAir, ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),
+            Register(tkb, IglaName, TkbIglaMissile, Dis(1, Russia, 1, 30), ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),   // "SA-18 Grouse (9M39)"
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f });
             // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
-            Register(tkb, Zu23HeiName, Tkb23mmHei, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+            Register(tkb, Zu23HeiName, Tkb23mmHei, Dis(1, Russia, 2, 3, 5),   // "23 mm / 23 mm ZSU AAA HEI OFZ" (the ZU-23's 23×152 round)
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
-            Register(tkb, Zu23ApiName, Tkb23mmApi, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+            Register(tkb, Zu23ApiName, Tkb23mmApi, Dis(1, Russia, 2, 3),      // "23 mm"
                      null, LibraryPenetration(Zu23ApiLibraryName), LibraryDamage(Zu23ApiLibraryName));
 
             // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the EXPENDABLES a dispenser mount carries: DIS kind 8 (expendable), domain 2
             //   (air), category 2 flare / 1 chaff — the kind decides which seeker each fools (Munitions.DecoyOf). A flare burns ~5 s and
             //   falls; chaff blooms and hangs longer, sinking slowly. Starter values — tuning starts here.
+            // ⭐ CE-3213 — SISO-REF-010 v37: kind 8 (Expendable), domain 2 (Air), category 2 "Flare" / 1 "Chaff" (enumeration 25); a generic
+            //   decoy names no country or type ⇒ 0.
             Register(tkb, FlareName, TkbFlare, new DISEntityType { Kind = 8, Domain = 2, Category = 2 },
                      expendable: new ExpendableDto { LifeSeconds = 5f, SinkMps = 8f });
             Register(tkb, ChaffName, TkbChaff, new DISEntityType { Kind = 8, Domain = 2, Category = 1 },
                      expendable: new ExpendableDto { LifeSeconds = 8f, SinkMps = 2f });
         }
+
+        // ⭐ CE-3213 — the SISO-REF-010 countries the munition codes use (enumeration 29, Country).
+        private const ushort Usa = 225, Russia = 222, Sweden = 205;
+
+        /// <summary>⭐ <c>CE-3213</c> — a munition's DIS type (kind 2): domain (1 anti-air · 2 anti-armour · 8 anti-personnel · 9 battlefield
+        /// support), country, category (1 guided · 2 ballistic), subcategory and specific, as SISO-REF-010 v37 enumerates them.</summary>
+        private static DISEntityType Dis(byte domain, ushort country, byte category, byte subcategory = 0, byte specific = 0)
+            => new() { Kind = 2, Domain = domain, Country = country, Category = category, Subcategory = subcategory, Specific = specific };
 
         /// <summary>⭐ <c>CE-2187</c> — the library's warhead for <paramref name="libraryName"/>, its fuze a proximity fuze of
         /// <see cref="SamProximityFuzeM"/>.</summary>

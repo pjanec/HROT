@@ -203,6 +203,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — the type JUMPS: its parachute
+        /// (<c>Gen.Parachute</c>). A type without one that is made to jump gets a round canopy's defaults.</summary>
+        public NedTkbBuilder WithParachute(long tkbId, Fdp.Toolkit.Tkb.Domain.ParachuteDto parachute)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(parachute);
+            return this;
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2155</c> (R-263 D1 / R-2011) — the type's people get HURT before they die (<c>Gen.Injury</c>): wounded, then incapacitated
         /// and bleeding out. A type without this is ok until dead.

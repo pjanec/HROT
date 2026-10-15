@@ -11,8 +11,12 @@ namespace Fdp.Toolkit.Navigation
     /// <summary>⭐ Air Ops B1/B7 (§5) — how long a flyer stays on a <see cref="RouteWaypointKind.Ground"/> waypoint: not at all,
     /// <see cref="RouteHold.Seconds"/> (timed by the Muscle), until nobody is aboard (<see cref="RouteHold.Unload"/>) or until a unit
     /// is aboard (<see cref="RouteHold.Pickup"/>) — the last two are judged by the flyer's Brain (it knows rosters), which sets
-    /// <c>NavigationIntent.Flags</c>' release bit.</summary>
-    public enum RouteHold : byte { None = 0, Seconds = 1, Unload = 2, Pickup = 3 }
+    /// <c>NavigationIntent.Flags</c>' release bit.
+    /// ⭐ Airborne insertion B-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-7) appends two holds on an AIR waypoint:
+    /// <see cref="RouteHold.Rope"/> — hover at the waypoint's height above the HIGHEST surface under it (a roof) until nobody is aboard and
+    /// nobody is on its ropes; <see cref="RouteHold.Drop"/> — NOT a stop: from the waypoint on, fly the DZ leg reporting <c>Dropping</c>
+    /// until nobody is aboard. Both released by the Brain like Unload.</summary>
+    public enum RouteHold : byte { None = 0, Seconds = 1, Unload = 2, Pickup = 3, Rope = 4, Drop = 5 }
 
     /// <summary>One waypoint of a route as the motion side reads it — the engine-neutral view of the route entity's waypoint.</summary>
     public readonly record struct NavRouteWaypoint(Vector3 Position, float TargetSpeed, RouteWaypointKind Kind, float HeightAgl,

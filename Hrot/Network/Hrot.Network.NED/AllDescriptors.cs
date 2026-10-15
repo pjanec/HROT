@@ -95,6 +95,14 @@ namespace Hrot.NED.Descriptors
         // ⛔ RESERVED — CE-2188's flare / chaff request (Brain → Muscle), RETIRED by BS-1-DESIGN §5.4c (a release is an ordinary
         //   WeaponFireRequest on the dispenser mount). No translator uses it. ⚠ Do NOT reuse 134.
         dtDispenseCountermeasure      = 134,
+        // ⭐ CE-3210 — the damage per body part (the Health owner, Brain group → every node). 📄 docs/designs/hit-location/… HL-6.
+        //   ⚠ 135 / 136 measured free on backend, ui and behaviors 2026-10-16.
+        dtPartDamage                  = 135,
+        // ⭐ CE-3210 — where rounds struck a body (the Muscle → every node). HL-8.
+        dtHitMarks                    = 136,
+        // ⭐ Airborne insertion B-1 — a body coming down a rope or under a canopy (the position's owner, Muscle → every node). D-1.
+        //   ⚠ 137 measured free on backend, ui and behaviors 2026-10-16.
+        dtDescent                     = 137,
         // etc., all known descriptor types here
     }
 

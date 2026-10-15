@@ -1,0 +1,219 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a2191d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          2600,
+          520,
+          60
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8201
+      },
+      "TkbIdentity": {
+        "TkbType": 406
+      },
+      "EntityInfo": {
+        "Name": "Apache",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": "{\"Target\": 8211}",
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          2600,
+          100
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8202
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "Door Gunship UH-60",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": "{\"Target\": 8212}",
+        "Origin": "Superior"
+      },
+      "Health": {
+        "Current": 800,
+        "Max": 800
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          480,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8211
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Apache Target",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8212
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Orbit Target",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          560,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8221
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2191d00-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          300,
+          420,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8222
+      },
+      "TkbIdentity": {
+        "TkbType": 110
+      },
+      "EntityInfo": {
+        "Name": "ZU-23 Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

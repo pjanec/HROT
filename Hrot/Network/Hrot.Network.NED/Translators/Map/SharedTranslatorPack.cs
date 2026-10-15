@@ -108,6 +108,14 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3174 (C-7) — the ammunition per mount (Brain → every node), for the FPS HUD on any station.
             yield return new EntityWeaponAmmoEgressTranslator(participant);
             yield return new EntityWeaponAmmoIngressTranslator(participant, entityMap);
+            // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
+            //   (the Muscle → every node).
+            yield return new EntityPartDamageEgressTranslator(participant);
+            yield return new EntityPartDamageIngressTranslator(participant, entityMap);
+            yield return new EntityHitMarksEgressTranslator(participant);
+            yield return new EntityHitMarksIngressTranslator(participant, entityMap);
+            yield return new EntityDescentEgressTranslator(participant);                  // ⭐ airborne B-1 — a man coming down
+            yield return new EntityDescentIngressTranslator(participant, entityMap);
             // ⭐ CE-3110 I-2b (R-224) — a vehicle's passenger list (its owner → every node; each derives the passenger's side).
             yield return new EntityPassengersEgressTranslator(participant);
             yield return new EntityPassengersIngressTranslator(participant, entityMap);

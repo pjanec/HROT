@@ -1,0 +1,124 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a2195d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          250,
+          70,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8301
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2195d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          225,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8311
+      },
+      "TkbIdentity": {
+        "TkbType": 2006
+      },
+      "EntityInfo": {
+        "Name": "AT Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 8301, \"assault\": true}",
+        "Origin": "Superior"
+      }
+    },
+    "a2195d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          70,
+          222,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8312
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

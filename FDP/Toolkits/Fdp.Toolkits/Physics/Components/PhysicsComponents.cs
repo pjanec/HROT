@@ -187,6 +187,21 @@ namespace Fdp.Toolkit.Physics.Components
         public Vector3 End;
         /// <summary>Entity to ignore propagated from the original request (e.g. the shooter). Used by <c>HitResolutionSystem</c> to populate <c>DetonationNotification.Shooter</c>.</summary>
         public Entity IgnoreEntity;
+
+        // ⭐⭐ CE-3209 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2, HL-5) — APPENDED: the PART a round met
+        //   (a person's head, torso or limb — S1; vehicles S2), the face it entered, and the point inside the part (−0.5 … 0.5 per axis).
+
+        /// <summary>1 when <see cref="BodyPart"/> / <see cref="Face"/> / <see cref="LocalPoint"/> are set (a part hit).</summary>
+        public byte HasBodyPart;
+
+        /// <summary>The part id within the body plan (<c>PersonPart</c> for a person).</summary>
+        public byte BodyPart;
+
+        /// <summary>The face entered (<c>Facing</c>: front, side, rear, top), in the body's frame.</summary>
+        public byte Face;
+
+        /// <summary>Where it entered, in the part's own unit box (−0.5 … 0.5).</summary>
+        public Vector3 LocalPoint;
     }
 
     // ── RaycastBatchData ──────────────────────────────────────────────────────────

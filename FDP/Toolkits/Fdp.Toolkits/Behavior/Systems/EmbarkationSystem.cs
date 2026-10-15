@@ -7,7 +7,8 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <summary>
     /// ⭐⭐ <c>CE-3110</c> I-2a (R-224) — the applier the embark commands were designed for (<c>edit-1</c> Phase 3: "consumed by
     /// execution systems in the kernel"): it reads <see cref="EmbarkEntityCommand"/> / <see cref="DisembarkEntityCommand"/> /
-    /// <see cref="EjectPassengersCommand"/> — raised here, or carried here from another node by the interaction transport — and applies
+    /// <see cref="EjectPassengersCommand"/> / <see cref="StartDescentCommand"/> (airborne insertion B-4, applied on the PASSENGER's position
+    /// owner) — raised here, or carried here from another node by the interaction transport — and applies
     /// each through <see cref="Embarkation"/> ONLY on the vehicle's owner (<see cref="Embarkation.OwnsVehicle"/>). The answer is the
     /// vehicle's own state; there is no reply. ⛔ Replaces <c>EditorCargoSystem</c>, which was a second applier for the same commands.
     /// 📄 docs/DESIGN_Entity_Interactions.md §7, §7.1a.
@@ -42,7 +43,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref readonly var c = ref leaves[i];
                     var vehicle = VehicleOf(repo, c.Passenger, c.Vehicle);
                     if (!Embarkation.OwnsVehicle(repo, vehicle)) continue;
-                    Count(Embarkation.Disembark(repo, c.Passenger, vehicle));
+                    Count(Embarkation.Disembark(repo, c.Passenger, vehicle, c.Exit, c.AnchorIndex));
+                }
+            }
+            // ⭐ airborne insertion B-4 — a descent decided on the carrier's owner, applied where the man's position is owned
+            if (repo.Bus.IsRegistered<StartDescentCommand>())
+            {
+                var starts = repo.Bus.Read<StartDescentCommand>();
+                for (int i = 0; i < starts.Length; i++)
+                {
+                    ref readonly var c = ref starts[i];
+                    if (!c.IsRemote || !repo.IsAlive(c.Passenger) || !Embarkation.OwnsPosition(repo, c.Passenger)) continue;
+                    Count(Fdp.Toolkit.Motion.Descents.Start(repo, c.Passenger, c.Anchor, c.Exit, c.AnchorIndex));
                 }
             }
             if (repo.Bus.IsRegistered<EjectPassengersCommand>())

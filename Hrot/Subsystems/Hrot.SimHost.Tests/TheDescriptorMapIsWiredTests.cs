@@ -281,13 +281,16 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtPossessedBy),     // ⭐ CE-3172 S4e — who holds the unit
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
                     D(Hrot.NED.Descriptors.EDescriptorType.dtPassengerBuffer),   // ⭐ CE-3110 I-2b — a vehicle's passenger list
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponSystemState) },   // ⭐ Weapon systems WS-1 — a weapon's deploy state
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponSystemState),     // ⭐ Weapon systems WS-1 — a weapon's deploy state
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtPartDamage) },          // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
                     D(Hrot.NED.Descriptors.EDescriptorType.dtStanceStatus),     // ⭐ CE-2121 — the body's stance report
                     D(Hrot.NED.Descriptors.EDescriptorType.dtTurretPose),       // ⭐ WL-1b (CE-1049) — the turret part's pose
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTaskStatus) }, // ⭐ WL-2b — the muscle's report on it
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponTaskStatus),   // ⭐ WL-2b — the muscle's report on it
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtHitMarks),           // ⭐ CE-3210 (HL-8) — where the rounds struck
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtDescent) },          // ⭐ airborne insertion B-1 — a body coming down
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

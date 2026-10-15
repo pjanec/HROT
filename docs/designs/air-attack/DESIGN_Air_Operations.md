@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and slice 6c's AirPlatformAttack + GunRun + the lead (§9e, 2026-10-15) BUILT; slice 6d's DoorGunOrbit (§9f, 2026-10-15) BUILT; ua-air-attack LIVE (§9g, 2026-10-15); air defence framed (§7d, AD1–AD6 leans; the engine half dispatched to backend as CE-2187…CE-2190); PopUp, Dive and the battle position (W4) remain
-current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire, §9e GunRun, §9f DoorGunOrbit), §9g the live showcase, §10 decisions, §11 slices and rails — §1 is the measured ground.
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and slice 6c's AirPlatformAttack + GunRun + the lead (§9e, 2026-10-15) BUILT; slice 6d's DoorGunOrbit (§9f, 2026-10-15) BUILT; ua-air-attack LIVE (§9g, 2026-10-15); CE-2191's aircraft evasion BUILT (§7e, 2026-10-15) and its ground half BUILT (§7f); air defence framed (§7d, AD1–AD6 leans; the engine half dispatched to backend as CE-2187…CE-2190); PopUp, Dive and the battle position (W4) remain
+current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §7d the air-defence frame, §7e the aircraft's evasion as built, §7f the ground engaging the aircraft, §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire, §9e GunRun, §9f DoorGunOrbit), §9g the live showcase, §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
@@ -665,6 +665,132 @@ events, and the decision WHEN to dispense stays with the aircraft's brain while 
 Dispatched: [`HANDOFF_Behaviors_To_Backend_Air_Defence.md`](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Defence.md)
 (CE-2187 MANPADS + IR · CE-2188 flares / chaff · CE-2189 warning · CE-2190 ZU-23-2); behaviors' half is CE-2191.
 
+### 7e. Air defence, the behaviour half — the aircraft's answer to a missile (CE-2191, `2026-10-15`) — build-state: BUILT (evasion) · the ground half §7f
+
+🔒 User: *"include the threat avoiding/evasive action into the attack programmes"* · *"work on the behaviors and demo scenarios
+autonomously … take decision yourself"* (`2026-10-15`). Basis: §7d (AD1–AD5, the frame), backend's
+[report](../../blueprints/batches/REPORT_Backend_Air_Defence.md) and BS-1 §5.4c (*the dispenser is a weapon*: a release is
+`Countermeasures.Release`, one decoy per call — ⚠ the report's `DispenseCountermeasureIntent` was retired the same day).
+
+```mermaid
+classDiagram
+  class AirAttackNodes { <<existing, grows>> +Run() · +DecoyFor(seeker) DecoyKind? · -NewWarning() · -BeginEvade() · -Evade() · +DecoySalvo 4 · +MinEvadeS 4 · +EvadeMarginS 2 · +EvadeHeightAglRotor 25 · +EvadeDragFraction 0.3 }
+  class AirAttackState { <<existing, grows>> +WarnedAt · +EvadeUntil · +Decoys · +Resume }
+  class MissileWarning { <<existing, backend CE-2189>> At · From · BearingDeg · Seeker · TimeToImpactS }
+  class MissileWarningSensingSystem { <<existing, backend>> the warning event ⇒ MissileWarning on the brain }
+  class Countermeasures { <<existing, backend BS-1 §5.4c>> +Release(world, unit, DecoyKind) bool · +Left() }
+  class LocomotionMoveTo { <<existing>> +Issue() · +Status() }
+  class CountermeasureSystem { <<existing, SimHost>> the dispenser's fire request ⇒ a decoy; seduction }
+  MissileWarningSensingSystem --> MissileWarning : writes
+  AirAttackNodes ..> MissileWarning : reads (a newer At = a new missile)
+  AirAttackNodes ..> Countermeasures : one decoy per interval
+  AirAttackNodes ..> LocomotionMoveTo : the break, then the come-round
+  Countermeasures ..> CountermeasureSystem : WeaponFireIntent on the dispenser mount
+```
+
+*What the picture shows that prose hid: nothing new is wired — the behaviour reads backend's component and calls backend's one release
+function; the only new thing is a stage inside the ONE attack node (B4), so every profile (bomb run, rockets, gun run, door-gun orbit)
+gets the same answer for free.*
+
+```mermaid
+sequenceDiagram
+  participant S as SimHost (GuidedRoundSystem)
+  participant W as MissileWarningSensingSystem (CGF)
+  participant A as AirAttackNodes.Run (CGF, the attacking aircraft)
+  participant D as Countermeasures / CountermeasureSystem
+  S->>W: MissileWarningEvent (launch: from, seeker, time to impact)
+  W->>A: MissileWarning.At newer than WarnedAt
+  A->>A: StopFire · Resume = orbit or run-in · EvadeUntil = At + max(TTI, 4 s) + 2 s
+  A->>A: MoveTo the beam point (90° to the missile, 0.3 away, 1.5 km, a helicopter at 25 m)
+  loop every frame until 4 decoys or EvadeUntil
+    A->>D: Release(Flare | Chaff) — false inside the dispenser's interval
+  end
+  A->>A: now ≥ EvadeUntil ⇒ the orbit resumes · else ++Passes, Choose, a fresh run-in (StageToRunIn)
+```
+
+| decision — ⭐ taken autonomously (`2026-10-15`) | why | rejected — one line |
+|---|---|---|
+| **E1** a stage inside `AirAttackNodes.Run`, entered from ANY stage | the pass must resume; B4 says one attack behaviour | a separate evasion behaviour (the attack would lose its pass state) |
+| **E2** the decoy follows the warned seeker: flares ⇐ infra-red, chaff ⇐ radar, none ⇐ command / fire-and-forget | only a matching decoy seduces (AD3); a SACLOS missile follows the gunner's sight | flares for everything |
+| **E3** a salvo of 4, one per dispenser interval (120 rpm ⇒ 2 s), from the moment of the warning | a seeker takes a decoy only while it is in its cone — early is best; 4 of the AH-64's 60 | one flare (one 20–30 % draw) · all at once (one interval apart is the mount's rule) |
+| **E4** the break puts the missile on the BEAM, 0.3 of it turning away, on the side nearer the heading; a helicopter dives to 25 m | the line-of-sight rate a 30°/s seeker cannot follow (backend's report §1); low hides it against the ground | turning straight away (a tail chase the missile wins) · into the missile |
+| **E5** it holds until the time to impact + 2 s (at least 4 s); a newer warning re-breaks | the missile is past or spent; then the attack is worth flying again | a fixed time |
+| **E6** then it comes round: the orbit resumes where it was (its turn kept); any other profile flies a fresh run-in and the aborted pass COUNTS (B14) | an attack that keeps meeting missiles ends after 3 passes, logged "driven off" | an uncounted pass (an AD site could hold it forever) |
+| **E7** a warning older than its missile's flight is ignored | an attack that starts later must not break for a missile long gone | — |
+
+⚠ **Not in this slice** (each a later row): an aircraft on a MOVE (not attacking) does not react · W4's battle position · the radar SAM (AD6).
+
+| as built (`7579395cd`) | |
+|---|---|
+| ★ `AirAttackNodes`: `StageEvade` 5, `NewWarning`, `BeginEvade`, `Evade`, `DecoyFor`, the constants above · `AirAttackState.WarnedAt / EvadeUntil / Decoys / Resume` | as the class diagram |
+| rails — `AirAttackNodesTests`: `S7e_AWarnedHelicopter_StopsFiring_DropsFlares_BreaksOntoTheMissilesBeam_ThenComesRound` (no round while it evades; exactly 4 flares inside 3 s, the chaff untouched; its track never closes on the missile — within 35° of square; at 25 m; the come-round pass ripples 8 rockets; Success) · `S7e_TheDecoyFollowsTheSeeker_ChaffForRadar_NoneForCommand_AStaleWarningIsIgnored` · `S7e_ADoorGunOrbitWarnedMidCircle_Breaks_ThenResumesTheSameOrbit` (the door gun silent while it breaks; the same orbit carries on; no pass counted; it fires again) | red-proved by 7 mutants: no evasion stage · chaff for IR · the break flown at the missile · no come-round · the orbit resumed as a run-in · flares for every seeker · a stale warning answered |
+
+### 7f. Air defence, the behaviour half — the ground engages the aircraft (CE-2191, `2026-10-15`) — build-state: BUILT (rails) · live in `ua-air-defence`
+
+📐 **Measured first** (live probes on `basic-desert`, `2026-10-15`): with an Apache flying a running-fire pass over them, a Stinger gunner
+(202), an Igla gunner (203), two ZU-23 technicals (110) and a rifleman — with and without their default SOPs — **fired nothing at it**.
+Two separate causes:
+
+| | finding | where it went |
+|---|---|---|
+| ① | ⛔ `basic-desert` is a 600 m terrain (`bounds [0,0,600,600]`): the perception grid covers [0, 1000), so EVERY unit at x < 0 (where the first probe stood) is seen and heard by nobody — and nothing says so | a demo stands ON its terrain · ⇒ **CE-2194** (backend): the CE-2193 warning for the perception grid |
+| ② | on the terrain, the units SEE the aircraft (visual sensor, memory) — but ⛔ no SOP row turns an air contact into fire: the infantry SOP has none, the vehicle SOP's is `ShelterFromAir` (drive under cover); and the threat ranking puts a ground contact first (0.34 against the Apache's 0.05) | ⇒ this section |
+
+```mermaid
+classDiagram
+  class AirSense { <<new — extracted from ShelterFromAirNodes>> +Newest(world, self, now, ref airTick, ref lastAirAt, out at, out slot) Entity · +FireAt(world, self, ref EngageState, ref retryAt, air, now) }
+  class AirDefenceNodes { <<new>> +CanEngageAir(ref EngageAircraftParams, self, world) bool «SOP condition» · +CanEngageAir(world, unit, minElevationDeg) bool · +EngageAircraft(ref EngageAircraftParams, ref EngageAircraftState, self, world) NodeStatus }
+  class EngageAircraftBehavior { <<new library behaviour>> "EngageAircraft" — one stateful action }
+  class ShelterFromAirNodes { <<existing>> SenseAir / FireAtDrone now call AirSense }
+  class PostureNodes { <<existing>> +Fire(world, self, ref EngageState, cooldown, rounds, target) · +StopFiring() }
+  class WeaponSystems { <<existing>> +Controlled() · +IsBroken() }
+  class CombatTkb { <<existing>> +MountOf() · +TurretOf() · +MissileOf() }
+  class BasicInfantrySop { <<existing asset, grows>> row 0: AirThreat ∧ CanEngageAir ⇒ React EngageAircraft }
+  class BasicVehicleSop { <<existing asset, grows>> row 0: AirThreat ∧ CanEngageAir ⇒ React EngageAircraft (before ShelterFromAir) }
+  AirDefenceNodes ..> AirSense
+  ShelterFromAirNodes ..> AirSense
+  AirSense ..> PostureNodes : aimed fire, the weapon brain picks the mount
+  AirDefenceNodes ..> WeaponSystems : the carried launcher, the station gun
+  AirDefenceNodes ..> CombatTkb
+  EngageAircraftBehavior --> AirDefenceNodes
+  BasicInfantrySop ..> AirDefenceNodes : condition
+  BasicVehicleSop ..> AirDefenceNodes : condition
+```
+
+*What the picture shows that prose hid: there is still ONE "aircraft about" sense and ONE aimed fire at it (`AirSense`, extracted, not
+copied) — the vehicle that shelters and the unit that stands differ only in what they do with their feet. And the weapon is never chosen
+here: the weapon brain already picks the launcher at an aircraft and holds it at anything else (CE-2187's `TargetDomain`).*
+
+```mermaid
+sequenceDiagram
+  participant P as Perception (CGF)
+  participant S as the SOP (BasicInfantrySop / BasicVehicleSop)
+  participant E as EngageAircraft (AirDefenceNodes)
+  participant W as the weapon brain (AimAndFire, MountAuto)
+  P->>S: SensorChange.AirThreat (an aircraft seen, rotors heard)
+  S->>S: row 0 — SensedFresh(AirThreat) ∧ CanEngageAir (a SAM launcher, a gun ≥ 80°)
+  S->>E: React EngageAircraft (UnderFire)
+  loop each tick
+    E->>E: AirSense.Newest — the newest air contact in memory
+    E->>W: aimed fire at it while it is SEEN (the MANPADS locks on its 4 s aim)
+  end
+  E->>S: Success after 10 s with nothing in the air
+```
+
+| decision — ⭐ taken autonomously (`2026-10-15`) | why | rejected — one line |
+|---|---|---|
+| **G1** one library behaviour `EngageAircraft`: stand, fire at the NEWEST air contact while seen, never move; done after 10 s of a clear sky | an AA crew's job is the aircraft, not the ranking's top threat (a truck outranked the Apache 7 : 1) | firing at the top threat · `ShelterFromAir` for everyone (an AA gun that hides is no defence) |
+| **G2** the SOP row is gated by `CanEngageAir`: a SAM launcher whose missile may fire at the Air domain, or a gun whose turret elevates ≥ **80°** — on the unit or a weapon it controls (carried, station) | today: the MANPADS gunners and the ZU-23-2 (+90°) only | ≥ 60° — every M2 (70°) technical would stand instead of sheltering (changes V8) · any machine gun |
+| **G3** the row goes FIRST in both SOPs, urgency `UnderFire` (as the drone row) | the aircraft is the threat that decides the next seconds | after the hit row (a shot-at AA crew would take cover from the aircraft it should fight) |
+| **G4** a rifleman without AA keeps his old rows | a rifle at a helicopter is §7c's `PostureNodes.Fire` path when it is his top threat | a rifle-at-aircraft row (W4-adjacent; later) |
+| **G5** the weapon is the weapon brain's choice (`MountAuto`) | CE-2187 already values a MANPADS at 0 against the ground and picks it against an aircraft | a mount named by the behaviour |
+
+| as built | |
+|---|---|
+| ★ `AirSense` (extracted: `ShelterFromAirNodes.SenseAir` / `FireAtDrone` are one-line calls now) · `AirDefenceNodes.CanEngageAir` (×2) / `EngageAircraft` + deactivator · `EngageAircraftParams` (`ClearSeconds` 10, `MinElevationDeg` 80) · `EngageAircraftState` · `EngageAircraftBehavior` · `BehaviorNames.EngageAircraft` · row 0 in `BasicInfantrySop` / `BasicVehicleSop` (+ `airSense`, `airDefence` variables) | as the class diagram |
+| rails — `AirDefenceNodesTests`: `CE2191_AMANPADSGunnerAndAZU23Technical_CanEngageAircraft_ARiflemanAnM2TechnicalAnATGMTechnicalCannot` (the REAL catalogue types, seat presets filled) · `CE2191_EngageAircraft_FiresAtTheAircraft_NotTheTopThreat_AndEndsWhenTheSkyIsClear` | |
+| mutants — 6 / 6 red: any machine gun counts · the controlled weapons not walked · an ATGM launcher counted · fire at the top threat · never clear · a dead aircraft still about (entity liveness instead of Health) | ⚠ the Ground-domain SAM arm of `AirCapable` has no catalogue type to exercise it (no SAM launcher carries a Ground-only missile) — kept as the rule CE-2187's `TargetDomain` states |
+
 ## 8. The bomb (A3, A4, A6, B6)
 
 | rule | why |
@@ -1059,6 +1185,21 @@ door to the target.*
 | ⚠ the turn is counted from the moment the helicopter is ON the circle (within 1.1 R), then on | 📐 the first build counted inside 1.5 R and the rail measured a point strike ending 5.89 rad into the circle — 23° short of a full turn |
 | `RoundSpeed` and the range read a door gun's OWN mount (`MountDto`: mount `32 + k` ⇒ the weapon system's mount 0) | `CombatTkb.MountOf` reads only the aircraft's own suite |
 | rails: `AirAttackNodesTests.S6d_TheDoorsOffHelicopter_OrbitsTheTarget_ItsLeftDoorGunFires_UntilTheTargetIsDown` (DoorGunOrbit picked; on a 300–500 m band; counter-clockwise past a full turn; never below 60 m/s; at 100 m; only the left M134 fires and every round flown from the aim at 850 m/s + the helicopter's velocity passes within 2 m of the target; Success the frame the target dies) · `S6d_ADoorGunnerShot_HisGunFallsSilent_TheOrbitTurnsTheOtherDoorIn` (the left gun silent after its gunner falls, the orbit clockwise, the right gun fires; both down ⇒ Failure, no round after) · `S6d_ADoorGunOrbitOnAPoint_EndsAfterOneFullTurn` (a full turn ON the circle) · `FireProcessingSystemTests.S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity` | red-proved by 8 mutants: the turn's sign · the lead without the helicopter's velocity · the orbit steered at the target (it hovers) · no reversal · no DoorGunOrbit pick · the point strike's end at two turns · the approach's turning counted as orbit (red only after the on-circle assertion) · A4 from the bare weapon |
+
+### 9h. Live — `ua-air-defence` (`2026-10-15`, CE-2191 §7e + §7f)
+
+`scenarios/ua-air-defence` (basic-desert): an Apache on a running-fire attack and a door-gun UH-60 orbit against two pickups; a Stinger
+gunner (202) and a ZU-23-2 technical (110) on their default SOPs. `python3 scripts/utility-demo-check.py --launch ua-air-defence`:
+**PASS 4 / 4** (sim 58 s).
+
+| check | measured |
+|---|---|
+| ① the gunner fires a Stinger | 1 missile from the launcher (his rifle fired 97 rounds at the aircraft too — §7c's path) |
+| ① the Apache is warned | `MissileWarning` IR, 0.98 s to impact — then it breaks: 60 m → 25 m above the ground within 6 s (§7e E4) |
+| ② the ZU-23 engages | 50 rounds; the UH-60 down to 350 / 800 |
+
+⚠ **First run failed ①** — the gunner stood 78 m from the Apache's target and was killed before he could lock (aim 4 s). Moved 400 m
+clear of both targets. ⛔ Not shown yet: the flares themselves (no live readout of a decoy), and the Apache's re-attack after the break.
 
 ### 9g. Live — `ua-air-attack`, the showcase (`2026-10-15`)
 

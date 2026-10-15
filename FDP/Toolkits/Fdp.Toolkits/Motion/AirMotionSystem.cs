@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation;
@@ -28,21 +29,28 @@ namespace Fdp.Toolkit.Motion
             bool drives = repo.IsComponentTypeRegistered<ManualDrive>();
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);
             var query = repo.Query().With<Locomotion>().With<SimTransform>().WithOwned<SimTransform>().With<SimVelocity>().Build();
-            foreach (var e in query)
-            {
-                var cls = repo.GetComponentRO<Locomotion>(e).Class;
-                if (Locomotions.DomainOf(cls) != MotionDomain.Air) continue;
-                var model = MotionModelTable.Model(cls);
-                if (model == null) continue;
+            foreach (var e in query) Step(repo, e, intents, drives, terrain, deltaTime);
+            // ⭐ airborne insertion B-1/B-2 (D-1, D-2) — a man coming down a rope or under a canopy: his Descent makes his class Rope /
+            //   Parachute (Locomotions.Of reads it first); a man whose type states no Gen.Locomotion is moved here too
+            if (repo.IsComponentTypeRegistered<Descent>())
+                foreach (var e in repo.Query().With<Descent>().With<SimTransform>().WithOwned<SimTransform>().With<SimVelocity>().Without<Locomotion>().Build())
+                    Step(repo, e, intents, drives, terrain, deltaTime);
+        }
 
-                var intent = intents && repo.HasComponent<NavigationIntent>(e) ? repo.GetComponentRO<NavigationIntent>(e) : default;
-                if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain, cls);
-                var frame = new MotionFrame(repo, e, ref repo.GetComponentRW<SimTransform>(e), ref repo.GetComponentRW<SimVelocity>(e)) { Terrain = terrain };
-                if (intent.Mode == NavigationMode.Manual && drives && repo.HasComponent<ManualDrive>(e))
-                    model.Manual(ref frame, in repo.GetComponentRO<ManualDrive>(e), deltaTime);
-                else
-                    model.Autonomous(ref frame, in intent, deltaTime);
-            }
+        private void Step(EntityRepository repo, Entity e, bool intents, bool drives, Fdp.Toolkit.World.IWorldQuery? terrain, float deltaTime)
+        {
+            var cls = Locomotions.Of(repo, e);
+            if (Locomotions.DomainOf(cls) != MotionDomain.Air) return;
+            var model = MotionModelTable.Model(cls);
+            if (model == null) return;
+
+            var intent = intents && repo.HasComponent<NavigationIntent>(e) ? repo.GetComponentRO<NavigationIntent>(e) : default;
+            if (intent.Mode == NavigationMode.FollowRoute) EnsurePath(repo, e, in intent, terrain, cls);
+            var frame = new MotionFrame(repo, e, ref repo.GetComponentRW<SimTransform>(e), ref repo.GetComponentRW<SimVelocity>(e)) { Terrain = terrain };
+            if (intent.Mode == NavigationMode.Manual && drives && repo.HasComponent<ManualDrive>(e))
+                model.Manual(ref frame, in repo.GetComponentRO<ManualDrive>(e), deltaTime);
+            else
+                model.Autonomous(ref frame, in intent, deltaTime);
         }
 
         /// <summary>⭐ Air Ops slice 2 — (re)compiles the body's <see cref="AirPath"/> when the order, the route or its version changed
@@ -71,12 +79,62 @@ namespace Fdp.Toolkit.Motion
                 }
             var p = repo.IsComponentTypeRegistered<FlightParams>() && repo.HasComponent<FlightParams>(e)
                 ? repo.GetComponentRO<FlightParams>(e) : FlightParams.From(new FlightParamsDto());
+            if (cls == LocomotionClass.Rotorcraft) AirborneHolds(repo, e, in intent, terrain, p.HoverHeightM);
             var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,
                 terrain == null ? null : terrain.GroundHeightAt);
             path.IntentId = intent.IntentId;
+            path.Dropping = false;
             path.RouteEntityId = intent.RouteEntityId;
             path.RouteVersion = version;
             repo.SetManagedComponent(e, path);
+        }
+
+        /// <summary>The height (m) a helicopter may hover at and still let men step down — CE-1084's drawn hop (D-8).</summary>
+        public const float StepDownMaxM = 3f;
+        /// <summary>A <see cref="RouteHold.Rope"/> waypoint that states no <c>HeightAgl</c> hovers this high over the roof (design §2: 10–20 m).</summary>
+        public const float DefaultRopeHoverM = 12f;
+
+        /// <summary>
+        /// ⭐ Airborne insertion B-3 (D-7, D-8) — a helicopter route's airborne holds, settled before the path is compiled:
+        /// <list type="bullet">
+        ///   <item>a <see cref="RouteHold.Rope"/> hover is put at its height above the HIGHEST surface under the waypoint (a roof —
+        ///     <c>AirRoute</c> measures <c>HeightAgl</c> from the ground, so a 12 m hover over a 12 m building would sit ON it), and is
+        ///     REFUSED (warned, flown through) when that height is more than the carrier's rope;</item>
+        ///   <item>an <see cref="RouteHold.Unload"/> / <see cref="RouteHold.Pickup"/> hover more than <see cref="StepDownMaxM"/> above the
+        ///     ground is REFUSED as a hover (warned) and LANDS instead — men no longer teleport down (or up) from a 30 m hover.</item>
+        /// </list>
+        /// </summary>
+        private void AirborneHolds(EntityRepository repo, Entity e, in NavigationIntent intent, Fdp.Toolkit.World.IWorldQuery? terrain, float hoverAgl)
+        {
+            for (int i = 0; i < _waypoints.Count; i++)
+            {
+                var w = _waypoints[i];
+                if (w.Kind == RouteWaypointKind.Ground) continue;
+                float ground = terrain?.GroundHeightAt(w.Position.X, w.Position.Y) ?? 0f;
+                if (w.Hold == RouteHold.Rope)
+                {
+                    float roof = terrain != null ? DescentRules.HighestSurface(terrain, w.Position.X, w.Position.Y) : ground;
+                    float h = w.HeightAgl > 0f ? w.HeightAgl : DefaultRopeHoverM;
+                    float rope = DescentRules.RopeLength(repo, e);
+                    if (h > rope)
+                    {
+                        Fdp.Core.Logging.FdpLog<AirMotionSystem>.Warn(
+                            "[AIR] route {0} waypoint {1}: a {2:0.#} m rope hover on a {3:0.#} m rope — refused, flown through", intent.RouteEntityId, i, h, rope);
+                        _waypoints[i] = w with { Hold = RouteHold.None };
+                        continue;
+                    }
+                    _waypoints[i] = w with { HeightAgl = roof - ground + h };   // HeightAgl counts from the ground: put the hover over the roof
+                }
+                else if (w.Hold is RouteHold.Unload or RouteHold.Pickup)
+                {
+                    float agl = w.HeightAgl > 0f ? w.HeightAgl : MathF.Max(w.Position.Z - ground, hoverAgl);
+                    if (agl <= StepDownMaxM) continue;
+                    Fdp.Core.Logging.FdpLog<AirMotionSystem>.Warn(
+                        "[AIR] route {0} waypoint {1}: a {2} hold hovering {3:0.#} m up — nobody steps down that far; it lands instead",
+                        intent.RouteEntityId, i, w.Hold, agl);
+                    _waypoints[i] = w with { Kind = RouteWaypointKind.Ground };
+                }
+            }
         }
     }
 
@@ -93,7 +151,7 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ Air Ops slice 2 — with the routes a <c>FollowRoute</c> names (<see cref="AirMotionSystem.RouteSource"/>).</summary>
         public AirMotionModule(IRouteSource? routes, params IEcsModuleSystem[] after)
         {
-            var list = new System.Collections.Generic.List<IEcsModuleSystem> { new AirMotionSystem { RouteSource = routes } };
+            var list = new System.Collections.Generic.List<IEcsModuleSystem> { new AirMotionSystem { RouteSource = routes }, new DescentLandingSystem() };
             if (after != null) list.AddRange(after);
             PostSimulationSystems = list;
         }

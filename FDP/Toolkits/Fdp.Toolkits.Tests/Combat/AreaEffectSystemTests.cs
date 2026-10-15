@@ -611,5 +611,76 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, damage[0]);
             Assert.True(damage[1] > 0f, "an exposed passenger is hit like anyone");
         }
-    }
+    
+        // ── ⭐⭐ CE-3212 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §10 S3) — fragments land on the parts ───────────
+
+        private const long SmallFrag = 6900, SoldierType = 6901, CivilianType = 6902;
+
+        /// <summary>A grenade-like warhead whose fragments carry 3.5 mm of penetration (a 5 mm vest defeats them: ArmorModel's ramp starts at 0.8 × the armour), no drag.</summary>
+        private void RegisterS3Types()
+        {
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var frag = new TkbTemplate("S3 test frag", SmallFrag) { DisType = new DISEntityType { Kind = 2 } };
+            frag.AddDescriptor(new WarheadDto { Kind = WarheadKind.Fragmentation, ExplosiveKg = 0.2f, FragmentRadiusM = 30f, FragmentCount = 800f,
+                                                FragmentHitDamage = 5f, FragmentWoundDamage = 20f, FragmentPenetrationMm = 3.5f });
+            db.Register(frag);
+            db.Register(new TkbTemplate("S3 soldier", SoldierType) { DisType = new DISEntityType { Kind = 3, Domain = 1, Category = 1 } });
+            db.Register(new TkbTemplate("S3 civilian", CivilianType) { DisType = new DISEntityType { Kind = 3, Domain = 1 } });
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>())
+                _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        }
+
+        private Entity Typed(long type, float x, float y)
+        {
+            var e = Soldier(x, y);
+            _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = type });
+            return e;
+        }
+
+        /// <summary>The fragment damage events <paramref name="e"/> took in the last burst, by part (255 = whole body).</summary>
+        private System.Collections.Generic.Dictionary<byte, float> PartsOf(Entity e)
+            => _w.Bus.Read<DamageAssessedEvent>().ToArray().Where(d => d.HitEntity == e)
+                 .GroupBy(d => d.HasBodyPart != 0 ? d.BodyPart : (byte)255).ToDictionary(g => g.Key, g => g.Sum(d => d.TotalDamage));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3212</c> (S3-1, S3-3, S3-4) — an UNARMOURED man takes exactly the calibrated law's total (hits × per-hit × exposure),
+        /// now as one event PER PART — the head, the torso and the limbs all struck by a burst to his side.
+        /// </summary>
+        [Fact]
+        public void CE3212_AnUnarmouredMan_TakesTheLawsTotal_SpreadOverHisParts()
+        {
+            RegisterS3Types();
+            var man = Typed(CivilianType, 5, 0);
+            var (rec, damage) = Burst(SmallFrag, new Vector3(0, 0, 0.1f), man);
+            var fx = rec.Effects.Single(x => x.Entity == man);
+            var (w, _, _) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(_w.GetSingletonManaged<ITkbDatabase>(), SmallFrag);
+            float expected = fx.FragmentHits * AreaEffect.FragmentHit(w!, AreaEffect.FragmentTarget.Person, fx.Distance).Damage * fx.FragmentExposure;
+            Assert.True(expected > 1f, $"the burst should hurt him: {expected}");
+            Assert.Equal(expected, damage[0], 2);
+            var parts = PartsOf(man);
+            Assert.DoesNotContain((byte)255, parts.Keys);   // no blast, so every event names its part
+            Assert.True(parts.Count >= 8, $"parts struck: {string.Join(",", parts.Keys)}");
+            Assert.True(parts[Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso] > parts[Fdp.Toolkit.Physics.BodyParts.PersonPart.ForearmL],
+                "his torso presents more than a forearm");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3212</c> (S3-2) — a SOLDIER's vest (5 mm, the Soldier profile) stops 3.5 mm fragments on his torso; a civilian beside him
+        /// takes them. His limbs, open, take the same as hers. 🔴 Red-proof: the whole-body law gave both the same.
+        /// </summary>
+        [Fact]
+        public void CE3212_TheVest_StopsFragmentsOnTheTorso_TheLimbsAreOpen()
+        {
+            RegisterS3Types();
+            var soldier = Typed(SoldierType, 5, 0.3f);
+            var civilian = Typed(CivilianType, 5, -0.3f);
+            var (_, damage) = Burst(SmallFrag, new Vector3(-10, 0, 1.2f), soldier, civilian);   // from behind them, level with the vest
+            var s = PartsOf(soldier);
+            var c = PartsOf(civilian);
+            Assert.True(damage[0] < damage[1], $"soldier {damage[0]} vs civilian {damage[1]}");
+            Assert.False(s.ContainsKey(Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso));   // the vest's rear plate
+            Assert.True(c[Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso] > 0f);
+            Assert.Equal(c[Fdp.Toolkit.Physics.BodyParts.PersonPart.ThighL], s[Fdp.Toolkit.Physics.BodyParts.PersonPart.ThighL], 1);
+        }
+}
 }

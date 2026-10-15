@@ -78,6 +78,12 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly GridGeometry _defaultGeometry;
         private TerrainWorld? _fittedTo;
 
+        // ⭐ CE-2194 — the entities already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        private readonly HashSet<Entity> _warned = new();
+
+        /// <summary>⭐ <c>CE-2194</c> — warnings logged so far (one per entity the perception grid could not place, per terrain fit).</summary>
+        public int Warnings { get; private set; }
+
         // Maps entity Index → the currently live entity occupying that index.
         // Used during the incremental path to detect and evict stale grid slots left
         // when an old entity is destroyed and a new one reuses the same index at a
@@ -119,6 +125,7 @@ namespace Fdp.Toolkit.Perception.Systems
                     var g = SpatialGridFit.For(new System.Numerics.Vector2(_defaultGeometry.OriginX, _defaultGeometry.OriginY),
                         _grid.Width, _grid.Height, _defaultGeometry.CellSize, world);
                     _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+                    _warned.Clear();   // ⭐ CE-2194 — a new fit: warn afresh about whoever is still outside it
                     FullRebuild(view, query);
                     return;
                 }
@@ -181,12 +188,28 @@ namespace Fdp.Toolkit.Perception.Systems
                     _liveByIndex[entity.Index] = entity;
                 }
 
-                _grid.Add(entity, newPos);
+                Place(entity, newPos);
                 _prevPositions[entity] = newPos;
             }
         }
 
         // ── Private helpers ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2194</c> (DESIGN_Terrain_World §4.4; the perception twin of CE-2193) — adds <paramref name="entity"/> to the grid; one the
+        /// grid cannot place is seen and heard by NOBODY, so SAY SO, once per entity per terrain fit. ⛔ The grid is not widened: it follows
+        /// the terrain by design (W9) — a unit off its terrain is an authoring error to surface. 📐 Measured live (basic-desert, [0, 600]²):
+        /// a truck at (−150, 150) was hittable (the collider grid is [−750, 750)) and invisible (this grid is [0, 1000)) for 40 s.
+        /// </summary>
+        private void Place(Entity entity, Vector2 pos)
+        {
+            if (_grid.Add(entity, pos) || !_warned.Add(entity)) return;
+            Warnings++;
+            Fdp.Core.Logging.FdpLog<LocalGridBuilderSystem>.Warn(
+                $"[Perception] Entity #{entity.Index} at ({pos.X:F0}, {pos.Y:F0}) is outside the perception grid " +
+                $"[{_grid.OriginX:F0}..{_grid.OriginX + _grid.Width * _grid.CellSize:F0}] × " +
+                $"[{_grid.OriginY:F0}..{_grid.OriginY + _grid.Height * _grid.CellSize:F0}] (or over its capacity): nobody can see or hear it.");
+        }
 
         /// <summary>
         /// Full clear-and-rebuild.  Called when the entity count changes (spawn/destroy).
@@ -206,7 +229,7 @@ namespace Fdp.Toolkit.Perception.Systems
                 var pos = new Vector2(tf.Position.X, tf.Position.Y);
                 _prevPositions[entity] = pos;
                 _liveByIndex[entity.Index] = entity;
-                _grid.Add(entity, pos);
+                Place(entity, pos);
                 _lastEntityCount++;
             }
         }

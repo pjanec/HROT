@@ -46,9 +46,11 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static float SpeedFactor(ISimulationView view, Entity entity)
         {
-            if (StateOf(view, entity) != InjuryState.Wounded) return 1f;
-            float f = view.GetComponentRO<InjuryThresholds>(entity).WoundedSpeedFactor;
-            return f > 0f ? f : 1f;
+            // ⭐ CE-3210 (hit location HL-7) — a wounded LEG slows him whatever his overall state: the type's wounded factor, else 0.6
+            bool leg = Fdp.Toolkit.Physics.BodyParts.Wounds.LegWounded(view, entity);
+            if (StateOf(view, entity) != InjuryState.Wounded && !leg) return 1f;
+            float f = view.HasComponent<InjuryThresholds>(entity) ? view.GetComponentRO<InjuryThresholds>(entity).WoundedSpeedFactor : 0f;
+            return f > 0f ? f : leg ? Fdp.Toolkit.Physics.BodyParts.Wounds.WoundedLegSpeedFactor : 1f;
         }
 
         /// <summary>Down but alive: cannot move or fire, bleeding out, may be carried (R-2009 C3).</summary>

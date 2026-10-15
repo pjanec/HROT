@@ -62,6 +62,19 @@ namespace Fdp.Toolkit.Combat
             return new FragmentResult(hits, chance, hits * perHit * chance * MathF.Max(exposure, 0f));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3212</c> (hit location §10 S3-2) — what ONE fragment of <paramref name="w"/> still does at <paramref name="distance"/> m to
+        /// <paramref name="target"/>: its damage (a man's wound or a bullet's law) and its penetration (mm), both slowed by drag — the same
+        /// numbers <see cref="Fragments"/> uses, so a caller splitting the hits over a body's parts keeps the law.
+        /// </summary>
+        public static (float Damage, float PenetrationMm) FragmentHit(Fdp.Toolkit.Tkb.Domain.WarheadDto w, FragmentTarget target, float distance)
+        {
+            float r = MathF.Max(distance, 0.5f);
+            float speed = w.FragmentDragM > 0f ? MathF.Exp(-r / w.FragmentDragM) : 1f;
+            float perHit = target == FragmentTarget.Person && w.FragmentWoundDamage > 0f ? w.FragmentWoundDamage : w.FragmentHitDamage;
+            return (perHit * speed, w.FragmentPenetrationMm * speed);
+        }
+
         /// <summary>⭐ CE-3203 — the distance at which a STANDING man in the open expects less than one point of fragment damage from
         /// <paramref name="w"/>: the law's own reach (the generated <c>FragmentRadiusM</c>).</summary>
         public static float FragmentHazardRadius(Fdp.Toolkit.Tkb.Domain.WarheadDto w)

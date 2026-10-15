@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Combat
             if (repo.HasComponent<UnderFire>(body) && now - repo.GetComponentRO<UnderFire>(body).LastTime < UnderFireSeconds)
                 sigma *= UnderFireFactor;
             sigma *= StanceFactor(LogicalStance(repo, body));
+            sigma *= Fdp.Toolkit.Physics.BodyParts.Wounds.AimFactor(repo, body);   // ⭐ CE-3210 (HL-7) — a wounded arm aims worse
             return sigma;
         }
 

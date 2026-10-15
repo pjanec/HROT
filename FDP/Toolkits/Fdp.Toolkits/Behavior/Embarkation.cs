@@ -1,6 +1,8 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Behavior
@@ -266,21 +268,41 @@ namespace Fdp.Toolkit.Behavior
         /// list, the tag gone, the capabilities back, and standing BESIDE the hull at the seat it had (the CE-321 column). False when it
         /// was not aboard.
         /// </summary>
-        public static bool Disembark(EntityRepository repo, Entity passenger, Entity vehicle = default)
+        /// <remarks>⭐ Airborne insertion B-4 (D-8) — <paramref name="exit"/> other than <see cref="ExitKind.StepOut"/> leaves at the
+        /// carrier's rope or DOOR (<paramref name="anchorIndex"/>) at its height, never beside the hull, and starts his descent
+        /// (<see cref="ExitIntoDescent"/>).</remarks>
+        public static bool Disembark(EntityRepository repo, Entity passenger, Entity vehicle = default,
+                                     ExitKind exit = ExitKind.StepOut, byte anchorIndex = 0)
         {
             if (!repo.IsAlive(passenger)) return false;
             if (vehicle.IsNull && Has<IsEmbarkedTag>(repo, passenger)) vehicle = repo.GetComponentRO<IsEmbarkedTag>(passenger).VehicleEntity;
             int slot = SlotOf(repo, passenger, vehicle);
             if (slot < 0) return false;
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
-            var at = LeavePoint(repo, vehicle, passenger, slot, buffer.Count);
+            var at = exit != ExitKind.StepOut && DescentRules.DoorPoint(repo, vehicle, anchorIndex, out var door)
+                ? door : LeavePoint(repo, vehicle, passenger, slot, buffer.Count);
             buffer.Passengers[slot] = Entity.Null;   // ⭐ CE-2151 B-b — the seat empties in place (no compaction: a slot IS a seat)
             buffer.SetMode(slot, CarryMode.Seated);
             buffer.Count--;
             Leave(repo, passenger, at);
+            if (exit != ExitKind.StepOut) ExitIntoDescent(repo, passenger, vehicle, exit, anchorIndex);
             if (IsPersonCarrier(repo, vehicle)) DropAssistant(repo, vehicle);   // ⭐ T-a — a person carries one load: the team ends with it
             ReleaseCarrier(repo, vehicle);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ Airborne insertion B-4 (§1, the CE-3059 resolution) — <paramref name="passenger"/>, just out of <paramref name="vehicle"/>'s rope
+        /// or door, starts coming down. The <see cref="Descent"/> is the POSITION owner's state (Muscle group), and this runs on the
+        /// CARRIER's owner (R-224): when they are one node it starts here (<see cref="Descents.Start"/>); otherwise a
+        /// <see cref="StartDescentCommand"/> carries it there (the interaction transport, target = the passenger) — the same split CE-3059
+        /// measured for a dismount, closed for a descent by sending the decision to the node whose writes stick.
+        /// </summary>
+        public static void ExitIntoDescent(EntityRepository repo, Entity passenger, Entity vehicle, ExitKind exit, byte anchorIndex)
+        {
+            if (OwnsPosition(repo, passenger)) { Descents.Start(repo, passenger, vehicle, exit, anchorIndex); return; }
+            if (repo.Bus.IsRegistered<StartDescentCommand>())
+                repo.Bus.Publish(new StartDescentCommand { Passenger = passenger, Anchor = vehicle, Exit = exit, AnchorIndex = anchorIndex });
         }
 
         /// <summary>Every live passenger leaves <paramref name="vehicle"/>, in a column beside the hull (CE-321); the dead stay where

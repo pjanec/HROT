@@ -185,9 +185,24 @@ namespace Hrot.Map.Common.Replication.Interactions
             actor:       static (in DisembarkEntityCommand e) => e.Passenger,
             isRemote:    static (in DisembarkEntityCommand e) => e.IsRemote,
             ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
-            toPayload:   static (in DisembarkEntityCommand e) => new InteractionPayload { Disembark = default },
+            toPayload:   static (in DisembarkEntityCommand e) => new InteractionPayload
+                { Disembark = new DisembarkInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex } },   // ⭐ airborne insertion B-4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
-                => new DisembarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true });
+                => new DisembarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true,
+                                                Exit = (Fdp.Toolkit.Motion.ExitKind)p.Disembark.Exit, AnchorIndex = p.Disembark.AnchorIndex });
+
+        /// <summary>⭐ Airborne insertion B-4 — a man out of a carrier's rope or door starts his descent; the node owning his POSITION
+        /// applies it (the carrier's owner decided it — CE-3059's split, closed for a descent).</summary>
+        public static readonly IInteractionCodec StartDescent = new InteractionCodec<StartDescentCommand>(
+            EInteractionKind.StartDescent,
+            target:      static (in StartDescentCommand e) => e.Passenger,
+            actor:       static (in StartDescentCommand e) => e.Anchor,
+            isRemote:    static (in StartDescentCommand e) => e.IsRemote,
+            ownsTarget:  static (repo, man) => Embarkation.OwnsPosition(repo, man),
+            toPayload:   static (in StartDescentCommand e) => new InteractionPayload
+                { StartDescent = new StartDescentInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new StartDescentCommand
+                { Passenger = target, Anchor = actor, Exit = (Fdp.Toolkit.Motion.ExitKind)p.StartDescent.Exit, AnchorIndex = p.StartDescent.AnchorIndex, IsRemote = true });
 
         /// <summary>⭐ CE-3110 I-2a — everyone out of the vehicle.</summary>
         public static readonly IInteractionCodec EjectPassengers = new InteractionCodec<EjectPassengersCommand>(
@@ -201,7 +216,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                 => new EjectPassengersCommand { Vehicle = target, IsRemote = true });
 
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent };
     }
 
     /// <summary>

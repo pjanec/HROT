@@ -175,5 +175,8 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>⭐ <c>CE-3110</c> I-2a — <see cref="Events.EjectPassengersCommand"/>.</summary>
         public const int EventId_EjectPassengers = 3203;
+
+        /// <summary>⭐ Airborne insertion B-4 — <see cref="Events.StartDescentCommand"/>. 3204 is free by a census of every literal and constant event id, 2026-10-15.</summary>
+        public const int EventId_StartDescent = 3204;
     }
 }

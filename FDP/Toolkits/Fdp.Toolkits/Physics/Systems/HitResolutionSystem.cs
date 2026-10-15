@@ -124,6 +124,13 @@ namespace Fdp.Toolkit.Physics.Systems
                         if (shot != null)
                         {
                             shot.HitEntity = hit.HitEntity;
+                            if (hit.HasBodyPart != 0)   // ⭐ CE-3209 — the part and the face, for /combat/shots
+                            {
+                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) != null   // ⭐ CE-3211 — a vehicle's parts
+                                    ? Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart)
+                                    : Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart);
+                                shot.HitFace = ((Fdp.Toolkit.Combat.Facing)hit.Face).ToString();
+                            }
                             shot.ArrivingDamage = damage;
                             shot.ArrivingPenetration = penetration;
                             Fdp.Toolkit.Combat.ShotLog.End(shot, Fdp.Toolkit.Combat.ShotOutcome.Hit,
@@ -149,7 +156,15 @@ namespace Fdp.Toolkit.Physics.Systems
                         Penetration = penetration,
                         Damage      = damage,
                         Ammo        = ammo,
+                        HasBodyPart = hit.HasBodyPart,   // ⭐ CE-3209 (HL-5) — the part met and the face entered
+                        BodyPart    = hit.BodyPart,
+                        Face        = hit.Face,
                     });
+
+                    // ⭐ CE-3210 (HL-8) — the mark the round left on the part, written here because this node resolved the hit (the
+                    //   Muscle owns HitMarks). Added on the first hit; a body never struck carries none.
+                    if (hit.HasBodyPart != 0) BodyParts.HitMarksWriter.Mark(repo, hit.HitEntity, hit.BodyPart, hit.LocalPoint, hit.Face,
+                        BodyParts.HitMarkKind.Bullet);
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
                     // query drops it (preventing further raycasts), while its component memory

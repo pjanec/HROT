@@ -261,6 +261,72 @@ namespace Hrot.NED.Descriptors
         public byte Busy;
     }
 
+    // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
+    //   (Brain group) → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1, like EntityWeaponAmmo: it changes per hit,
+    //   and a late joiner must see a man's wounds.
+    [DdsTopic("EntityPartDamage")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityPartDamage
+    {
+        [DdsKey] public long EntityId;
+        public byte Plan;
+        public byte L0; public byte L1; public byte L2; public byte L3; public byte L4; public byte L5; public byte L6; public byte L7;
+        public byte L8; public byte L9; public byte L10; public byte L11; public byte L12; public byte L13; public byte L14; public byte L15;
+    }
+
+    /// <summary>⭐ CE-3210 (HL-8) — one mark of <see cref="EntityHitMarks"/>: the part, the point in it (quantised), the face, the kind and
+    /// its sequence.</summary>
+    [DdsStruct]
+    public partial struct DdsHitMark
+    {
+        public ushort Seq;
+        public byte Part;
+        public short X;
+        public short Y;
+        public short Z;
+        public byte Face;
+        public byte Kind;
+    }
+
+    // ⭐ CE-3210 (HL-8; user: "owned by muscle") — where rounds struck a body, the Muscle (MuscleGround group) → every node, keyed by the
+    //   entity: the marks still in the ring and the next sequence. BestEffort + TransientLocal + KeepLast 1, like EntityTurretPose: a lost
+    //   sample is repaired by the next hit, a late joiner gets the ring.
+    [DdsTopic("EntityHitMarks")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityHitMarks
+    {
+        [DdsKey] public long EntityId;
+        public ushort NextSeq;
+        [DdsManaged] public List<DdsHitMark> Marks;
+    }
+
+    // ⭐ Airborne insertion B-1 (docs/designs/airborne/DESIGN_Airborne_Insertion.md D-1) — a body coming down a rope or under a canopy,
+    //   the node that owns his position (MuscleGround group) → every node, keyed by the entity; Kind 0 = his descent is over (the
+    //   component removed). Reliable + TransientLocal + KeepLast 1 (the EntityWeaponPosture QoS): it changes a few times per descent and a
+    //   late joiner must see it.
+    [DdsTopic("EntityDescent")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityDescent
+    {
+        [DdsKey] public long EntityId;
+        /// <summary><c>DescentKind</c>: 0 none (over) · 1 FastRope · 2 StaticLine · 3 FreeFall · 4 Ejection.</summary>
+        public byte Kind;
+        /// <summary><c>DescentPhase</c> — the animation key (D-5).</summary>
+        public byte Phase;
+        /// <summary><c>CanopyKind</c>: 0 none · 1 Round · 2 RamAir.</summary>
+        public byte Canopy;
+        public byte AnchorIndex;
+        /// <summary>The carrier he hangs from or left, network id (0 = none).</summary>
+        public long AnchorNetworkId;
+        public double PhaseSince;
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
+    }
+
     // ⭐ CE-3110 I-2b (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7.1c) — a vehicle's passengers, the vehicle's owner (Brain group) →
     //   every node, keyed by the vehicle. Twelve scalar network ids (the EntityWeaponAmmo shape; PassengerBuffer.Capacity = 12 — seats 8–11 appended, F4).
     //   Reliable + TransientLocal + KeepLast 1: a late joiner must know who is aboard.

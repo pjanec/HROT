@@ -71,6 +71,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.PossessedBy);
         // ⭐ CE-3174 (C-7) — the ammunition per mount, mirrored by the brain from its WeaponStates (dtWeaponAmmo).
         brain.SetBit(GlobalComponentIds.WeaponAmmo);
+        // ⭐ CE-3210 (hit location HL-6) — the damage per body part, written beside Health by its owner (dtPartDamage).
+        brain.SetBit(GlobalComponentIds.PartDamage);
         // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).
         brain.SetBit(GlobalComponentIds.PassengerBuffer);
         // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state: its brain's WeaponDeploySystem writes it (dtWeaponSystemState).
@@ -93,6 +95,10 @@ public static class HrotOwnershipGroups
         muscle.SetBit(GlobalComponentIds.LookAtChannelStatus);
         // ⭐ WL-1b (CE-1049, DESIGN_Weapon_Layers W-9) — the weapon MUSCLE aims the turret, so it owns the pose (dtTurretPose).
         muscle.SetBit(GlobalComponentIds.TurretPose);
+        // ⭐ CE-3210 (hit location HL-8) — where rounds struck a body: the Muscle resolves the hit (dtHitMarks).
+        muscle.SetBit(GlobalComponentIds.HitMarks);
+        // ⭐ Airborne insertion B-1 (D-1) — a man coming down a rope or under a canopy: moved by the node that owns his position (dtDescent).
+        muscle.SetBit(GlobalComponentIds.Descent);
         muscle.SetBit(GlobalComponentIds.WeaponTaskStatus);   // ⭐ WL-2b (W-3) — the muscle's report on a turret's task
         muscle.SetBit(GlobalComponentIds.WeaponMuscleState);  // ⭐ WL-3 — its never-sent fire timing (like FrustrationTicks)
         // ⭐ CE-3199 / R-3005 — ONE Muscle role moves every body, ground or air: a flyer's never-sent flight state and its flight

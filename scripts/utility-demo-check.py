@@ -1450,6 +1450,194 @@ def run_air_attack(c, timeout):
     c.ok((health(otruck) or 0) <= 0, f"⑤ the orbited truck is destroyed — Health {health(otruck)}")
 
 
+# ── ua-air-defence (CE-2191; docs/designs/air-attack/DESIGN_Air_Operations.md §7e/§7f) — the ground fires at aircraft, aircraft evade ──
+#   An Apache attacks a truck beside a Stinger gunner; a doors-off UH-60 circles a truck beside a ZU-23 technical. Every ground unit
+#   stands ON basic-desert's 600 m terrain (off it the perception grid sees nobody — CE-2194).
+
+def run_air_defence(c, timeout):
+    ids = ids_by_name()
+    apache, uh60 = ids.get("Apache"), ids.get("Door Gunship UH-60")
+    gunner, tech = ids.get("Stinger Gunner"), ids.get("ZU-23 Technical")
+    launcher, zu23 = ids.get("Stinger (MANPADS)"), ids.get("ZU-23-2")
+    if not c.ok(None not in (apache, uh60, gunner, tech, launcher, zu23), f"the aircraft, the gunner, the technical and their weapons are loaded — launcher {launcher}, ZU-23 {zu23}"):
+        return
+    call("POST", "/sim/play", {})
+    shots, warned, warn, track, evade = {}, None, None, [], []
+    gunner_dead = None
+    end = time.time() + timeout + 120
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        call("POST", "/perspective", {"name": "CGF"})
+        comps = (data(call("GET", f"/entities/{apache}")) or {}).get("Components") or {}
+        mw = comps.get("MissileWarning")
+        if mw and warned is None:
+            warned, warn = t, mw
+        pa = position(apache)
+        if pa:
+            track.append((t, pa))
+        if gunner_dead is None and (health(gunner) or 0) <= 0:
+            gunner_dead = t
+        call("POST", "/perspective", {"name": "Scenario"})
+        missiles = [x for x in shots.values() if x.get("shooter") == launcher]
+        guns = [x for x in shots.values() if x.get("shooter") == zu23]
+        if warned is not None and t > warned + 20 and len(guns) >= 20:
+            break
+        time.sleep(0.5)
+
+    missiles = [x for x in shots.values() if x.get("shooter") == launcher]   # the gunner's own entry is his rifle
+    guns = [x for x in shots.values() if x.get("shooter") in (zu23, tech)]
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    for x in missiles[:2] + guns[:2]:
+        print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "ammo", "muzzle", "aim", "end", "hit", "outcome")})
+    print(f"    the gunner died at {gunner_dead}")
+    c.ok(len(missiles) >= 1, f"① the Stinger gunner fired at an aircraft — {len(missiles)} missile(s)")
+    c.ok(warned is not None, f"① the Apache was warned of the missile — {warn}")
+    if warned is not None:
+        before = [p for t, p in track if warned - 3 <= t < warned]
+        after = [p for t, p in track if warned + 2 <= t <= warned + 6]
+        print(f"    the Apache around the warning: before {before[-1:] if before else None} after {after[:1]} … {after[-1:]}")
+    c.ok(len(guns) >= 10, f"② the ZU-23 fired at an aircraft — {len(guns)} rounds")
+    print(f"    health: Apache {health(apache)} · UH-60 {health(uh60)} · gunner {health(gunner)} · technical {health(tech)}")
+
+
+# ── ua-tank-corner (Urban Armour V7; docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4) — the tank's exposure cycle ─────
+#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against a Javelin team
+#   and a rifleman north of it in test-town (⚠ not an RPG / NLAW man: a PG-7V's ~300 mm and a direct NLAW's 500 mm cannot pass an
+#   M1's 900 mm front, so either reads as harmless as a rifle — only a top attack on its 60 mm roof is a real danger):
+#   ① it fires · ② its first rounds go at the AT gunner, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
+#   than one point (an exposure is short and a point burns) · ④ between exposures it withdraws (it does not sit in the open).
+def run_tank_corner(c, timeout):
+    ids = ids_by_name()
+    tank, rpg, rifle = ids.get("Tank"), ids.get("AT Gunner"), ids.get("Rifleman")
+    if not c.ok(None not in (tank, rpg, rifle), "the tank, the AT gunner (a Javelin — top attack on the 60 mm roof, the one AT weapon a front-on M1 must fear) and the rifleman are loaded"):
+        return
+    p_rpg, p_rifle = position(rpg), position(rifle)
+    call("POST", "/sim/play", {})
+    shots, track = {}, []
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pt = position(tank)
+        if pt:
+            track.append((t, pt))
+        mine = [x for x in shots.values() if x.get("shooter") == tank]
+        if len(mine) >= 6 or (health(rpg) or 0) <= 0 and (health(rifle) or 0) <= 0:
+            break
+        time.sleep(0.5)
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
+    for x in mine[:6]:
+        print("      tank shot", {k: x.get(k) for k in ("seq", "weaponIndex", "ammo", "muzzle", "aim", "hit", "outcome")})
+    c.ok(len(mine) >= 1, f"① the tank fired — {len(mine)} round(s)")
+    def nearer(x):
+        a = x.get("aim") or x.get("end")
+        if not a or not p_rpg or not p_rifle:
+            return None
+        d = lambda p: ((a[0] - p[0]) ** 2 + (a[1] - p[1]) ** 2) ** 0.5
+        return "rpg" if d(p_rpg) <= d(p_rifle) else "rifle"
+    first = [nearer(x) for x in mine[:2]]
+    c.ok(bool(first) and first[0] == "rpg", f"② the first rounds go at the AT gunner, not the rifleman (danger to my armour) — {first}")
+    muzzles = [tuple(x.get("muzzle") or ()) for x in mine]
+    points = []
+    for m in muzzles:
+        if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 4 for q in points):
+            points.append(m)
+    c.ok(len(points) >= 2 or (health(rpg) or 0) <= 0, f"③ it fires from more than one point (or the AT gunner is down first) — {[(round(p[0]), round(p[1])) for p in points]}")
+    far = max((((p[0] - track[0][1][0]) ** 2 + (p[1] - track[0][1][1]) ** 2) ** 0.5 for t, p in track), default=0.0) if track else 0.0
+    c.ok(len(track) > 2 and far > 5, f"④ the tank moves through hide and firing points — furthest {far:.0f} m from its start")
+    stops = []
+    for t, p in track:
+        if not stops or ((p[0] - stops[-1][1][0]) ** 2 + (p[1] - stops[-1][1][1]) ** 2) ** 0.5 > 3:
+            stops.append((round(t, 1), (round(p[0]), round(p[1]))))
+    print(f"    tank path (3 m steps): {stops[:24]}")
+    print(f"    health: tank {health(tank)} · AT gunner {health(rpg)} · rifleman {health(rifle)}")
+
+
+# ── ua-ifv-standoff (Urban Armour V7; Exposure Cycle §4, CE-2196) — a 25 mm IFV out-ranges RPG men; up close an RPG kills it ─────────
+#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 400 m from two RPG men (RPG reach 300 m): no hide answers in the
+#   open, so it fights from where it stands (CE-2196) — its 25 mm hits them, they never reach it. ② "IFV Close" with an RPG man 80 m
+#   off, on an attack order at it: the RPG hits it (Bradley side 80 mm vs a PG-7V's ~300 mm).
+def run_ifv_standoff(c, timeout):
+    ids = ids_by_name()
+    far, near = ids.get("IFV Standoff"), ids.get("IFV Close")
+    a1, a2, rc = ids.get("RPG Man A1"), ids.get("RPG Man A2"), ids.get("RPG Man C")
+    if not c.ok(None not in (far, near, a1, a2, rc), "both IFVs and the three RPG men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, closest = {}, 1e9
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pf = position(far)
+        for m in (a1, a2):
+            pm = position(m)
+            if pf and pm:
+                closest = min(closest, ((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5)
+        down = all((health(m) or 0) <= 0 for m in (a1, a2))
+        if down and (health(near) or 500) < 500:
+            break
+        time.sleep(0.5)
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    hurt = [m for m in (a1, a2) if (health(m) or 100) < 100]
+    c.ok(len(by.get(far, [])) >= 1 and hurt, f"① the stand-off IFV fires and hits the RPG men — {len(by.get(far, []))} rounds, hurt {[name.get(m) for m in hurt]}")
+    c.ok(closest > 300 and (health(far) or 0) >= 500, f"① from beyond their reach, untouched — closest {closest:.0f} m, health {health(far)}")
+    c.ok(len(by.get(rc, [])) >= 1 and (health(near) or 500) < 500, f"② up close the RPG hits the other IFV — {len(by.get(rc, []))} rocket(s), its health {health(near)}")
+    print(f"    health: RPG men A1 {health(a1)} · A2 {health(a2)} · C {health(rc)}")
+
+
+# ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
+#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop against an enemy T-72 (440 m), a pickup (390 m) and two
+#   riflemen (380 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
+#   target (read from each shot's penetration — the kinetic APFSDS against the tank, a lower-penetration HE / HEAT at the soft ones).
+def run_tank_ammo(c, timeout):
+    ids = ids_by_name()
+    tank, t72, pickup = ids.get("Tank"), ids.get("Enemy Tank"), ids.get("Pickup")
+    riflemen = [ids.get("Rifleman 1"), ids.get("Rifleman 2")]
+    if not c.ok(None not in (tank, t72, pickup, *riflemen), "the tank, the T-72, the pickup and the riflemen are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots = {}
+    end = time.time() + timeout + 200
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        if all((health(e) or 0) <= 0 for e in (t72, pickup, *riflemen)):
+            break
+        time.sleep(0.5)
+    mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
+    if mine:
+        print("    a shot's keys:", sorted(mine[0].keys()))
+    name = {v: k for k, v in ids.items()}
+    by_target = {}
+    for x in mine:
+        by_target.setdefault(name.get(x.get("target"), x.get("target")), []).append(x)
+    for t, xs in by_target.items():
+        print(f"    at {t}: {len(xs)} rounds, penetration {sorted({round(x.get('penetration') or 0) for x in xs})}, weapon {sorted({x.get('weaponIndex') for x in xs})}")
+    hit = [n for n in ("Enemy Tank", "Pickup", "Rifleman 1", "Rifleman 2") if n in by_target]
+    c.ok(len(hit) >= 3, f"① it fires at the tank, the pickup and the men — {hit}")
+    pen = lambda n: max((x.get("penetration") or 0 for x in by_target.get(n, [])), default=0)
+    soft = max(pen("Pickup"), pen("Rifleman 1"), pen("Rifleman 2"))
+    c.ok(pen("Enemy Tank") > 0 and pen("Enemy Tank") > soft, f"② a different round for the tank — penetration {pen('Enemy Tank'):.0f} vs {soft:.0f} at the soft targets")
+    print(f"    health: tank {health(tank)} · T-72 {health(t72)} · pickup {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
+
+
 def _turn(bearings, start, stop):
     total, last = 0.0, None
     for t, b in bearings:
@@ -1658,6 +1846,10 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
              "ua-air-strike": run_air_strike,
              "ua-air-attack": run_air_attack,
+             "ua-air-defence": run_air_defence,
+             "ua-tank-corner": run_tank_corner,
+             "ua-ifv-standoff": run_ifv_standoff,
+             "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 

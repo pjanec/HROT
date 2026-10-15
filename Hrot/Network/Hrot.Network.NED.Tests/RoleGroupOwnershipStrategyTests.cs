@@ -31,11 +31,14 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtPossessedBy),     // ⭐ CE-3172 S4e — who holds the unit
         D(EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
         D(EDescriptorType.dtPassengerBuffer),   // ⭐ CE-3110 I-2b — a vehicle's passenger list (the brain arbitrates boarding, R-224)
-        D(EDescriptorType.dtWeaponSystemState) };   // ⭐ WS-1 (R-136) — a weapon system's deploy state (pinned at IF-1: WS-1 missed this rail)
+        D(EDescriptorType.dtWeaponSystemState),   // ⭐ WS-1 (R-136) — a weapon system's deploy state (pinned at IF-1: WS-1 missed this rail)
+        D(EDescriptorType.dtPartDamage) };   // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
-        D(EDescriptorType.dtWeaponTaskStatus) };   // ⭐ CE-1049 WL-2 — the weapon muscle's report
+        D(EDescriptorType.dtWeaponTaskStatus),   // ⭐ CE-1049 WL-2 — the weapon muscle's report
+        D(EDescriptorType.dtHitMarks),   // ⭐ CE-3210 (HL-8) — where the rounds struck, written by the muscle
+        D(EDescriptorType.dtDescent) };  // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 
     private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)

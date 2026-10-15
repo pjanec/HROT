@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15 (HL-12: body profiles by DIS class + sparse per-type overrides, user-approved)
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails. §1 is the measured ground.
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -187,3 +187,213 @@ it, its hits carry no part.*
 
 ⚠ **Blast radius:** hit rates change in every fight — the live demos' scores move (S1 for infantry fights, S2 for armour). The wire grows by
 one byte on `EntityHitDamage` and two new descriptors. `Health`, `Injury`, `CombatLife` and every reader of them keep their meaning.
+
+## 7. S1a as built — `CE-3209` *(backend, `2026-10-16`)*
+
+The design carries 17 classes (§2) and 1 sequence (§3); S1a builds the person half of tiers ①–③ and the hit's part. Deviations, each argued:
+
+| as designed | as built | why |
+|---|---|---|
+| HL-1: the kit's geometry MOVES to `Fdp.Toolkits`; the drawing reads it | ⚠ **the sim's person table is GENERATED from the drawn figure** (`PersonBody.Tables.g.cs`: 11 poses × 10 `BodyBox`es, centre / half-size / rotation in metres for a 1.8 m figure), and a rail in ui's suite (`PersonBodyParityTests`) fails the moment the two differ; `HROT_GEN_PERSON_BODY=1` regenerates. ⏭ S1c: `BlockFigure` reads its geometry from `PersonBody` (one description, the rail then trivially true) | moving `KitPart` (geometry and look interleaved, ~800 lines of poses, transitions, faces and stains) is a large edit of ui's live code; generation + parity gives one source of truth NOW without it |
+| `BodyShape` / `BodyKit` | `BodyBox` (oriented box: part, centre, half, rotation) + `PersonBody` (poses, bounds, `PoseOf`) + `BodyPartHit` (sphere and slab tests) in `Fdp.Toolkits/Physics/BodyParts` | the figure is boxes only; cylinders and cones come with S2's vehicles |
+| HL-9: stance × posture | `PersonPose`: standing / crouched × AtEase / Ready / Aimed, prone, the civilian three, **Downed** (incapacitated or dead — the figure's dead pose). Armed = has a `WeaponState` | a down man lies; a civilian's arms hang |
+| tier ① cell walk, no cap | `SpatialHashGrid.QuerySegment` (cells within pad + ½ diagonal of the segment), pad = max(`SpatialGridData.MaxRadius` — NEW, measured by `SpatialHashSystem` — , `PersonBody.MaxBoundRadius`); 512 candidates, an overflow COUNTED (`CandidateOverflows`) | a cap that can be reached must say so |
+| — | `RaycastSolverSystem.PersonParts` / `CellWalk` (default on) switch the old paths back **for the benchmark only** | the before / after must be measurable in one build |
+| the hit carries the part | `RaycastHit` and `DetonationNotification` APPEND `HasBodyPart`, `BodyPart`, `Face` (+ `LocalPoint` on the hit, for S1b's marks); `DamageCalculationSystem` uses the face ENTERED when there is a part (HL-5); `/combat/shots` reports `hitPart` / `hitFace` | in-process events: no wire change in S1a |
+| — | the P2 rail's standing shot moved 0.9 → 1.2 m | at 0.9 m the round now passes between his legs — the precision this slice exists for |
+
+**Rails** (`RaycastSolverSystemTests`, the feature's suite): `CE3209_ARound_MeetsThePartItCrosses_AndTheFaceItEntered` (head, torso, thigh; rear from behind, front from ahead; parts off ⇒ no part) · `CE3209_ARoundBetweenHisLegs_OrPastHisShoulder_MissesHim` (+ prone: over at 0.4 m, torso at 0.15 m; the old band hit between the legs) · `CE3209_TheBoundingSphere_RejectsARoundThatPassesBy_BeforeAnyPartTest` · `CE3209_InACrowd_TheManOnTheLine_IsStillFound` (100 men off the line, no overflow); `PersonBodyParityTests` (ui's suite, cross-lane).
+**Benchmark:** `CrowdRaycastBenchmark` (`Fdp.ModuleHost.Benchmarks`, `-- crowd`): 300 people in a 100 × 20 m street, 500 rounds of a 40 m step,
+one solver pass. 📐 Measured `2026-10-16` (BenchmarkDotNet ShortRun, 3 iterations — the confidence intervals are wide):
+
+| path | mean per burst |
+|---|---|
+| Old — the midpoint disc + the circle and band | 11.3 ms |
+| CellWalk — the new broad phase, the old narrow phase | 11.0 ms |
+| Parts — cell walk + sphere + parts (shipped) | 13.0 ms |
+
+⇒ the part test costs ≈ 2 ms per 500 rounds in a dense crowd (≈ 4 µs a round); most of a burst is the event publish / playback every path
+shares. The cell walk's gain is small at a 40 m step (the old disc was 25 m); its real value is correctness — no silent 64 cap, the pad sized
+to the largest body. ⏭ If a fight ever spends real time here, the sphere's reject rate (`SphereRejects` / `PartTests`) is the first thing to read.
+
+## 8. S1b as built — `CE-3210` *(backend, `2026-10-16`)*
+
+S1b builds §2's damage half for people: the zones (HL-4, HL-12), `PartDamage` (HL-6), the derived wounds (HL-7), `HitMarks` (HL-8) and
+HL-10's fragment marks. It matches §2/§3 except:
+
+| as designed | as built | why |
+|---|---|---|
+| `BodyZoneResolver` + `BodyProfileLibrary` | ONE static `BodyZones` (`Fdp.Toolkits/Physics/BodyParts/BodyZones.cs`): `Of(template)` (cached per template) · `Of(world, entity)` · `Parameters(template)` for `/tkb/resolve`; the library is the embedded `Tkb/Reference/Data/bodies.json` (profiles `Soldier` `3.1.*.1`, `Person` `3`) | one resolver, one cache; the library is a file, not a class |
+| `EntityHitDamage.PartId` | `EntityHitDamage.BodyPart` carries the part id **+ 1, 0 = none** | ⚠ an appended byte reads 0 from a sender that never sets it: 255 = none would have read every such hit as ThighL |
+| `DamageAssessedEvent.PartId` | `HasBodyPart` + `BodyPart` (the in-process form `DetonationNotification` already uses) | one shape for every in-process hit event |
+| HL-12 ② "the type's armour is its Hull values" | for a PERSON, the type's own `ArmorFront/Side/Rear/Top` are its **Torso**'s, marked `Explicit` | a person has no hull; the body armour a type states is a vest |
+| `Wounds.SpeedFactor` | the leg wound feeds `Injury.SpeedFactor` (one speed rule for every mover): the type's `WoundedSpeedFactor`, else `Wounds.WoundedLegSpeedFactor` 0.6; the arm wound × `Wounds.WoundedAimFactor` 1.6 in `HitModel.Sigma` | the existing readers (`CarKinematicsSystem`, the fire chain) pick it up with no new call site |
+| — | a snapshot view (no TKB) judges wounds by the engine's person body | `Wounds` must answer on every view; the live world uses the type's zones |
+| HL-10 marks "on the parts facing it" | up to `AreaEffectSystem.MaxFragmentMarks` (6) per man per burst, on parts drawn from a hash of the burst sequence and the body, on the face toward the burst | a man's parts nearly all face a burst; ⏭ S3 resolves fragments per part |
+| — | the `Insurgent` type carries the first sparse override (`Combat.BodyZones`: no helmet, no vest) | HL-12's worked example, in a real catalog |
+
+**Ids:** components `PartDamage` 390 (Brain group) and `HitMarks` 391 (Muscle group, `NoScenario`); descriptors `dtPartDamage` 135 and
+`dtHitMarks` 136 (`EntityPartDamage`, `EntityHitMarks` with a `[DdsManaged] List<DdsHitMark>`); translators in
+`Hrot.Network.NED/Replication/Map/EntityBodyPartTranslators.cs`, registered in `SharedTranslatorPack` / `EntityStatesIngressPack`.
+**Rails:** `BodyPartDamageTests` (the feature's suite — zones and provenance, head ×4, the helmet, `PartDamage` on the owner only, the
+leg and arm wounds, the ring, the bullet and fragment marks) · `BodyPartReplicationTests` (both translators round trip, the ring after it
+wrapped) · `DamageAssessedEgressTranslatorTests` / `EntityHitDamageIngressTranslatorTests` (the part on the wire, an unset field = no
+part). ⚠ §6 named `DamageCalculationSystemTests` / `HealthApplicationSystemTests` / `InjuryTests`; the rails need a TKB with body
+profiles those fixtures do not build, so they live in the one body-part suite.
+⏭ **S1c (ui):** draw `HitMarks` (part-local points on the posed part) and switch `BlockFigure` to read `PersonBody`.
+
+## 9. S2 — ground vehicles by part, `CE-3211` *(backend, designed `2026-10-16`; decisions taken autonomously under the user's overnight mandate)*
+
+🔒 **User, `2026-10-15`:** *"go ahead. I would like you to work on that autonomously overnight, taking decision automatically."* S2's
+decisions below are therefore **leans taken, not user rulings** — each says what would change it.
+
+```mermaid
+classDiagram
+  direction LR
+  class VehicleKit { <<NEW generated table, VehicleBody.Tables.g.cs>> Name · DefaultSize · TurretPivot · Trunnion · Parts[] }
+  class VehicleKitPart { <<NEW>> Part id · Shape · Centre · Extent (fractions) · Axis · Pitch · Yaw · Role (Hull/Turret/Gun) · EngineBox }
+  class VehiclePart { <<NEW byte ids, every vehicle plan>> Hull 0 · Turret 1 · Gun 2 · RunningGearL 3 · RunningGearR 4 · Engine 5 }
+  class VehicleBody { <<NEW static>> +Of(world, e) VehicleShape? · +Pose(shape, TurretPose, Span~BodyBox~) · MaxBoundRadius }
+  class VehicleShape { <<NEW, cached per template>> Kit · Size · Pivots (from TurretDto, KitFromTkb's rule) · KitToBody · Bound · EngineEnd }
+  class BodyZones { <<S1b, grows>> profile names its kit + engine end; vehicle zones inherit the platform armour }
+  class RaycastSolverSystem { <<grows>> vehicle branch: sphere, posed boxes, Engine region }
+  class TurretParts { <<existing>> +PoseOf(view, e, 0) TurretPose }
+  class CombatLife { <<existing, grows>> ApplyHitCapabilities: Mobility zone ⇒ CanMove off · Firepower ⇒ CanShoot off }
+  class ShapeKits { <<existing ui>> Tank · Afv · SpArtillery · WheeledCar · WheeledUtility }
+  class VehicleBodyParityTests { <<NEW ui suite>> generates the table; fails when sim and drawing differ, per catalog type }
+  VehicleBody ..> VehicleShape
+  VehicleShape ..> VehicleKit
+  VehicleKit "1" *-- "many" VehicleKitPart
+  VehicleKitPart ..> VehiclePart
+  VehicleBody ..> TurretParts : turret 0's pose
+  VehicleShape ..> BodyZones : kit + engine end from the DIS-class profile
+  RaycastSolverSystem ..> VehicleBody
+  VehicleBodyParityTests ..> ShapeKits : reads
+  VehicleBodyParityTests ..> VehicleKit : writes / compares
+  CombatLife ..> BodyZones
+```
+*What the picture shows that prose hid: the vehicle's shape is NOT a second description — the table is generated from ui's kits and a rail
+compares the posed boxes with the drawing per catalog type; the only new runtime state is a per-template cache. The kit is picked by the
+SAME DIS-class profile that gives the zones, so one `bodies.json` entry says what a vehicle is made of and what each part does.*
+
+```mermaid
+sequenceDiagram
+  participant RS as RaycastSolverSystem (SimHost)
+  participant VB as VehicleBody
+  participant TP as TurretParts
+  participant DC as DamageCalculationSystem
+  participant HA as HealthApplicationSystem (Health owner)
+  RS->>VB: Of(world, candidate) — template's shape (kit, size, pivots, bound), cached
+  RS->>RS: segment vs bound sphere — most rounds stop here
+  RS->>TP: PoseOf(candidate, 0) — azimuth, elevation (replicated TurretPose)
+  RS->>VB: Pose(shape, pose, stackalloc boxes) — the turret about its pivot, the gun about its trunnion
+  RS->>RS: BodyPartHit.Segment — first box entered: Turret, its own face (a turned turret shows its front to a side shot)
+  RS->>RS: a hit on the engine box's engine third ⇒ part Engine
+  RS->>DC: DetonationNotification(+part, +face)
+  DC->>DC: zone armour: inherited platform armour on the face entered (no change) × multiplier
+  DC->>HA: DamageAssessedEvent(+part) — over the wire as before
+  HA->>HA: Health − d · PartDamage[part] + level · ApplyHitCapabilities: Tracks over 32 ⇒ CanMove off · Gun over 32 ⇒ CanShoot off
+```
+
+The modules do not change (§4): the solver, damage and health systems are where they were; `TurretPose` is already replicated to the
+SimHost (W-9). ✅ **The drawing and the sim pose the gun from ONE pose:** a `ui` SpArtillery is drawn by `LaidPose`, which reads the
+replicated `TurretPose` as published — azimuth AND elevation, a level gun included (`EntityBodyLayer3D.cs:613`, ui's CE-1114); the
+fallback elevation is only for a gun with no turret part. *(⛔ SUPERSEDED `2026-10-16` — this caption said "one dead edge stays dead: the
+two agree only once the howitzer publishes its lay"; backend's P2 lays the gun before it fires and CE-1114 draws that lay — ui steer.)*
+
+| id | decision (lean) | why | rejected · what would change it |
+|---|---|---|---|
+| **S2-1** | scope = the **tracked** (Tank, Afv, SpArtillery) and **wheeled** (Car, WheeledUtility) kits. Weapon systems → **S2b `CE-3214`**, aircraft → **S2c `CE-3215`** | the ground vehicles share one shape (hull, turret, gun, running gear) and carry the R-263 states; weapon kits blend stowed/deployed, aircraft rotate rotors — each its own slice | one slice for all (too large to verify overnight) |
+| **S2-2** | the kit geometry is GENERATED into `VehicleBody.Tables.g.cs` by `VehicleBodyParityTests` (ui suite, `HROT_GEN_VEHICLE_BODY=1`), and the same rail compares the sim's posed boxes with ui's `KitPart.BodyTransform` for every catalog type of those families, at three turret poses | S1a's pattern (HL-1 as built): one source, checked | moving `ShapeKit` into `Fdp.Toolkits` (a large edit of ui's live code) |
+| **S2-3** | part ids by the generator's rule: role `Turret` → 1, `Gun` → 2; a `Dark` hull part low and to one side (track, wheel) → RunningGear L/R by its side; other hull parts → Hull 0; spokes, rotors and gear do not collide. A cylinder collides as its bounding box | the kits carry the roles already; a rule keeps the generated ids honest | hand-numbered parts per kit (drift) |
+| **S2-4** | **Engine = a region**, not a box: a round entering the kit's largest hull box in the third at the profile's `engine` end (`rear` tank; `front` AFV, howitzer, wheeled) is part Engine 5 | the kits draw no engine; the user's *"compartment"* is where it sits, not a shape | an invisible engine box (never entered first — the hull is in front of it) |
+| **S2-5** | the kit is chosen by the DIS-class profile's `kit` (Tank `1.1.*.1`, Afv `1.1.*.2`, SpArtillery `1.1.*.4`, WheeledUtility `1.1.*.3/6/7`, Car `1.1.*.81` — ui's `EntityClassTable` masks); a vehicle with no `CombatPlatformDef` has no body (HL-12: a profile never adds combat) | the sim cannot see ui's class table; the rail proves the choice agrees per catalog type | a hook from Hrot.Core (a silent default when unset) |
+| **S2-6** | size as ui's `Resolve` minus `SimVehicleDef` (which only ui reads): `Body.Geometry` (all three) → L/W from `VehicleParametersDto` + H from the Stride shape height or `Body.Geometry` → the kit's default; the entity's `VehicleParams` L/W win (ui's `SizeOf`) | the BDC builder writes `Body.Geometry` + `VehicleParametersDto` from `SimVehicleDef` — the rail checks every catalog type | reading `SimVehicleDef` (Hrot.Core) |
+| **S2-7** | vehicle zones (profiles): Hull ×1 · Turret ×1, Firepower at 160 · Gun ×0.2, Firepower at 32 · RunningGear ×0.3, Mobility at 32 · Engine ×0.8, Mobility at 96. Armour **inherited** (`inheritArmour`): the platform's on the face entered — HL-12 ② | no armour number moves; the turret's own face is the D-G lift | per-zone armour numbers now (no source data — a TKB override can state them) |
+| **S2-8** | the consequences are applied where the capability bits already are: `CombatLife.ApplyHitCapabilities` on the Health owner strips `CanMove` (Mobility) / `CanShoot` (Firepower), like the opt-in `MobilityKill`; destroyed stays Health ≤ 0 | one rule, one place (CE-3092); the bits replicate | a derived read in every dispatcher · a Catastrophic zone (no ammo geometry yet — ⏭ a TKB `Combat.BodyZones` can add one) |
+| **S2-9** | the cell walk's pad grows to `max(grid radius, PersonBody, VehicleBody.MaxBoundRadius)`; the vehicle's bound sphere covers every turret pose (part distance to the pivot + the pivot's distance) | no candidate is lost to a turret swung out past the collider circle | per-pose bounds (work per frame) |
+
+### 9a. S2 as built — `CE-3211` *(backend, `2026-10-16`)*
+
+Built as §9 draws it (`VehicleKit`, `VehicleKitPart`, `VehiclePart`, `VehicleShape`, `VehicleBody` in
+`Fdp.Toolkits/Physics/BodyParts/VehicleBody.cs`; the table `VehicleBody.Tables.g.cs`; `VehicleBodyParityTests` in ui's suite). Deviations:
+
+| as designed | as built | why |
+|---|---|---|
+| the solver asks `TurretParts.PoseOf` per candidate | the parent → main-turret map is built ONCE per tick before the parallel narrow phase; the loop only reads it | `PoseOf` walks a query per call, and the narrow phase is `Parallel.For` |
+| the face of a turret part "in its own frame" | `BodyBox` gains `FaceYaw` (the turret's azimuth); `BodyPartHit` judges the face after turning the normal back by it | one field, no second hit routine |
+| `VehicleShape.KitToBody` places the kit | two offsets, ported apart: `KitToBody` (ui's `kitToBody`: whenever a `Body.Geometry` exists) and `PivotShift` (`KitFromTkb`'s: only for a whole Body.Geometry box) | a faithful port; the parity rail checks both |
+| — | `/combat/shots` names a vehicle's parts (`VehiclePart.NameOf`) | the S1a person names were wrong for a hull |
+| — | the inherited armour shows in `/tkb/resolve` as the platform's KE number with source `inherited: Combat.PlatformDef.Armor…` | NaN is not JSON; the damage step still uses `ArmorModel` (the CE column for a shaped charge) |
+
+**Rails:** `RaycastSolverSystemTests` — `CE3211_ARound_MeetsTheTankPartItCrosses` (track, hull side, turret, the engine from the side and from
+behind, the hull's front; parts off ⇒ none) · `CE3211_ATurnedTurret_ShowsASideShotItsFront_AndARoundOverItMisses` (turret front, roof, the
+gun pointing at the shooter, the barrel across; the old band hit the round over the tank) · `CE3211_TheVehicleBoundSphere_RejectsARoundThatPassesBy`;
+`BodyPartDamageTests` — the tank profile and inherited armour, the turret / gun damage, the mobility and firepower kills; ui's
+`VehicleBodyParityTests` — the generated kits = `ShapeKits`, and for EVERY catalog type of the five families: the kit, the size and the
+posed boxes at three turret poses (and inside the bound sphere). ⏭ S2b `CE-3214` weapon systems, S2c `CE-3215` aircraft.
+
+## 10. S3 — fragments land on the parts that face the burst, `CE-3212` *(backend, designed `2026-10-16`, leans under the overnight mandate)*
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectSystem { <<existing, grows>> a man with a body: one damage event PER PART struck + the blast as a whole-body event }
+  class AreaEffect { <<existing, grows>> +FragmentHit(w, target, distance) per-hit damage and penetration ★ · Fragments() unchanged }
+  class FragmentSplit { <<NEW static, Physics.BodyParts>> +Shares(boxes, pose rotation, toward burst, Span~float~ perPart) · projected areas }
+  class PersonBody { <<S1a>> Boxes(pose) · PoseOf }
+  class BodyZones { <<S1b>> zone armour on the face toward the burst · multiplier }
+  class HitMarksWriter { <<S1b, grows>> fragment marks drawn by the parts' shares ★ }
+  class DamageAssessedEvent { <<S1b>> HasBodyPart · BodyPart }
+  AreaEffectSystem ..> FragmentSplit
+  FragmentSplit ..> PersonBody
+  AreaEffectSystem ..> BodyZones
+  AreaEffectSystem ..> AreaEffect
+  AreaEffectSystem --> DamageAssessedEvent : one per part struck
+  AreaEffectSystem ..> HitMarksWriter
+```
+*What the picture shows that prose hid: no new state and no new wire — the fragment law (§3k.1 of Building Interiors) still counts the hits;
+S3 only decides WHICH PARTS they land on and what each part's zone does to them, and reuses S1b's per-part event, so `PartDamage`, the
+wounds and the marks follow with no new code downstream.*
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem (SimHost)
+  participant FS as FragmentSplit
+  participant BZ as BodyZones
+  participant HA as HealthApplicationSystem (Health owner)
+  AE->>AE: AreaEffect.Fragments(w, Person, area, r, armour, exposure) — the expected hits (unchanged)
+  AE->>FS: Shares(PersonBody.Boxes(pose), toward the burst) — each part's projected area / the total
+  AE->>BZ: each part's zone: armour on the face toward the burst (helmet, vest), multiplier
+  AE->>AE: part damage = hits × share × per-hit × chance(zone armour) × multiplier ÷ mean multiplier × exposure
+  AE->>HA: DamageAssessedEvent per part struck (+ blast, whole body)
+  HA->>HA: Health − Σ · PartDamage per part ⇒ a leg wounded by a grenade slows him
+```
+
+| id | decision (lean) | why | rejected · what would change it |
+|---|---|---|---|
+| **S3-1** | the expected hits split over the parts by their **projected area toward the burst** (the pose's boxes: `4·(h_y h_z |d·x| + h_x h_z |d·y| + h_x h_y |d·z|)`) | a prone man shows the burst his head and shoulders; a standing one his whole side — the same boxes the rounds meet | a ray per fragment (the cost S3 was told to measure: thousands of rays per burst) · occlusion between his own parts (second order) |
+| **S3-2** | each part's hits meet its ZONE's armour on the face toward the burst (helmet, vest); this **replaces the 35 % plate coverage** for a man with a body | the vest covers exactly the torso's share, which is now computed, not assumed | keeping the 35 % on top (double-counted armour) |
+| **S3-3** | the zone multipliers are **normalised by their area-weighted mean**, so an unarmoured man's expected total is the calibrated §3k.1 value | the fragment law was calibrated against published radii as a WHOLE-body dose; S3 moves where it lands, it does not re-tune it | raw multipliers (a standing man's mean is below 1: every grenade would get weaker) |
+| **S3-4** | one `DamageAssessedEvent` per part struck (`HasBodyPart`), the blast as one whole-body event; the detonation log keeps the per-target totals | S1b's chain (`PartDamage`, wounds) then takes fragments with no new code | a new event type |
+| **S3-5** | fragment `HitMarks` are drawn by the parts' shares (HL-10's uniform draw is superseded) | the marks then sit where the fragments landed | — |
+| **S3-6** | a hull keeps its whole-body fragment law in S3 | a fragment that beats a hull's facing armour is rare; S2's per-part hull is for rounds | per-part hull fragments (⏭ if a measurement shows it matters) |
+
+### 10a. S3 as built — `CE-3212` *(backend, `2026-10-16`)*
+
+As §10 draws it: `FragmentSplit.Shares` (`Physics/BodyParts/FragmentSplit.cs`), `AreaEffect.FragmentHit` (the per-hit damage and penetration
+the law already used, exposed), `AreaEffectSystem.SplitOverParts` (a man with a person body — every typed or untyped person) and the marks
+drawn by the shares (`MarkFragments(…, shares)`). Notes:
+
+| | |
+|---|---|
+| the burst's direction | from the pose's bound-sphere centre (scaled by the collider height) to the burst, in the body's frame; ONE face for every part (the face toward the burst) |
+| the platform armour | an unstated or inherited zone face keeps the armour the whole-body law used; a person's own platform armour is already its Torso's (S1b) |
+| the 35 % plate coverage | no longer applies to a man with a body (S3-2); it remains for a hand-built world with no TKB and no person body — never in production, where every person resolves at least the engine's |
+| the cost | ten boxes' silhouettes (≈ 30 multiply-adds each) per man per burst, beside his three exposure traces; ⚠ estimated by operation count, not benchmarked |
+| calibration | the §3k.1 radii rails (`W6pp_…`) pass unchanged: an unarmoured man's total is the law's by construction (S3-3) |
+
+**Rails** (`AreaEffectSystemTests`, the feature's suite): `CE3212_AnUnarmouredMan_TakesTheLawsTotal_SpreadOverHisParts` (the total equals
+hits × per-hit × exposure, eight or more parts struck, the torso more than a forearm) · `CE3212_TheVest_StopsFragmentsOnTheTorso_TheLimbsAreOpen`
+(3.5 mm fragments from behind: the soldier's torso untouched, the civilian's struck, their thighs equal).
+

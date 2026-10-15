@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Motion
         {
             LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Amphibious => MotionDomain.Ground,
             LocomotionClass.Rotorcraft or LocomotionClass.FixedWing => MotionDomain.Air,
+            LocomotionClass.Rope or LocomotionClass.Parachute => MotionDomain.Air,   // ⭐ airborne insertion D-2 — moved by AirMotionSystem
             LocomotionClass.Surface => MotionDomain.Naval,
             _ => MotionDomain.None,
         };
@@ -52,9 +53,23 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ Air Ops slice 4 — true when <paramref name="e"/> moves in the AIR domain (its <see cref="Locomotion"/> class).</summary>
         public static bool InAir(EntityRepository view, Entity e) => DomainOf(Of(view, e)) == MotionDomain.Air;
 
-        /// <summary>The body's class: its <see cref="Locomotion"/>, else its <see cref="VehicleParams"/> preset, else Unknown.</summary>
+        /// <summary>⭐⭐ Airborne insertion D-4 (B-6) — an AIRCRAFT: air domain and not a man coming down a rope or under a canopy. A
+        /// missile's seeker and the "aircraft overhead" rules read THIS, so a Stinger never locks a parachutist (a rifle still shoots him).</summary>
+        public static bool IsAircraft(EntityRepository view, Entity e)
+        {
+            var c = Of(view, e);
+            return DomainOf(c) == MotionDomain.Air && c is not (LocomotionClass.Rope or LocomotionClass.Parachute);
+        }
+
+        /// <summary>The body's class: ⭐ airborne insertion D-1 — a <see cref="Descent"/> FIRST (it replicates, so every node agrees), then its
+        /// <see cref="Locomotion"/>, else its <see cref="VehicleParams"/> preset, else Unknown.</summary>
         public static LocomotionClass Of(EntityRepository view, Entity e)
         {
+            if (view.IsComponentTypeRegistered<Descent>() && view.HasComponent<Descent>(e))
+            {
+                ref readonly var d = ref view.GetComponentRO<Descent>(e);
+                if (d.Kind != DescentKind.None) return d.Class;
+            }
             if (view.IsComponentTypeRegistered<Locomotion>() && view.HasComponent<Locomotion>(e))
             {
                 var c = view.GetComponentRO<Locomotion>(e).Class;

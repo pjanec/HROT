@@ -393,5 +393,39 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.DoesNotContain(walker, results.Slice(0, count).ToArray().Select(r => r.entity));
             grid.Dispose();
         }
-    }
+    
+        /// <summary>
+        /// ⭐ <c>CE-2194</c> (behaviors' handoff; the perception twin of CE-2193) — a unit the perception grid cannot place is seen and heard by
+        /// nobody, so it is SAID, once: at (−150, 150) on the [0, 500)² grid it is warned about exactly once over 100 frames, MOVING (the
+        /// incremental path) or not; one at (150, 150) never; a terrain re-fit that covers it puts it in the grid with no new warning.
+        /// 🔴 Red-proof: before CE-2194 the drop was silent (<c>Warnings</c> stays 0).
+        /// </summary>
+        [Fact]
+        public void CE2194_AUnitOutsideThePerceptionGrid_IsWarnedAboutOnce_AndARefitThatCoversItPlacesIt()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            var grid  = CreateTestGrid();                                         // [0,500)²
+            Fdp.Toolkit.Terrain.TerrainWorld? terrain = null;
+            var sys = new LocalGridBuilderSystem(grid, () => terrain);
+            var outside = world.CreateEntity();
+            world.AddComponent(outside, new SimTransform { Position = new Vector3(-150f, 150f, 0f) });
+            var inside = world.CreateEntity();
+            world.AddComponent(inside, new SimTransform { Position = new Vector3(150f, 150f, 0f) });
+
+            for (int i = 0; i < 100; i++)
+            {
+                world.GetComponentRW<SimTransform>(outside).Position = new Vector3(-150f + i * 0.1f, 150f, 0f);   // it drives on
+                sys.Execute(world, 0f);
+            }
+            Assert.Equal(1, sys.Warnings);
+
+            terrain = new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200f, 0f), BoundsMax = new Vector2(300f, 500f) };
+            sys.Execute(world, 0f);
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[10];
+            Assert.Equal(1, grid.QueryNeighbors(new Vector2(-140.1f, 150f), 1f, hits));
+            Assert.Equal(outside, hits[0].entity);
+            Assert.Equal(1, sys.Warnings);
+            grid.Dispose();
+        }
+}
 }

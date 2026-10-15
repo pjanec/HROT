@@ -87,6 +87,19 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var health = ref repo.GetComponentRW<Health>(targetEntity);
                 health.Current = MathF.Max(0f, health.Current - evt.TotalDamage);
 
+                // ⭐⭐ CE-3210 (hit location HL-6) — the part it landed on keeps a damage level (its share of the body's health × 255),
+                //   beside Health, written by the same owner: a man's wounds (S2: a vehicle's compartments). Added on the first part hit.
+                if (evt.HasBodyPart != 0 && repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.PartDamage>())
+                {
+                    if (!repo.HasComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity))
+                        repo.AddComponent(targetEntity, new Fdp.Toolkit.Physics.BodyParts.PartDamage   // ⭐ CE-3211 — the body's own plan
+                        {
+                            Plan = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity)?.Plan ?? Fdp.Toolkit.Physics.BodyParts.BodyPlan.Person,
+                        });
+                    ref var parts = ref repo.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity);
+                    parts.Add(evt.BodyPart, Fdp.Toolkit.Physics.BodyParts.PartDamage.LevelFor(evt.TotalDamage, health.Max));
+                }
+
                 // At zero HP: strip mobility and shoot capabilities. ⛔ The entity is NOT destroyed —
                 //   a dead body stays in the world. 🔒 User ruling `2026-09-13`: *"dead entity should not
                 //   vanish, it should stay dead in the world, every entity (no magic dead body

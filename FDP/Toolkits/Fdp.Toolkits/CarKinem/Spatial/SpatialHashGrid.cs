@@ -221,6 +221,44 @@ namespace CarKinem.Spatial
         /// Writes results to output array, returns count.
         /// Each result carries the full <see cref="Entity"/> handle (Index + Generation).
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2, tier ①) — every entity whose grid point lies
+        /// in a cell that comes within <paramref name="pad"/> of the segment <paramref name="a"/>→<paramref name="b"/>: the cells ALONG the
+        /// segment, not a disc around its middle. <paramref name="pad"/> is the largest body radius the caller may meet (an entity's point is
+        /// its body's centre). Returns how many were written; <paramref name="overflow"/> is true when <paramref name="output"/> was too small.
+        /// </summary>
+        public int QuerySegment(Vector2 a, Vector2 b, float pad, Span<(Entity entity, Vector2 pos)> output, out bool overflow)
+        {
+            overflow = false;
+            float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
+            int count = 0;
+            float reach = pad + CellSize * 0.70710678f;   // a cell is in when its centre is within pad + half its diagonal
+            float reach2 = reach * reach;
+            int minCellX = Math.Max(0, (int)MathF.Floor((MathF.Min(a.X, b.X) - pad - OriginX) / CellSize));
+            int maxCellX = Math.Min(Width - 1, (int)MathF.Floor((MathF.Max(a.X, b.X) + pad - OriginX) / CellSize));
+            int minCellY = Math.Max(0, (int)MathF.Floor((MathF.Min(a.Y, b.Y) - pad - OriginY) / CellSize));
+            int maxCellY = Math.Min(Height - 1, (int)MathF.Floor((MathF.Max(a.Y, b.Y) + pad - OriginY) / CellSize));
+            var ab = b - a;
+            float len2 = ab.LengthSquared();
+            for (int cy = minCellY; cy <= maxCellY; cy++)
+            {
+                for (int cx = minCellX; cx <= maxCellX; cx++)
+                {
+                    var centre = new Vector2(OriginX + (cx + 0.5f) * CellSize, OriginY + (cy + 0.5f) * CellSize);
+                    float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(centre - a, ab) / len2, 0f, 1f) : 0f;
+                    if (Vector2.DistanceSquared(a + ab * t, centre) > reach2) continue;
+                    int head = GridHead[cy * Width + cx];
+                    while (head >= 0)
+                    {
+                        if (count >= output.Length) { overflow = true; return count; }
+                        output[count++] = (GridValues[head], Positions[head]);
+                        head = GridNext[head];
+                    }
+                }
+            }
+            return count;
+        }
+
         public int QueryNeighbors(Vector2 position, float radius, 
             Span<(Entity entity, Vector2 pos)> output)
         {

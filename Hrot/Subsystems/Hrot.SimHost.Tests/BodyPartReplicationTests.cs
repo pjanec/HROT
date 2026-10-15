@@ -1,0 +1,98 @@
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Physics.BodyParts;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
+using Hrot.Map.Common.Replication.Egress;
+using Hrot.Map.Common.Replication.Ingress;
+using Xunit;
+
+namespace Hrot.SimHost.Tests
+{
+    /// <summary>
+    /// ⭐ <c>CE-3210</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6, HL-8) — a body's per-part damage (written by
+    /// the Health owner) and its hit marks (written by the muscle) reach every other node whole: the egress wire form applied by the
+    /// ingress on a second world gives back the same component.
+    /// </summary>
+    public sealed class BodyPartReplicationTests
+    {
+        private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(long netId)
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<NetworkIdentity>();
+            w.RegisterComponent<PartDamage>();
+            w.RegisterComponent<HitMarks>();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new NetworkIdentity { Value = netId });
+            var map = new NetworkEntityMap();
+            map.Register(netId, unit);
+            return (w, unit, map);
+        }
+
+        [Fact]
+        public unsafe void CE3210_PartDamage_TheOwnersLevels_ReachTheOtherNode()
+        {
+            var damage = new PartDamage { Plan = BodyPlan.Person };
+            damage.Add(PersonPart.Head, 200);
+            damage.Add(PersonPart.ShinL, 64);
+            damage.Add(15, 7);
+            var sample = EntityPartDamageEgressTranslator.ToSample(41L, damage);
+
+            var (node, unit, map) = Node(41L);
+            using (node)
+            {
+                var ingress = new EntityPartDamageIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<PartDamage>(unit);
+                Assert.Equal(BodyPlan.Person, got.Plan);
+                for (byte p = 0; p < PartDamage.MaxParts; p++) Assert.Equal(damage.LevelOf(p), got.LevelOf(p));
+            }
+        }
+
+        [Fact]
+        public void CE3210_HitMarks_TheRingCrosses_InSequence_EvenAfterItWrapped()
+        {
+            var marks = new HitMarks();
+            for (int i = 0; i < HitMarks.Capacity + 5; i++)
+                marks.Add((byte)(i % 10), new Vector3(i / 100f, -0.25f, 0.5f), (byte)(i % 4), i % 2 == 0 ? HitMarkKind.Bullet : HitMarkKind.Fragment);
+            var sample = EntityHitMarksEgressTranslator.ToSample(42L, marks);
+            Assert.Equal(HitMarks.Capacity, sample.Marks.Count);
+            Assert.Equal(5, sample.Marks[0].Seq);   // the oldest still in the ring
+
+            var (node, unit, map) = Node(42L);
+            using (node)
+            {
+                var ingress = new EntityHitMarksIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<HitMarks>(unit);
+                Assert.Equal(marks.NextSeq, got.NextSeq);
+                for (int seq = 0; seq < marks.NextSeq; seq++)
+                {
+                    bool had = marks.TryGet(seq, out var p0, out var l0, out var f0, out var k0);
+                    Assert.Equal(had, got.TryGet(seq, out var p1, out var l1, out var f1, out var k1));
+                    if (!had) continue;
+                    Assert.Equal((p0, f0, k0), (p1, f1, k1));
+                    Assert.Equal(l0, l1);
+                }
+            }
+        }
+
+        [Fact]
+        public void CE3210_AnUnknownBody_IsDropped()
+        {
+            var (node, _, map) = Node(43L);
+            using (node)
+            {
+                var ingress = new EntityHitMarksIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                var sample = EntityHitMarksEgressTranslator.ToSample(999L, new HitMarks());
+                ingress.Apply(in sample, cmd, node);
+                Assert.Equal(1, ingress.DroppedSampleCount);
+            }
+        }
+    }
+}

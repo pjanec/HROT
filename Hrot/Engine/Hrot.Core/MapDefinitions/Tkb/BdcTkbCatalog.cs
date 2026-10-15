@@ -200,6 +200,37 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = country, Category = 1 });
         }
 
+        /// <summary>
+        /// ⭐ Airborne insertion B-5 (§4) — a JUMPER: the rifleman (body, M4 as mount 0, sensor, injury, a person carrier, a brain) with a
+        /// <c>Gen.Parachute</c> of <paramref name="canopy"/> — round ⇒ a static-line jump, ram-air ⇒ a free fall (<c>Descents.Start</c>). His
+        /// DIS type is the rifleman's (3.1.225.1): SISO-REF-010 v37 enumerates US lifeforms by the WEAPON carried, not by a role.
+        /// </summary>
+        private static void Jumper(NedTkbBuilder builder, long type, string name, Fdp.Toolkit.Motion.CanopyKind canopy)
+        {
+            builder
+                .DefineVehicle(type, name)
+                .WithVisual(type, v => { v.IconName = "rifleman"; v.SymbolCode = "SFGPUCI--------"; v.ModelPath = "models/soldier.obj"; v.ColorHex = "#556B2F"; v.Scale = 0.6f; })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
+                    p.MaxSpeed = 2.5f; p.Acceleration = 1.0f; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 5;
+                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+                        DispersionMils = RifleDispersionMils, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball,
+                        TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5, Category = WeaponCategory.SmallArms });
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
+                .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
+                .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy })
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
+        }
+
         /// <summary>⭐ WS-4 — a pintle / tripod turret of a weapon system: all round, its pivot <see cref="WeaponPivotZ"/> above its base.</summary>
         private static TurretDto Pintle(float elevationMinDeg, float elevationMaxDeg, float traverseRate, float elevationRate, float trunnionX)
             => new() { PivotZ = WeaponPivotZ, TrunnionX = trunnionX, TraverseMinDeg = -180f, TraverseMaxDeg = 180f,
@@ -646,6 +677,10 @@ namespace Hrot.Map.Definitions.Tkb
             //   (W-I SeatPresets fills it once on the creating node) — the first soldier preset with a weapon on his back
             ManpadsGunner(builder, TkbEntityTypes.Infantry_StingerGunner, "Rifleman (Stinger)", TkbEntityTypes.WeaponSystem_Stinger, UnitedStates);
             ManpadsGunner(builder, TkbEntityTypes.Infantry_IglaGunner, "Rifleman (Igla)", TkbEntityTypes.WeaponSystem_Igla, Russia, faction: 2);
+            // ⭐ Airborne insertion B-5 (DESIGN_Airborne_Insertion §4) — the jumpers: a rifleman with a parachute. Every figure is the canopy's
+            //   default (ParachuteModel.Defaults, design §2: T-11 class round, MC-4 class ram-air) — nothing invented per type.
+            Jumper(builder, TkbEntityTypes.Infantry_Paratrooper, "Paratrooper", Fdp.Toolkit.Motion.CanopyKind.Round);
+            Jumper(builder, TkbEntityTypes.Infantry_SfOperator, "SF operator", Fdp.Toolkit.Motion.CanopyKind.RamAir);
             
             // Tank Platoon (Composite)
             builder
@@ -1052,7 +1087,13 @@ namespace Hrot.Map.Definitions.Tkb
                     TraverseMinDeg = side > 0 ? 20f : -160f, TraverseMaxDeg = side > 0 ? 160f : -20f,
                 });
             }
-            return dto;
+            // ⭐ Airborne insertion B-5 (DESIGN_Airborne_Insertion §2, §4) — a fast rope over each cabin door (index 0 left / +y, 1 right),
+            //   hung from the rope arm's end clear of the door gun (|Y| 1.6 > its 1.35) near the cabin roof (+0.4 over the CG); 60 ft
+            //   ropes (18.3 m — the short end of the UH-60's 60–90 ft). ⚠ The arm's place is estimated from the drawn fuselage, not a
+            //   published figure.
+            dto.RopeAnchors.Add(new Fdp.Toolkit.Tkb.Domain.RopeAnchorDto { X = 1.5f, Y = 1.6f, Z = 0.4f });
+            dto.RopeAnchors.Add(new Fdp.Toolkit.Tkb.Domain.RopeAnchorDto { X = 1.5f, Y = -1.6f, Z = 0.4f });
+            return dto with { RopeLengthM = 18.3f };
         }
 
         private static void DefineAircraft(NedTkbBuilder builder, long type, string name, string symbol, string colour,
