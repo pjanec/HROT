@@ -1599,11 +1599,13 @@ def run_ifv_standoff(c, timeout):
         if time.time() >= next_sample:   # what the stand-off IFV does, every 2 s: where, how fast, which behaviour, what it knows, its gun's reason
             next_sample = time.time() + 2.0
             st = data(call("GET", f"/entities/{far}/state")) or {}
-            mem = (data(call("GET", f"/entities/{far}/memory")) or {}).get("count")
+            md = data(call("GET", f"/entities/{far}/memory")) or {}
+            mem = [(x.get("networkId"), round(x.get("freshness") or 0, 2), x.get("modalities")) for x in md.get("slots") or []]
+            spd = [round((data(call("GET", f"/entities/{m}/state")) or {}).get("speed") or 0, 1) for m in (a1, a2)]
             ws = ((data(call("GET", f"/entities/{far}/weapons")) or {}).get("status") or {})
             dists = [round(((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5) for pm in (position(a1), position(a2)) if pf and pm]
             timeline.append((tuple(round(v) for v in pf[:2]) if pf else None, round(st.get("speed") or 0, 1), (st.get("behavior") or {}).get("name"),
-                             mem, ws.get("reason"), ws.get("target"), dists))
+                             mem, ws.get("reason"), ws.get("target"), dists, spd))
         for m in (a1, a2):
             pm = position(m)
             if pf and pm and m not in died_at:
