@@ -35,7 +35,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[-3000,1000],\"TargetKind\":4}",
+    "Params": "{\"Location\":[-3000,1000],\"TargetKind\":\"Fortification\"}",
     "Origin": "Superior"
    }
   },
@@ -159,7 +159,7 @@
    },
    "Behavior": {
     "Name": "AirPlatformStrike",
-    "Params": "{\"Location\":[3000,1000],\"TargetKind\":2}",
+    "Params": "{\"Location\":[3000,1000],\"TargetKind\":\"Vehicles\"}",
     "Origin": "Superior"
    }
   },
