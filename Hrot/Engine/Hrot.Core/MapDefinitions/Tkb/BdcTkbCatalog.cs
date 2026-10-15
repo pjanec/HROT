@@ -64,7 +64,10 @@ namespace Hrot.Map.Definitions.Tkb
                     Seats =
                     {
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver },
-                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = gunner },
+                        // ⭐ CE-1108 — kneeling in the bed behind his pintle (the place is his feet; read only by the 3-D drawing): without
+                        //   a place he was drawn at the pickup's reference point, inside the body
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = gunner,
+                                      X = -2.0f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel },
                         // the bed pintle: the weapon's own pivot ends 1.9 m up, 1.3 m behind the reference point (the M9 pintle's place)
                         new SeatDto
                         {
@@ -97,7 +100,8 @@ namespace Hrot.Map.Definitions.Tkb
             dto.Seats.Add(new SeatDto
             {
                 Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, StartWith = TkbEntityTypes.Infantry_Rifleman, Exposed = true,
-                X = -0.4f, Z = 1.2f,
+                // ⭐ CE-1108 — STANDING in the hatch on the rear floor (the place is his feet): seated at 1.2 m only his head cleared the roof
+                X = -0.4f, Z = 0.7f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Stand,
             });
             dto.Seats.Add(new SeatDto
             {

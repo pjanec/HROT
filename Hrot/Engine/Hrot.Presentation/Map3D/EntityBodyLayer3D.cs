@@ -642,11 +642,24 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     internal void RememberLaid(Entity gun, float elevation, double at) => _laid[gun] = (elevation, at);
 
     /// <summary>
-    /// ⭐ CE-1090 (N-4) — does <paramref name="e"/> hold a launcher on his shoulder now: he fired a launcher mount of his own, or the
-    /// launcher he carries fired, within <see cref="WeaponKits.ShoulderSeconds"/>.
+    /// ⭐ CE-1090 (N-4) — does <paramref name="e"/> hold a launcher on his shoulder now: ⭐ CE-1107 — the weapon he has SELECTED is a
+    /// launcher (the replicated <c>WeaponPosture.ActiveMount</c>, backend P4 — before his first shot, on every node); or he fired a
+    /// launcher mount of his own, or the launcher he carries fired, within <see cref="WeaponKits.ShoulderSeconds"/>. The caller draws it
+    /// only while he aims.
     /// </summary>
-    private static bool Shouldering(EntityRepository world, Entity e, in FigureCarriage carriage, ITkbDatabase? tkb, double now)
+    internal static bool Shouldering(EntityRepository world, Entity e, in FigureCarriage carriage, ITkbDatabase? tkb, double now)
     {
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()
+            && world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>(e))
+        {
+            int active = world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponPosture>(e).ActiveMount;
+            if (Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active))
+            {
+                var held = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, e, active);
+                if (!held.IsNull && WeaponKits.TypeOf(world, tkb, held).Kind is WeaponKind.Launcher or WeaponKind.Atgm) return true;
+            }
+            else if (WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, active))) return true;
+        }
         if (Hrot.UI.Common.Effects.RecentShots.Of(world) is not { } shots) return false;
         if (shots.FiredWithin(e, now, WeaponKits.ShoulderSeconds, out int mount)
             && WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, mount))) return true;

@@ -263,6 +263,10 @@ at x −0.4, z 1.2); seat 4 Station (Pintle, OperatedBy 3, NeedsGunner, M2, x �
 `Pickup(...)` calls. Rails: `NedTkbBuilderCombatTests.P1_TheHmmwv_…`, `M9_TheTechnicals_…` (+108, 109),
 `CreateEntityRequestSystemTests.P1_APlacedArmedVariant_…` (102 / 108 / 109: weapon + gunner into the named seats, boarded, controlled,
 may fire; a load adds neither), the type-picker golden (+108, 109).
+⚠ **`2026-10-15` (ui, CE-1108 — a cross-lane data edit):** the gunner seats got a drawable place — the HMMWV's (seat 3) now STANDS in the
+hatch at x −0.4, z 0.7 (feet); every `Pickup(...)` gunner (seat 1: 104 / 105 / 108 / 109) KNEELS in the bed at x −2.0, z 0.85. Without a
+place the technicals' gunner was drawn inside the body, and at z 1.2 the HMMWV's showed only his head. Read only by the 3-D drawing; the
+stations, indices, roles and presets are unchanged ([DESIGN_Map_3D_Mode §6n](../../DESIGN_Map_3D_Mode.md), `Map3DTests.CE1108_*`).
 
 ## 6. Rules
 

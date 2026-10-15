@@ -818,6 +818,58 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐ CE-1107 (§6n N-4, backend P4) — the launcher is on his shoulder from the moment he SELECTS it, before any shot: the replicated
+    /// <c>WeaponPosture.ActiveMount</c> names the Javelin team's launcher (mount 0) ⇒ shouldered; his rifle (mount 1) ⇒ not; a rifleman's
+    /// rifle ⇒ not; a rifleman carrying a Javelin weapon system with it selected (a controlled index, 32 + k) ⇒ shouldered.
+    /// </summary>
+    [Fact]
+    public void CE1107_TheSelectedLauncherIsShouldered_BeforeTheFirstShot()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            bool Shoulders(Entity man, int mount)
+            {
+                world.SetComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = WeaponPostureKind.Aimed, ActiveMount = (byte)mount });
+                return EntityBodyLayer3D.Shouldering(world, man, Carriage.Of(world, man, db), db, now: 5.0);
+            }
+            var javelin = Man(world, Vector3.Zero, type: UrbanCombatTkbCatalog.TkbJavelinTeam);
+            world.AddComponent(javelin, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            Assert.True(Shoulders(javelin, 0), "his launcher selected");
+            Assert.False(Shoulders(javelin, 1), "his rifle selected");
+            var rifleman = Man(world, new Vector3(5f, 0f, 0f));
+            world.AddComponent(rifleman, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            Assert.False(Shoulders(rifleman, 0));
+
+            // a rifleman carrying a Javelin weapon system (fires carried): it is his first controlled weapon
+            var bearer = Man(world, new Vector3(10f, 0f, 0f));
+            world.AddComponent(bearer, new Fdp.Toolkit.Combat.Components.WeaponPosture());
+            var tube = world.CreateEntity();
+            world.AddComponent(tube, new SimTransform { Position = new Vector3(10f, 0f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_Javelin });
+            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, FireWhileCarried = 1 });
+            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed });
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(world, bearer, ((TkbDatabase)db).GetByType(TkbEntityTypes.Infantry_Rifleman)!);   // his seats and stations, as the sim gives them
+            var stations = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.CarrierStations>(bearer);
+            int carry = Enumerable.Range(0, Fdp.Toolkit.Behavior.Components.PassengerBuffer.Capacity).First(i => stations.IsStation(i));
+            var list = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(bearer);
+            list.Passengers[carry] = tube;
+            list.Count = 1;
+            world.SetComponent(bearer, list);
+            world.AddComponent(tube, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = bearer, Exposed = 1, Seat = (byte)carry });
+            Assert.Equal(tube, Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, bearer, Fdp.Toolkit.Combat.WeaponSystems.ControlledMountBase));
+            Assert.True(Shoulders(bearer, Fdp.Toolkit.Combat.WeaponSystems.ControlledMountBase), "the carried launcher selected");
+            Assert.False(Shoulders(bearer, 0), "his own rifle selected");
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1091 (§6n N-6) — the smoke trail follows the REMEMBERED path (it bends as the round did — a top-attack climb and dive), not a
     /// straight line back to the muzzle; a shell or a bomb draws only a faint streak of its last two seconds; a bullet nothing.
     /// </summary>
@@ -1340,6 +1392,31 @@ public sealed class Map3DTests
             Assert.InRange(gun.X - man.X, -0.3f, 0.3f);
             Assert.InRange(gun.Z + 0.3f - man.Z, 0.3f, 0.6f);   // the pintle pivot 0.3 m above the station: at his chest
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1108 — the gunner of every armed preset has a PLACE at his gun: the technicals' (104 / 105 / 108 / 109) kneels in the bed
+    /// behind the pintle (without a place he was drawn at the pickup's reference point, inside the body); the HMMWV's (102) stands in the
+    /// roof hatch (seated at 1.2 m only his head cleared the roof). The place is his feet; the gun's pivot is at his chest height.
+    /// </summary>
+    [Theory]
+    [InlineData(TkbEntityTypes.Truck_HMMWV, Fdp.Toolkit.Tkb.Domain.SeatPose.Stand)]
+    [InlineData(TkbEntityTypes.Technical_Hmg, Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel)]
+    [InlineData(TkbEntityTypes.Technical_Atgm, Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel)]
+    [InlineData(TkbEntityTypes.Technical_Dshk, Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel)]
+    [InlineData(TkbEntityTypes.Technical_Minigun, Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel)]
+    public void CE1108_AnArmedPresetsGunner_StandsOrKneelsAtHisGun(long type, Fdp.Toolkit.Tkb.Domain.SeatPose pose)
+    {
+        var db = BuiltIn();
+        var seats = db.GetByType(type)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!.Seats;
+        var station = seats.Single(s => s.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
+        var gunner = seats[station.OperatedBy];
+        Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Gunner, gunner.Role);
+        Assert.True(gunner.HasPlace, "a place, or he is drawn inside the body");
+        Assert.Equal(pose, gunner.Pose);
+        Assert.InRange(station.X - gunner.X, 0f, 0.8f);   // at or just behind his gun
+        var pivot = db.GetByType(station.StartWith)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.TurretSuiteDto>()!.Turrets[0].PivotZ;
+        Assert.InRange(station.Z + pivot - gunner.Z, 0.9f, 1.7f);   // from his feet to the gun: chest height kneeling or standing
     }
 
     /// <summary>

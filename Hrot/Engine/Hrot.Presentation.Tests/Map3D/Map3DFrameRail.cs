@@ -1644,6 +1644,87 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1102 / CE-1107 (docs/DESIGN_Map_3D_Mode.md §6n) — backend's weapon PRESETS drawn: the HMMWV (102) with its roof-ring M2 and
+    /// gunner, the DShK technical (108) and the minigun technical (109), each crewed from its own catalogue seats as the sim spawns them
+    /// (a seat's <c>StartWith</c>: a weapon at its station's place, a man embarked in his seat). Screenshot <c>presets-1.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1102_V_TheArmedPresets()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        int crew = 0, weapons = 0;
+        void Preset(long type, float dx)
+        {
+            var host = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y;
+            world.AddComponent(host, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing east
+            world.AddComponent(host, new TkbIdentity { TkbType = type });
+            var at = world.GetComponentRO<SimTransform>(host).Position;
+            var seats = tkb.GetByType(type)!.GetDescriptor<CarrierDefDto>()!.Seats;
+            for (int s = 0; s < seats.Count; s++)
+            {
+                if (seats[s].StartWith == 0) continue;
+                var e = world.CreateEntity();
+                world.AddComponent(e, new TkbIdentity { TkbType = seats[s].StartWith });
+                world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = host, Exposed = (byte)(seats[s].Exposed != false ? 1 : 0), Seat = (byte)s });
+                if (seats[s].Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station)
+                {
+                    world.AddComponent(e, new SimTransform { Position = at + new Vector3(seats[s].X, seats[s].Y, seats[s].Z), Rotation = Quaternion.Identity });
+                    world.AddComponent(e, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+                    world.AddComponent(e, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
+                    weapons++;
+                }
+                else
+                {
+                    world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });   // a rider at the host's reference
+                    world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+                    if (seats[s].Exposed != false) crew++;   // an enclosed rider is not drawn
+                }
+            }
+        }
+        Preset(TkbEntityTypes.Truck_HMMWV, -7f);
+        Preset(TkbEntityTypes.Technical_Dshk, 0f);
+        Preset(TkbEntityTypes.Technical_Minigun, 7f);
+        Assert.Equal(3, weapons);   // an M2, a DShK, an M134 — each in its station
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.5f), 17f, MathF.PI * 0.62f, -0.30f);   // from the south-east, above
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "presets-1.png"));
+        Assert.Equal(3 + weapons + crew, bodies.BodiesDrawn);
+    }
+
+    /// <summary>
     /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t) — the (V) acceptance for a team carry: two medics carrying a wounded soldier on a stretcher,
     /// and a mortar team carrying a 120 mm mortar between them, all facing east. Side-on, then from above. Screenshots <c>team-*.png</c>.
     /// </summary>
