@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and the rest of 6 (GunRun, PopUp, DoorGunOrbit, Dive, AirPlatformAttack, ua-air-attack) remain
+build-state: BUILDING — 🔒 user, 2026-10-14: A1–A9 "Approved" (with the laser out of slice 1), B1–B11 "Approved" (R-2015). Backend slices 1, 2, 4, the backend half of 6 and 6a's F1–F4 (§7a) BUILT 2026-10-14 (as-built §5a, §5b, §6a, §6b, §8a); behaviors: slice 3's first half (SquadEmbark, LoadCasualty) and slice 5's order set (Strike, AirPlatformMove) BUILT (§9a), slice 5's LevelBomb strike (§9c) and slice 6's RocketRun / RunningFire (§9d, 2026-10-15) BUILT; the rest of 3, the ui half of 1, and slice 6c's AirPlatformAttack + GunRun + the lead (§9e, 2026-10-15) BUILT; PopUp, DoorGunOrbit, Dive, the battle position (W4) and ua-air-attack remain
 current-answer: §2 the picture (modules), §3 classes, §4 sequences, §5 the aircraft route (as-built §5a slice 1, §5b slice 2), §6a the plane as built, §6b the pilots as built, §8a the bomb as built, §6 flight models, §7 orders and the one attack behaviour, §7b weapon choice (B12–B14 and W1–W4 approved), §7c what can hit an aircraft (measured; AT1–AT4 approved, with backend), §8 the bomb, §9 the air assault and the rescue round trip (as-built §9a), the attack profiles as built (§9c LevelBomb, §9d RocketRun / RunningFire), §10 decisions, §11 slices and rails — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
@@ -789,6 +789,89 @@ channel. A helicopter never reaches the point; a plane does, and a pass with not
 | a plane's rockets stop at 800 m (`DefaultPlaneBreakM`) and it flies through to the run-out point 4 km beyond (as LevelBomb) | the plane pulls out over the point |
 | rails: `AirAttackNodesTests.S6_ARunningFire_RipplesTheRocketsThenTheGun_AndBreaksOffShort` (8 rockets in [400, 2 500] m, then 30 rounds in [400, 900] m, the rockets first, fired at 60 m, never nearer than the break, Success at the break-away) · `S6_ARocketRun_RipplesInsideTheWindow_AndFliesThrough` (8 rockets in [800, 2 500] m, fired at 150 m, overflies, Success) · `B4_TheProfile_IsPickedFromTheAircraftAndItsWeapons` (+ the helicopter, the rocket plane, the gun plane, a given profile with no weapon) — the helicopter's pod is a mount child, as `CombatTkbTranslator` spawns it | red-proved by 5 mutants: no helicopter break, the rocket window at the pod's 4 km range, the gun never started after the rockets, no profile for a rotorcraft, the rocket run flown at the bomb run's 300 m |
 | ⏸ not built: `AirPlatformAttack` (Attack on an entity) — now unblocked: a helicopter has a profile · GunRun · PopUp · DoorGunOrbit · Dive · the `ua-air-attack` demo (slice 6b) | — |
+
+### 9e. Slice 6c (behaviors) — `AirPlatformAttack` on an entity, GunRun, the lead, the weapon choice — BUILT `2026-10-15`
+
+Builds B12–B14 (R-2020), W1 and W3 (§7b), B16's helper (§7c AT2). ⏸ Not here: W2's "enough, not most" waits for `AmmoChoice.Sufficient`
+(CE-2186, backend) — until then the order below (gun, rockets, bomb) is the cheapest-first stand-in; W4's battle position waits for the
+threat programme (CE-2179).
+
+```mermaid
+classDiagram
+  direction LR
+  class AttackOrder { <<existing>> Target (EntityRef, required) }
+  class StrikeOrder { <<existing, grows>> Location · Target · … · +TargetKind ★ }
+  class StrikeTargetKind { <<★ enum, Orders>> Unspecified · Personnel · Vehicles · Building · Fortification · Bridge · Runway }
+  class AirPlatformAttackBehavior { <<★ library, AirPlatform>> Resolve(AttackOrder) ⇒ AirAttackParams with Target }
+  class AirPlatformStrikeBehavior { <<existing, grows>> Resolve(StrikeOrder) ⇒ +Kind, +DangerClose }
+  class AirAttackParams { <<existing, grows>> Point · Profile · … · +Target ★ · +Kind ★ · +DangerClose ★ }
+  class AirAttackProfiles { <<existing, grows>> Pick(world, aircraft, out mount, out gun, attack: entity or point, kind) ; +GunRun ★ }
+  class AirAttackNodes { <<existing, grows>> Run: aim point = led target · passes until dead (entity) · W3 per weapon }
+  class TargetLead { <<★ static, Fdp.Toolkits Combat>> +Point(shooter, shooterV, roundSpeed, target, targetV) Vector3 }
+  class ReplicatedMotion { <<existing>> Of(world, e, out p, out v) }
+  class BombBallistics { <<existing>> Impact(p, v, ground) (point, seconds) }
+  class HiddenTargetThrow { <<existing, grows>> FriendlyInBurst(world, unit, point, r, +neutralsToo) }
+  class FireAtPointNodes { <<existing>> FireAtPoint ; the running action's Point is re-written in place (the executor reads it each tick) }
+  AttackOrder ..> AirPlatformAttackBehavior
+  StrikeOrder ..> AirPlatformStrikeBehavior
+  StrikeOrder ..> StrikeTargetKind
+  AirPlatformAttackBehavior ..> AirAttackParams
+  AirPlatformStrikeBehavior ..> AirAttackParams
+  AirAttackNodes ..> AirAttackProfiles
+  AirAttackNodes ..> TargetLead : guns, rockets
+  AirAttackNodes ..> BombBallistics : a bomb's fall time
+  AirAttackNodes ..> ReplicatedMotion : self and target
+  AirAttackNodes ..> HiddenTargetThrow : W3
+  AirAttackNodes ..> FireAtPointNodes
+```
+
+*What the picture shows that prose hid: nothing new fires — an entity attack is the same `AirAttackNodes.Run` as a strike, with a TARGET
+whose led position replaces the fixed point, and the one new toolkit piece is a pure function the aim path (CE-2183) will share.*
+
+```mermaid
+sequenceDiagram
+  participant N as AirAttackNodes.Run (CGF brain)
+  participant P as AirAttackProfiles.Pick
+  participant C as HiddenTargetThrow.FriendlyInBurst
+  participant L as TargetLead / BombBallistics
+  participant F as FireAtPoint (weapon channel)
+  N->>P: aircraft, entity or point, kind
+  P-->>N: profile + mounts (entity: gun, rockets, bomb last · heavy kind: bomb, rockets, never the gun)
+  loop each pass
+    N->>C: friend or neutral within the weapon's injury radius of the aim? (skipped if DangerClose)
+    C-->>N: yes ⇒ that weapon is out · none left ⇒ Failure, logged
+    loop each frame of the run-in
+      N->>L: self and target from ReplicatedMotion ⇒ the led aim point
+      N->>F: start (in the window) or re-write the running action's point
+    end
+    N->>N: target dead ⇒ Success · out of the chosen ammunition ⇒ Failure · else come round (3 passes)
+  end
+```
+
+*What the picture shows that prose hid: the collateral test runs at the START of every pass (who is near changes), the lead runs every
+frame, and the decision to come round belongs to the attack, not the order.*
+
+| rule | why |
+|---|---|
+| **Pick — an entity (Attack, B12)**: a plane: gun ⇒ **GunRun**, else rockets ⇒ RocketRun, else bomb ⇒ LevelBomb; a helicopter: RunningFire (rockets, then the gun) | B12: direct fire first, the bomb only if nothing else is aboard |
+| **Pick — a point (Strike)**: `Building · Fortification · Bridge · Runway` ⇒ bomb, else rockets, never the gun; any other kind ⇒ bomb, rockets, gun | W1: the kind picks the weapon class |
+| **W3**: a weapon is out when `FriendlyInBurst(…, neutralsToo: true)` within its round's `BlastInjuryRadiusM` (the warhead library; the largest over the mount's loadout) of the aim point, unless `DangerClose`; checked as each pass starts; the next weapon in the order is tried | W3; one friend test (`HiddenTargetThrow`), widened, not a second one |
+| **the lead (B13)**: guns and rockets aim at `TargetLead.Point` — the target's position + (its velocity − the aircraft's) × t, t solved for the round's speed (the missile's, else the mount's muzzle velocity); a bomb aims at the target + its velocity × the fall time `BombBallistics.Impact` predicts; positions and velocities from `ReplicatedMotion` (§9c) | A4: an air-launched round carries the carrier's velocity, so the aircraft's own velocity comes off the lead |
+| a running fire action's point is re-written in place each frame (the executor re-reads its params every tick) | the ripple keeps tracking without a new action per frame |
+| **passes (B14)**: an entity attack ends Success when the target is dead (`CombatLife.IsAlive`); at the end of a pass with it alive, it comes round (3 passes, then Failure); a weapon that runs dry moves to the next; none left ⇒ Failure. A strike keeps its one pass | B14 |
+| **GunRun**: a plane's level pass at **50 m** above the target, the gun from 0.9 × its range, the break at **600 m**, then through and out (as RocketRun) | 📐 the GAU-8's nose cone is 5° (`BdcTkbCatalog.cs:832`): at 50 m the target leaves the cone at 571 m, at 150 m already at 1 714 m — beyond the gun's 1 200 m; ⚠ a level pass stands for the shallow dive the model cannot fly |
+| ⏸ an entity attack's gun keeps the LOADED round (HEI): `AmmoChoice` picks per target only on the aimed path, and `FireAtPoint` has no target | ⚠ known gap; closes with W2 / CE-2186 |
+| ⏸ W1's "Unspecified on a terrain building ⇒ Building" is not built: the order states the kind | no point-in-building query in the toolkit yet |
+
+| as built | why / deviation |
+|---|---|
+| ★ `TargetLead.Point` / `FlightTime` (`Fdp.Toolkits/Combat/TargetLead.cs`) — the closed-form intercept in the shooter's frame | the one predictor; CE-2183's aim-path lead calls it (backend) |
+| ★ `AirAttackProfile.GunRun` · `AirAttackProfiles.Pick(…, entity, kind, excluded)` · `Heavy(kind)` · `Endangering(world, aircraft, aim)` · `AirAttackState.Spent` · `AirAttackParams.Target / Kind / DangerClose` · `AirAttackNodes.Attack` (fails, logged, with no target) · ★ `AirPlatformAttackBehavior` (resolved from `AttackOrder`) · `StrikeOrder.TargetKind` + ★ `StrikeTargetKind` | as §9e's class diagram |
+| ⚠ cross-lane, additive (`Fdp.Toolkits`, backend's): `HiddenTargetThrow.FriendlyInBurst(…, neutralsToo)` — the old signature calls it with `false` (unchanged); new file `TargetLead.cs` | W3 widens the ONE friend test; B16's helper |
+| ⚠ deviation: an ENTITY attack keeps re-aiming the run-in inside the 2.5 km freeze — while the target is still ahead (within 60°) and beyond the break | 📐 measured on the rail: with the line frozen at 2.5 km a technical driving across at 5 m/s ended ~10° off the nose at 1 km, outside the GAU-8's 5° cone, and the gun never fired |
+| ⚠ the rail's world must ADVANCE `GlobalTime` — the run-in re-aims on sim time (every 0.5 s); a test that never sets it re-aims once | the earlier rails' targets stood still, so it never showed |
+| an entity attack's Attack order to any aircraft now resolves to `AirPlatformAttack` — ⛔ SUPERSEDES the ground `PlatformAttack` fallback (a helicopter hovered where it was and fired) | B12, W4's "never hover where it is" |
+| rails: `TargetLeadTests` (4: a still target, a crossing helicopter met exactly, the shooter's velocity off the lead, an uncatchable target) · `AirAttackNodesTests.S6c_TheWeaponFollowsTheTarget_DirectFireAtAnEntity_TheBombAtAPoint_NeverTheGunOnAHeavyPoint` · `S6c_AWeaponWhoseBurstReachesAFriendOrANeutral_IsPassedOver_UnlessDangerClose` · `S6c_AGunRunOnAMovingTechnical_LeadsIt_ComesRound_AndEndsWhenItIsDestroyed` (every round flown from the muzzle + the plane's velocity passes within 1.5 m) · `B4_TheProfile_IsPickedFromTheAircraftAndItsWeapons` (a gun plane ⇒ GunRun, SUPERSEDES "no profile") · `TacticalIntentResolutionSystemTests.S6c_EveryAircraftsAttack_ResolvesTo_AirPlatformAttack` · `CuratedBehaviorRegistrarTests` (+`AirPlatformAttack`) | red-proved by mutants (MUTANTS) |
 
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 

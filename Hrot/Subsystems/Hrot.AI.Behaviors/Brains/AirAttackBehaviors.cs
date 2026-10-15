@@ -25,13 +25,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6 — a helicopter runs in low at the point: its rockets inside the fire window, then its gun on the move, and it
         /// BREAKS OFF short of the point (it never overflies).</summary>
         RunningFire = 3,
+        /// <summary>⭐ Slice 6c — a plane's very low level pass (it stands for the shallow dive the model cannot fly): its fixed gun inside
+        /// the window, then through and out (§9e).</summary>
+        GunRun = 4,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct AirAttackParams
     {
-        /// <summary>The aim point (world metres; Z = the ground there).</summary>
+        /// <summary>The aim point (world metres; Z = the ground there). ⭐ Slice 6c — an entity attack keeps it on the target each frame.</summary>
         public Vector3 Point;
         public AirAttackProfile Profile;
         /// <summary>1 ⇒ <see cref="RunInBearingDeg"/> is the run-in's compass bearing; 0 ⇒ straight at the point from where the aircraft is.</summary>
@@ -50,6 +53,12 @@ namespace Hrot.AI.Behaviors.Brains
         public float FireRangeM;
         /// <summary>⭐ Slice 6 — a helicopter breaks off this far from the point (m); 0 ⇒ <see cref="AirAttackNodes.DefaultBreakM"/>.</summary>
         public float BreakRangeM;
+        /// <summary>⭐ Slice 6c (B12–B14) — the ENTITY attacked (Null = a point): direct fire first, led, passes until it is destroyed.</summary>
+        public Entity Target;
+        /// <summary>⭐ Slice 6c (W1) — what a struck point is; a heavy kind takes a heavy weapon, never a gun.</summary>
+        public StrikeTargetKind Kind;
+        /// <summary>⭐ Slice 6c (W3) — 1 ⇒ fire although friends or neutrals stand inside the weapon's burst.</summary>
+        public byte DangerClose;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — the attack's working state (the stage of the pass, the weapon's release node).</summary>
@@ -70,11 +79,15 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Weapon;
         /// <summary>⭐ Slice 6 — 1 once a round left this pass.</summary>
         public byte Fired;
+        /// <summary>⭐ Slice 6c (B14) — mounts that ran dry (bit i = mount i): the next pass picks among the others.</summary>
+        public ushort Spent;
     }
 
-    /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 — which profile an aircraft flies against a point (Air Operations §7's table):
-    /// a plane with a bomb ⇒ LevelBomb; a plane with a rocket pod ⇒ RocketRun; a helicopter with a rocket pod or a gun ⇒ RunningFire.
-    /// Null = no profile built for this aircraft (the attack fails, loudly) — ⚠ a plane with only a gun (GunRun) is not built yet.</summary>
+    /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
+    /// against an ENTITY a plane prefers its gun (GunRun), then rockets (RocketRun), the bomb (LevelBomb) last; against a POINT the bomb
+    /// first, then rockets, then the gun — and a heavy point (a building, a bunker, a bridge, a runway) never takes the gun; a helicopter
+    /// flies RunningFire with its rockets and gun. Mounts in <c>excluded</c> (dry, or W3: endangering others) are passed over.
+    /// Null = no profile (the attack fails, loudly).</summary>
     public static class AirAttackProfiles
     {
         public const int MaxMounts = 16;
@@ -84,27 +97,46 @@ namespace Hrot.AI.Behaviors.Brains
         public static AirAttackProfile? Pick(EntityRepository world, Entity aircraft, out byte mount)
             => Pick(world, aircraft, out mount, out _);
 
-        /// <summary>The profile, its main mount (the bomb, the rockets — <see cref="None"/> when a running fire has only a gun) and a
-        /// running fire's gun (<see cref="None"/> otherwise).</summary>
+        /// <summary>The profile against a point of no stated kind (a strike), its main mount (the bomb, the rockets — <see cref="None"/>
+        /// when the profile fires only a gun) and its gun (<see cref="None"/> otherwise).</summary>
         public static AirAttackProfile? Pick(EntityRepository world, Entity aircraft, out byte mount, out byte gun)
+            => Pick(world, aircraft, out mount, out gun, entity: false, StrikeTargetKind.Unspecified, excluded: 0);
+
+        /// <summary>⭐ Slice 6c — the profile against an entity (<paramref name="entity"/>) or a point of <paramref name="kind"/>, passing
+        /// over the mounts in <paramref name="excluded"/>.</summary>
+        public static AirAttackProfile? Pick(EntityRepository world, Entity aircraft, out byte mount, out byte gun,
+                                             bool entity, StrikeTargetKind kind, ushort excluded)
         {
-            Scan(world, aircraft, out var bomb, out var rockets, out var firstGun);
+            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
+            bool heavy = !entity && Heavy(kind);
+            if (heavy) firstGun = None;   // W1: a heavy point never takes the gun
             var locomotion = Locomotions.Of(world, aircraft);
-            AirAttackProfile? picked =
-                locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing
-                    ? bomb != None ? AirAttackProfile.LevelBomb : rockets != None ? AirAttackProfile.RocketRun : null
-                : locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && (rockets != None || firstGun != None)
-                    ? AirAttackProfile.RunningFire
-                    : null;
+            AirAttackProfile? picked = null;
+            if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing)
+                picked = entity
+                    ? firstGun != None ? AirAttackProfile.GunRun : rockets != None ? AirAttackProfile.RocketRun
+                      : bomb != None ? AirAttackProfile.LevelBomb : null
+                    : bomb != None ? AirAttackProfile.LevelBomb : rockets != None ? AirAttackProfile.RocketRun
+                      : firstGun != None ? AirAttackProfile.GunRun : null;
+            else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && (rockets != None || firstGun != None))
+                picked = AirAttackProfile.RunningFire;
             mount = gun = None;
             if (picked is { } p) MountsFor(bomb, rockets, firstGun, p, out mount, out gun);
             return picked;
         }
 
+        /// <summary>⭐ Slice 6c (W1) — a point that needs a heavy weapon.</summary>
+        public static bool Heavy(StrikeTargetKind kind)
+            => kind is StrikeTargetKind.Building or StrikeTargetKind.Fortification or StrikeTargetKind.Bridge or StrikeTargetKind.Runway;
+
         /// <summary>The mounts a GIVEN profile flies with on this aircraft; false when it has none for it (a bomb run with no bomb).</summary>
         public static bool MountsFor(EntityRepository world, Entity aircraft, AirAttackProfile profile, out byte mount, out byte gun)
+            => MountsFor(world, aircraft, profile, 0, out mount, out gun);
+
+        /// <summary>⭐ Slice 6c — the same, passing over the mounts in <paramref name="excluded"/>.</summary>
+        public static bool MountsFor(EntityRepository world, Entity aircraft, AirAttackProfile profile, ushort excluded, out byte mount, out byte gun)
         {
-            Scan(world, aircraft, out var bomb, out var rockets, out var firstGun);
+            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
             return MountsFor(bomb, rockets, firstGun, profile, out mount, out gun);
         }
 
@@ -116,18 +148,20 @@ namespace Hrot.AI.Behaviors.Brains
                 case AirAttackProfile.LevelBomb: mount = bomb; return bomb != None;
                 case AirAttackProfile.RocketRun: mount = rockets; return rockets != None;
                 case AirAttackProfile.RunningFire: mount = rockets; gun = firstGun; return rockets != None || firstGun != None;
+                case AirAttackProfile.GunRun: gun = firstGun; return firstGun != None;
                 default: return false;
             }
         }
 
-        /// <summary>The first bomb, rocket pod and gun (machine gun or autocannon) in the aircraft's weapon suite.</summary>
-        private static void Scan(EntityRepository world, Entity aircraft, out byte bomb, out byte rockets, out byte gun)
+        /// <summary>The first bomb, rocket pod and gun (machine gun or autocannon) in the aircraft's weapon suite not in <paramref name="excluded"/>.</summary>
+        private static void Scan(EntityRepository world, Entity aircraft, ushort excluded, out byte bomb, out byte rockets, out byte gun)
         {
             bomb = rockets = gun = None;
             for (int i = 0; i < MaxMounts; i++)
             {
                 var m = CombatTkb.MountOf(world, aircraft, i);
                 if (m == null) break;
+                if ((excluded & (1 << i)) != 0) continue;
                 switch (m.Category)
                 {
                     case Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb: if (bomb == None) bomb = (byte)i; break;
@@ -137,6 +171,25 @@ namespace Hrot.AI.Behaviors.Brains
                 }
             }
         }
+
+        /// <summary>⭐ Slice 6c (W3, R-2020) — the mounts whose round would hurt a friend or a neutral standing near
+        /// <paramref name="aim"/>: inside the largest blast injury radius of the mount's rounds (its ammo and its loadout).</summary>
+        public static ushort Endangering(EntityRepository world, Entity aircraft, Vector3 aim)
+        {
+            ushort mask = 0;
+            for (int i = 0; i < MaxMounts; i++)
+            {
+                var m = CombatTkb.MountOf(world, aircraft, i);
+                if (m == null) break;
+                float r = InjuryRadius(world, unchecked((long)m.AmmoGuid));
+                foreach (var load in m.Loadout) r = MathF.Max(r, InjuryRadius(world, unchecked((long)load.AmmoGuid)));
+                if (HiddenTargetThrow.FriendlyInBurst(world, aircraft, aim, r, neutralsToo: true)) mask |= (ushort)(1 << i);
+            }
+            return mask;
+        }
+
+        private static float InjuryRadius(EntityRepository world, long ammo)
+            => ammo != 0 && CombatTkb.WarheadOf(world, ammo) is { } w ? w.BlastInjuryRadiusM : 0f;
     }
 
     /// <summary>
@@ -179,35 +232,43 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6 — a running fire's gun burst (rounds) and the seconds between them.</summary>
         public const int GunBurst = 30;
         public const float GunIntervalS = 0.1f;
+        /// <summary>⭐ Slice 6c — a gun run's pass height above the target (m): the GAU-8's 5° nose cone holds the target to 571 m at 50 m,
+        /// to 1 714 m at 150 m — beyond its 1 200 m range (Air Operations §9e).</summary>
+        public const float DefaultGunRunHeightAgl = 50f;
+        /// <summary>⭐ Slice 6c — a gun run stops firing this far from the target (m) and flies through.</summary>
+        public const float DefaultGunRunBreakM = 600f;
 
         private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
+
+        /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
+        public static NodeStatus Attack(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
+        {
+            if (p.Target.IsNull)
+            {
+                BehaviorLog.Error(self, world, "AirAttack: the attack names no target entity.");
+                return NodeStatus.Failure;
+            }
+            return Run(ref p, ref ws, self, world);
+        }
 
         public static NodeStatus Run(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             var at = world.GetComponentRO<SimTransform>(self).Position;
+            bool entity = !p.Target.IsNull;
+            if (entity)
+            {
+                // ⭐ B14 — the attack on an entity ends the moment it is destroyed; until then the point follows it (B13)
+                if (!CombatLife.IsAlive(world, p.Target)) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+                if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var now3, out _)) p.Point = now3;
+            }
             var target = p.Point;
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
 
             if (ws.Stage == StageStart)
             {
-                AirAttackProfile? picked;
-                byte mount, gun;
-                if (p.Profile == AirAttackProfile.Auto) picked = AirAttackProfiles.Pick(world, self, out mount, out gun);
-                else picked = AirAttackProfiles.MountsFor(world, self, p.Profile, out mount, out gun) ? p.Profile : null;
-                if (picked == null)
-                {
-                    BehaviorLog.Error(self, world, p.Profile == AirAttackProfile.Auto
-                        ? "AirAttack: no attack profile for this aircraft and its weapons (a plane needs a bomb or a rocket pod; a helicopter rockets or a gun)."
-                        : $"AirAttack: this aircraft has no weapon for a {p.Profile}.");
-                    return NodeStatus.Failure;
-                }
-                ws.Profile = picked.Value;
-                ws.Mount = mount;
-                ws.GunMount = gun;
-                ws.Weapon = WeaponRockets;
-                ws.Fired = 0;
+                if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
                 ws.Dir = p.BearingGiven != 0
                     ? new Vector2(MathF.Sin(p.RunInBearingDeg * MathF.PI / 180f), MathF.Cos(p.RunInBearingDeg * MathF.PI / 180f))
                     : Flat(target - at);
@@ -236,20 +297,34 @@ namespace Hrot.AI.Behaviors.Brains
                 var flat = Flat(target - at);
                 float distance = new Vector2(target.X - at.X, target.Y - at.Y).Length();
                 float along = Vector2.Dot(new Vector2(target.X - at.X, target.Y - at.Y), ws.Dir);   // > 0 ⇒ the point is still ahead
-                if (distance > SteerFreezeM && now >= ws.NextSteer)
+                // ⭐ slice 6c — a moving ENTITY keeps the run-in on it inside the freeze too, while it is still ahead and beyond the break
+                //   (a fixed gun's 5° cone would lose a technical that drifts sideways once the line is frozen)
+                bool track = entity && distance > BreakRange(in p, ws.Profile) && Vector2.Dot(flat, ws.Dir) > 0.5f;
+                if ((distance > SteerFreezeM || track) && now >= ws.NextSteer)
                 {
                     ws.Dir = flat;
                     if (!Fly(world, self, target + new Vector3(flat * RunOutM, 0f), in p, ws.Profile)) return NodeStatus.Failure;
                     ws.NextSteer = now + SteerPeriod;
                 }
+                var aim = AimPoint(in p, in ws, self, world);   // ⭐ B13 — the led point (the point itself when it does not move)
                 if (ws.Profile == AirAttackProfile.LevelBomb)
                 {
-                    var fire = new FireAtPointNodeParams { Point = target, Rounds = 1, Mount = ws.Mount, Started = ws.Fire.Started };
+                    var fire = new FireAtPointNodeParams { Point = aim, Rounds = 1, Mount = ws.Mount, Started = ws.Fire.Started };
                     var released = FireAtPointNodes.FireAtPoint(ref fire, self, world);
                     ws.Fire = fire;
-                    if (released == NodeStatus.Failure) return NodeStatus.Failure;   // no bomb left
+                    if (released == NodeStatus.Running) Retarget(world, self, ws.Fire.Started, aim);
+                    if (released == NodeStatus.Failure)   // no bomb left: an entity attack goes round for its other weapons
+                    {
+                        if (!entity) return NodeStatus.Failure;
+                        ws.Spent |= (ushort)(1 << ws.Mount);
+                        ws.Fire = default;
+                        ws.Stage = StageOut;
+                        if (!Fly(world, self, target + new Vector3(ws.Dir * RunOutM, 0f), in p, ws.Profile)) return NodeStatus.Failure;
+                        return NodeStatus.Running;
+                    }
                     if (released == NodeStatus.Success)
                     {
+                        ws.Fired = 1;
                         ws.Stage = StageOut;
                         if (!Fly(world, self, target + new Vector3(ws.Dir * RunOutM, 0f), in p, ws.Profile)) return NodeStatus.Failure;
                         return NodeStatus.Running;
@@ -278,7 +353,7 @@ namespace Hrot.AI.Behaviors.Brains
                             return NodeStatus.Running;
                         }
                     }
-                    else ForwardFire(ref p, ref ws, self, world, target, distance);
+                    else ForwardFire(ref p, ref ws, self, world, aim, distance);
                 }
                 if (along < -RunOutM * 0.25f)   // overflown without a weapon gone: come round for another pass
                 {
@@ -293,6 +368,20 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             var outbound = LocomotionMoveTo.Status(world, self);   // out: done when the egress point is reached
+            if (outbound == NodeStatus.Success && entity)
+            {
+                // ⭐ B14 — the target still stands: come round (3 passes), with the weapons that are left and do not endanger others
+                if (++ws.Passes >= MaxPasses)
+                {
+                    BehaviorLog.Error(self, world, $"AirAttack: the target survived {MaxPasses} passes.");
+                    return NodeStatus.Failure;
+                }
+                if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
+                ws.Dir = Flat(target - at);
+                ws.Stage = StageRunIn;
+                ws.NextSteer = 0;
+                return NodeStatus.Running;
+            }
             if (outbound != NodeStatus.Success || ws.Profile != AirAttackProfile.RunningFire || ws.Fired != 0) return outbound;
             // a running fire that broke off with nothing fired: come in again from where it is now
             if (++ws.Passes >= MaxPasses) return NodeStatus.Failure;
@@ -301,6 +390,76 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Stage = StageRunIn;
             ws.NextSteer = 0;
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ Slice 6c — picks the pass's profile and mounts: the order's profile or the table's (B12, W1), passing over the mounts
+        /// that ran dry (<see cref="AirAttackState.Spent"/>) and — unless danger close — those whose round would hurt a friend or a neutral
+        /// near the point (W3). False (logged) when nothing is left.</summary>
+        private static bool Choose(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
+        {
+            ushort endangering = p.DangerClose != 0 ? (ushort)0 : AirAttackProfiles.Endangering(world, self, p.Point);
+            ushort excluded = (ushort)(ws.Spent | endangering);
+            AirAttackProfile? picked;
+            byte mount, gun;
+            if (p.Profile == AirAttackProfile.Auto)
+                picked = AirAttackProfiles.Pick(world, self, out mount, out gun, !p.Target.IsNull, p.Kind, excluded);
+            else picked = AirAttackProfiles.MountsFor(world, self, p.Profile, excluded, out mount, out gun) ? p.Profile : null;
+            if (picked == null)
+            {
+                BehaviorLog.Error(self, world,
+                    endangering != 0 ? "AirAttack: every weapon left would hurt friends or neutrals near the point (order it danger close to fire)."
+                    : ws.Spent != 0 ? "AirAttack: no weapon left for this target."
+                    : p.Profile == AirAttackProfile.Auto
+                        ? "AirAttack: no attack profile for this aircraft and its weapons (a plane needs a bomb, a rocket pod or a gun; a helicopter rockets or a gun)."
+                        : $"AirAttack: this aircraft has no weapon for a {p.Profile}.");
+                return false;
+            }
+            ws.Profile = picked.Value;
+            ws.Mount = mount;
+            ws.GunMount = gun;
+            ws.Weapon = WeaponRockets;
+            ws.Fired = 0;
+            ws.Fire = default;
+            return true;
+        }
+
+        /// <summary>⭐ Slice 6c (B13) — where this pass's weapon aims: a point that does not move is itself; a moving target is LED — a
+        /// gun's or a rocket's round by <see cref="TargetLead.Point"/> (it keeps the aircraft's velocity, A4), a bomb by the target's
+        /// velocity over the bomb's fall time. Motion from <see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/> (the brain node).</summary>
+        private static Vector3 AimPoint(in AirAttackParams p, in AirAttackState ws, Entity self, EntityRepository world)
+        {
+            if (p.Target.IsNull || !Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var tp, out var tv)) return p.Point;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out var sp, out var sv)) return tp;
+            if (ws.Profile == AirAttackProfile.LevelBomb)
+            {
+                // no drag: the fall from the release height, starting at the bomb's launch velocity (BombBallistics.Launch)
+                float vz = BombBallistics.Launch(sv).Z, h = MathF.Max(0f, sp.Z - tp.Z), g = CombatConstants.Gravity;
+                float fall = (vz + MathF.Sqrt(vz * vz + 2f * g * h)) / g;
+                return tp + new Vector3(tv.X, tv.Y, 0f) * fall;
+            }
+            byte mount = ws.Weapon == WeaponRockets && ws.Mount != AirAttackProfiles.None ? ws.Mount : ws.GunMount;
+            return TargetLead.Point(sp, sv, RoundSpeed(world, self, mount), tp, tv);
+        }
+
+        /// <summary>A straight round's speed from <paramref name="mount"/>: the missile's own, else the mount's muzzle velocity, else the
+        /// engine's fallback (the order <c>AimAndFireExecutor.GuidedFlightSeconds</c> reads them in).</summary>
+        private static float RoundSpeed(EntityRepository world, Entity self, byte mount)
+        {
+            var m = mount == AirAttackProfiles.None ? null : CombatTkb.MountOf(world, self, mount);
+            if (m == null) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+            return CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is { SpeedMps: > 0f } missile ? missile.SpeedMps
+                 : m.MuzzleVelocity > 0f ? m.MuzzleVelocity
+                 : Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
+        }
+
+        /// <summary>⭐ Slice 6c — moves the RUNNING fire action's aim point (the executor reads its params every tick), so a ripple or a
+        /// burst keeps tracking without a new action per frame.</summary>
+        private static unsafe void Retarget(EntityRepository world, Entity self, uint started, Vector3 aim)
+        {
+            if (started == 0 || !world.HasComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self)) return;
+            ref var channel = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
+            if (channel.ActionInstanceId != started || channel.ActiveAction != CombatConstants.ActionIdFireAtPoint) return;
+            System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.FireAtPointParams>(ref channel.Params[0]).Point = aim;
         }
 
         /// <summary>⭐ Slice 6 — inside the fire window: the rockets (a ripple), then — a running fire — the gun, each until its rounds are
@@ -325,8 +484,9 @@ namespace Hrot.AI.Behaviors.Brains
             };
             var status = FireAtPointNodes.FireAtPoint(ref fire, self, world);
             ws.Fire = fire;
-            if (status == NodeStatus.Running) return;
+            if (status == NodeStatus.Running) { Retarget(world, self, ws.Fire.Started, target); return; }
             if (status == NodeStatus.Success) ws.Fired = 1;
+            else ws.Spent |= (ushort)(1 << mount);   // ⭐ slice 6c — dry (or refused): the next pass picks among the others
             ws.Fire = default;
             ws.Weapon = rockets ? WeaponGun : WeaponDone;
         }
@@ -339,7 +499,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ref var channel = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
                 if (channel.ActionInstanceId == ws.Fire.Started && channel.ActiveAction == CombatConstants.ActionIdFireAtPoint)
                 {
-                    if (channel.Status == NodeStatus.Success) ws.Fired = 1;
+                    // ⭐ slice 6c — a burst cut short by the break still fired this pass (B14: the plane flies through and comes round)
+                    if (channel.Status == NodeStatus.Success || Fdp.Toolkit.Combat.Executors.FireAtPointExecutor.RoundsFired(ref channel) > 0) ws.Fired = 1;
                     channel.ActiveAction = 0;
                     unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
                 }
@@ -349,7 +510,12 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static float BreakRange(in AirAttackParams p, AirAttackProfile profile)
-            => p.BreakRangeM > 0f ? p.BreakRangeM : profile == AirAttackProfile.RunningFire ? DefaultBreakM : DefaultPlaneBreakM;
+            => p.BreakRangeM > 0f ? p.BreakRangeM : profile switch
+            {
+                AirAttackProfile.RunningFire => DefaultBreakM,
+                AirAttackProfile.GunRun => DefaultGunRunBreakM,
+                _ => DefaultPlaneBreakM,
+            };
 
         private static Vector2 Flat(Vector3 v)
         {
@@ -371,6 +537,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 AirAttackProfile.RocketRun => DefaultRocketRunHeightAgl,
                 AirAttackProfile.RunningFire => DefaultRunningFireHeightAgl,
+                AirAttackProfile.GunRun => DefaultGunRunHeightAgl,
                 _ => DefaultAttackHeightAgl,
             };
             return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);
@@ -402,7 +569,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = OrderGeo.ToLocal(world, order.Location, 0f);
                 point = new Vector3(at.X, at.Y, Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f);
             }
-            block.Attack = new AirAttackParams { Point = point };
+            block.Attack = new AirAttackParams { Point = point, Kind = order.TargetKind, DangerClose = order.DangerClose ? (byte)1 : (byte)0 };
             block.State = default;
         }
 
@@ -411,5 +578,38 @@ namespace Hrot.AI.Behaviors.Brains
         public static BTreeBuilder<AirPlatformStrikeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<AirPlatformStrikeBlackboard, BTreeContext>()
                 .StatefulAction(bb => bb.Attack, bb => bb.State, AirAttackNodes.Run);
+    }
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 6c (B12–B14, R-278, R-2020) — ATTACK for every aircraft (<c>AirPlatform</c>): the one
+    /// <see cref="AirAttackNodes.Run"/> on the order's ENTITY — direct fire first (a plane's gun, then rockets, the bomb last; a
+    /// helicopter's running fire), led at it as it moves, pass after pass until it is destroyed (Air Operations §9e).
+    /// </summary>
+    public static class AirPlatformAttackBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AirPlatformAttackBlackboard
+        {
+            public AirAttackParams Attack;
+            public AirAttackState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.AirPlatformAttack)]
+        public static void Resolve(in AttackOrder order, ref AirPlatformAttackBlackboard block, EntityRepository world, Entity self)
+        {
+            var target = order.Target.Resolve(world);
+            bool known = !target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target);
+            block.Attack = new AirAttackParams
+            {
+                Target = known ? target : Entity.Null,
+                Point = known ? world.GetComponentRO<SimTransform>(target).Position : default,
+            };
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.AirPlatformAttack, Params = typeof(AttackOrder), Categories = BehaviorCategory.MilitaryApc)]
+        [BTreeDefinition(BehaviorNames.AirPlatformAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(AirPlatformAttackBlackboard))]
+        public static BTreeBuilder<AirPlatformAttackBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<AirPlatformAttackBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Attack, bb => bb.State, AirAttackNodes.Attack);
     }
 }

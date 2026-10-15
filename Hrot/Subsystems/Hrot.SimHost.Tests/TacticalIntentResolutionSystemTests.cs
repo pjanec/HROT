@@ -564,6 +564,26 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(Order(repo, system, t72, "Strike", strike), e => e.BehaviorName == "AirPlatformStrike");
         }
 
+        /// <summary>⭐ <c>CE-2173</c> slice 6c (B12–B14, Air Operations §9e) — an Attack to ANY aircraft resolves to the one
+        /// <c>AirPlatformAttack</c> (no longer the ground <c>PlatformAttack</c>, whose helicopter hovered where it was and fired); a tank
+        /// keeps <c>LandPlatformAttack</c>. ✅ Red-proof: without the behaviour an aircraft's Attack falls back to <c>PlatformAttack</c> ⇒ red.</summary>
+        [Fact]
+        public void S6c_EveryAircraftsAttack_ResolvesTo_AirPlatformAttack()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            var blackHawk = Typed(repo, Dis(1, 2, 225, 21));
+            var apache    = Typed(repo, Dis(1, 2, 225, 20));
+            var attackJet = Typed(repo, Dis(1, 2, 222, 2));
+            var t72       = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            Assert.Equal("AirPlatformAttack", Assert.Single(Order(repo, system, blackHawk, "Attack", "{}")).BehaviorName);
+            Assert.Equal("AirPlatformAttack", Assert.Single(Order(repo, system, apache, "Attack", "{}")).BehaviorName);
+            Assert.Equal("AirPlatformAttack", Assert.Single(Order(repo, system, attackJet, "Attack", "{}")).BehaviorName);
+            Assert.Equal("LandPlatformAttack", Assert.Single(Order(repo, system, t72, "Attack", "{}")).BehaviorName);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — Strike on an artillery battery (a unit, 11.1.*.4) resolves to the battery commander
         /// <c>ArtilleryUnitStrike</c>; on a self-propelled gun (1.1.*.4) to <c>SelfPropelledArtilleryStrike</c>; a rifleman has none.

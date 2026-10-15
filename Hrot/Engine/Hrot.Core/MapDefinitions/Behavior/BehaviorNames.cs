@@ -135,6 +135,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// picked from the aircraft and its weapons (Air Operations §7, §9c).</summary>
         public const string AirPlatformStrike = "AirPlatformStrike";
 
+        /// <summary>⭐ <c>CE-2173</c> slice 6c (B12–B14, R-278, R-2020) — ATTACK for any aircraft: the one air attack on the order's ENTITY —
+        /// direct fire first, led at the moving target, passes until it is destroyed (Air Operations §9e).</summary>
+        public const string AirPlatformAttack = "AirPlatformAttack";
+
         /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for an artillery battery: the virtual battery commander's fire mission —
         /// every gun's aim point (the sheaf), its rounds and its fire time (time on target) (Indirect Fire §3.4).</summary>
         public const string ArtilleryUnitStrike = "ArtilleryUnitStrike";
