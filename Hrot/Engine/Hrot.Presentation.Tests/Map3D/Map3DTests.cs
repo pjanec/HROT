@@ -1022,6 +1022,23 @@ public sealed class Map3DTests
         Assert.Empty(d);
     }
 
+    /// <summary>⭐ CE-1100 (docs/DESIGN_Map_3D_Mode.md §6q O-6) — personal cars of a type with no colour are not all the family blue: each car
+    /// has a street colour (mostly white, black, silver, grey), repeatable per car; a car with its own colour keeps its hue, lighter or darker.</summary>
+    [Fact]
+    public void CE1100_PersonalCars_EachHaveTheirOwnPaint()
+    {
+        var blue = EntityBodyLayer3D.DefaultColour(VisualFamily.WheeledCar);
+        var cars = Enumerable.Range(1, 80).Select(s => Outfits.CarColour(s, 1002, own: null)).ToArray();
+        Assert.DoesNotContain(cars, c => c.Equals(blue));
+        Assert.True(cars.Select(c => (c.R, c.G, c.B)).Distinct().Count() >= 6, "the paints vary");
+        int neutral = cars.Count(c => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B)) < 12);
+        Assert.InRange(neutral, 40, 80);   // white, black, silver and grey are most of the street
+        Assert.Equal(Outfits.CarColour(33, 1002, null), Outfits.CarColour(33, 1002, null));
+        var red = new Raylib_cs.Color(180, 30, 30, 255);
+        Assert.All(Enumerable.Range(1, 20).Select(s => Outfits.CarColour(s, 1002, red)), c => Assert.True(c.R > 3 * c.G, "a red car stays red"));
+        Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
+    }
+
     /// <summary>⭐ CE-1099 (§6q O-3) — the CivilianChild type is a person 1.25 m tall, drawn as a child; a grown pedestrian is not.</summary>
     [Fact]
     public void CE1099_TheChildType_IsASmallPerson_DrawnAsAChild()

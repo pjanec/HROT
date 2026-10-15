@@ -1587,6 +1587,8 @@ public sealed class Map3DFrameRail
         Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, 0.5f, ForceId.Hostile);
         Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -0.5f, ForceId.Hostile);
         Person(TkbEntityTypes.Infantry_Rifleman, -2.0f, -2.0f);
+        long car = Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar;   // ⭐ CE-1100 — three cars behind them, each its own paint
+        Person(car, -7.0f, 4.0f); Person(car, -7.0f, 0.0f); Person(car, -7.0f, -4.0f);
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();

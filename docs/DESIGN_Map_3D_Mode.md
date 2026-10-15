@@ -1900,7 +1900,7 @@ sequenceDiagram
     L->>L: after each part, its details in that part's frame
 ```
 
-*Caption:* the outfit is one value computed from facts every node already has, so a man looks the same everywhere and from frame to frame; the
+*Caption:* the outfit (and a car's paint, O-6) is one value computed from facts every node already has, so a man looks the same everywhere and from frame to frame; the
 kit and its part order do not change — the outfit only colours the parts and adds details in their frames (as the face and the blood do).
 
 | decision (⭐ lean, built) | rule |
@@ -1910,6 +1910,7 @@ kit and its part order do not change — the outfit only colours the parts and a
 | **O-3 children** | a new type `CivilianChild` (1003): a pedestrian 1.25 m tall, slower; drawn smaller with a larger head, in brighter clothes |
 | **O-4 a soldier's side** | the uniform keeps its type's colour (or the authored one); trousers the same cloth a shade darker (were black); his SIDE adds a camouflage pattern of patches: Friend — woodland (large brown, dark green and black blotches); Hostile — fleck (many small tan, brown and green spots); Neutral — plain |
 | **O-5 the same everywhere** | every choice is seeded by the network id (the entity index where there is none) and the type id |
+| **O-6 personal cars** (`CE-1100`, user *"And we need personal car with similar color variety"*) | a car (the `WheeledCar` family) with no colour of its own gets a street paint by its seed — mostly white, black, silver and grey, then blue and red, a few green, beige, yellow, brown; one with its own colour keeps its hue, lighter or darker per car. Glass and wheels keep their shades |
 
 **Rejected — one line each:** *a real texture on the uniform* — the bodies are lit flat-coloured cubes with no texture binding in the shader;
 patches in the block style need no shader change and read the same at every distance the boxes do; *colour by side for the whole uniform* —

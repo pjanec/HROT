@@ -49,11 +49,12 @@ public static class Outfits
     private static readonly Color[] Suits = [new(52, 54, 58, 255), new(34, 40, 62, 255), new(28, 28, 30, 255), new(96, 98, 102, 255)];
     private static readonly Color[] Ties = [new(170, 30, 36, 255), new(40, 70, 150, 255), new(110, 30, 50, 255), new(40, 100, 60, 255)];
     private static readonly Color Shirt = new(238, 238, 236, 255);
-    private static readonly Color[] Woodland = [new(92, 70, 46, 255), new(44, 56, 34, 255), new(30, 30, 26, 255)];
-    private static readonly Color[] Fleck = [new(176, 160, 118, 255), new(88, 64, 44, 255), new(70, 86, 50, 255)];
+    // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
+    private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
+    private static readonly Color[] Fleck = [new(206, 186, 134, 255), new(120, 70, 42, 255), new(40, 44, 30, 255)];
 
     /// <summary>How many camouflage patches each pattern lays on a man.</summary>
-    public const int WoodlandPatches = 12, FleckPatches = 16;
+    public const int WoodlandPatches = 14, FleckPatches = 22;
 
     /// <summary>
     /// ⭐ CE-1099 — the outfit of the man seeded <paramref name="seed"/> (his network id) of TKB type <paramref name="type"/>.
@@ -137,11 +138,38 @@ public static class Outfits
             int part = CamoParts[r.Pick(CamoParts.Length)];
             bool torso = part == BlockFigure.TorsoIndex;
             int side = r.Pick(torso ? 6 : 4);
-            float w = woodland ? 0.34f + r.Next() * 0.26f : 0.12f + r.Next() * 0.12f;
+            float w = woodland ? 0.40f + r.Next() * 0.30f : 0.16f + r.Next() * 0.14f;
             float h = w * (0.6f + r.Next() * 0.8f);
             var (c, e) = BlockFigure.SpotOnSide(torso, side, r.Next(), r.Next(), w, MathF.Min(h, 0.9f));
             into.Add(new PartDetail(part, c, e, palette[r.Pick(palette.Length)]));
         }
+    }
+
+    // ── ⭐ CE-1100 (§6q O-6) — a personal car's paint ────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>Car paints as the streets show them: mostly white, black, silver and grey, then blue and red, and a few others.</summary>
+    private static readonly (Color Paint, float Share)[] CarPaints =
+    [
+        (new(232, 232, 228, 255), 0.22f), (new(24, 24, 26, 255), 0.18f), (new(176, 178, 182, 255), 0.16f), (new(100, 102, 106, 255), 0.14f),
+        (new(36, 64, 130, 255), 0.09f), (new(160, 28, 30, 255), 0.08f), (new(40, 86, 54, 255), 0.04f), (new(196, 176, 136, 255), 0.04f),
+        (new(222, 186, 40, 255), 0.02f), (new(110, 72, 44, 255), 0.03f),
+    ];
+
+    /// <summary>
+    /// ⭐ CE-1100 (docs/DESIGN_Map_3D_Mode.md §6q O-6) — the paint of the car seeded <paramref name="seed"/> (its network id) of TKB type
+    /// <paramref name="type"/>: its own colour (authored, or its type's) a little lighter or darker per car; with none, a street colour.
+    /// </summary>
+    public static Color CarColour(long seed, long type, Color? own)
+    {
+        var r = new Draw(seed, type ^ 0xCA2);
+        if (own is { } c) return Scale(c, 0.82f + 0.36f * r.Next());
+        float roll = r.Next(), sum = 0f;
+        foreach (var (paint, share) in CarPaints)
+        {
+            sum += share;
+            if (roll < sum) return paint;
+        }
+        return CarPaints[0].Paint;
     }
 
     /// <summary>The parts a camouflage patch may be on: the torso twice as often, then every leg and arm part (never the head or rifle).</summary>

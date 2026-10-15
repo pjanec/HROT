@@ -115,6 +115,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
+            if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
+                colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
             // ⭐ CE-1085 (§6n N-3) — a weapon a man CARRIES is drawn on his back, after every figure is placed (pass 2)
             if (look.Family == VisualFamily.WeaponSystem && CarrierOf(world, e) is { } bearer)
             {
