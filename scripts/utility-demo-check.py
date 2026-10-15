@@ -14,7 +14,7 @@ previous one); the script verifies the loaded cast.
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
 """
-import argparse, json, os, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, json, math, os, signal, subprocess, sys, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy (RUNBOOK §2)
 BASE = "http://localhost:8111"                                            # the HOSTNAME — 127.0.0.1 404s (RUNBOOK §2)
@@ -1359,6 +1359,47 @@ def _if_shots_since(shooters, seq):
     return [x for x in _if_shots(shooters) if (x.get("seq") or 0) > seq]
 
 
+def _geo_origin(scenario):
+    """The (lat, lon, alt) origin of the scenario's terrain (its terrain.json), or None."""
+    try:
+        with open(os.path.join(REPO, "scenarios", scenario, "scenario.json")) as f:
+            terrain = json.load(f)["header"].get("terrainName")
+        with open(os.path.join(REPO, "Hrot/Subsystems/Hrot.AI.Behaviors/Recipes/Terrain", terrain, "terrain.json")) as f:
+            o = json.load(f).get("origin")
+        return (o["lat"], o["lon"], o.get("alt", 0.0)) if o else None
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+
+
+def geo_of(scenario, x, y):
+    """⭐ CE-2176 IF-4 — an order's Location is a GEODETIC point [lat, lon] (PickableGeoPoint) once the cluster has a geo transform —
+    and every terrain declares an origin. A local [y, x] there reads as latitude -195°: WGS84Transform.ToCartesian throws and the
+    order is dropped without a word. This is that transform's inverse (local ENU → ECEF → geodetic, WGS84), so the point the brain
+    gets back is the local one asked for."""
+    o = _geo_origin(scenario)
+    if o is None:
+        return [y, x]
+    a, f = 6378137.0, 1.0 / 298.257223563
+    e2 = f * (2.0 - f)
+    lat0, lon0, h0 = math.radians(o[0]), math.radians(o[1]), o[2]
+    n0 = a / math.sqrt(1.0 - e2 * math.sin(lat0) ** 2)
+    x0 = (n0 + h0) * math.cos(lat0) * math.cos(lon0)
+    y0 = (n0 + h0) * math.cos(lat0) * math.sin(lon0)
+    z0 = (n0 * (1.0 - e2) + h0) * math.sin(lat0)
+    e, nn, u = x, y, 0.0   # local X = east, Y = north, Z = up
+    sl, cl, so, co = math.sin(lat0), math.cos(lat0), math.sin(lon0), math.cos(lon0)
+    X = x0 - so * e - sl * co * nn + cl * co * u
+    Y = y0 + co * e - sl * so * nn + cl * so * u
+    Z = z0 + cl * nn + sl * u
+    lon = math.atan2(Y, X)
+    p_ = math.hypot(X, Y)
+    lat = math.atan2(Z, p_ * (1.0 - e2))
+    for _ in range(8):   # Bowring-style fixed point, converges to well under a millimetre
+        n = a / math.sqrt(1.0 - e2 * math.sin(lat) ** 2)
+        lat = math.atan2(Z + e2 * n * math.sin(lat), p_)
+    return [math.degrees(lat), math.degrees(lon)]
+
+
 def _if_order(nid, kind, params):
     r = call("POST", f"/entities/{nid}/order", {"kind": kind, "params": params})
     ok = isinstance(r, dict) and "http" not in r and (data(r) or {}).get("accepted", True) is not False
@@ -1384,12 +1425,12 @@ def run_indirect_fire(c, timeout):
     # ① the observer calls the mortars (it runs while the battery does ② – ④)
     target = (340, 300)
     t0, _ = _if_mark()
-    c.ok(_if_order(obs, "ObserveFire", {"Location": [target[1], target[0]], "Battery": sec, "Sheaf": "Parallel", "Rounds": 2}),
+    c.ok(_if_order(obs, "ObserveFire", {"Location": geo_of("ua-indirect-fire", *target[:2]), "Battery": sec, "Sheaf": "Parallel", "Rounds": 2}),
          "① the observer takes the ObserveFire order")
 
     # ② time on target
     p2 = (720, -195)
-    c.ok(_if_order(bat, "Strike", {"Location": [p2[1], p2[0]], "Control": "TimeOnTarget", "Sheaf": "Parallel", "Rounds": 1}), "② the battery takes the Strike")
+    c.ok(_if_order(bat, "Strike", {"Location": geo_of("ua-indirect-fire", *p2[:2]), "Control": "TimeOnTarget", "Sheaf": "Parallel", "Rounds": 1}), "② the battery takes the Strike")
     b2 = wait_for(lambda: (x := _if_bursts(guns, t0)) and len({d.get("shooter") for d in x}) >= 3 and x, timeout + 120)
     if c.ok(b2 is not None, f"② every gun's round burst — {len(_if_bursts(guns, t0))}"):
         first = {}
@@ -1405,7 +1446,7 @@ def run_indirect_fire(c, timeout):
 
     # ③ the courtyard: the low arc cannot clear the walls ⇒ high
     p3 = (900, 150)
-    c.ok(_if_order(bat, "Strike", {"Location": [p3[1], p3[0]], "Rounds": 1}), "③ the battery takes the courtyard Strike")
+    c.ok(_if_order(bat, "Strike", {"Location": geo_of("ua-indirect-fire", *p3[:2]), "Rounds": 1}), "③ the battery takes the courtyard Strike")
     b3 = wait_for(lambda: (x := _if_bursts(guns, t3)) and x, timeout + 240)
     if c.ok(b3 is not None and bool(tof2), "③ a round burst in or by the courtyard"):
         tof3 = [(x.get("endTick") or 0) - (x.get("tick") or 0) for x in _if_shots_since(guns, s3) if x.get("endTick")]
@@ -1416,11 +1457,11 @@ def run_indirect_fire(c, timeout):
     # ④ danger close
     pd = (1000, 800)
     _, s4 = _if_mark()
-    c.ok(_if_order(bat, "Strike", {"Location": [pd[1], pd[0]], "Rounds": 1}), "④ the battery takes the Strike near the friends")
+    c.ok(_if_order(bat, "Strike", {"Location": geo_of("ua-indirect-fire", *pd[:2]), "Rounds": 1}), "④ the battery takes the Strike near the friends")
     time.sleep(25)
     c.ok(not _if_shots_since(guns, s4), "④ refused — no gun fires with friends 400 m from the point")
     t4b, _ = _if_mark()
-    c.ok(_if_order(bat, "Strike", {"Location": [pd[1], pd[0]], "Rounds": 1, "DangerClose": True}), "④ resent with danger close")
+    c.ok(_if_order(bat, "Strike", {"Location": geo_of("ua-indirect-fire", *pd[:2]), "Rounds": 1, "DangerClose": True}), "④ resent with danger close")
     b4 = wait_for(lambda: (x := _if_bursts(guns, t4b)) and x, timeout + 120)
     c.ok(b4 is not None, "④ with danger close the battery fires")
 

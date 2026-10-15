@@ -97,6 +97,16 @@ public sealed class DebugApiOrdersTests
         (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject { ["kind"] = "dance" });
         Assert.Equal(400, status);
         Assert.Contains("Move", error);
+
+        // ⭐ CE-2176 — a point is [lat, lon]: a local [y, x] is refused, named, here — 📐 live it was accepted and then thrown on by the
+        //   brain's WGS84Transform, and the order vanished without a word
+        (_, status, error, _) = svc.PostOrder(UnitId, new JsonObject
+        {
+            ["kind"] = "Move", ["params"] = new JsonObject { ["Location"] = new JsonArray(-195.0, 720.0) },
+        });
+        Assert.Equal(400, status);
+        Assert.Contains("Location", error);
+        Assert.Contains("out of range", error);
     }
 
     [Fact]

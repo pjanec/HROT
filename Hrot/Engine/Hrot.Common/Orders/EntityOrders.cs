@@ -135,6 +135,10 @@ namespace Hrot.Common.Orders
             if (missing.Count > 0)
                 return OrderResult.Refused(OrderRefusal.BadRequest,
                     $"{order.Name} needs {string.Join(", ", System.Linq.Enumerable.Select(missing, f => f.Name))} (required).");
+            var malformed = OrderMenu.MalformedIn(order, parsed);   // ⭐ CE-2176 — a point the receiver would throw on
+            if (malformed.Count > 0)
+                return OrderResult.Refused(OrderRefusal.BadRequest,
+                    $"{order.Name}: {string.Join("; ", System.Linq.Enumerable.Select(malformed, m => $"{m.Field.Name} {m.Why}"))}.");
             if (!TryAddress(unit, out var entity, out var refused)) return refused;
             var r = OrderMenu.Resolve(_world.GetDisType(entity), order.Name);
             if (r.Outcome != Hrot.Core.Tkb.OrderResolution.Resolved) return OrderResult.Refused(OrderRefusal.NotFulfilled, r.Detail);

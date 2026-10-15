@@ -177,6 +177,37 @@ namespace Hrot.Common.Orders
             return missing ?? (IReadOnlyList<OrderField>)Array.Empty<OrderField>();
         }
 
+        /// <summary>⭐ <c>CE-2176</c> — the map-point fields <paramref name="json"/> sets to something that is not a geodetic point:
+        /// a <see cref="PickableGeoPoint"/> is <c>[lat, lon]</c> with |lat| ≤ 90 and |lon| ≤ 180. 📐 Measured live: a local <c>[y, x]</c>
+        /// (<c>[-195, 720]</c>) was accepted, then <c>WGS84Transform.ToCartesian</c> threw on the brain and the order vanished without a
+        /// word — so the sender refuses it here, named, like a missing <c>[Required]</c> field.</summary>
+        public static IReadOnlyList<(OrderField Field, string Why)> MalformedIn(OrderInfo order, JsonObject? json)
+        {
+            if (json == null) return Array.Empty<(OrderField, string)>();
+            List<(OrderField, string)>? bad = null;
+            foreach (var f in order.Fields)
+            {
+                if (f.Kind != OrderFieldKind.MapPoint) continue;
+                JsonNode? value = null;
+                foreach (var kv in json)
+                    if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; break; }
+                if (value == null) continue;   // absent: MissingIn's question
+                string? why = null;
+                if (value is not JsonArray a || a.Count != 2) why = "is not [lat, lon]";
+                else if (!TryNumber(a[0], out double lat) || !TryNumber(a[1], out double lon)) why = "is not two numbers [lat, lon]";
+                else if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0)
+                    why = $"[{lat}, {lon}] is out of range (|lat| ≤ 90, |lon| ≤ 180) — a local [y, x] is not a geodetic point";
+                if (why != null) (bad ??= new List<(OrderField, string)>()).Add((f, why));
+            }
+            return bad ?? (IReadOnlyList<(OrderField, string)>)Array.Empty<(OrderField, string)>();
+
+            static bool TryNumber(JsonNode? n, out double d)
+            {
+                d = 0;
+                return n is JsonValue v && (v.TryGetValue(out d) || (v.TryGetValue(out long l) && (d = l) == l) || (v.TryGetValue(out int i) && (d = i) == i));
+            }
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2148</c> (F6, P5-b) — an order on its way: <paramref name="given"/> (explicit JSON, may be null), then the gesture's
         /// <paramref name="context"/> fills a missing <c>[Required]</c> field of its kind when exactly one such field is missing, then
