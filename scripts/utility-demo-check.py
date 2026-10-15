@@ -1537,6 +1537,8 @@ def run_tank_corner(c, timeout):
         by.setdefault(x.get("shooter"), []).append(x)
     name = {v: k for k, v in ids.items()}
     print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    name0 = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name0.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
     mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
     for x in mine[:6]:
         print("      tank shot", {k: x.get(k) for k in ("seq", "weaponIndex", "ammo", "muzzle", "aim", "hit", "outcome")})
@@ -1668,8 +1670,8 @@ def run_javelin_lock(c, timeout):
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
-#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop against an enemy T-72 (440 m), a pickup (390 m) and two
-#   riflemen (380 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
+#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
+#   y 210 hid every target and it never fired), against an enemy T-72 (240 m), a pickup (230 m) and two riflemen (220 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
 #   target (read from each shot's penetration — the kinetic APFSDS against the tank, a lower-penetration HE / HEAT at the soft ones).
 def run_tank_ammo(c, timeout):
     ids = ids_by_name()
@@ -1686,6 +1688,8 @@ def run_tank_ammo(c, timeout):
         if all(_dead(e) for e in (t72, pickup, *riflemen)):
             break
         time.sleep(0.5)
+    name0 = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name0.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
     mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
     if mine:
         print("    a shot's keys:", sorted(mine[0].keys()))

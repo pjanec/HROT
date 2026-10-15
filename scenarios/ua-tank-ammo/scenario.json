@@ -13,14 +13,14 @@
       "SimTransform": {
         "Position": [
           300,
-          80,
+          280,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          0.7071068,
+          0.7071068
         ]
       },
       "NetworkIdentity": {
