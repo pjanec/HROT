@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
@@ -27,6 +28,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.RegisterComponent<BallisticProjectile>();
             _w.RegisterComponent<GuidedRound>();
             _w.RegisterComponent<PhysicsCollider>();
+            _w.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();   // ⭐ CE-3198 — the overfly fuze publishes it
         }
 
         public void Dispose() => _w.Dispose();
@@ -136,5 +138,63 @@ namespace Fdp.Toolkit.Combat.Tests
             var turned = GuidedRoundSystem.Turn(new Vector3(1, 0, 0), new Vector3(0, 1, 0), 30f * MathF.PI / 180f);
             Assert.Equal(30f, MathF.Acos(Vector3.Dot(turned, Vector3.UnitX)) * 180f / MathF.PI, 2);
         }
-    }
+    
+        // ── ⭐⭐ CE-3198 (DESIGN_Missiles_And_Ammo §3b) — the NLAW's OVERFLY top attack ───────────────────────────────────────────────
+
+        /// <summary>One frame for a round the fuze may spend: the system, then the move if it is still alive.</summary>
+        private void StepAlive(Entity round)
+        {
+            _sys.Execute(_w, Dt);
+            if (!_w.IsAlive(round)) return;
+            ref var tf = ref _w.GetComponentRW<SimTransform>(round);
+            tf.Position += _w.GetComponentRO<SimVelocity>(round).Linear * Dt;
+        }
+
+        private Entity OverflyRound(Entity target)
+            => Round(new Vector3(5, 0, 1.6f), new Vector3(200, 0, 0), new GuidedRound
+            {
+                Guidance = GuidanceKind.FireAndForget, Phase = GuidedPhase.Cruise, Target = target, Overfly = 1, OverflyHeightM = 1f,
+                LastSeen = new Vector3(200, 0, 1.2f),
+            });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3198</c> — an NLAW (200 m/s, overfly) at a tank 200 m out flies OVER its roof and fires DOWN as it passes: one
+        /// detonation on the tank, at the roof, travelling straight down — the unchanged chain reads the TOP face — and the round is spent.
+        /// It never meets the hull on the way (it is above the roof as it arrives). 🔴 Red-proof: without the overfly goal and fuze it
+        /// steers at the hull's middle and no downward detonation is ever published.
+        /// </summary>
+        [Fact]
+        public void CE3198_AnOverflyRound_PassesOverTheRoof_AndFiresDown_OnTheTopFace()
+        {
+            var tank = Unit(new Vector3(200, 0, 0), hull: 2.4f);
+            var round = OverflyRound(tank);
+            float lowestOverTheTank = float.MaxValue;
+            for (int f = 0; f < 180 && _w.IsAlive(round); f++)
+            {
+                var p = _w.GetComponentRO<SimTransform>(round).Position;
+                if (MathF.Abs(p.X - 200f) <= 2f) lowestOverTheTank = MathF.Min(lowestOverTheTank, p.Z);
+                StepAlive(round);
+            }
+            Assert.False(_w.IsAlive(round), "the round is spent by the fuze");
+            _w.Bus.SwapBuffers();
+            var d = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Combat.Contracts.DetonationNotification>().ToArray());
+            Assert.Equal(tank, d.Target);
+            Assert.Equal(2.4f, d.HitZ, 3);
+            Assert.True(d.TravelZ < 0f && d.TravelX == 0f && d.TravelY == 0f, "straight down");
+            Assert.Equal(Facing.Top, ArmorModel.FacingOfArrival(_w.GetComponentRO<SimTransform>(tank), new Vector3(d.TravelX, d.TravelY, d.TravelZ)));
+            Assert.True(lowestOverTheTank == float.MaxValue || lowestOverTheTank >= 2.4f, $"it dipped to {lowestOverTheTank:0.00} over the roof");
+        }
+
+        /// <summary>⭐ <c>CE-3198</c> — the fuze fires over a HULL only: at a target with no hull height (a man) nothing is published.</summary>
+        [Fact]
+        public void CE3198_TheOverflyFuze_DoesNotFireOverATargetWithNoHull()
+        {
+            var man = Unit(new Vector3(200, 0, 0));
+            _w.AddComponent(man, new PhysicsCollider { Radius = 0.4f, Height = 0f });
+            var round = OverflyRound(man);
+            for (int f = 0; f < 120 && _w.IsAlive(round); f++) StepAlive(round);
+            _w.Bus.SwapBuffers();
+            Assert.Empty(_w.Bus.Read<Fdp.Toolkit.Combat.Contracts.DetonationNotification>().ToArray());
+        }
+}
 }

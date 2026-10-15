@@ -337,6 +337,37 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 6d (docs/designs/air-attack/DESIGN_Air_Operations.md §9f; A4, WS-3) — a DOOR GUN on a flying helicopter:
+        /// the shooter of the intent is the weapon SYSTEM (an M134 in the 404's door station), which has no locomotion of its own; its round
+        /// still leaves at its muzzle speed along the aim PLUS the helicopter's velocity — the carrier is the body it sits in
+        /// (<see cref="HitModel.BodyOf"/>, the one WS-3 already aims from). ✅ Red-proof: the A4 rule read from the weapon itself ⇒ the round
+        /// leaves at the muzzle speed alone, 70 m/s short along the track.
+        /// </summary>
+        [Fact]
+        public void S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var carrier = new Vector3(70f, 0f, 0f);
+            var heli = SpawnTarget(new Vector3(0f, 0f, 100f));
+            _world.AddComponent(heli, new SimVelocity { Linear = carrier });
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            var m134 = SpawnShooter(new Vector3(3f, 1.35f, 99.3f), muzzleVelocity: 850f);
+            _world.AddComponent(m134, new WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(m134, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Seat = 9 });
+            var target = SpawnTarget(new Vector3(0f, 400f, 0f));   // abeam to the left
+
+            PublishIntent(m134, target);
+            _sys.Execute(_world, 0.016f);
+            var round = Assert.Single(Rounds());
+            var own = _world.GetComponent<SimVelocity>(round).Linear - carrier;
+            Assert.Equal(850f, own.Length(), 1);                                        // its own speed along the aim …
+            Assert.True(own.Y > 800f, $"towards the target abeam: {own}");             // … which points left, at the target …
+            Assert.True(MathF.Abs(own.X) < 1f, $"… so the helicopter's 70 m/s is ALL carrier: {own}");
+        }
+
+        /// <summary>
         /// ⭐⭐ Indirect fire IF-1 (I3, I4; DESIGN_Indirect_Fire §3.1, IF-F) — the SimHost flies the brain's fire solution exactly: the intent's
         /// CHARGE (its speed from the round's charge table) on the intent's ARC — no second decision; charge 0 keeps today's arc. A tube's
         /// rounds scatter round the point by the mount's dispersion (azimuth AND range), the SAME on every run (no random source).
@@ -402,6 +433,79 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(first, Fire(8, charge: 3, high: 1));
             // charge 0 = today's arc: ThrowArc at the mount's 60 m/s (high, a launcher)
             Assert.Equal(60f, Fire(1, charge: 0, high: 0)[0].Length(), 0);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2183</c> (AT2, R-2021, DESIGN_Air_Operations §7c) — a rifleman's round at a helicopter crossing at 60 m/s, 300 m out, is
+        /// aimed AHEAD of it by its velocity × the round's flight time (± 1 m, <see cref="TargetLead"/>); a ground vehicle at the same speed
+        /// is aimed where it is (unchanged). 🔴 Red-proof: without the lead the round passes where the helicopter WAS — ~23 m behind it.
+        /// </summary>
+        [Fact]
+        public void CE2183_ARoundAtACrossingHelicopter_IsLed_AGroundVehicleIsNot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var crossing = new Vector3(0f, 60f, 0f);
+
+            float LateralAtTheTarget(Entity target)
+            {
+                PublishIntent(SpawnShooter(Vector3.Zero), target);
+                _sys.Execute(_world, 0.016f);
+                var round = Assert.Single(Rounds());
+                var start = _world.GetComponent<SimTransform>(round).Position;
+                var v = _world.GetComponent<SimVelocity>(round).Linear;
+                float y = start.Y + v.Y / v.X * (300f - start.X);   // where the round's line crosses the target's track
+                _world.DestroyEntity(round);
+                return y;
+            }
+
+            var heli = SpawnTarget(new Vector3(300f, 0f, 60f));
+            _world.AddComponent(heli, new SimVelocity { Linear = crossing });
+            _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+            float t = TargetLead.FlightTime(Vector3.Zero, Vector3.Zero, 800f, new Vector3(300f, 0f, 60f), crossing);
+            Assert.InRange(LateralAtTheTarget(heli), 60f * t - 1f, 60f * t + 1f);
+
+            var truck = SpawnTarget(new Vector3(300f, 0f, 0f));
+            _world.AddComponent(truck, new SimVelocity { Linear = crossing });
+            Assert.InRange(LateralAtTheTarget(truck), -0.5f, 0.5f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — an NLAW (overfly) fired at a HULL flies the overfly top attack; fired at a
+        /// target with no hull (a man) it flies direct (<see cref="GuidedRound.Overfly"/> 0) — the downward charge is the anti-armour mode.
+        /// </summary>
+        [Fact]
+        public void CE3198_AnNlawAtAHull_FliesTheOverfly_AtAManItFliesDirect()
+        {
+            _world.RegisterComponent<GuidedRound>();
+            _world.RegisterComponent<TkbIdentity>();
+            const long Launcher = 9500, Nlaw = 9513;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var launcher = new Fdp.Interfaces.TkbTemplate("nlaw gunner", Launcher);
+            launcher.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm, AmmoGuid = Nlaw, InitialAmmunition = 2, DamagePerHit = 900, Penetration = 500 } } });
+            db.Register(launcher);
+            var nlaw = new Fdp.Interfaces.TkbTemplate("nlaw", Nlaw);
+            nlaw.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto
+                { Guidance = Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f, Overfly = true });
+            db.Register(nlaw);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            byte OverflyAt(Entity target)
+            {
+                var gunner = SpawnShooter(Vector3.Zero, muzzleVelocity: 200f);
+                _world.AddComponent(gunner, new TkbIdentity { TkbType = Launcher });
+                PublishIntent(gunner, target);
+                _sys.Execute(_world, 0.016f);
+                var round = Assert.Single(Rounds());
+                byte overfly = _world.GetComponent<GuidedRound>(round).Overfly;
+                _world.DestroyEntity(round);
+                return overfly;
+            }
+
+            var tank = SpawnTarget(new Vector3(200f, 0f, 0f));
+            _world.AddComponent(tank, new PhysicsCollider { Radius = 2f, Height = 2.4f });
+            Assert.Equal(1, OverflyAt(tank));
+            Assert.Equal(0, OverflyAt(SpawnTarget(new Vector3(200f, 0f, 0f))));   // no hull: direct
         }
 
         private System.Collections.Generic.List<Entity> Rounds()

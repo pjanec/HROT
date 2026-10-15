@@ -27,6 +27,8 @@ namespace Fdp.Toolkit.Combat
                 || score <= 0f || top.IsNull || !repo.IsAlive(top) || top.Equals(owner))
                 return primary;
             // ⭐ WS-3 (W-D) — a weapon system the unit controls: its place in the unit's mount list (it fires as itself, mount 0)
+            //   ⭐ CE-3203 — a BROKEN one (health 0) is never chosen: the primary (the next working one) fires instead
+            if (WeaponSystems.IsWeaponSystem(repo, top) && WeaponSystems.IsBroken(repo, top)) return primary;
             if (WeaponSystems.IsWeaponSystem(repo, top) && repo.HasComponent<WeaponState>(top)
                 && WeaponSystems.IndexOf(repo, owner, top) is var controlled and >= 0)
             {

@@ -41,14 +41,16 @@ namespace Fdp.Toolkit.Motion
             foreach (var d in flyers)
             {
                 if (repo.GetComponentRO<FlightState>(d).Airborne == 0) continue;
-                // ⭐ Air Ops slice 2 — a controlled take-off or landing meets the ground (and whoever waits beside it) on purpose
-                if (statuses && repo.HasComponent<NavigationStatus>(d) && IsGroundPhase(repo.GetComponentRO<NavigationStatus>(d).Phase)) continue;
+                bool alive = !health || !repo.HasComponent<Health>(d) || repo.GetComponentRO<Health>(d).Current > 0f;
+                // ⭐ Air Ops slice 2 — a controlled take-off or landing meets the ground (and whoever waits beside it) on purpose.
+                //   ⭐ CE-2184 (AT3) — only a LIVE one: a helicopter killed on its way down keeps its Landing phase (death ends the move,
+                //   not the reported phase) and would fall through the ground.
+                if (alive && statuses && repo.HasComponent<NavigationStatus>(d) && IsGroundPhase(repo.GetComponentRO<NavigationStatus>(d).Phase)) continue;
                 var v = repo.GetComponentRO<SimVelocity>(d).Linear;
                 if (v.LengthSquared() < 1e-8f) continue;
                 var p1 = repo.GetComponentRO<SimTransform>(d).Position;
                 var p0 = p1 - v * deltaTime;
                 float contact = repo.GetComponentRO<FlightParams>(d).ContactRadiusM;
-                bool alive = !health || !repo.HasComponent<Health>(d) || repo.GetComponentRO<Health>(d).Current > 0f;
 
                 // ── the bodies: the first one the segment enters ──
                 float bestT = float.MaxValue; Entity hit = Entity.Null;
@@ -56,6 +58,9 @@ namespace Fdp.Toolkit.Motion
                     foreach (var b in repo.Query().With<PhysicsCollider>().With<SimTransform>().Build())
                     {
                         if (b == d || (rounds && repo.HasComponent<BallisticProjectile>(b))) continue;
+                        // ⭐ CE-2173 slice 6d — never its OWN riders (WS-3's rule): 📐 measured live, the doors-off UH-60 swept through its
+                        //   door gunners and M134s the moment it moved and crashed into them (Health 800 → 0, its riders dead with it)
+                        if (Fdp.Toolkit.Combat.LineOfFire.RidesWith(repo, d, b)) continue;
                         var c = repo.GetComponentRO<PhysicsCollider>(b);
                         var bp = repo.GetComponentRO<SimTransform>(b).Position;
                         float r = c.Radius + contact;

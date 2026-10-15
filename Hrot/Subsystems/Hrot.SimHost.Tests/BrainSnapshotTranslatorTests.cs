@@ -119,6 +119,30 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorOrigin.Superior, roe.SetBy);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3207</c> (R-192: *"saves just what is needed not runtime hashes etc."*) — a SCENARIO save carries no runtime
+        /// diagnostics: no <c>BrainDiagnostics</c> dump (the brain's interrupts and root-params projection), no BTree / HSM trace ring —
+        /// while the CLIPBOARD / debug dump (<see cref="ScenarioSerializer.SerializeEntity"/> with the snapshot mask) still shows them.
+        /// 🔴 Red-proof: the save ran every translator whose <c>CanTranslate</c> held, diagnostic-only ones included.
+        /// </summary>
+        [Fact]
+        public void CE3207_AScenarioSave_CarriesNoRuntimeDiagnostics_TheDebugDumpStillDoes()
+        {
+            var registry = Production();
+            var a = new Node(registry);
+            var unit = a.Unit();
+            a.Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            a.Frame();
+
+            var serializer = HrotScenarioSerializerFactory.Build(registry);
+            string saved = serializer.Serialize(a.Repo, new ScenarioHeader(Hrot.Common.Scenario.HrotSubsystemTypes.Scenario)).ToJsonString();
+            Assert.DoesNotContain("BrainDiagnostics", saved);
+            Assert.Contains("Idle", saved);                                       // the snapshot itself is still saved (R-192)
+
+            string dump = serializer.SerializeEntity(a.Repo, unit, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), a.Repo.GetSnapshotableMask()).ToJsonString();
+            Assert.Contains("BrainDiagnostics", dump);
+        }
+
         [Fact]
         public void CE3042_WhatTheTemplateOrTheSopChose_IsNotSaved()
         {

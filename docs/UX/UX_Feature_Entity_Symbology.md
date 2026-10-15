@@ -391,6 +391,7 @@ shapeName non-empty AND registered  →  that profile
 else  decode fallbackDisType: kind 1 + domain 1 → ground_vehicle
                               kind 1 + domain 2 → cat ≥ 20 ? rotary_wing : fixed_wing
                               kind 3            → humanoid
+                              kind 5            → cultural_feature   (⭐ CE-3148, 2026-10-15: the footprint outline)
 else  → EntityShapeProfile { Name = "_fallback" }        ⇒ the emergency box, §3.8.4
 ```
 
@@ -551,6 +552,13 @@ normal shape renderer anyone would want selected intentionally."*
 📐 **The sizing already exists:** `TryGetVehicleDimensions` fills `LengthMeters`/`WidthMeters` from TKB, and
 the renderer defaults `len = 5`, `wid = len * 0.5` when they are zero. ⇒ ⭐ **no code; a demotion in the
 design.** It is what `silhouette` falls back to when the profile resolves to `_fallback`.
+
+⭐ **`CE-3148` (`2026-10-15`, backend):** 📐 every static obstacle drew this box — magenta, at the 5 × 2.5 m default — because the four
+obstacle types carried **no DIS type** and no `VehicleParams`. ⇒ the types state one (the parked car 1.1.0.81 ⇒ `ground_vehicle`; sandbag
+wall / concrete block / crate 5 ⇒ a new **`cultural_feature`** profile, the footprint outline, chosen by class `CulturalFeature` in
+`EntityClassShapeLibrary` and by kind 5 in the GizmoMap switch), and `TryGetVehicleDimensions` falls back to the obstacle's own
+`ObstacleShape` (per instance). The emergency box stays what it was meant to be: an UNKNOWN type. Rail
+`Map3DTests.CE3148_EveryObstacle_HasADisType_TheCarDrawsAsACar_TheRestAsTheirFootprint_AtTheirSize`.
 
 #### 3.8.5 ⭐⭐⭐ THE HEALTH BAR — it existed, it was deleted, it is being restored
 

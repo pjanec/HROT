@@ -30,6 +30,11 @@
     "massAnchorCasingKg": 1.5,
     "massExponent": 0.78,
     "kPenetration": 0.06,
-    "radiusPerCbrtCasingKg": 28
+    "radiusPerCbrtCasingKg": 28,
+    "$comment2": "⭐ CE-3203 (docs/DESIGN_Building_Interiors.md §3k.1, W-6″) — ONE fragment law for every target: hits = N · area / (2πr² + area), N = casing / m; a fragment's speed falls as e^(−r/λ), λ = dragMetresPerCbrtGram · (m in g)^(1/3); one hit on a MAN does woundPerSqrtJoule · √(½ m v²), on a hull or a weapon perSqrtJoule · √(½ m v²) (a bullet's law). Calibrated so every library round sits near its published lethal / casualty radius (AreaEffectSystemTests.W6pp_*). Absent ⇒ the old dose and reach.",
+    "dragMetresPerCbrtGram": 195,
+    "woundPerSqrtJoule": 3.3,
+    "$comment3": "⭐ CE-3203 — a shaped charge (heat / hedp) fragments only this share of its body: the rest is the rocket motor, the fins and the liner that becomes the jet. 0.02 puts a PG-7V's man at ≈ 126 at 2 m, ≈ 20 at 5 m, ≈ 5 at 10 m.",
+    "shapedChargeFragmentingShare": 0.02
   }
 }

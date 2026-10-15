@@ -1163,6 +1163,8 @@ Hrot.ClusterRunner.exe --mode simhost --domain 0
 
 ## 11. ECS Component ID Safety (Phase R0 Pre-Requisite)
 
+> ⭐ **`2026-10-15`:** the ids this section made fixed stay fixed; whether the TABLE behind them must stay process-static is [Architect Question 92](../../blueprints/Architect_Question_92_Per_World_Component_Registry.md) (one table per world, a frozen production catalogue, a rail for duplicate ids).
+
 > **Design Talk (2026-03-05):** Identified by architect as a blocking prerequisite before starting the Runner project. Two distinct but related problems must be resolved in `Fdp.Kernel` before three independent binaries can safely share one process.
 
 ### 11.1 The Problem: Non-Deterministic Component IDs

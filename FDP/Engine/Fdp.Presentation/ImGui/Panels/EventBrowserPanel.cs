@@ -119,7 +119,8 @@ public class EventBrowserPanel
 
     public EventBrowserPanel(IDiagnosticEventHistoryService historyService)
     {
-        _historyService = historyService;
+        // ⭐ CE-3166 — a null service is the parameterless constructor's case; through this one it is a caller's mistake
+        _historyService = historyService ?? throw new System.ArgumentNullException(nameof(historyService));
     }
 
     /// <param name="title">Optional window title override. Default: "Event Browser".</param>

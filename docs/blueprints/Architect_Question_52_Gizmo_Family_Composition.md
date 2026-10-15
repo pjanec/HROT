@@ -9,6 +9,8 @@ design-basis: 🔒 user ruling 2026-08-23 (§0) · docs/UX/UX_Feature_Map_Parity
   (registering a component TYPE ≠ an entity carrying it).
 known-conflict: none. ⭐ UXI-23's MapInteractionPack is the TARGET and is not built; this is the
   bootstrap half of it, landed early because --mode ig is dead today.
+related-designs:
+  - docs/blueprints/Architect_Question_92_Per_World_Component_Registry.md — owns where component ids and types are looked up (§4-E: the gizmo registries move off the static ComponentTypeRegistry to ComponentId<T> / the catalogue).
 -->
 # Q52 — **schema follows declaration** *(the `--mode ig` bootstrap crash)*
 

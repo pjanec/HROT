@@ -1,3 +1,4 @@
+using System.Linq;
 using Hrot.Map.Common;
 using Hrot.Map.Definitions.Tkb;
 using Fdp.Toolkit.Tkb;
@@ -250,6 +251,41 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — EVERY weapon system type states how it breaks: its presented area (it is EQUIPMENT in a
+        /// burst, not a man), its casing (every face), its health and its blast share — and the sophisticated ones (optics, seekers,
+        /// electronics: the guided launchers, the sentry) are the fragile ones. ⛔ Before: one helper gave all 13 types 60 health and no
+        /// area. A data rail (not red-proved by a mutation: every value is written here).
+        /// </summary>
+        [Fact]
+        public void CE3203_EveryWeaponSystem_StatesHowItBreaks()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, area, casing, health, blast) in new[]
+                     {
+                         (TkbEntityTypes.WeaponSystem_M2Hmg, 0.35f, 1.5f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_DshkHmg, 0.35f, 1.5f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_M134Minigun, 0.25f, 1f, 40f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Javelin, 0.3f, 0f, 20f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Nlaw, 0.15f, 0f, 15f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Law, 0.1f, 0f, 10f, 1f),
+                         (TkbEntityTypes.WeaponSystem_KornetTripod, 0.35f, 0f, 25f, 1f),
+                         (TkbEntityTypes.WeaponSystem_TowTripod, 0.4f, 0f, 25f, 1f),
+                         (TkbEntityTypes.WeaponSystem_SentryGun, 0.3f, 1f, 30f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar60, 0.2f, 2f, 60f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar81, 0.3f, 2f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar120, 0.5f, 2f, 120f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Howitzer105, 3.0f, 6f, 400f, 0.5f),
+                     })
+            {
+                var c = db.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>()!;
+                Assert.Equal((area, health, blast), (c.PresentedAreaM2, c.MaxHealth, c.BlastSusceptibility));
+                Assert.Equal((casing, casing, casing, casing), (c.ArmorFront, c.ArmorSide, c.ArmorRear, c.ArmorTop));
+            }
+            float Health(long t) => db.GetByType(t)!.GetDescriptor<CombatPlatformDefDto>()!.MaxHealth;
+            Assert.True(Health(TkbEntityTypes.WeaponSystem_Javelin) < Health(TkbEntityTypes.WeaponSystem_M2Hmg) / 2f, "a seeker breaks sooner than a receiver");
+        }
+
+        /// <summary>
         /// ⭐⭐ M7 (DESIGN_FPV_Drone §2) — TKB type 403, the FPV drone: a Rotorcraft (Gen.Locomotion) with Gen.Flight and NO ground physics,
         /// 10 hp, its weapon = its warhead (munition 6016, reach = its contact radius), heard as rotors, sees 1500 m, DIS air / UAV, hostile.
         /// </summary>
@@ -482,7 +518,7 @@ namespace Hrot.Map.Common.Tests
                 var mount = Assert.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
                 Assert.Equal((category, arc, minEl, maxEl, (ulong)ammo), (mount.Category, mount.Arc, mount.MinElevationDeg, mount.MaxElevationDeg, mount.AmmoGuid));
                 Assert.True(mount.DispersionMils > 0f && mount.Range > 0f && mount.FireOnMove != true, $"{t.Name}");
-                // ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — laid by a LAYING turret 0: all round, the mount's elevation window
+                // ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — laid by a LAYING turret 0: all round, the mount's elevation window
                 Assert.Equal(0, mount.TurretIndex);
                 var lay = Assert.Single(t.GetDescriptor<TurretSuiteDto>()!.Turrets);
                 Assert.Equal((-180f, 180f, minEl, maxEl), (lay.TraverseMinDeg, lay.TraverseMaxDeg, lay.ElevationMinDeg, lay.ElevationMaxDeg));
@@ -559,6 +595,89 @@ namespace Hrot.Map.Common.Tests
         private static Fdp.Toolkit.Navigation.NavRouteWaypoint Wp(float x, float y,
             Fdp.Toolkit.Navigation.RouteWaypointKind kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Pass)
             => new(new System.Numerics.Vector3(x, y, 0f), 0f, kind, 0f, Fdp.Toolkit.Navigation.RouteHold.None, 0f, 0L);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2182</c> (AT1, R-2021, DESIGN_Air_Operations §7c) — every AIRCRAFT type, built through the production translator set,
+        /// carries the combat layer and NOT the round's bit, so a round's mask (everything but its own bit) meets it. 🔴 Red-proof: the
+        /// round's bit back on 2 — the combat layer's — ⇒ every flyer ends on the bit a round skips. The flying UH-60 (404) joins with its
+        /// combat platform (AT4, CE-2185).
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Drone_Fpv)]
+        [InlineData(TkbEntityTypes.Jet_AttackA10)]
+        [InlineData(TkbEntityTypes.Heli_AH64)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff)]   // CE-2185 (AT4)
+        public void CE2182_AnAircraft_IsOnTheCombatLayer_SoARoundMeetsIt(long type)
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var e = w.CreateEntity();
+            var template = BuildDatabase().GetByType(type)!;
+            foreach (var t in Hrot.Core.Tkb.TkbTranslatorSet.Base()) t.Inject(w, e, template);
+
+            int layer = w.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).CollisionLayer;
+            Assert.NotEqual(0, layer & Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            Assert.Equal(0, layer & Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer);
+            Assert.NotEqual(0, layer & ~Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer);   // the round's mask meets it
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2185</c> (AT4, R-2021) — both Black Hawks carry a health through the production translators, so a hit, a blast or a
+        /// fragment can down them (before: no combat platform, immune). 🔴 Red-proof: without the catalogue entry neither has Health.
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Heli_UH60)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff)]
+        public void CE2185_ABlackHawk_CarriesHealth(long type)
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var e = w.CreateEntity();
+            var template = BuildDatabase().GetByType(type)!;
+            foreach (var t in Hrot.Core.Tkb.TkbTranslatorSet.Base()) t.Inject(w, e, template);
+
+            Assert.True(w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e));
+            Assert.Equal(800f, w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Max);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2186</c> (W2, R-2020, DESIGN_Missiles_And_Ammo §2c) — every built-in munition carries a relative cost, so the weapon brain's
+        /// "cheapest round that is enough" applies to every built-in loadout (a loadout with one uncosted round falls back to the pick by
+        /// effect alone). Ordered as the rule says: a rifle round 1, a guided missile or a bomb in the hundreds.
+        /// </summary>
+        [Fact]
+        public void CE2186_EveryBuiltInMunition_HasACost_InTheRulesOrder()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            var munitions = db.GetAll().Where(t => t.TkbType >= 6001 && t.TkbType < 6100).ToList();
+            Assert.NotEmpty(munitions);
+            Assert.All(munitions, t => Assert.True((t.GetDescriptor<MunitionCostDto>()?.RelativeCost ?? 0f) > 0f, $"{t.Name} has no cost"));
+            float Cost(long type) => db.GetByType(type)!.GetDescriptor<MunitionCostDto>()!.RelativeCost;
+            Assert.Equal(1f, Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball));
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT) < Cost(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds));
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile) >= 100f);
+            Assert.True(Cost(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb) >= 100f);
+        }
+
+        /// <summary>⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — the NLAW flies the OVERFLY top attack (1 m over the roof, the charge
+        /// fired down); the Javelin keeps its climb-and-dive (no overfly), so <c>ua-javelin-lock</c> is unchanged.</summary>
+        [Fact]
+        public void CE3198_TheNlaw_FliesTheOverfly_TheJavelinKeepsItsDive()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            var nlaw = db.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile)!.GetDescriptor<MissileDto>()!;
+            Assert.True(nlaw.Overfly);
+            Assert.Equal(1f, nlaw.OverflyHeightM);
+            var javelin = db.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile)!.GetDescriptor<MissileDto>()!;
+            Assert.False(javelin.Overfly);
+            Assert.True(javelin.TopAttack);
+        }
 
         private static TkbDatabase BuildDatabase()
         {

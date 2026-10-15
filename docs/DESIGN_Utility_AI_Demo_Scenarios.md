@@ -91,7 +91,7 @@ Tracker: `CE-3069` (this programme), `CE-3070` (F1, fixed), `CE-3073` (F10, fixe
 ```mermaid
 graph LR
   TT["test-town (exists)<br/>400 x 400 m urban<br/>6 buildings, walls, streets, garage deck"]
-  BD["basic-desert (exists, extended)<br/>600 x 600 m open<br/>track road, rocks, compound<br/>+ NEW ridge (two ramps) + wadi"]
+  BD["basic-desert (exists, extended)<br/>600 x 600 m open<br/>track road, rocks, compound<br/>+ ridge + wadi on a height grid (H4)"]
   TT --> U1["U1 posture"]
   TT --> U2["U2 threat ranking"]
   TT --> U3["U3 three hosts"]
@@ -107,7 +107,7 @@ target type and squad movement need open ground — and no third terrain is need
 | decision | why | rejected |
 |---|---|---|
 | ⭐ reuse `test-town` unchanged | cover, LOS blockers and streets already exist; `tt-take-cover`/`tt-posture` prove EQS answers there | — |
-| ⭐ extend `basic-desert` with a ridge (two ramps meeting at a crest) and a wadi | ramps are walkable AND block sight (`TerrainWorld.cs:157-165` — sight lines test walkable triangles), so a ridge works as a hill without a heightfield; the tests pin only its NAME | a third terrain (the user prefers 2–3; nothing needs it) · a heightfield (not built) |
+| ⭐ extend `basic-desert` with a ridge and a wadi — ⛔ *the "two ramps" form is SUPERSEDED `2026-10-15`: built as a height grid, [`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md) §5d* | ramps are walkable AND block sight (`TerrainWorld.cs:157-165` — sight lines test walkable triangles), so a ridge works as a hill without a heightfield; the tests pin only its NAME | a third terrain (the user prefers 2–3; nothing needs it) · a heightfield (not built) |
 | ⚠ to MEASURE when building | that the navmesh bakes over the ramps and `SurfaceZ` puts a unit on top of them, not on the ground below | — |
 
 ## 4. The scenarios
@@ -252,7 +252,7 @@ every frame; maneuver selection (U7) has two systems nobody calls (red) and is b
 | **G7** `CE-3089` → backend | weapon mounts: register `WeaponMountInfo`, per-mount range, effectiveness vs armour (not a copy of range fit), the fire executor fires the chosen mount, a `SelectWeapon` step in the engage path; `TopCandidate` passes the target as context (F2) | L | U5 | G1 |
 | **G8** `CE-3088` → backend | call `ThreatMatrixAssignmentSystem` from `SquadCoordinationSystem`; feed it the merged pool (F4); an infantry squad hierarchy in a scenario | M | U6 | G1, G3 |
 | **G9** | CE-507 D2/D3: a danger-area provider (interim: features authored in the terrain file), F5, F6, a squad-maneuver behaviour on the commander, members reading their role | L | U7 | user decisions |
-| **G10** `CE-3086` → backend | `basic-desert` ridge + wadi; measure navmesh and `SurfaceZ` on the ramps | S | U5–U7 | — |
+| **G10** `CE-3086` → backend ✅ | `basic-desert` ridge + wadi — ⭐ BUILT `2026-10-15` as a height grid, not ramps ([`DESIGN_Terrain_Height.md`](DESIGN_Terrain_Height.md) §5d: crest 10 m at y = 210, x 230–320; wadi at x = 520); navmesh measured on both layers | S | U5–U7 | — |
 | **G11** ⚠ PARTIAL `2026-10-05` (U1/U2 rails: `CE-3085`) | the seven scenario folders, `utility-demo-check.py` (asserting; `--launch` = a fresh cluster per run, CE-295), the runbook, one in-process rail each — ✅ U1 `ua-posture` and U2 `ua-threat-ranking` built and PASS ×2 live; ⏳ their in-process rails, U3–U7 | M | all | per scenario |
 
 ## 7. Out of scope — and why
@@ -963,7 +963,7 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 | cadence | the solver answers each time `EqsSolverSystem` schedules the sensor (cost `Sensor + Path`); `MaxAreas` / `RefreshSeconds` do not ride the wire (8 areas max) |
 | rating | sight = `TerrainWorld.SegmentBlocked` from the last-known position +1.6 m to the area centre +1 m; danger `ThreatDanger.OfSlot`; no range cap; edges with hysteresis 0.5 / 0.4 on slot 0 |
 
-Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly.
+Rails: `DangerAlongRouteClassifierTests` ×6, `DangerAreaSensorSystemTests` ×6 (one crossing from a point; threat from a known armed contact with sight, 0 once its last-known position is behind a building; a killed watcher is no threat; AreaAhead / AreaThreatened / AreaCleared; a stale answer dropped; OwnMove). Gates on the tree merged with `behaviors`: `Fdp.Toolkits.Tests` 2767/0 (+1 skip), `Hrot.SimHost.Tests` 1121/0 (+3 skips). ⭐ **The DDS leg is railed across hosts:** `EqsDistributedTests.DangerAlongRoute_AcrossHosts_TheSolverAnswersTheBrain_AndTheBrainRatesTheCrossing` (`simhost,cgf`, 8 s) — 🔴 it FAILED first and found a real defect: `EqsModule` is `SlowBackground` (asynchronous, on a SNAPSHOT), so the solver's direct `Bus.PublishManaged` landed on the snapshot's bus and was lost; ⭐ the answer now goes through the command buffer (`EntityCommandBuffer.PublishManagedEvent`), as the ranked `EqsResultEvent` does. ⚠ A background system must never publish on `repo.Bus` directly. ⭐ **`CE-3138` (`2026-10-15`):** the rail's crossing unit is a RIFLEMAN — with an Abrams it read the T-72 watcher at danger 0.50 (`CE-2165` V1: to a vehicle, danger is what penetrates its armour — a head-on T-72 at 110 m sits ON the 0.5 threshold), which kept the rail red from the day the solver first answered. A vehicle's crossing rating is now armour-aware by design ([Vehicle Exposure §2](designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md)).
 
 #### 10.7b OpenGround — the first kind after v1 *(`CE-3081`, backend, `2026-10-14`; for behaviors' `CE-2161` (the live D3 "Bound" demo); build-state: BUILT `2026-10-14`, as drawn — the as-built line at the end)*
 

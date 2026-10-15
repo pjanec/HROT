@@ -2,13 +2,15 @@
 state: LIVE
 doc-type: runbook (the standing HOW-TO for system/smoke/conformance tests + golden maintenance — not a
   buildable design, so no build-state/UML gate). Handoffs REFERENCE this; every implementation session follows it.
-updated: 2026-08-26
+updated: 2026-10-15 (§7.5 CE-3183: the weak self-handle; §7.3 check ④ the mapping count)
 current-answer: the whole file — how the C# harness drives the system over HTTP, how to write a smoke test,
   the perspective-switch capture protocol, how goldens are made/maintained, how conformance reuses it all,
   §7 — how to tell a real red from an exhausted process — and §8, the classified integration-suite ledger.
 design-basis: DESIGN_MCP_System_Test_Harness.md (the harness) · DESIGN_UI_Observability_Snapshot.md (PanelSnapshot) ·
   DESIGN_Headless_Testability.md (the taxonomy) · MCP_Integration.md (the API).
 known-conflict: none.
+related-designs:
+  - docs/blueprints/Architect_Question_92_Per_World_Component_Registry.md — owns the OTHER process-wide residue of a test: the static component registry and its 81 Clear() callers (§4-G).
 -->
 # RUNBOOK — how we test the system, and how we keep goldens honest
 
@@ -207,6 +209,7 @@ FDP_TRACK_REPO_LEAKS=1 dotnet test <proj> --no-build --filter TheHarnessReleases
 | **①** | ⭐⭐⭐ **did the run FINISH?** `Total tests: Unknown` + *"Test Run Aborted"* ⇒ ⛔ **the numbers are not comparable to anything** — not to the base tree, not to the previous run | the pre-fix suite could not produce a total at all |
 | **②** | ⭐⭐ **`grep -c OutOfMemoryException` the log** | ⛔ **any** non-zero count invalidates every red in that run |
 | **③** | ⭐ **watch RSS**: `while :; do free -m; sleep 15; done` alongside the run | ⭐ a MONOTONIC climb is a leak; a plateau is a working set |
+| **④** | ⭐⭐ **watch the test host's MAPPING COUNT, not only RSS** — `wc -l < /proc/<testhost pid>/maps` against `/proc/sys/vm/max_map_count` (65 530) *(`CE-3183`, §7.5)* | ⛔ an `OutOfMemoryException` with GIGABYTES free is the mapping cap: every `NativeChunkTable` is one `mmap` reservation, and RSS says nothing about it |
 
 ⇒ ⭐⭐ **Only after ①–③ are clean is a filtered base-vs-change comparison meaningful.** ⚠ `F17`'s
 *"quote a filtered subset run on both trees"* was the right MITIGATION for an un-gateable suite — ⛔ it was
@@ -220,6 +223,24 @@ was the problem.** ⇒ that is `R-131`'s permanent filter-around wearing a diffe
 legitimate use is the opposite one:** the world-leak rail is `DisableParallelization` **because
 `LiveInstanceCount` is process-wide**, so a concurrent collection would make the delta meaningless — the
 attribute is protecting a *measurement*, not hiding a *failure*.
+
+### 7.5 ⭐⭐ `CE-3183` (`2026-10-15`) — **the same disease, a second mechanism: the world's own handle kept every leak alive**
+
+📐 **Measured on `Hrot.SimHost.Tests`, run alone:** 16–48 reds a run, a different set each time, ~all `OutOfMemoryException` (40 of 42 at
+`EntityIndex.cs:38`, a MANAGED `new int[]`) — with **13 GB free**. The test host held **56 240 mappings** (`vm.max_map_count` 65 530) and
+6.5 TB of reserved address space; the leak tracker (`FDP_TRACK_REPO_LEAKS=1`) counted **484 undisposed worlds** from ~45 test classes.
+
+| why §7.1's fixes did not cover it | |
+|---|---|
+| QA-001…006 fixed the worlds the HARNESS and the KERNEL leaked | ⭐ these were test FIXTURES that build a world and never dispose it — each one small, ~45 of them |
+| `NativeChunkTable` has a finalizer that frees its reservation | ⛔ it never ran: `EntityRepository` held a **strong** `GCHandle` to itself (DEBT-007's HSM-bridge handle), so an undisposed world was rooted for the life of the process |
+
+⭐ **Fix:** the self-handle is **weak** (`EntityRepository.cs`): every reader recovers the world inside a tick from a bridge `HsmRunner` fills
+from the live repository, so access is unchanged, and an undisposed world is now collected and its reservations freed. 📐 After: the suite
+**1406 / 1** (the 1 is behaviors' deterministic `SopParamsRoundTripTests.CE2079_*`), peak **4 075 mappings**, RSS 0.78 GB (was 8 GB).
+Rail `EntityRepositoryDisposeTests.CE3183_AWorldNobodyDisposed_IsCollected_AndAHeldOneStillResolvesThroughItsHandle` (red with the strong handle).
+⛔ **Disposing is still the rule** — `LiveInstanceCount` still counts an undisposed world, and the leak tracker still names it; the weak handle
+only stops a missed `Dispose` from taking the whole process down.
 
 ---
 

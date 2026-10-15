@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: BUILT (backend WS-1…WS-4, §9; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
+updated: 2026-10-15 (§5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — designed; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
+build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — SetUpWeapon / PackUpWeapon / CarryWeapon and the demo not yet; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
@@ -268,6 +268,64 @@ hatch at x −0.4, z 0.7 (feet); every `Pickup(...)` gunner (seat 1: 104 / 105 /
 place the technicals' gunner was drawn inside the body, and at z 1.2 the HMMWV's showed only his head. Read only by the 3-D drawing; the
 stations, indices, roles and presets are unchanged ([DESIGN_Map_3D_Mode §6n](../../DESIGN_Map_3D_Mode.md), `Map3DTests.CE1108_*`).
 
+### 5b. A weapon is broken by fragments and blast — configured per type (`CE-3203`, `2026-10-15`)
+
+🔒 User: *"weapon entities should be destroyable and separately configured … maybe it is pretty easy to break a weapon with a shrapnel hit
+or blast (especially the sophisticated ones but likely also the dumb yet fragile mechanical ones)."* 📐 Measured: every weapon type had
+`MaxHealth = 60` from one helper, no collider (so the area effect hit it like a MAN), and `CanFire` never read its health — a broken weapon
+kept firing. Now each type states how it breaks; the burst uses the one fragment law
+([Building Interiors §3k.1](../../DESIGN_Building_Interiors.md)) with the weapon as EQUIPMENT.
+
+| type | area m² | casing mm RHA | health | blast share | why |
+|---|---|---|---|---|---|
+| M2 600 · DShK 601 | 0.35 | 1.5 | 80 | 1 | a steel receiver, but the feed, sights and barrel are exposed |
+| M134 602 | 0.25 | 1 | 40 | 1 | an electric drive and a belt chute |
+| Javelin 603 · Kornet 606 · TOW 607 (tripod) | 0.3 · 0.35 · 0.4 | 0 | 20 · 25 · 25 | 1 | ⭐ sophisticated: optics, seeker, electronics — one fragment breaks it |
+| NLAW 604 · M72 LAW 605 | 0.15 · 0.1 | 0 | 15 · 10 | 1 | a thin tube |
+| sentry gun 608 | 0.3 | 1 | 30 | 1 | sensors and electronics |
+| 60 / 81 / 120 mm mortar 609–611 | 0.2 / 0.3 / 0.5 | 2 | 60 / 80 / 120 | 1 | a thick tube; the bipod and sight break |
+| 105 mm towed 612 | 3.0 | 6 | 400 | 0.5 | a gun shield and a carriage |
+
+| rule | |
+|---|---|
+| a weapon at **0 health is DESTROYED**: `CanFire` ⇒ `WeaponHold.Destroyed`; the weapon brain does not choose it; it no longer arms its host (`WeaponOf`) | the host's other weapons (if any) still fight |
+| a weapon is EQUIPMENT in the burst: `CombatPlatformDefDto.PresentedAreaM2 > 0` | its own area, casing and health — not a man's |
+| it stays in its host's controlled list | the `32 + k` mount indices of the others must not shift |
+
+**As built (`2026-10-15`, `CE-3203`)** — as designed. `BdcTkbCatalog.WeaponSystemType` takes a `WeaponBreaks(area, casing, health,
+blast share)` per type (the table above; the casing is every face's armour). `WeaponSystems.IsBroken` (a weapon system at health ≤ 0);
+`CanFire` ⇒ `WeaponHold.Destroyed` (= 4); `PrimaryMount` / `WeaponOf` skip a broken one (the next working one answers); `WeaponChoice.Choose`
+never picks one. Measured at 10 m from an 81 mm: M2 30 of 80, Javelin 25 of 20 (broken); a grenade 3 m from an M2 breaks it; a Mk-82
+121 m away puts 2 on it. Rails: `NedTkbBuilderCombatTests.CE3203_EveryWeaponSystem_StatesHowItBreaks` ·
+`AimAndFireExecutorTests.CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody` ·
+`AreaEffectSystemTests.W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. ✅ **C4 measured `2026-10-15`:** a weapon
+CARRIED by a soldier (a Javelin on his back) IS struck with him — every soldier type declares `CarrierDefDto.PersonCarrier()` (an OPEN
+carrier: BdcTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry station is an exposed seat, the boarded weapon's
+`IsEmbarkedTag.Exposed` is 1 and `PhysicalPresence.IsHidden` does not hide it; the 81 mm at 10 m that breaks a Javelin on the ground
+breaks it on his back (rail `AreaEffectSystemTests.CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`). ~~not measured for the
+soldier types here; a lean in the report~~
+
+### 5c. Air defence — the MANPADS launchers and the ZU-23-2 (`CE-2187`, `CE-2190`, backend, `2026-10-15`; build-state: BUILDING)
+
+🔒 Frame: [Air Operations §7d](../air-attack/DESIGN_Air_Operations.md) AD1 / AD5 (behaviors' leans, user-approved). The rounds, the IR
+seeker, the proximity fuze and the countermeasures are [Missiles & Ammo §3c](../vehicle-tactics/DESIGN_Missiles_And_Ammo.md). ⭐ **No new
+class here** — data on the existing weapon-system types (§3), so the class and sequence diagrams of §3/§4 hold unchanged: a MANPADS is
+§4b's carried weapon (`FireWhileCarried`, the Javelin 603), the ZU-23 is §4a's station weapon (the M2 600) with a two-man ground crew.
+
+| type | id | `WeaponSystemDto` | mount | turret | breaks (§5b) |
+|---|---|---|---|---|---|
+| Stinger (FIM-92 class) | **613** | the shoulder launcher (`OneMan`, `Ground` \| `Carried`, `FireWhileCarried`) | 1 missile, `AimSeconds` 4 (the IR lock), reload 8 s, range 4 800 m, `Category = Sam` | none | 0.15 m², casing 0, health 15 — a seeker and a battery |
+| Igla (9K38 class) | **614** | as 613 | 1 missile, lock 4 s, reload 8 s, range 5 200 m, `Sam` | none | as 613 |
+| ZU-23-2 | **615** | `TwoMan`, `Ground` \| `Pintle`, deploy 30 s / pack 20 s, carry 0.3 | twin 23 mm: 100 rounds ready (2 × 50), 400 rpm practical, dispersion 3 mils, range 2 500 m, HE-I + API loadout, `MachineGun` | **−10…+90°**, traverse 70 °/s, elevation 50 °/s | 1.0 m², casing 3, health 120 |
+
+| preset / data | id | what |
+|---|---|---|
+| a soldier carrying a Stinger / an Igla | **202 / 203** | the rifleman's body and rifle (mount 0) + `PersonCarrier()` with the carry station's `StartWith` = 613 / 614 (W-I) — ⭐ the first soldier preset with a weapon on his back (2006 / 2007 are still mount-0 launchers, §9) |
+| the technical with a ZU-23 | **110** | pickup + ZU-23 in its bed station + a gunner (the 104 pattern) |
+| munitions | **6030** Stinger · **6031** Igla · **6032** 23 mm HE-I · **6033** 23 mm API | §3c's `MissileDto` (InfraRed, `TargetDomain = Air`) and a proximity `WarheadDto` on 6030/6031; the 23 mm rounds are plain (no proximity fuze — the real one has none, AT2's lead aims them) |
+
+⚠ `WeaponCategory.Sam` is a new enum member (appended) — the weapon brain's `Atgm` / `MachineGun` paths must not mistake a SAM for an ATGM.
+
 ## 6. Rules
 
 | rule | why |
@@ -282,6 +340,7 @@ stations, indices, roles and presets are unchanged ([DESIGN_Map_3D_Mode §6n](..
 | deploy state (W-C): `Stowed` (transport, can be carried, does not fire unless `FireWhileCarried`) → `Deploying` (`DeploySeconds`) → `Deployed` → `Packing` → `Stowed`; written by its owner, replicated (`dtWeaponSystemState`, R-136). A station weapon is placed Deployed | the drawing and the gate both read it; At ease / Ready / Aimed stays the gunner's (R-272) |
 | ★ W-I — a placed host fills EVERY seat's `StartWith` ONCE (`SeatPresets`, on the creating node, R-138): a weapon into a `Station`, a soldier of the host's side into a crew seat. The soldier is a real entity — seen, hit, killed; aboard, his own brain fires nothing. The host is then marked filled (saved), so a load never refills a seat the user emptied, nor adds a second gunner | presets keep 104 / 105 / 2006 / 2007 scenarios working, and their guns fire: `CanFire` needs the operating seat occupied, so a preset that seated no gunner would never fire (📐 the gap the W-I review found) |
 | a weapon system cannot drive: `Move` to a `WeaponSystem` is refused; it moves by being carried or by its host | it has no locomotion |
+| ⭐ `CE-2182` (`2026-10-15`) — a ROUND does not meet a weapon system (`RaycastSolverSystem`): it stands on its carrier or at its host's seat with the 2.5 m fallback collider and no height, so meeting it would take the round meant for the man or the pickup. Fragments and blast still break it (§5b, CE-3203) | before AT1 the round's mask skipped the combat layer it sits on alone; AT1 made that layer hittable ([Air Ops §7c-i](../air-attack/DESIGN_Air_Operations.md)). A direct hit on a DEPLOYED weapon needs a real collider first — a user decision |
 
 ## 7. Decisions — 🔒 APPROVED `2026-10-14` (R-2016)
 
@@ -352,5 +411,6 @@ at the REQUEST TIER — the same place a template's child blueprints are spawned
 | WS-4 ownership | ⭐ **every weapon type has a BRAIN** (§6's "its own brain runs only while it controls itself" — and `CE-523`: Health and the deploy state are Brain-group components, which only apply to a type with a brain) · ⭐ **the Muscle group applies to a weapon system** (`HrotOwnershipGroups.HasKinematics` widened): the Muscle aims its turret (`TurretPose`, `WeaponTaskStatus`) and carries it in its station (`SimTransform`), as for any passenger. Without it the turret stayed with the weapon's creator and a split cluster never fired it | §2 (the module picture assumed both) |
 | WS-4 armed | ⭐ **`WeaponSystems.WeaponOf(unit)`** — the unit's own `WeaponState` holder, else its first controlled weapon system, else null — is the one answer to *"is this unit armed, with what?"*: the utility inputs `AmmoFraction` / `WeaponHasAmmo` / `WeaponReadiness` / `RoundsLeft` and `ThreatDanger.OwnStrength` read through it — ⭐ and so does `ThreatDanger.Of` / `ToMe` for a bare host as a TARGET (its danger is its station gun's suite; before, its enemies read it as an unarmed contact, 0.3). 📌 Found by the split-cluster rail: they read the UNIT's `WeaponState`, so a bare pickup scored 0 on its engage decision and never fought (and ranked itself unarmed). A unit with its own gun reads exactly as before — no ground number moves. ⚠ **Report to behaviors**: three behaviour-lane sites still read the unit's own `WeaponState` — `PeekAndFireNodes.ReloadingOrEmpty`, `VehicleFightFromCoverNodes.Reloading` (a bare host never waits for a reload) and `HillAttackTankNodes` (fails on a bare host); `WeaponOf` is the call for them | §6 |
 | WS-4 riders | ⭐ **a carrier and its riders do not hide each other** (`RideGroups` in `LosStrategies.cs`, used by `ColliderOcclusion` — sight, fragments and blast shadow — and by `PlanarCircleLosStrategy`). 📌 Found by the split-cluster rail, and ⚠ **older than WS-4**: an OPEN cabin's riders are colliders (R-271 — exposed, seen and hit), so the gunner standing at the pickup's own position blinded the pickup and the pickup the gunner. Measured: at the same spot the bare Toyota (106) and the Bradley (101) saw the target, the crewed technical (104) did not. It applies to every open carrier (a doors-off UH-60, a soldier carrying a casualty). The line of FIRE already had this rule (`LineOfFire.RidesWith`, WS-3) | R-271 (DESIGN_Entity_Interactions §7.2a) |
+| ⭐ **WS-6 `ManWeapon` — BUILT `2026-10-15`** (behaviors, for IF-4) | the library behaviour `ManWeapon { weapon }` (`EmbarkBehaviors.cs`) boards the weapon's `Gunner` seat: `EmbarkNodeParams.Role` / `EmbarkParams.Role` (APPENDED) carry the role and `EmbarkExecutor` asks `Embarkation.FreeSeat(role)` — a plain `Embark` still takes the first PASSENGER seat (the loader's), so it never controls the weapon. ⚠ **DEVIATION — the gunner keeps his fire**: `Embarkation.Board` stripped `CanMove | CanShoot` from every rider, so the man in a weapon's own Gunner seat — its controller (WS-3), who fires it AS the weapon through his own `WeaponChannel` — had every weapon action failed by `WeaponDispatcherSystem`'s capability gate before the executor ran. 📐 Found live (IF-4 ①: the section's FireAtPoint reported Failure with the executor never entered); the IF-1 rails missed it because they call the executor directly. ⇒ `Embarkation.StrippedOn(vehicle, seat)`: a weapon system's Gunner seat takes only `CanMove`; every other seat (a vehicle's crew seats included — W-I, the HOST fires there) is unchanged. Rails: `EmbarkNodesTests.CE2176_ManWeapon_TakesTheGunnerSeat_ControlsAndFiresTheWeapon_APlainEmbarkTakesTheLoadersSeat` · the `MannedMortar` premise in `AimAndFireExecutorTests` (IF-1's suite) | §4b's *"ManWeapon: the soldier boards the M2's Gunner seat"* as drawn; §6's capability side was never stated — it is now |
 | ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
 | ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |

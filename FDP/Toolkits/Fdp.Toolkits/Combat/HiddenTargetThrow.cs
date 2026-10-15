@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Combat
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
                 TargetPoint = point,
+                RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
             });
             Magazine.Spend(ref weapon);
             weapon.CooldownSecondsRemaining = CooldownSeconds;
@@ -99,13 +100,20 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>L-2 — any entity of the thrower's force (the thrower too) within <paramref name="radius"/> of the burst.</summary>
         public static bool FriendlyInBurst(EntityRepository world, Entity unit, Vector3 point, float radius)
+            => FriendlyInBurst(world, unit, point, radius, neutralsToo: false);
+
+        /// <summary>⭐ <c>CE-2173</c> slice 6c (W3, R-2020; 📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9e) — the same test, and with
+        /// <paramref name="neutralsToo"/> a <see cref="ForceId.Neutral"/> unit counts as well: the air attack's collateral check (a weapon
+        /// is out when a friend OR a neutral stands within its burst).</summary>
+        public static bool FriendlyInBurst(EntityRepository world, Entity unit, Vector3 point, float radius, bool neutralsToo)
         {
             if (radius <= 0f || !world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(unit)) return false;
             var force = world.GetComponentRO<EntityInfo>(unit).ForceId;
             float r2 = radius * radius;
             foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
             {
-                if (world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                var theirs = world.GetComponentRO<EntityInfo>(e).ForceId;
+                if (theirs != force && !(neutralsToo && theirs == ForceId.Neutral)) continue;
                 if (!CombatLife.IsAlive(world, e)) continue;
                 var p = world.GetComponentRO<SimTransform>(e).Position;
                 if (new Vector2(p.X - point.X, p.Y - point.Y).LengthSquared() < r2) return true;

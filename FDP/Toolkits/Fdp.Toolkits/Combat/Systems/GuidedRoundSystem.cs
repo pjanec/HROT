@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Combat.Systems
@@ -42,9 +43,44 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.HasComponent<BallisticProjectile>(e) && repo.GetComponentRO<BallisticProjectile>(e).StoppedTick != 0) continue;
                 var pos = repo.GetComponentRO<SimTransform>(e).Position;
                 ref var vel = ref repo.GetComponentRW<SimVelocity>(e).Linear;
-                if (!Steer(repo, world, ref g, pos, out var desired)) continue;
-                vel = Turn(vel, desired, TurnRateDegPerSec * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
+                if (Steer(repo, world, ref g, pos, out var desired))
+                    vel = Turn(vel, desired, TurnRateDegPerSec * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
+                // ⭐ CE-3198 (§3b) — the overfly fuze: fires DOWN as the round passes over the roof
+                if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) repo.DestroyEntity(e);
             }
+        }
+
+        /// <summary>Above the roof, a fuze this much higher than the overfly height still fires (the round's path is not exact).</summary>
+        public const float OverflyFuzeMarginM = 2f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — the NLAW's overfly fuze: when the round's NEXT step (pos → pos + v·dt) enters
+        /// the target's footprint (its collider circle) while the round is above the roof and no more than <see cref="GuidedRound.OverflyHeightM"/>
+        /// + <see cref="OverflyFuzeMarginM"/> over it, the charge fires DOWN: a <see cref="Fdp.Toolkit.Combat.Contracts.DetonationNotification"/> on the target with a
+        /// straight-down travel (⇒ the Top face, the unchanged chain), the round's own penetration, damage and ammo — as the FPV drone's
+        /// impact does. True when it fired (the round is spent).
+        /// </summary>
+        public static bool OverflyFuze(EntityRepository repo, Entity round, in GuidedRound g, Vector3 pos, Vector3 vel, float dt)
+        {
+            if (!repo.IsAlive(g.Target) || !repo.HasComponent<SimTransform>(g.Target) || !repo.HasComponent<PhysicsCollider>(g.Target)) return false;
+            float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, g.Target);
+            if (hull <= 0f) return false;
+            var at = repo.GetComponentRO<SimTransform>(g.Target).Position;
+            float roof = at.Z + hull;
+            if (pos.Z < roof || pos.Z > roof + g.OverflyHeightM + OverflyFuzeMarginM) return false;
+            var next = pos + vel * dt;
+            float radius = repo.GetComponentRO<PhysicsCollider>(g.Target).Radius;
+            if (!Fdp.Toolkit.Physics.Math.Intersection2D.SegmentInCircle(new Vector2(pos.X, pos.Y), new Vector2(next.X, next.Y),
+                                                                         new Vector2(at.X, at.Y), radius, out _, out _)) return false;
+            var proj = repo.HasComponent<BallisticProjectile>(round) ? repo.GetComponentRO<BallisticProjectile>(round) : default;
+            float speed = MathF.Max(vel.Length(), 1f);
+            repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification
+            {
+                Shooter = proj.Shooter, Target = g.Target, HitX = pos.X, HitY = pos.Y, HitZ = roof,
+                Penetration = proj.Penetration, Damage = proj.Damage, Ammo = proj.Ammo,
+                TravelX = 0f, TravelY = 0f, TravelZ = -speed,
+            });
+            return true;
         }
 
         /// <summary>The direction the round wants to fly, or false when it flies on as it is (lost, no target).</summary>
@@ -53,6 +89,10 @@ namespace Fdp.Toolkit.Combat.Systems
             desired = default;
             bool targetKnown = repo.IsAlive(g.Target) && repo.HasComponent<SimTransform>(g.Target);
             var targetPoint = targetKnown ? AimPoint.Middle(repo, g.Target, out _, out _) : g.LastSeen;
+            // ⭐ CE-3198 (§3b) — an overfly round's goal is above the roof, not the middle: it passes over and fires down
+            if (g.Overfly != 0 && targetKnown)
+                targetPoint = repo.GetComponentRO<SimTransform>(g.Target).Position
+                              + new Vector3(0f, 0f, Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, g.Target) + g.OverflyHeightM);
 
             if (g.Guidance == GuidanceKind.Command)
             {

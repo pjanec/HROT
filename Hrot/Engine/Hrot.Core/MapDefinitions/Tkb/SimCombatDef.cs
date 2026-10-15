@@ -127,6 +127,10 @@ namespace Hrot.Map.Definitions.Tkb
         /// armour. <c>CombatPlatformDefDto.BlastSusceptibility</c>.</summary>
         public float BlastSusceptibility { get; set; } = -1f;
 
+        /// <summary>⭐ CE-3203 — the area (m²) this type presents to fragments; stated ⇒ EQUIPMENT (a weapon). −1 ⇒ derived.
+        /// <c>CombatPlatformDefDto.PresentedAreaM2</c>.</summary>
+        public float PresentedAreaM2 { get; set; } = -1f;
+
         /// <summary>⭐ M5 — where the crew sees from, m above the ground (the sight / the commander's hatch); 0 ⇒ a standing man's.</summary>
         public float EyeHeight { get; set; }
 

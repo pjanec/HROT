@@ -468,6 +468,37 @@ public sealed class Map3DTests
         Assert.Equal(expected, new Hrot.Presentation.Map.EntityClassShapeLibrary().GetShape(null, dis).Name);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3148</c> — 🔒 user: <i>"all entities in the duel scenario are rendered as pink boxes."</i> Every static obstacle states its DIS
+    /// type: the parked car is a car (1.1.0.81 ⇒ the ground-vehicle avatar, the WheeledCar 3-D family), the sandbag wall, concrete block
+    /// and crate are cultural features (5.1 ⇒ their footprint outline) — none is the magenta unknown-type box any more; and a 2-D avatar
+    /// is sized from the obstacle's own footprint (<c>ObstacleShape</c>), not the renderer's 5 × 2.5 m default.
+    /// </summary>
+    [Fact]
+    public void CE3148_EveryObstacle_HasADisType_TheCarDrawsAsACar_TheRestAsTheirFootprint_AtTheirSize()
+    {
+        var db = new TkbDatabase();
+        NedTkbCatalog.RegisterObstacles(db);
+        var shapes = new Hrot.Presentation.Map.EntityClassShapeLibrary();
+        var car = db.GetByType(TkbEntityTypes.Obstacle_Car)!;
+        Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.GroundVehicle, shapes.GetShape(null, car.DisType.Value).Name);
+        Assert.Equal(VisualFamily.WheeledCar, VisualFamilies.Of(car));
+        foreach (var type in new[] { TkbEntityTypes.Obstacle_SandbagWall, TkbEntityTypes.Obstacle_ConcreteBlock, TkbEntityTypes.Obstacle_Crate })
+        {
+            var t = db.GetByType(type)!;
+            Assert.Equal(5, t.DisType.Kind);
+            Assert.Equal(GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary.CulturalFeature, shapes.GetShape(null, t.DisType.Value).Name);
+            Assert.Null(t.GetDescriptor<TkbMasterDto>());   // not a picker entry (a sided unit) — the type only
+        }
+
+        using var world = new EntityRepository();
+        world.RegisterComponent<ObstacleShape>();
+        var e = world.CreateEntity();
+        world.AddComponent(e, new ObstacleShape { Length = 3f, Width = 0.6f, Height = 1f });
+        Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmoShared.TryGetVehicleDimensions(world, e, out float length, out float width);
+        Assert.Equal((3f, 0.6f), (length, width));
+    }
+
     /// <summary>⭐ CE-2138 — the class-table avatar picks what the (fixed) GizmoMap switch picks over the whole DIS space, and a
     /// named shape still wins.</summary>
     [Fact]
@@ -476,7 +507,7 @@ public sealed class Map3DTests
         var byClass = new Hrot.Presentation.Map.EntityClassShapeLibrary();
         var bySwitch = new GizmoMap.Presentation.Shapes.DefaultEntityShapeLibrary();
         var moved = new List<string>();
-        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 9, 11 })
+        foreach (byte kind in new byte[] { 0, 1, 2, 3, 4, 5, 9, 11 })   // ⭐ CE-3148 — 5, a cultural feature
             for (int domain = 0; domain <= 6; domain++)
                 for (int category = 0; category <= 255; category++)
                 {

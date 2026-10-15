@@ -54,7 +54,12 @@ namespace Fdp.Toolkit.Combat
             if (CombatTkb.WarheadOf(world, ammo) is { HasAreaEffect: true } w)
             {
                 float kinetic = penetrator == Penetrator.Kinetic && pen > 0f ? armour : ArmourFacing(world, shooter, target, Penetrator.Kinetic);
-                area += w.FragmentDamage * ArmorModel.PenetrationChance(w.FragmentPenetrationMm, kinetic);
+                // ⭐ CE-3203 (Building Interiors §3k.1) — the burst's own law, a metre from a man / a weapon, at a hull's skin
+                var platformOf = CombatTkb.PlatformOf(world, target);
+                var (kind, size, at) = Systems.AreaEffectSystem.FragmentTargetOf(world, target, platformOf,
+                    Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target), Fdp.Toolkit.Tkb.Domain.StanceId.Standing, 1f);
+                area += AreaEffect.Fragments(w, kind, size, at, kinetic, 1f)?.Damage
+                        ?? w.FragmentDamage * ArmorModel.PenetrationChance(w.FragmentPenetrationMm, kinetic);
                 // ⭐ R-2019 D-M2 — the burst's own rule (R-212 A1): blast × the target's susceptibility (a person 1, a pickup 1, an MBT 0)
                 area += w.BlastLethalDamage * ArmorModel.BlastSusceptibility(CombatTkb.PlatformOf(world, target),
                     Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target));
@@ -79,11 +84,24 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
-        /// The index of the best round in <paramref name="load"/> against <paramref name="target"/> — only types with rounds left; the
-        /// higher value wins, then (all equal) the larger area effect; a tie on both keeps the loaded one. −1 when nothing is left.
+        /// ⭐⭐ <c>CE-2186</c> (W2, R-2020; DESIGN_Missiles_And_Ammo §2b) — is <paramref name="ammo"/> ENOUGH against <paramref name="target"/>:
+        /// the burst of <paramref name="rounds"/> (≥ 1) is expected to kill it — <see cref="ValueOf"/> × rounds ≥ 1. The ONE sufficiency rule:
+        /// the round choice (<see cref="Best"/>) and the air attack's mount pick (behaviors, B12) both call it.
         /// </summary>
-        public static int Best(EntityRepository world, in AmmoLoadout load, WeaponMountDto? mount, Entity shooter, Entity target)
+        public static bool Sufficient(EntityRepository world, WeaponMountDto? mount, long ammo, Entity shooter, Entity target, int rounds)
+            => ValueOf(world, ammo, mount, shooter, target) * Math.Max(1, rounds) >= 1f - Tie;
+
+        /// <summary>
+        /// The index of the best round in <paramref name="load"/> against <paramref name="target"/> — only types with rounds left.
+        /// ⭐ <c>CE-2186</c> — when EVERY such type has a cost (<see cref="CombatTkb.CostOf"/>): the CHEAPEST that is
+        /// <see cref="Sufficient"/> for the action's <paramref name="rounds"/> (a cost tie: the higher value, then the loaded one); none
+        /// sufficient, or any type without a cost ⇒ the rule before: the higher value wins, then (all equal) the larger area effect; a tie on
+        /// both keeps the loaded one. −1 when nothing is left.
+        /// </summary>
+        public static int Best(EntityRepository world, in AmmoLoadout load, WeaponMountDto? mount, Entity shooter, Entity target, int rounds = 1)
         {
+            int cheapest = CheapestSufficient(world, in load, mount, shooter, target, rounds);
+            if (cheapest >= 0) return cheapest;
             int best = -1; (float Value, float Area) bestScore = (float.NegativeInfinity, float.NegativeInfinity);
             if (load.Loaded < load.Count && load.RoundsAt(load.Loaded) > 0)
             {
@@ -101,18 +119,40 @@ namespace Fdp.Toolkit.Combat
             return best;
         }
 
+        /// <summary>⭐ <c>CE-2186</c> — the cheapest sufficient type in <paramref name="load"/>, or −1 when any type with rounds left has no
+        /// cost (the old rule applies) or none is sufficient.</summary>
+        private static int CheapestSufficient(EntityRepository world, in AmmoLoadout load, WeaponMountDto? mount, Entity shooter, Entity target, int rounds)
+        {
+            int pick = -1; float pickCost = float.PositiveInfinity, pickValue = float.NegativeInfinity;
+            for (int i = 0; i < load.Count; i++)
+            {
+                if (load.RoundsAt(i) <= 0) continue;
+                long ammo = load.AmmoAt(i);
+                float cost = CombatTkb.CostOf(world, ammo);
+                if (cost <= 0f) return -1;                            // a type without a cost: no cost rule for this loadout
+                if (!Sufficient(world, mount, ammo, shooter, target, rounds)) continue;
+                float value = ValueOf(world, ammo, mount, shooter, target);
+                bool better = cost < pickCost - Tie
+                              || (MathF.Abs(cost - pickCost) <= Tie && (value > pickValue + Tie
+                                  || (MathF.Abs(value - pickValue) <= Tie && i == load.Loaded)));
+                if (better) { pick = i; pickCost = cost; pickValue = value; }
+            }
+            return pick;
+        }
+
         /// <summary>
         /// ⭐ D-I — the round for this engagement, chosen ONCE per target (or again when the loaded type runs out): a different round
         /// starts a switch of one reload (<paramref name="reloadSeconds"/>). True while the switch runs (the weapon holds). A mount with
         /// no <see cref="AmmoLoadout"/> never switches.
         /// </summary>
-        public static bool Choose(EntityRepository world, Entity mountEntity, WeaponMountDto? mount, Entity shooter, Entity target, float reloadSeconds)
+        public static bool Choose(EntityRepository world, Entity mountEntity, WeaponMountDto? mount, Entity shooter, Entity target, float reloadSeconds,
+                                  int rounds = 1)
         {
             if (!world.IsComponentTypeRegistered<AmmoLoadout>() || !world.HasComponent<AmmoLoadout>(mountEntity)) return false;
             ref var load = ref world.GetComponentRW<AmmoLoadout>(mountEntity);
             if (load.ChosenFor != target || load.RoundsAt(load.Loaded) <= 0)
             {
-                int best = Best(world, load, mount, shooter, target);
+                int best = Best(world, load, mount, shooter, target, rounds);   // ⭐ CE-2186 — enough for the action's burst
                 load.ChosenFor = target;
                 if (best >= 0 && best != load.Loaded)
                 {

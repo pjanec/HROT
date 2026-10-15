@@ -897,5 +897,9 @@ namespace Fdp.Core
         /// on every node from the carrier's <c>PassengerBuffer.Assistant</c>, like <c>IsEmbarkedTag</c>; never saved. ⚠ 384 measured free on
         /// backend, ui and behaviors 2026-10-14.</summary>
         public const int IsAssistingTag = 384;
+
+        /// <summary><c>RecentDetonations</c> — ⭐ CE-2176 IF-3 (DESIGN_Indirect_Fire §3.8): the last bursts a node saw, a managed singleton a
+        /// fire-mission observer reads (a recorded world singleton, CE-3117 style); node-local, never saved or replicated. ⚠ 385 measured free on backend, ui and behaviors 2026-10-15.</summary>
+        public const int RecentDetonations = 385;
     }
 }

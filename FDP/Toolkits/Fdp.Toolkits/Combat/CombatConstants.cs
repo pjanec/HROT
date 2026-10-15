@@ -68,10 +68,18 @@ namespace Fdp.Toolkit.Combat
         public const float MuzzleOffsetMeters    = 1.0f;
 
         /// <summary>
-        /// Collision layer assigned to bullet entities (bit 1).
-        /// Distinct from the generic entity layer (bit 0) so bullets do not collide with each other.
+        /// Collision layer assigned to bullet entities (bit 2). A round's ray masks out exactly this bit, so rounds never meet
+        /// each other and EVERY other layer — the entity layer (bit 0) and <see cref="CombatCollisionLayer"/> (bit 1) — is hit.
+        /// ⭐ <c>CE-2182</c> (AT1, R-2021): it was bit 1, the SAME bit as the combat layer, so a body on the combat layer alone
+        /// (every aircraft) could never be met by a round. 📄 DESIGN_Air_Operations §7c.
         /// </summary>
-        public const int   BulletCollisionLayer  = 2;
+        public const int   BulletCollisionLayer  = 4;
+
+        /// <summary>
+        /// ⭐ <c>CE-2182</c> — the combat collision layer (bit 1): "a round can hit this". <c>CombatTkbTranslator</c> ORs it onto a
+        /// combat platform's collider (or stamps a collider on it when no other translator did — an aircraft, a weapon system).
+        /// </summary>
+        public const int   CombatCollisionLayer  = 2;
 
         /// <summary>
         /// Maximum number of simulation ticks a bullet entity may live before being culled.

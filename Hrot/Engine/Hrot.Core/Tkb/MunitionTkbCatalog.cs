@@ -165,7 +165,8 @@ namespace Hrot.Core.Tkb
             Register(tkb, Pg7vrName, TkbPg7vrRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName, tandem: true), 650f, 500f, Rocket(280f, 4.5f));
             Register(tkb, LawName, TkbLawRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName), 300f, 350f, Rocket(145f, 3f));
             Register(tkb, NlawName, TkbNlawMissile, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 500f, 900f,
-                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f });
+                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f,
+                                      Overfly = true, OverflyHeightM = 1f });   // ⭐ CE-3198 — the overfly top attack (§3b)
             Register(tkb, JavelinName, TkbJavelinMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,
                      new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f,
                                       TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f });
@@ -233,8 +234,30 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = penetrationMm, Damage = damage,
                                                               ChargeSpeedsMps = charges ?? new() });   // ⭐ IF-1 (I7) — the charges
             if (missile != null) t.AddDescriptor(missile);
+            // ⭐ CE-2186 (W2, R-2020) — what one round costs, relative: the weapon brain picks the CHEAPEST round that is enough
+            if (Costs.TryGetValue(type, out float cost)) t.AddDescriptor(new MunitionCostDto { RelativeCost = cost });
             tkb.Register(t);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2186</c> (W2, R-2020; docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §2c) — each built-in munition's RELATIVE
+        /// cost: tiers by class, ordered by public unit prices and compressed (a rifle round 1, a guided missile or a bomb in the hundreds)
+        /// — only the ORDER matters to <c>AmmoChoice.Best</c>, which picks the cheapest round that is enough.
+        /// </summary>
+        public static readonly System.Collections.Generic.IReadOnlyDictionary<long, float> Costs =
+            new System.Collections.Generic.Dictionary<long, float>
+            {
+                [Tkb556Ball] = 1, [Tkb556Tracer] = 1, [Tkb762Ball] = 1, [Tkb762Tracer] = 1,     // small arms
+                [TkbHmgAp] = 3,                                                                  // heavy MG
+                [TkbM67Grenade] = 5,                                                             // hand grenade
+                [TkbGau8Hei] = 10, [TkbGau8Api] = 10, [Tkb25mmApdsT] = 20,                        // autocannon
+                [TkbRpg7Rocket] = 30, [TkbLawRocket] = 30, [TkbPg7vlRocket] = 40, [TkbPg7vrRocket] = 60,   // unguided rockets
+                [Tkb60mmMortarHe] = 30, [Tkb81mmMortarHe] = 50, [TkbTankHeFrag] = 60, [Tkb120mmMortarHe] = 80,
+                [Tkb105mmHowitzerHe] = 80, [TkbTankHeatMp] = 80, [Tkb120mmApfsds] = 100, [Tkb125mmApfsds] = 100,
+                [Tkb155mmHowitzerHe] = 100,                                                      // shells
+                [TkbFpvWarhead] = 50, [TkbHydra70Rocket] = 100, [TkbTowMissile] = 300, [TkbNlawMissile] = 300,
+                [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
+            };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
         /// grenade, the 81 mm a finned bomb.</summary>

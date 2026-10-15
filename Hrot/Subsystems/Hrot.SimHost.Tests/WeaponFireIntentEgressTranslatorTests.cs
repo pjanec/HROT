@@ -127,13 +127,14 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
             var shooter = SpawnShooter(netId: 1L, authoritative: true);
             var target  = SpawnTarget(netId: 2L);
-            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003 });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, AmmoGuid = 9003, RaisedAt = 12.5 });
             _world.Bus.SwapBuffers();
 
             translator.ScanAndPublish(_world);
 
             var msg = Assert.Single(writer.Written);
             Assert.Equal(9003L, msg.AmmoGuid);
+            Assert.Equal(12.5, msg.RaisedAt);   // ⭐ CE-2180 (R-169 appended) — when the brain raised it crosses too
 
             var ingress = new WeaponFireRequestIngressTranslator(participant: null, _entityMap);
             var cmd = (EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer();
@@ -142,6 +143,7 @@ namespace Hrot.SimHost.Tests
             _world.Bus.SwapBuffers();
             var back = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
             Assert.Equal(9003L, back.AmmoGuid);
+            Assert.Equal(12.5, back.RaisedAt);
             Assert.True(back.IsRemote);
         }
 

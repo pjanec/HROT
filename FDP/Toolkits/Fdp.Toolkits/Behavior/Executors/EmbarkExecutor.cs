@@ -28,6 +28,14 @@ namespace Fdp.Toolkit.Behavior.Executors
         /// checked against <see cref="MaxBoardingRange"/>. Appended: a zero field keeps every existing caller as it was.
         /// </summary>
         public Entity Passenger;
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> (Weapon Systems §4b <c>ManWeapon</c>, W-B) — the seat role to board: <see cref="Components.SeatRole.Passenger"/>
+        /// (0, every existing caller) or <see cref="Components.SeatRole.Gunner"/> to MAN a crew weapon — 📐 measured live: a plain board
+        /// into a two-man mortar took the loader's (passenger) seat, so nobody was in its Gunner seat and nobody controlled it.
+        /// Appended.
+        /// </summary>
+        public Components.SeatRole Role;
     }
 
     /// <summary>
@@ -87,9 +95,9 @@ namespace Fdp.Toolkit.Behavior.Executors
                 var soldierPos = world.GetComponent<SimTransform>(who).Position;
                 var vehiclePos = world.GetComponent<SimTransform>(p.VehicleEntity).Position;
                 if (Vector3.Distance(soldierPos, vehiclePos) > range) { channel.Status = NodeStatus.Running; return; }
-                if (Embarkation.FreeSeat(world, p.VehicleEntity) < 0)   // ⭐ CE-2151 — no free passenger seat of the type's
+                if (Embarkation.FreeSeat(world, p.VehicleEntity, p.Role) < 0)   // ⭐ CE-2151 — no free seat of the type's (CE-2176: of the role)
                     { channel.Status = NodeStatus.Failure; return; }
-                world.Bus.Publish(new Events.EmbarkEntityCommand { Passenger = who, Vehicle = p.VehicleEntity });
+                world.Bus.Publish(new Events.EmbarkEntityCommand { Passenger = who, Vehicle = p.VehicleEntity, Role = p.Role });
                 s.Sent = 1;
                 channel.Status = NodeStatus.Running;
             }

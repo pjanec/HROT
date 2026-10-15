@@ -103,8 +103,8 @@ namespace Fdp.Toolkit.Tkb.Tests
         }
 
         /// <summary>
-        /// ⭐ Stage 6 (<c>CE-1032</c>, W-1) — the generated warheads land where the real ones are: an M67's fragments reach ~15 m
-        /// (its published casualty radius) and barely scratch a wall, it is a 4.5 s time fuze thrown at a point; an 81 mm bomb reaches
+        /// ⭐ Stage 6 (<c>CE-1032</c>, W-1) — the generated warheads land where the real ones are: an M67's fragments wound to ~15 m (its
+        /// published casualty radius; ⭐ CE-3203: its hazard radius — a man &lt; 1 — is ≈ 54 m) and barely scratch a wall, it is a 4.5 s time fuze thrown at a point; an 81 mm bomb reaches
         /// tens of metres on an impact fuze; a rifle round has no warhead at all. ⚠ Loose bands — calibration points, not physics.
         /// </summary>
         [Fact]
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.Equal(FuzeKind.Time, w.Fuze);
             Assert.Equal(4.5f, w.FuzeDelayS);
             Assert.True(w.Indirect);
-            Assert.InRange(w.FragmentRadiusM, 12f, 20f);
+            Assert.InRange(w.FragmentRadiusM, 45f, 65f);   // ⭐ CE-3203: the law's hazard radius (a standing man < 1), past the 15 m casualty radius
             Assert.InRange(w.FragmentPenetrationMm, 1f, 6f);
             Assert.InRange(w.FragmentDamage, 130f, 160f);
             Assert.Equal(g.BlastLethalRadiusM, w.BlastLethalRadiusM);
@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.True(Lib.TryGetAmmo("81mm mortar HE", out var m));
             Assert.Equal(FuzeKind.Impact, m.Warhead!.Dto.Fuze);
             Assert.True(m.Warhead.Dto.Indirect);
-            Assert.InRange(m.Warhead.Dto.FragmentRadiusM, 30f, 50f);
+            Assert.InRange(m.Warhead.Dto.FragmentRadiusM, 110f, 150f);   // ⭐ CE-3203: the law's hazard radius (a standing man < 1), past the 38 m casualty radius
             Assert.True(m.Warhead.Dto.BlastInjuryRadiusM > w.BlastInjuryRadiusM);
 
             Assert.True(Lib.TryGetAmmo("5.56x45 ball", out var ball));
@@ -146,7 +146,7 @@ namespace Fdp.Toolkit.Tkb.Tests
             Assert.True(b.Indirect);
             Assert.InRange(b.BlastLethalRadiusM, 8f, 10f);      // 2 · 94^⅓ ≈ 9.1 m
             Assert.InRange(b.BlastInjuryRadiusM, 25f, 30f);     // 6 · 94^⅓ ≈ 27 m
-            Assert.InRange(b.FragmentRadiusM, 130f, 160f);      // 28 · 133^⅓ ≈ 143 m
+            Assert.InRange(b.FragmentRadiusM, 380f, 500f);      // ⭐ CE-3203: where a standing man's expected damage falls below 1 (≈ 440 m)
             Assert.True(b.BlastLethalRadiusM > 2f * m.BlastLethalRadiusM, $"bomb {b.BlastLethalRadiusM} m vs mortar {m.BlastLethalRadiusM} m");
             Assert.True(b.FragmentRadiusM > 2f * m.FragmentRadiusM);
         }

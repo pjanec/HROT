@@ -166,7 +166,7 @@ graph TD
 
 | finding | row |
 |---|---|
-| on capability loss the Muscle also clears the Brain's montage queue (`queue.Count = 0`, `AnimationCapabilityChangeReactorSystem`) — the same two-writer shape, on `AnimationMontageQueue` (Brain group); `SimultaneousCapabilityLoss_AndQueuePlay_IsRobust` pins it | `CE-3008` |
+| on capability loss the Muscle also clears the Brain's montage queue (`queue.Count = 0`, `AnimationCapabilityChangeReactorSystem`) — the same two-writer shape, on `AnimationMontageQueue` (Brain group); `SimultaneousCapabilityLoss_AndQueuePlay_IsRobust` pins it | `CE-3008` — ✅ **FIXED `2026-10-15`**: the reactor aborts in the Muscle's `AnimationMontageQueueState` only (`CurrentEntryIndex = 0xFF`, `TrackingActive = 0`) and never writes the queue; tracking off + the Failure report keep `MontageQueueAdvanceSystem` from resuming (red-proof: tracking left on ⇒ Case A reported Success over the Failure). Both pinning tests re-pointed |
 | every egress translator in `AnimationReplicationModule` (channels, stance, queue) gates on ENTITY authority (`HasAuthority(entity)`), so a Muscle that is not the entity's primary owner would never publish its report; per-component ownership needs the descriptor-keyed check (`HasAuthority(entity, packedKey)`) — prerequisite for composing animation replication across nodes. Not a regression: the check was the same before | `CE-3009` |
 
 ## 4. Design docs checked

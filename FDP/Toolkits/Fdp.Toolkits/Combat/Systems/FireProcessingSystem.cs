@@ -57,6 +57,7 @@ namespace Fdp.Toolkit.Combat.Systems
             uint currentTick = repo.HasSingleton<GlobalTime>()
                 ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber
                 : 0u;
+            double now = HitModel.Now(repo);   // ⭐ CE-2180 — synced sim time
 
             for (int i = 0; i < events.Length; i++)
             {
@@ -64,6 +65,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 var shooter = evt.Shooter;
                 var target  = evt.Target;
+                int late = 0, owed = 0;   // ⭐ CE-2180 — frames a bomb was flown forward / owed to make up the trip from the brain
 
                 // Skip if either entity is no longer alive.
                 if (!repo.IsAlive(shooter)) continue;
@@ -140,6 +142,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 bool fromBarrel = Muzzle.TryOf(repo, shooter, evt.WeaponIndex, out var barrel)
                                   && Vector3.Distance(barrel, shooterPos) <= 0.5f * Vector3.Distance(targetPos, shooterPos);
                 if (fromBarrel) origin = barrel;
+                // ⭐ CE-2183 (AT2, R-2021, DESIGN_Air_Operations §7c) — a STRAIGHT round at an AIRCRAFT is aimed where it will be: the ONE
+                //   predictor (TargetLead.Point, behaviors' B13), from the round's origin at its own speed, the target's velocity as this
+                //   node knows it (ReplicatedMotion). Ground targets, guided and arcing rounds are unchanged. ⭐ Here, not on the Brain: a
+                //   shot at a UNIT is aimed by this node at fire time (AimPoint.Middle above) — the Brain's aim point is not used.
+                if (!evt.AtPoint) targetPos = LedAtAircraft(repo, shooter, target, evt, origin, targetPos, weapon.MuzzleVelocity);
                 var delta     = targetPos - origin;
                 var direction = delta.LengthSquared() > 0f
                     ? Vector3.Normalize(delta)
@@ -206,14 +213,29 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A4) — an AIR-domain shooter launches with its own velocity: a BOMB leaves
                 //   its rack at the carrier's velocity + 1 m/s down from the body itself and falls (Arc) — the same step BombBallistics
                 //   predicts; any other round adds the carrier's velocity to its own. ⛔ A ground shooter is unchanged.
-                if (Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter))
+                //   ⭐ CE-2173 slice 6d (§9f) — the carrier is the BODY the shot leaves from (HitModel.BodyOf, as the aim above): a door gun
+                //   (a weapon system in the 404's station) has no locomotion of its own, so its round left at the muzzle speed alone.
+                if (Fdp.Toolkit.Motion.Locomotions.InAir(repo, sightBody) && repo.HasComponent<SimVelocity>(sightBody))
                 {
-                    var carrier = repo.GetComponentRO<SimVelocity>(shooter).Linear;
+                    var carrier = repo.GetComponentRO<SimVelocity>(sightBody).Linear;
                     if (firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb)
                     {
                         velocity = BombBallistics.Launch(carrier);
                         warheadBits |= WarheadRound.Arc;
                         origin = repo.GetComponentRO<SimTransform>(shooter).Position;
+                        // ⭐⭐ CE-2180 (§8a) — the bomb leaves the carrier as it was when the brain RELEASED it, flown forward to now: the
+                        //   cue ran on the brain, the intent reached this node frames later, and every frame of that trip was ~150 m/s of
+                        //   overshoot (measured live: 20–27 m long). The carrier is stepped back along its own velocity (the run-in is a
+                        //   straight line), the bomb flown the same time by the CUE's own steps (BombBallistics.DefaultDt — so it rejoins
+                        //   the very path the cue predicted, whatever this node's frame). One world ⇒ 0 steps, as before.
+                        late = owed = BombBallistics.LateSteps(evt.RaisedAt, now, deltaTime);
+                        if (late > 0)
+                        {
+                            origin -= carrier * (late * BombBallistics.DefaultDt);
+                            var terrainBelow = Fdp.Toolkit.World.WorldQuery.Of(repo);
+                            late = BombBallistics.FlyFor(ref origin, ref velocity, late,
+                                                         terrainBelow == null ? null : terrainBelow.GroundHeightAt, BombBallistics.DefaultDt);
+                        }
                     }
                     else velocity += carrier;
                 }
@@ -309,6 +331,10 @@ namespace Fdp.Toolkit.Combat.Systems
                         CruiseZ       = muzzlePos.Z + missile.CruiseAltitudeM,
                         DiveAngleDeg  = missile.DiveAngleDeg,
                         LastSeen      = targetPos,
+                        // ⭐ CE-3198 (§3b) — the overfly top attack, at a HULL only (a man is attacked direct)
+                        Overfly       = (byte)(missile.Overfly && missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && !evt.AtPoint
+                                               && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target) > 0f ? 1 : 0),
+                        OverflyHeightM = missile.OverflyHeightM > 0f ? missile.OverflyHeightM : 1f,
                     });
                 }
 
@@ -318,6 +344,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
                     Muzzle = muzzlePos, Aim = targetPos, Ordinal = ordinal, Sigma = sigma, Deflection = theta,
                     Penetration = penetration, PenetrationSource = penetrationSource, Damage = damage,
+                    RaisedAt = evt.RaisedAt, FiredAt = now, CaughtUpSeconds = late * BombBallistics.DefaultDt, CaughtUpFrames = late, OwedFrames = owed, FrameDt = deltaTime,   // ⭐ CE-2180
                 });
 
                 // 5. Physics collider — small sphere for broadphase candidate selection.
@@ -365,6 +392,32 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <c>z(t) = z₀ + v_z·t − ½·g·t²</c> at the aim point's height) + <see cref="ArcLifetimeMarginSeconds"/>, never less than the flat
         /// <see cref="CombatConstants.ArcRoundLifetimeTicks"/> (so no round lives shorter than before).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2183</c> (AT2, R-2021) — the point a round fired at <paramref name="target"/> is aimed at: when the target is in the
+        /// AIR domain and the round flies STRAIGHT (not an indirect / bomb arc, not a guided missile — those steer or fall on their own),
+        /// <see cref="TargetLead.Point"/> from <paramref name="origin"/> at the round's speed (an unguided rocket's own, else the fired
+        /// mount's muzzle velocity, else <paramref name="weaponMuzzle"/>), with the shooter's own velocity when it flies (A4) and the
+        /// target's as this node knows it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>). Otherwise <paramref name="aim"/>.
+        /// </summary>
+        public static Vector3 LedAtAircraft(EntityRepository repo, Entity shooter, Entity target, in WeaponFireIntent evt, Vector3 origin,
+                                            Vector3 aim, float weaponMuzzle)
+        {
+            if (target.IsNull || !Fdp.Toolkit.Motion.Locomotions.InAir(repo, target)) return aim;
+            var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+            if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb) return aim;
+            long ammo = evt.AmmoGuid != 0 ? evt.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            if (CombatTkb.WarheadOf(repo, ammo) is { Indirect: true }) return aim;
+            var missile = CombatTkb.MissileOf(repo, ammo);
+            if (missile != null && missile.Guidance != Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided) return aim;
+            float speed = missile is { SpeedMps: > 0f } ? missile.SpeedMps
+                        : mount is { MuzzleVelocity: > 0f } ? mount.MuzzleVelocity
+                        : weaponMuzzle;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var targetVelocity)) return aim;
+            var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, shooter) && repo.HasComponent<SimVelocity>(shooter)
+                ? repo.GetComponentRO<SimVelocity>(shooter).Linear : Vector3.Zero;
+            return TargetLead.Point(origin, shooterVelocity, speed, aim, targetVelocity);
+        }
+
         public static uint ArcLifetimeTicks(Vector3 from, Vector3 to, Vector3 velocity)
         {
             float g = CombatConstants.Gravity, drop = from.Z - to.Z;

@@ -105,8 +105,9 @@ public static class AttributeCompilerFactory
                 //    DescriptorMapper copy drifted to the wrong axis entirely).
                 // 📌 AttributeIds.Heading's own doc already claimed "no new conversion math was
                 //    written; the installer reuses the bridge" — true of the installer, false here until now.
+                // ⭐ STEER P3 row 7 — a heading-only patch keeps the body's pitch and roll (never levels a banked aircraft)
                 st.Rotation = Fdp.Modules.Geographic.Systems.SimTransformBridgeSystem
-                    .HeadingDegToRotation((float)r.GetDouble());
+                    .WithHeadingDeg(st.Rotation, (float)r.GetDouble());
             },
             kind: KindOf("Heading"));
 

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS the "building damage" engine row (founded 2026-10-15, CE-2181)
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: CallFireMission (AIR-1, SQD-9) — the battery play and the observer
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS AIR-1 (precision strike) and the AIR-2/3 route + attack, first built as air operations (R-2015)
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — AIR-2's first slice (FPV: route, search, select, pursue, dive; point-mass flight, rotor sound, battery in the behaviour)

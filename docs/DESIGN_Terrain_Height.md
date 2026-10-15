@@ -1,14 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge as a grid, with the backend lane) to come; H3b + H5a–H5d BUILT 2026-10-11 (§5c: bridges, road heights, the highway-rest terrain, CE-1048); H4 and H6 to come. Leans TH-A..TH-H APPROVED (R-249); the library
+build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 (basic-desert's ridge and wadi as a grid) BUILT 2026-10-15 (§5d, CE-3086); H3b + H5a–H5d BUILT 2026-10-11 (§5c: bridges, road heights, the highway-rest terrain, CE-1048); H4 and H6 to come. Leans TH-A..TH-H APPROVED (R-249); the library
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
 updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
 current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
 known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu rejected) — corrected by R-250/R-251, see its banner.
-known-conflict: none. CE-3086 (backend) plans a ramp ridge + wadi on basic-desert because "a heightfield (not built)"
-  (DESIGN_Utility_AI_Demo_Scenarios.md:104); TH-G proposes a real height grid there instead — the backend lane decides.
+known-conflict: none. (Resolved 2026-10-15: CE-3086 built basic-desert's ridge and wadi as TH-G's grid, §5d — the Utility demo
+  design's ramp plan is superseded there.)
 related-designs:
   - DESIGN_Body_Geometry_And_Ground_Contact.md — the gear height and resting pose (pitch/roll on a slope) of a CG-referenced
     body; the motion model that grounds an aircraft (§4a, R-249) uses it.
@@ -248,7 +248,7 @@ not by a second system.
 | **H1** ✅ | `TerrainHeightGrid` (+ its ASCII-grid reader), `GroundHeightAt`; the reads routed; the mesher on the grid's cells; TH-C defaults; the clamping flag in the movement model; the sloped fixture — §5a | an entity drives up a hill (kinematics, unchanged), spawns on the slope, the navmesh follows it — and every existing flat terrain is byte-identical |
 | **H2** ✅ | the ground trace (`TerrainHeightGrid.Crosses`) in the three queries; rounds and fragments stop at a hill — §5b | a hill blocks sight and fragments |
 | **H3** ✅ | road legs, road access points and the 2-D spawn command on the real ground; the navmesh search centred on it; 2-D move orders already resolved by Q0b — §5b | 2-D orders and route legs work on a hill |
-| **H4** | basic-desert's ridge and wadi as a grid (with the backend lane) | the utility demos on real relief |
+| **H4** ✅ | basic-desert's ridge and wadi as a grid — §5d | the utility demos on real relief |
 | **H3b** ✅ | a frame-rail shot of a REAL height-grid terrain (the sloped fixture) through the 3-D map | the 3-D renderer draws relief from a grid, not only from a height function |
 | **H5a** ✅ | TH-I: `aboveGround` on `slab` / `ramp` (one value or per vertex), resolved against the grid at load; TH-K: the buried ramp foot (extended ~1 m, sunk 0.3 m) and the slope warning (vehicle ramp > 20°) | parser + `SurfaceZ` rails: the foot is continuous with the ground on a slope |
 | **H5b** ✅ | TH-K bake proof: a bridge on the sloped fixture baked on the Infantry AND Vehicle layers — the deck, the ground under it (clearance ≥ agent height + one cell), the ramp foot joined; a path from bank to bank over the deck and one under it | the navmesh finds both levels and the join, on both layers |
@@ -341,6 +341,31 @@ by the rails after opening a window.
 **Gates:** `TerrainHeightTests` 21/21 (H5a 3, H5b 2, H5c 3, H5d 3) · `CarKinematicsSystemTests.H5d_*` (a car climbs the ramp onto the
 deck over the highway; a car on the highway passes under it on the ground) · the 3 frame rails · Toolkits full 3056/3057, SimHost
 1177/1180 with the new vehicle step.
+
+## 5d. H4 — basic-desert's ridge and wadi on the grid *(`CE-3086`, backend, `2026-10-15`; TH-G, R-249)*
+
+![basic-desert top view: the ridge south of the track, the wadi at x = 520, the U5 sight lines and the U6 groups clear of both](img/terrain-h4-basic-desert.svg)
+
+*What the picture shows that prose hid: the relief had to fit in the gaps the three desert demos leave. The ridge sits between the
+track and the compound, west of the U5 Bradley-to-T-72 line; the wadi runs east of everything but the air strike's targets (which
+stand past the map edge).*
+
+| piece | as built | why there / why that size |
+|---|---|---|
+| the grid | `basic-desert.height.asc`, 61 × 61 samples at 10 m (`xllcenter 0`), named by `heightGrid` in the world file — the H1 path, no code change | written by `scripts/basic-desert-height.py`, so the relief can be re-made from its numbers rather than hand-edited |
+| the ridge | crest **10 m** along y = 210 from x = 230 to 320; a cosine shoulder falls to the plain over **50 m** (footprint x 180–370, y 160–260) | south of the track so U7's squad crosses the track and open ground to reach it (Utility demo §U7); a 50 m shoulder keeps the steepest triangle at **17.9°**, under the vehicles' 20°; x ≤ 370 keeps the U5 Bradley→T-72 line clear; y ≥ 160 and x ≥ 180 keep the compound and Rock 1 on flat ground |
+| the wadi | a **3 m** deep, 20 m wide flat bed along x = 520, banks 15 m wide, through the whole map | crosses the track (a road into a dip — TH-J) and stays east of every demo's entities; banks ≤ 18° |
+| the plain | 0 everywhere else | ⭐ nothing that stood on basic-desert moves: the cover database checksum (`CE3134_…`) and every scenario's Z-0 entity stay valid |
+
+⚠ **Deviation from the original plan, argued:** the Utility demo design planned the ridge as two ramps "because a heightfield (not
+built)"; H1 built one, so TH-G's grid replaces the ramps — no `ramp` features, no fake hill. ⚠ `CE-3081`'s `CrestLine` danger-area
+kind (*"ramp peak"*) is not built and now has a grid crest to find, not a ramp peak.
+
+**Rails** (in the feature's suite, `TerrainHeightTests`): `H4_BasicDesert_HasItsRidgeAndWadi_AndThePlainUnderEverythingThatStoodOnItIsUnchanged`
+(crest, bed, slope < 20°, ground 0 under every prism and every grounded entity of every `scenarios/*` on basic-desert) ·
+`H4_…_TheRidgeHidesOneSideFromTheOther_AndLeavesTheWeaponChoiceLinesOpen` · `H4_…_TheNavmesh_GoesOverTheRidge_AndThroughTheWadi`
+(Infantry and Vehicle) · `H4_…_TheTrack_DipsIntoTheWadi_OnTheGround`.
+**Gates:** the H4 rails 5/5 with the terrain regressions that load basic-desert — `TerrainHeightTests` all, `CE3134_TerrainsWithoutBuildings_KeepTheirCoverDatabase` (the checksum unchanged: 313 points), `BepuTerrainIndexTests`, `TerrainDefinitionTests` — **54/54**. ⚠ The live utility demos on basic-desert (U5, U6, the air strike) were not re-run: their entities stand where the ground is still 0.
 
 ## 7. Build or use a library? — the user's question, `2026-10-10` *(⚠ rev 1 below is CORRECTED by `R-250`/`R-251` — read the banner first)*
 

@@ -119,6 +119,37 @@ namespace Fdp.Toolkit.Tests.Motion
         }
 
         /// <summary>⭐ M7 — a drone flying past beside a hull, or over it above its roof, meets nothing.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 6d, found live (`ua-air-attack` ⑤, `2026-10-15`) — a carrier never meets its OWN riders: the doors-off UH-60
+        /// moving at 70 m/s swept its segment through its door gunners' and M134s' colliders (they sit inside it) and "crashed" into them —
+        /// Health 800 → 0 the moment it moved, its riders dead with it. The rule is WS-3's <c>LineOfFire.RidesWith</c> (a carrier and its riders
+        /// do not hide or hit each other). A body that does NOT ride with it, at the same spot, is still met.
+        /// ✅ Red-proof: the rider test removed ⇒ the helicopter is dealt lethal damage ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6d_ACarrierInFlight_NeverMeetsItsOwnRiders_AStrangerThereIsStillMet()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var heli = Drone(new Vector3(0f, 0f, 100f), new Vector3(70f, 0f, 0f), munition: false);
+            _w.GetComponentRW<PhysicsCollider>(heli) = new PhysicsCollider { Radius = 1.5f, Height = 3.5f };
+            _w.GetComponentRW<Health>(heli) = new Health { Current = 800, Max = 800 };
+            Entity Body(bool rider)
+            {
+                var b = _w.CreateEntity();
+                _w.AddComponent(b, new SimTransform { Position = new Vector3(-0.5f, 0.3f, 99.5f), Rotation = Quaternion.Identity });   // on the swept segment, inside the cabin
+                _w.AddComponent(b, new PhysicsCollider { Radius = 0.4f, Height = 1.8f });
+                if (rider) _w.AddComponent(b, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Seat = 8, Exposed = 1 });
+                return b;
+            }
+            var gunner = Body(rider: true);
+            var (_, damage) = Step();
+            Assert.DoesNotContain(damage, d => d.HitEntity == heli);
+
+            _w.RemoveComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(gunner);   // the same body, no longer aboard
+            var (_, met) = Step();
+            Assert.Contains(met, d => d.HitEntity == heli);
+        }
+
         [Fact]
         public void M7_ADroneFlyingPastOrOver_MeetsNothing()
         {

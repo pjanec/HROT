@@ -714,7 +714,7 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         // ─── AnimationCapabilityChangeReactorSystem tests (ANC-P3-09) ─────────
 
         [Fact]
-        public void CanPlayAnimations_Loss_SetsChannelToFailureAndClearsQueue()
+        public void CanPlayAnimations_Loss_SetsChannelToFailure_AndAbortsTheQueueInTheMusclesState()
         {
             var (repo, backend, cache) = CreateFixture();
             var system = new AnimationCapabilityChangeReactorSystem(backend);
@@ -740,8 +740,10 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
             Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
-            var queue = repo.GetComponent<AnimationMontageQueue>(entity);
-            Assert.Equal(0, queue.Count);
+            // ⭐ CE-3008 (R-180) — the abort is the Muscle's (queue state); the Brain's queue keeps its entry
+            Assert.Equal(0xFF, repo.GetComponent<AnimationMontageQueueState>(entity).CurrentEntryIndex);
+            Assert.Equal(0, repo.GetComponent<AnimationMontageQueueState>(entity).TrackingActive);
+            Assert.Equal(1, repo.GetComponent<AnimationMontageQueue>(entity).Count);
         }
 
         [Fact]
@@ -894,6 +896,9 @@ namespace Hrot.MuscleCharacter.Animation.Tests
                 ch.ActionInstanceId = 1;
                 repo.GetComponentRW<AnimationChannelStatus>(entity).DispatchedInstanceId = 0;
                 repo.GetComponentRW<AnimationChannelStatus>(entity).Status = NodeStatus.Running;
+                ref var qs = ref repo.GetComponentRW<AnimationMontageQueueState>(entity);   // the queue is playing its first entry
+                qs.CurrentEntryIndex = 0;
+                qs.TrackingActive = 1;
             }
 
             // Capability lost mid-play
@@ -909,9 +914,16 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var ch2 = repo.GetComponent<AnimationChannel>(entity);
             Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
 
-            // Queue is cleared
-            var queue = repo.GetComponent<AnimationMontageQueue>(entity);
-            Assert.Equal(0, queue.Count);
+            // ⭐ CE-3008 (R-180) — the Brain's queue is the Brain's: untouched. The abort is in the Muscle's own state.
+            Assert.Equal(2, repo.GetComponent<AnimationMontageQueue>(entity).Count);
+            var state = repo.GetComponent<AnimationMontageQueueState>(entity);
+            Assert.Equal(0xFF, state.CurrentEntryIndex);
+            Assert.Equal(0, state.TrackingActive);
+
+            // …and the queue does not resume on the Muscle: the next advance neither starts an entry nor reports Success
+            new MontageQueueAdvanceSystem(backend, cache).Execute(repo, 0.016f);
+            Assert.Equal(NodeStatus.Failure, repo.GetComponent<AnimationChannelStatus>(entity).Status);
+            Assert.Equal(0xFF, repo.GetComponent<AnimationMontageQueueState>(entity).CurrentEntryIndex);
         }
 
         // ─── OFX-002: NotifyEventEmitterSystem typed event dispatch ──────────

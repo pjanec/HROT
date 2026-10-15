@@ -24,6 +24,7 @@ public sealed class EntityClassShapeLibrary : IEntityShapeLibrary
         ["AirPlatform"] = DefaultEntityShapeLibrary.FixedWing,
         ["LandPlatform"] = DefaultEntityShapeLibrary.GroundVehicle,
         ["Person"] = DefaultEntityShapeLibrary.Humanoid,
+        ["CulturalFeature"] = DefaultEntityShapeLibrary.CulturalFeature,   // ⭐ CE-3148 — a static obstacle's footprint
     };
 
     public EntityShapeProfile GetShape(string? shapeName, ulong fallbackDisType)

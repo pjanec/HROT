@@ -139,7 +139,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ M8 (D-I; DESIGN_Missiles_And_Ammo §2) — the ROUND for this engagement, beside the mount: chosen once per target from
             //   the mount's loadout with the one ArmorModel (AmmoChoice); a different round costs one reload, and the weapon holds
             //   meanwhile. A mount with no loadout never switches. The behaviour never names a round (R-261).
-            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, platform, p.Target, weapon.ReloadSeconds);
+            bool switching = AmmoChoice.Choose(world, mountEntity, mountDto, platform, p.Target, weapon.ReloadSeconds, Math.Max(1, (int)p.Rounds));
             long loadedAmmo = AmmoChoice.LoadedAmmo(world, mountEntity);
             // ⭐⭐ M4 / D-L (DESIGN_Missiles_And_Ammo §3–§4) — the weapon brain's two new holds, on BOTH paths, before a round is
             //   granted: a missile below its minimum range (it cannot arm or turn in time), and a weapon that does not fire on the
@@ -263,6 +263,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 Target      = p.Target,
                 WeaponIndex = platformMount,
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round (0 = the mount's own)
+                // ⭐ CE-2180 — when it was raised; a bomb: the moment its cue says the release IS (the SimHost starts it from there)
+                RaisedAt    = bomb && world.HasComponent<SimTransform>(p.Target)
+                              ? ReleaseAt(world, entity, world.GetComponentRO<SimTransform>(p.Target).Position) : HitModel.Now(world),
             });
 
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5 — the total and the magazine; an emptied magazine starts its reload
@@ -387,6 +390,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 AtPoint     = true,
                 TargetPoint = point,
                 AmmoGuid    = loadedAmmo,   // ⭐ M8 — the loaded round
+                RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
             });
             Magazine.Spend(ref weapon);
             AmmoChoice.SpendLoaded(world, mountEntity);
@@ -553,6 +557,24 @@ namespace Fdp.Toolkit.Combat.Executors
             if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, unit, out var p, out var v)) return false;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
             return BombBallistics.ReleaseNow(p, v, point, terrain == null ? null : terrain.GroundHeightAt);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2180</c> (Air Ops §8b) — the synced sim time the release cue says a bomb from <paramref name="unit"/> on
+        /// <paramref name="point"/> is released: now + the cue's seconds-to-release (≤ ½ step ahead, up to <see cref="BombBallistics.MissedPassSeconds"/>
+        /// behind). ⭐ The brain sees "now" only on its own tick; a slow tick releases late by up to one tick — stamping the cue's own
+        /// moment lets the SimHost start the bomb from there (it steps its carrier back to it). ⛔ It decides nothing: the gate is
+        /// <see cref="ReleaseCue(EntityRepository, Entity, Vector3)"/>, unchanged. 0 without a clock.
+        /// </summary>
+        public static double ReleaseAt(EntityRepository world, Entity unit, Vector3 point)
+        {
+            double now = HitModel.Now(world);
+            if (now <= 0d || !Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, unit, out var p, out var v)) return now;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            var (_, _, seconds) = BombBallistics.Cue(p, v, point, terrain == null ? null : terrain.GroundHeightAt);
+            return float.IsFinite(seconds)
+                ? now + Math.Clamp(seconds, -BombBallistics.MissedPassSeconds, 0.5f * BombBallistics.DefaultDt)
+                : now;
         }
 
         /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>

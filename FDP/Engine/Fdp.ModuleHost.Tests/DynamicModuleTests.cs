@@ -1094,6 +1094,34 @@ namespace Fdp.ModuleHost.Tests
         // 6. ECS schema mutation — novel component registered on live world at install
         // ──────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⭐ <c>CE-3205</c> — a module's required component is registered on ITS kernel's world even when ANOTHER world in the process
+        /// (<c>--mode all</c>, a test host) already registered that type: the check is "registered in THIS world", not "known to the
+        /// process-wide registry". 🔴 Red-proof: the old check skipped it, and the second world had no table for it.
+        /// </summary>
+        [Fact(Timeout = 10_000)]
+        public async Task CE3205_AComponentAnotherWorldRegistered_IsStillRegisteredOnThisKernelsWorld()
+        {
+            _world.RegisterComponent<DynCompGamma>();                       // world 1 knows it ⇒ the process-wide registry does
+            Assert.True(ComponentTypeRegistry.GetId(typeof(DynCompGamma)) >= 0);
+
+            var world2 = new EntityRepository();
+            var kernel2 = new ModuleHostKernel(world2, new EventAccumulator());
+            kernel2.InitializeForTest();
+            Assert.False(world2.TryGetTable(typeof(DynCompGamma), out _));
+
+            using var cts = new CancellationTokenSource();
+            var loopTask = RunKernelLoop(kernel2, cts.Token);
+            await kernel2.InstallModuleAsync(new SodCountingModule("NeedsGamma", typeof(DynCompGamma)));
+
+            Assert.True(world2.TryGetTable(typeof(DynCompGamma), out _), "world 2 must hold its own table for a module's required component");
+
+            cts.Cancel();
+            await loopTask;
+            kernel2.Dispose();
+            world2.Dispose();
+        }
+
         [Fact(Timeout = 10_000)]
         public async Task Install_ModuleWithNovelComponent_RegistersComponentOnLiveWorld()
         {

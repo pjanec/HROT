@@ -32,6 +32,14 @@ namespace Fdp.Toolkit.Scenario
         bool IsExtractionSafe => false;
 
         /// <summary>
+        /// ⭐ <c>CE-3207</c> (R-192: a scenario saves "just what is needed") — true for a translator that only produces a DIAGNOSTIC dump
+        /// (a brain's interrupts, a trace ring): it runs for <see cref="ScenarioSerializer.SerializeEntity"/> (the clipboard / debug
+        /// dump) and NEVER on a scenario save. Its <see cref="Inject"/> must stay a no-op that claims its key, so an older file that
+        /// carries the dump still loads.
+        /// </summary>
+        bool IsDiagnosticOnly => false;
+
+        /// <summary>
         /// Returns <see langword="true"/> when this translator can handle the given entity.
         /// Checked before <see cref="Extract"/> is called.
         /// </summary>

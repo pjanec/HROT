@@ -4,7 +4,7 @@ updated: 2026-10-14
 build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8); V6 compositions + demos to do. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: §8 counter-drone — the vehicle FIRES at a seen drone, but no round can hit an aircraft (bullet rays mask out layer 2, which is the only layer a flyer has — measured 2026-10-15, Air Operations §7c, CE-2182).
 known-conflict: docs/designs/weapons/DESIGN_Weapon_Systems.md (R-2016) — §6 builds the technicals 104 / 105 as pickup TYPES with a pintle turret; the weapon-systems design turns them into presets (a bare pickup + a weapon in its bed station). §6 stays true until WS-4 lands.
 related-designs:
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon systems that turn the technicals 104 / 105 into presets (a bare pickup host + a weapon in its bed station, R-2016)
@@ -86,6 +86,7 @@ classDiagram
 | a heard contact keeps `OfClass`; class 7 `Rotor` = 1 | R-207; a drone is heard before it is seen |
 | `self` unknown to the TKB, or a view that is not an `EntityRepository` ⇒ today's rule | the solver snapshot has no TKB (§1) |
 | every caller in §1 picks it up unchanged — `TopThreat` now ranks the RPG man (and the ATGM technical) above the rifleman for a tank | one place (R-194, R-201); `UtilityTestWorld` is updated with it |
+| 📐 **measured `2026-10-15` (`CE-3138`, backend)** — `DangerAreaSensorSystem.ThreatOn` on CGF: a T-72 watcher 110 m off an Abrams's FRONT reads danger **0.50**, exactly the crossing sensor's `ThreatenedAt` (0.5) ⇒ whether an Abrams holds at a street a T-72 watches head-on is decided at the threshold edge. ⚠ Recorded, not changed: a tuning question for this programme's owner | `EqsDistributedTests.DangerAlongRoute_AcrossHosts_…` (its unit is now a rifleman) |
 
 ## 3. Hull-sized points, overhead cover and the templates (V3)
 

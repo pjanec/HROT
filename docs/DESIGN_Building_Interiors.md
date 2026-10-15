@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-12 (DoorCommandSystem moved to the cross-role Interactions capability, §3j 5d graph · §3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
+updated: 2026-10-15 (§3k.1 W-6″ CE-3203: ONE fragment law for people, hulls and weapons — designed and BUILT · DoorCommandSystem moved to the cross-role Interactions capability, §3j 5d graph · §3l Stage 7a BUILT — §3l.7 as built · §3k Stage 6 warheads BUILT — as-built table; CE-3116 body profile · designed + approved, R-225 · 5d-3/5d-4 as built: the mover crosses doors, §3j; rev 8 — §3d approved and built: §3h penetration as built; rev 7 — blast/fragment exposure by wall height and posture, §3f; §3g Stage 1 as built)
 build-state: READY-TO-BUILD for B-0…B-2 — §3/§3a/§3b leans APPROVED by the user 2026-10-07; §3c materials APPROVED 2026-10-07; §3d APPROVED 2026-10-07 (R-217) and BUILT (§3h)
-current-answer: §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILT, §3l.7 as built; §3l.2 diagram updated) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
+current-answer: §3k.1 W-6″ one fragment law for every target (CE-3203) · §3l Stage 7a cover per storey + window firing positions (APPROVED, R-232 — BUILT, §3l.7 as built; §3l.2 diagram updated) · §3k Stage 6 warheads (BUILT — "Stage 6 as built") · §3j Stage 5 doors (5a, 5b, 5c, 5d-1…5d-4, 5e as built; 5b′ R-219 supersedes the mirror) · §3i Stage 4 posture · §3h penetration as built · §3g Stage 1 as built · §7 programme summary · §3f (rev 7) > §3e (rev 6) > §3d (rev 5) > §3c (rev 4) > §3b (rev 3) > §3a (rev 2) > §3 where they differ · §4 change map · §6 slices
 stale-below: §3 rows B1, B5, B6, B9 are rev 1 — superseded by §3a
 known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file: [BehaviorContract] is deleted (CE-2134) → [Behavior(Params=…)] / the asset's ParamsDtoTypeId + ParamsDtoRegistry; blueprints declare no Parameters / Get Parameter (R-2004); no generated Inputs/_Blackboard mirror (CE-2135). Current model: docs/DESIGN_Orders_Params_Entity_Classes.md §13.10. Read older statements here as history.
   §3j's top classDiagram and "5b as built" still draw DoorStateMirrorSystem / TerrainWorld.SetDoorState — removed by 5b′ (R-219); the banner there says so
@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS structure damage (collapse, breach from a heavy charge); its geometry change is §14's
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: who calls fire (§3k hands it on), the fire solution (charge, low / high arc) and the battery's fire mission
   - DESIGN_Map_3D_Mode.md §6k — CE-1068: how a door entity is DRAWN (a hinged leaf in 3-D, no symbol in 2-D, gone when destroyed)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — R-217's penetration lookup keyed by the LOADED round (a mount's ammo loadout)
@@ -1299,6 +1300,89 @@ The diagrams above are updated to the as-built classes and sequence. What change
 | W-10 | `DetonationLog` (ring of 64) + `GET /combat/detonations` (MCP `get_combat_detonations`) | — |
 | W-11 | rails `AreaEffectSystemTests` (6), `WarheadFlightTests` (4), `ReferenceLibraryTests` (2 new), `HrotEnvironmentTests` (munitions); premise rows `bt-grenade-posture`, `bt-mortar-roof`; scenarios + `scripts/utility-demo-check.py`; the curated test behaviour `HoldStance` | — |
 | — | ⭐ **`CE-3116` found here:** a soldier's 1.8 m collider (its capsule) made the body profile a HULL, so sight, aim and fragments ignored prone/crouched on the live world. `PhysicsColliderReaders.HullHeight` = 0 for a pedestrian; sight (`ForLiveWorld`), fire aim and the area effect read it; the collider still blocks lines up to its full height | §3f's profile, now true on the live world |
+
+## 3k.1 W-6″ — ONE fragment law for every target: people, hulls and weapons *(backend, `2026-10-15`; `CE-3203`; 🔒 user: *"weapon entities should be destroyable and separately configured … No unrealistic numbers for soldier hitting, if it breaks something, tests should check that."*)*
+
+📐 **Measured** (`ReferenceLibrary.Warhead`, `AreaEffectSystem.Assess`, the shipped library): a man took a DOSE — `600 · explosive kg ·
+(1 − r/reach)² · exposure` — so a big round's dose was certain death far past its casualty radius (Mk-82: 5 087 at 100 m, 1 253 at 121 m;
+155 mm: 846 at 50 m; 120 mm mortar: 334 at 35 m). A weapon system (no collider) was treated as a man: a Mk-82 destroyed an M2 121 m away.
+AE5 (Armour Hit Model §7.7) had already counted fragments on HULLS. ⇒ one law: **how many fragments strike, how fast they still fly, what
+one does to this target.**
+
+```mermaid
+classDiagram
+  class WarheadDto { <<existing, grows>> FragmentCount · FragmentHitDamage (a bullet's law, at the burst) · +FragmentWoundDamage ★ · +FragmentDragM ★ · FragmentPenetrationMm · FragmentRadiusM (now: where a standing man's expected damage falls below 1) ★ · FragmentDamage (the old dose — only a hand-written warhead with no count) }
+  class ReferenceLibrary { <<existing, grows>> Warhead(): + wound = woundPerSqrtJoule · √(½ m v₀²) ★ · drag λ = dragMetresPerCbrtGram · m^⅓ ★ · the radius solved from the law ★ }
+  class AreaEffect { <<existing, grows>> +Fragments(w, target, area, distance, armour, exposure) ★ : hits · per-hit · chance · exposure · +PersonArea(stance) ★ }
+  class FragmentTarget { <<enum ★>> Person · Hull · Equipment }
+  class CombatPlatformDefDto { <<existing, grows>> +PresentedAreaM2 ★ (−1 = derived) · MaxHealth · Armor* · BlastSusceptibility }
+  class AreaEffectSystem { <<existing>> classifies each target, calls AreaEffect.Fragments ★ }
+  class AmmoChoice { <<existing>> the same law at 1 m (a man) / at the hull's radius ★ }
+  class WeaponSystems { <<existing, grows>> CanFire: +WeaponHold.Destroyed ★ · WeaponOf skips a destroyed weapon ★ }
+  ReferenceLibrary --> WarheadDto
+  AreaEffectSystem ..> AreaEffect
+  AmmoChoice ..> AreaEffect
+  AreaEffect ..> FragmentTarget
+  AreaEffectSystem ..> CombatPlatformDefDto : area · armour
+```
+
+*What the picture shows that prose hid: there is ONE fragment function and three kinds of target — they differ only by their AREA, the
+ARMOUR a fragment must defeat and the DAMAGE one hit does; nothing else in the burst changes (rays, exposure, barriers, blast).*
+
+```mermaid
+sequenceDiagram
+  participant S as AreaEffectSystem
+  participant A as AreaEffect.Fragments
+  participant T as a target (man · hull · weapon)
+  S->>S: exposure from the body-point rays (unchanged)
+  S->>A: warhead, kind, area, distance r, armour (facing), exposure
+  A->>A: hits = N · area / (2πr² + area)
+  A->>A: speed left = e^(−r/λ) — the per-hit damage and the penetration scale with it
+  A->>A: chance = one fragment defeats the armour (a man: only the share his plates cover)
+  A-->>S: hits · per-hit · chance · exposure
+  S->>T: DamageAssessedEvent (fragments + blast, as before)
+  Note over T: a weapon at 0 health cannot fire (WeaponHold.Destroyed) and no longer arms its host
+```
+
+| rule | why |
+|---|---|
+| hits = `N · A / (2π r² + A)` — a ground burst throws its `N = casing / m` fragments over a hemisphere; `+ A` keeps the struck target finite | the count every target shares (AE5's, without its linear fade) |
+| speed left `e^(−r/λ)`, `λ = 195 m · (m / 1 g)^⅓` — drag slows a light fragment sooner; per-hit damage and penetration scale with it | ⭐ one form fits a grenade AND a bomb; AE5's `(1 − r/reach)` made big rounds harmless inside their casualty radius |
+| a **man**: area by stance — standing 0.7 m², crouched 0.45, prone 0.15; per hit `FragmentWoundDamage = 3.3 · √(½ m v²)`; body armour defeats only the share it covers (35 % — the plates) | ⭐ calibrated against published radii (table below); prone is the classic protection from a ground burst |
+| a **hull** (`HullHeight > 0`): area `2 · radius · height`, per hit `FragmentHitDamage = 0.6 · √(½ m v²)` (a bullet's law), the facing armour | AE5, unchanged in form |
+| a **weapon** (equipment — a type stating `PresentedAreaM2`): its area, a bullet's per-hit law, its CASING armour, its own health and blast share — **configured per type** (Weapon Systems §5b) | 🔒 user: destroyable, separately configured, easy to break |
+| `FragmentRadiusM` = where a standing man's expected damage falls below 1 — the law's own reach | the area effect is its one reader (`AreaEffectSystem`); before it was a reach formula the law no longer matches |
+| a **shaped charge** (`heat` / `hedp`) fragments only `shapedChargeFragmentingShare` = 0.02 of its body | its body is mostly motor, fins and the liner that becomes the jet; 📐 with the whole body counted a PG-7V gave a man 1 014 at 5 m and a 113 m reach |
+| a warhead with no `FragmentCount` (hand-written TKB) keeps the old dose | nothing to count with |
+
+**Calibration — a standing man in the open, no armour (expected damage of 100 = dead).** The published lethal / casualty radii are
+public, approximate figures; the TEST checks bands, not points (`AreaEffectSystemTests.W6pp_…`):
+
+| round | lethal r → expected | casualty r → expected | 2 × casualty r |
+|---|---|---|---|
+| M67 grenade | 5 m → 162 | 15 m → 17 | 3.8 |
+| 60 / 81 / 120 mm mortar | 15 / 25 / 40 m → 77 / 48 / 37 | 28 / 38 / 75 m → 20 / 20 / 9 | 4 / 4 / 2 |
+| 105 / 155 mm | 30 / 50 m → 61 / 42 | 55 / 100 m → 17 / 9 | 3 / 2 |
+| Mk-82 | 60 m → 117 | 150 m → 16 | 3 |
+| 70 mm rocket · 125 mm HE-frag | 15 / 25 m → 149 / 120 | 45 / 55 m → 14 / 22 | 3 / 5 |
+| PG-7V HEAT (a shaped charge) | 2 m → 126 | 5 m → 20 | 5 |
+
+**As built (`2026-10-15`, `CE-3203`)** — as designed, plus the shaped-charge share (row above, found by the calibration probe). The
+numbers in the table are the shipped library's (measured). The hazard radii (`FragmentRadiusM`, a standing man < 1): M67 54 m · 60 / 81 /
+120 mm 100 / 131 / 185 m · 105 / 155 mm 178 / 246 m · Mk-82 442 m · PG-7V 21 m. A man 121 m from a Mk-82: **25** (was 1 253). A prone man
+takes ≈ 0.2 of a standing one. Weapons (per type, Weapon Systems §5b) at 10 m: an 81 mm puts **30 on an M2** (of 80 — damaged) and
+**25 on a Javelin** (of 20 — broken); a Mk-82 at 121 m puts **2** on an M2. ⚠ The 25 / 30 mm autocannon HE give a man ≈ 70 / 50 at
+5 / 8 m — one fragment there is a serious wound; no public radius to check them against, so they are not in the rail. Code:
+`AreaEffect.Fragments` / `PersonArea` / `FragmentHazardRadius`, `AreaEffectSystem.FragmentTargetOf`, `ReferenceLibrary.Warhead`. Rails:
+`AreaEffectSystemTests.W6pp_AStandingMan_IsHitAsThePublishedRadiiSay` (10 rounds) · `W6pp_AMk82_KillsAManAt20m_OnlyWoundsOneAt121m` ·
+`W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. Report:
+[REPORT_Backend_Fragment_Law_And_Weapon_Damage.md](blueprints/batches/REPORT_Backend_Fragment_Law_And_Weapon_Damage.md).
+
+Rejected (one line each): the dose with a cap — still certain death at a big round's casualty radius · AE5's linear fade for people —
+a 155 mm and a 120 mm mortar fall to 0 before their casualty radius · tuning a per-warhead lethality — the coefficients would stop
+generating, every round would be hand-set.
+
+⭐ 🔒 **The four numbers this law chose APPROVED `2026-10-15` (R-3008)** — user: *"approved C1-C5"* (the CE-3203 report's §4): **C1** body armour stops fragments over **35 %** of a man (the plates) · **C2** the per-type weapon area / casing / health in [Weapon Systems §5b](designs/weapons/DESIGN_Weapon_Systems.md) · **C3** a shaped charge fragments **2 %** of its body · **C4** a carried weapon is struck with its carrier (measured: the soldier's carry station is open) · **C5** the 25 / 30 mm HE numbers (≈ 70 / 50 to a man at 5 / 8 m) stand, unrailed until a published radius exists.
 
 ## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; ✅ C1–C9 APPROVED by the user `2026-10-09` — *"Look ok."* … *"Approved."* (R-232); build-state: BUILT — `CE-3134`, §3l.7)*
 

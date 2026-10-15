@@ -154,7 +154,7 @@ namespace Hrot.NED.Descriptors
         /// <summary>⭐ WL-3 — seconds between rounds.</summary>
         public float CooldownSeconds;
         public uint Epoch;
-        /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — <c>ArcPreference</c> the laid indirect mount's solution chose (APPENDED, R-169).</summary>
+        /// <summary>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — <c>ArcPreference</c> the laid indirect mount's solution chose (APPENDED, R-169).</summary>
         public byte Arc;
     }
 

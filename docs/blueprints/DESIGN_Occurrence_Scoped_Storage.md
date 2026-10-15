@@ -1763,7 +1763,7 @@ before paying for `O6`)*.
 | `PredicateCompiler` *(replay search)* | typeId triple + RO resolve triple | 1 |
 | `BlueprintBlackboardTiers.RegisterAll` | the registration triple | 1 |
 | 🔴 `BlueprintTickSystem.TickWorldSingletons` | ⛔ **MISSED BY THE TRUNCATED CENSUS** — a `switch` over `BlackboardTier`, each arm calling `EnsureAndTickSingleton<T>` with that tier's `TotalSize` and `MaxSlots` re-quoted | 1 |
-| 🔴 `BlueprintStateTranslator` | ⛔ **MISSED** — `GetConsumedComponentsMask` sets a bit per tier type; ⚠ **and a LEGACY-KEY list that must NOT follow the ladder** *(see `N4`)* | 2 |
+| 🔴 `BlueprintStateTranslator` | ⛔ **MISSED** — `GetConsumedComponentsMask` sets a bit per tier type; ⚠ **and a LEGACY-KEY list that must NOT follow the ladder** *(see `N4`)* · 📐 **`2026-10-15` (`CE-3204`): as built the mask is EMPTY** — `SetBitIfRegistered` takes the `BitMask512` struct by value. Measured: scenario SAVE unaffected (all tiers `NoScenario`, the saveable mask drops them); a debug dump with the snapshot mask carries the raw tier (`BlueprintBlackboard1024`, 2 KB) next to `BlueprintAssignments`; a mask without tier bits still runs the translator (the gate treats an empty mask as header-native) | 2 |
 | `EditorSubsystem:1145` · `CgfSubsystem:879` | the renderer-accessor triple, **twice** | 2 |
 | `BlueprintBlackboard{1024,4096,16384}Renderer` | 3 near-identical ~80-line files | 3 |
 
@@ -5388,7 +5388,7 @@ that a lookup returned `true`, because `true` with zeros is precisely the broken
 |---|---|
 | `BrainBlackboardRenderer` | ✅ **deleted.** Its params tree is now `RootParamsProjection`, a section on the **tier** renderers — the panel that already holds the store's base pointer. ⭐ Its `BrainInterrupts` tail rode along *(`R-137`: a retirement may not cost a feature)* |
 | `BrainBlackboardViewProvider` | ✅ **replaced** by `RootParamsViewProvider`, keyed on the tier component's `$.Memory` + a slot offset |
-| `BlackboardReflection.EditContextFactory` | ✅ gate re-asked as *"is this the entity's occurrence-store component?"*, of the tier TABLE. ⛔ **Not a named component** — the allocator may promote between frames, and a named gate would silently stop matching |
+| `BlackboardReflection.EditContextFactory` | ✅ gate re-asked as *"is this the entity's occurrence-store component?"*, of the tier TABLE. ⛔ **Not a named component** — the allocator may promote between frames, and a named gate would silently stop matching *(⚠ `2026-10-15`: promotion is retired since `CE-3137` U-0 / `R-236` — growth APPENDS a larger block and nothing moves, `BlueprintBlackboardPartitions.cs:381`; an entity holds a LIST of blackboard components. The gate's reasoning still holds: which components exist is not fixed)* |
 | `LiveBlackboardValueProvider` | ✅ step 5 reads the root slot through the shared walk; steps 1–4 untouched |
 | `HillAttackGizmo` | ✅ `[GizmoProjector(BehaviorState, SimTransform)]`. ⛔ `BrainBlackboard` **dropped, not swapped for a tier** — a tier component means *"has SOME occurrence storage"*, which is not a proxy for *"has a brain"*, and it would pin the gizmo to one tier |
 | `BrainBlackboardTranslator` | ✅ `CanTranslate`/`GetConsumedComponentsMask` on `BehaviorState`. ⚠ The mask is what the **promotion gate arbitrates on**, so naming a component this translator never opens was not merely stale |

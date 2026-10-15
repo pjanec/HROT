@@ -879,6 +879,27 @@ public sealed class StorageGatewayModule
         return CheckTkbNameConsensus(Directory.GetFiles(scenarioDirectory, "*.json"));
     }
 
+    /// <summary>
+    /// ⭐ CE-3119 — copies a scenario's files (the flat files of its directory, the same set
+    /// <see cref="PrefetchScenarioAsync"/> stages) from <paramref name="sourceDirectory"/> into
+    /// <paramref name="destinationDirectory"/>, creating it. Used to snapshot the scenario an exercise runs and to
+    /// file that copy with the exercise's recordings (<c>docs/designs/mgmt-1/DESIGN.md</c> §13.3a).
+    /// </summary>
+    /// <returns>The number of files copied; <c>0</c> when the source does not exist or is empty.</returns>
+    public static int CopyScenarioFiles(string sourceDirectory, string destinationDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(sourceDirectory) || !Directory.Exists(sourceDirectory)) return 0;
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) throw new ArgumentNullException(nameof(destinationDirectory));
+
+        var files = Directory.GetFiles(sourceDirectory);
+        if (files.Length == 0) return 0;
+
+        Directory.CreateDirectory(destinationDirectory);
+        foreach (var file in files)
+            File.Copy(file, Path.Combine(destinationDirectory, Path.GetFileName(file)), overwrite: true);
+        return files.Length;
+    }
+
     private static StagedArtifactNames CheckTkbNameConsensus(string[] files)
     {
         string? agreedTkbName     = null;

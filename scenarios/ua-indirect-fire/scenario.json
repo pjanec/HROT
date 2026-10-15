@@ -1,0 +1,667 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "indirect-fire-range"
+  },
+  "entities": {
+    "a2176400-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -1700,
+          300,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21761
+      },
+      "TkbIdentity": {
+        "TkbType": 304
+      },
+      "EntityInfo": {
+        "Name": "Mortar Section",
+        "ForceId": "Friend"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -1700,
+          260,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21762
+      },
+      "TkbIdentity": {
+        "TkbType": 610
+      },
+      "EntityInfo": {
+        "Name": "81mm Tube 1",
+        "ForceId": "Friend"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -1702,
+          260,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21765
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Mortar Gunner 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21762}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000001",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -1700,
+          300,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21763
+      },
+      "TkbIdentity": {
+        "TkbType": 610
+      },
+      "EntityInfo": {
+        "Name": "81mm Tube 2",
+        "ForceId": "Friend"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          -1702,
+          300,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21766
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Mortar Gunner 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21763}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          -1700,
+          340,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21764
+      },
+      "TkbIdentity": {
+        "TkbType": 610
+      },
+      "EntityInfo": {
+        "Name": "81mm Tube 3",
+        "ForceId": "Friend"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          -1702,
+          340,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21767
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Mortar Gunner 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21764}",
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          -3800,
+          0,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21770
+      },
+      "TkbIdentity": {
+        "TkbType": 304
+      },
+      "EntityInfo": {
+        "Name": "Artillery Battery",
+        "ForceId": "Friend"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          -40,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21771
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000008",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -3800,
+          0,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21772
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000008",
+        "Designation": "Wingman"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -4100,
+          40,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21773
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 3",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2176400-0000-4000-8000-000000000008",
+        "Designation": "Wingman"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          330,
+          1000,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21780
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          325,
+          295,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21781
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Enemy 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          335,
+          305,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21782
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Enemy 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          345,
+          295,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21783
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Enemy 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          355,
+          305,
+          0.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21784
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Enemy 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          700,
+          -200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21785
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Truck 1",
+        "ForceId": "Hostile"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000018": {
+      "SimTransform": {
+        "Position": [
+          720,
+          -190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21786
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Truck 2",
+        "ForceId": "Hostile"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000019": {
+      "SimTransform": {
+        "Position": [
+          740,
+          -200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21787
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Truck 3",
+        "ForceId": "Hostile"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          900,
+          150,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21788
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Courtyard Truck",
+        "ForceId": "Hostile"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          1400,
+          800,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21789
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Friendly 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    },
+    "a2176400-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          1410,
+          800,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 21790
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Friendly 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": "{\"stance\": \"Standing\"}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

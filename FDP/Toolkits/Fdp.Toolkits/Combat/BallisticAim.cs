@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>
         /// The angles that aim turret <paramref name="turret"/> of <paramref name="hullEntity"/> at <paramref name="aimPoint"/> for
         /// <paramref name="mount"/>'s round (null mount ⇒ direct).
-        /// <para>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — a mount that declares an <see cref="IndirectArc"/> aims along the FIRE
+        /// <para>⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — a mount that declares an <see cref="IndirectArc"/> aims along the FIRE
         /// SOLUTION the brain fires with (<see cref="FireSolution.For"/>: the lowest charge of <paramref name="ammo"/> that reaches on
         /// <paramref name="arc"/>), so the laid elevation is the fired one. Solved without the mask check (per frame, cheap); the brain
         /// already chose the arc with it. ⛔ Only for a LAID order (<paramref name="arc"/> Low / High): an Engage order (Auto) fires rounds

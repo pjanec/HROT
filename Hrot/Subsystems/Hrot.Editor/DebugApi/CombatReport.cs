@@ -44,6 +44,9 @@ namespace Hrot.Editor.DebugApi
                     ["hit"] = s.Outcome == ShotOutcome.Hit ? Id(s.HitEntity) : null,
                     ["arrivingDamage"] = s.Outcome == ShotOutcome.Hit ? s.ArrivingDamage : null,
                     ["arrivingPenetration"] = s.Outcome == ShotOutcome.Hit ? s.ArrivingPenetration : null,
+                    // ⭐ CE-2180 — the trip from the brain: raised (brain's synced sim time, null when unknown) → fired here
+                    ["raisedAt"] = s.RaisedAt > 0d ? s.RaisedAt : null, ["firedAt"] = s.FiredAt,
+                    ["tripSeconds"] = s.RaisedAt > 0d ? s.FiredAt - s.RaisedAt : null, ["caughtUpSeconds"] = s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
                     ["crossings"] = crossings,
                 });
             }
@@ -75,6 +78,7 @@ namespace Hrot.Editor.DebugApi
                         ["fragmentArmourChance"] = x.FragmentArmourChance, ["fragmentDamage"] = x.FragmentDamage,
                         ["blastFalloff"] = x.BlastFalloff, ["blastBarrier"] = x.BlastBarrier, ["blastShadow"] = x.BlastShadow,
                         ["blastSusceptibility"] = x.BlastSusceptibility,   // ⭐ R-2019 D-M2
+                        ["fragmentHits"] = x.FragmentHits, ["target"] = x.Target.ToString(),   // ⭐ CE-3203
                         ["blastDamage"] = x.BlastDamage, ["totalDamage"] = x.TotalDamage, ["shieldedBy"] = x.ShieldedBy,
                         ["at"] = V(x.At),   // ⭐ CE-3117 — where it stood
                     });

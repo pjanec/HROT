@@ -89,6 +89,8 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Embark = "Embark";
+        /// <summary>⭐ <c>CE-2176</c> (Weapon Systems §4b) — walk to a crew weapon and take its Gunner seat.</summary>
+        public const string ManWeapon = "ManWeapon";
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a passenger leaves its vehicle, beside the hull (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Disembark = "Disembark";
@@ -132,6 +134,19 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2173</c> slice 5 (B4, R-278) — STRIKE for any aircraft: the one air attack on the order's point, the profile
         /// picked from the aircraft and its weapons (Air Operations §7, §9c).</summary>
         public const string AirPlatformStrike = "AirPlatformStrike";
+
+        /// <summary>⭐ <c>CE-2173</c> slice 6c (B12–B14, R-278, R-2020) — ATTACK for any aircraft: the one air attack on the order's ENTITY —
+        /// direct fire first, led at the moving target, passes until it is destroyed (Air Operations §9e).</summary>
+        public const string AirPlatformAttack = "AirPlatformAttack";
+
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for an artillery battery: the virtual battery commander's fire mission —
+        /// every gun's aim point (the sheaf), its rounds and its fire time (time on target) (Indirect Fire §3.4).</summary>
+        public const string ArtilleryUnitStrike = "ArtilleryUnitStrike";
+
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for one self-propelled gun: its rounds on the point (Indirect Fire §4).</summary>
+        public const string SelfPropelledArtilleryStrike = "SelfPropelledArtilleryStrike";
+        /// <summary>⭐ <c>CE-2176</c> IF-3 — a soldier observes and adjusts a battery's fire (ObserveFire).</summary>
+        public const string PersonObserveFire = "PersonObserveFire";
 
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>

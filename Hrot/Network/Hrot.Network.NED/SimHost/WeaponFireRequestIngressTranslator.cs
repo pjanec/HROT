@@ -96,6 +96,7 @@ namespace Hrot.Network.NED.SimHost
                 AmmoGuid    = request.AmmoGuid,   // ⭐ M8
                 Charge      = request.Charge,     // ⭐ IF-1 (I3)
                 HighArc     = request.HighArc,
+                RaisedAt    = request.RaisedAt,   // ⭐ CE-2180
             });
         }
 

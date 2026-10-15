@@ -17,6 +17,9 @@ namespace Hrot.SimHost.Serializers
     /// </summary>
     public sealed class HsmTraceWorkingMemoryTranslator : IEntityScenarioTranslator
     {
+        /// <summary>⭐ <c>CE-3207</c> — a diagnostic dump: the clipboard / debug dump shows it, a scenario save never writes it (R-192).</summary>
+        public bool IsDiagnosticOnly => true;
+
         private const string Key = nameof(HsmTraceWorkingMemory1024);
 
         private readonly BehaviorRegistry _registry;

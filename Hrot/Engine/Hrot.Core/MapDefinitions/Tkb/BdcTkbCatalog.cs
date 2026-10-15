@@ -120,20 +120,23 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// ⭐⭐ Weapon systems WS-4 (W-F; DESIGN_Weapon_Systems §5) — a WEAPON SYSTEM type: an entity of its own (Gen.WeaponSystem) whose gun is
         /// its mount 0 and whose pintle / tripod is its own turret 0; manned through a Gunner seat (+ a loader's for a two-man weapon); seen,
-        /// hit and destroyed (60 hp). DIS 1.1.*.50.<paramref name="sub"/> (the WeaponSystem class). Every one has a BRAIN (§6: it runs only
+        /// hit and destroyed — ⭐ CE-3203 (§5b) by <paramref name="breaks"/>: its own area, casing and health (a fragment hits it as EQUIPMENT,
+        /// Building Interiors §3k.1). DIS 1.1.*.50.<paramref name="sub"/> (the WeaponSystem class). Every one has a BRAIN (§6: it runs only
         /// while the weapon controls itself, else it holds — and the Brain group must own its Health and deploy state, CE-523); an AUTOMATIC one
         /// (<c>NeedsOperator = false</c>) also sees (a sensor) and so fights on its own.
         /// </summary>
         private static void WeaponSystemType(NedTkbBuilder builder, long type, string name, byte sub, WeaponSystemDto ws, WeaponMount weapon,
-                                             TurretDto? turret, float sensorRange = 0f, byte category = 50)
+                                             TurretDto? turret, WeaponBreaks breaks, float sensorRange = 0f, byte category = 50)
         {
             builder
                 .DefineVehicle(type, name)
                 .WithVisual(type, v => { v.SymbolCode = "SFGPEWM--------"; v.ColorHex = "#5A5F52"; v.Scale = 0.5f; })
                 .WithCombat(type, c =>
                 {
-                    c.MaxHealth = 60;
-                    c.BlastSusceptibility = 1f;   // ⭐ R-2019 D-M2 (AE3) — a weapon on a mount or tripod: no hull
+                    c.MaxHealth = breaks.Health;
+                    c.BlastSusceptibility = breaks.BlastShare;   // ⭐ R-2019 D-M2 (AE3) — a weapon on a mount or tripod: no hull
+                    c.PresentedAreaM2 = breaks.AreaM2;           // ⭐ CE-3203 — EQUIPMENT in a burst: its own area, not a man's
+                    c.ArmorFront = c.ArmorSide = c.ArmorRear = c.ArmorTop = breaks.CasingMm;
                     if (sensorRange > 0f) { c.SensorRange = sensorRange; c.EyeHeight = 1f; }
                     c.Weapons.Add(weapon);
                 })
@@ -153,6 +156,13 @@ namespace Hrot.Map.Definitions.Tkb
             else builder.WithFaction(type, 1);   // W-E — it fights on its own
             builder.WithBehavior(type);
         }
+
+        /// <summary>
+        /// ⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — how a weapon type BREAKS: the area a burst's fragments see (m²), its casing (mm RHA, what a
+        /// fragment must pierce), its health and its share of the blast. Sophisticated weapons (optics, seekers, electronics) have no casing
+        /// and little health — one fragment breaks them; a steel gun takes several.
+        /// </summary>
+        private readonly record struct WeaponBreaks(float AreaM2, float CasingMm, float Health, float BlastShare = 1f);
 
         /// <summary>⭐ WS-4 — a pintle / tripod turret of a weapon system: all round, its pivot <see cref="WeaponPivotZ"/> above its base.</summary>
         private static TurretDto Pintle(float elevationMinDeg, float elevationMaxDeg, float traverseRate, float elevationRate, float trunnionX)
@@ -174,47 +184,47 @@ namespace Hrot.Map.Definitions.Tkb
         {
             var heavy = new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground | MountKinds.Pintle,
                                               DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.5f };
-            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_M2Hmg, "M2 HMG", 1, heavy, Hmg("12.7mm_M2"), Pintle(-10f, 70f, 90f, 45f, 0.4f));
-            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_DshkHmg, "DShK HMG", 1, heavy, Hmg("12.7mm_DShK"), Pintle(-10f, 70f, 90f, 45f, 0.4f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_M2Hmg, "M2 HMG", 1, heavy, Hmg("12.7mm_M2"), Pintle(-10f, 70f, 90f, 45f, 0.4f), new(0.35f, 1.5f, 80f));
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_DshkHmg, "DShK HMG", 1, heavy, Hmg("12.7mm_DShK"), Pintle(-10f, 70f, 90f, 45f, 0.4f), new(0.35f, 1.5f, 80f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_M134Minigun, "M134 minigun", 2,
                 new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Door | MountKinds.Pintle },
                 new WeaponMount { WeaponType = "7.62mm_M134", Ammunition = 3000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
                     DispersionMils = 6f, MagazineSize = 1500, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, TracerAmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer, TracerEvery = 5,
                     MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f) },
-                Pintle(-60f, 30f, 120f, 90f, 0.3f));
+                Pintle(-60f, 30f, 120f, 90f, 0.3f), new(0.25f, 1f, 40f));
             var shoulder = new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground | MountKinds.Carried,
                                                  FireWhileCarried = true, CarrySpeedFactor = 0.9f, DeploySeconds = 2f, PackSeconds = 2f };
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Javelin, "Javelin", 3, shoulder with { CarrySpeedFactor = 0.8f },
                 new WeaponMount { WeaponType = "Javelin_ATGM", Ammunition = 2, Range = 2500, RateOfFire = 3, DamagePerHit = 1500,
                     AimSeconds = 4f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile, Category = WeaponCategory.Atgm }, turret: null);
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile, Category = WeaponCategory.Atgm }, turret: null, new(0.3f, 0f, 20f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Nlaw, "NLAW", 4, shoulder,
                 new WeaponMount { WeaponType = "NLAW", Ammunition = 1, Range = 800, RateOfFire = 3, DamagePerHit = 900,
                     AimSeconds = 2.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm }, turret: null);
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm }, turret: null, new(0.15f, 0f, 15f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Law, "M72 LAW", 4, shoulder with { MountKinds = MountKinds.Carried },
                 new WeaponMount { WeaponType = "M72_LAW", Ammunition = 1, Range = 200, RateOfFire = 3, DamagePerHit = 600,
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 3f, FireOnMove = false,
-                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbLawRocket }, turret: null);
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbLawRocket }, turret: null, new(0.1f, 0f, 10f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_KornetTripod, "Kornet (tripod)", 3, heavy with { DeploySeconds = 30f },
                 new WeaponMount { WeaponType = "Kornet_ATGM", Ammunition = 4, Range = 5000, RateOfFire = 2, DamagePerHit = 2000,   // as the M9 technical carried it
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 20f, FireOnMove = false,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbKornetMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(0.6f, 0f, 0.2f) },
-                Pintle(-10f, 20f, 40f, 20f, 0.3f));
+                Pintle(-10f, 20f, 40f, 20f, 0.3f), new(0.35f, 0f, 25f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_TowTripod, "TOW (tripod)", 3, heavy with { DeploySeconds = 30f },
                 new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 4, Range = 3750, RateOfFire = 2, DamagePerHit = 1800,
                     AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 15f, FireOnMove = false,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile, Category = WeaponCategory.Atgm, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0.2f) },
-                Pintle(-10f, 20f, 30f, 15f, 0.3f));
+                Pintle(-10f, 20f, 30f, 15f, 0.3f), new(0.4f, 0f, 25f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_SentryGun, "Sentry gun", 5,
                 new WeaponSystemDto { NeedsOperator = false, Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground | MountKinds.Pintle },
                 new WeaponMount { WeaponType = "7.62mm_RWS", Ammunition = 1000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30,
                     DispersionMils = 3f, MagazineSize = 200, ReloadSeconds = 6f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball, MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0f) },
-                Pintle(-20f, 60f, 120f, 60f, 0.2f), sensorRange: 1200f);
+                Pintle(-20f, 60f, 120f, 60f, 0.2f), new(0.3f, 1f, 30f), sensorRange: 1200f);
 
             // ⭐⭐ Indirect fire IF-1 (I8, IF-G; docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §4) — the tubes and the towed gun: weapon
             //   systems crewed through their Gunner seat (+ a loader's for a two-man tube), class Mortar 1.1.*.10 / TowedArtillery 1.1.*.5.
@@ -224,26 +234,26 @@ namespace Hrot.Map.Definitions.Tkb
                 new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground, DeploySeconds = 20f, PackSeconds = 15f, CarrySpeedFactor = 0.8f },
                 Laid(IndirectMount("60mm_M224", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb60mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar60mmHeName,
                               WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 3490f, dispersionMils: 6f, reloadSeconds: 3f)),
-                LayingTurret(45f, 85f, pivotZ: 0.3f), category: 10);
+                LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.2f, 2f, 60f), category: 10);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar81, "81 mm mortar", 2,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 60f, PackSeconds = 45f, CarrySpeedFactor = 0.5f },
                 Laid(IndirectMount("81mm_M252", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb81mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar81mmHeName,
                               WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 30, rangeM: 5600f, dispersionMils: 5f, reloadSeconds: 3f)),
-                LayingTurret(45f, 85f, pivotZ: 0.3f), category: 10);
+                LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.3f, 2f, 80f), category: 10);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Mortar120, "120 mm mortar", 3,
                 new WeaponSystemDto { Portable = WeaponPortability.TwoMan, MountKinds = MountKinds.Ground, DeploySeconds = 90f, PackSeconds = 60f, CarrySpeedFactor = 0.4f },
                 Laid(IndirectMount("120mm_M120", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmMortarHe, Hrot.Core.Tkb.MunitionTkbCatalog.Mortar120mmHeName,
                               WeaponCategory.Mortar, IndirectArc.HighOnly, 45f, 85f, rounds: 20, rangeM: 7200f, dispersionMils: 4f, reloadSeconds: 6f)),
-                LayingTurret(45f, 85f, pivotZ: 0.3f), category: 10);
+                LayingTurret(45f, 85f, pivotZ: 0.3f), new(0.5f, 2f, 120f), category: 10);
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Howitzer105, "105 mm towed howitzer", 1,
                 new WeaponSystemDto { Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground },   // emplaced: no towing yet (IF-G)
                 Laid(IndirectMount("105mm_M119", Hrot.Core.Tkb.MunitionTkbCatalog.Tkb105mmHowitzerHe, Hrot.Core.Tkb.MunitionTkbCatalog.Howitzer105HeName,
                               WeaponCategory.Howitzer, IndirectArc.Both, -5f, 70f, rounds: 40, rangeM: 11500f, dispersionMils: 3f, reloadSeconds: 8f)),
-                LayingTurret(-5f, 70f, pivotZ: 1.0f), category: 5);
+                LayingTurret(-5f, 70f, pivotZ: 1.0f), new(3.0f, 6f, 400f, BlastShare: 0.5f), category: 5);
         }
 
         /// <summary>
-        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — the LAYING turret of a mortar / towed gun: turret 0, all round (the crew shifts the
+        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — the LAYING turret of a mortar / towed gun: turret 0, all round (the crew shifts the
         /// baseplate or the trails), inside the mount's elevation window, at a crew's rates. It is what replicates the laid elevation
         /// and azimuth (<c>dtTurretPose</c>, W-9) — no field of its own. Starter rates: 30 °/s traverse, 15 °/s elevation — a
         /// full lay (180°, 0 → 85°) in ≈ 6 s, inside FM-4's 10 s lay time.
@@ -629,7 +639,7 @@ namespace Hrot.Map.Definitions.Tkb
 
             // ⭐⭐ CE-1041 — AIRCRAFT. CG-referenced bodies resting on their gear: the gear positions are what landing and parking
             //   use (BodyGeometry.RestingPose). ⛔ No WithPhysics — that adds VehicleParametersDto, i.e. CAR kinematics; an aircraft
-            //   carries its size in Body.Geometry. ⛔ No WithBehavior — there is no flight model for a brain to drive yet.
+            //   carries its size in Body.Geometry. (⭐ CE-2185: both UH-60s now carry a brain and health, below.)
             //   Public figures, rounded; the gear's X is from the CG. DIS subcategory left 0 (generic) — not verified.
             //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60, "UH-60A Black Hawk", "SFAPMHU-------", "#56604F",
@@ -639,6 +649,21 @@ namespace Hrot.Map.Definitions.Tkb
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60_DoorsOff, "UH-60A Black Hawk (doors off)", "SFAPMHU-------", "#56604F",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
             builder.WithCarrier(TkbEntityTypes.Heli_UH60_DoorsOff, DoorSeats());
+            // ⭐ CE-2185 (AT4, R-2021, DESIGN_Air_Operations §7c) — both Black Hawks can be downed: the AH-64 class's numbers (health 800, a
+            //   helicopter's blast susceptibility 0.8 — armour covers the crew, not the rotors). Source: the attack helicopter's entry
+            //   (no public damage model for a UH-60 exists); no armour FACES yet — the A-10 / AH-64 have none either, and per-face armour
+            //   for all four aircraft goes to the user as a proposal (the handoff's "report numbers, do not build").
+            //   ⭐ And a BRAIN (`WithBehavior`): Health is in the Brain ownership group and only the Brain node applies damage
+            //   (CE-523, `HrotOwnershipGroupsTests`) — a brainless type with Health keeps it with its creator and is never downed. The
+            //   doors-off one's design already assumes one (Air Ops: the hold's release is "the brain's").
+            foreach (var uh60 in new[] { TkbEntityTypes.Heli_UH60, TkbEntityTypes.Heli_UH60_DoorsOff })
+                builder
+                    .WithCombat(uh60, c =>
+                    {
+                        c.MaxHealth = 800;
+                        c.BlastSusceptibility = 0.8f;
+                    })
+                    .WithBehavior(uh60);
             // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — it FLIES: a route takes it off its gear, rounds
             //   its corners at 60 m, holds 30 m over the ground and sets it down on a Ground waypoint. Public figures, rounded: cruise
             //   ~70 m/s, climb ~8 m/s; the collider is the fuselage, not the rotor disc. The plain UH-60 (400) stays a static body.
@@ -723,15 +748,21 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public static void RegisterObstacles(TkbDatabase tkbDb)
         {
-            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body");
-            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags");
-            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete");
-            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood");
+            // ⭐ CE-3148 — every obstacle states its DIS type (they drew the magenta unknown-type box): the parked car is a car
+            //   (1.1.0.81, the civilian car's), the rest are cultural features (5 — no domain pinned: an unnamed level is a rail failure)
+            var car = new DISEntityType { Kind = 1, Domain = 1, Category = 81 };
+            var feature = new DISEntityType { Kind = 5 };
+            RegisterObstacle(tkbDb, "Car",            TkbEntityTypes.Obstacle_Car,           4.5f, 1.8f, 1.5f, "car-body", car);
+            RegisterObstacle(tkbDb, "Sandbag wall",   TkbEntityTypes.Obstacle_SandbagWall,   3.0f, 0.6f, 1.0f, "sandbags", feature);
+            RegisterObstacle(tkbDb, "Concrete block", TkbEntityTypes.Obstacle_ConcreteBlock, 2.0f, 1.0f, 1.0f, "concrete", feature);
+            RegisterObstacle(tkbDb, "Crate",          TkbEntityTypes.Obstacle_Crate,         1.2f, 1.0f, 1.0f, "fence-wood", feature);
         }
 
-        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material)
+        private static void RegisterObstacle(TkbDatabase tkbDb, string name, long type, float length, float width, float height, string material,
+                                             DISEntityType dis)
         {
             var t = new TkbTemplate(name, type);
+            t.DisType = dis;   // ⭐ CE-3148 — the TYPE only: ⛔ no TkbMasterDto, which would list an obstacle in the Add Entity picker as a sided unit
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = length, Width = width, Height = height, Material = material });
             tkbDb.Register(t);
         }

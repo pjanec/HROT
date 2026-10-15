@@ -526,6 +526,44 @@ public sealed class RecastNavmeshFactoryTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3114</c> — writing a square's tile deletes that square's OTHER tiles unused for the prune age (a changed input or an old
+    /// bake format leaves them behind), keeps the square's recent ones (another terrain sharing it), never touches another square; and a
+    /// tile READ from disk is made young again, so a square still in use is never pruned.
+    /// </summary>
+    [Fact]
+    public void CE3114_AWrittenTile_PrunesItsSquaresStaleTiles_KeepsRecentOnes_AndOtherSquares()
+    {
+        var folder = TempCacheFolder();
+        try
+        {
+            var cache = new NavTileCache(folder, pruneAfter: TimeSpan.FromDays(1));
+            var layerDir = System.IO.Path.Combine(folder, NavLayerMask.Infantry.ToString());
+            System.IO.Directory.CreateDirectory(layerDir);
+            string Make(string name, double daysOld)
+            {
+                var path = System.IO.Path.Combine(layerDir, name);
+                System.IO.File.WriteAllBytes(path, Array.Empty<byte>());
+                System.IO.File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-daysOld));
+                return path;
+            }
+            var stale = Make("3_4_oldhash.navtile", 3);
+            var recent = Make("3_4_otherterrain.navtile", 0.1);
+            var otherSquare = Make("3_5_oldhash.navtile", 3);
+            var readBack = Make("3_4_inuse.navtile", 3);
+
+            Assert.True(cache.TryGet(new NavTileKey(NavLayerMask.Infantry, 3, 4, "inuse"), out _));   // read from disk ⇒ young again
+            cache.Put(new NavTileKey(NavLayerMask.Infantry, 3, 4, "newhash"), null);
+
+            Assert.False(System.IO.File.Exists(stale), "the square's stale tile is pruned");
+            Assert.True(System.IO.File.Exists(recent), "a recent tile of the same square stays (another terrain)");
+            Assert.True(System.IO.File.Exists(otherSquare), "another square is never touched");
+            Assert.True(System.IO.File.Exists(readBack), "a tile read from disk is in use — kept");
+            Assert.True(System.IO.File.Exists(System.IO.Path.Combine(layerDir, "3_4_newhash.navtile")));
+        }
+        finally { try { System.IO.Directory.Delete(folder, true); } catch { } }
+    }
+
+    /// <summary>
     /// ⭐ R-218 P2 — the touched-tile rebuild: after a geometry change (the east room's door moves) <see cref="RecastNavmeshFactory.Rebake"/>
     /// bakes ONLY the tiles the change reaches — the west room's and the open ground's come from the cache — and swaps one new
     /// snapshot (the version moves); the moved door is where the path now goes.

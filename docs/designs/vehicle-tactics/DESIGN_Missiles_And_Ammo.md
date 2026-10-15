@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-15 (§3c air defence: IR seeker, proximity fuze, flares / chaff, missile warning — CE-2187…CE-2189, designed)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -162,6 +162,77 @@ Wire: `WeaponFireRequest.AmmoGuid` (the only new wire field, R-169); `EntityWeap
 `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` · `StandardInputReaderTests.M8_Effectiveness_…`. ⚠ No built-in type carries a
 loadout yet — that is B8's data (M5).
 
+### 2b. Enough, not most — a munition has a COST (`CE-2186`, W2, 🔒 R-2020; backend `2026-10-15`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Munition_Cost.md))
+
+🔒 **User, `2026-10-15`:** *"not using non-reasonably strong or expensive ammo or weak or collateral-damage sensitive targets"* → W2 *"accepted"*
+([Air Ops §7b](../air-attack/DESIGN_Air_Operations.md)). 📐 Measured: `AmmoChoice.Best` takes the HIGHEST value — the strongest round always wins,
+however weak the target (`AmmoChoice.cs`, §2 above); no munition carries a cost (`Tkb/Domain/*.cs`).
+
+```mermaid
+classDiagram
+  class MunitionCostDto { <<NEW TKB record "Munition.Cost">> +RelativeCost : float  (0 = unknown) }
+  class MunitionTkbCatalog { <<existing, grows>> every built-in munition gets a MunitionCostDto from one table (Costs) }
+  class CombatTkb { <<existing, grows>> +CostOf(world, ammo) float }
+  class AmmoChoice {
+    <<existing, grows>>
+    +Sufficient(world, mount, ammo, shooter, target, rounds) bool  «NEW, the ONE rule»
+    +Best(world, load, mount, shooter, target, rounds = 1) int  «cheapest sufficient, else as before»
+    +Choose(…, rounds = 1)  «passes the action's rounds»
+    ValueOf · ExpectedDamage  «unchanged»
+  }
+  class AimAndFireExecutor { <<existing>> Choose(… rounds = the action's Rounds, ≥ 1) }
+  class AirAttackBehaviors { <<behaviors, B12>> the mount pick calls AmmoChoice.Sufficient — the same test }
+  MunitionTkbCatalog ..> MunitionCostDto
+  CombatTkb ..> MunitionCostDto : reads
+  AmmoChoice ..> CombatTkb : CostOf
+  AimAndFireExecutor ..> AmmoChoice
+  AirAttackBehaviors ..> AmmoChoice : Sufficient
+```
+
+*What the picture shows that prose hid: the cost is one TKB record the choice READS; the sufficiency test is ONE static the air attack's
+mount pick calls too — two callers, one rule (R-212 A1), and the value model underneath is untouched.*
+
+```mermaid
+sequenceDiagram
+  participant EX as AimAndFireExecutor (Brain)
+  participant AC as AmmoChoice.Best
+  participant CT as CombatTkb
+  EX->>AC: Best(load, mount, shooter, target, rounds)
+  AC->>CT: CostOf(each loaded type)
+  alt every type with rounds left has a cost
+    AC->>AC: the CHEAPEST whose Sufficient(…) (value × rounds ≥ 1), ties → the higher value, then the loaded one
+    opt none is sufficient
+      AC->>AC: the most effective — today's rule (value, then area)
+    end
+  else any type has no cost
+    AC->>AC: today's rule, unchanged
+  end
+  AC-->>EX: the round
+```
+
+| rule | why |
+|---|---|
+| `Sufficient` = `ValueOf × max(1, rounds) ≥ 1` — the burst is expected to kill | the handoff's lean; one function for the round AND (behaviors) the mount |
+| among the loaded types: the CHEAPEST sufficient; none sufficient ⇒ the most effective (§2's rule) | "enough, not most"; a tank still draws the ATGM |
+| a loadout where any type has no cost ⇒ §2's rule exactly | fence: no existing rail moves without a reason |
+| costs: one table in `MunitionTkbCatalog` (§2c) | data, not code |
+
+#### 2c. The cost table — the rule used
+
+Relative unit cost, **tiers by munition class, ordered by public unit prices** (5.56 / 7.62 ball ≈ $0.5–1, 12.7 mm ≈ $3–5, 25–30 mm ≈ $30–100,
+RPG / LAW rocket ≈ $0.5–2k, mortar / artillery / tank shell ≈ $1–10k, Hydra ≈ $3k, ATGM ≈ $40–200k): the scale is COMPRESSED — only the
+order and the handoff's "a rifle round 1, an ATGM / a bomb in the hundreds" matter to the choice.
+
+| class | relative cost | munitions |
+|---|---|---|
+| small arms | 1 | 5.56 ball / tracer, 7.62 ball / tracer |
+| heavy MG | 3 | 12.7 / 14.5 AP |
+| hand grenade | 5 | M67 |
+| autocannon | 10–20 | GAU-8 HEI / API 10, 25 mm APDS-T 20 |
+| unguided rocket | 30–60 | RPG-7 30, LAW 30, PG-7VL 40, PG-7VR 60 |
+| mortar / artillery / tank shell | 30–100 | 60 mm 30, 81 mm 50, tank HE-FRAG 60, 120 mm mortar 80, 105 mm 80, tank HEAT-MP 80, 120 / 125 mm APFSDS 100, 155 mm 100 |
+| guided / air | 50–500 | FPV warhead 50, Hydra 70 100, TOW 300, NLAW 300, Kornet 300, Mk-82 300, Javelin 500 |
+
 ## 3. Guided rounds (M4, D-D)
 
 ```mermaid
@@ -240,6 +311,160 @@ sequenceDiagram
   HR-->>HR: DetonationNotification { Travel = descending ⇒ Top }
 ```
 
+### 3b. The OVERFLY top attack — the NLAW (`CE-3198`, backend `2026-10-15`; gate lifted by the user)
+
+📐 **Why §3's climb–cruise–dive cannot fly it** (§5a): at 200 m/s and 30°/s the turn onto any dive is a ~380 m arc — longer than the NLAW's
+20–800 m range — so it never arrives at ≥ 45° and `ArmorModel.FacingOfArrival` never reads Top. The real NLAW does not dive: it flies ~1 m above
+the sight line and fires its charge DOWN as it passes over the target.
+
+```mermaid
+classDiagram
+  class MissileDto { <<existing, grows>> +Overfly : bool «new» · +OverflyHeightM «new, default 1» }
+  class GuidedRound { <<existing, grows>> +Overfly : byte «new» · +OverflyHeightM «new» }
+  class FireProcessingSystem { <<existing>> Overfly = missile.Overfly AND the target has a HULL (not a person, collider height > 0) }
+  class GuidedRoundSystem {
+    <<existing, grows>>
+    fire-and-forget + Overfly: steer to the roof + OverflyHeightM
+    NEW fuze: the next step passes over the hull's footprint above its roof ⇒ detonate DOWN
+  }
+  class DetonationNotification { <<existing event>> Target · Hit · Penetration · Damage · Ammo · Travel = straight down }
+  class BallisticsSystem { <<existing>> a round above the roof misses the hull (M1 band) — it is not met first }
+  FireProcessingSystem ..> MissileDto
+  FireProcessingSystem --> GuidedRound : on spawn
+  GuidedRoundSystem ..> GuidedRound
+  GuidedRoundSystem --> DetonationNotification : publishes (as DroneImpactSystem does)
+```
+
+*What the picture shows that prose hid: the overfly needs NO new hit path — the existing detonation event with a downward travel IS a Top-face
+hit for the unchanged damage chain (`ArmorModel.FacingOfArrival`), exactly as the FPV drone's dive is; only the steering goal and one fuze test are
+new.*
+
+```mermaid
+sequenceDiagram
+  participant FP as FireProcessingSystem (Muscle)
+  participant GS as GuidedRoundSystem (Muscle, PostSim)
+  participant BS as BallisticsSystem
+  participant DC as DamageCalculation / AreaEffect
+  FP->>FP: an NLAW at a HULL: GuidedRound { Overfly = 1, OverflyHeightM = 1 }
+  loop every frame
+    GS->>GS: seeker sees the target ⇒ goal = above its roof by OverflyHeightM
+    GS->>GS: next step crosses the hull's circle, above the roof, within the fuze height?
+    BS->>BS: the round flies over the hull's band — no hit
+  end
+  GS-->>DC: DetonationNotification { Target, Travel = down, the round's Penetration / Damage / Ammo }
+  GS->>GS: the round is spent (destroyed)
+  DC->>DC: the Top face, the shaped charge's penetration — and its fragments
+```
+
+| rule | why |
+|---|---|
+| overfly only at a HULL (a vehicle collider with a height, not a person); a man is attacked direct, as before | the downward charge is an anti-armour mode; a soft target has no roof to fire through |
+| the fuze fires when the round's NEXT step enters the hull's footprint (its collider circle) while it is above the roof and no more than `OverflyHeightM` + 2 m over it | a pass over the roof, not a pass beside it or far above it |
+| the detonation: `Travel` straight down, the round's own penetration and damage (muzzle values — a missile is not carried through terrain), its ammo for the fragments | the unchanged chain decides the face (Top) and the damage |
+| Javelin keeps its dive (§3); only the NLAW states `Overfly` | `ua-javelin-lock` unchanged |
+
+## 3c. Air defence — the IR seeker, the proximity fuze, flares and chaff, the missile warning (`CE-2187`…`CE-2189`, backend, `2026-10-15`; build-state: BUILDING)
+
+🔒 Frame: [Air Operations §7d](../air-attack/DESIGN_Air_Operations.md) AD1–AD6 (behaviors' leans, sent with
+[the handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Defence.md)); 🔒 user `2026-10-15`: *"approved, start air defence"*,
+including moving `SimRng` down to `Fdp.Toolkits`. The launchers and the ZU-23 are [Weapon Systems §5c](../weapons/DESIGN_Weapon_Systems.md).
+
+**INVENTORY** (`2026-10-15`, graph CLI `search_graph` + grep): `.*Countermeasure.*|.*Decoy.*|.*Flare.*|.*Chaff.*` → **0**;
+`.*Seeker.*|.*Fuze.*|.*Proximity.*` → `FuzeKind` (Impact, Time), `GuidedRoundSystem.OverflyFuze`; `.*Guided.*` → `GuidedRound`,
+`GuidedRoundSystem`, `AimAndFireExecutor.GuidedFlightSeconds`; `.*MissileWarning.*` → **0**; `.*SimRng.*` → `SimRng` (Hrot.AI.Behaviors —
+the brain side; the SimHost combat code has **no** random draw: dispersion is a fixed sequence, `HitModel.Deflection`). Prior art reused:
+the near-miss path (`CE-3064`: SimHost event → DDS → `…SensingSystem` → `SensorChange`), the off-target burst (`BallisticsSystem.Detonate`
+→ the area effect, 3-D distance to the body), `AmmoChoice.Split` (the one place both the round and the mount choice value a round).
+
+```mermaid
+classDiagram
+  direction LR
+  class MissileDto { <<existing, grows>> Guidance +TargetDomain +SeekerConeDeg +FlareRejection +ChaffRejection }
+  class GuidanceKind { <<existing, grows>> Unguided Command FireAndForget +InfraRed +Radar }
+  class WarheadDto { <<existing, grows>> Fuze +ProximityFuzeM }
+  class FuzeKind { <<existing, grows>> Impact Time +Proximity }
+  class TargetDomain { <<new>> Any Ground Air }
+  class CountermeasuresDto { <<new TKB, on an aircraft type>> Flares Chaff Salvo IntervalS DecoySeconds }
+  class CountermeasureState { <<new component 387, SimHost>> Flares Chaff NextAt }
+  class Decoy { <<new component 386>> Kind Owner Until }
+  class GuidedRound { <<existing, grows>> +SeekerCos +Rejection +ProximityM }
+  class DispenseCountermeasureIntent { <<new event 5009, brain to SimHost>> Unit Kind }
+  class MissileWarningEvent { <<new event 5008, SimHost to brain>> Unit From Seeker TimeToImpact }
+  class MissileWarning { <<new component 388, brain>> At From BearingDeg Seeker TimeToImpact }
+  class CountermeasureSystem { <<new, SimHost>> dispense, seduce }
+  class GuidedRoundSystem { <<existing, grows>> +ProximityFuze }
+  class MissileWarningSensingSystem { <<new, brain>> }
+  class AmmoChoice { <<existing>> Split +domain gate }
+  class SimRng { <<MOVED to Fdp.Toolkits>> FromSim }
+  MissileDto --> GuidanceKind
+  MissileDto --> TargetDomain
+  WarheadDto --> FuzeKind
+  CountermeasureSystem ..> CountermeasuresDto : reads
+  CountermeasureSystem --> CountermeasureState
+  CountermeasureSystem --> Decoy : spawns
+  CountermeasureSystem ..> GuidedRound : re-targets
+  CountermeasureSystem ..> SimRng : one draw per round per salvo
+  GuidedRoundSystem --> GuidedRound
+  MissileWarningSensingSystem --> MissileWarning
+  AmmoChoice ..> MissileDto : TargetDomain
+```
+
+*What the picture shows that prose hid: nothing new STEERS — a seduced round simply has a decoy as its `Target`, so the existing steering,
+lifetime and proximity fuze do the rest; and the only new random draw sits in one system on one node.*
+
+```mermaid
+sequenceDiagram
+  participant GB as gunner brain (CGF)
+  participant FP as FireProcessingSystem (SimHost)
+  participant GS as GuidedRoundSystem (SimHost)
+  participant CS as CountermeasureSystem (SimHost)
+  participant AB as aircraft brain (CGF)
+  participant AE as AreaEffectSystem (SimHost)
+  GB->>FP: WeaponFireIntent (Stinger at the helicopter)
+  FP->>FP: GuidedRound InfraRed, cone, rejection, proximity 5 m
+  FP-->>AB: MissileWarningEvent over DDS (from, seeker, time to impact)
+  AB->>AB: SensorChange.MissileWarning + MissileWarning component
+  AB-->>CS: DispenseCountermeasureIntent over DDS (flares)
+  CS->>CS: salvo left and interval passed - spawn decoys, count down
+  CS->>GS: every IR round with a decoy in its cone - SimRng draw above Rejection - Target = decoy
+  GS->>GS: steer at the target (the decoy, or the aircraft)
+  GS->>AE: within ProximityM of its target - off-target burst
+  AE->>AE: fragments by 3-D distance - the aircraft is hit only if the burst is near it
+```
+
+```mermaid
+graph TD
+  subgraph SimHost["SimHost (Muscle) - CombatModule"]
+    FP[FireProcessingSystem] --> GS[GuidedRoundSystem]
+    CS[CountermeasureSystem] --> GS
+    GS --> BS[BallisticsSystem] --> AE[AreaEffectSystem]
+    EG1[MissileWarningEgressTranslator]
+    IG2[DispenseCountermeasureIngressTranslator]
+  end
+  subgraph CGF["CGF (Brain) - CgfLogicPack"]
+    IG1[MissileWarningIngressTranslator] --> MWS[MissileWarningSensingSystem]
+    BT[behaviours - CE-2191] --> EG2[DispenseCountermeasureEgressTranslator]
+  end
+  FP -- MissileWarningEvent --> EG1
+  EG1 -- "DDS MissileWarning (dt 133)" --> IG1
+  EG2 -- "DDS DispenseCountermeasure (dt 134)" --> IG2
+  IG2 -- DispenseCountermeasureIntent --> CS
+```
+
+*What the picture shows that prose hid: the loop crosses the wire twice, and both halves ride the SimHost auxiliary pack beside
+`NearMiss` — on a one-world host (editor, `--mode all`'s combat node) the events are local and the translators are not involved.*
+
+| rule | why |
+|---|---|
+| `GuidanceKind.InfraRed` steers like `FireAndForget` (its own seeker, `LastSeen`) but sees its target only inside its **cone** (`SeekerConeDeg` about its velocity) | only an IR round can be seduced by a flare; out of the cone it flies to where it last saw the target |
+| `GuidanceKind.Radar` exists for chaff only — **no munition uses it** (AD6) | chaff is railed against a test round |
+| `MissileDto.TargetDomain` Air / Ground / Any: `AmmoChoice.Split` values a round at **0** against the wrong domain (the target is Air when `Locomotions.InAir`) | ⭐ one gate for the round choice, the mount ranking (`StandardInputs`) and behaviors' `Sufficient` — a MANPADS is never chosen against a truck, an ATGM never against a flying helicopter; a LANDED helicopter is a ground target |
+| the proximity fuze: `WarheadDto.Fuze = Proximity`, `ProximityFuzeM`; the round bursts (the off-target `DetonationNotification`, the existing area effect) the tick its step passes within `ProximityFuzeM` of its target's middle | a SAM rarely strikes the hull; the fragments' 3-D distance does the damage, so a burst at a decoy spares the aircraft by geometry, not by a rule |
+| a dispense: the aircraft type's `CountermeasuresDto` ⇒ `CountermeasureState` on the SimHost; a `DispenseCountermeasureIntent` spawns `Salvo` decoys (flare or chaff) at the aircraft, its velocity, falling, for `DecoySeconds`; ignored while the interval has not passed or the count is 0 | the BRAIN decides when (CE-2191); the engine decides what happens |
+| seduction: each homing round of the matching seeker (flare ↔ InfraRed, chaff ↔ Radar) with a new decoy in its cone draws ONCE per salvo — `SimRng.FromSim(round, salt, simTime)`; above its `FlareRejection` / `ChaffRejection` it re-targets the nearest such decoy | deterministic (replay, R-3009's spirit); a round that ignored one salvo can still take the next |
+| the warning: published by `FireProcessingSystem` the moment a guided round is launched at an **air** target; one per round | AD4; "on lock" needs no second event — the brain's lock is the gunner's aim time, the launch follows it |
+| `SimRng` moves to `Fdp.Toolkits` (namespace `Fdp.Toolkit.Determinism`), unchanged | ⭐ one generator for brain and engine (user-approved); its callers in `Hrot.AI.Behaviors` change only their `using` (cross-lane, named) |
+
 ## 4. Firing on the move (D-L)
 
 | mount | `FireOnMove` default (from `Category`, overridable per mount) |
@@ -305,7 +530,7 @@ Mounts: M1 / T-72 main gun loadout APFSDS + HEAT-MP + HE (e.g. 20 / 10 / 10) + a
 |---|---|---|
 | a munition's numbers per §5 | each new type (6010–6019) states a generic `AmmoWeaponBallisticsDto` (pen, damage), a `WarheadDto` copied from the NEAREST library entry (`PG-7V HEAT` for the rockets, the NLAW and the FPV warhead, `TOW-2 HEAT` for Javelin and Kornet, `120mm HEAT`, `125mm HE-frag`; tandem set where §5 says Tandem) and a `MissileDto` | one source for the fragment / blast numbers; the names match no library entry, so nothing is picked up by name |
 | TOW 6008, PG-7V 6009 "exist" | both gain a `MissileDto`: TOW command, 280 m/s, 15 s, min 65 m; PG-7V unguided 300 m/s, 4.5 s | 📐 the TOW flew at the NED builder's `range × 0.5` = 1875 m/s; their penetration and damage stay on the mounts (LR-1) |
-| NLAW "yes (shallow overfly)" top attack | ⚠ **flies DIRECT** | the overfly attack fires DOWN as it passes over; §3's climb/cruise/dive at a 30°/s turn needs a ~380 m radius, longer than its 20–800 m range ⇒ a downward-fuze model is needed — **CE-3198** |
+| NLAW "yes (shallow overfly)" top attack | ~~⚠ **flies DIRECT**~~ ⛔ SUPERSEDED `2026-10-15` — the overfly is built ([§3b](#3b-the-overfly-top-attack--the-nlaw-ce-3198-backend-2026-10-15-gate-lifted-by-the-user), CE-3198) | the overfly attack fires DOWN as it passes over; §3's climb/cruise/dive at a 30°/s turn needs a ~380 m radius, longer than its 20–800 m range ⇒ a downward-fuze model is needed — **CE-3198** |
 | a coax MG "7.62" | two new types **6020 / 6021** (7.62 × 51 ball, tracer 1 in 5) — §5's table had no 7.62 round, and R-271 wants every mount's ammo typed; on the turret beside the gun, 200-round belt, 6 s to change, MG ⇒ fires on the move | the T-72's PKT (7.62 × 54R) shares the type |
 | tank loadout "e.g. 20 / 10 / 10" | M1 20 / 10 / 12, T-72 18 / 9 / 12 — **sums equal the old ammunition** (42, 39); the T-72's HEAT is 6017 (the 120 mm one) | no rounds appear or vanish; one HEAT type until a 125 mm one is needed |
 | the RPG man | `Insurgent` (2003): RPG 4 rockets (was 1), lay 2 s, reload 6 s, `FireOnMove = false`, mount 0 as before; rifle on mount 1 | mount 0 stays the RPG so every scenario that named it keeps working |

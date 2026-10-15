@@ -53,6 +53,10 @@ namespace Hrot.NED.Messages
         /// and the arc (1 = high). The SimHost flies exactly this (no second decision).</summary>
         public byte Charge;
         public byte HighArc;
+
+        /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a, R-169 — APPENDED) — the synced sim time (s) the brain raised the shot; 0 = now. A bomb
+        /// starts from its carrier as it was then, flown forward to the SimHost's now.</summary>
+        public double RaisedAt;
     }
 
     /// <summary>

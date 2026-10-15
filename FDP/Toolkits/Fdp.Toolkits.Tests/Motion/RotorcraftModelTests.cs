@@ -362,5 +362,98 @@ namespace Fdp.Toolkit.Tests.Motion
                 Assert.InRange(closest[k], expected - 1f, expected + 1f);
             }
         }
-    }
+    
+        // ── ⭐⭐ CE-2184 (AT3, R-2021, DESIGN_Air_Operations §7c) — a killed aircraft FALLS and comes to rest ───────────────────────
+
+        private void FlatGround()
+        {
+            _w.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            _w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""{"type":"FeatureCollection","features":[]}"""));
+        }
+
+        /// <summary>Kills <paramref name="e"/> the way the product does: Health 0, and death ENDS the move (CE-3091: the
+        /// dispatcher's OnExit stops the intent) — the reported phase is left as it was.</summary>
+        private void Kill(Entity e)
+        {
+            _w.SetComponent(e, new Health { Current = 0, Max = 800 });
+            _w.SetComponent(e, new NavigationIntent { Mode = NavigationMode.None });
+        }
+
+        /// <summary>Frames until <paramref name="e"/> is down (Airborne 0), the air model then the impact, as the Air module orders them.</summary>
+        private int FramesToTheGround(Entity e, AirMotionSystem air, int max)
+        {
+            var impact = new DroneImpactSystem();
+            for (int i = 1; i <= max; i++)
+            {
+                air.Execute(_w, Dt);
+                impact.Execute(_w, Dt);
+                if (_w.GetComponent<FlightState>(e).Airborne == 0) return i;
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2184</c> — a helicopter at 60 m killed mid-route falls (its model's dead branch: gravity, the speed it had) and
+        /// reaches the ground within the free-fall time (± 10 %), then rests there: down, still, on the ground — a wreck, not a hover.
+        /// </summary>
+        [Fact]
+        public void CE2184_AHelicopterKilledMidRoute_FallsToTheGround_InTheFreeFallTime_AndRestsThere()
+        {
+            FlatGround();
+            var (heli, air, routes) = Heli(new Vector3(0, 0, 60), onTheGround: false);
+            _w.SetComponent(heli, FlightParams.From(new FlightParamsDto { MaxSpeedMps = 40f, ClimbMps = 8f, HoverHeightM = 60f, TurnRadiusM = 60f }));
+            routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(3000, 0) });
+            Order(heli);
+            for (int i = 0; i < 60 * 8; i++) air.Execute(_w, Dt);   // cruising east
+            var at = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.True(_w.GetComponent<SimVelocity>(heli).Linear.X > 10f, "it is flying when it is killed");
+
+            Kill(heli);
+            float h = at.Z - FlightParams.From(new FlightParamsDto()).ContactRadiusM;
+            float freeFall = MathF.Sqrt(2f * h / RotorcraftModel.Gravity);
+            int frames = FramesToTheGround(heli, air, 60 * 30);
+            Assert.True(frames > 0, "it never reached the ground (it hovers)");
+            Assert.InRange(frames * Dt, 0.9f * freeFall, 1.1f * freeFall);
+
+            for (int i = 0; i < 60; i++) { air.Execute(_w, Dt); new DroneImpactSystem().Execute(_w, Dt); }
+            var rest = _w.GetComponent<SimTransform>(heli).Position;
+            Assert.InRange(rest.Z, -0.01f, 1f);
+            Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(heli).Linear);
+            Assert.True(rest.X > at.X, "it fell forward, along its track");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2184</c> — a helicopter killed on its way DOWN to a landing (the reported phase is still Landing) meets the ground
+        /// too. 🔴 Red-proof: the impact skipped every flyer in a ground phase, alive or dead ⇒ it fell through the ground.
+        /// </summary>
+        [Fact]
+        public void CE2184_AHelicopterKilledWhileLanding_DoesNotFallThroughTheGround()
+        {
+            FlatGround();
+            var (heli, air, _) = Heli(new Vector3(0, 0, 12), onTheGround: false);
+            _w.SetComponent(heli, new NavigationStatus { Phase = NavigationPhase.Landing });
+            Kill(heli);
+
+            Assert.True(FramesToTheGround(heli, air, 60 * 5) > 0, "it fell through the ground");
+            Assert.True(_w.GetComponent<SimTransform>(heli).Position.Z >= -0.01f);
+        }
+
+        /// <summary>⭐ <c>CE-2184</c> — a plane killed at 300 m falls along its track (ballistic: its speed kept, gravity) and rests where
+        /// it lands, about speed × the fall time ahead.</summary>
+        [Fact]
+        public void CE2184_APlaneKilledAt300m_FallsAlongItsTrack()
+        {
+            FlatGround();
+            var plane = Drone(new Vector3(0, 0, 300), LocomotionClass.FixedWing);
+            _w.SetComponent(plane, new SimVelocity { Linear = new Vector3(100f, 0f, 0f) });
+            Kill(plane);
+
+            float freeFall = MathF.Sqrt(2f * 300f / RotorcraftModel.Gravity);
+            int frames = FramesToTheGround(plane, _air, 60 * 30);
+            Assert.InRange(frames * Dt, 0.9f * freeFall, 1.1f * freeFall);
+            var rest = _w.GetComponent<SimTransform>(plane).Position;
+            Assert.InRange(rest.X, 0.9f * 100f * freeFall, 1.1f * 100f * freeFall);
+            Assert.InRange(rest.Y, -0.5f, 0.5f);
+        }
+}
 }

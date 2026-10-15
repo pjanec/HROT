@@ -104,10 +104,16 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static float BlastSusceptibility(CombatPlatformDefDto? platform, float hullHeight)
         {
-            if (hullHeight <= 0f || platform == null) return 1f;
+            // ⭐ CE-3203 — a weapon (equipment: a stated presented area) takes its own share, as a hull does
+            if (platform == null || (hullHeight <= 0f && platform.PresentedAreaM2 <= 0f)) return 1f;
             if (platform.BlastSusceptibility >= 0f) return Math.Clamp(platform.BlastSusceptibility, 0f, 1f);
             return Math.Clamp(1f - platform.ArmorSide / SoftSkinArmourMm, 0f, 1f);
         }
+
+        /// <summary>⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — the area a hull presents to a burst (m²): its bounding cylinder's silhouette,
+        /// <c>2 · radius · hull height</c> (a pickup ≈ 10 m²). 0 for a person (no hull height).</summary>
+        public static float PresentedArea(float colliderRadius, float hullHeight)
+            => hullHeight > 0f ? 2f * MathF.Max(colliderRadius, 0.3f) * hullHeight : 0f;
 
         /// <summary>The chance a round of <paramref name="penetration"/> mm defeats <paramref name="armour"/> mm.</summary>
         public static float PenetrationChance(float penetration, float armour)
@@ -247,6 +253,16 @@ namespace Fdp.Toolkit.Combat
         /// <see cref="WarheadKind.ShapedCharge"/> ⇒ <see cref="Penetrator.ShapedCharge"/> (<see cref="WarheadDto.Tandem"/> ⇒
         /// <see cref="Penetrator.Tandem"/>), anything else — no warhead, unknown ammo, no TKB database — ⇒ kinetic.</summary>
         public static Penetrator PenetratorOf(EntityRepository world, long ammo) => PenetratorOfAmmo(world, ammo);
+
+        /// <summary>⭐ <c>CE-2186</c> (W2) — the relative cost of one round of the munition type <paramref name="ammo"/>
+        /// (<see cref="MunitionCostDto"/>); 0 when unknown.</summary>
+        public static float CostOf(EntityRepository world, long ammo)
+        {
+            // ⭐ CE-2186 (W2, R-2020) — the munition's relative cost (MunitionCostDto); 0 = unknown, no TKB, or no ammo
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return 0f;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<MunitionCostDto>()?.RelativeCost ?? 0f : 0f;
+        }
 
         /// <summary>⭐ M4 (D-D) — the guidance of the munition type <paramref name="ammo"/> (its <see cref="MissileDto"/>), or null: a
         /// round that is not a missile, unknown ammo, or no TKB database.</summary>

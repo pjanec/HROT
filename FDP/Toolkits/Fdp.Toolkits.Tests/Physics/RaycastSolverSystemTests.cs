@@ -325,6 +325,61 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0, hit.HasHit);
             Assert.Equal(42, hit.SourceNodeId);
         }
-    }
+    
+        // ── CE-2182 (AT1, R-2021) — a round has its OWN collision bit ───────────────────────────────────────────────────────────
+
+        /// <summary>The ray a round casts: everything but the round's own bit (<c>BallisticsSystem</c>'s mask).</summary>
+        private RaycastHit FireRound(Vector3 from, Vector3 to) => RunSolver(new RaycastRequestEvent
+        {
+            Start     = from,
+            End       = to,
+            RayId     = PhysicsConstants.PackBulletRayId(2182),
+            LayerMask = ~Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer,
+        });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2182</c> (AT1, DESIGN_Air_Operations §7c) — a body on the COMBAT layer alone (every aircraft: its collider comes
+        /// from the flight translator with no entity layer) is met by a round fired up at it. 🔴 Red-proof: the round's bit back on 2
+        /// (the combat layer's bit) ⇒ the round's mask skips the helicopter ⇒ no hit.
+        /// </summary>
+        [Fact]
+        public void CE2182_ARoundFiredUpAtAnAircraft_MeetsIt()
+        {
+            var heli = SpawnCollider(new Vector2(10f, 0f), radius: 1.2f, layer: Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            ref var tf = ref _world.GetComponentRW<SimTransform>(heli);
+            tf.Position = new Vector3(10f, 0f, 60f);                      // 60 m up
+            ref var col = ref _world.GetComponentRW<PhysicsCollider>(heli);
+            col.Height = 3f;
+
+            var hit = FireRound(new Vector3(0f, 0f, 1.5f), new Vector3(20f, 0f, 121.5f));   // climbing through (10, 0, 61.5)
+            Assert.Equal(1, hit.HasHit);
+            Assert.Equal(heli, hit.HitEntity);
+        }
+
+        /// <summary>⭐ <c>CE-2182</c> — rounds still never meet each other: a round sits on the round's bit, which its own mask skips.</summary>
+        [Fact]
+        public void CE2182_RoundsNeverMeetEachOther()
+        {
+            SpawnCollider(new Vector2(5f, 0f), radius: 0.5f, layer: Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer);
+            Assert.Equal(0, FireRound(new Vector3(0f, 0f, 0f), new Vector3(10f, 0f, 0f)).HasHit);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2182</c> — a WEAPON SYSTEM is not met by a round (Weapon Systems §6: it stands on its carrier or at its host's seat,
+        /// a 2.5 m fallback collider with no height) — the man who carries it is. 🔴 Red-proof: without the skip the 2.5 m disc, now on
+        /// a hittable layer, takes the round meant for him.
+        /// </summary>
+        [Fact]
+        public void CE2182_AWeaponSystemOnItsCarrier_IsNotMet_TheManIs()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>())
+                _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            var man = SpawnPerson(null);                                                     // at (10, 0), radius 0.4
+            var javelin = SpawnCollider(new Vector2(10f, 0f), radius: 2.5f, layer: Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            _world.AddComponent(javelin, new Fdp.Toolkit.Combat.WeaponSystemParams());
+
+            Assert.Equal(man, FireRound(new Vector3(0f, 0f, 1f), new Vector3(20f, 0f, 1f)).HitEntity);
+        }
+}
 }
 

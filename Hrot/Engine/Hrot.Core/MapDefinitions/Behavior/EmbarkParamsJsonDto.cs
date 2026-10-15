@@ -24,6 +24,24 @@ namespace Hrot.Map.Definitions.Behavior
         public float Speed;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2176</c> (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §4b, W-B) — the authored contract of the library <c>ManWeapon</c>:
+    /// walk to <see cref="Weapon"/> (a crew weapon system — a mortar, a tripod HMG) and take its GUNNER seat, so the man controls it.
+    /// </summary>
+    [ParamsDto]
+    public struct ManWeaponParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ManWeapon;
+
+        /// <summary>The weapon system to man.</summary>
+        [JsonPropertyName("weapon")]
+        public EntityRef Weapon;
+
+        /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+
 }
 
 namespace Hrot.Map.Definitions.Behavior

@@ -1551,6 +1551,55 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2180</c> (Air Ops §8b) — a SLOW brain (it ticks every 6th frame, 10 Hz) sees "now" up to one tick past the release point,
+        /// so its round leaves late. The intent stamps the moment the CUE says the release is (<see cref="AimAndFireExecutor.ReleaseAt"/>),
+        /// not the tick it noticed it on — the SimHost steps its carrier back to that moment (FireProcessingSystem, <c>BombBallisticsTests.CE2180_*</c>).
+        /// </summary>
+        [Fact]
+        public unsafe void CE2180_ASlowBrain_StampsTheCuesReleaseMoment_NotItsTick()
+        {
+            const long Plane = 9408;
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            const float Dt = 1f / 60f, H = 500f;
+            const int BrainEvery = 6;
+            var v = new Vector3(150f, 0f, 0f);
+            var (impact, _) = BombBallistics.Impact(new Vector3(0f, 0f, H), BombBallistics.Launch(v), null, Dt);
+            float releaseX = 3000f - impact.X;
+            var start = new Vector3(releaseX - 603f, 0f, H);   // just past a brain tick: the slow brain notices ~5 frames late
+            double releaseTime = 603.0 / v.X + Dt;             // frame 0 is t = Dt (the clock starts after one frame)
+
+            var (plane, channel) = SpawnShooter(start, 4, 0f, Entity.Null, 0f);
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new SimVelocity { Linear = v });   // this node owns the motion here
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(3000f, 0f, 0f), Rounds = 1 });
+            var executor = new FireAtPointExecutor();
+            executor.OnEnter(plane, ref channel, _world);
+
+            WeaponFireIntent? fired = null; double tickedAt = 0;
+            for (int frame = 0; frame < 60 * 8 && fired == null; frame++)
+            {
+                double now = (frame + 1) * (double)Dt;
+                _world.GetComponentRW<SimTransform>(plane).Position = start + v * (float)(now - Dt);
+                _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = Dt, TimeScale = 1f });
+                if (frame % BrainEvery == 0) { executor.Execute(plane, ref channel, _world, Dt * BrainEvery); tickedAt = now; }
+                _world.Bus.SwapBuffers();
+                foreach (var e in _world.Bus.Read<WeaponFireIntent>()) fired = e;
+            }
+
+            Assert.NotNull(fired);
+            Assert.True(tickedAt - releaseTime > 2 * Dt, $"the slow brain noticed late: ticked {tickedAt:F3} s, the release is {releaseTime:F3} s");
+            Assert.InRange(fired!.Value.RaisedAt, releaseTime - Dt, releaseTime + Dt);
+        }
+
+        /// <summary>
         /// ⭐ Air Ops slice 6a F1 (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-1) — a FIXED-forward mount with a nose cone (the
         /// A-10's cannon, 5°) fires only when the target lies inside the cone round the body's 3-D forward: a level plane 300 m up holds a
         /// ground target 1 km ahead (16.7° below the nose) as <c>OutOfArc</c>, nothing spent; nosed down onto it, the round leaves. A target
@@ -2250,6 +2299,33 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — a BROKEN weapon (its health at 0: a fragment or a blast) fires for nobody: CanFire says
+        /// <see cref="WeaponHold.Destroyed"/>, it arms its host no more (<see cref="WeaponSystems.WeaponOf"/>), no round leaves and its belt
+        /// is untouched — while it stays in the host's station (the others' mount indices hold). ⛔ Before: CanFire never read its health,
+        /// so a destroyed M2 kept firing. ✅ Red-proof (run): CanFire without the health check ⇒ rounds leave the broken M2 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 3);
+            _world.AddComponent(m2, new Health { Current = 0f, Max = 80f });
+
+            Assert.False(WeaponSystems.CanFire(_world, m2, out var why));
+            Assert.Equal(WeaponHold.Destroyed, why);
+            Assert.True(WeaponSystems.IsBroken(_world, m2));
+            Assert.Equal(Entity.Null, WeaponSystems.WeaponOf(_world, pickup));
+            Assert.Equal(WeaponSystems.ControlledMountBase, WeaponSystems.IndexOf(_world, pickup, m2));   // still in its station
+
+            _executor.OnEnter(pickup, ref channel, _world);
+            Assert.Equal(0, WsRun(pickup, ref channel, 3f, expectShooter: m2));
+            Assert.Equal(50, _world.GetComponent<WeaponState>(m2).Ammo);
+
+            _world.GetComponentRW<Health>(m2).Current = 1f;   // a damaged weapon still works
+            Assert.True(WeaponSystems.CanFire(_world, m2));
+            Assert.Equal(m2, WeaponSystems.WeaponOf(_world, pickup));
+        }
+
+        /// <summary>
         /// ⭐⭐ WS-3 (W-I, STEER_…_Crew_Presets) — the gunner is an ordinary man: killing him SILENCES the gun (the turret is released at
         /// once, so no granted round leaves after his death), and it fires again once another soldier boards the Gunner seat.
         /// ✅ Red-proof: the executor without the weapon-system hold ⇒ rounds keep leaving after the death ⇒ red.
@@ -2356,6 +2432,9 @@ namespace Fdp.Toolkit.Combat.Tests
             var man = WsSoldier(new Vector3(-1f, 0f, 0f));
             Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbark(_world, man, tube, SeatRole.Gunner));
             Assert.Equal(man, WeaponSystems.ControllerOf(_world, tube));   // premise: he mans it
+            // ⭐ IF-4 ① (WS-3) — and the dispatcher lets him fire it: WeaponDispatcherSystem fails a weapon action of a man without CanShoot
+            //   before the executor runs, which these rails call directly. ✅ Red-proof: Board stripping CanShoot from a Gunner seat ⇒ red.
+            Assert.True(_world.GetComponentRO<ActorCapabilityState>(man).Capabilities.HasFlag(ActorCapabilities.CanShoot));
 
             var channel = new WeaponChannel { Status = NodeStatus.Running };
             Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), p);
@@ -2426,7 +2505,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public unsafe void IF1_FireAtPointParams_StillFitTheChannel()
             => Assert.True(sizeof(FireAtPointParams) <= 32, $"{sizeof(FireAtPointParams)} bytes");
 
-        // ── ⭐⭐ ui handoff P2 / P4 (HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude; DESIGN_Indirect_Fire §3.7, DESIGN_Weapon_Layers W-13e) ──
+        // ── ⭐⭐ ui handoff P2 / P4 (HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude; DESIGN_Indirect_Fire §3.9, DESIGN_Weapon_Layers W-13e) ──
 
         /// <summary>Brain then muscle, one frame at <paramref name="now"/>; the rounds that left.</summary>
         private WeaponFireIntent[] LayStep(Entity unit, Entity weapon, ref WeaponChannel channel, double now, FireAtPointExecutor brain,

@@ -58,11 +58,13 @@ namespace Fdp.Toolkit.Combat
         /// <summary>
         /// May <paramref name="weapon"/> fire now (§6 <c>CanFire</c>, the arc aside)? A controller exists; it is deployed (a station weapon
         /// counts as deployed; a <c>FireWhileCarried</c> weapon fires stowed); a manned weapon's gunner is in the fight; a station that
-        /// <c>NeedsGunner</c> has a man in the fight in its operating seat. Why not: <paramref name="reason"/>.
+        /// <c>NeedsGunner</c> has a man in the fight in its operating seat; ⭐ CE-3203 (§5b) it is not DESTROYED (health at 0 — a fragment
+        /// or a blast broke it). Why not: <paramref name="reason"/>.
         /// </summary>
         public static bool CanFire(EntityRepository world, Entity weapon, out WeaponHold reason)
         {
             reason = WeaponHold.None;
+            if (IsBroken(world, weapon)) { reason = WeaponHold.Destroyed; return false; }
             var controller = ControllerOf(world, weapon);
             if (controller.IsNull) { reason = WeaponHold.NoController; return false; }
             bool carried = false;
@@ -154,7 +156,8 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>
         /// ⭐ WS-3 — the mount a unit fires when it names its PRIMARY (mount 0) or its choice falls back to it: mount 0 when the unit
-        /// carries a weapon of its own, else its first controlled weapon system (a bare pickup's M2) — else 0 (nothing to fire).
+        /// carries a weapon of its own, else its first controlled weapon system that is not broken (a bare pickup's M2; ⭐ CE-3203) — else 0
+        /// (nothing to fire).
         /// </summary>
         public static int PrimaryMount(EntityRepository world, Entity unit, out Entity mount)
         {
@@ -163,7 +166,7 @@ namespace Fdp.Toolkit.Combat
             Span<Entity> weapons = stackalloc Entity[MaxControlled];
             int n = Controlled(world, unit, weapons);
             for (int k = 0; k < n; k++)
-                if (world.HasComponent<Components.WeaponState>(weapons[k])) { mount = weapons[k]; return ControlledMountBase + k; }
+                if (world.HasComponent<Components.WeaponState>(weapons[k]) && !IsBroken(world, weapons[k])) { mount = weapons[k]; return ControlledMountBase + k; }
             return 0;
         }
 
@@ -173,12 +176,21 @@ namespace Fdp.Toolkit.Combat
         /// ⭐ The one answer to "is this unit armed, and with what?" for readers that used to look for a WeaponState on the unit itself
         /// (the utility inputs, <c>ThreatDanger.OwnStrength</c>): a unit with its own gun reads exactly as before.
         /// </summary>
+        /// ⭐ CE-3203 — a DESTROYED weapon system arms nobody: the next controlled one that still works answers, else null.
         public static Entity WeaponOf(EntityRepository world, Entity unit)
         {
             if (!world.IsComponentTypeRegistered<Components.WeaponState>()) return Entity.Null;
             if (world.HasComponent<Components.WeaponState>(unit)) return unit;
             return IsControlledIndex(PrimaryMount(world, unit, out var weapon)) ? weapon : Entity.Null;
         }
+
+        /// <summary>
+        /// ⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — is <paramref name="weapon"/> a weapon SYSTEM that has been broken (its health at 0)?
+        /// It stays where it is (and in its host's controlled list, so the others' <c>32 + k</c> indices hold) but fires for nobody.
+        /// </summary>
+        public static bool IsBroken(EntityRepository world, Entity weapon)
+            => IsWeaponSystem(world, weapon) && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
+               && CombatLife.IsDestroyed(world, weapon);
 
         /// <summary>The mount index <paramref name="weapon"/> has in <paramref name="unit"/>'s mount list, or −1 when the unit does not
         /// control it.</summary>
@@ -235,5 +247,7 @@ namespace Fdp.Toolkit.Combat
         NoGunner = 2,
         /// <summary>Stowed, deploying or packing.</summary>
         NotDeployed = 3,
+        /// <summary>⭐ CE-3203 — broken: its health is at 0 (a fragment or a blast, DESIGN_Weapon_Systems §5b).</summary>
+        Destroyed = 4,
     }
 }
