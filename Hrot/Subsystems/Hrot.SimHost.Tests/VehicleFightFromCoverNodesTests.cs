@@ -528,6 +528,85 @@ namespace Hrot.SimHost.Tests
             Assert.True(d.Sensor(VehicleFightFromCoverNodes.HideSite).IsNull);
         }
 
+        /// <summary>The hull's capability bits (what <c>CombatLife.ApplyHitCapabilities</c> leaves after a mobility / firepower kill).</summary>
+        private static void Caps(Duel d, ActorCapabilities caps)
+        {
+            if (!d.Repo.HasComponent<ActorCapabilityState>(d.Self)) d.Repo.AddComponent(d.Self, new ActorCapabilityState { Capabilities = caps });
+            else d.Repo.GetComponentRW<ActorCapabilityState>(d.Self).Capabilities = caps;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2196</c> — no hide answers for <c>NoCoverSeconds</c>: the vehicle FIGHTS FROM WHERE IT STANDS (was: the node failed,
+        /// and with a target named <c>LandPlatformAttack</c> hung) — aimed fire at the seen enemy, no drive; the moment a hide answers it
+        /// goes there. ✅ Red-proof: the old Failure ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2196_NoHide_FightsFromWhereItStands_ThenTakesAHideWhenOneAnswers()
+        {
+            var d = new Duel(Tank());
+            d.Run(VehicleFightFromCoverNodes.Defaults.NoCoverSeconds + 1);
+            Assert.Equal(VehiclePhase.StandAndFight, d.Ws.Phase);
+            Assert.Equal(NodeStatus.Running, d.Step());
+            Assert.True(d.Firing, "it fires at the seen enemy from where it stands");
+            Assert.Equal(d.Enemy, Assert.Single(d.AimedAt));
+            Assert.Empty(d.Moves);
+
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 9, HideA);
+            d.Step();
+            Assert.Equal(VehiclePhase.MoveToHide, d.Ws.Phase);
+            Assert.Equal(HideA, Assert.Single(d.Moves).To);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2197</c> — a MOBILITY kill (backend's hit location S2: the running gear or engine — <c>CanMove</c> stripped) in its
+        /// hide: it never drives again, it fights from where it stands; a hide answer does not move it. ✅ Red-proof: the capability
+        /// ignored ⇒ it drives out to the firing point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2197_AMobilityKill_StandsAndFights_AndNeverDrivesAgain()
+        {
+            var d = new Duel(Tank());
+            d.ToHide(HideA);
+            int moves = d.Moves.Count;
+            Caps(d, ActorCapabilities.CanShoot | ActorCapabilities.CanAim);
+            d.Step();
+            Assert.Equal(VehiclePhase.StandAndFight, d.Ws.Phase);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 8, HideB);
+            d.Run(10);
+            Assert.Equal(VehiclePhase.StandAndFight, d.Ws.Phase);
+            Assert.Equal(moves, d.Moves.Count);
+            Assert.True(d.AimedRounds > 0, "it fires from where it is");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2197</c> — a FIREPOWER kill (the turret or gun — <c>CanShoot</c> stripped) while engaging: it withdraws into its hide and
+        /// never exposes again, however many firing points answer; the gun stops. Both kills ⇒ Failure (nothing it can do). ✅ Red-proof:
+        /// the capability ignored ⇒ it exposes again ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2197_AFirepowerKill_WithdrawsAndNeverExposesAgain_BothKillsFail()
+        {
+            var d = new Duel(Tank());
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
+            Caps(d, ActorCapabilities.CanMove);
+            d.Step();
+            Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);
+            Assert.Equal((HideA, true), d.Moves[^1]);   // reverse back into the hide
+            Assert.Equal(VehiclePhase.Hidden, d.RunUntil(VehiclePhase.Hidden));
+            int moves = d.Moves.Count;
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 11, FiringA, FiringB);
+            d.Run(20);
+            Assert.Equal(VehiclePhase.Hidden, d.Ws.Phase);
+            Assert.Equal(moves, d.Moves.Count);
+            Assert.False(d.Firing);
+
+            Caps(d, ActorCapabilities.None);
+            Assert.Equal(NodeStatus.Failure, d.Step());
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-2195</c> — the designation beside the cycle (both trees: <c>Parallel(1){ UntilTargetDown ‖ the cycle }</c>, a RequireOne
         /// Parallel that FAILS only when every child failed): with NO target named it must ABSTAIN (Failure), or a cycle that failed — no

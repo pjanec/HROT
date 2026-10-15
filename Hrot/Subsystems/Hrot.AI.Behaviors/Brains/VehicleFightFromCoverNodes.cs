@@ -32,7 +32,9 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>⭐ <c>CE-2165</c> V4 — the phases of <see cref="VehicleFightFromCoverNodes.VehicleFightFromCover"/> (§4's state diagram).</summary>
-    public enum VehiclePhase : byte { Choose = 0, MoveToHide, Hidden, Exposing, Engaging, Watching, Withdrawing }
+    public enum VehiclePhase : byte { Choose = 0, MoveToHide, Hidden, Exposing, Engaging, Watching, Withdrawing,
+        /// <summary>⭐ CE-2196 / CE-2197 — no hide it can reach (none answers, or the hull cannot drive): fight from where it stands.</summary>
+        StandAndFight }
 
     /// <summary>
     /// ⭐ <c>CE-2165</c> V4 — the designer-edited parameters of <see cref="VehicleFightFromCoverNodes.VehicleFightFromCover"/>
@@ -57,9 +59,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float AtDangerMin;
         /// <summary>How far the hide query looks (m) · how far round the hide the firing-point query looks (m).</summary>
         public float SearchRadius, FiringSearchRadius;
-        /// <summary>Drive speed (m/s; 0 ⇒ the vehicle's own) · seconds between rounds (0 ⇒ the weapon's own).</summary>
+        /// <summary>Drive speed between hide and firing point (m/s; 0 ⇒ 5 — a creep, CE-2198: at the type's top speed a tank
+        /// overshot its hide by its braking distance, ~26 m, into a building) · seconds between rounds (0 ⇒ the weapon's own).</summary>
         public float Speed, FireCooldownSeconds;
-        /// <summary>With no hide for this long the node answers Failure (s).</summary>
+        /// <summary>With no hide for this long the vehicle fights from where it stands (s; CE-2196 — was: the node answered Failure).</summary>
         public float NoCoverSeconds;
         /// <summary>A new hide at least this far from the current one (m).</summary>
         public float MinRelocateMetres;
@@ -121,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ExposeSeconds = 8f, WatchSeconds = 6f, HideSecondsMin = 4f, HideSecondsMax = 10f, RoundsPerExposure = 2,
             AimBudgetFactor = 0.7f, AtDangerMin = 0.5f, SearchRadius = 60f, FiringSearchRadius = 25f,
-            NoCoverSeconds = 8f, MinRelocateMetres = 15f, ScoreDeltaThreshold = 0.05f,
+            NoCoverSeconds = 8f, MinRelocateMetres = 15f, ScoreDeltaThreshold = 0.05f, Speed = 5f,
         };
 
         /// <summary>The parameters with every zero replaced by its default; <c>ExposuresPerPosition</c> by the resolved mode.</summary>
@@ -142,6 +145,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (e.NoCoverSeconds <= 0f) e.NoCoverSeconds = d.NoCoverSeconds;
             if (e.MinRelocateMetres <= 0f) e.MinRelocateMetres = d.MinRelocateMetres;
             if (e.ScoreDeltaThreshold <= 0f) e.ScoreDeltaThreshold = d.ScoreDeltaThreshold;
+            if (e.Speed <= 0f) e.Speed = d.Speed;
             return e;
         }
 
@@ -161,8 +165,10 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>
-        /// Runs the cycle against the unit's top threat. Running while it has one; Success when nothing is remembered; Failure when the
-        /// unit cannot move or fire, or no hide is found for <c>NoCoverSeconds</c>.
+        /// Runs the cycle against the unit's top threat. Running while it has one; Success when nothing is remembered. ⭐ CE-2196 / CE-2197
+        /// (hit location §9 S2-8 — backend's mobility and firepower kills): with no hide for <c>NoCoverSeconds</c>, or a hull that can no
+        /// longer drive (<see cref="Immobile"/>), it FIGHTS FROM WHERE IT STANDS; a gun that can no longer fire (<see cref="Disarmed"/>)
+        /// never exposes again — it withdraws to its hide and stays there; Failure only when it can do neither (or has no hide to hold).
         /// </summary>
         [SharedAiAction]
         public static NodeStatus VehicleFightFromCover(ref VehicleFightFromCoverParams authored, ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
@@ -181,15 +187,30 @@ namespace Hrot.AI.Behaviors.Brains
             KeepSensors(ref ws, in p, self, world, in was, in threat);
 
             ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
+            // ⭐ CE-2197 — the hull's damage (backend's hit location S2: the running gear / engine, the turret / gun) decides what is left
+            bool immobile = Immobile(world, self), disarmed = Disarmed(world, self);
+            if (immobile && disarmed)
+            {
+                Release(ref ws, self, world);
+                return NodeStatus.Failure;   // nothing it can do (the crew's bail-out is R-263's damage states)
+            }
+            if (immobile && ws.Phase != VehiclePhase.StandAndFight) BeginStand(ref ws, self, world);
+            else if (disarmed && ws.Phase is VehiclePhase.Exposing or VehiclePhase.Engaging or VehiclePhase.Watching or VehiclePhase.StandAndFight)
+                Withdraw(ref ws, in p, ref mem, self, world, now);   // a broken gun has no business in the open
             switch (ws.Phase)
             {
                 case VehiclePhase.Choose:
                     if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now, relocating: ws.Exposures > 0))
                     {
-                        Release(ref ws, self, world);
-                        return NodeStatus.Failure;
+                        if (disarmed)
+                        {
+                            Release(ref ws, self, world);
+                            return NodeStatus.Failure;   // no hide and no gun
+                        }
+                        BeginStand(ref ws, self, world);   // ⭐ CE-2196 — no hide: fight from where it stands
                     }
                     break;
+                case VehiclePhase.StandAndFight: StandAndFight(ref ws, in p, ref mem, self, world, now, in threat, immobile); break;
                 case VehiclePhase.MoveToHide:  MoveToHide(ref ws, in p, ref mem, self, world, now); break;
                 case VehiclePhase.Hidden:      Hidden(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Exposing:    Exposing(ref ws, in p, ref mem, self, world, now, in threat); break;
@@ -244,6 +265,8 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Hidden(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
                                    Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
+            if (Disarmed(world, self)) return;   // ⭐ CE-2197 — a broken gun stays in its hide
+
             // T4 — the gun stays on the threat while hidden (an entity only: a heard point has nothing to track)
             if (!threat.IsPoint && !threat.Entity.IsNull)
             {
@@ -357,6 +380,56 @@ namespace Hrot.AI.Behaviors.Brains
             if (status == NodeStatus.Success) EnterHidden(ref ws, in p, self, world, now);
             else ws.Phase = VehiclePhase.Choose;
         }
+
+        /// <summary>
+        /// ⭐ CE-2196 / CE-2197 — no reachable hide: hold where it stands, the gun on the threat, firing whenever it SEES him (rounds as the
+        /// weapon brain grants them). A hull that can still drive keeps asking for a hide and goes to it the moment one answers.
+        /// </summary>
+        private static void StandAndFight(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
+                                          Entity self, EntityRepository world, double now, in ThreatAim threat, bool immobile)
+        {
+            if (!immobile && PickBest(ws.HideSensor, ref mem, in p, world, self, now, null, 0f, out var hide))
+            {
+                PostureNodes.StopFiring(world, self, ref ws.Fire);
+                GoToHide(ref ws, in p, self, world, hide);
+                return;
+            }
+            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
+            if (!target.IsNull && SightNow.Sees(world, self, target))
+            {
+                TrackTargetNodes.Stop(ref ws.Track, self, world);
+                PostureNodes.Fire(world, self, ref ws.Fire, p.FireCooldownSeconds, 0, target);
+                return;
+            }
+            PostureNodes.StopFiring(world, self, ref ws.Fire);
+            if (!threat.IsPoint && !threat.Entity.IsNull)
+            {
+                if (ws.Track.Target != threat.Entity) TrackTargetNodes.Stop(ref ws.Track, self, world);
+                ws.Track.Target = threat.Entity;
+                TrackTargetNodes.TrackTarget(ref ws.Track, self, world);
+            }
+        }
+
+        private static void BeginStand(ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
+        {
+            if (ws.Moving == 1) LocomotionMoveTo.Stop(world, self);
+            ws.Moving = 0;
+            ws.Waiting = 0;
+            ws.Phase = VehiclePhase.StandAndFight;
+        }
+
+        /// <summary>⭐ CE-2197 — the hull can no longer drive: a mobility kill (<c>CanMove</c> stripped — the running gear or engine over its
+        /// threshold, hit location §9 S2-8, or the type's <c>MobilityKill</c>), read on any node from the replicated part damage too.</summary>
+        public static bool Immobile(EntityRepository world, Entity self)
+            => !Capable(world, self, ActorCapabilities.CanMove) || Fdp.Toolkit.Physics.BodyParts.Wounds.Has(world, self, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility);
+
+        /// <summary>⭐ CE-2197 — the gun can no longer fire: a firepower kill (<c>CanShoot</c> stripped — the turret or gun over its threshold).</summary>
+        public static bool Disarmed(EntityRepository world, Entity self)
+            => !Capable(world, self, ActorCapabilities.CanShoot) || Fdp.Toolkit.Physics.BodyParts.Wounds.Has(world, self, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower);
+
+        private static bool Capable(EntityRepository world, Entity self, ActorCapabilities cap)
+            => !world.IsComponentTypeRegistered<ActorCapabilityState>() || !world.HasComponent<ActorCapabilityState>(self)
+               || (world.GetComponentRO<ActorCapabilityState>(self).Capabilities & cap) != 0;
 
         // ── the steps ───────────────────────────────────────────────────────────────────────────────
 
