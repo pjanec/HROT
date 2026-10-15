@@ -547,11 +547,11 @@ namespace Fdp.Toolkit.Combat.Executors
         /// <c>FireAtPointExecutor</c>).</summary>
         public static bool ReleaseCue(EntityRepository world, Entity unit, Vector3 point)
         {
-            if (!world.HasComponent<SimTransform>(unit)) return false;
-            var v = world.HasComponent<SimVelocity>(unit) ? world.GetComponentRO<SimVelocity>(unit).Linear : Vector3.Zero;
+            // ⭐ CE-2173 (Air Ops §9c) — the carrier as THIS node knows it: on the brain node a plane's motion is SimHost's, its
+            //   SimVelocity is never refreshed there (dead reckoning skips it), so the cue read a standing plane and never released.
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, unit, out var p, out var v)) return false;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
-            return BombBallistics.ReleaseNow(world.GetComponentRO<SimTransform>(unit).Position, v, point,
-                terrain == null ? null : terrain.GroundHeightAt);
+            return BombBallistics.ReleaseNow(p, v, point, terrain == null ? null : terrain.GroundHeightAt);
         }
 
         /// <summary>⭐ W-12c (§5g G-2) — added to a guided round's flight estimate: launch and detonation are not instants.</summary>

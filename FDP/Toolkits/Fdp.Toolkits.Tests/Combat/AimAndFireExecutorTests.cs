@@ -1491,6 +1491,66 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-2173 (Air Ops §9c — the live <c>ua-air-strike</c> miss) — the release cue on the BRAIN node, where the plane's motion is
+        /// another node's: no <see cref="SimVelocity"/> is refreshed there (dead reckoning skips an entity that is neither owned nor a
+        /// ghost — <c>SpatialCoreTkbTranslator</c>'s zero one stays zero) and <see cref="SimTransform"/> jumps only when a network sample arrives (here every 6th frame, with its
+        /// <see cref="Fdp.Toolkit.Replication.Components.NetworkVelocity"/> and stamp). The cue reads the motion as this node knows it
+        /// (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>) and releases once, where a bomb dropped lands on the point.
+        /// ✅ Red-proof: reading <see cref="SimVelocity"/> (the old cue) ⇒ a standing plane ⇒ never released ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE2173_TheReleaseCue_OnTheBrainNode_ReadsTheReplicatedMotion()
+        {
+            const long Plane = 9408;
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            const float Dt = 1f / 60f, H = 500f;
+            const int SampleEvery = 6;
+            var v = new Vector3(150f, 0f, 0f);
+            var (impact, _) = BombBallistics.Impact(new Vector3(0f, 0f, H), BombBallistics.Launch(v), null, Dt);
+            float releaseX = 3000f - impact.X;
+            var start = new Vector3(releaseX - 600f, 0f, H);
+
+            var (plane, channel) = SpawnShooter(start, 4, 0f, Entity.Null, 0f);
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new SimVelocity());      // SpatialCoreTkbTranslator gives every entity a zero one, on every node
+            _world.SetAuthority<SimTransform>(plane, false);   // SimHost owns the motion
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(3000f, 0f, 0f), Rounds = 1 });
+            var executor = new FireAtPointExecutor();
+            executor.OnEnter(plane, ref channel, _world);
+
+            int released = 0; float at = float.NaN;
+            for (int frame = 0; frame < 60 * 8; frame++)
+            {
+                double now = frame * Dt;
+                var truth = start + v * (float)now;
+                _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = Dt, TimeScale = 1f });
+                if (frame % SampleEvery == 0)   // a GeoSpatial sample: the ingress writes the shadow, the velocity and the position
+                {
+                    _world.SetComponent(plane, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = truth, LastRotation = Quaternion.Identity, SimStamp = now });
+                    _world.SetComponent(plane, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = v });
+                    _world.GetComponentRW<SimTransform>(plane).Position = truth;
+                }
+                executor.Execute(plane, ref channel, _world, Dt);
+                _world.Bus.SwapBuffers();
+                if (_world.Bus.Read<WeaponFireIntent>().Length > 0 && released++ == 0) at = truth.X;
+            }
+
+            Assert.Equal(Vector3.Zero, _world.GetComponent<SimVelocity>(plane).Linear);   // never refreshed on this node
+            Assert.Equal(1, released);
+            Assert.InRange(at, releaseX - v.X * Dt, releaseX + v.X * Dt);
+        }
+
+        /// <summary>
         /// ⭐ Air Ops slice 6a F1 (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-1) — a FIXED-forward mount with a nose cone (the
         /// A-10's cannon, 5°) fires only when the target lies inside the cone round the body's 3-D forward: a level plane 300 m up holds a
         /// ground target 1 km ahead (16.7° below the nose) as <c>OutOfArc</c>, nothing spent; nosed down onto it, the round leaves. A target
