@@ -280,6 +280,7 @@ public sealed class ClusterSlaveTests
         Commit(ClusterState.Idle);
         Assert.Equal(1, owner.Entered);          // ⛔ staying in Idle is not entering it
 
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = Guid.NewGuid() });   // follow a session
         Commit(ClusterState.OperatingLive);
         bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
         bus.SwapBuffers();

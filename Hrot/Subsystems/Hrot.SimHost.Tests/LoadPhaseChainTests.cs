@@ -352,7 +352,7 @@ public sealed class LoadPhaseChainTests
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
         map.Register(1001, stale);
         var chain = LoadPhaseChain.FromRoles(
-            NodeRole.MuscleGround, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase) }, world, entityMap: map);
+            NodeRole.Map2D, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) }, world, entityMap: map);
         int epochBefore = Fdp.Toolkit.Replication.Services.WorldEpoch.Of(world);
 
         Assert.IsAssignableFrom<IIdleResetHandler>(chain);
