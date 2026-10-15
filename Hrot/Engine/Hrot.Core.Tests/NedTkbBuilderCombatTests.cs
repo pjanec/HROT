@@ -792,6 +792,20 @@ namespace Hrot.Map.Common.Tests
             Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<CarrierDefDto>());
         }
 
+        /// <summary>⭐ Airborne insertion B-7 (design §7d) — the A-10 carries an ejection seat for a Pilot (206, a round canopy opening in 1.5 s)
+        /// and ejects on its own at 20 % health.</summary>
+        [Fact]
+        public void B7_TheA10EjectsAPilot_WhoComesDownUnderAQuickRoundCanopy()
+        {
+            var db = BuildDatabase();
+            var ej = db.GetByType(TkbEntityTypes.Jet_AttackA10)!.GetDescriptor<EjectionDto>()!;
+            Assert.Equal(TkbEntityTypes.Infantry_Pilot, ej.PilotType);
+            Assert.Equal(0.2f, ej.AutoEjectBelowFraction);
+            Assert.True(ej.SeatX > 0f, "the cockpit is ahead of the CG");
+            var chute = db.GetByType(TkbEntityTypes.Infantry_Pilot)!.GetDescriptor<ParachuteDto>()!;
+            Assert.Equal((Fdp.Toolkit.Motion.CanopyKind.Round, 1.5f), (chute.Canopy, chute.OpenSeconds));
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();

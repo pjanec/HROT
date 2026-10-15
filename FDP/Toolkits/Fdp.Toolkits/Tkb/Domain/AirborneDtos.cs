@@ -14,6 +14,23 @@ namespace Fdp.Toolkit.Tkb.Domain
     }
 
     /// <summary>
+    /// ⭐ Airborne insertion B-7…B-9 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §7d, D-16) — an aircraft whose crew can EJECT: the
+    /// pilot's type (spawned at the seat, <c>EjectionSystem</c>), where the seat is (the aircraft's frame, from its reference point), and
+    /// the health share at or below which he ejects on his own (0 = only when ordered).
+    /// </summary>
+    [TkbDescriptor("Gen.Ejection")]
+    public record EjectionDto
+    {
+        [Description("The TKB type of the man who ejects (a Pilot).")]
+        public long PilotType { get; init; }
+        [EditUnit("m")] public float SeatX { get; init; }
+        [EditUnit("m")] public float SeatY { get; init; }
+        [EditUnit("m")] public float SeatZ { get; init; }
+        [Description("He ejects on his own when the aircraft's health is at or below this share of its maximum (0 = only when ordered).")]
+        public float AutoEjectBelowFraction { get; init; }
+    }
+
+    /// <summary>
     /// ⭐⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §2, §4) — a jumper's parachute: its canopy and the
     /// figures the descent model flies it by. A field left 0 takes the canopy's default (<c>ParachuteModel.Defaults</c> — public figures,
     /// rounded: round T-11 class, ram-air MC-4 class).

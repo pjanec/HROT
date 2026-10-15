@@ -74,6 +74,16 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 3 / 3 red: the descent branch of `InDomain`, the fall's impact (2 rows); the CE-2199 turret path (same run) |
 | ⚠ not railed | `AirContacts.IsAir` → `IsAircraft` (a one-line swap; its suite has no TargetMemory fixture — the B-1 `IsAircraft` rail covers the predicate) |
 
+## 3d. B-7…B-9 (`2026-10-16`) — the ejecting pilot, as drawn in [design §7d](../../designs/airborne/DESIGN_Airborne_Insertion.md)
+
+| | |
+|---|---|
+| for the behaviors lane (H-3) | order an ejection with the interaction action **`ActionIdEject` (11)** on the AIRCRAFT (`EjectExecutor`: raises `EjectRequestEvent`, succeeds once the aircraft is down). The pilot is a new entity of type **206**, coming down under a round canopy; give him `EvadeAndSignal` once his `Descent` is gone. ⚠ The A-10 also ejects ON ITS OWN at 20 % health |
+| built | `Gen.Ejection`, `EjectRequestEvent` (3205), `EjectExecutor`, `EjectionSystem` (Interactions capability), the seat's arc, Pilot 206, the A-10's seat |
+| ⚠ estimated | the rocket's climb (40 m/s), the seat's time (1.5 s) and drag, the A-10's seat place and 20 % threshold |
+| ⛔ not done | F-16 / C-130 (no brain, no combat block); the drawing (U-2, ui) |
+| ⚠ cross-lane | `CgfLogicPack` (the executor list), `EditorCapabilitiesTests` (+`EjectionSystem` in both lists), `EntityTypeCatalogTests` (+206) |
+
 ## 4. Next (this lane)
-B-5 (TKB: `Gen.Parachute`, rope anchors on UH-60 400 / 404, Paratrooper + SF operator, the scenario's `Wind`, the release-point helper) ·
-B-6 (`IsAircraft` in `AmmoChoice` / `AirContacts`, fall damage) · B-7…B-9 (the ejecting pilot).
+⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
+Then the behaviors lane's CE-2198 (a tank overshooting a short move).
