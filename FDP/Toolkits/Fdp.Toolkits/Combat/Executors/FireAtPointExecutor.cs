@@ -141,7 +141,8 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
             var reason = ShootAtPoint(world, entity, fireIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: !bomb,
-                                      weaponEntity: shooter, charge: charge, highArc: high);
+                                      weaponEntity: shooter, charge: charge, highArc: high,
+                                      raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d);   // ⭐ CE-2180
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;
@@ -205,7 +206,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
             ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L,
-            Entity weaponEntity = default, byte charge = 0, byte highArc = 0)
+            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d)
         {
             // ⭐ IF-1 (I6) — a controlled weapon system fires as itself (its mount 0); the unit keeps the ROE and the line-of-fire check
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
@@ -233,6 +234,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 Shooter = firing, Target = Entity.Null, WeaponIndex = mountIndex, AtPoint = true, TargetPoint = point,
                 AmmoGuid = ammo,   // ⭐ CE-1079 — the loaded round (0 = the mount's own)
                 Charge = charge, HighArc = highArc,   // ⭐ IF-1 (I3) — the brain's fire solution
+                RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
             });
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = cooldownSeconds;

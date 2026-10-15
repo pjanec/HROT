@@ -540,6 +540,60 @@ that every other weapon uses.*
 | rails: `BombBallisticsTests.A3_ThePredictedImpact_IsTheFlownImpact` (2 cases) · `A6_TheCue_SaysNow_WhenTheImpactReachesTheTarget` · `FireProcessingSystemTests.A4_AnAircraftsBomb_KeepsItsVelocity_AGroundShotDoesNot` · `AimAndFireExecutorTests.A6_TheReleaseProfile_WaitsForTheCue` | — |
 | ⚠ not built here: `FireAtPointExecutor` (a strike on a POINT) has no release gate yet — the behaviour lane's `AirAttack` LevelBomb (slice 5) decides which executor it drives; the gate is one call (`ReleaseCue`'s `BombBallistics.ReleaseNow`) | reported to behaviors |
 
+### 8b. As-built — the release crosses nodes with its time (`CE-2180`, `2026-10-15`)
+
+⛔ **SUPERSEDES §8a's one-world picture for a split cluster.** §8a's sequence is one world: the cue and the fire are consecutive frames.
+On a cluster the cue runs on the BRAIN node (CGF) and the bomb starts on the SimHost frames later — live, the Mk-82 burst 20.4 / 26.7 m
+long at 150 m/s (§9c), i.e. 0.14–0.18 s of flight between them.
+
+```mermaid
+sequenceDiagram
+  participant AF as AimAndFire / FireAtPoint (CGF, brain)
+  participant EG as WeaponFireIntentEgressTranslator (CGF)
+  participant IN as WeaponFireRequestIngressTranslator (SimHost)
+  participant FP as FireProcessingSystem (SimHost, Input)
+  participant BB as BombBallistics
+  AF->>AF: ReleaseCue on ReplicatedMotion (the plane projected to simNow) says now
+  AF->>AF: ReleaseAt = simNow + the cue's seconds (≤ 0 when the brain's tick noticed late)
+  AF->>EG: WeaponFireIntent { RaisedAt = ReleaseAt }
+  EG->>IN: WeaponFireRequest { …, RaisedAt } (DDS, frames later)
+  IN->>FP: WeaponFireIntent { RaisedAt }
+  FP->>BB: LateSteps(RaisedAt, now, frameDt) = n cue steps (1/60 s)
+  FP->>FP: carrier stepped back n/60 s along its velocity (the release pose)
+  FP->>BB: FlyFor(origin, Launch(v), n, 1/60) — gravity, then the move, n times
+  FP->>FP: spawn the bomb there (Arc) — the path it would have flown from the release
+```
+
+*What the picture shows that prose hid: the time crosses, the pose does not — the SimHost owns the plane's motion, so it rebuilds the
+release pose from its own state; and the catch-up is the flight's own two steps, so the bomb lands on the path the cue predicted.*
+
+```mermaid
+classDiagram
+  class WeaponFireIntent { +double RaisedAt  "CE-2180, 0 = now" }
+  class WeaponFireRequest { +double RaisedAt  "R-169 appended" }
+  class BombBallistics {
+    +LateSteps(raisedAt, now, frameDt, stepDt) int
+    +FlyFor(ref p, ref v, steps, ground, dt) int
+    +Impact() · Cue() · ReleaseNow()  "§8a, unchanged"
+  }
+  class ShotRecord { +RaisedAt · FiredAt · CaughtUpSeconds · OwedFrames · CaughtUpFrames · FrameDt }
+  WeaponFireIntent ..> WeaponFireRequest : egress / ingress copy
+  FireProcessingSystem ..> BombBallistics : a Bomb from an Air-domain shooter
+  FireProcessingSystem ..> ShotRecord : GET /combat/shots
+```
+
+| as built | why |
+|---|---|
+| every brain-side producer stamps `RaisedAt = HitModel.Now` (synced sim time): `AimAndFireExecutor` ×2, `FireAtPointExecutor.ShootAtPoint`, `HiddenTargetThrow`; the muscle-side turret task leaves 0 (it fires where it is) | Dead Reckoning D4: what crosses nodes is stamped with synced sim time |
+| ⭐ a **bomb's** stamp is the cue's own moment — `AimAndFireExecutor.ReleaseAt` = now + `Cue`'s seconds-to-release (clamped to the release window) — not the brain tick that noticed it | the brain sees "now" only on its tick; a slow brain releases up to one tick late (≈ 14 m at 10 Hz). The gate (`ReleaseCue`) is unchanged — the stamp decides nothing |
+| `LateSteps = round((now − frameDt − RaisedAt) / (1/60))`, never < 0: a round started this frame starts from the carrier as of the previous frame (the motion has not stepped yet), so one world reads 0 — `B6`, `A3`, `A4` unchanged. ⭐ Counted and flown in the **cue's** step (`BombBallistics.DefaultDt`), not the frame's | 📐 live, the cloud SimHost ran **0.088 s** frames: whole frames left ±½ frame (±6.6 m) — the first cut (frame steps) burst 8.8 m short there. In the cue's step the bomb rejoins the exact predicted path; what remains is the slow frame's own integration of the rest of the fall |
+| the carrier is stepped back along its **current** velocity, not carried on the wire | the SimHost owns the plane's motion; the run-in is a straight line (§9c freezes it 2.5 km out). ⛔ Rejected: the pose on the wire — the brain only has a projection of the SimHost's own state |
+| `FlyFor` stops one step above the ground (`BallisticsSystem` bursts it next frame) | a very late intent on a low pass still bursts, never underground |
+| only a **Bomb** from an Air-domain shooter is caught up | ⛔ Rejected: a fixed lead in the cue — it moves with the brain's period and the transport. A gun / rocket aims from where the SimHost has the shooter, so its trip moves nothing |
+| `GET /combat/shots`: `raisedAt`, `firedAt`, `tripSeconds`, `caughtUpSeconds`, `owedFrames` / `caughtUpFrames` (cue steps), `frameDt` | the measurement, kept |
+| 📐 **live `ua-air-strike` ① (`--mode all`, this cloud VM)**: before (behaviors' runs) 20.4 / 26.7 m long · frame-step catch-up: **3.0 m** (trip 0.362 s) and **8.8 m short** (trip 0.324 s, frames 0.088 s) · cue-step catch-up: **6.6 m long** (trip 0.285 s, frames 0.095 s — the brain's tick still late) · + the cue's own moment stamped (`ReleaseAt`): ✅ **3.9 m** (trip 0.237 s, 9 cue steps, frames 0.085 s; checks ①–⑤ all PASS) | ≤ 10 m acceptance ✅. ⚠ The cloud VM runs ~11 Hz frames; at 60 Hz the slow-frame integration term (what remains) is ≈ 6× smaller |
+| rails: `BombBallisticsTests.CE2180_AnIntentReadNFramesLate_LandsWhereTheReleaseSaid` (n = 0, 9, 11, 40 — the burst where the raise predicted; ✅ red-proof: the catch-up off ⇒ 22.6 / 27.7 / 100.8 m long, n = 0 green) · `AimAndFireExecutorTests.CE2180_ASlowBrain_StampsTheCuesReleaseMoment_NotItsTick` (a 10 Hz brain) · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+`RaisedAt`) | — |
+
 ## 9. The air assault and the rescue round trip (B8, B10, B11)
 
 | piece | rule | basis |

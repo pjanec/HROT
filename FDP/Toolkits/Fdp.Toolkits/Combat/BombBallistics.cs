@@ -68,6 +68,38 @@ namespace Fdp.Toolkit.Combat
             return (along, cross, along / speed);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2180</c> (§8a) — a bomb released <paramref name="steps"/> frames ago, flown to now with the SAME two steps as the
+        /// flight (gravity, then the move), so its path is the one it would have flown had it started at the release. Stops one step
+        /// short of the ground (<c>BallisticsSystem</c> then bursts it on the next frame). Returns the frames actually flown.
+        /// </summary>
+        public static int FlyFor(ref Vector3 p, ref Vector3 v, int steps, Func<float, float, float>? ground, float dt = DefaultDt)
+        {
+            ground ??= static (_, _) => 0f;
+            for (int i = 0; i < steps; i++)
+            {
+                var nv = v; nv.Z -= CombatConstants.Gravity * dt;
+                var next = p + nv * dt;
+                if (next.Z <= ground(next.X, next.Y)) return i;
+                v = nv; p = next;
+            }
+            return steps;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2180</c> (§8a) — how many prediction steps (<paramref name="stepDt"/>, the cue's own) late a release raised at
+        /// <paramref name="raisedAt"/> (synced sim time) reaches the frame that starts it at <paramref name="now"/>: a round started this frame
+        /// starts from the carrier as of the previous frame's time (<c>now − frameDt</c>: the motion has not been stepped yet), so an intent
+        /// raised in that frame is 0 late — one world, as before. Counted in the CUE's step, not the frame's: 📐 measured live, a loaded
+        /// SimHost ran 0.088 s frames, and whole frames left ±½ of one (±6.6 m at 150 m/s). <c>raisedAt</c> 0 ⇒ unknown ⇒ 0.
+        /// </summary>
+        public static int LateSteps(double raisedAt, double now, float frameDt, float stepDt = DefaultDt)
+        {
+            if (raisedAt <= 0d || frameDt <= 0f || stepDt <= 0f) return 0;
+            double late = now - frameDt - raisedAt;
+            return late <= 0d ? 0 : (int)Math.Round(late / stepDt);
+        }
+
         /// <summary>A carrier more than this past its release point has missed the pass (it does not drop late).</summary>
         public const float MissedPassSeconds = 0.5f;
 

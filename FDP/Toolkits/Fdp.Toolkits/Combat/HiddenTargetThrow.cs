@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Combat
                 WeaponIndex = mountIndex,
                 AtPoint     = true,
                 TargetPoint = point,
+                RaisedAt    = HitModel.Now(world),   // ⭐ CE-2180
             });
             Magazine.Spend(ref weapon);
             weapon.CooldownSecondsRemaining = CooldownSeconds;

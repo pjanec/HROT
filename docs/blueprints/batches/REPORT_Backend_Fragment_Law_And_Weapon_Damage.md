@@ -65,7 +65,7 @@ names call `SimTransformBridgeSystem.WithHeadingDeg(current, heading)`. Its acce
 | **C1** | body armour stops fragments only over **35 %** of the body (the plates) | keep — a vest does not cover the head and limbs | a per-type coverage, if you want it |
 | **C2** | the weapon numbers in §2's design table (area / casing / health) | keep — starter values; the guided launchers and the sentry are the fragile ones | your own figures per type |
 | **C3** | a shaped charge fragments **2 %** of its body | keep — puts the PG-7V at its public 2 / 5 m radii | a per-warhead casing mass in `ammo.json` |
-| **C4** | a weapon **carried** by a soldier is struck only if its carry seat counts as exposed — **not measured** for the soldier types | measure it next, then decide; a carried weapon being broken with its carrier seems right | — |
+| **C4** | a weapon **carried** by a soldier is struck only if its carry seat counts as exposed — **not measured** for the soldier types | measure it next, then decide; a carried weapon being broken with its carrier seems right | ✅ **measured `2026-10-15`: it IS struck** — the soldier types' carry station is open (`PersonCarrier()`), so the carried Javelin is exposed; rail `CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`; Weapon Systems §5b. Matches the lean ⇒ no decision needed |
 | **C5** | 25 / 30 mm autocannon HE give a man ≈ 70 / 50 at 5 / 8 m (one hit there is a serious wound) | keep for now — I found no public radius to check them against, so they are not in the rail | a published figure |
 
 ## 5. Gates

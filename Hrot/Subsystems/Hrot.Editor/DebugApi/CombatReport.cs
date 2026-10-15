@@ -44,6 +44,9 @@ namespace Hrot.Editor.DebugApi
                     ["hit"] = s.Outcome == ShotOutcome.Hit ? Id(s.HitEntity) : null,
                     ["arrivingDamage"] = s.Outcome == ShotOutcome.Hit ? s.ArrivingDamage : null,
                     ["arrivingPenetration"] = s.Outcome == ShotOutcome.Hit ? s.ArrivingPenetration : null,
+                    // ⭐ CE-2180 — the trip from the brain: raised (brain's synced sim time, null when unknown) → fired here
+                    ["raisedAt"] = s.RaisedAt > 0d ? s.RaisedAt : null, ["firedAt"] = s.FiredAt,
+                    ["tripSeconds"] = s.RaisedAt > 0d ? s.FiredAt - s.RaisedAt : null, ["caughtUpSeconds"] = s.CaughtUpSeconds, ["owedFrames"] = s.OwedFrames, ["caughtUpFrames"] = s.CaughtUpFrames, ["frameDt"] = s.FrameDt,
                     ["crossings"] = crossings,
                 });
             }

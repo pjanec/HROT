@@ -390,6 +390,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(dBomb[0] < 10f, $"the M2 121 m from a Mk-82 took {dBomb[0]} of 80");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3203</c> C4 (DESIGN_Weapon_Systems §5b) — a Javelin CARRIED on a soldier's back is struck when he is: the soldier types
+        /// declare <see cref="Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier"/> (an OPEN carrier — BdcTkbCatalog's rifleman, the urban
+        /// catalogue's soldiers), so the carry station is an exposed seat and the boarded weapon's <c>IsEmbarkedTag.Exposed</c> is 1 —
+        /// <c>PhysicalPresence.IsHidden</c> does not hide it. The same 81 mm at 10 m that breaks a Javelin on the ground breaks it on his back.
+        /// </summary>
+        [Fact]
+        public void CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim()
+        {
+            WeaponTypes();
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+            var soldier = Soldier(10f, 0f);
+            _w.AddComponent(soldier, Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator.Seats(Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier()));
+            var jav = Weapon(WsJavelin, 10f, 0f, 20f);   // carried: where he is
+            Fdp.Toolkit.Behavior.Embarkation.Board(_w, jav, soldier, seat: 1);   // seat 1 = his carry station
+
+            Assert.Equal(1, _w.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(jav).Exposed);
+            Assert.False(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_w, jav));
+            var (rec, damage) = Burst(Mortar, new Vector3(0f, 0f, 0.1f), soldier, jav);
+            Assert.Equal(AreaEffect.FragmentTarget.Equipment, rec.Effects.Single(x => x.Entity == jav).Target);
+            Assert.True(damage[1] >= 20f, $"the carried Javelin 10 m from an 81 mm took {damage[1]} of 20: broken, as on the ground");
+            Assert.True(damage[0] > 0f, "and the man carrying it is hit");
+        }
+
         // ── W-7′ — a roof burst spares the floor below (closed barrier), not the man on the roof ──
 
         [Fact]

@@ -117,6 +117,7 @@ namespace Hrot.Network.NED.SimHost
                     AmmoGuid        = evt.AmmoGuid,   // ⭐ M8 — the loaded round (R-169: the one new wire field)
                     Charge          = evt.Charge,     // ⭐ IF-1 (I3, R-169 appended) — the fire solution
                     HighArc         = evt.HighArc,
+                    RaisedAt        = evt.RaisedAt,   // ⭐ CE-2180 (R-169 appended) — when the brain raised it
                 });
                 SentSampleCount++;
             }

@@ -298,9 +298,12 @@ blast share)` per type (the table above; the casing is every face's armour). `We
 never picks one. Measured at 10 m from an 81 mm: M2 30 of 80, Javelin 25 of 20 (broken); a grenade 3 m from an M2 breaks it; a Mk-82
 121 m away puts 2 on it. Rails: `NedTkbBuilderCombatTests.CE3203_EveryWeaponSystem_StatesHowItBreaks` ·
 `AimAndFireExecutorTests.CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody` ·
-`AreaEffectSystemTests.W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. ⚠ A weapon CARRIED by a soldier (a
-Javelin on his back) is struck in the burst only when its carry seat counts as exposed (`PhysicalPresence.IsHidden`: an enclosed seat
-hides it) — not measured for the soldier types here; a lean in the report.
+`AreaEffectSystemTests.W6pp_AShellBreaksAJavelinBesideAnM2_ThatOnlyAGrenadeAtThreeMetresBreaks`. ✅ **C4 measured `2026-10-15`:** a weapon
+CARRIED by a soldier (a Javelin on his back) IS struck with him — every soldier type declares `CarrierDefDto.PersonCarrier()` (an OPEN
+carrier: BdcTkbCatalog's rifleman, the urban catalogue's soldiers), so his carry station is an exposed seat, the boarded weapon's
+`IsEmbarkedTag.Exposed` is 1 and `PhysicalPresence.IsHidden` does not hide it; the 81 mm at 10 m that breaks a Javelin on the ground
+breaks it on his back (rail `AreaEffectSystemTests.CE3203_C4_AJavelinCarriedOnASoldiersBack_IsStruckWithHim`). ~~not measured for the
+soldier types here; a lean in the report~~
 
 ## 6. Rules
 

@@ -1551,6 +1551,55 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2180</c> (Air Ops §8b) — a SLOW brain (it ticks every 6th frame, 10 Hz) sees "now" up to one tick past the release point,
+        /// so its round leaves late. The intent stamps the moment the CUE says the release is (<see cref="AimAndFireExecutor.ReleaseAt"/>),
+        /// not the tick it noticed it on — the SimHost steps its carrier back to that moment (FireProcessingSystem, <c>BombBallisticsTests.CE2180_*</c>).
+        /// </summary>
+        [Fact]
+        public unsafe void CE2180_ASlowBrain_StampsTheCuesReleaseMoment_NotItsTick()
+        {
+            const long Plane = 9408;
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("plane", Plane);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 9022, InitialAmmunition = 4, DamagePerHit = 1200 } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            const float Dt = 1f / 60f, H = 500f;
+            const int BrainEvery = 6;
+            var v = new Vector3(150f, 0f, 0f);
+            var (impact, _) = BombBallistics.Impact(new Vector3(0f, 0f, H), BombBallistics.Launch(v), null, Dt);
+            float releaseX = 3000f - impact.X;
+            var start = new Vector3(releaseX - 603f, 0f, H);   // just past a brain tick: the slow brain notices ~5 frames late
+            double releaseTime = 603.0 / v.X + Dt;             // frame 0 is t = Dt (the clock starts after one frame)
+
+            var (plane, channel) = SpawnShooter(start, 4, 0f, Entity.Null, 0f);
+            _world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Plane });
+            _world.AddComponent(plane, new SimVelocity { Linear = v });   // this node owns the motion here
+            Unsafe.Write(Unsafe.AsPointer(ref channel.Params[0]), new FireAtPointParams { Point = new Vector3(3000f, 0f, 0f), Rounds = 1 });
+            var executor = new FireAtPointExecutor();
+            executor.OnEnter(plane, ref channel, _world);
+
+            WeaponFireIntent? fired = null; double tickedAt = 0;
+            for (int frame = 0; frame < 60 * 8 && fired == null; frame++)
+            {
+                double now = (frame + 1) * (double)Dt;
+                _world.GetComponentRW<SimTransform>(plane).Position = start + v * (float)(now - Dt);
+                _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = now, DeltaTime = Dt, TimeScale = 1f });
+                if (frame % BrainEvery == 0) { executor.Execute(plane, ref channel, _world, Dt * BrainEvery); tickedAt = now; }
+                _world.Bus.SwapBuffers();
+                foreach (var e in _world.Bus.Read<WeaponFireIntent>()) fired = e;
+            }
+
+            Assert.NotNull(fired);
+            Assert.True(tickedAt - releaseTime > 2 * Dt, $"the slow brain noticed late: ticked {tickedAt:F3} s, the release is {releaseTime:F3} s");
+            Assert.InRange(fired!.Value.RaisedAt, releaseTime - Dt, releaseTime + Dt);
+        }
+
+        /// <summary>
         /// ⭐ Air Ops slice 6a F1 (docs/designs/air-attack/DESIGN_Air_Operations.md §7a, AW-1) — a FIXED-forward mount with a nose cone (the
         /// A-10's cannon, 5°) fires only when the target lies inside the cone round the body's 3-D forward: a level plane 300 m up holds a
         /// ground target 1 km ahead (16.7° below the nose) as <c>OutOfArc</c>, nothing spent; nosed down onto it, the round leaves. A target
