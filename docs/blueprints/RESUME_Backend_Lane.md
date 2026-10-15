@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-11
-current-answer: ⭐ §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-15
+current-answer: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,13 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
+
+⭐ **The queue is [`batches/HANDOFF_Backend_Continuation_2026_10_15.md`](batches/HANDOFF_Backend_Continuation_2026_10_15.md)** — ① CE-2180
+(the bomb lands 20–27 m long: release latency between the brain and the SimHost), ② CE-3203 C4 (is a carried weapon struck?), ③ the CE-3203
+leans waiting on the user. Last built: CE-3203 (one fragment law for people, hulls and weapons; weapons break per type) at `84c27344e`;
+CE-1110 answered (already built in `c313ba0d7`). ⚠ §00 below is the 2026-10-10 programme — history for the current work.
 
 ## 00. NOW (`2026-10-10`) — the behaviour LIBRARY: generic, squad-aware *(this session is the ACTIVE backend session; 🔒 user: "the other one is on hold")*
 
