@@ -311,6 +311,58 @@ sequenceDiagram
   HR-->>HR: DetonationNotification { Travel = descending ⇒ Top }
 ```
 
+### 3b. The OVERFLY top attack — the NLAW (`CE-3198`, backend `2026-10-15`; gate lifted by the user)
+
+📐 **Why §3's climb–cruise–dive cannot fly it** (§5a): at 200 m/s and 30°/s the turn onto any dive is a ~380 m arc — longer than the NLAW's
+20–800 m range — so it never arrives at ≥ 45° and `ArmorModel.FacingOfArrival` never reads Top. The real NLAW does not dive: it flies ~1 m above
+the sight line and fires its charge DOWN as it passes over the target.
+
+```mermaid
+classDiagram
+  class MissileDto { <<existing, grows>> +Overfly : bool «new» · +OverflyHeightM «new, default 1» }
+  class GuidedRound { <<existing, grows>> +Overfly : byte «new» · +OverflyHeightM «new» }
+  class FireProcessingSystem { <<existing>> Overfly = missile.Overfly AND the target has a HULL (not a person, collider height > 0) }
+  class GuidedRoundSystem {
+    <<existing, grows>>
+    fire-and-forget + Overfly: steer to the roof + OverflyHeightM
+    NEW fuze: the next step passes over the hull's footprint above its roof ⇒ detonate DOWN
+  }
+  class DetonationNotification { <<existing event>> Target · Hit · Penetration · Damage · Ammo · Travel = straight down }
+  class BallisticsSystem { <<existing>> a round above the roof misses the hull (M1 band) — it is not met first }
+  FireProcessingSystem ..> MissileDto
+  FireProcessingSystem --> GuidedRound : on spawn
+  GuidedRoundSystem ..> GuidedRound
+  GuidedRoundSystem --> DetonationNotification : publishes (as DroneImpactSystem does)
+```
+
+*What the picture shows that prose hid: the overfly needs NO new hit path — the existing detonation event with a downward travel IS a Top-face
+hit for the unchanged damage chain (`ArmorModel.FacingOfArrival`), exactly as the FPV drone's dive is; only the steering goal and one fuze test are
+new.*
+
+```mermaid
+sequenceDiagram
+  participant FP as FireProcessingSystem (Muscle)
+  participant GS as GuidedRoundSystem (Muscle, PostSim)
+  participant BS as BallisticsSystem
+  participant DC as DamageCalculation / AreaEffect
+  FP->>FP: an NLAW at a HULL: GuidedRound { Overfly = 1, OverflyHeightM = 1 }
+  loop every frame
+    GS->>GS: seeker sees the target ⇒ goal = above its roof by OverflyHeightM
+    GS->>GS: next step crosses the hull's circle, above the roof, within the fuze height?
+    BS->>BS: the round flies over the hull's band — no hit
+  end
+  GS-->>DC: DetonationNotification { Target, Travel = down, the round's Penetration / Damage / Ammo }
+  GS->>GS: the round is spent (destroyed)
+  DC->>DC: the Top face, the shaped charge's penetration — and its fragments
+```
+
+| rule | why |
+|---|---|
+| overfly only at a HULL (a vehicle collider with a height, not a person); a man is attacked direct, as before | the downward charge is an anti-armour mode; a soft target has no roof to fire through |
+| the fuze fires when the round's NEXT step enters the hull's footprint (its collider circle) while it is above the roof and no more than `OverflyHeightM` + 2 m over it | a pass over the roof, not a pass beside it or far above it |
+| the detonation: `Travel` straight down, the round's own penetration and damage (muzzle values — a missile is not carried through terrain), its ammo for the fragments | the unchanged chain decides the face (Top) and the damage |
+| Javelin keeps its dive (§3); only the NLAW states `Overfly` | `ua-javelin-lock` unchanged |
+
 ## 4. Firing on the move (D-L)
 
 | mount | `FireOnMove` default (from `Category`, overridable per mount) |
@@ -376,7 +428,7 @@ Mounts: M1 / T-72 main gun loadout APFSDS + HEAT-MP + HE (e.g. 20 / 10 / 10) + a
 |---|---|---|
 | a munition's numbers per §5 | each new type (6010–6019) states a generic `AmmoWeaponBallisticsDto` (pen, damage), a `WarheadDto` copied from the NEAREST library entry (`PG-7V HEAT` for the rockets, the NLAW and the FPV warhead, `TOW-2 HEAT` for Javelin and Kornet, `120mm HEAT`, `125mm HE-frag`; tandem set where §5 says Tandem) and a `MissileDto` | one source for the fragment / blast numbers; the names match no library entry, so nothing is picked up by name |
 | TOW 6008, PG-7V 6009 "exist" | both gain a `MissileDto`: TOW command, 280 m/s, 15 s, min 65 m; PG-7V unguided 300 m/s, 4.5 s | 📐 the TOW flew at the NED builder's `range × 0.5` = 1875 m/s; their penetration and damage stay on the mounts (LR-1) |
-| NLAW "yes (shallow overfly)" top attack | ⚠ **flies DIRECT** | the overfly attack fires DOWN as it passes over; §3's climb/cruise/dive at a 30°/s turn needs a ~380 m radius, longer than its 20–800 m range ⇒ a downward-fuze model is needed — **CE-3198** |
+| NLAW "yes (shallow overfly)" top attack | ~~⚠ **flies DIRECT**~~ ⛔ SUPERSEDED `2026-10-15` — the overfly is built ([§3b](#3b-the-overfly-top-attack--the-nlaw-ce-3198-backend-2026-10-15-gate-lifted-by-the-user), CE-3198) | the overfly attack fires DOWN as it passes over; §3's climb/cruise/dive at a 30°/s turn needs a ~380 m radius, longer than its 20–800 m range ⇒ a downward-fuze model is needed — **CE-3198** |
 | a coax MG "7.62" | two new types **6020 / 6021** (7.62 × 51 ball, tracer 1 in 5) — §5's table had no 7.62 round, and R-271 wants every mount's ammo typed; on the turret beside the gun, 200-round belt, 6 s to change, MG ⇒ fires on the move | the T-72's PKT (7.62 × 54R) shares the type |
 | tank loadout "e.g. 20 / 10 / 10" | M1 20 / 10 / 12, T-72 18 / 9 / 12 — **sums equal the old ammunition** (42, 39); the T-72's HEAT is 6017 (the 120 mm one) | no rounds appear or vanish; one HEAT type until a 125 mm one is needed |
 | the RPG man | `Insurgent` (2003): RPG 4 rockets (was 1), lay 2 s, reload 6 s, `FireOnMove = false`, mount 0 as before; rifle on mount 1 | mount 0 stays the RPG so every scenario that named it keeps working |

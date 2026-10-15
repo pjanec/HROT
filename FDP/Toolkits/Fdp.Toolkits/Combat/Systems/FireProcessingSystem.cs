@@ -329,6 +329,10 @@ namespace Fdp.Toolkit.Combat.Systems
                         CruiseZ       = muzzlePos.Z + missile.CruiseAltitudeM,
                         DiveAngleDeg  = missile.DiveAngleDeg,
                         LastSeen      = targetPos,
+                        // ⭐ CE-3198 (§3b) — the overfly top attack, at a HULL only (a man is attacked direct)
+                        Overfly       = (byte)(missile.Overfly && missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && !evt.AtPoint
+                                               && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, target) > 0f ? 1 : 0),
+                        OverflyHeightM = missile.OverflyHeightM > 0f ? missile.OverflyHeightM : 1f,
                     });
                 }
 

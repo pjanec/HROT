@@ -165,7 +165,8 @@ namespace Hrot.Core.Tkb
             Register(tkb, Pg7vrName, TkbPg7vrRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName, tandem: true), 650f, 500f, Rocket(280f, 4.5f));
             Register(tkb, LawName, TkbLawRocket, antiArmourRocket, ShapedChargeOf(Rpg7LibraryName), 300f, 350f, Rocket(145f, 3f));
             Register(tkb, NlawName, TkbNlawMissile, antiArmourGuided, ShapedChargeOf(Rpg7LibraryName), 500f, 900f,
-                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f });
+                     new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 200f, MaxFlightSeconds = 5f, MinRangeM = 20f,
+                                      Overfly = true, OverflyHeightM = 1f });   // ⭐ CE-3198 — the overfly top attack (§3b)
             Register(tkb, JavelinName, TkbJavelinMissile, antiArmourGuided, ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,
                      new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f,
                                       TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f });
