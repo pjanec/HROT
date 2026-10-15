@@ -1394,7 +1394,8 @@ def run_air_attack(c, timeout):
             bearings.append((t, math.atan2(pu[1] - orbit_at[1], pu[0] - orbit_at[0])))
             track.append((t, pu))
         door = [x for x in shots.values() if x.get("shooter") in guns]
-        if door and down_at is None:
+        # the gunner is shot once the orbit has gone HALF a turn counter-clockwise with his gun firing (a "before" to compare against)
+        if door and down_at is None and _turn(bearings, None, None) > math.pi:
             first = max(door, key=lambda x: x.get("seq") or 0).get("shooter")
             down = gunners.get(8)   # counter-clockwise ⇒ the LEFT door (seat 8's gun) fires first (§9f)
             print(f"    the door guns opened at {t:.1f} s (shooter {first}); shooting the left door gunner {down}")
@@ -1429,6 +1430,10 @@ def run_air_attack(c, timeout):
     misses = sorted(flat(x["end"], orbit_at) for x in door if x.get("end") and orbit_at)
     hits = sum(1 for x in door if x.get("hit") == otruck)
     print(f"    the door-gun rounds: {len(door)}, {hits} hit the truck; their ends from it: median {misses[len(misses) // 2] if misses else 0:.1f} m")
+    for x in sorted(door, key=lambda x: x.get("seq") or 0)[:2] + sorted(g, key=lambda x: x.get("seq") or 0)[:2]:
+        print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "penetration", "damage")})
+    stops = [(round(t0, 1), round(flat(p1, p0) / (t1 - t0), 1)) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0]
+    print(f"    the UH-60's speed over its orbit (t, m/s), slowest: {sorted(stops, key=lambda v: v[1])[:5]}")
     c.ok(bool(before), f"⑤ its door guns fired — shooters {sorted(before)}")
     c.ok(down is not None, f"⑤ the left door gunner found and shot — {down}")
     c.ok(bool(after) and not (after & before), f"⑤ … his gun fell silent and the other door's gun took over — after {sorted(after)}")
