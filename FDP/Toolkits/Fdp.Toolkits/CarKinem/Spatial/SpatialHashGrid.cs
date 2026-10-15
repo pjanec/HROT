@@ -133,14 +133,16 @@ namespace CarKinem.Spatial
         /// <see cref="EntityCount"/>.
         /// </para>
         /// </summary>
-        public void Add(Entity entity, Vector2 position)
+        /// <returns>⭐ <c>CE-2193</c> — false when <paramref name="position"/> is outside the grid and the entity was NOT added (no round,
+        /// avoidance or radius search can meet it); <c>SpatialHashSystem</c> warns about it once.</returns>
+        public bool Add(Entity entity, Vector2 position)
         {
             float CellSize = this.CellSize, OriginX = this.OriginX, OriginY = this.OriginY;
             int cellX = (int)((position.X - OriginX) / CellSize);
             int cellY = (int)((position.Y - OriginY) / CellSize);
 
             if (cellX < 0 || cellX >= Width || cellY < 0 || cellY >= Height)
-                return; // Out of bounds
+                return false; // Out of bounds
             
             int cellIdx = cellY * Width + cellX;
 
@@ -152,13 +154,14 @@ namespace CarKinem.Spatial
             {
                 entityIdx = EntityCount++;
                 if (entityIdx >= GridValues.Length)
-                    return; // Exceeded max entities capacity
+                    return false; // Exceeded max entities capacity
             }
             
             Positions[entityIdx] = position;
             GridValues[entityIdx] = entity;
             GridNext[entityIdx] = GridHead[cellIdx];
             GridHead[cellIdx] = entityIdx;
+            return true;
         }
 
         /// <summary>

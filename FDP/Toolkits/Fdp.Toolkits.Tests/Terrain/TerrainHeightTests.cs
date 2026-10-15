@@ -457,10 +457,13 @@ namespace Fdp.Toolkit.Terrain.Tests
                     Assert.Equal(0f, w.GroundHeightAt(x, y), 3);
             }
 
-            // under every grounded entity of every scenario on basic-desert
+            // under every grounded entity of every scenario that stood on basic-desert when H4 raised its relief (§5d: "nothing that
+            //   stood on basic-desert moves"). ⭐ A scenario placed AFTER H4 may stand on the ridge or in the wadi: a Z-0 entity on relief
+            //   needs no special case, the motion model settles it (R-249, §4a) — 📐 ua-air-attack's column lead on the wadi bank.
             int checkedEntities = 0;
-            foreach (var file in System.IO.Directory.GetFiles(System.IO.Path.Combine(RepoRoot(), "scenarios"), "scenario.json", System.IO.SearchOption.AllDirectories))
+            foreach (var name in new[] { "ua-air-strike", "ua-fire-distribution", "ua-weapon-choice" })
             {
+                var file = System.IO.Path.Combine(RepoRoot(), "scenarios", name, "scenario.json");
                 using var doc = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText(file));
                 if (!doc.RootElement.TryGetProperty("header", out var h) || !h.TryGetProperty("terrainName", out var t) || t.GetString() != "basic-desert") continue;
                 foreach (var e in doc.RootElement.GetProperty("entities").EnumerateObject())
@@ -472,7 +475,7 @@ namespace Fdp.Toolkit.Terrain.Tests
                     checkedEntities++;
                 }
             }
-            Assert.True(checkedEntities >= 10, $"only {checkedEntities} grounded entities found — the scenarios moved?");
+            Assert.True(checkedEntities >= 10, $"only {checkedEntities} grounded entities found — the scenarios moved?");   // the 3 have them
         }
 
         /// <summary>
