@@ -1381,6 +1381,8 @@ Rejected (one line each): the dose with a cap — still certain death at a big r
 a 155 mm and a 120 mm mortar fall to 0 before their casualty radius · tuning a per-warhead lethality — the coefficients would stop
 generating, every round would be hand-set.
 
+⭐ 🔒 **The four numbers this law chose APPROVED `2026-10-15` (R-3008)** — user: *"approved C1-C5"* (the CE-3203 report's §4): **C1** body armour stops fragments over **35 %** of a man (the plates) · **C2** the per-type weapon area / casing / health in [Weapon Systems §5b](designs/weapons/DESIGN_Weapon_Systems.md) · **C3** a shaped charge fragments **2 %** of its body · **C4** a carried weapon is struck with its carrier (measured: the soldier's carry station is open) · **C5** the 25 / 30 mm HE numbers (≈ 70 / 50 to a man at 5 / 8 m) stand, unrailed until a published radius exists.
+
 ## 3l. Stage 7a — cover per storey, window firing positions *(backend, `2026-10-09`; ✅ C1–C9 APPROVED by the user `2026-10-09` — *"Look ok."* … *"Approved."* (R-232); build-state: BUILT — `CE-3134`, §3l.7)*
 
 > 🔒 **User, `2026-10-09`:** *"Yes 7a first."* · Scope from the approved plan ([`HANDOFF_Buildings_Combat_Programme.md`](blueprints/batches/HANDOFF_Buildings_Combat_Programme.md)

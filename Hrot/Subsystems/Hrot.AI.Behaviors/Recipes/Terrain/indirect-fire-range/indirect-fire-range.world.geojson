@@ -52,7 +52,7 @@
    "type": "Feature",
    "properties": {
     "kind": "wall",
-    "height": 20.0,
+    "height": 6.0,
     "label": "Courtyard wall S",
     "material": "concrete",
     "thickness": 0.4
@@ -75,7 +75,7 @@
    "type": "Feature",
    "properties": {
     "kind": "wall",
-    "height": 20.0,
+    "height": 6.0,
     "label": "Courtyard wall E",
     "material": "concrete",
     "thickness": 0.4
@@ -98,7 +98,7 @@
    "type": "Feature",
    "properties": {
     "kind": "wall",
-    "height": 20.0,
+    "height": 6.0,
     "label": "Courtyard wall N",
     "material": "concrete",
     "thickness": 0.4
@@ -121,7 +121,7 @@
    "type": "Feature",
    "properties": {
     "kind": "wall",
-    "height": 20.0,
+    "height": 6.0,
     "label": "Courtyard wall W",
     "material": "concrete",
     "thickness": 0.4

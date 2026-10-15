@@ -387,7 +387,7 @@ namespace Fdp.Toolkit.Behavior
         public static void Board(EntityRepository repo, Entity passenger, Entity vehicle, int seat)
         {
             if (Has<ActorCapabilityState>(repo, passenger))
-                repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedAboard;
+                repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities &= ~StrippedOn(repo, vehicle, seat);
             // ⭐ CE-2152 (R-2011 C7) — a person carrying or dragging a casualty has his hands full: no fire (back on ReleaseCarrier).
             //   ⭐ WS-2 — a carried WEAPON does not: the soldier still fights (he may even fire it, FireWhileCarried).
             //   ⭐ T-a (R-2017 T5) — a TEAM load (a two-man weapon) fills his hands as a casualty does.
@@ -402,6 +402,20 @@ namespace Fdp.Toolkit.Behavior
                 VehicleEntity = vehicle, Seat = (byte)seat, Exposed = (byte)(SeatExposed(repo, vehicle, seat) ? 1 : 0), Mode = mode,
             });
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md WS-3) — what seat <paramref name="seat"/> of
+        /// <paramref name="vehicle"/> takes away: <see cref="StrippedAboard"/>, ⭐ except a WEAPON SYSTEM's own <see cref="SeatRole.Gunner"/>
+        /// seat — its man is the weapon's controller (<c>WeaponSystems.ControllerOf</c>) and fires it as the weapon through his own
+        /// <see cref="WeaponChannel"/>, so he keeps <see cref="ActorCapabilities.CanShoot"/> (he still cannot walk off with it). A vehicle's
+        /// crew seat is unchanged: there the HOST fires and the man fires nothing (W-I). 📐 Measured live (IF-4 ①): with CanShoot stripped the
+        /// weapon dispatcher failed every gunner's FireAtPoint before its executor ran — the section never fired.
+        /// </summary>
+        public static ActorCapabilities StrippedOn(EntityRepository repo, Entity vehicle, int seat)
+            => IsWeaponSystem(repo, vehicle) && Has<CarrierSeats>(repo, vehicle) && seat >= 0 && seat < PassengerBuffer.Capacity
+               && repo.GetComponentRO<CarrierSeats>(vehicle).Roles[seat] == SeatRole.Gunner
+                ? ActorCapabilities.CanMove
+                : StrippedAboard;
 
         /// <summary>⭐ <c>CE-2152</c> — is <paramref name="carrier"/> a PERSON who carries or drags (its type declares <c>Gen.Carrier.Person</c>)?</summary>
         public static bool IsPersonCarrier(EntityRepository repo, Entity carrier) => Has<PersonCarrier>(repo, carrier);

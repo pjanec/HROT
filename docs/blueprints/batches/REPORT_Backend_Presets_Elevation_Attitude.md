@@ -8,7 +8,7 @@ known-conflict: none.
 related-designs:
   - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md — the handoff this report answers
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — §5a P1 (the presets), design step + as built
-  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — §3.9 P2 (laying the gun), design step + as built
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — §3.10 P2 (laying the gun; §3.9 before the 2026-10-15 behaviors merge), design step + as built
   - docs/DESIGN_Dead_Reckoning.md — §9 P3 (pitch and roll on the wire), design step + as built
   - docs/DESIGN_Weapon_Layers.md — W-13e P4 (the active mount), design step + as built
 -->

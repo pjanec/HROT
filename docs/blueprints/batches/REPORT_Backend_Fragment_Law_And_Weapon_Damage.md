@@ -58,7 +58,7 @@ names call `SimTransformBridgeSystem.WithHeadingDeg(current, heading)`. Its acce
 `TheHeadingConversionIsSharedTests.AHeadingOnlyPatch_OnABankedBody_KeepsItsBank` (binary + JSON) and
 `SimTransformBridgeSystemTests.P3_AHeadingOnlyChange_KeepsPitchAndRoll`, re-run green on the merged tree (§5). ⇒ the ui row can close.
 
-## 4. Decisions I took (leans for you)
+## 4. Decisions I took (leans for you) — ✅ ALL APPROVED `2026-10-15` (*"approved C1-C5"*, R-3008)
 
 | # | decision | lean | what would change it |
 |---|---|---|---|
