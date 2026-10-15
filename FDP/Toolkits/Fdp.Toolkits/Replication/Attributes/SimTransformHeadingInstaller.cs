@@ -57,6 +57,6 @@ public sealed class SimTransformHeadingInstaller : IBinaryAttributeInstaller<Ent
         float headingDeg = (float)record.Value.DoubleValue;
 
         ref SimTransform st = ref ctx.PatchContext.GetUnmanagedComponent<SimTransform>();
-        st.Rotation = SimTransformBridgeSystem.HeadingDegToRotation(headingDeg);
+        st.Rotation = SimTransformBridgeSystem.WithHeadingDeg(st.Rotation, headingDeg);   // ⭐ the steer's row 7: keeps pitch and roll
     }
 }

@@ -125,6 +125,54 @@ public class TheHeadingConversionIsSharedTests
             st.Rotation);
     }
 
+    // ══ ②c the STEER on P3 (STEER_Backend_P3_Every_Ingress_Restores_Attitude) ═══════
+
+    /// <summary>
+    /// ⭐⭐ Row 7 — a HEADING-ONLY patch (JSON and binary) on a BANKED body turns it and keeps its pitch and roll. ✅ Red-proof (run): the
+    /// old <c>HeadingDegToRotation</c> call levels it ⇒ pitch 0, roll 0 ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AHeadingOnlyPatch_OnABankedBody_KeepsItsBank(bool binary)
+    {
+        var (repo, e) = OwnedEntity();
+        repo.GetComponentRW<SimTransform>(e).Rotation = SimTransformBridgeSystem.EulerDegToRotation(30f, 10f, -20f);
+        if (binary)
+        {
+            var interpreter = AttributeCompilerFactory.BuildBinaryInterpreter(geoTransform: null);
+            var ctx = interpreter.CreateContext(EcsPatchContext.Create(repo, e));
+            ctx.Repo = repo; ctx.Entity = e;
+            interpreter.Apply(ctx, new[] { new EntityAttributeChange { AttributeId = AttributeIds.Heading, Value = AttributeValue.FromDouble(200.0) } });
+        }
+        else
+        {
+            var compiler = AttributeCompilerFactory.Build(geoTransform: null);
+            compiler.Compile("{\"Heading\":200}", compiler.CreatePatchContext(repo, e));
+        }
+
+        var q = repo.GetComponent<SimTransform>(e).Rotation;
+        Assert.InRange(SimTransformBridgeSystem.RotationToHeadingDeg(q), 199.9f, 200.1f);
+        SimTransformBridgeSystem.RotationToPitchRollDeg(q, out float pitch, out float roll);
+        Assert.InRange(pitch, 9.9f, 10.1f);
+        Assert.InRange(roll, -20.1f, -19.9f);
+    }
+
+    /// <summary>⭐⭐ Site 4 — the descriptor → <see cref="SimTransform"/> patch carries the wire's pitch and roll. ✅ Red-proof (run): the
+    /// heading-only call ⇒ level ⇒ red.</summary>
+    [Fact]
+    public void TheDescriptorRoute_CarriesPitchAndRoll()
+    {
+        var ctx = new ListPatchContext(null);
+        var wp  = new Hrot.NED.Descriptors.WorldPos();
+        wp.Ori.Heading = 30f; wp.Ori.Pitch = 10f; wp.Ori.Roll = -20f;
+        Hrot.Map.Common.Replication.Utils.DescriptorMapper.ApplyGeoSpatialDescriptor(ctx, wp, new UnitGeoTransform());
+        var q = ctx.FlushComponents().OfType<SimTransform>().Single().Rotation;
+        SimTransformBridgeSystem.RotationToPitchRollDeg(q, out float pitch, out float roll);
+        Assert.InRange(pitch, 9.9f, 10.1f);
+        Assert.InRange(roll, -20.1f, -19.9f);
+    }
+
     /// <summary>⭐ Identity-ish transform: this rail is about ROTATION, not the coordinate conversion.</summary>
     private sealed class UnitGeoTransform : Fdp.Modules.Geographic.IGeographicTransform
     {

@@ -253,6 +253,28 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, damage[2]);
         }
 
+        /// <summary>
+        /// ⭐⭐ AE5 (HANDOFF_Behaviors_To_Backend_Fragments_On_Hulls; DESIGN_Armour_Hit_Model §7.7) — a hull counts the fragments that STRIKE
+        /// it, each one round's damage: a pickup in the open 20 m from a Mk-82 is still destroyed; one at 120 m is HOLED, not destroyed
+        /// (health left, above the 60 % mobility kill); an MBT is unhurt. The live measurement had 1 253 at 121 m (the person dose).
+        /// ✅ Red-proof (run): the hull rule removed (the dose for every target) ⇒ the far pickup takes &gt; 300 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AE5_AMk82_DestroysAPickupAt20m_OnlyHolesOneAt120m_AndLeavesAnMbtUnhurt()
+        {
+            VehicleTypes();
+            var near = Hull(Pickup, 20f, 0f, 300f, 2.65f, 1.9f);
+            var far = Hull(Pickup, 0f, 120f, 300f, 2.65f, 1.9f);
+            var tank = Hull(Mbt, -20f, 0f, 3000f, 3f, 2.4f);
+            var (rec, damage) = Burst(Bomb, new Vector3(0f, 0f, 0.1f), near, far, tank);
+
+            Assert.True(damage[0] >= 300f, $"the near pickup took {damage[0]} of 300");
+            Assert.True(damage[1] > 0f && damage[1] < 120f, $"the far pickup took {damage[1]}: holed, not destroyed, still mobile (60 % of 300)");
+            Assert.Equal(0f, damage[2]);
+            var f = rec.Effects.Single(x => x.Entity == far);
+            Assert.Equal(1f, f.FragmentArmourChance);   // the fragments still defeat 5 mm — fewer of them strike
+        }
+
         // ── W-7′ — a roof burst spares the floor below (closed barrier), not the man on the roof ──
 
         [Fact]

@@ -67,6 +67,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("Fragment damage to a fully exposed target at the burst.")]
         public float FragmentDamage { get; init; }
 
+        /// <summary>⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — how many fragments the casing breaks into; with it a HULL counts the
+        /// fragments that strike it. 0 = not stated: a hull takes the person rule (<see cref="FragmentDamage"/>).</summary>
+        [Description("Fragments the casing breaks into (a hull counts the ones that strike it). 0 = not stated.")]
+        public float FragmentCount { get; init; }
+
+        /// <summary>⭐ AE5 — the damage ONE fragment that penetrates does to a hull: the kinetic law every bullet uses
+        /// (perSqrtJoule · √(½ m v₀²)).</summary>
+        [Description("Damage of one penetrating fragment on a hull (the kinetic law of a bullet).")]
+        public float FragmentHitDamage { get; init; }
+
         public FuzeKind Fuze { get; init; }
 
         [EditUnit("s")]

@@ -176,6 +176,9 @@ namespace Fdp.Toolkit.Tkb.Reference
                 FragmentRadiusM = reach,
                 FragmentPenetrationMm = pen,
                 FragmentDamage = c.PerKgExplosive * w,
+                // ⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — a hull is struck by fragments, each one round's damage
+                FragmentCount = casing / (fragG / 1000f),
+                FragmentHitDamage = c.PerSqrtJoule * MathF.Sqrt(0.5f * (fragG / 1000f) * v0 * v0),
                 Fuze = d.FuzeDelayS > 0f ? Fdp.Toolkit.Tkb.Domain.FuzeKind.Time : Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact,
                 FuzeDelayS = d.FuzeDelayS,
                 Indirect = d.Indirect,
@@ -184,7 +187,8 @@ namespace Fdp.Toolkit.Tkb.Reference
                            $"{F(c.BlastLethalDamage)} damage inside the lethal radius";
             string frag = $"v₀ = √2E · √(β/(1+β/2)) = {F(v0)} m/s (√2E = {F(c.Sqrt2E)}, β = {F(w)} / {F(casing)} kg casing); " +
                           $"pen = k · v₀ · √m = {F(pen)} mm (k = {F(c.FragmentK)}, m = {F(fragG)} g{(fragG > c.FragmentMassG ? $" = {F(c.FragmentMassG)} · ({F(casing)} / {F(c.MassAnchorCasingKg)})^{F(c.MassExponent)}" : "")}); " +
-                          $"reach = {F(c.RadiusPerCbrtCasingKg)} · casing^⅓ = {F(reach)} m; damage = perKgExplosive · W = {F(dto.FragmentDamage)}";
+                          $"reach = {F(c.RadiusPerCbrtCasingKg)} · casing^⅓ = {F(reach)} m; damage = perKgExplosive · W = {F(dto.FragmentDamage)}; " +
+                          $"on a hull: {F(dto.FragmentCount)} fragments (casing / m), each perSqrtJoule · √(½ m v₀²) = {F(dto.FragmentHitDamage)}";
             return new RefWarhead(dto, blast, frag);
         }
 

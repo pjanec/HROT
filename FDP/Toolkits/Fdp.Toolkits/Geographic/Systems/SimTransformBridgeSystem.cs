@@ -79,6 +79,19 @@ namespace Fdp.Modules.Geographic.Systems
         }
 
         /// <summary>
+        /// ⭐ STEER_Backend_P3_Every_Ingress_Restores_Attitude (row 7) — a HEADING-ONLY change to <paramref name="current"/>: the new
+        /// heading, the body's own pitch and roll KEPT (a heading patch on a banked aircraft must not level it). Built from the two
+        /// conversions above — no third formula.
+        /// </summary>
+        public static Quaternion WithHeadingDeg(Quaternion current, float headingDeg)
+        {
+            // ⚠ a never-set rotation (default — the zero quaternion) has no attitude to keep: level
+            if (current.LengthSquared() < 1e-6f) return HeadingDegToRotation(headingDeg);
+            RotationToPitchRollDeg(Quaternion.Normalize(current), out float pitchDeg, out float rollDeg);
+            return EulerDegToRotation(headingDeg, pitchDeg, rollDeg);
+        }
+
+        /// <summary>
         /// Converts a world-space ENU velocity vector to compass azimuth degrees [0, 360).
         /// Falls back to <paramref name="fallback"/> when the speed is negligible.
         /// </summary>

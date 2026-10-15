@@ -17,6 +17,18 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class AreaEffect
     {
+        /// <summary>
+        /// ⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — how many of a burst's <paramref name="count"/> fragments strike a hull presenting
+        /// <paramref name="area"/> m² at <paramref name="distance"/> m: a ground burst throws them over a hemisphere (2π r²), and they fade
+        /// to none at <paramref name="reach"/> — the fragment radius (their lost speed). The distance is never less than 0.5 m.
+        /// </summary>
+        public static float HullFragmentHits(float count, float area, float distance, float reach)
+        {
+            if (count <= 0f || area <= 0f || reach <= 0f || distance >= reach) return 0f;
+            float r = MathF.Max(distance, 0.5f);
+            return count * area / (2f * MathF.PI * r * r) * (1f - r / reach);
+        }
+
         /// <summary>Blast left right behind an obstacle taller than the target (W-7′: "≈ 0.3 right behind a tall wall").</summary>
         public const float ShadowFloor = 0.3f;
 

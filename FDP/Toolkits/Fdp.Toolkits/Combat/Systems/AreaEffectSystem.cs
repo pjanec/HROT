@@ -154,7 +154,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   are kinetic (the jet of a shaped charge is its direct hit, not its fragments).
                 var armour = ArmorModel.ArmourFor(platform, ArmorModel.FacingOf(tf, burst, hull * 0.5f));
                 float armourChance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm, armour);
-                float fragDamage = w.FragmentDamage * fragFall * exposure * armourChance;
+                // ⭐ AE5 (§7.7) — a HULL counts the fragments that strike it, each one round's damage; a person keeps the dose
+                float fragDamage = ArmorModel.HullFragmentDamage(w, PhysicsColliderReaders.Radius(repo, e), hull, r, armourChance, exposure)
+                                   ?? w.FragmentDamage * fragFall * exposure * armourChance;
                 float blastDamage = w.BlastLethalDamage * blastFall * barrier * shadow * susceptibility;
                 float total = fragDamage + blastDamage;
                 if (total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
