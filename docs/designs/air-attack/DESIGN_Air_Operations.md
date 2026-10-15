@@ -1062,10 +1062,11 @@ door to the target.*
 ### 9g. Live — `ua-air-attack`, the showcase (`2026-10-15`)
 
 ⭐ `python3 scripts/utility-demo-check.py --launch ua-air-attack` — `scenarios/ua-air-attack`, four vignettes on `basic-desert`, every
-target inside the collider grid (±750 m). One run: ① the A-10's bomb bursts 3.4 m from the fortification point · ② the A-10 gun run
-kills the lead pickup (19 rounds, the first hits `Hit`) · ③④ the Apache fires rockets AND its gun (mounts 0 and 1, 38 rounds) and
-breaks off 305 m short · ⑤ the UH-60 orbits (≈ 360 m), its left door gun fires, the left gunner is shot, the right door takes over,
-the orbit reverses (+1.64 rad before, −3.03 after), 263 of 440 door-gun rounds hit (median 2.7 m), the truck dies.
+target inside the collider grid (±750 m). ✅ **PASS, 15/15** (`6da086842`): ① the A-10's bomb bursts 3.0 m from the fortification
+point · ② the A-10 gun run kills the lead pickup (39 rounds, the first hits `Hit`) · ③④ the Apache fires rockets AND its gun (mounts 0
+and 1, 38 rounds) and breaks off 302 m short · ⑤ the UH-60 orbits (288…361 m, never below 21 m/s), its left door gun fires, the left
+gunner is shot after a quarter turn, the right door takes over, the orbit reverses (+1.59 rad before, −2.80 after), 254 of 423
+door-gun rounds hit (median 2.7 m), the truck dies.
 
 | measured on the way — and where it went | |
 |---|---|
