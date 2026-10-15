@@ -529,6 +529,30 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2195</c> — the designation beside the cycle (both trees: <c>Parallel(1){ UntilTargetDown ‖ the cycle }</c>, a RequireOne
+        /// Parallel that FAILS only when every child failed): with NO target named it must ABSTAIN (Failure), or a cycle that failed — no
+        /// hide — leaves the behaviour Running for ever. 📌 Live <c>ua-tank-corner</c>: the tank sat 40 s in a dead reaction, never moved,
+        /// and the SOP could not react again. With a target: Running while it lives (designated), Success once it is down.
+        /// ✅ Red-proof: the old <c>Running</c> for no target ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2195_TheDesignation_AbstainsWithNoTarget_SoAFailedCycleEndsTheBehaviour()
+        {
+            var d = new Duel(Tank());
+            var none = default(DesignateParams);
+            var ws = default(DesignateState);
+            Assert.Equal(NodeStatus.Failure, PostureNodes.UntilTargetDown(ref none, ref ws, d.Self, d.Repo));
+
+            if (!d.Repo.HasComponent<Health>(d.Enemy)) d.Repo.AddComponent(d.Enemy, new Health { Current = 100f, Max = 100f });
+            var named = new DesignateParams { TargetPacked = (long)d.Enemy.PackedValue };
+            ws = default;
+            Assert.Equal(NodeStatus.Running, PostureNodes.UntilTargetDown(ref named, ref ws, d.Self, d.Repo));
+            Assert.True(DesignatedTarget.Of(d.Repo, d.Self, out var designated) && designated.Equals(d.Enemy));
+            d.Repo.GetComponentRW<Health>(d.Enemy).Current = 0f;
+            Assert.Equal(NodeStatus.Success, PostureNodes.UntilTargetDown(ref named, ref ws, d.Self, d.Repo));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>V4_R12</c> — D-J, <c>Auto</c> reads the hull: a T-72 (front 500 ≥ 2 × side 250) reverses, a technical (5 / 5) scoots, an
         /// untyped vehicle scoots; an authored mode wins.
         /// </summary>
