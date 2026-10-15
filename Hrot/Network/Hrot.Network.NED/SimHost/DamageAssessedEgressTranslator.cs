@@ -69,6 +69,7 @@ namespace Hrot.Network.NED.SimHost
                 {
                     HitEntityId = netId,
                     TotalDamage = evt.TotalDamage,
+                    BodyPart    = evt.HasBodyPart != 0 ? (byte)(evt.BodyPart + 1) : (byte)0,   // ⭐ CE-3210 — id + 1, 0 = none
                 });
                 SentSampleCount++;
             }

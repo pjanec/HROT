@@ -262,6 +262,13 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                // ⭐ CE-3210 (hit location HL-12) — the class template (bodies.json "Soldier") gives a helmet and a vest; an insurgent wears
+                //   neither: a SPARSE override of the two armour fields it changes, nothing else restated.
+                t.AddDescriptor(new BodyZonesDto { Zones =
+                {
+                    new BodyZoneDto { Zone = "Head",  ArmourSide = 0, ArmourRear = 0, ArmourTop = 0 },
+                    new BodyZoneDto { Zone = "Torso", ArmourFront = 0, ArmourRear = 0 },
+                } });
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts =
                 {

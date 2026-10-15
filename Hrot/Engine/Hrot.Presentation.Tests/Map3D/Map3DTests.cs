@@ -540,6 +540,21 @@ public sealed class Map3DTests
         Assert.Equal(VisualFamily.Unknown, VisualFamilies.Of(platformComposite));   // the DIS type decides, not the composition
     }
 
+    /// <summary>⭐ <c>CE-3213</c> (backend, cross-lane) — the units layers hold UNITS only (platforms, life forms, composites): an anti-air round (munition domain
+    /// 1) is not a ground unit, an anti-armour round (domain 2) not an air unit, a flare (expendable, air) neither; a tank and a helicopter
+    /// are. 🔴 Red-proof: before, the layers keyed on the domain alone.</summary>
+    [Fact]
+    public void CE3213_TheUnitsLayers_HoldUnits_NotRoundsOrDecoys()
+    {
+        bool In(string layer, DISEntityType dis) => Hrot.Presentation.Map.MapLayerRegistry.All.Single(l => l.Name == layer).IsMember(default, dis, null!);
+        Assert.False(In("units_ground", new DISEntityType { Kind = 2, Domain = 1, Country = 225, Category = 1, Subcategory = 15 }));   // Stinger
+        Assert.False(In("units_air", new DISEntityType { Kind = 2, Domain = 2, Country = 225, Category = 1, Subcategory = 8 }));      // Javelin
+        Assert.False(In("units_air", new DISEntityType { Kind = 8, Domain = 2, Category = 2 }));                                     // a flare
+        Assert.True(In("units_ground", new DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 1 }));                    // a tank
+        Assert.True(In("units_ground", new DISEntityType { Kind = 3, Domain = 1, Country = 225, Category = 1 }));                    // a soldier
+        Assert.True(In("units_air", new DISEntityType { Kind = 1, Domain = 2, Country = 225, Category = 20 }));                      // a helicopter
+    }
+
     /// <summary>⭐ <c>CE-1058</c> — the 3-D map: a passenger inside an ENCLOSED vehicle has no body box (so nothing to pick, no
     /// selection cube — and the body loop skips it by the same rule); an exposed rider keeps its box, carried at the vehicle.</summary>
     [Fact]

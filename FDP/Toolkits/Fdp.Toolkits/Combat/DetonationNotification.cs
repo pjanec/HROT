@@ -62,5 +62,15 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>⭐ M1 — the travel direction, world Z (negative = descending). See <see cref="TravelX"/>.</summary>
         public float TravelZ;
+
+        /// <summary>⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-5) — APPENDED: 1 when the round met
+        /// a body PART (<see cref="BodyPart"/>, <see cref="Face"/> set). The damage step then reads the face ENTERED, not the arrival angle.</summary>
+        public byte HasBodyPart;
+
+        /// <summary>⭐ <c>CE-3209</c> — the part id within the target's body plan (<c>PersonPart</c>).</summary>
+        public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3209</c> — the face entered (<see cref="Facing"/>), in the target's frame.</summary>
+        public byte Face;
     }
 }

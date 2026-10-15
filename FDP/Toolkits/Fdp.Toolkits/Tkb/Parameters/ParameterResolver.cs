@@ -101,6 +101,8 @@ namespace Fdp.Toolkit.Tkb.Parameters
             var (warhead, source, provenance) = Warhead(template);
             if (warhead != null || template.DisType.Kind == 2)
                 list.AddRange(WarheadParameters(warhead, source, provenance));
+            // ⭐ CE-3210 (HL-12) — a body's zones: armour per face and multiplier, each with where it came from.
+            list.AddRange(Fdp.Toolkit.Physics.BodyParts.BodyZones.Parameters(template));
             return list;
         }
 

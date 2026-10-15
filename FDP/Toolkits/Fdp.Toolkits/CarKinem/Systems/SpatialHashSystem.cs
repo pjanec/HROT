@@ -87,13 +87,19 @@ namespace CarKinem.Systems
                 .Build();
 
             Dropped = 0;
+            float maxRadius = 0f;   // ⭐ CE-3209 (HL-2) — the cell walk's pad
             foreach (var entity in query)
             {
                 // ⭐ CE-3110 I-2c (R-271) — the collider hash is the door for bullets (RaycastSolverSystem), near misses, the radius search,
                 //   network raycasts and avoidance: an enclosed passenger is not in it, so none of them can find, hit or avoid it.
                 if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, entity)) continue;
                 var tf = repo.GetComponent<SimTransform>(entity);
-                if (_grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y))) continue;
+                if (_grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y)))
+                {
+                    if (repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity))
+                        maxRadius = MathF.Max(maxRadius, repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity).Radius);
+                    continue;
+                }
                 // ⭐⭐ CE-2193 (DESIGN_Terrain_World §4.4) — a collider the grid cannot place is invisible to every round: SAY SO, once.
                 //   ⛔ The grid is NOT widened to it: it follows the terrain by design (W9) — a unit off its terrain is an authoring
                 //   error to surface, not to absorb. 📐 Measured live (ua-air-attack): a truck at (0, 6 000) took 0 of 1 358 rounds.
@@ -110,7 +116,7 @@ namespace CarKinem.Systems
             }
 
             // Publish as singleton (Data-Oriented pattern)
-            repo.SetSingleton(new SpatialGridData { Grid = _grid });
+            repo.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = maxRadius });
         }
     }
 }

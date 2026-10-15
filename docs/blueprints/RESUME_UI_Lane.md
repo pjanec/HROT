@@ -153,8 +153,8 @@ related-designs:
 
 ## ⭐⭐⭐ SESSION `2026-10-15` — RESUME HERE
 
-**Branch `ui` at `54088ca74` (pushed).** Last merges: `behaviors@2a2b16f92` (via `cdff1ddc1`) and `backend@d99ee4412` (`103c9903a`).
-⚠ `behaviors` has moved since (`b98e9914b`: IF-2 / IF-3 / IF-4 assets, air slice 6) — **merge it first** next session.
+**Branch `ui` at `80912eab6` (pushed; updated after a second ui session built CE-1111…CE-1115).** At that point `behaviors` was 6 commits
+ahead (CE-2191 decoys / break, CE-2079) and `backend` 5 (CE-3213 DIS munition types, hit location HL-12) — **merge them first** next session.
 
 ### What was built (all in [DESIGN_Map_3D_Mode](../DESIGN_Map_3D_Mode.md), rows in the [tracker](Blueprint_Issues_Tracker.md), ui block)
 
@@ -171,8 +171,12 @@ related-designs:
 | CE-1106 | doors-off UH-60 door gunners sit in the door (catalogue seats moved — cross-lane to Air Ops F4) | §6u |
 | CE-1107 | the SELECTED launcher on the shoulder before the first shot (backend P4 `WeaponPosture.ActiveMount`) | §6n |
 | CE-1108 | armed presets' gunners at their guns (pickup kneels in the bed, HMMWV stands in the hatch — cross-lane to backend's catalogue) | §6n |
+| CE-1111 | the fire notification carries the shot (DIS Fire PDU parity, R-1002); a flare / chaff release is a fire — backend built the engine half | BS-1 §5.4b/c |
+| CE-1112 / 1113 | air defence drawn (MANPADS, ZU-23-2, their gunners, technical 110); no scorch under an air burst | §6v |
+| CE-1114 | the barrel elevation used as published (`TurretPose` as replicated; the round-based guess retired) | §6n N-5 |
+| CE-1115 | flares and chaff drawn from the fire (decoy along `DecoyFlight.At`) | Visual Effects §9 |
 
-Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, SimHost 58/0; rulings 206/206; every item red-proved.
+Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, SimHost 58/0; rulings 206/206; every item red-proved (CE-1111…1115: see their rows).
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 
@@ -180,14 +184,14 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 |---|---|---|---|
 | CE-1102 | backend | ✅ DONE (`b6ad14c83`): presets P1, laid gun P2, pitch / roll P3, active mount P4 — ui side done (CE-1107 / 1108) | [handoff](batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md) · [report](batches/REPORT_Backend_Presets_Elevation_Attitude.md) |
 | CE-1109 | behaviors | FM-4's time-on-target lay time per gun from its turret (the real M109 needs up to 18 s, FM-4 assumes 10) | [handoff](batches/HANDOFF_Ui_To_Behaviors_FM4_Lay_Time_From_The_Turret.md) |
-| CE-1110 | backend | a heading-only attribute patch keeps the body's pitch and roll (the steer's last row) | [handoff](batches/HANDOFF_Ui_To_Backend_Heading_Patch_Keeps_Attitude.md) |
+| CE-1110 | backend | ✅ DONE — a heading-only attribute patch keeps the body's pitch and roll | [handoff](batches/HANDOFF_Ui_To_Backend_Heading_Patch_Keeps_Attitude.md) |
 
 ### Next, in order (leans)
 
 1. **Merge `behaviors`** (and `backend` if it moved); re-run Presentation + `Map3DFrameRail`; the type-picker golden and `OldFamily` theory rows are the usual merge casualties.
 2. **§6n's "STILL BLOCKED" list** — the sheaf aim points and the fire-mission form were waiting on behaviors' IF-2, which is now BUILT (`Indirect Fire §3.7`): re-measure and draw them (aim points of a battery's sheaf; the Strike order's fire-mission fields in the order form).
 3. **Live check of P3** — run a cluster (`docs/RUNBOOK_Cluster_Debugging_Over_Http.md`) with a banking UH-60 / A-10 and confirm the receiving node draws its bank (backend's report asks the ui lane for it).
-4. When CE-1109 / CE-1110 land: merge, re-shoot `CE1105_V` / `CE1102_V`, close the rows.
+4. When CE-1109 lands: merge, re-run the time-on-target rails / the IF-4 demo ②, close the row.
 
 ### How this session worked (reuse it)
 

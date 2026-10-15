@@ -17,6 +17,7 @@ known-conflict: it SUPERSEDES three places that frame DR as an IG-only presentat
   removes), docs/designs/IG/DESIGN-IG.md, and docs/projects/relationships/FDP-Network-Stack.md §12.6.
   Each is marked at the site.
 related-designs:
+  - docs/designs/airborne/DESIGN_Airborne_Insertion.md — a canopy's bank rides the replicated roll (D-5); a descending man is an air body whose position moves on its owner only
   - docs/designs/air-attack/DESIGN_Air_Operations.md — §9c: the live miss that produced R6 (a brain read a plane's SimVelocity)
   - DESIGN_Weapon_Layers.md — W-10 applies this model to TurretPose (azimuth, elevation, rates, sim stamp).
 -->

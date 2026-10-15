@@ -52,6 +52,10 @@ namespace Fdp.Toolkit.Combat
         public Entity HitEntity { get; internal set; }
         public float ArrivingDamage { get; internal set; }
         public float ArrivingPenetration { get; internal set; }
+        /// <summary>⭐ <c>CE-3209</c> — the body part the round met (a person's <c>PersonPart</c> name), null when it met no part.</summary>
+        public string? HitPart { get; internal set; }
+        /// <summary>⭐ <c>CE-3209</c> — the face it entered (front / side / rear / top), null without a part.</summary>
+        public string? HitFace { get; internal set; }
         public List<ShotCrossing> Crossings { get; } = new();
 
     }

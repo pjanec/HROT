@@ -919,5 +919,14 @@ namespace Fdp.Core
         /// chaff cloud) follows — origin, velocity, sink, sim time; every map host, recorded, never saved. ⚠ 389 measured free on backend,
         /// ui and behaviors 2026-10-15.</summary>
         public const int EffectFlight = 389;
+
+        /// <summary><c>PartDamage</c> — ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6): the damage level per
+        /// body part (a man's wounds, S2 a vehicle's compartments); the Health owner writes it, Brain group. ⚠ 390 measured free on backend,
+        /// ui and behaviors 2026-10-16.</summary>
+        public const int PartDamage = 390;
+
+        /// <summary><c>HitMarks</c> — ⭐ CE-3210 (HL-8): a ring of where rounds struck a body (part-local), written by the Muscle, every node
+        /// draws it; never saved. ⚠ 391 measured free 2026-10-16.</summary>
+        public const int HitMarks = 391;
     }
 }

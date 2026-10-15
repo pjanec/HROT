@@ -772,6 +772,39 @@ namespace Hrot.Map.Common.Tests
             NedTkbCatalog.RegisterAll(db);
             return db;
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-3213</c> (R-3011; 🔒 user: "Dis/hla gateway is planned, so dis type for ammo in tkb is desired") — every built-in round
+        /// carries its SISO DIS munition type from SISO-REF-010 v37: kind 2 with a SISO munition domain (1 anti-air · 2 anti-armour ·
+        /// 8 anti-personnel · 9 battlefield support) and a category (1 guided · 2 ballistic); the decoys stay expendables 8.2.x. Spot checks
+        /// pin the entries the catalog names exactly. 🔴 Red-proof: the coarse 2026-10-08 codes put the TOW in domain 9 and the Stinger in 2.
+        /// </summary>
+        [Fact]
+        public void CE3213_EveryBuiltInRound_CarriesItsSisoMunitionType()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            int rounds = 0;
+            foreach (var t in db.GetAll())
+            {
+                var d = t.DisType;
+                if (d.Kind == 8) { Assert.Equal((byte)2, d.Domain); Assert.InRange(d.Category, (byte)1, (byte)2); continue; }
+                rounds++;
+                Assert.True(d.Kind == 2, $"{t.Name}: kind {d.Kind}");
+                Assert.True(d.Domain is 1 or 2 or 8 or 9, $"{t.Name}: domain {d.Domain} is not a SISO munition domain this catalog uses");
+                Assert.True(d.Category is 1 or 2, $"{t.Name}: category {d.Category}");
+            }
+            Assert.True(rounds >= 30, $"only {rounds} rounds");
+            string Code(long type) => db.GetByType(type).DisType.ToString();
+            Assert.Equal("2.2.225.1.1.3.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile));        // BGM-71D TOW 2
+            Assert.Equal("2.2.225.1.8.0.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbJavelinMissile));    // Javelin
+            Assert.Equal("2.2.205.1.2.0.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbNlawMissile));       // NLAW/MBT-LAW
+            Assert.Equal("2.1.225.1.15.0.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbStingerMissile));   // Stinger — anti-AIR
+            Assert.Equal("2.9.225.2.85.1.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade));        // Fragmentation M67
+            Assert.Equal("2.8.225.2.1.4.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball));            // 5.56 x 45
+            Assert.Equal("2.2.225.2.3.2.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb25mmApdsT));          // M791 APDS-T
+            Assert.Equal("8.2.0.2.0.0.0", Code(Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare));                // an expendable, a flare
+        }
+}
 }
 

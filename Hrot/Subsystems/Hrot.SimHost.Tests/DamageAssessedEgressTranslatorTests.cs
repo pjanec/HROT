@@ -80,6 +80,19 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(25.5f, writer.Written[0].TotalDamage);
         }
 
+        /// <summary>⭐ <c>CE-3210</c> — the part it landed on crosses as its id + 1; a hit with no part sends 0.</summary>
+        [Fact]
+        public void CE3210_ThePartCrosses_AsIdPlusOne_NoPartIsZero()
+        {
+            var (translator, writer) = BuildTranslator();
+            var entity = RegisterEntity(netId: 7L);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f, HasBodyPart = 1, BodyPart = 0 /* ThighL */ });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 5f });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            Assert.Equal(new byte[] { 1, 0 }, new[] { writer.Written[0].BodyPart, writer.Written[1].BodyPart });
+        }
+
         // ── SC-2: Zero events → no write ─────────────────────────────────────
 
         /// <summary>

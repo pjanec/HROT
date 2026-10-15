@@ -33,5 +33,12 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>True when this event originated from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ <c>CE-3210</c> (hit location HL-6) — APPENDED: 1 when the damage landed on a body PART (<see cref="BodyPart"/>);
+        /// the Health owner then adds it to that part's <c>PartDamage</c> level.</summary>
+        public byte HasBodyPart;
+
+        /// <summary>⭐ <c>CE-3210</c> — the part id within the body plan.</summary>
+        public byte BodyPart;
     }
 }
