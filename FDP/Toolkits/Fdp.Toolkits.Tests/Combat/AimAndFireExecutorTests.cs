@@ -2250,6 +2250,33 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — a BROKEN weapon (its health at 0: a fragment or a blast) fires for nobody: CanFire says
+        /// <see cref="WeaponHold.Destroyed"/>, it arms its host no more (<see cref="WeaponSystems.WeaponOf"/>), no round leaves and its belt
+        /// is untouched — while it stays in the host's station (the others' mount indices hold). ⛔ Before: CanFire never read its health,
+        /// so a destroyed M2 kept firing. ✅ Red-proof (run): CanFire without the health check ⇒ rounds leave the broken M2 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3203_ABrokenStationWeapon_DoesNotFire_AndArmsNobody()
+        {
+            var (pickup, m2, _, channel, _) = Technical(rounds: 3);
+            _world.AddComponent(m2, new Health { Current = 0f, Max = 80f });
+
+            Assert.False(WeaponSystems.CanFire(_world, m2, out var why));
+            Assert.Equal(WeaponHold.Destroyed, why);
+            Assert.True(WeaponSystems.IsBroken(_world, m2));
+            Assert.Equal(Entity.Null, WeaponSystems.WeaponOf(_world, pickup));
+            Assert.Equal(WeaponSystems.ControlledMountBase, WeaponSystems.IndexOf(_world, pickup, m2));   // still in its station
+
+            _executor.OnEnter(pickup, ref channel, _world);
+            Assert.Equal(0, WsRun(pickup, ref channel, 3f, expectShooter: m2));
+            Assert.Equal(50, _world.GetComponent<WeaponState>(m2).Ammo);
+
+            _world.GetComponentRW<Health>(m2).Current = 1f;   // a damaged weapon still works
+            Assert.True(WeaponSystems.CanFire(_world, m2));
+            Assert.Equal(m2, WeaponSystems.WeaponOf(_world, pickup));
+        }
+
+        /// <summary>
         /// ⭐⭐ WS-3 (W-I, STEER_…_Crew_Presets) — the gunner is an ordinary man: killing him SILENCES the gun (the turret is released at
         /// once, so no granted round leaves after his death), and it fires again once another soldier boards the Gunner seat.
         /// ✅ Red-proof: the executor without the weapon-system hold ⇒ rounds keep leaving after the death ⇒ red.

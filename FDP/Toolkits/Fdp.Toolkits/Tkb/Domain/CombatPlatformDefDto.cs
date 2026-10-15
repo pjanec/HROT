@@ -60,5 +60,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <see cref="ArmorSide"/></b> (<c>ArmorModel.BlastSusceptibility</c>); a person always takes the full blast.
         /// </summary>
         public float BlastSusceptibility { get; init; } = -1f;
+
+        /// <summary>
+        /// ⭐ CE-3203 (DESIGN_Building_Interiors §3k.1; DESIGN_Weapon_Systems §5b) — the area (m²) this type presents to a burst's fragments.
+        /// A type that states it is EQUIPMENT to the area effect (a weapon: its own area, its casing armour, its own health). <b>−1 (default)
+        /// = derived</b>: a hull's collider silhouette, a man's stance area.
+        /// </summary>
+        public float PresentedAreaM2 { get; init; } = -1f;
     }
 }

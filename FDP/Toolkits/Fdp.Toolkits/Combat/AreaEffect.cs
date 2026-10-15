@@ -17,16 +17,64 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class AreaEffect
     {
-        /// <summary>
-        /// ⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — how many of a burst's <paramref name="count"/> fragments strike a hull presenting
-        /// <paramref name="area"/> m² at <paramref name="distance"/> m: a ground burst throws them over a hemisphere (2π r²), and they fade
-        /// to none at <paramref name="reach"/> — the fragment radius (their lost speed). The distance is never less than 0.5 m.
-        /// </summary>
-        public static float HullFragmentHits(float count, float area, float distance, float reach)
+        /// <summary>⭐ CE-3203 (DESIGN_Building_Interiors §3k.1, W-6″) — what a burst's fragments meet: a man, a hull, or a weapon (equipment).</summary>
+        public enum FragmentTarget : byte { Person = 0, Hull = 1, Equipment = 2 }
+
+        /// <summary>⭐ CE-3203 — the area a MAN presents to a ground burst, by stance (m²): standing 0.7, crouched 0.45, prone 0.15.</summary>
+        public static float PersonArea(Fdp.Toolkit.Tkb.Domain.StanceId stance) => stance switch
         {
-            if (count <= 0f || area <= 0f || reach <= 0f || distance >= reach) return 0f;
+            Fdp.Toolkit.Tkb.Domain.StanceId.Prone => 0.15f,
+            Fdp.Toolkit.Tkb.Domain.StanceId.Crouched => 0.45f,
+            _ => 0.7f,
+        };
+
+        /// <summary>⭐ CE-3203 — the share of a man body armour covers (the plates); the rest of him is open to a fragment.</summary>
+        public const float BodyArmourCoverage = 0.35f;
+
+        /// <summary>⭐ CE-3203 — one target's fragment result: the fragments that strike it, the chance one defeats its armour, the damage.</summary>
+        public readonly record struct FragmentResult(float Hits, float ArmourChance, float Damage);
+
+        /// <summary>
+        /// ⭐⭐ CE-3203 (DESIGN_Building_Interiors §3k.1, W-6″) — THE fragment law, for every target. Of the burst's
+        /// <see cref="Fdp.Toolkit.Tkb.Domain.WarheadDto.FragmentCount"/> fragments, <c>N · area / (2πr² + area)</c> strike a target presenting
+        /// <paramref name="area"/> m² at <paramref name="distance"/> m (a ground burst's hemisphere); each still flies at <c>e^(−r/λ)</c> of its
+        /// speed, so its damage and its penetration fall with it. One hit does a MAN <c>FragmentWoundDamage</c>, a hull or a weapon
+        /// <c>FragmentHitDamage</c> (a bullet's law), if it defeats <paramref name="armour"/> mm (a man's plates cover only
+        /// <see cref="BodyArmourCoverage"/> of him). Times the share of the target the rays reach (<paramref name="exposure"/>).
+        /// Null when the warhead states no fragment count (a hand-written TKB warhead): the caller keeps its old rule.
+        /// </summary>
+        public static FragmentResult? Fragments(Fdp.Toolkit.Tkb.Domain.WarheadDto w, FragmentTarget target, float area, float distance,
+                                                float armour, float exposure)
+        {
+            if (w.FragmentCount <= 0f || area <= 0f) return null;
             float r = MathF.Max(distance, 0.5f);
-            return count * area / (2f * MathF.PI * r * r) * (1f - r / reach);
+            if (w.FragmentRadiusM > 0f && r >= w.FragmentRadiusM) return new FragmentResult(0f, 0f, 0f);
+            float hits = w.FragmentCount * area / (2f * MathF.PI * r * r + area);
+            float speed = w.FragmentDragM > 0f ? MathF.Exp(-r / w.FragmentDragM) : 1f;
+            float chance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm * speed, armour);
+            float perHit;
+            if (target == FragmentTarget.Person)
+            {
+                chance = 1f - BodyArmourCoverage * (1f - chance);   // the plates cover the torso; a limb or the head is open
+                perHit = (w.FragmentWoundDamage > 0f ? w.FragmentWoundDamage : w.FragmentHitDamage) * speed;
+            }
+            else perHit = w.FragmentHitDamage * speed;
+            return new FragmentResult(hits, chance, hits * perHit * chance * MathF.Max(exposure, 0f));
+        }
+
+        /// <summary>⭐ CE-3203 — the distance at which a STANDING man in the open expects less than one point of fragment damage from
+        /// <paramref name="w"/>: the law's own reach (the generated <c>FragmentRadiusM</c>).</summary>
+        public static float FragmentHazardRadius(Fdp.Toolkit.Tkb.Domain.WarheadDto w)
+        {
+            var open = w with { FragmentRadiusM = 0f };
+            float lo = 0.5f, hi = 0.5f;
+            while (hi < 5000f && (Fragments(open, FragmentTarget.Person, 0.7f, hi, 0f, 1f)?.Damage ?? 0f) >= 1f) { lo = hi; hi *= 2f; }
+            for (int i = 0; i < 40; i++)
+            {
+                float mid = 0.5f * (lo + hi);
+                if ((Fragments(open, FragmentTarget.Person, 0.7f, mid, 0f, 1f)?.Damage ?? 0f) >= 1f) lo = mid; else hi = mid;
+            }
+            return MathF.Round(hi, 1);
         }
 
         /// <summary>Blast left right behind an obstacle taller than the target (W-7′: "≈ 0.3 right behind a tall wall").</summary>

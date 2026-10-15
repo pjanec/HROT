@@ -54,12 +54,12 @@ namespace Fdp.Toolkit.Combat
             if (CombatTkb.WarheadOf(world, ammo) is { HasAreaEffect: true } w)
             {
                 float kinetic = penetrator == Penetrator.Kinetic && pen > 0f ? armour : ArmourFacing(world, shooter, target, Penetrator.Kinetic);
-                float chance = ArmorModel.PenetrationChance(w.FragmentPenetrationMm, kinetic);
-                // ⭐ AE5 (§7.7) — a hull: the fragments that strike it with the burst at its own radius; a person: the dose
-                float radius = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.Radius(world, target);
-                area += ArmorModel.HullFragmentDamage(w, radius, Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target),
-                            radius, chance, 1f)
-                        ?? w.FragmentDamage * chance;
+                // ⭐ CE-3203 (Building Interiors §3k.1) — the burst's own law, a metre from a man / a weapon, at a hull's skin
+                var platformOf = CombatTkb.PlatformOf(world, target);
+                var (kind, size, at) = Systems.AreaEffectSystem.FragmentTargetOf(world, target, platformOf,
+                    Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target), Fdp.Toolkit.Tkb.Domain.StanceId.Standing, 1f);
+                area += AreaEffect.Fragments(w, kind, size, at, kinetic, 1f)?.Damage
+                        ?? w.FragmentDamage * ArmorModel.PenetrationChance(w.FragmentPenetrationMm, kinetic);
                 // ⭐ R-2019 D-M2 — the burst's own rule (R-212 A1): blast × the target's susceptibility (a person 1, a pickup 1, an MBT 0)
                 area += w.BlastLethalDamage * ArmorModel.BlastSusceptibility(CombatTkb.PlatformOf(world, target),
                     Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, target));

@@ -177,18 +177,27 @@ namespace Fdp.Toolkit.Tkb.Reference
                 FragmentPenetrationMm = pen,
                 FragmentDamage = c.PerKgExplosive * w,
                 // ⭐ AE5 (DESIGN_Armour_Hit_Model §7.7) — a hull is struck by fragments, each one round's damage
-                FragmentCount = casing / (fragG / 1000f),
+                //   ⭐ CE-3203 — a SHAPED CHARGE's body is mostly motor and liner (the liner becomes the jet): only its share fragments
+                FragmentCount = (kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge ? c.ShapedChargeFragmentingShare : 1f) * casing / (fragG / 1000f),
                 FragmentHitDamage = c.PerSqrtJoule * MathF.Sqrt(0.5f * (fragG / 1000f) * v0 * v0),
+                // ⭐ CE-3203 (Building Interiors §3k.1, W-6″) — the one law for a MAN too: a hit's wound, and the drag that slows it
+                FragmentWoundDamage = c.WoundPerSqrtJoule * MathF.Sqrt(0.5f * (fragG / 1000f) * v0 * v0),
+                FragmentDragM = c.DragMetresPerCbrtGram * MathF.Cbrt(fragG),
                 Fuze = d.FuzeDelayS > 0f ? Fdp.Toolkit.Tkb.Domain.FuzeKind.Time : Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact,
                 FuzeDelayS = d.FuzeDelayS,
                 Indirect = d.Indirect,
             };
+            // ⭐ CE-3203 — with the law stated, the fragments' radius is the LAW's: where a standing man in the open expects < 1 damage
+            if (dto.FragmentWoundDamage > 0f)
+                dto = dto with { FragmentRadiusM = Fdp.Toolkit.Combat.AreaEffect.FragmentHazardRadius(dto) };
             string blast = $"R = Z · W^⅓ (Z = {F(c.ZLethal)} / {F(c.ZInjury)}, W = {F(w)} kg) = {F(dto.BlastLethalRadiusM)} / {F(dto.BlastInjuryRadiusM)} m, " +
                            $"{F(c.BlastLethalDamage)} damage inside the lethal radius";
             string frag = $"v₀ = √2E · √(β/(1+β/2)) = {F(v0)} m/s (√2E = {F(c.Sqrt2E)}, β = {F(w)} / {F(casing)} kg casing); " +
                           $"pen = k · v₀ · √m = {F(pen)} mm (k = {F(c.FragmentK)}, m = {F(fragG)} g{(fragG > c.FragmentMassG ? $" = {F(c.FragmentMassG)} · ({F(casing)} / {F(c.MassAnchorCasingKg)})^{F(c.MassExponent)}" : "")}); " +
                           $"reach = {F(c.RadiusPerCbrtCasingKg)} · casing^⅓ = {F(reach)} m; damage = perKgExplosive · W = {F(dto.FragmentDamage)}; " +
-                          $"on a hull: {F(dto.FragmentCount)} fragments (casing / m), each perSqrtJoule · √(½ m v₀²) = {F(dto.FragmentHitDamage)}";
+                          $"{F(dto.FragmentCount)} fragments (casing / m{(kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge ? $" × {F(c.ShapedChargeFragmentingShare)}, a shaped charge" : "")}); on a hull each perSqrtJoule · √(½ m v₀²) = {F(dto.FragmentHitDamage)}; " +
+                          $"on a man: each woundPerSqrtJoule · √(½ m v₀²) = {F(dto.FragmentWoundDamage)}, speed e^(−r/{F(dto.FragmentDragM)} m); " +
+                          $"radius {F(dto.FragmentRadiusM)} m (a standing man expects < 1)";
             return new RefWarhead(dto, blast, frag);
         }
 
@@ -241,7 +250,7 @@ namespace Fdp.Toolkit.Tkb.Reference
         private sealed record Coefficients(Dictionary<string, float> Kinetic, Dictionary<string, float> Cone,
             Dictionary<string, float> HighExplosive, float PerSqrtJoule, float PerKgExplosive, float ZLethal, float ZInjury,
             float BlastLethalDamage, float Sqrt2E, float FragmentMassG, float FragmentK, float RadiusPerCbrtCasingKg,
-            float MassAnchorCasingKg, float MassExponent)
+            float MassAnchorCasingKg, float MassExponent, float DragMetresPerCbrtGram, float WoundPerSqrtJoule, float ShapedChargeFragmentingShare)
         {
             public bool KnowsType(string t) => Kinetic.ContainsKey(t) || Cone.ContainsKey(t) || HighExplosive.ContainsKey(t);
 
@@ -259,7 +268,9 @@ namespace Fdp.Toolkit.Tkb.Reference
                     Map("highExplosivePenetration", "factor"), V("damage", "perSqrtJoule"), V("damage", "perKgExplosive"),
                     V("blast", "zLethal"), V("blast", "zInjury"), V("blast", "lethalDamage"),
                     V("fragments", "sqrt2E"), V("fragments", "fragmentMassG"), V("fragments", "kPenetration"), V("fragments", "radiusPerCbrtCasingKg"),
-                    Opt("fragments", "massAnchorCasingKg", float.PositiveInfinity), Opt("fragments", "massExponent", 0f));   // absent ⇒ one mass
+                    Opt("fragments", "massAnchorCasingKg", float.PositiveInfinity), Opt("fragments", "massExponent", 0f),   // absent ⇒ one mass
+                    Opt("fragments", "dragMetresPerCbrtGram", 0f), Opt("fragments", "woundPerSqrtJoule", 0f),   // ⭐ CE-3203; absent ⇒ the old dose
+                    Opt("fragments", "shapedChargeFragmentingShare", 1f));
             }
         }
 

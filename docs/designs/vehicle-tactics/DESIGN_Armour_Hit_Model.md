@@ -453,3 +453,9 @@ warhead 0 before and after (its fragments do not pass 5 mm). ⚠ A weapon system
 B3). Rail: `AreaEffectSystemTests.AE5_AMk82_DestroysAPickupAt20m_OnlyHolesOneAt120m_AndLeavesAnMbtUnhurt`. Report:
 [REPORT_Backend_Fragments_On_Hulls.md](../../blueprints/batches/REPORT_Backend_Fragments_On_Hulls.md).
 
+⛔ **SUPERSEDED in part `2026-10-15` by `CE-3203`** — [Building Interiors §3k.1](../../DESIGN_Building_Interiors.md) (W-6″) makes this hull
+count the ONE fragment law for a man, a hull and a weapon: the `(1 − r/reach)` fade is replaced by the fragments' drag `e^(−r/λ)` (which also
+scales the penetration), and the count is `N · A / (2πr² + A)`. `AreaEffect.HullFragmentHits` / `ArmorModel.HullFragmentDamage` are gone
+(`AreaEffect.Fragments`). The AE5 rail still holds (a pickup at 20 m destroyed, at 120 m holed and mobile, the MBT unhurt); a weapon system is
+now EQUIPMENT with its own area (report B3 closed — Weapon Systems §5b).
+

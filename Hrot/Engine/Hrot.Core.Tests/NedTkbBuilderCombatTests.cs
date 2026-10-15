@@ -250,6 +250,41 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — EVERY weapon system type states how it breaks: its presented area (it is EQUIPMENT in a
+        /// burst, not a man), its casing (every face), its health and its blast share — and the sophisticated ones (optics, seekers,
+        /// electronics: the guided launchers, the sentry) are the fragile ones. ⛔ Before: one helper gave all 13 types 60 health and no
+        /// area. A data rail (not red-proved by a mutation: every value is written here).
+        /// </summary>
+        [Fact]
+        public void CE3203_EveryWeaponSystem_StatesHowItBreaks()
+        {
+            var db = BuildDatabase();
+            foreach (var (type, area, casing, health, blast) in new[]
+                     {
+                         (TkbEntityTypes.WeaponSystem_M2Hmg, 0.35f, 1.5f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_DshkHmg, 0.35f, 1.5f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_M134Minigun, 0.25f, 1f, 40f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Javelin, 0.3f, 0f, 20f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Nlaw, 0.15f, 0f, 15f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Law, 0.1f, 0f, 10f, 1f),
+                         (TkbEntityTypes.WeaponSystem_KornetTripod, 0.35f, 0f, 25f, 1f),
+                         (TkbEntityTypes.WeaponSystem_TowTripod, 0.4f, 0f, 25f, 1f),
+                         (TkbEntityTypes.WeaponSystem_SentryGun, 0.3f, 1f, 30f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar60, 0.2f, 2f, 60f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar81, 0.3f, 2f, 80f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Mortar120, 0.5f, 2f, 120f, 1f),
+                         (TkbEntityTypes.WeaponSystem_Howitzer105, 3.0f, 6f, 400f, 0.5f),
+                     })
+            {
+                var c = db.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>()!;
+                Assert.Equal((area, health, blast), (c.PresentedAreaM2, c.MaxHealth, c.BlastSusceptibility));
+                Assert.Equal((casing, casing, casing, casing), (c.ArmorFront, c.ArmorSide, c.ArmorRear, c.ArmorTop));
+            }
+            float Health(long t) => db.GetByType(t)!.GetDescriptor<CombatPlatformDefDto>()!.MaxHealth;
+            Assert.True(Health(TkbEntityTypes.WeaponSystem_Javelin) < Health(TkbEntityTypes.WeaponSystem_M2Hmg) / 2f, "a seeker breaks sooner than a receiver");
+        }
+
+        /// <summary>
         /// ⭐⭐ M7 (DESIGN_FPV_Drone §2) — TKB type 403, the FPV drone: a Rotorcraft (Gen.Locomotion) with Gen.Flight and NO ground physics,
         /// 10 hp, its weapon = its warhead (munition 6016, reach = its contact radius), heard as rotors, sees 1500 m, DIS air / UAV, hostile.
         /// </summary>

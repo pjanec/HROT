@@ -75,6 +75,7 @@ namespace Hrot.Editor.DebugApi
                         ["fragmentArmourChance"] = x.FragmentArmourChance, ["fragmentDamage"] = x.FragmentDamage,
                         ["blastFalloff"] = x.BlastFalloff, ["blastBarrier"] = x.BlastBarrier, ["blastShadow"] = x.BlastShadow,
                         ["blastSusceptibility"] = x.BlastSusceptibility,   // ⭐ R-2019 D-M2
+                        ["fragmentHits"] = x.FragmentHits, ["target"] = x.Target.ToString(),   // ⭐ CE-3203
                         ["blastDamage"] = x.BlastDamage, ["totalDamage"] = x.TotalDamage, ["shieldedBy"] = x.ShieldedBy,
                         ["at"] = V(x.At),   // ⭐ CE-3117 — where it stood
                     });
