@@ -1,0 +1,188 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a2200d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8501
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8511
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          120,
+          430,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8512
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Pickup",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 300,
+        "Max": 300
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          470,
+          440,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8513
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\": {\"Objective\": [470, 440, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          478,
+          446,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8514
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\": {\"Objective\": [478, 446, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

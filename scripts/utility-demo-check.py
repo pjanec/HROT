@@ -1602,6 +1602,42 @@ def run_ifv_standoff(c, timeout):
     print(f"    health: RPG men A1 {health(a1)} · A2 {health(a2)} · C {health(rc)}")
 
 
+# ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
+#   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop against an enemy T-72 (440 m), a pickup (390 m) and two
+#   riflemen (380 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
+#   target (read from each shot's penetration — the kinetic APFSDS against the tank, a lower-penetration HE / HEAT at the soft ones).
+def run_tank_ammo(c, timeout):
+    ids = ids_by_name()
+    tank, t72, pickup = ids.get("Tank"), ids.get("Enemy Tank"), ids.get("Pickup")
+    riflemen = [ids.get("Rifleman 1"), ids.get("Rifleman 2")]
+    if not c.ok(None not in (tank, t72, pickup, *riflemen), "the tank, the T-72, the pickup and the riflemen are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots = {}
+    end = time.time() + timeout + 200
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        if all((health(e) or 0) <= 0 for e in (t72, pickup, *riflemen)):
+            break
+        time.sleep(0.5)
+    mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
+    if mine:
+        print("    a shot's keys:", sorted(mine[0].keys()))
+    name = {v: k for k, v in ids.items()}
+    by_target = {}
+    for x in mine:
+        by_target.setdefault(name.get(x.get("target"), x.get("target")), []).append(x)
+    for t, xs in by_target.items():
+        print(f"    at {t}: {len(xs)} rounds, penetration {sorted({round(x.get('penetration') or 0) for x in xs})}, weapon {sorted({x.get('weaponIndex') for x in xs})}")
+    hit = [n for n in ("Enemy Tank", "Pickup", "Rifleman 1", "Rifleman 2") if n in by_target]
+    c.ok(len(hit) >= 3, f"① it fires at the tank, the pickup and the men — {hit}")
+    pen = lambda n: max((x.get("penetration") or 0 for x in by_target.get(n, [])), default=0)
+    soft = max(pen("Pickup"), pen("Rifleman 1"), pen("Rifleman 2"))
+    c.ok(pen("Enemy Tank") > 0 and pen("Enemy Tank") > soft, f"② a different round for the tank — penetration {pen('Enemy Tank'):.0f} vs {soft:.0f} at the soft targets")
+    print(f"    health: tank {health(tank)} · T-72 {health(t72)} · pickup {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
+
+
 def _turn(bearings, start, stop):
     total, last = 0.0, None
     for t, b in bearings:
@@ -1813,6 +1849,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-air-defence": run_air_defence,
              "ua-tank-corner": run_tank_corner,
              "ua-ifv-standoff": run_ifv_standoff,
+             "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 
