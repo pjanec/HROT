@@ -124,6 +124,11 @@ namespace Fdp.Toolkit.Physics.Systems
                         if (shot != null)
                         {
                             shot.HitEntity = hit.HitEntity;
+                            if (hit.HasBodyPart != 0)   // ⭐ CE-3209 — the part and the face, for /combat/shots
+                            {
+                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart);
+                                shot.HitFace = ((Fdp.Toolkit.Combat.Facing)hit.Face).ToString();
+                            }
                             shot.ArrivingDamage = damage;
                             shot.ArrivingPenetration = penetration;
                             Fdp.Toolkit.Combat.ShotLog.End(shot, Fdp.Toolkit.Combat.ShotOutcome.Hit,
@@ -149,6 +154,9 @@ namespace Fdp.Toolkit.Physics.Systems
                         Penetration = penetration,
                         Damage      = damage,
                         Ammo        = ammo,
+                        HasBodyPart = hit.HasBodyPart,   // ⭐ CE-3209 (HL-5) — the part met and the face entered
+                        BodyPart    = hit.BodyPart,
+                        Face        = hit.Face,
                     });
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered

@@ -139,7 +139,8 @@ namespace Fdp.Toolkit.Physics.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-3136</c> P-2 (peek-and-fire D2) — a ROUND hits a person only inside the body band of its LOGICAL stance (feet …
-        /// highest body point): a standing man is hit at 0.9 m and missed at 2.5 m; a PRONE man (top ≈ 0.3 m) is missed at 0.9 m —
+        /// highest body point): a standing man is hit at 1.2 m (⭐ CE-3209: his torso — at 0.9 m the round now passes between his legs)
+        /// and missed at 2.5 m; a PRONE man (top ≈ 0.3 m) is missed at 0.9 m —
         /// the round through a window passes over a man lying below the sill — and hit at 0.2 m. 🔴 Red-proof: the circle alone
         /// hit at every height. ⭐ A sight/query ray keeps the circle (any height), and so does a vehicle.
         /// </summary>
@@ -147,7 +148,7 @@ namespace Fdp.Toolkit.Physics.Tests
         public void P2_ARoundHitsAPersonOnlyInsideTheBodyBandOfItsStance()
         {
             var standing = SpawnPerson(null);
-            Assert.Equal(standing, Shoot(0.9f).HitEntity);
+            Assert.Equal(standing, Shoot(1.2f).HitEntity);
             Assert.Equal(0, Shoot(2.5f).HasHit);
             Assert.Equal(1, Shoot(2.5f, bullet: false).HasHit);   // a sight ray: unchanged
 
@@ -380,6 +381,98 @@ namespace Fdp.Toolkit.Physics.Tests
 
             Assert.Equal(man, FireRound(new Vector3(0f, 0f, 1f), new Vector3(20f, 0f, 1f)).HitEntity);
         }
+        // ── ⭐⭐ CE-3209 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md S1a) — a round meets a person's PARTS ─────────
+
+        /// <summary>A round from x = 0 to x = 20 at (<paramref name="y"/>, <paramref name="z"/>) — across a man standing at (10, 0) facing +x,
+        /// so it arrives on his BACK.</summary>
+        private RaycastHit ShootAt(float y, float z, RaycastSolverSystem? sys = null) => FireRoundWith(sys, new Vector3(0f, y, z), new Vector3(20f, y, z));
+
+        private RaycastHit FireRoundWith(RaycastSolverSystem? sys, Vector3 from, Vector3 to)
+        {
+            var view = (ISimulationView)_world;
+            _world.Bus.Publish(new RaycastRequestEvent { Start = from, End = to, RayId = PhysicsConstants.PackBulletRayId(91), LayerMask = 1 });
+            _world.Bus.SwapBuffers();
+            (sys ?? new RaycastSolverSystem()).Execute(view, 0.016f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new RaycastResultMaterializationSystem().Execute(view, 0.016f);
+            int slot = (int)((uint)PhysicsConstants.PackBulletRayId(91) % (uint)PhysicsConstants.RaycastBatchCapacity);
+            return _world.GetSingleton<RaycastBatchData>().Hits[slot];
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3209</c> (HL-2, HL-5) — a round meets the PART it crosses: at head height his Head, at chest height his Torso, through
+        /// one thigh that Thigh; the face entered is his REAR for a round from behind and his FRONT for one from ahead. 🔴 Red-proof: with
+        /// <c>PersonParts</c> off the hit carries no part (the old circle and band).
+        /// </summary>
+        [Fact]
+        public void CE3209_ARound_MeetsThePartItCrosses_AndTheFaceItEntered()
+        {
+            var man = SpawnPerson(null);
+            var head = ShootAt(0f, 1.6f);
+            Assert.Equal((man, (byte)1, Fdp.Toolkit.Physics.BodyParts.PersonPart.Head), (head.HitEntity, head.HasBodyPart, head.BodyPart));
+            Assert.Equal((byte)Fdp.Toolkit.Combat.Facing.Rear, head.Face);                 // from behind him
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso, ShootAt(0f, 1.2f).BodyPart);
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.PersonPart.ThighL, ShootAt(0.11f, 0.68f).BodyPart);
+            var ahead = FireRoundWith(null, new Vector3(20f, 0f, 1.2f), new Vector3(0f, 0f, 1.2f));   // from ahead of him
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso, (byte)Fdp.Toolkit.Combat.Facing.Front), (ahead.BodyPart, ahead.Face));
+
+            var old = ShootAt(0f, 1.6f, new RaycastSolverSystem { PersonParts = false });
+            Assert.Equal((man, (byte)0), (old.HitEntity, old.HasBodyPart));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3209</c> — the body has GAPS the old band did not: a round between a standing man's legs at knee height misses him, and so
+        /// does one past his shoulder; a round over a PRONE man at 0.4 m misses, at 0.15 m meets his torso. 🔴 Red-proof: the circle + band
+        /// hit the round between the legs.
+        /// </summary>
+        [Fact]
+        public void CE3209_ARoundBetweenHisLegs_OrPastHisShoulder_MissesHim()
+        {
+            var man = SpawnPerson(null);
+            Assert.Equal(0, ShootAt(0f, 0.5f).HasHit);                       // between the shins
+            Assert.Equal(0, ShootAt(0.4f, 1.55f).HasHit);                    // past his shoulder, beside his head
+            Assert.Equal(man, ShootAt(0f, 0.5f, new RaycastSolverSystem { PersonParts = false }).HitEntity);   // the old band hit it
+
+            _world.AddComponent(man, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Prone });
+            Assert.Equal(0, ShootAt(0f, 0.4f).HasHit);
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso, ShootAt(0f, 0.15f).BodyPart);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3209</c> (HL-2 tier ②) — a round that passes 3 m from a man is rejected by his bounding SPHERE: no part is tested.
+        /// </summary>
+        [Fact]
+        public void CE3209_TheBoundingSphere_RejectsARoundThatPassesBy_BeforeAnyPartTest()
+        {
+            SpawnPerson(null);
+            var sys = new RaycastSolverSystem();
+            Assert.Equal(0, ShootAt(3f, 1.2f, sys).HasHit);
+            Assert.Equal((1L, 0L), (sys.SphereRejects, sys.PartTests));
+            ShootAt(0f, 1.2f, sys);
+            Assert.Equal(1L, sys.PartTests);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3209</c> (HL-2 tier ①) — the cell walk finds the man on the line in a CROWD of 100 standing just off it (the old
+        /// midpoint disc stopped at 64 candidates, silently), and counts no overflow.
+        /// </summary>
+        [Fact]
+        public void CE3209_InACrowd_TheManOnTheLine_IsStillFound()
+        {
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            for (int i = 0; i < 100; i++)
+            {
+                var e = SpawnCollider(new Vector2(5f + (i % 10) * 0.9f, 2.5f + (i / 10) * 0.5f), radius: 0.4f, layer: 1);
+                _world.AddComponent(e, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Pedestrian });
+            }
+            var man = SpawnPerson(null);                                       // at (10, 0), added last
+            _world.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = 0.4f });
+            var sys = new RaycastSolverSystem();
+            Assert.Equal(man, ShootAt(0f, 1.2f, sys).HitEntity);
+            Assert.Equal(0L, sys.CandidateOverflows);
+        }
+
 }
 }
 

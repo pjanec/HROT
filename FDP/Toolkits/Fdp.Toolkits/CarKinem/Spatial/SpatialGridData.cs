@@ -14,5 +14,9 @@ namespace CarKinem.Spatial
     public struct SpatialGridData
     {
         public SpatialHashGrid Grid;
+
+        /// <summary>⭐ <c>CE-3209</c> (HL-2) — the largest collider radius placed in <see cref="Grid"/> this frame: a round's cell walk pads by
+        /// it (an entity's grid point is its body's centre, its body reaches this far). 0 = not measured (a grid built by hand).</summary>
+        public float MaxRadius;
     }
 }

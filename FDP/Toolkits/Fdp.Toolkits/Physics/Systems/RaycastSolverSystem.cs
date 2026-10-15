@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Numerics;
 using System.Threading.Tasks;
 using CarKinem.Spatial;
@@ -56,6 +57,32 @@ namespace Fdp.Toolkit.Physics.Systems
         /// </para>
         /// </summary>
         public IRaycastBackend? RaycastBackend { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-2) — a ROUND meets a PERSON by his body
+        /// parts (tier ② the pose's bounding sphere, tier ③ the oriented boxes), not by his circle and stance band. On by default; off only
+        /// to measure the old path (the crowd benchmark) — ⛔ never a production switch.
+        /// </summary>
+        public bool PersonParts { get; set; } = true;
+
+        /// <summary>⭐ <c>CE-3209</c> (HL-2 tier ①) — the cell walk along the segment. On by default; off only to measure the old midpoint disc
+        /// (½ length + 5 m, 64 candidates) in the crowd benchmark — ⛔ never a production switch.</summary>
+        public bool CellWalk { get; set; } = true;
+
+        /// <summary>⭐ <c>CE-3209</c> — rounds whose tier-② sphere test rejected a person (so no part was tested). Diagnostics and rails.</summary>
+        public long SphereRejects => Interlocked.Read(ref _sphereRejects);
+
+        /// <summary>⭐ <c>CE-3209</c> — persons whose parts a round was tested against (tier ③).</summary>
+        public long PartTests => Interlocked.Read(ref _partTests);
+
+        /// <summary>⭐ <c>CE-3209</c> — casts whose broad phase found more candidates than its buffer holds (a crowd of hundreds along one
+        /// segment). The cap used to be 64 and silent; it is now <see cref="MaxCandidates"/> and counted.</summary>
+        public long CandidateOverflows => Interlocked.Read(ref _candidateOverflows);
+
+        /// <summary>The broad phase's candidate buffer per cast (tier ①).</summary>
+        public const int MaxCandidates = 512;
+
+        private long _sphereRejects, _partTests, _candidateOverflows;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -119,19 +146,28 @@ namespace Fdp.Toolkit.Physics.Systems
                 var start2D = new Vector2(req.Start.X, req.Start.Y);
                 var end2D   = new Vector2(req.End.X,   req.End.Y);
 
-                // Broad-phase: AABB query centred on the ray's midpoint.
-                Vector2 midpoint    = (start2D + end2D) * 0.5f;
-                float   queryRadius = Vector2.Distance(start2D, end2D) * 0.5f
-                                      + PhysicsConstants.QueryExpansionRadius;
+                // ⭐⭐ CE-3209 (HL-2, tier ①) — the cells ALONG the segment, padded by the largest body radius in the grid (a person's
+                //   body reaches PersonBody.MaxBoundRadius from its point). ⛔ Was a disc of ½ length + 5 m round the midpoint, capped at
+                //   64 silently: a 70 m segment visited ~16 × 16 cells, and in a crowd the man on the line could be dropped.
+                float pad = gridData.MaxRadius > 0f
+                    ? MathF.Max(gridData.MaxRadius, Fdp.Toolkit.Physics.BodyParts.PersonBody.MaxBoundRadius)
+                    : PhysicsConstants.QueryExpansionRadius;   // a grid built by hand (no radius measured): the old pad
 
                 unsafe
                 {
-                Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[PhysicsConstants.MaxBroadphaseCandidates];
-                int nc = grid.QueryNeighbors(midpoint, queryRadius, candidates);
+                Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[MaxCandidates];
+                bool overflow = false;
+                int nc = CellWalk
+                    ? grid.QuerySegment(start2D, end2D, pad, candidates, out overflow)
+                    : grid.QueryNeighbors((start2D + end2D) * 0.5f, Vector2.Distance(start2D, end2D) * 0.5f + PhysicsConstants.QueryExpansionRadius,
+                                          candidates[..PhysicsConstants.MaxBroadphaseCandidates]);   // the old disc, measured only
+                if (overflow) Interlocked.Increment(ref _candidateOverflows);
 
                 float  bestT   = float.MaxValue;
                 Entity bestEnt = default;
                 bool   anyHit  = false;
+                bool   bestHasPart = false;
+                Fdp.Toolkit.Physics.BodyParts.BodyPartHitResult bestPart = default;
 
                 // ── Narrow phase ──────────────────────────────────────────────────────────────
                 for (int j = 0; j < nc; j++)
@@ -160,6 +196,27 @@ namespace Fdp.Toolkit.Physics.Systems
                     var tf  = repo.GetComponent<SimTransform>(candidate);
                     var c2D = new Vector2(tf.Position.X, tf.Position.Y);
 
+                    // ⭐⭐ CE-3209 (HL-2 tiers ②–③, HL-5) — a ROUND meets a PERSON by his parts: the pose's bounding sphere first (most
+                    //   candidates stop there), then the oriented boxes the figure draws (PersonBody, generated from it). The first box
+                    //   entered wins; the hit carries the part, the face entered and the point in the part.
+                    if (PersonParts && PhysicsConstants.IsBulletRay(req.RayId) && PhysicsColliderReaders.IsPerson(repo, candidate))
+                    {
+                        var pose  = Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(repo, candidate);
+                        float scale = Fdp.Toolkit.Physics.BodyParts.PersonBody.ScaleOf(collider.Height);
+                        var (bc, br) = Fdp.Toolkit.Physics.BodyParts.PersonBody.Bound(pose);
+                        var sphereCentre = tf.Position + Vector3.Transform(bc * scale, tf.Rotation);
+                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.SegmentTouchesSphere(req.Start, req.End, sphereCentre, br * scale))
+                        {
+                            Interlocked.Increment(ref _sphereRejects);
+                            continue;
+                        }
+                        Interlocked.Increment(ref _partTests);
+                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(Fdp.Toolkit.Physics.BodyParts.PersonBody.Boxes(pose),
+                                tf.Position, tf.Rotation, scale, req.Start, req.End, out var part)) continue;
+                        if (part.T < bestT) { bestT = part.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = part; }
+                        continue;
+                    }
+
                     // ⭐ M1 (DESIGN_Armour_Hit_Model §2) — a ROUND hits a VEHICLE only inside its height band (feet … feet + collider
                     //   Height): a round passing over a hull misses it, and one dropping onto it meets the roof — the first point of the
                     //   segment inside the circle AND the band (a cylinder; RaycastCircle cannot answer a segment wholly inside). A
@@ -168,7 +225,7 @@ namespace Fdp.Toolkit.Physics.Systems
                     {
                         if (!Intersection2D.SegmentInCircle(start2D, end2D, c2D, collider.Radius, out float tIn, out float tOut)) continue;
                         if (!ZBandOverlap(req.Start.Z, req.End.Z, tf.Position.Z, tf.Position.Z + collider.Height, ref tIn, ref tOut)) continue;
-                        if (tIn < bestT) { bestT = tIn; bestEnt = candidate; anyHit = true; }
+                        if (tIn < bestT) { bestT = tIn; bestEnt = candidate; anyHit = true; bestHasPart = false; }
                         continue;
                     }
 
@@ -192,6 +249,7 @@ namespace Fdp.Toolkit.Physics.Systems
                             bestT   = t;
                             bestEnt = candidate;
                             anyHit  = true;
+                            bestHasPart = false;
                         }
                     }
                 }
@@ -208,6 +266,10 @@ namespace Fdp.Toolkit.Physics.Systems
                     Start        = req.Start,
                     End          = req.End,
                     IgnoreEntity = req.IgnoreEntity,
+                    HasBodyPart  = (byte)(anyHit && bestHasPart ? 1 : 0),   // ⭐ CE-3209
+                    BodyPart     = bestHasPart ? bestPart.Part : (byte)255,
+                    Face         = bestHasPart ? (byte)bestPart.Face : (byte)0,
+                    LocalPoint   = bestHasPart ? bestPart.LocalPoint : Vector3.Zero,
                 };
                 } // end unsafe
             });

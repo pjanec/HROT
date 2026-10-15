@@ -75,7 +75,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     var targetTf = repo.GetComponent<SimTransform>(targetEntity);
                     var travel = new Vector3(evt.TravelX, evt.TravelY, evt.TravelZ);
                     Facing facing;
-                    if (travel.LengthSquared() > 1e-8f)
+                    // ⭐ CE-3209 (HL-5) — a round that met a body PART: the face it ENTERED (the part's side, in the body's frame)
+                    if (evt.HasBodyPart != 0)
+                        facing = (Facing)evt.Face;
+                    else if (travel.LengthSquared() > 1e-8f)
                         facing = ArmorModel.FacingOfArrival(targetTf, travel);
                     else
                     {
