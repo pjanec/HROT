@@ -1450,6 +1450,58 @@ def run_air_attack(c, timeout):
     c.ok((health(otruck) or 0) <= 0, f"⑤ the orbited truck is destroyed — Health {health(otruck)}")
 
 
+# ── ua-air-defence (CE-2191; docs/designs/air-attack/DESIGN_Air_Operations.md §7e/§7f) — the ground fires at aircraft, aircraft evade ──
+#   An Apache attacks a truck beside a Stinger gunner; a doors-off UH-60 circles a truck beside a ZU-23 technical. Every ground unit
+#   stands ON basic-desert's 600 m terrain (off it the perception grid sees nobody — CE-2194).
+
+def run_air_defence(c, timeout):
+    ids = ids_by_name()
+    apache, uh60 = ids.get("Apache"), ids.get("Door Gunship UH-60")
+    gunner, tech = ids.get("Stinger Gunner"), ids.get("ZU-23 Technical")
+    launcher, zu23 = ids.get("Stinger (MANPADS)"), ids.get("ZU-23-2")
+    if not c.ok(None not in (apache, uh60, gunner, tech, launcher, zu23), f"the aircraft, the gunner, the technical and their weapons are loaded — launcher {launcher}, ZU-23 {zu23}"):
+        return
+    call("POST", "/sim/play", {})
+    shots, warned, warn, track, evade = {}, None, None, [], []
+    end = time.time() + timeout + 120
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        call("POST", "/perspective", {"name": "CGF"})
+        comps = (data(call("GET", f"/entities/{apache}")) or {}).get("Components") or {}
+        mw = comps.get("MissileWarning")
+        if mw and warned is None:
+            warned, warn = t, mw
+        pa = position(apache)
+        if pa:
+            track.append((t, pa))
+        call("POST", "/perspective", {"name": "Scenario"})
+        missiles = [x for x in shots.values() if x.get("shooter") == launcher]
+        guns = [x for x in shots.values() if x.get("shooter") == zu23]
+        if warned is not None and t > warned + 20 and len(guns) >= 20:
+            break
+        time.sleep(0.5)
+
+    missiles = [x for x in shots.values() if x.get("shooter") in (launcher, gunner)]
+    guns = [x for x in shots.values() if x.get("shooter") in (zu23, tech)]
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    for x in missiles[:2] + guns[:2]:
+        print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "ammo", "muzzle", "aim", "end", "hit", "outcome")})
+    c.ok(len(missiles) >= 1, f"① the Stinger gunner fired at an aircraft — {len(missiles)} missile(s)")
+    c.ok(warned is not None, f"① the Apache was warned of the missile — {warn}")
+    if warned is not None:
+        before = [p for t, p in track if warned - 3 <= t < warned]
+        after = [p for t, p in track if warned + 2 <= t <= warned + 6]
+        print(f"    the Apache around the warning: before {before[-1:] if before else None} after {after[:1]} … {after[-1:]}")
+    c.ok(len(guns) >= 10, f"② the ZU-23 fired at an aircraft — {len(guns)} rounds")
+    print(f"    health: Apache {health(apache)} · UH-60 {health(uh60)} · gunner {health(gunner)} · technical {health(tech)}")
+
+
 def _turn(bearings, start, stop):
     total, last = 0.0, None
     for t, b in bearings:
@@ -1658,6 +1710,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2173 slice 5 — a plane bombs a point (Air Operations §9c)
              "ua-air-strike": run_air_strike,
              "ua-air-attack": run_air_attack,
+             "ua-air-defence": run_air_defence,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 
