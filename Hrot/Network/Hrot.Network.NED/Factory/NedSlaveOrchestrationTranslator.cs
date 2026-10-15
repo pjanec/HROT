@@ -18,6 +18,9 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
     private readonly NodeOpSlaveTranslator       _nodeOpTranslator;
     private readonly ClusterOpEgressTranslator   _egressTranslator;
 
+    /// <summary>⭐⭐ P6 part 2 (Q91 §4-E2) — every node receives files sent over DDS into its own staging root (R-4000).</summary>
+    private readonly Hrot.Network.NED.Transfer.DdsFileReceiver _fileReceiver;
+
     public NedSlaveOrchestrationTranslator(DdsParticipant participant, FdpEventBus bus, int nodeId)
     {
         if (participant == null) throw new ArgumentNullException(nameof(participant));
@@ -30,7 +33,10 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
             bus:                bus,
             nodeId:             nodeId,
             capabilitiesWriter: new DdsWriter<NodeCapabilitiesTopic>(participant),   // CE-285 (C-cap)
-            clusterStateReader: new DdsReader<ClusterStateTopic>(participant));      // ⭐ C2 — the session this node follows
+            clusterStateReader: new DdsReader<ClusterStateTopic>(participant),       // ⭐ C2 — the session this node follows
+            transportCapabilities: ShareToken(nodeId));                              // ⭐ P6 N5 — how the master reaches this node
+
+        _fileReceiver = new Hrot.Network.NED.Transfer.DdsFileReceiver(participant, nodeId, NodeRoot(nodeId));
 
         _egressTranslator = new ClusterOpEgressTranslator(bus, participant);
     }
@@ -40,12 +46,21 @@ internal sealed class NedSlaveOrchestrationTranslator : ISlaveOrchestrationTrans
     {
         _nodeOpTranslator.Tick();
         _egressTranslator.Tick();
+        _fileReceiver.Tick();
     }
+
+    private static string NodeRoot(int nodeId)
+        => Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeStagingRoot(nodeId);
+
+    /// <summary>⭐ The share this node advertises: its own staging root, unless the deployment says otherwise (a remote Player: none).</summary>
+    private static string[] ShareToken(int nodeId)
+        => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ForThisProcess(NodeRoot(nodeId)) is { } t ? new[] { t } : Array.Empty<string>();
 
     /// <inheritdoc/>
     public void Dispose()
     {
         _nodeOpTranslator.Dispose();
         _egressTranslator.Dispose();
+        _fileReceiver.Dispose();
     }
 }

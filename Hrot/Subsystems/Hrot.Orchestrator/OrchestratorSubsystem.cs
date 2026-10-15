@@ -164,6 +164,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.P
             // ⭐⭐⭐ HN-037 — type-tested: only the NED factory hosts a real authority (docs/DESIGN_Deterministic_Network_Ids.md §11).
             IdAuthority       = _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority,
             FileDialogService = _fileDialogService,
+            DdsTransfer       = _networkFactory?.CreateFileTransferProvider(),   // ⭐ P6 part 2 — DDS to nodes with no share
         });
 
         // The orchestrator is also a cluster NODE (diagnostics dump) — host-only, not part of the core.

@@ -328,6 +328,10 @@ public sealed class NedNetworkFactory : INetworkFactory
             : new Hrot.Core.Network.NullOrchestrationTranslator();
 
     /// <inheritdoc/>
+    /// <inheritdoc/>
+    public Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? CreateFileTransferProvider()
+        => _participant != null ? new Hrot.Network.NED.Transfer.DdsFileTransferProvider(_participant) : null;   // ⭐ P6 part 2
+
     public IDisposable CreateIdAllocatorServer()
         => _participant != null
             ? new HostedIdAllocatorServer(_participant)

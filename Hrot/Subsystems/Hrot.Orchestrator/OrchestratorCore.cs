@@ -35,6 +35,9 @@ public sealed class OrchestratorCoreOptions
     /// <summary>The world's ONE id authority, reset at a scenario load (HN-037). Null ⇒ the host has none.</summary>
     public Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority? IdAuthority { get; init; }
 
+    /// <summary>⭐⭐ P6 part 2 (Q91 §4-E2) — the DDS file transport for nodes that advertised no share; null = share only (today).</summary>
+    public Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? DdsTransfer { get; init; }
+
     /// <summary>The file dialog the diagnostics panel opens.</summary>
     public required Fdp.Presentation.Abstractions.IFileDialogService FileDialogService { get; init; }
 }
@@ -115,7 +118,15 @@ public sealed class OrchestratorCore : IDisposable
         };
         _globalContext = new GlobalContextProcessManager(bus, contextHandler);
 
-        var storageGateway = new StorageGatewayModule();
+        // ⭐⭐ P6 part 2 — the transport per target: the share a node advertised, else DDS (when this host has one).
+        var transfer = o.DdsTransfer == null
+            ? StorageGatewayModule.DefaultProvider
+            : new Fdp.Toolkit.Orchestration.Transfer.RoutingTransferProvider(
+                StorageGatewayModule.DefaultProvider, o.DdsTransfer,
+                hasShare: nodeId => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ParseShare(
+                    _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null) != null,
+                nodeRootSeenByMaster: nodeId => OrchestrationConstants.GetNodeStagingRoot(OrchestrationConstants.ResolveStagingRoot(), nodeId));
+        var storageGateway = new StorageGatewayModule(transfer);
         _storage   = new StorageProcessManager(bus, storageGateway, nas);                         // TASK-S002
         _inventory = new AssetInventoryProcessManager(                                            // CGF1-S0506
             bus, storageGateway, nas, OrchestrationConstants.ResolveStagingRoot(), o.StagingNodeId);

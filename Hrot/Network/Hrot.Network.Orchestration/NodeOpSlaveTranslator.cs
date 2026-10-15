@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -30,6 +31,9 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
     private readonly DdsWriter<NodeHeartbeat>   _heartbeatWriter;
     private readonly DdsWriter<NodeCapabilitiesTopic>? _capabilitiesWriter;   // CE-285 (C-cap): null in tests / offline.
+
+    /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
+    private readonly string[] _transportCapabilities;
     private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
@@ -47,9 +51,11 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         int                        nodeId,
         JsonSerializerOptions?     jsonOptions = null,
         DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
-        DdsReader<ClusterStateTopic>?     clusterStateReader = null)
+        DdsReader<ClusterStateTopic>?     clusterStateReader = null,
+        string[]?                         transportCapabilities = null)
     {
         _clusterStateReader = clusterStateReader;
+        _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
@@ -131,7 +137,9 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 _capabilitiesWriter.Write(new NodeCapabilitiesTopic
                 {
                     NodeId           = caps.NodeId,
-                    CapabilitiesJson = JsonSerializer.Serialize(caps.Capabilities ?? Array.Empty<string>(), FdpJsonOptionsRegistry.DefaultRelaxed),
+                    CapabilitiesJson = JsonSerializer.Serialize(
+                        (caps.Capabilities ?? Array.Empty<string>()).Concat(_transportCapabilities).Distinct().ToArray(),
+                        FdpJsonOptionsRegistry.DefaultRelaxed),
                 });
             }
         }

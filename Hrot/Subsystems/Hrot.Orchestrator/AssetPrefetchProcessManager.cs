@@ -327,7 +327,7 @@ public sealed class AssetPrefetchProcessManager
             _ = System.Threading.Tasks.Task.Run(() =>
             {
                 int ok = 0, failed = 0;
-                StorageGatewayModule.SyncTkb(_tkbName, new[] { target }, _nasBasePath, ref ok, ref failed);
+                StorageGatewayModule.SyncTkb(_tkbName, new[] { target }, _nasBasePath, ref ok, ref failed, _gateway.Provider);   // ⭐ P6 — the node's transport
                 if (failed > 0)
                     FdpLog<AssetPrefetchProcessManager>.Error(
                         "[AssetPrefetchProcessManager] Join sync of TKB '{0}' to node {1} failed — the next scenario load retries it.",

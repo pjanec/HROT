@@ -199,6 +199,66 @@ namespace Hrot.NED.Descriptors.Orchestration
     /// ⚠ Keyed by the process id plus a stable 64-bit hash of the computer name (<c>NodeIdKeys.ComputerHash</c>); the name
     /// itself rides as data.
     /// </summary>
+    // ══ P6 part 2 (Q91 §4-E2, R-4002) — the DDS file transfer. Commands, not state: Reliable + Volatile (R-136 §1.1). ══
+
+    /// <summary>⭐ The sender offers files to named targets: path relative to the node's staging root, length, mtime, SHA-256.</summary>
+    [DdsTopic("FileOffer")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileOffer
+    {
+        [DdsKey] public long TransferId;
+        /// <summary>The DDS partition the chunks of THIS transfer travel in (only its targets join it).</summary>
+        [DdsManaged] public string Partition;
+        /// <summary>JSON <c>int[]</c> — the nodes this transfer is for.</summary>
+        [DdsManaged] public string TargetsJson;
+        /// <summary>JSON array of <c>{ RelativePath, Length, LastWriteUtcTicks, Sha256 }</c>, indexed by file index.</summary>
+        [DdsManaged] public string ItemsJson;
+    }
+
+    /// <summary>⭐ A target's answer to an offer: the file indices it lacks (the rest it already holds — same length + mtime).</summary>
+    [DdsTopic("FileNeed")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileNeed
+    {
+        [DdsKey] public long TransferId;
+        [DdsKey] public int NodeId;
+        /// <summary>JSON <c>int[]</c> of file indices.</summary>
+        [DdsManaged] public string NeededJson;
+    }
+
+    /// <summary>⭐ One 64 KB piece of one file, in the transfer's own partition.</summary>
+    [DdsTopic("FileChunk")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileChunk
+    {
+        [DdsKey] public long TransferId;   // ⭐ the probe's shape: one instance per transfer, KeepAll holds every chunk
+        public int FileIndex;
+        public int Seq;
+        public int SeqCount;
+        [DdsManaged] public byte[] Data;
+    }
+
+    /// <summary>
+    /// ⭐ A target's progress: the highest gap-free chunk of a file (every 8 chunks), or — with <c>FileIndex = -1</c> and
+    /// <c>Done</c> — its verdict on the whole transfer (<c>Code</c> is an <c>OrchestrationStatusCode</c>).
+    /// </summary>
+    [DdsTopic("FileAck")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileAck
+    {
+        [DdsKey] public long TransferId;
+        [DdsKey] public int NodeId;
+        [DdsKey] public int FileIndex;
+        public int ContiguousSeq;
+        public bool Done;
+        public int Code;
+        [DdsManaged] public string Message;
+    }
+
     [DdsTopic("NodeIdRequest")]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]

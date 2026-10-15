@@ -644,6 +644,62 @@ behaviour trees — still go round the provider, because a MIRROR deletes files 
 | rails | `NodeShareProviderTests` (new suite: bundled delivery keeping the mtime, skip, a failing node named, a missing source, cancel leaves no partial, no share ⇒ unreachable) · `StorageGatewayTests` + `ClusterMasterPrefetchTests` unchanged and green through the share | — |
 | ⏳ not yet | N2 (DDS provider + receiver on every node), N5 (the share token — only load-bearing once a node can be reached WITHOUT a share, so it ships with N2), N6 (progress into `ClusterOpStatus`), `AssetTreeSync` behind the provider. ✅ P8's H5 (the cancel stops the copy) shipped with this part | — |
 
+#### ⭐⭐ P6 part 2 BUILD DESIGN — the DDS transport and the route per node *(design `2026-10-15`, coordinator; `build-state: BUILT`)*
+
+```mermaid
+graph TD
+  GW[StorageGatewayModule pushes] --> RT[RoutingTransferProvider - NEW]
+  RT -->|node advertised hrot.transfer.share| SH[NodeShareProvider - part 1]
+  RT -->|no share advertised| DP[DdsFileTransferProvider - NEW, master side]
+  DP -->|FileOffer, FileChunk in partition hrot.xfer.id| RX[DdsFileReceiver - NEW, every node: ClusterSlave.Tick]
+  RX -->|FileNeed, FileAck| DP
+  RX --> DISK[the node's OWN staging root]
+  CAPS[every host's capabilities] -->|hrot.transfer.share = its staging root, unless HROT_TRANSFER_SHARE=none| RT
+```
+
+```mermaid
+classDiagram
+  class RoutingTransferProvider { <<NEW>> splits a request per target: share or DDS }
+  class DdsFileTransferProvider { <<NEW>> sender: offer, need, window of 64 KB chunks, acks }
+  class DdsFileReceiver { <<NEW>> one per node; temp file, length + SHA-256, restore mtime, rename }
+  class FileOffer { <<NEW topic>> TransferId, Partition, TargetsJson, ItemsJson }
+  class FileNeed { <<NEW topic>> TransferId, NodeId, NeededJson }
+  class FileChunk { <<NEW topic, per-transfer partition>> TransferId, FileIndex, Seq, SeqCount, Data }
+  class FileAck { <<NEW topic>> TransferId, NodeId, FileIndex, ContiguousSeq, Done, Code, Message }
+  class TransferTokens { <<NEW>> Share(path), ParseShare(tokens) }
+  class ClusterSlave { <<existing, grows>> ticks its receiver }
+  RoutingTransferProvider ..|> IFileTransferProvider
+  DdsFileTransferProvider ..|> IFileTransferProvider
+  RoutingTransferProvider --> NodeShareProvider
+  RoutingTransferProvider --> DdsFileTransferProvider
+  ClusterSlave --> DdsFileReceiver
+```
+
+*What the pictures show that prose hid:* nothing above the provider line changes — the gateway already hands requests to ONE
+provider; the route is decided per target from the greeting; and the receiver needs no orchestration message of its own: it
+reacts to offers naming it, and writes into the root it already knows (its own staging root).
+
+| ⭐ decision | lean · why · rejected |
+|---|---|
+| **route per target by the share token** (N5) | ⭐ every host advertises `hrot.transfer.share=<its staging root>` unless `HROT_TRANSFER_SHARE=none` (a remote Player). The master copies into an advertised share as today; any other target goes over DDS. ⛔ Rejected: a role-based rule (R-4000: deployment, not role) |
+| **items carry paths relative to the node's staging root** | ⭐ the master's view of a node root is `GetNodeStagingRoot(local, nodeId)`; the gateway's absolute destinations are under it, so the route converts once (`Path.GetRelativePath`). The receiver joins the same relative path to ITS root |
+| **the protocol is the measured one** (§4-E2 table): per-transfer partition, 64 KB chunks, a window beyond the slowest target, ACK every 8 chunks, done only when every target verified length + SHA-256, a `Write` timeout = back-pressure | ⭐ the probe (`experiments/dds-file-transfer/Xfer.cs`) is the skeleton |
+| **"already cached?" = the one freshness rule** (length + last-write time), checked by the receiver before it asks | ⭐ the receiver answers `FileNeed` with only what it lacks |
+| **the receiver runs in `ClusterSlave.Tick`** | ⭐ every node has one (ECS hosts and ExCon alike — R-4000); the receiver is optional there, so a slave without a participant has none |
+| ⚠ **files above a cap are refused** with a code (user J: not GBs) | default 512 MB |
+| ⚠ **not in this part** | the transfer cap (C8), progress into `ClusterOpStatus` (N6), `AssetTreeSync` behind the provider |
+
+##### ✅ P6 part 2 AS BUILT `2026-10-15`
+
+| piece | as built |
+|---|---|
+| wire | `FileOffer {TransferId (key), Partition, TargetsJson, ItemsJson}`, `FileNeed {TransferId, NodeId (keys), NeededJson}`, `FileChunk {TransferId (key), FileIndex, Seq, SeqCount, byte[] Data}`, `FileAck {TransferId, NodeId, FileIndex (keys), ContiguousSeq, Done, Code, Message}` — Reliable + Volatile + KeepAll. ⚠ `FileChunk` is keyed by the transfer only (the probe's shape: one instance, KeepAll holds every chunk). An offer with an EMPTY partition = the sender cancelled |
+| sender | `Hrot.Network.NED.Transfer.DdsFileTransferProvider` — one shared offer writer and need/ack readers, drained into a per-transfer inbox so transfers may run at once; SHA-256 per file in the offer; a missing or oversized (> 512 MB) source fails the WHOLE transfer with every target named |
+| receiver | `DdsFileReceiver`, built and ticked by `NedSlaveOrchestrationTranslator` ⇒ on every networked node; it joins a transfer's partition only when the offer names it, writes `<dest>.xfer-part`, checks length + SHA-256, restores the mtime, renames, then disposes the partition reader |
+| route | `Fdp.Toolkit.Orchestration.Transfer.RoutingTransferProvider` (share if the node advertised one, else DDS; DDS targets with the same relative items are bundled into one transfer); built by `OrchestratorCore` from `OrchestratorCoreOptions.DdsTransfer` = `INetworkFactory.CreateFileTransferProvider()` (null on the offline editor ⇒ share only). The TKB join sync now uses the gateway's provider too |
+| N5 | every networked node advertises `hrot.transfer.share=<its staging root>` (added by `NodeOpSlaveTranslator` to whatever the host advertises) unless `HROT_TRANSFER_SHARE=none`. ⚠ The advertised PATH decides only share-vs-DDS today; destinations still use the master's view of the node root (`GetNodeStagingRoot(ResolveStagingRoot(), id)`) — right for co-located nodes |
+| rails | `DdsFileTransferTests` (real DDS: 3 targets + a bystander, multi-chunk + partial last chunk, mtime kept, re-send skipped, missing source names every target) · `RoutingTransferProviderTests` (route per target, relative paths, share-only without DDS, token) |
+
 ### 4-F ⭐ The possessing node leaves
 
 📐 `PossessionSystem` releases on `ReleasePossessionEvent` or the unit's death only (`Possession.cs:177-183`). A Player
