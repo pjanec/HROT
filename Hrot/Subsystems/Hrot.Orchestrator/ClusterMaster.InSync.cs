@@ -63,7 +63,10 @@ public sealed partial class ClusterMaster
     /// <summary>I1 — a node entering the roster while the cluster is at rest in Idle has nothing to catch up.</summary>
     private void AdmitJoinedNode(int nodeId)
     {
-        if (_currentDsmState == ClusterState.Idle && !TransitionInFlight && _parked == null)
+        // ⭐ A PARKED transition has not chosen its targets yet (they are read when it resumes) — a node joining meanwhile is
+        //   admitted. 📐 Measured live: SimHost's first heartbeat landed while a load was parked for its files; it was left out
+        //   of the load and caught up afterwards. Had it been the Brain, the load would have run with no scenario creator.
+        if (_currentDsmState == ClusterState.Idle && !TransitionInFlight)
             _inSync.Add(nodeId);
     }
 

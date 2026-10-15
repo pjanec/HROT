@@ -75,6 +75,29 @@ public sealed class ClusterMasterCatchUpTests
     }
 
     /// <summary>
+    /// ⭐ A node joining while a load is PARKED (waiting for its files) is admitted: the parked load has not chosen its targets
+    /// yet. 📐 Measured live: it was left out and caught up afterwards — fatal had it been the scenario's Brain.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void A_node_joining_while_a_load_is_parked_is_in_sync_and_takes_part()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, Config());
+        Heartbeat(bus, master, 1);
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
+            PayloadJson = "{\"TargetState\":\"OperatingLive\",\"ScenarioId\":\"s1\"}",
+        });
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.NotNull(master.ParkedRequestId);
+
+        Heartbeat(bus, master, 2);
+        Assert.Contains(2, master.InSyncNodeIds);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ The whole catch-up: node 2 joins a RUNNING cluster ⇒ not in sync; it receives — alone — Idle, a load marked
     /// <c>IsCatchUp</c> naming no scenario, then the operating state; after its three answers it is in sync. ⛔ Node 1 (in sync)
     /// receives none of it.

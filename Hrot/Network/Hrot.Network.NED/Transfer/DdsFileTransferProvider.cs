@@ -235,6 +235,8 @@ public sealed class DdsFileTransferProvider : IFileTransferProvider, IDisposable
             _status = _failed > 0
                 ? Snapshot(OrchestrationStatusCode.Failure, $"{_failed} failed: " + string.Join("; ", _errors.Take(5)))
                 : Snapshot(OrchestrationStatusCode.Success, $"{_done} sent, {_skipped} already held");
+            Fdp.Core.Logging.FdpLog<DdsFileTransferProvider>.Info(
+                "[Transfer] DDS transfer {0:x} to node(s) {1}: {2}", _transferId, string.Join(",", targets), _status.Message);
         }
 
         private void Drain(Inbox box, Dictionary<(int, int), int> acked, Dictionary<int, FileAck> verdicts)
