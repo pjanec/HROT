@@ -49,8 +49,8 @@
     "a2195d00-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          140,
-          222,
+          100,
+          225,
           0
         ],
         "Rotation": [
@@ -64,10 +64,10 @@
         "Value": 8311
       },
       "TkbIdentity": {
-        "TkbType": 2003
+        "TkbType": 2006
       },
       "EntityInfo": {
-        "Name": "RPG Man",
+        "Name": "AT Gunner",
         "ForceId": "Hostile"
       },
       "Health": {
@@ -77,9 +77,9 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Sop": {
-        "Name": "BasicInfantrySop",
-        "Params": "{}",
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 8301, \"assault\": true}",
         "Origin": "Superior"
       }
     },

@@ -273,6 +273,20 @@ stateDiagram-v2
 | state `NextHide · SeenAtFor · Reversing` | `SeenSince` (since when a dangerous threat has seen me); the next hide is picked at the withdraw, so no `NextHide`; `Scoot` (the resolved mode) replaces `Reversing` | fewer fields, one decision point |
 | — | ⚠ **open:** the budget is NOT floored at my own aim time (PeekAndFire's G8 floors an exposure at 2 × it). A tank slower to aim than the RPG man is fast (aim 2 s ⇒ budget 1.4 s) withdraws before it fires | the design's rule is the enemy's clock; the gun is already on him from the hide (T4 tracking), which shortens my aim — ⛔ not measured live; the demo (`ua-tank-corner`) is where it is settled |
 
+⭐ **Live `2026-10-15` — `ua-tank-corner` PASS 4 / 4** (`python3 scripts/utility-demo-check.py --launch ua-tank-corner`; test-town, an M1 on
+`BasicVehicleSop` beside a 4-storey block, a Javelin team on an attack order at it 164 m off, a rifleman 210 m off): its first rounds go at the
+Javelin team, it fires from two points (on the move — the team died in the first exposure, so the cycle's repeats were not exercised) and
+kills it, taking one hit (3000 → 2550). 📐 **What the run taught — five rounds of findings:**
+
+| run | what the tank did | the cause, and where it went |
+|---|---|---|
+| 1 | nothing for 210 s | a plain `VehicleFightFromCover` order before contact ends at once (nothing to fight) ⇒ the demo runs the SOP |
+| 2 | reacted, never moved | no hide within 60 m; the failed cycle hung the behaviour ⇒ **CE-2195** fixed; the tank starts beside its cover |
+| 3 | drove 26 m INTO the building | the follower does not brake for a short leg at 20 m/s ⇒ **CE-2198** (backend); the cycle creeps at 5 m/s |
+| 4 | shot the rifleman first, against an RPG / an NLAW | ✅ **correct** — a PG-7V's ~300 mm and a direct NLAW's 500 mm cannot pass an M1's 900 mm front: both read as harmless as a rifle (0.1). Only a top attack on the 60 mm roof (a Javelin past 150 m) is a real danger |
+| 5 | shot the rifleman first, against a Javelin on its SOP | the team took cover on contact and stayed out of sight — the ranking is a product with line of sight ⇒ the team fights on an attack order |
+| — | 8 rounds of 120 mm in ~1.3 s | cooldown 0 (= "the weapon's own") is taken literally by the executor ⇒ **CE-2199** (backend) |
+
 ⭐ **As-built `2026-10-15` — CE-2196 / CE-2197 (the cycle answers its own damage; backend's hit location S2 strips the bits):**
 
 | case | built | why |
