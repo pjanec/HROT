@@ -297,10 +297,25 @@ namespace Hrot.ClusterRunner.Tests
         [Fact]
         public void NodeId_DefaultsToZero()
         {
-            // When --node-id is not supplied the property must be 0 (legacy fallback sentinel).
+            // A config BUILT IN CODE keeps 0 (a forced base 0 — today's behaviour). ⭐ C1: only the COMMAND LINE turns an
+            // absent -n into −1 ("ask the master") — see NodeId_AbsentOnTheCommandLine_AsksTheMaster below.
             var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
             config.Validate();
             Assert.Equal(0, config.NodeId);
+            Assert.False(config.NodeIdAbsent);
+        }
+
+        /// <summary>⭐⭐ C1 (Q91 §4-O, R-4009) — on the command line an absent <c>-n</c> means "not forced"; a given one is forced.</summary>
+        [Theory]
+        [InlineData(new[] { "-m", "ig" }, true)]
+        [InlineData(new[] { "-m", "ig", "-n", "3" }, false)]
+        [InlineData(new[] { "-m", "ig", "-n", "0" }, false)]
+        public void NodeId_AbsentOnTheCommandLine_AsksTheMaster(string[] args, bool absent)
+        {
+            RunnerConfiguration? parsed = null;
+            CommandLine.Parser.Default.ParseArguments<RunnerConfiguration>(args).WithParsed(c => parsed = c);
+            Assert.NotNull(parsed);
+            Assert.Equal(absent, parsed!.NodeIdAbsent);
         }
 
         [Fact]
