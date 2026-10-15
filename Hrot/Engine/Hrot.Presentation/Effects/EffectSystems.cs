@@ -71,7 +71,23 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
                     ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
                 var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
-                Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
+                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now);   // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder
+                // ⭐ CE-1094 (§6n N-10) — a bomb leaves its rack: no fire at the nose
+                if (mount?.Category != WeaponCategory.Bomb) Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
+                // ⭐ CE-1090 (§6n N-4) — a recoilless launcher throws dust BEHIND its tube; a howitzer raises a ground blast round it
+                switch (Hrot.UI.Common.Map3D.WeaponKits.BlastOf(world, tkb, fire.Shooter, mount))
+                {
+                    case Hrot.UI.Common.Map3D.FiringBlast.Backblast:
+                    {
+                        var aimAt = toward != Vector3.Zero ? toward : AimPointOf(view, fire.Shooter);
+                        var back = Hrot.UI.Common.Map3D.WeaponKits.BackblastPoint(at, view.GetComponentRO<SimTransform>(fire.Shooter).Rotation, aimAt);
+                        Spawn(cmd, tkb, EffectTkbCatalog.Backblast, back, null, now);
+                        break;
+                    }
+                    case Hrot.UI.Common.Map3D.FiringBlast.Ground:
+                        Spawn(cmd, tkb, EffectTkbCatalog.GunBlast, at + new Vector3(0f, 0f, 0.3f), null, now);
+                        break;
+                }
                 // ⛔ LR-4 (DESIGN_Visual_Effects.md §8.5 LR-E, R-271) — no decorative tracer any more: a tracer is a REAL round now (a
                 //   tracer munition, replicated by the muscle), drawn along its actual flight by ProjectileLayer. The effect type 7131
                 //   stays registered, so recordings made before this still draw theirs.
@@ -96,6 +112,10 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             }
         }
     }
+
+    /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
+    private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
+        => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 
     private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Vector3 at, EffectAnchor? anchor, double now)
     {

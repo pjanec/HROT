@@ -56,6 +56,13 @@ public static class ScenarioPanelWindowIds
     public const string CgfConfig  = "cgf_config";
     /// <inheritdoc cref="CgfSpawner"/>
     public const string CgfOrbat   = "cgf_shared_orbat";
+
+    /// <summary>⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor, per host. ⚠ The IG's is its historical id (saved layouts).</summary>
+    public const string EditorWaypoint = "editor_waypoint_editor";
+    /// <inheritdoc cref="EditorWaypoint"/>
+    public const string CgfWaypoint    = "cgf_waypoint_editor";
+    /// <inheritdoc cref="EditorWaypoint"/>
+    public const string IgWaypoint     = "ig_waypoint_editor";
 }
 
 /// <summary>⭐ Entity spawner panel as a perspective-bound managed window. ⛔ One implementation, every host.</summary>
@@ -208,5 +215,47 @@ public sealed class SharedOrbatPanelWindow : ManagedWindow
     {
         BuildAndPublish();
         _panel.DrawContent(_data, _ctrl);
+    }
+}
+
+/// <summary>
+/// ⭐ CE-1096 (docs/designs/routes-1/ROUTES1-DESIGN.md §11.4 W-1) — the waypoint editor as a perspective-bound managed window. ⛔ One
+/// implementation, every authoring host (the editor, CGF, the IG — it was the IG's own <c>IgWaypointEditorWindow</c>, so the editor could
+/// draw a route but set nothing on a waypoint).
+/// </summary>
+public sealed class WaypointEditorWindow : ManagedWindow
+{
+    /// <summary>The panel kind in the snapshot (the IG's historical one).</summary>
+    public const string Kind = "ig-waypoint-editor";
+
+    private readonly WaypointEditorPanel _panel;
+
+    /// <param name="panel">The shared panel.</param>
+    /// <param name="id">Window id — ⚠ per host, see <see cref="ScenarioPanelWindowIds"/>.</param>
+    /// <param name="perspective">Owning perspective (<c>"Scenario"</c>; the IG's <c>"IG"</c>).</param>
+    /// <param name="titleBarColor">The host's title-bar colour.</param>
+    public WaypointEditorWindow(WaypointEditorPanel panel, string id, string perspective, Vector4 titleBarColor)
+        : base(id, "Waypoint Editor", perspective, WindowScope.PerspectiveBound)
+    {
+        _panel = panel;
+        IsOpen = true;
+        TitleBarColor = titleBarColor;
+        PanelSnapshot.DeclareInstrumented(Id);
+    }
+
+    private WaypointEditorPanelViewModel BuildAndPublish()
+    {
+        var vm = _panel.BuildViewModel(Id, Kind);
+        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
+        return vm;
+    }
+
+    /// <summary>⭐ Headless seam for the panel-model rails.</summary>
+    public WaypointEditorPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
+
+    protected override void DrawClientArea()
+    {
+        BuildAndPublish();
+        _panel.DrawContent();
     }
 }

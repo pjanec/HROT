@@ -407,14 +407,18 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
-                1 or 4 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,   // ⭐ IF-1 (I8): 4 = SelfPropelledArtillery → the tank kit, moved on purpose
-                3 or 6 or 7 => VisualFamily.WheeledUtility, _ => VisualFamily.Unknown,
+                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                3 or 6 or 7 => VisualFamily.WheeledUtility,
+                4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
+                _ => VisualFamily.Unknown,
             };
         if (d.Kind == 1 && d.Domain == 2)
             return d.Category switch
             {
-                >= 20 and <= 25 => VisualFamily.Helicopter,
-                1 or 2 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet,
+                20 => VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — the attack helicopter has its own kit now
+                >= 21 and <= 25 => VisualFamily.Helicopter,
+                2 => VisualFamily.AttackJet,   // ⭐ CE-1092 — the attack plane has its own kit now
+                1 or 6 or 7 or 40 or 47 or 50 => VisualFamily.Jet,
                 3 or 4 or 5 or 8 or 57 => VisualFamily.CargoPlane,
                 _ => VisualFamily.Unknown,
             };
@@ -558,6 +562,7 @@ public sealed class Map3DTests
     {
         world.AddComponent(carrier, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f, DragBehindMetres = 1f });
         var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1 };
+        list.Passengers[0] = casualty;   // ⭐ CE-1085 — as the sim lists him (the classifier reads WHO is in the seat, not the count)
         list.SetMode(0, mode);
         world.AddComponent(carrier, list);
         world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Exposed = 1, Mode = mode });
@@ -602,6 +607,576 @@ public sealed class Map3DTests
             Assert.Equal(CarriageKind.Downed, Carriage.Of(world, Man(world, Vector3.Zero, health: 20f), db).Kind);
             Assert.Equal(FigureCarriage.Free, Carriage.Of(world, Man(world, Vector3.Zero), db));
         }
+    }
+
+    // ── ⭐ CE-1085 … CE-1094 (docs/DESIGN_Map_3D_Mode.md §6n) — weapon systems, the drone, the attack plane ──
+
+    private static Entity WeaponSystem(EntityRepository world, Vector3 at)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        var w = world.CreateEntity();
+        world.AddComponent(w, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1 });
+        return w;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1085 (§6n N-3) — a soldier's casualty seat and his carry station are read APART: a weapon system in his list is the LOAD he
+    /// carries, never a casualty. 📌 Red before: CE-1081 read seat 0's mode whenever the list was not empty, so a man with only a Javelin in
+    /// his carry station (seat 1) was drawn CARRYING someone. ⭐ CE-1088 (N-2) — a man in a weapon's own seat MANS it.
+    /// </summary>
+    [Fact]
+    public void CE1085_AWeaponHeCarries_IsHisLoad_NotACasualty_AndAManAtAWeapon_MansIt()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            var javelinMan = Man(world, Vector3.Zero);
+            var javelin = WeaponSystem(world, Vector3.Zero);
+            world.AddComponent(javelinMan, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
+            var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 2 };
+            list.Passengers[1] = javelin;   // the carry station; seat 0 (the casualty seat) empty, its mode bits 0 = Seated
+            world.AddComponent(javelinMan, list);
+            Assert.Equal(new FigureCarriage(CarriageKind.Free, Load: javelin), Carriage.Of(world, javelinMan, db));
+
+            var both = Man(world, new Vector3(5f, 0f, 0f));
+            var hmg = WeaponSystem(world, Vector3.Zero);
+            var casualty = Carries(world, both, Man(world, Vector3.Zero, health: 20f), Fdp.Toolkit.Behavior.Components.CarryMode.Carried);
+            ref var bothList = ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(both);
+            bothList.Passengers[0] = casualty;
+            bothList.Passengers[1] = hmg;
+            Assert.Equal(new FigureCarriage(CarriageKind.Carrying, Load: hmg), Carriage.Of(world, both, db));
+
+            var mortar = WeaponSystem(world, new Vector3(20f, 0f, 0f));
+            var gunner = Man(world, new Vector3(20f, 0f, 0f));
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = mortar, Exposed = 1, Seat = 0 });
+            var manning = Carriage.Of(world, gunner, db);
+            Assert.Equal((CarriageKind.Manning, mortar), (manning.Kind, manning.Holder));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1086 (§6n N-7) — the FPV drone (403) is a QUADCOPTER as big as its flight body (0.6 × 0.6 × 0.3 m), not a 15 m fighter: a
+    /// <c>Uav</c> that flies as a <c>Rotorcraft</c> is the Drone family; a fixed-wing type of the same Jet family stays a jet. Its four rotors
+    /// spin about their own motors while it lives.
+    /// </summary>
+    [Fact]
+    public void CE1086_TheFpvDrone_IsAQuadcopter_AsBigAsItsFlightBody()
+    {
+        var db = BuiltIn();
+        var drone = EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Drone_Fpv));
+        Assert.Equal(VisualFamily.Drone, drone.Family);
+        Assert.Equal(new Vector3(0.6f, 0.6f, 0.3f), drone.Size);
+        Assert.Equal(VisualFamily.Jet, EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Jet_F16)).Family);
+
+        var rotors = ShapeKits.Drone.Parts.Where(p => p.Role == PartRole.Rotor).ToArray();
+        Assert.Equal(4, rotors.Length);
+        var tracker = new MotionTracker();
+        var e = new Entity(7, 1);
+        tracker.Advance(e, Vector3.Zero, Quaternion.Identity, VisualFamily.Drone, drone.Size, 10.0, rotorTurning: true);
+        var pose = tracker.Advance(e, Vector3.Zero, Quaternion.Identity, VisualFamily.Drone, drone.Size, 10.03, rotorTurning: true);
+        Assert.NotEqual(0f, pose.Rotor);
+        foreach (var r in rotors)   // each spins about its own motor: its centre stays where it is
+        {
+            var still = Vector3.Transform(Vector3.Zero, r.BodyTransform(drone.Size));
+            var spun = Vector3.Transform(Vector3.Zero, r.BodyTransform(drone.Size, default, ArticulationPose.Neutral, pose));
+            Assert.InRange(Vector3.Distance(still, spun), 0f, 1e-4f);
+        }
+    }
+
+    private static Fdp.Core.DISEntityType Dis(byte category, byte subcategory = 0)
+        => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = subcategory };
+
+    /// <summary>
+    /// ⭐⭐ CE-1087 (§6n N-1) — every weapon-system class draws its OWN kit (no purple box): the kind comes from the class chain (HMG,
+    /// minigun, ATGM, launcher, sentry, and the mortar and towed gun of Indirect Fire IF-G); each kind's stowed and deployed kits have the
+    /// same parts in the same order, so a deploy blends; only a fully deployed kit articulates; the deploy state's timing reads as 0 → 1.
+    /// </summary>
+    [Fact]
+    public void CE1087_EveryWeaponSystemClass_HasItsKit_StowedAndDeployed_Blending()
+    {
+        Assert.Equal(VisualFamily.WeaponSystem, VisualFamilies.Of(Dis(50, 1)));
+        Assert.Equal(VisualFamily.WeaponSystem, VisualFamilies.Of(Dis(10)));      // Mortar
+        Assert.Equal(VisualFamily.WeaponSystem, VisualFamilies.Of(Dis(5)));       // TowedArtillery
+        Assert.Equal(VisualFamily.SpArtillery, VisualFamilies.Of(Dis(4)));        // SelfPropelledArtillery
+        Assert.Equal(WeaponKind.Hmg, WeaponKits.KindOf(Dis(50, 1)));
+        Assert.Equal(WeaponKind.Minigun, WeaponKits.KindOf(Dis(50, 2)));
+        Assert.Equal(WeaponKind.Atgm, WeaponKits.KindOf(Dis(50, 3)));
+        Assert.Equal(WeaponKind.Launcher, WeaponKits.KindOf(Dis(50, 4)));
+        Assert.Equal(WeaponKind.Sentry, WeaponKits.KindOf(Dis(50, 5)));
+        Assert.Equal(WeaponKind.Hmg, WeaponKits.KindOf(Dis(50)));                // a plain weapon system
+        Assert.Equal(WeaponKind.Mortar, WeaponKits.KindOf(Dis(10)));
+        Assert.Equal(WeaponKind.TowedGun, WeaponKits.KindOf(Dis(5)));
+
+        foreach (var kind in Enum.GetValues<WeaponKind>())
+        {
+            var stowed = WeaponKits.Kit(kind, deployed: false);
+            var deployed = WeaponKits.Kit(kind, deployed: true);
+            Assert.Equal(stowed.Parts.Length, deployed.Parts.Length);
+            Assert.DoesNotContain(stowed.Parts, p => p.Role is PartRole.Turret or PartRole.Gun);
+            var half = WeaponKits.Blend(kind, 0.5f);
+            Assert.Equal(deployed.Parts.Length, half.Parts.Length);
+            Assert.False(half.IsArticulated);
+        }
+        // the tripod HMG stands its gun up on its legs when deployed (stowed it lies on the ground)
+        var size = WeaponKits.DefaultSize(WeaponKind.Hmg);
+        float Top(ShapeKit k) => k.Parts.Max(p => Vector3.Transform(Vector3.Zero, p.BodyTransform(size)).Z);
+        Assert.True(Top(WeaponKits.Kit(WeaponKind.Hmg, true)) > Top(WeaponKits.Kit(WeaponKind.Hmg, false)) + 0.3f);
+        Assert.True(WeaponKits.Kit(WeaponKind.Hmg, true).IsArticulated);
+
+        Assert.Equal(1f, WeaponKits.Deployment(Fdp.Toolkit.Combat.WeaponDeploy.Deployed, 0, 5, 3f));
+        Assert.Equal(0f, WeaponKits.Deployment(Fdp.Toolkit.Combat.WeaponDeploy.Stowed, 0, 5, 3f));
+        Assert.Equal(1f / 3f, WeaponKits.Deployment(Fdp.Toolkit.Combat.WeaponDeploy.Deploying, until: 7, now: 5, seconds: 3f), 3);
+        Assert.Equal(2f / 3f, WeaponKits.Deployment(Fdp.Toolkit.Combat.WeaponDeploy.Packing, until: 7, now: 5, seconds: 3f), 3);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1088 (§6n N-2) — a man in a weapon's own seat is drawn AT it: behind a tripod HMG, kneeling, his hands on its spade grips;
+    /// he turns with the weapon's traverse (about its pivot), and a seat that declares a place wins. The pose keeps the shared part order.
+    /// </summary>
+    [Fact]
+    public void CE1088_AGunner_KneelsBehindHisHmg_HandsOnTheGrips_AndTurnsWithIt()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            var hmgType = new TkbTemplate("Test HMG", 990001) { DisType = Dis(50, 1) };
+            ((TkbDatabase)db).Register(hmgType);
+            var hmg = WeaponSystem(world, new Vector3(100f, 50f, 0f));
+            world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 990001 });
+            var gunner = Man(world, new Vector3(100f, 50f, 0f));
+            world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hmg, Exposed = 1, Seat = 0 });
+            var carriage = Carriage.Of(world, gunner, db);
+
+            float azimuth = 0f;
+            var layer = new EntityBodyLayer3D(() => world, () => db, (_, _) => new ArticulationPose(azimuth, 0f));
+            var man = ShapeKits.DefaultSize(VisualFamily.Person);
+            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var frame, out bool kneel));
+            Assert.True(kneel);
+            var at = Vector3.Transform(Vector3.Zero, frame);
+            Assert.InRange(at.X, 98.9f, 99.2f);   // ~0.95 m behind the pintle
+            Assert.InRange(at.Y, 49.9f, 50.1f);
+            var parts = BlockFigure.AtWeapon(kneel: true, soldier: true);
+            Assert.Equal(BlockFigure.Parts(StanceId.Standing, true).Length, parts.Length);
+            var hand = Vector3.Transform(new Vector3(0f, 0f, 0.5f), parts[BlockFigure.TorsoIndex + 3].BodyTransform(man) * frame);   // left forearm end
+            var grips = Vector3.Transform(Vector3.Zero, WeaponKits.Kit(WeaponKind.Hmg, true).Parts[7].BodyTransform(WeaponKits.DefaultSize(WeaponKind.Hmg)))
+                        + new Vector3(100f, 50f, 0f);
+            Assert.InRange(Vector3.Distance(hand, grips), 0f, 0.35f);
+
+            azimuth = MathF.PI / 2f;   // the gun traverses to its left: he goes round with it, behind it again
+            Assert.True(layer.GunnerFrame(world, carriage, man, 0d, out var turned, out _));
+            var turnedAt = Vector3.Transform(Vector3.Zero, turned);
+            Assert.InRange(turnedAt.Y, 48.9f, 49.2f);
+            Assert.InRange(turnedAt.X, 99.9f, 100.1f);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1090 (§6n N-4) — the launcher in his hands: the rifle part becomes a 1.1 m tube on the shoulder along his aim (a third of it
+    /// behind the shoulder), whose FRONT is where the flash leaves; who throws what: a soldier's launcher mount (the Javelin team's) a
+    /// backblast, a rifle nothing, a self-propelled gun a ground blast; the backblast billows behind him on the line of fire.
+    /// </summary>
+    [Fact]
+    public void CE1090_TheLauncherOnTheShoulder_AndWhoThrowsABlast()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var aimed = BlockFigure.Parts(StanceId.Standing, true, WeaponPostureKind.Aimed);
+        var shouldered = BlockFigure.Shouldered(aimed);
+        var tube = shouldered[BlockFigure.WeaponIndex];
+        Assert.Equal(PartShape.Cylinder, tube.Shape);
+        var (tip, forward) = EntityBodyLayer3D.WeaponTip(tube, size, default, ArticulationPose.Neutral, MotionPose.Still, Matrix4x4.Identity);
+        var (rifleTip, _) = EntityBodyLayer3D.WeaponTip(aimed[BlockFigure.WeaponIndex], size, default, ArticulationPose.Neutral, MotionPose.Still, Matrix4x4.Identity);
+        var tail = tip - forward * BlockFigure.TubeLength;
+        Assert.True(forward.X > 0.9f, $"the tube points along his aim ({forward})");
+        Assert.True(tail.X < -0.05f, $"its rear sticks out behind the shoulder (tail x {tail.X:0.00})");
+        Assert.InRange(tip.Z, 1.25f, 1.55f);
+        Assert.True(MathF.Abs(tip.X - rifleTip.X) < 0.5f);
+
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            var javelin = Man(world, Vector3.Zero, type: UrbanCombatTkbCatalog.TkbJavelinTeam);
+            int launcher = -1;
+            var suite = db.GetByType(UrbanCombatTkbCatalog.TkbJavelinTeam)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!;
+            for (int i = 0; i < suite.Mounts.Count; i++) if (suite.Mounts[i].Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm) launcher = i;
+            Assert.True(launcher >= 0);
+            Assert.Equal(FiringBlast.Backblast, WeaponKits.BlastOf(world, db, javelin, suite.Mounts[launcher]));
+            Assert.Equal(FiringBlast.None, WeaponKits.BlastOf(world, db, javelin, suite.Mounts[launcher == 0 ? 1 : 0]));
+            var sp = new TkbTemplate("Test SP howitzer", 990002) { DisType = Dis(4) };
+            ((TkbDatabase)db).Register(sp);
+            var gun = Man(world, Vector3.Zero, type: 990002);
+            Assert.Equal(FiringBlast.Ground, WeaponKits.BlastOf(world, db, gun, null));
+
+            var shots = Hrot.UI.Common.Effects.RecentShots.In(world);
+            shots.Record(javelin, launcher, at: 10.0);
+            Assert.True(shots.FiredWithin(javelin, 12.0, WeaponKits.ShoulderSeconds, out int m) && m == launcher);
+            Assert.False(shots.FiredWithin(javelin, 15.0, WeaponKits.ShoulderSeconds, out _));
+        }
+        var back = WeaponKits.BackblastPoint(new Vector3(10f, 0f, 0f), Quaternion.Identity, new Vector3(110f, 0f, 0f));
+        Assert.True(back.X < 9f && MathF.Abs(back.Y) < 0.01f, $"behind him on the line of fire ({back})");
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1091 (§6n N-6) — the smoke trail follows the REMEMBERED path (it bends as the round did — a top-attack climb and dive), not a
+    /// straight line back to the muzzle; a shell or a bomb draws only a faint streak of its last two seconds; a bullet nothing.
+    /// </summary>
+    [Fact]
+    public void CE1091_TheTrailFollowsThePath_AShellStreaksItsLastTwoSeconds()
+    {
+        var missile = new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Missile, SmokeTrail = true, Length = 1.1f, Diameter = 0.13f };
+        var path = new Hrot.UI.Common.Effects.ProjectileLayer.RoundPath();
+        // a top attack: out level 0 → 30 m, climbing to 40 m up at x 60, then diving onto x 100
+        for (int i = 0; i <= 100; i++)
+        {
+            float x = i;
+            float z = x < 30f ? 1f : x < 60f ? 1f + (x - 30f) * 39f / 30f : 40f - (x - 60f) * 39f / 40f;
+            path.Add(new Vector3(x, 0f, z), i * 0.05);   // 5 s of flight
+        }
+        var round = new Hrot.UI.Common.Effects.ProjectileLayer.Round(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
+                                                                    new Vector3(0f, 0f, 1f), 7, 140f);
+        var curved = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round, path);
+        var straight = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round);
+        Assert.NotEmpty(curved);
+        Assert.True(curved.Max(p => p.At.Z) > 25f, "the trail climbs over the top of the arc");
+        Assert.True(straight.Max(p => p.At.Z) < 10f, "(the old straight trail never left the line)");
+
+        var shell = missile with { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Shell, SmokeTrail = false };
+        var streak = Hrot.UI.Common.Effects.ProjectileLayer.StreakOf(round with { Look = shell }, path, now: 5.0);
+        Assert.NotEmpty(streak);
+        Assert.All(streak, l => Assert.True(l.To.X >= 60f - 0.01f, "only the last two seconds (x 60 … 100)"));
+        Assert.Empty(Hrot.UI.Common.Effects.ProjectileLayer.StreakOf(round, path, now: 5.0));   // a missile: smoke, no streak
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1093 (§6n N-9) — a helicopter's rotor RUNS while it takes off from the ground (below the "airborne" height, moving), spools up
+    /// over <see cref="MotionTracker.RotorSpoolSeconds"/> rather than snapping, and its tail-rotor blades spin about their own axle.
+    /// 📌 Red before: the rotor stood still until the body was 5 m above its resting height.
+    /// </summary>
+    [Fact]
+    public void CE1093_TheRotorRunsWhileItTakesOff_SpoolingUp_AndTheTailRotorSpins()
+    {
+        var t = new MotionTracker();
+        var heli = new Entity(9, 1);
+        var size = ShapeKits.DefaultSize(VisualFamily.Helicopter);
+        t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, 0.0, rotorTurning: false);
+        float prev = 0f, firstStep = 0f, lateStep = 0f;
+        for (int i = 1; i <= 60; i++)   // 3 s rising 0.5 m/s: never "airborne"
+        {
+            var pose = t.Advance(heli, new Vector3(0f, 0f, i * 0.025f), Quaternion.Identity, VisualFamily.Helicopter, size, i * 0.05, rotorTurning: false);
+            float step = MathF.Abs(pose.Rotor - prev);
+            if (i == 2) firstStep = step;
+            if (i == 59) lateStep = step;
+            prev = pose.Rotor;
+        }
+        Assert.True(prev != 0f, "the rotor turns while it lifts off");
+        Assert.True(lateStep > firstStep * 3f, $"and it spools up ({firstStep:0.000} → {lateStep:0.000} rad a frame)");
+
+        var tail = ShapeKits.Helicopter.Parts.Where(k => k.Role == PartRole.TailRotor).ToArray();
+        Assert.Equal(2, tail.Length);
+        var spun = new MotionPose(0.9f, 0, 0);
+        foreach (var blade in tail)
+        {
+            var still = Vector3.Transform(Vector3.Zero, blade.BodyTransform(size));
+            Assert.InRange(Vector3.Distance(still, Vector3.Transform(Vector3.Zero, blade.BodyTransform(size, default, ArticulationPose.Neutral, spun))), 0f, 1e-3f);
+            Assert.NotEqual(Vector3.Transform(new Vector3(0.5f, 0f, 0f), blade.BodyTransform(size)),
+                            Vector3.Transform(new Vector3(0.5f, 0f, 0f), blade.BodyTransform(size, default, ArticulationPose.Neutral, spun)));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1092 (§6n N-8) — the A-10 is an ATTACK PLANE, not an F-16: its own kit (straight wing, twin fins), and a bomb on a pylon for
+    /// every round its bomb rack still holds — the replicated ammo mirror counts them down.
+    /// </summary>
+    [Fact]
+    public void CE1092_TheAttackPlane_HasItsOwnKit_AndCarriesTheBombsItHasLeft()
+    {
+        var db = BuiltIn();
+        Assert.Equal(VisualFamily.AttackJet, EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Jet_AttackA10)).Family);
+        Assert.Same(ShapeKits.AttackJet, ShapeKits.For(VisualFamily.AttackJet));
+        Assert.Equal(2, ShapeKits.AttackJet.Parts.Count(p => p.Shape == PartShape.Box && p.Extent.Z > 0.25f && p.Extent.Y < 0.02f));   // twin fins
+
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        world.RegisterComponent<WeaponAmmo>();
+        world.SetSingletonManaged<ITkbDatabase>(db);
+        var plane = world.CreateEntity();
+        world.AddComponent(plane, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = TkbEntityTypes.Jet_AttackA10 });
+        Assert.Equal(4, EntityBodyLayer3D.BombsLeft(world, plane, db));   // no mirror yet: the full load
+        world.AddComponent(plane, new WeaponAmmo { Count = 1, Ammo0 = 1, Max0 = 4 });
+        Assert.Equal(1, EntityBodyLayer3D.BombsLeft(world, plane, db));
+    }
+
+    /// <summary>⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1, F-4) — every pose's head is skin, tagged with the side its face is on:
+    /// upright, crouched, prone, crawling, seated and at a weapon its front; on his back (dead, downed, dragged) up; draped over a shoulder
+    /// down. No other part is a head. A fall turns the face over halfway.</summary>
+    [Fact]
+    public void CE1097_EveryHead_IsSkin_WithItsFaceSide_AndAFallTurnsItOverHalfway()
+    {
+        foreach (bool soldier in new[] { true, false })
+        {
+            var poses = new List<(string Name, KitPart[] Parts, FaceOn Face)>();
+            foreach (var stance in new[] { StanceId.Standing, StanceId.Crouched, StanceId.Prone })
+                foreach (var posture in new[] { WeaponPostureKind.AtEase, WeaponPostureKind.Ready, WeaponPostureKind.Aimed })
+                    poses.Add(($"{stance}/{posture}", BlockFigure.Parts(stance, soldier, posture), FaceOn.Front));
+            poses.Add(("crawl", BlockFigure.CrawlPose(soldier, 1f), FaceOn.Front));
+            poses.Add(("seated", BlockFigure.Seated(false, soldier), FaceOn.Front));
+            poses.Add(("at a weapon", BlockFigure.AtWeapon(true, soldier), FaceOn.Front));
+            poses.Add(("dead", BlockFigure.Dead(soldier), FaceOn.Up));
+            poses.Add(("downed", BlockFigure.Downed(soldier), FaceOn.Up));
+            poses.Add(("dragged", BlockFigure.Towed(soldier), FaceOn.Up));
+            poses.Add(("draped", BlockFigure.Draped(soldier), FaceOn.Down));
+            foreach (var (name, parts, face) in poses)
+            {
+                Assert.Equal(face, parts[BlockFigure.HeadIndex].Face);
+                Assert.Equal(ColourRole.Skin, parts[BlockFigure.HeadIndex].Colour);
+                Assert.Single(parts, p => p.Face != FaceOn.None);   // only the head ($name)
+            }
+        }
+        var standing = BlockFigure.Parts(StanceId.Standing, true);
+        Assert.Equal(FaceOn.Front, BlockFigure.Fall(standing, 0.4f, true)[BlockFigure.HeadIndex].Face);
+        Assert.Equal(FaceOn.Up, BlockFigure.Fall(standing, 0.6f, true)[BlockFigure.HeadIndex].Face);
+    }
+
+    /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-1, O-2, O-5) — civilians of a type with no colour are NOT the family green and
+    /// VARY: across sixty men every kind of clothes appears — long and short sleeves, trousers, shorts and skirts, a suit, long hair and
+    /// none; each man's outfit is repeatable. A type WITH a colour dresses its men in that colour, lighter or darker.</summary>
+    [Fact]
+    public void CE1099_Civilians_VaryInWhatTheyWear_AndATypesColourIsKept()
+    {
+        var green = EntityBodyLayer3D.DefaultColour(VisualFamily.Person);
+        var men = Enumerable.Range(1, 60).Select(s => Outfits.For(s, 1001, soldier: false, child: false, own: null, Fdp.Core.ForceId.Neutral)).ToArray();
+        Assert.DoesNotContain(men, o => o.Top.Equals(green));
+        Assert.True(men.Select(o => (o.Top.R, o.Top.G, o.Top.B)).Distinct().Count() >= 8, "their tops vary");
+        Assert.Contains(men, o => !o.Suit && o.Sleeve.Equals(o.Skin));                    // short sleeves
+        Assert.Contains(men, o => !o.Suit && o.Sleeve.Equals(o.Top));                     // long sleeves
+        Assert.Contains(men, o => o.Legwear == Legwear.Trousers);
+        Assert.Contains(men, o => o.Legwear == Legwear.Shorts);
+        Assert.Contains(men, o => o.Legwear == Legwear.Skirt);
+        Assert.Contains(men, o => o.Suit);
+        Assert.Contains(men, o => o.HairStyle == HairStyle.Long);
+        Assert.Contains(men, o => o.HairStyle == HairStyle.None);
+        Assert.True(men.Select(o => (o.Skin.R, o.Skin.G, o.Skin.B)).Distinct().Count() >= 3, "their skin varies");
+        Assert.Equal(Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral), Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral));
+
+        var red = new Raylib_cs.Color(200, 50, 50, 255);
+        var reds = Enumerable.Range(1, 40).Select(s => Outfits.For(s, 1001, false, false, red, Fdp.Core.ForceId.Neutral)).Where(o => !o.Suit).ToArray();
+        Assert.All(reds, o => Assert.True(o.Top.R > 2 * o.Top.G && o.Top.R > 2 * o.Top.B, $"a red type's man wears red ({o.Top.R},{o.Top.G},{o.Top.B})"));
+        Assert.True(reds.Select(o => o.Top.R).Distinct().Count() >= 5, "lighter or darker, man by man");
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-2) — what the clothes do to the figure: short sleeves bare the forearms, shorts and a skirt the shins (a
+    /// skirt the thighs too, under it), and the details come with them — a skirt, a suit's shirt and tie, long hair down the back.</summary>
+    [Fact]
+    public void CE1099_TheClothesColourTheParts_AndBringTheirDetails()
+    {
+        var all = Enumerable.Range(1, 200).Select(s => Outfits.For(s, 1001, false, false, null, Fdp.Core.ForceId.Neutral)).ToArray();
+        var details = new List<PartDetail>();
+
+        var skirt = all.First(o => o.Legwear == Legwear.Skirt);
+        Assert.Equal(skirt.Skin, Outfits.ColourOfPart(skirt, 0));
+        Assert.Equal(skirt.Skin, Outfits.ColourOfPart(skirt, 1));
+        Outfits.Details(skirt, 1, details);
+        Assert.Contains(details, d => d.Part == BlockFigure.TorsoIndex && d.Centre.Z < -0.5f && d.Colour.Equals(skirt.Bottom) && d.Turned);
+
+        var shorts = all.First(o => o.Legwear == Legwear.Shorts);
+        Assert.Equal(shorts.Bottom, Outfits.ColourOfPart(shorts, 0));
+        Assert.Equal(shorts.Skin, Outfits.ColourOfPart(shorts, 3));
+
+        var suit = all.First(o => o.Suit);
+        Outfits.Details(suit, 1, details);
+        Assert.Equal(2, details.Count(d => d.Part == BlockFigure.TorsoIndex && d.Centre.X > 0.5f));   // the shirt and the tie, on his chest
+        Assert.Equal(suit.Top, Outfits.ColourOfPart(suit, 9));                                        // a jacket's sleeves
+
+        var longHair = all.First(o => o.HairStyle == HairStyle.Long && !o.Suit && o.Legwear != Legwear.Skirt);
+        Outfits.Details(longHair, 1, details);
+        Assert.Single(details, d => d.Part == BlockFigure.HeadIndex && d.Centre.X < 0f && d.Colour.Equals(longHair.Hair));
+
+        Assert.Equal(all[0].Skin, Outfits.ColourOfPart(all[0], BlockFigure.HeadIndex));
+        Assert.Null(Outfits.ColourOfPart(all[0], BlockFigure.WeaponIndex));
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-4) — a soldier keeps his uniform (his trousers the same cloth darker, no longer black) and his SIDE adds
+    /// camouflage: a friend's woodland is fewer, larger patches, a hostile's fleck more, smaller ones; a neutral's uniform is plain.</summary>
+    [Fact]
+    public void CE1099_ASoldiersSide_GivesHisUniformItsCamouflage()
+    {
+        var olive = new Raylib_cs.Color(85, 107, 47, 255);
+        var friend = Outfits.For(9, 200, soldier: true, child: false, olive, Fdp.Core.ForceId.Friend);
+        var hostile = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Hostile);
+        var neutral = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Neutral);
+        Assert.Equal(olive, friend.Top);
+        Assert.Equal(olive, Outfits.ColourOfPart(friend, 7));
+        Assert.True(friend.Bottom.G < olive.G && friend.Bottom.G > friend.Bottom.R, "his trousers are the uniform's green, darker");
+        Assert.Equal((CamoPattern.Woodland, CamoPattern.Fleck, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
+
+        // ⭐ CE-1101 (§6r) — the pattern is the SHADER's: no patch boxes; its tones differ by side — fleck reads paler than woodland
+        var d = new List<PartDetail>();
+        Outfits.Details(friend, 9, d);
+        Assert.Empty(d);
+        Outfits.Details(hostile, 9, d);
+        Assert.Empty(d);
+        static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
+        Assert.True(Light(Outfits.CamoTones(CamoPattern.Fleck)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's fleck reads paler");
+        Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
+        Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
+    }
+
+    /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
+    /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
+    [Fact]
+    public void CE1101_FacesVaryManByMan_AndOnlyGrownMenWearBeards()
+    {
+        var men = Enumerable.Range(1, 80).Select(s => Outfits.FaceOf(s, 200, woman: false, child: false)).ToArray();
+        Assert.Contains(men, f => f.Beard == BeardKind.Beard);
+        Assert.Contains(men, f => f.Beard == BeardKind.Moustache);
+        Assert.Contains(men, f => f.Beard == BeardKind.None);
+        Assert.True(men.Select(f => f.EyeColour).Distinct().Count() >= 4, "eye colours vary");
+        Assert.True(men.Max(f => f.EyeSpacing) - men.Min(f => f.EyeSpacing) > 0.05f, "eye spacing varies");
+        Assert.True(men.Max(f => f.MouthHalfWidth) - men.Min(f => f.MouthHalfWidth) > 0.05f, "mouths vary");
+        Assert.All(men, f => Assert.InRange(f.EyeSpacing + 0.085f, 0f, 0.5f));   // an eye stays on the face
+        Assert.All(Enumerable.Range(1, 80), s => Assert.Equal(BeardKind.None, Outfits.FaceOf(s, 1001, woman: true, child: false).Beard));
+        Assert.All(Enumerable.Range(1, 80), s => Assert.Equal(BeardKind.None, Outfits.FaceOf(s, 1003, woman: false, child: true).Beard));
+        Assert.Equal(Outfits.FaceOf(5, 200, false, false), Outfits.FaceOf(5, 200, false, false));
+        Assert.Equal(Outfits.FaceOf(5, 200, false, false), Outfits.For(5, 200, soldier: true, child: false, null, Fdp.Core.ForceId.Friend).Face);
+    }
+
+    /// <summary>⭐ CE-1100 (docs/DESIGN_Map_3D_Mode.md §6q O-6) — personal cars of a type with no colour are not all the family blue: each car
+    /// has a street colour (mostly white, black, silver, grey), repeatable per car; a car with its own colour keeps its hue, lighter or darker.</summary>
+    [Fact]
+    public void CE1100_PersonalCars_EachHaveTheirOwnPaint()
+    {
+        var blue = EntityBodyLayer3D.DefaultColour(VisualFamily.WheeledCar);
+        var cars = Enumerable.Range(1, 80).Select(s => Outfits.CarColour(s, 1002, own: null)).ToArray();
+        Assert.DoesNotContain(cars, c => c.Equals(blue));
+        Assert.True(cars.Select(c => (c.R, c.G, c.B)).Distinct().Count() >= 6, "the paints vary");
+        int neutral = cars.Count(c => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B)) < 12);
+        Assert.InRange(neutral, 40, 80);   // white, black, silver and grey are most of the street
+        Assert.Equal(Outfits.CarColour(33, 1002, null), Outfits.CarColour(33, 1002, null));
+        var red = new Raylib_cs.Color(180, 30, 30, 255);
+        Assert.All(Enumerable.Range(1, 20).Select(s => Outfits.CarColour(s, 1002, red)), c => Assert.True(c.R > 3 * c.G, "a red car stays red"));
+        Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
+    }
+
+    /// <summary>⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the AH-64 is an ATTACK helicopter, not a UH-60: its own kit (a chin gun on a
+    /// turret, four rotor blades, a tail rotor, two rocket pods), sized by its TKB box; its rotors spool as a helicopter's.</summary>
+    [Fact]
+    public void CE1103_TheAh64_HasItsOwnKit_AChinGunTurret_AndRotors()
+    {
+        var look = EntityBodyLayer3D.Resolve(BuiltIn().GetByType(TkbEntityTypes.Heli_AH64));
+        Assert.Equal(VisualFamily.AttackHelicopter, look.Family);
+        Assert.Same(ShapeKits.AttackHelicopter, ShapeKits.For(VisualFamily.AttackHelicopter));
+        Assert.Equal(new Vector3(17.73f, 14.63f, 3.87f), look.Size);
+        var kit = ShapeKits.AttackHelicopter;
+        Assert.True(kit.IsArticulated);
+        Assert.Single(kit.Parts, p => p.Role == PartRole.Turret);
+        Assert.Single(kit.Parts, p => p.Role == PartRole.Gun);
+        Assert.Equal(2, kit.Parts.Count(p => p.Role == PartRole.Rotor));
+        Assert.Equal(2, kit.Parts.Count(p => p.Role == PartRole.TailRotor));
+        Assert.Equal(2, kit.Parts.Count(p => p.Shape == PartShape.Cylinder && p.Axis == PartAxis.X && p.Colour == ColourRole.Dark));   // the pods
+        Assert.Equal(VisualFamily.Helicopter, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(TkbEntityTypes.Heli_UH60)).Family);   // the UH-60 stays
+
+        var motion = new MotionTracker();
+        var e = new Entity(1, 1);
+        float last = 0f;
+        for (int k = 0; k < 120; k++)
+            last = motion.Advance(e, new Vector3(0f, 0f, 30f), Quaternion.Identity, VisualFamily.AttackHelicopter, look.Size, k / 30.0, rotorTurning: true).Rotor;
+        Assert.NotEqual(0f, last);   // its rotor turns
+    }
+
+    /// <summary>⭐ CE-1099 (§6q O-3) — the CivilianChild type is a person 1.25 m tall, drawn as a child; a grown pedestrian is not.</summary>
+    [Fact]
+    public void CE1099_TheChildType_IsASmallPerson_DrawnAsAChild()
+    {
+        var db = BuiltIn();
+        var child = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianChild));
+        Assert.Equal(VisualFamily.Person, child.Family);
+        Assert.True(child.Child);
+        Assert.False(child.Soldier);
+        Assert.InRange(child.Size.Z, 1.2f, 1.3f);
+        var grown = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian));
+        Assert.False(grown.Child);
+        Assert.False(grown.TypeColoured);   // ⇒ his clothes come from the everyday palette, not the family green
+    }
+
+    /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,
+    /// all eight at none left (a dead man), none for a pool with no maximum.</summary>
+    [Fact]
+    public void CE1098_TheSpots_GrowWithTheHealthLost()
+    {
+        Assert.Equal(0, BlockFigure.StainCount(100f, 100f));
+        Assert.Equal(1, BlockFigure.StainCount(99f, 100f));
+        Assert.Equal(2, BlockFigure.StainCount(85f, 100f));
+        Assert.Equal(4, BlockFigure.StainCount(50f, 100f));
+        Assert.Equal(7, BlockFigure.StainCount(15f, 100f));
+        Assert.Equal(BlockFigure.MaxStains, BlockFigure.StainCount(0f, 100f));
+        Assert.Equal(BlockFigure.MaxStains, BlockFigure.StainCount(-20f, 100f));
+        Assert.Equal(0, BlockFigure.StainCount(0f, 0f));
+    }
+
+    /// <summary>⭐ CE-1098 (§6p B-1, B-3) — a spot is REPEATABLE (the same man's spot k is the same on every call and every node, so his spots
+    /// stay put and the earlier ones stay as more appear), different men bleed in different places, and every spot lies flat ON a side of a
+    /// body part — never the head (his face), never the rifle.</summary>
+    [Fact]
+    public void CE1098_TheSpots_AreRepeatable_DifferPerMan_AndLieOnTheBody()
+    {
+        Assert.Equal(BlockFigure.StainOf(4711, 3), BlockFigure.StainOf(4711, 3));
+        var one = Enumerable.Range(0, BlockFigure.MaxStains).Select(k => BlockFigure.StainOf(4711, k)).ToArray();
+        var other = Enumerable.Range(0, BlockFigure.MaxStains).Select(k => BlockFigure.StainOf(4712, k)).ToArray();
+        Assert.NotEqual(one, other);
+        var parts = new HashSet<int>();
+        for (long seed = 1; seed <= 200; seed++)
+            for (int k = 0; k < BlockFigure.MaxStains; k++)
+            {
+                var st = BlockFigure.StainOf(seed, k);
+                parts.Add(st.Part);
+                Assert.NotEqual(BlockFigure.HeadIndex, st.Part);
+                Assert.NotEqual(BlockFigure.WeaponIndex, st.Part);
+                float[] c = [st.Centre.X, st.Centre.Y, st.Centre.Z];
+                Assert.Equal(1, c.Count(v => MathF.Abs(v) > 0.5f));                  // proud of exactly one side
+                float[] e = [st.Extent.X, st.Extent.Y, st.Extent.Z];
+                for (int i = 0; i < 3; i++)
+                    if (MathF.Abs(c[i]) <= 0.5f) Assert.InRange(MathF.Abs(c[i]) + e[i] / 2f, 0f, 0.5f);   // and wholly inside it
+            }
+        Assert.Contains(BlockFigure.TorsoIndex, parts);
+        Assert.Contains(0, parts);   // a thigh
+        Assert.Contains(6, parts);   // an upper arm
+    }
+
+    /// <summary>⭐ CE-1097 (§6o F-2, F-3, F-4) — WHERE the face is drawn: on a standing soldier the eyes are in front of his head and the helmet
+    /// on top of it; on a dead one (on his back) the eyes look UP and the helmet is at the far end of his head from his body; draped over a
+    /// shoulder his eyes look DOWN. A soldier's helmet is his uniform a step darker (green stays green); a civilian has hair, no helmet.</summary>
+    [Fact]
+    public void CE1097_TheFaceIsOnItsSide_TheHelmetOnTop_InTheUniformDarker()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        Vector3 Centre(KitPart head, FaceShade shade)
+            => Vector3.Transform(Vector3.Zero, BlockFigure.FaceDetail(BlockFigure.FaceParts(true).First(d => d.Shade == shade), head.Face, head.BodyTransform(size)));
+        Vector3 HeadCentre(KitPart head) => Vector3.Transform(Vector3.Zero, head.BodyTransform(size));
+        // ⭐ CE-1101 (§6r) — the features are PAINTED on the side BodySurface.AxesOf names (in the head part's own frame)
+        Vector3 FaceSide(KitPart head) => Vector3.TransformNormal(BodySurface.AxesOf(head.Face).Face, head.BodyTransform(size));
+
+        var up = BlockFigure.Parts(StanceId.Standing, true)[BlockFigure.HeadIndex];
+        Assert.True(FaceSide(up).X > 0.09f, "a standing man's face is the front of his head");
+        Assert.True(Centre(up, FaceShade.Helmet).Z > HeadCentre(up).Z + 0.07f, "his helmet is on top");
+        Assert.Equal((Vector3.UnitX, Vector3.UnitZ), BodySurface.AxesOf(FaceOn.Front));
+
+        var dead = BlockFigure.Dead(true)[BlockFigure.HeadIndex];
+        Assert.True(FaceSide(dead).Z > 0.09f, "a dead man on his back looks up");
+        Assert.True(Centre(dead, FaceShade.Helmet).X > HeadCentre(dead).X + 0.07f, "his helmet is at the end of his head, away from his body");
+
+        var draped = BlockFigure.Draped(true)[BlockFigure.HeadIndex];
+        Assert.True(FaceSide(draped).Z < -0.09f, "draped over a shoulder he looks down");
+        Assert.Single(BlockFigure.FaceParts(true));    // the helmet only: the eyes, nose and mouth are the shader's
+        Assert.Single(BlockFigure.FaceParts(false));   // the hair only
+
+        Assert.Contains(BlockFigure.FaceParts(true), d => d.Shade == FaceShade.Helmet);
+        Assert.DoesNotContain(BlockFigure.FaceParts(false), d => d.Shade == FaceShade.Helmet);
+        Assert.Contains(BlockFigure.FaceParts(false), d => d.Shade == FaceShade.Hair);
+        var uniform = EntityBodyLayer3D.DefaultColour(VisualFamily.Person);
+        var helmet = EntityBodyLayer3D.FaceColour(FaceShade.Helmet, uniform);
+        Assert.True(helmet.G < uniform.G && helmet.G > helmet.R && helmet.G > helmet.B, "a green uniform's helmet is a darker green");
+        Assert.Equal(EntityBodyLayer3D.Skin, EntityBodyLayer3D.PartColour(ColourRole.Skin, uniform, wreck: false));
     }
 
     /// <summary>⭐ CE-1081 (C-1) — the CARRIED man lies across his carrier's shoulders: his middle at the shoulders' height, crosswise (his
@@ -743,7 +1318,7 @@ public sealed class Map3DTests
     [InlineData(23, VisualFamily.Helicopter)]
     [InlineData(25, VisualFamily.Helicopter)]
     [InlineData(1, VisualFamily.Jet)]
-    [InlineData(2, VisualFamily.Jet)]
+    [InlineData(2, VisualFamily.AttackJet)]   // ⭐ CE-1092
     [InlineData(50, VisualFamily.Jet)]
     [InlineData(4, VisualFamily.CargoPlane)]
     [InlineData(3, VisualFamily.CargoPlane)]
@@ -1559,7 +2134,11 @@ public sealed class Map3DTests
         Assert.NotEqual(a.Rotor, b.Rotor);
         var c = t.Advance(heli, new Vector3(0, 0, 30), Quaternion.Identity, VisualFamily.Helicopter, size, 10.05, rotorTurning: true);
         Assert.Equal(b.Rotor, c.Rotor);                                              // a paused sim clock freezes it
-        Assert.Equal(0f, t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, 11.0, rotorTurning: false).Rotor);
+        // ⭐ CE-1093 (N-9) — parked, it runs on, then spools down and STANDS (no longer the instant the height test failed)
+        float last = 0f;
+        for (double s = 11.0; s <= 11.0 + MotionTracker.RotorRunOnSeconds + MotionTracker.RotorSpoolSeconds + 1.0; s += 0.1)
+            last = t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, s, rotorTurning: false).Rotor;
+        Assert.Equal(last, t.Advance(heli, Vector3.Zero, Quaternion.Identity, VisualFamily.Helicopter, size, 40.0, rotorTurning: false).Rotor);
         // the blades turn about their mast, the spokes about their wheel: the part's centre stays put
         var blade = ShapeKits.Helicopter.Parts.First(k => k.Role == PartRole.Rotor);
         var centre = Vector3.Transform(Vector3.Zero, blade.BodyTransform(size, default, ArticulationPose.Neutral, new MotionPose(1.2f, 0, 0)));
@@ -1873,6 +2452,7 @@ public sealed class Map3DTests
     [InlineData(TkbEntityTypes.Tank_M1Abrams)]
     [InlineData(TkbEntityTypes.Tank_T72)]
     [InlineData(TkbEntityTypes.IFV_Bradley)]
+    [InlineData(TkbEntityTypes.Heli_AH64)]   // ⭐ CE-1103 — a CG-referenced body: its chin gun is placed through the box offset
     public void E4b_TheDrawnBarrelTip_IsTheMuzzle_Within5cm(long type)
     {
         var tkb = HrotEnvironment.CreateTkb();
@@ -1894,7 +2474,10 @@ public sealed class Map3DTests
         var gun = parts.First(p => p.Role == PartRole.Gun);
         var pose = new TurretPoseSource().PoseOf(w, tank);
         var body = Matrix4x4.CreateFromQuaternion(hullRotation) * Matrix4x4.CreateTranslation(new Vector3(30f, -20f, 4f));
-        var tip = Vector3.Transform(new Vector3(0f, 0f, 1f), gun.BodyTransform(look.Size, pivots, pose) * body);   // the unit cylinder's far end
+        // ⭐ CE-1103 — the kit is drawn in its box; a Body.Geometry shifts the box off the reference point (the renderer's kitToBody)
+        var kitToBody = look.Geometry is { } g
+            ? Matrix4x4.CreateTranslation(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ - look.Size.Z / 2f) : Matrix4x4.Identity;
+        var tip = Vector3.Transform(new Vector3(0f, 0f, 1f), gun.BodyTransform(look.Size, pivots, pose) * kitToBody * body);   // the unit cylinder's far end
 
         Assert.True(Fdp.Toolkit.Combat.Muzzle.TryOf(w, tank, 0, out var muzzle));
         Assert.True(Vector3.Distance(tip, muzzle) < 0.05f, $"drawn tip {tip} vs muzzle {muzzle}: {Vector3.Distance(tip, muzzle):F3} m");

@@ -20,18 +20,34 @@ uniform mat4 matNormal;
 out vec3 fragPos;
 out vec3 fragNormal;
 out vec4 fragColor;
+out vec3 localUnit;
+out vec3 localMetres;
+out vec3 localNormal;
 void main()
 {
     fragPos = vec3(matModel * vec4(vertexPosition, 1.0));
     fragNormal = vec3(matNormal * vec4(vertexNormal, 0.0));
     fragColor = vertexColor;
+    // the mesh's own frame, in HROT axes (raylib-local (x, y, z) is HROT-local (x, -z, y), HrotToRaylib) — as a unit position, in metres
+    // (each axis scaled by the length of its model-matrix column), and its normal: what a host's surface function draws on
+    vec3 scale = vec3(length(matModel[0].xyz), length(matModel[1].xyz), length(matModel[2].xyz));
+    vec3 metres = vertexPosition * scale;
+    localUnit = vec3(vertexPosition.x, -vertexPosition.z, vertexPosition.y);
+    localMetres = vec3(metres.x, -metres.z, metres.y);
+    localNormal = vec3(vertexNormal.x, -vertexNormal.z, vertexNormal.y);
     gl_Position = mvp * vec4(vertexPosition, 1.0);
 }";
 
-        private const string Fragment = @"#version 330
+        /// <summary>The default surface: the colour as it is.</summary>
+        public const string PlainSurface = "vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n) { return base; }";
+
+        private const string FragmentHead = @"#version 330
 in vec3 fragPos;
 in vec3 fragNormal;
 in vec4 fragColor;
+in vec3 localUnit;
+in vec3 localMetres;
+in vec3 localNormal;
 uniform vec4 colDiffuse;
 uniform vec3 viewPos;
 uniform vec3 sunDir;
@@ -39,13 +55,17 @@ uniform vec3 fogColor;
 uniform float fogDensity;
 uniform float ambient;
 out vec4 finalColor;
+";
+
+        private const string FragmentMain = @"
 void main()
 {
     vec3 n = normalize(fragNormal);
     if (!gl_FrontFacing) n = -n;
     float diffuse = max(dot(n, -sunDir), 0.0);
     vec4 base = fragColor * colDiffuse;
-    vec3 lit = base.rgb * (ambient + (1.0 - ambient) * diffuse);
+    vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
+    vec3 lit = albedo * (ambient + (1.0 - ambient) * diffuse);
     float d = length(viewPos - fragPos) * fogDensity;
     float visible = clamp(exp(-d * d), 0.0, 1.0);
     finalColor = vec4(mix(fogColor, lit, visible), base.a);
@@ -53,6 +73,24 @@ void main()
 
         private static LitShader? _shared;
         private static nint _sharedWindow;
+        private static string _surface = PlainSurface;
+
+        /// <summary>
+        /// ⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-1) — the host's ONE surface function, GLSL
+        /// <c>vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)</c> with any uniforms it needs: it gets each fragment's colour and its
+        /// place in the mesh's own frame (HROT axes; a unit position −0.5..0.5, the same in metres, and the normal) and returns the colour to
+        /// light. ⚠ It must return <c>base</c> unless the host has set its own uniforms for the draw — every layer draws through it. A new
+        /// function recompiles the shader on next use.
+        /// </summary>
+        public static void UseSurface(string glsl)
+        {
+            if (glsl == _surface) return;
+            _surface = glsl;
+            _shared = null;
+        }
+
+        /// <summary>The surface function the shader is (or will be) compiled with.</summary>
+        public static string Surface => _surface;
 
         /// <summary>The shared instance, compiled on first use (needs the window's GL context). ⭐ A GL program dies with its context and
         /// its stale id still reads as valid — measured `2026-10-11`: a second 3-D frame rail in one test run drew only the sky. The
@@ -98,7 +136,7 @@ void main()
 
         private unsafe LitShader()
         {
-            var shader = Raylib.LoadShaderFromMemory(Vertex, Fragment);
+            var shader = Raylib.LoadShaderFromMemory(Vertex, FragmentHead + _surface + FragmentMain);
             IsValid = Raylib.IsShaderValid(shader);
             shader.Locs[(int)ShaderLocationIndex.MatrixModel] = Raylib.GetShaderLocation(shader, "matModel");
             shader.Locs[(int)ShaderLocationIndex.MatrixNormal] = Raylib.GetShaderLocation(shader, "matNormal");

@@ -134,7 +134,7 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
-            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending);
+            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending, _driver.Scheme);
             var (x, y) = HudOrigin(size, lines.Length, MaxWidth(lines));
             Raylib.DrawRectangle(x - 8, y - 6, MaxWidth(lines) + 16, lines.Length * HudLineHeight + 8, new Color(0, 0, 0, 140));
             foreach (var line in lines) { Raylib.DrawText(line, x, y, HudFontSize, Color.RayWhite); y += HudLineHeight; }
@@ -211,9 +211,12 @@ namespace Hrot.UI.Common.Map3D
         public static class Hud
         {
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
-                                         Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false)
+                                         Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
+                                         ControlScheme scheme = ControlScheme.Person)
             {
                 var lines = new System.Collections.Generic.List<string>();
+                bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
+                if (flyer) lines.Add(FlightLine(w, unit));   // ⭐ CE-1095 (§8f P-4)
                 if (w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(unit))
                 {
                     var h = w.GetComponentRO<Health>(unit);
@@ -225,10 +228,15 @@ namespace Hrot.UI.Common.Map3D
                     for (int m = 0; m < Math.Max((int)a.Count, 1); m++) lines.Add(WeaponLine(w, unit, a, m, m == mount));
                 }
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
-                if (!vehicle && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
-                lines.Add(vehicle
-                    ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
-                    : "W/A/S/D move  mouse look  Shift run  C stance  Esc release");
+                if (!vehicle && !flyer && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
+                lines.Add(scheme switch
+                {
+                    ControlScheme.FixedWing => "mouse: fly where you look  W/S throttle  Esc release",          // ⭐ CE-1095
+                    ControlScheme.Rotorcraft => "W/S/A/D fly  mouse turn  Space/C climb  Esc release",
+                    _ => vehicle
+                        ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
+                        : "W/A/S/D move  mouse look  Shift run  C stance  Esc release",
+                });
                 lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo");   // ⭐ CE-1078 / CE-1079
                 return lines.ToArray();
             }
@@ -262,6 +270,22 @@ namespace Hrot.UI.Common.Map3D
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
                 return line.ToString();
+            }
+
+            /// <summary>
+            /// ⭐ CE-1095 (§8f P-4) — a flyer's flight line: <c>SPD 152 m/s  ALT 312 m  HDG 045</c> — its speed (its replicated velocity), its
+            /// height above the ground under it (the world query; its own Z where there is none) and its compass heading (0 = north,
+            /// clockwise).
+            /// </summary>
+            public static string FlightLine(EntityRepository w, Entity unit)
+            {
+                if (!w.HasComponent<SimTransform>(unit)) return "SPD -  ALT -  HDG -";
+                var tf = w.GetComponentRO<SimTransform>(unit);
+                float speed = w.IsComponentTypeRegistered<SimVelocity>() && w.HasComponent<SimVelocity>(unit) ? w.GetComponentRO<SimVelocity>(unit).Linear.Length() : 0f;
+                float ground = Fdp.Toolkit.World.WorldQuery.Of(w)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f;
+                float yaw = Fdp.Toolkit.Motion.RotorcraftModel.YawOf(tf.Rotation) * 180f / MathF.PI;   // counter-clockwise from east
+                int heading = ((int)MathF.Round(90f - yaw) % 360 + 360) % 360;
+                return $"SPD {speed:0} m/s  ALT {tf.Position.Z - ground:0} m  HDG {heading:000}";
             }
 
             /// <summary>⭐ CE-1079 — a weapon's kind, as the HUD names it.</summary>
@@ -307,6 +331,14 @@ namespace Hrot.UI.Common.Map3D
         public const float VehicleEyeHeight = 2.5f;
         /// <summary>⭐ CE-2168 — a flyer's camera sits on it (an FPV view).</summary>
         public const float RotorcraftEyeHeight = 0.2f;
+        /// <summary>⭐ CE-1095 (§8f P-3) — a plane's eye above its reference point (its CG): about the canopy.</summary>
+        public const float FixedWingEyeHeight = 1.5f;
+        /// <summary>⭐ CE-1095 (§8f P-2) — the look's pitch that asks for the plane's steepest climb or dive (<c>Vertical</c> = ±1) —
+        /// the model's own <c>MaxPitchDeg</c>, so a look along the climb it can fly asks for exactly that.</summary>
+        public static readonly float FullClimbLook = Fdp.Toolkit.Motion.FixedWingModel.MaxPitchDeg * MathF.PI / 180f;
+
+        /// <summary>⭐ CE-1095 — is this a flyer (plane or helicopter)?</summary>
+        public bool IsFlyer => Scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
         /// <summary>How far an aim with nothing under the crosshair reaches (m).</summary>
         public const float AimReach = 1000f;
 
@@ -314,7 +346,7 @@ namespace Hrot.UI.Common.Map3D
         private readonly Func<EntityRepository?> _world;
         private readonly long _netId;
         private IInputProvider? _locked;
-        private float _yaw, _pitch, _mouseSteer;
+        private float _yaw, _pitch, _mouseSteer, _roll;
         private bool _lookInitialised;
         private uint _seq;
         private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
@@ -358,6 +390,7 @@ namespace Hrot.UI.Common.Map3D
             : Fdp.Toolkit.Motion.Locomotions.Of(w, Unit) switch
             {
                 Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft => ControlScheme.Rotorcraft,
+                Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing => ControlScheme.FixedWing,   // ⭐ CE-1095 (§8f P-1)
                 Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled or Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked => ControlScheme.Vehicle,
                 _ => ControlScheme.Person,
             };
@@ -382,6 +415,8 @@ namespace Hrot.UI.Common.Map3D
             if (vehicle && HullLocked) _yaw = hullYaw;
             _eye = EyeOf(w, tf, vehicle);
             _eyeKnown = true;
+            // ⭐ CE-1095 (§8f P-3) — a flyer's view banks with the body (the horizon tilts into the turn); its pitch stays the look's
+            _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
             Place(camera);
         }
 
@@ -394,6 +429,7 @@ namespace Hrot.UI.Common.Map3D
         private Vector3 EyeOf(EntityRepository w, in SimTransform tf, bool vehicle)
         {
             if (Scheme == ControlScheme.Rotorcraft) return tf.Position + new Vector3(0f, 0f, RotorcraftEyeHeight);   // ⭐ CE-2168 (MD-D)
+            if (Scheme == ControlScheme.FixedWing) return tf.Position + new Vector3(0f, 0f, FixedWingEyeHeight);     // ⭐ CE-1095 (§8f P-3)
             if (vehicle) return tf.Position + new Vector3(0f, 0f, VehicleEyeHeight);
             if (_station.Bodies is { } bodies && bodies.TryGetEyeLocal(Unit, out var local))
                 return tf.Position + Vector3.Transform(local, tf.Rotation);
@@ -407,6 +443,7 @@ namespace Hrot.UI.Common.Map3D
             if (!_eyeKnown) return;
             camera.Yaw = _yaw;
             camera.Pitch = _pitch;
+            camera.Roll = _roll;
             camera.Distance = camera.MinDistance;
             camera.LookAt = _eye + camera.Forward * camera.Distance;
         }
@@ -425,9 +462,15 @@ namespace Hrot.UI.Common.Map3D
 
             float forward = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S) ? 1f : 0f);
             float side = (input.IsKeyDown((MapKeyboardKey)KeyboardKey.A) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.D) ? 1f : 0f);
-            // ⭐ CE-2168 (MD-D) — a flyer's climb axis
-            float vertical = Scheme != ControlScheme.Rotorcraft ? 0f
-                : (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f);
+            // ⭐ CE-2168 (MD-D) — a flyer's climb axis; ⭐ CE-1095 (§8f P-2) — a plane's is its look's pitch (mouse-aim), and it does not strafe
+            var scheme = Scheme;
+            float vertical = scheme switch
+            {
+                ControlScheme.Rotorcraft => (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Space) ? 1f : 0f) - (input.IsKeyDown((MapKeyboardKey)KeyboardKey.C) ? 1f : 0f),
+                ControlScheme.FixedWing => Math.Clamp(_pitch / FullClimbLook, -1f, 1f),
+                _ => 0f,
+            };
+            if (scheme == ControlScheme.FixedWing) side = 0f;
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
             float wheel = input.MouseWheelMove;
             if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
@@ -479,6 +522,7 @@ namespace Hrot.UI.Common.Map3D
 
         public void Detached(MapCamera3D camera)
         {
+            camera.Roll = 0f;   // ⭐ CE-1095 — the operator's own view is never banked
             _locked?.SetCursorLocked(false);
             _locked = null;
         }
@@ -523,5 +567,6 @@ namespace Hrot.UI.Common.Map3D
     }
 
     /// <summary>⭐ CE-2168 (Motion Domains MD-D) — how the FPS station maps the keys and mouse onto a possessed body.</summary>
-    public enum ControlScheme : byte { Person = 0, Vehicle = 1, Rotorcraft = 2 }
+    /// <para>⭐ CE-1095 (DESIGN_Entity_Control §8f P-1) — and a <see cref="FixedWing"/> plane flies by its operator's LOOK (mouse-aim).</para>
+    public enum ControlScheme : byte { Person = 0, Vehicle = 1, Rotorcraft = 2, FixedWing = 3 }
 }

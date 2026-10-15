@@ -5033,6 +5033,11 @@ namespace Hrot.Editor
                     Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorOrbat, "Scenario",
                     EditorWindowColor.TitleBar));
 
+            // ⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor: the editor drew and moved routes but could set nothing on a waypoint
+            windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
+                new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
+                Hrot.Presentation.Windows.ScenarioPanelWindowIds.EditorWaypoint, "Scenario", EditorWindowColor.TitleBar));
+
             if (_previewPanel     != null && _previewController != null)
                 windowManager.RegisterWindow(new EditorPreviewWindow(_previewPanel, _previewController));
 

@@ -39,7 +39,7 @@ public sealed class AuthoredRouteGizmoTests : IDisposable
         plan.Mutate(wps =>
         {
             for (int i = 0; i < count; i++)
-                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, 0f, i * 20f) });
+                wps.Add(new RouteWaypoint { Position = new Vector3(i * 10f, i * 20f, 0f) });   // ⭐ CE-2172 — Z-up, as the draw tool writes
         });
         return plan;
     }
@@ -74,7 +74,7 @@ public sealed class AuthoredRouteGizmoTests : IDisposable
         Assert.Equal(segments, lines);
         Assert.Equal(waypoints, dots);
         Assert.All(all, p => Assert.Equal(AuthoredRouteGizmo.PersonalColor, p.Color));
-        // a waypoint stores X = east, Z = north
+        // ⭐ CE-2172 — a waypoint stores X = east, Y = north (Z up); a ground route draws at z 0 (draped in 3-D)
         Assert.Contains(all, p => p.Shape == DebugPrimitiveShape.Sphere && p.SphereCenter == new Vector3(10, 20, 0));
     }
 

@@ -34,9 +34,10 @@ public class RouteWaypointGizmoTests : IDisposable
         var plan = new RoutePlan();
         plan.Mutate(wps =>
         {
-            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 0f, 10f), TargetSpeed = 5f });
-            wps.Add(new RouteWaypoint { Position = new Vector3(20f, 0f, 20f), TargetSpeed = 5f });
-            wps.Add(new RouteWaypoint { Position = new Vector3(30f, 0f, 10f), TargetSpeed = 5f });
+            // ⭐ CE-2172 — Z-up (X east, Y north), as the draw tool writes them; the third is a flyer's, 120 m up
+            wps.Add(new RouteWaypoint { Position = new Vector3(10f, 10f, 0f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(20f, 20f, 0f), TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(30f, 10f, 120f), TargetSpeed = 5f });
         });
         _repo.SetManagedComponent(_entity, plan);
     }
@@ -79,14 +80,15 @@ public class RouteWaypointGizmoTests : IDisposable
         using var gizmo = CreateGizmo();
 
         gizmo.OnInteractionStarted(Token(1), Vector3.Zero); // waypoint 0
-        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));      // worldX=50, worldY=60 -> Z=60
+        gizmo.OnDragUpdate(new Vector3(50f, 60f, 0f));      // worldX=50, worldY=60 -> X 50, Y 60 (⭐ CE-2172 — Y is north)
         gizmo.OnCommit(Vector3.Zero);
 
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
         var wp0  = plan.Waypoints![0];
 
         Assert.Equal(50f, wp0.Position.X, precision: 3);
-        Assert.Equal(60f, wp0.Position.Z, precision: 3);
+        Assert.Equal(60f, wp0.Position.Y, precision: 3);
+        Assert.Equal(0f, wp0.Position.Z, precision: 3);
         Assert.Equal(3, plan.Waypoints!.Count);
     }
 
@@ -111,7 +113,31 @@ public class RouteWaypointGizmoTests : IDisposable
         // without publishing), so waypoint 1 remains at its original position.
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity);
         Assert.Equal(20f, plan.Waypoints![1].Position.X, precision: 3);
-        Assert.Equal(20f, plan.Waypoints![1].Position.Z, precision: 3);
+        Assert.Equal(20f, plan.Waypoints![1].Position.Y, precision: 3);
+    }
+
+    // -- ⭐ CE-2172 (R-182; DESIGN_Air_Operations §5, air hand-off U1) --
+
+    /// <summary>
+    /// ⭐⭐ CE-2172 — the route gizmo is Z-UP: a waypoint is drawn where it was drawn (its X / Y on the map) and a drag moves X / Y and keeps
+    /// its height. 📌 Red before: the gizmo read Position.Z as north, so a flyer's waypoint 120 m up was drawn 120 m north of where it is,
+    /// and dragging it wrote the drag's north into its altitude.
+    /// </summary>
+    [Fact]
+    public void CE2172_TheGizmoIsZUp_ADragMovesXY_AndKeepsTheHeight()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.SetFocus(true);
+        var draw = new CountingDraw();
+        gizmo.UpdateAndDraw(_repo, 0.016f, draw);
+        Assert.Contains(draw.Ends, p => p.X == 30f && p.Y == 10f && p.Z == 120f);   // the flyer's point, at its height
+        Assert.Contains(draw.HandleCentres, c => c == new Vector2(30f, 10f));        // its handle on the map, where it was drawn
+
+        gizmo.OnInteractionStarted(Token(3), Vector3.Zero);
+        gizmo.OnDragUpdate(new Vector3(35f, 14f, 0f));
+        gizmo.OnCommit(Vector3.Zero);
+        var moved = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![2].Position;
+        Assert.Equal(new Vector3(35f, 14f, 120f), moved);
     }
 
     // -- RWG-004 --
@@ -130,6 +156,44 @@ public class RouteWaypointGizmoTests : IDisposable
 
         gizmo.Dispose();
         Assert.Null(RouteWaypointGizmo.Current);
+    }
+
+    // -- ⭐ CE-1096 (ROUTES1 §11.4 — air hand-off U2) --
+
+    /// <summary>
+    /// ⭐⭐ CE-1096 — a waypoint STAYS selected after its click (press + release) and the waypoint panel shows it, air fields included; a
+    /// field the panel changes is COMMITTED to the route at once — the route entity holds it and an update is published.
+    /// 📌 Red before: OnCommit deselected (the panel went blank the moment the mouse came up) and the panel never wrote back.
+    /// </summary>
+    [Fact]
+    public void CE1096_AClickedWaypointStaysSelected_AndThePanelsAirFieldsAreCommittedToTheRoute()
+    {
+        using var gizmo = CreateGizmo();
+        gizmo.OnInteractionStarted(Token(2), Vector3.Zero);   // a click: press …
+        gizmo.OnCommit(Vector3.Zero);                         // … and release
+        Assert.Equal(1, gizmo.SelectedVertexIndex);
+
+        var panel = new Hrot.UI.Common.Panels.WaypointEditorPanel(() => RouteWaypointGizmo.Current);
+        var vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        Assert.True(vm.HasSelection);
+        Assert.Equal(("Pass", 0f, "None"), (vm.Kind, vm.HeightAgl, vm.Hold));
+
+        IRouteWaypointEditorState state = gizmo;
+        ref var wp = ref state.GetSelectedWaypointRef();
+        wp.Kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Ground;
+        wp.HeightAgl = 120f;
+        wp.Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup;
+        wp.HoldUnit = 4242L;
+        _repo.Bus.SwapBuffers();
+        state.CommitEdits();
+
+        var stored = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(_entity).Waypoints![1];
+        Assert.Equal((Fdp.Toolkit.Navigation.RouteWaypointKind.Ground, 120f, Fdp.Toolkit.Navigation.RouteHold.Pickup, 4242L),
+                     (stored.Kind, stored.HeightAgl, stored.Hold, stored.HoldUnit));
+        _repo.Bus.SwapBuffers();
+        Assert.NotEmpty(_repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.UpdateEntityCommand>());   // published
+        vm = panel.BuildViewModel("editor_waypoint_editor", "ig-waypoint-editor");
+        Assert.Equal(("Ground", 120f, "Pickup", 4242L), (vm.Kind, vm.HeightAgl, vm.Hold, vm.HoldUnit));
     }
 
     // -- §4.7i — A SUSPENDED TOOL DRAWS ITS WORK, NOT ITS HANDLES (user ruling, 2026-09-10) --
@@ -170,14 +234,16 @@ public class RouteWaypointGizmoTests : IDisposable
         public int Lines;
         public int Handles;
         public int MenuBindings;
+        public readonly List<Vector3> Ends = new();
+        public readonly List<Vector2> HandleCentres = new();
 
-        public void EmitRaw(in DebugPrimitive prim) => Handles++;
+        public void EmitRaw(in DebugPrimitive prim) { Handles++; HandleCentres.Add(new Vector2(prim.BoxCenterX, prim.BoxCenterY)); }
         public void DrawContextMenuBinding(long networkId, string menuJson) => MenuBindings++;
 
         public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
             PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid)
-            => Lines++;
+        { Lines++; Ends.Add(s); Ends.Add(e); }
         public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f,
             SizeMode m = SizeMode.ScreenPixels,
             PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }

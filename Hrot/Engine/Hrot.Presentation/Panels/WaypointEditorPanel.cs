@@ -1,17 +1,19 @@
 ﻿using System;
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
+using Fdp.Toolkit.Navigation;
 using Hrot.ScenarioEditor.Gizmos;
 using ImGuiNET;
 
-namespace Hrot.IG.UI;
+namespace Hrot.UI.Common.Panels;
 
 /// <summary>⭐⭐⭐ U-obs-5 (group 6) — the whole of what <see cref="WaypointEditorPanel"/> shows, this
 /// frame. ⚠ A plain panel: no <see cref="PanelId"/>/<see cref="PanelKind"/> of its own — the HOST
-/// (<c>IgWaypointEditorWindow</c>) supplies both.</summary>
+/// (<see cref="Hrot.Presentation.Windows.WaypointEditorWindow"/>) supplies both. ⭐ CE-1096 — and the waypoint's air fields.</summary>
 public sealed record WaypointEditorPanelViewModel(
     string PanelId, string PanelKind, bool HasSelection, int SelectedVertexIndex,
-    float PositionX, float PositionY, float PositionZ, float TargetSpeed, string ExtensionJson) : IPanelViewModel
+    float PositionX, float PositionY, float PositionZ, float TargetSpeed, string ExtensionJson,
+    string Kind = "Pass", float HeightAgl = 0f, string Hold = "None", float HoldSeconds = 0f, long HoldUnit = 0L) : IPanelViewModel
 {
     /// <inheritdoc/>
     public JsonNode Dump() => PanelDump.Of(this);
@@ -30,13 +32,19 @@ public sealed record WaypointEditorPanelViewModel(
 ///         <see cref="Hrot.Map.Common.Components.RouteWaypoint.TargetSpeed"/> in-place.</item>
 ///   <item><c>AI Advice (JSON)</c> multiline text input -- updates
 ///         <see cref="Hrot.Map.Common.Components.RouteWaypoint.ExtensionJson"/> in-place.</item>
+///   <item>⭐ CE-1096 (docs/designs/routes-1/ROUTES1-DESIGN.md §11.4 W-2 — air hand-off U2) — the air fields: <c>Kind</c> (Pass /
+///         Ground), <c>Height above ground (m)</c> (0 = the stored height), <c>Hold</c> (None / Seconds / Unload / Pickup), its seconds and
+///         its unit's network id.</item>
 /// </list>
 /// </para>
 ///
 /// <para>
-/// The panel does NOT commit changes -- <see cref="RouteWaypointGizmo"/> owns the working
-/// state and writes back on each <c>OnCommit</c>.
+/// ⭐ CE-1096 (W-3) — a field the author changes is COMMITTED at once (<see cref="IRouteWaypointEditorState.CommitEdits"/>): the panel used to
+/// edit the gizmo's working copy only, so an edit was lost on Escape.
 /// </para>
+///
+/// <para>⭐ CE-1096 (W-1) — MOVED from <c>Hrot.IG.UI</c> to <c>Hrot.Presentation</c>: one panel, registered by every authoring host (the editor,
+/// CGF, the IG — <see cref="Hrot.Presentation.Windows.WaypointEditorWindow"/>); the editor had no way to set anything on a waypoint.</para>
 /// </summary>
 public class WaypointEditorPanel
 {
@@ -75,7 +83,7 @@ public class WaypointEditorPanel
     /// <summary>
     /// Core panel state update: refreshes <see cref="_lastWpIndex"/>,
     /// <see cref="_jsonBuffer"/>, and <see cref="_wasRouteToolActive"/> based on the
-    /// given gizmo state. Separated from <see cref="Draw"/> so headless unit tests
+    /// given gizmo state. Separated from <see cref="DrawContent"/> so headless unit tests
     /// can exercise the caching logic without an active ImGui context (CT-2).
     /// </summary>
     /// <param name="activeState">
@@ -117,26 +125,32 @@ public class WaypointEditorPanel
 
         ref var wp = ref activeState!.GetSelectedWaypointRef();
         return new(panelId, panelKind, true, activeState.SelectedVertexIndex,
-            wp.Position.X, wp.Position.Y, wp.Position.Z, wp.TargetSpeed, wp.ExtensionJson ?? string.Empty);
+            wp.Position.X, wp.Position.Y, wp.Position.Z, wp.TargetSpeed, wp.ExtensionJson ?? string.Empty,
+            wp.Kind.ToString(), wp.HeightAgl, wp.Hold.ToString(), wp.HoldSeconds, wp.HoldUnit);
     }
 
     /// <summary>
-    /// Renders the waypoint editor ImGui window.
-    /// Must be called within a <c>rlImGui.Begin() / rlImGui.End()</c> block.
+    /// Renders the waypoint editor as its own ImGui window (a host that does not manage its panels as windows — the IG standalone).
+    /// <paramref name="beforeBegin"/> / <paramref name="afterBegin"/> let the host style the window (the IG's colours) around
+    /// <c>ImGui.Begin</c>.
     /// </summary>
-    public void Draw()
+    public void Draw(Action? beforeBegin = null, Action? afterBegin = null)
     {
-        IgPanelColors.Push();
+        beforeBegin?.Invoke();
         bool visible = ImGui.Begin("Waypoint Editor");
-        IgPanelColors.Pop();
+        afterBegin?.Invoke();
         if (!visible) { ImGui.End(); return; }
         DrawContent();
         ImGui.End();
     }
 
+    /// <summary>⭐ CE-1096 (W-2) — the kinds and holds the combos offer, in their enum order.</summary>
+    private static readonly string[] KindNames = Enum.GetNames<RouteWaypointKind>();
+    private static readonly string[] HoldNames = Enum.GetNames<RouteHold>();
+
     /// <summary>
     /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
-    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// Call this from a <see cref="Fdp.Presentation.WindowManager.ManagedWindow"/>'s <c>DrawClientArea</c>.
     /// </summary>
     public void DrawContent()
     {
@@ -157,6 +171,7 @@ public class WaypointEditorPanel
         }
 
         ref var wp = ref activeState!.GetSelectedWaypointRef();
+        bool changed = false;
 
         // -- Position (read-only) --
         ImGui.LabelText("Position", $"({wp.Position.X:F1}, {wp.Position.Y:F1}, {wp.Position.Z:F1})");
@@ -167,6 +182,33 @@ public class WaypointEditorPanel
         float speed = wp.TargetSpeed;
         if (ImGui.InputFloat("Target Speed (m/s)", ref speed))
             wp.TargetSpeed = System.Math.Max(0f, speed);
+        changed |= ImGui.IsItemDeactivatedAfterEdit();
+
+        // -- ⭐ CE-1096 (W-2) — the air fields --
+        int kind = (int)wp.Kind;
+        if (ImGui.Combo("Kind", ref kind, KindNames, KindNames.Length)) { wp.Kind = (RouteWaypointKind)kind; changed = true; }
+        float height = wp.HeightAgl;
+        if (ImGui.InputFloat("Height above ground (m)", ref height)) wp.HeightAgl = System.Math.Max(0f, height);
+        changed |= ImGui.IsItemDeactivatedAfterEdit();
+        if (wp.HeightAgl <= 0f) ImGui.TextDisabled("0 = the waypoint's own height");
+        int hold = (int)wp.Hold;
+        if (ImGui.Combo("Hold", ref hold, HoldNames, HoldNames.Length)) { wp.Hold = (RouteHold)hold; changed = true; }
+        if (wp.Hold == RouteHold.Seconds)
+        {
+            float seconds = wp.HoldSeconds;
+            if (ImGui.InputFloat("Hold (s)", ref seconds)) wp.HoldSeconds = System.Math.Max(0f, seconds);
+            changed |= ImGui.IsItemDeactivatedAfterEdit();
+        }
+        if (wp.Hold == RouteHold.Pickup)
+        {
+            string unit = wp.HoldUnit.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (ImGui.InputText("Unit to pick up (network id)", ref unit, 24)
+                && long.TryParse(unit, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long id))
+                wp.HoldUnit = id;
+            changed |= ImGui.IsItemDeactivatedAfterEdit();
+        }
+
+        ImGui.Separator();
 
         // -- AI Advice JSON --
         if (ImGui.InputTextMultiline(
@@ -177,5 +219,9 @@ public class WaypointEditorPanel
         {
             wp.ExtensionJson = string.IsNullOrWhiteSpace(_jsonBuffer) ? null : _jsonBuffer;
         }
+        changed |= ImGui.IsItemDeactivatedAfterEdit();
+
+        // ⭐ CE-1096 (W-3) — committed when made, not lost on Escape
+        if (changed) activeState.CommitEdits();
     }
 }

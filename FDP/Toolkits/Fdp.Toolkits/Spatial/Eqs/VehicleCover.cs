@@ -36,14 +36,18 @@ namespace Fdp.Toolkit.Spatial.Eqs
                    && view.HasComponent<global::CarKinem.Core.VehicleState>(e);
         }
 
-        /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: its <c>VehicleState.Speed</c>, else its <see cref="SimVelocity"/>.</summary>
+        /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: its <c>VehicleState.Speed</c>, else its velocity as this node knows it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>).</summary>
         public static bool IsStanding(ISimulationView view, Entity e)
         {
             var repo = view as EntityRepository;
             if ((repo == null || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>())
                 && view.HasComponent<global::CarKinem.Core.VehicleState>(e))
                 return MathF.Abs(view.GetComponentRO<global::CarKinem.Core.VehicleState>(e).Speed) < StandingSpeed;
-            if ((repo == null || repo.IsComponentTypeRegistered<SimVelocity>()) && view.HasComponent<SimVelocity>(e))
+            // ⭐ CE-2173 (Dead Reckoning R6) — the motion as THIS node knows it: on a brain node a vehicle SimHost moves keeps the zero
+            //   SimVelocity it was given, so every vehicle read as standing there.
+            if (repo != null && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var velocity))
+                return velocity.Length() < StandingSpeed;
+            if (repo == null && view.HasComponent<SimVelocity>(e))
                 return view.GetComponentRO<SimVelocity>(e).Linear.Length() < StandingSpeed;
             return true;
         }

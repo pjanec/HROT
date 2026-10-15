@@ -14,5 +14,9 @@ namespace Hrot.ScenarioEditor.Gizmos
         // Returns a ref to the selected waypoint so the panel can mutate
         // TargetSpeed and ExtensionJson in-place (same pattern as RouteEditTool).
         ref RouteWaypoint GetSelectedWaypointRef();
+
+        // ⭐ CE-1096 (docs/designs/routes-1/ROUTES1-DESIGN.md §11.4 W-3) — the panel changed a field: write the route back and publish it,
+        // as the end of a drag does (an edit used to wait for a right-click and was lost on Escape).
+        void CommitEdits();
     }
 }

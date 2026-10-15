@@ -128,5 +128,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         Sit = 0,
         /// <summary>On a sill or a floor edge, legs hanging out over it (a helicopter's open door).</summary>
         SitLegsOut = 1,
+        /// <summary>⭐ CE-1088 (Hrot docs/DESIGN_Map_3D_Mode.md §6n N-2) — STANDING at a weapon, hands on its grips (a pickup's pintle gunner);
+        /// the seat's place is where his FEET are.</summary>
+        Stand = 2,
+        /// <summary>⭐ CE-1088 — KNEELING at a weapon, hands on its grips; the seat's place is where he kneels.</summary>
+        Kneel = 3,
     }
 }

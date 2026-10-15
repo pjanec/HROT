@@ -1950,6 +1950,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 _sharedOrbatPanel, _orbatAdapter, _orbatAdapter,
                 Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfOrbat, "Scenario", TitleBarColor));
 
+        // ⭐ CE-1096 (ROUTES1 §11.4 W-1) — the waypoint editor: CGF draws and edits routes (the shared route tool), so it gets the panel
+        //   that sets a waypoint's speed, kind, height and hold — the same window the editor and the IG register
+        windowManager.RegisterWindow(new Hrot.Presentation.Windows.WaypointEditorWindow(
+            new Hrot.UI.Common.Panels.WaypointEditorPanel(() => Hrot.ScenarioEditor.Gizmos.RouteWaypointGizmo.Current),
+            Hrot.Presentation.Windows.ScenarioPanelWindowIds.CgfWaypoint, "Scenario", TitleBarColor));
+
         // ⭐⭐⭐ PHASE 2 SLICE ② — the FIVE diagnostics sites (inspector, the "Inspect…" wiring, event
         //    browser, architecture diagnostics, system profiler) are now ONE shared bundle,
         //    `Hrot.Presentation.Windows.DiagnosticsWindowsBundle`. 📐 They were copy-pasted across FOUR
