@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
-current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built (§3.5 is the adjust sequence AS BUILT), §5 slices, §6 the demo
+build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); IF-4 BUILT (behaviors, 2026-10-15 — §3.9, passes live); IF-5 smoke and IF-6 counter-battery are DESIGN
+current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built (§3.5 is the adjust sequence AS BUILT), §3.9 IF-4 as built, §5 slices, §6 the demo
 stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
@@ -293,6 +293,26 @@ Rails (`SquadManeuverTests`): `CE2176_AnAdjustingRound_IsOneRoundFromTheGunNeare
 `CE2176_TheObserver_IgnoresAStrangersBurst_AndIsLostWhenHeSeesNoRound`, `CE2176_TheBurstMemory_RecordsEachDetonation`; the pack rails
 (`SimHostAuxiliaryTranslatorPackTests`, `CgfLogicPackTests`) moved by one each.
 
+### 3.9 IF-4 as built — behaviors, `2026-10-15`
+
+⭐ The demo passes live (`python3 scripts/utility-demo-check.py ua-indirect-fire --launch`): every §6 vignette, at sim time ≈ 131 s.
+
+| vignette | measured |
+|---|---|
+| ① | 3 adjusting rounds from ONE tube (119 → 85 → 14 m), then fire for effect from all three: 6/6 within 120 m of the squad behind the ridge block |
+| ② | the three first rounds within 2 ticks (time on target); the farthest burst 41 m from the point (dispersion + parallel sheaf) |
+| ③ | the courtyard round flies the HIGH arc — 416 ticks against ②'s 172–204 |
+| ④ | refused *"danger close"* with friends 400 m off; fires once resent with `DangerClose` |
+
+| found live | fixed where | why the rails missed it |
+|---|---|---|
+| an HTTP order's `Location` is a geodetic `[lat, lon]`; a local `[y, x]` was dropped silently on the brain | `OrderMenu.MalformedIn` refuses it 400; `BehaviorIngressSystem` logs a dropped order (cross-lane); the check sends lat/lon (`geo_of`) | rails build the order in-process, never through the wire |
+| the gunners boarded the LOADER's seat (a plain `Embark` takes the first Passenger seat) | the library behaviour `ManWeapon` (`EmbarkNodeParams.Role = Gunner`) — [Weapon Systems §9 WS-6](../weapons/DESIGN_Weapon_Systems.md) | the IF-1 rails seat the man with `TryEmbark(…, Gunner)` directly |
+| a man in a weapon's Gunner seat lost `CanShoot`, so `WeaponDispatcherSystem` failed every FireAtPoint before the executor ran | `Embarkation.StrippedOn` — that seat takes only `CanMove` (cross-lane) | the IF-1 rails call the executor directly, skipping the dispatcher's gate (their `MannedMortar` premise now asserts it) |
+| ⚠ not a defect: §6's **6 m** walls are right | 📐 swept against the real M109 arcs: the low arc is masked at every height 4–20 m; the high arc clears for all three guns at ≤ 10 m, for two at 12 m, for none at 20 m | — |
+
+Layout: the M109s at (−3500, −40) / (−3800, 0) / (−4100, 40) (≈ 4.4–5.0 km, three ranges); the 81 mm section at x = −1700 (≈ 2 km from ①'s point).
+
 ## 4. Decisions — approved `2026-10-14` (R-2018)
 
 | # | decision | rejected (one line each) |
@@ -320,7 +340,7 @@ Rails (`SquadManeuverTests`): `CE2176_AnAdjustingRound_IsOneRoundFromTheGunNeare
 | **IF-1** ✅ BUILT `2026-10-15` (§3.6) | backend | `FireSolution` + `Solution`; `WeaponMountDto.Arc / Min/MaxElevationDeg`; `AmmoWeaponBallisticsDto.ChargeSpeedsMps`; `WeaponFireIntent.Charge / HighArc` (APPENDED, R-169); `FireProcessingSystem` flies the intent's charge and arc, adds arc dispersion (IF-F); an arc round lives its time of flight + 10 s; `FireAtPointExecutor` fires a CONTROLLED weapon as itself and holds until `FireAt`; the munitions (IF-A) and the guns (IF-G) | `ThrowArcTests` / a new `FireSolutionTests` in the same folder: lowest charge, low vs high by clearance, too far / too close / masked; `FireProcessingSystemTests`: the round lands at the point within the dispersion, a 90 s flight still lands; `FireAtPointExecutorTests`: a gunner fires his ground mortar, nothing before `FireAt` |
 | **IF-2** | behaviors | `StrikeOrder` fields (IF-D); `MemberOrderKind.FireAtPoint`; `FireAtPoint` DTO `fireAt` / `arc`; `BatteryFireMissionPlay` (fire for effect, sheaf, time on target, danger close, rounds complete); `IndirectFireNodes`; `ArtilleryUnitStrike`, `SelfPropelledArtilleryStrike` | `SquadManeuverTests` (the play's own suite): three guns' first rounds land within one tick of T; a parallel sheaf's aim points; a gun out of range is left out; danger close refuses · `TacticalIntentResolutionSystemTests`: Strike on a battery / SP gun resolves, on a rifleman does not |
 | **IF-3** | behaviors | `ObserveFire`, `FireMissionAdjustEvent`, the adjust phase, target-location error, observer lost. ⛔ **measure first**: how the observer learns where a round burst (no detonation event a brain reads was found — `Combat/Events`, `Perception` searched; hearing exists in `HeardTraces`) and whether the adjust event crosses nodes the way `AssignTacticalIntentEvent` does | `SquadManeuverTests`: the bracket closes 800 → 50 and turns to fire for effect; observer killed ⇒ end of mission |
-| **IF-4** | behaviors | the demo `ua-indirect-fire` (§6) + its range terrain; `utility-demo-check.py` entry | the live check |
+| **IF-4** ✅ BUILT `2026-10-15` (§3.9) | behaviors | the demo `ua-indirect-fire` (§6) + its range terrain; `utility-demo-check.py` entry | the live check |
 | **IF-5** | both | smoke: a cloud the sight model reads; the play's `Munition` picks it | — (DESIGN) |
 | **IF-6** | both | counter-battery: a radar that locates a gun from its rounds' arcs; a battery that fires back and moves (shoot and scoot) | — (DESIGN) |
 | ui | ui | draw the tubes, the towed and SP howitzers, the gunners in their seats, a shell in flight, the burst; the sheaf's aim points on the map overlay (after IF-1) | — |
