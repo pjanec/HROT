@@ -1245,6 +1245,67 @@ host with a world; the debugger's predicate stays separate because it HOLDS even
 | rails | `TheFrozenWorldStillHearsItsResumeTests.R4007_*` (2) · `ClusterSlaveTests.R4007_ANodeIsJoinFrozen_OnlyWhileItIsBehindTheClusterItFollows` · `EveryWorldEventTranslatorCanDiscardTests` · `ClusterMasterCatchUpTests` (4, new suite) · `LoadPhaseChainTests.C7_ACatchUpLoad_RunsTheUniversalPartsOnly_NeverTheScenario` |
 | ⏳ not verified | a LIVE late Player against a running multi-process cluster (UC-13/UC-2 with `ddsmonitor`) — the unit and integration suites drive the master and the chain, not a real joiner's ingress |
 
+## 4-N ⭐⭐ BUILD DESIGN — `C6`: SPAWNS WAIT ONLY FOR IN-SYNC, AUTHORITATIVE PEERS *(design `2026-10-15`, coordinator; `build-state: BUILDING`)*
+
+⭐ Builds K6 (`R-4014`) and J4 (`R-4013`): the reliable-init wait-set = present peers that advertise `fdp.reliable-init`
+∩ the master's `InSync` set ∩ authoritative; the "unsupported" mark is cleared when a node ENTERS `InSync` and when it leaves.
+
+📐 **Measured today:** the wait-set is *present ∩ advertises* (`ClusterCacheExpectedPeersProvider.cs:30-38`); the mark is
+added (`NedNetworkFactory.cs:112` → `SimpleClusterStateCache.RecordUnsupported`) and never removed; nothing publishes `InSync`;
+`OrchestratorContextTopic.RequiredNodeIdsJson` exists for exactly this and is never written, and no node reads that topic.
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant T as NedOrchestrationTranslator (master)
+  participant W as OrchestratorContextTopic (Reliable, TransientLocal)
+  participant I as ClusterCapabilityIngestSystem (every node)
+  participant C as SimpleClusterStateCache
+  participant P as ClusterCacheExpectedPeersProvider
+  M->>M: InSync changes (join at rest, resync through Idle, catch-up done, ejection)
+  M->>T: InSyncSetChangedEvent {nodeIds}
+  T->>W: write {ScenarioId (last), RequiredNodeIdsJson}
+  W-->>I: sample (durable: a late reader gets the latest)
+  I->>C: SetInSync(ids): a node newly in sync loses its unsupported mark (J4)
+  P->>C: present AND advertises AND IsInSync AND authoritative
+```
+
+```mermaid
+classDiagram
+  class ClusterMaster { <<existing, grows>> publishes InSyncSetChangedEvent on change }
+  class InSyncSetChangedEvent { <<NEW, Fdp.Toolkit.Orchestration>> +NodeIds }
+  class NedOrchestrationTranslator { <<existing, grows>> writes RequiredNodeIdsJson, keeps the last ScenarioId }
+  class ClusterCapabilityIngestSystem { <<existing, grows>> optional OrchestratorContextTopic reader }
+  class SimpleClusterStateCache { <<existing, grows>> SetInSync / IsInSync; RemoveNode clears marks }
+  class ClusterCacheExpectedPeersProvider { <<existing, changed>> + in sync + authoritative }
+  ClusterMaster ..> InSyncSetChangedEvent
+  NedOrchestrationTranslator ..> InSyncSetChangedEvent
+  ClusterCapabilityIngestSystem --> SimpleClusterStateCache
+  ClusterCacheExpectedPeersProvider --> SimpleClusterStateCache
+```
+
+```mermaid
+graph TD
+  MH[master host: ClusterMaster.Tick] --> NOT[NedOrchestrationTranslator.Tick - master side only]
+  NOT --> TOPIC[(OrchestratorContextTopic)]
+  TOPIC --> ING[ClusterCapabilityIngestSystem - every NED node, built by NedNetworkFactory]
+  ING --> CACHE[SharedClusterCache]
+  CACHE --> PROV[expected-peers provider - the creator's reliable-init barrier]
+  NOMASTER[a node with no master] -.->|no sample: InSync unknown = no filter| CACHE
+  style NOMASTER stroke-dasharray: 5 5
+```
+
+*What the pictures show that prose hid:* the master already has a durable one-producer channel to every node that nobody
+reads; C6 is one writer field, one reader, two cache methods and one filter line. A node that has never seen the master's
+set filters NOTHING by it — so the unit and integration harnesses that run without a master are unchanged.
+
+| ⭐ decision | lean · why · rejected |
+|---|---|
+| channel = the existing `RequiredNodeIdsJson` (J3′) | ⭐ named for this purpose in mgmt-1 §5 and never written. ⛔ Rejected: a field on `ClusterStateTopic` — it is written only on a state change, and `InSync` changes without one (a catch-up finishing) |
+| "authoritative" in the cache = holds a simulation role (Brain, MuscleGround, Perception, NavigationSolver) | ⭐ the cache only holds nodes whose capabilities it read, so the advert-seen half of §4-A′ is true by construction |
+| `InSync` unknown (no sample yet) ⇒ no filter | ⭐ fail-safe toward waiting (today's behaviour), never toward skipping a peer |
+| J4: a node newly in sync and a departed node lose every unsupported mark | ⭐ a reset node never departs, yet may have missed a probe while reloading |
+
 ## 5. OUT OF SCOPE
 
 - ⛔ **Interest management** — every node receives every entity (no partition or content filter exists). User G: not now.
