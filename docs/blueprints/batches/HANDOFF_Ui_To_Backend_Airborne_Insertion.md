@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DISPATCHED at the commit that adds this file (2026-10-15); scope frozen there.
+state: ⛔ ON HOLD — NOT DISPATCHED (user, 2026-10-15: "do not start building yet"). Do NOT start; a later commit lifts the hold and stamps the dispatch sha.
 updated: 2026-10-15
 current-answer: the whole file.
 stale-below: nothing.
@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — backend: airborne insertion (fast-rope, parachute, the ejecting pilot) — the engine half
 
-**For:** `backend`. **From:** `ui`. ⭐ Dispatched at the commit that adds this file; scope frozen there (later documents are FYI; a document that
+**For:** `backend`. **From:** `ui`. ⛔ **ON HOLD — not dispatched; do not start** (user: *"do not start building yet"*). When the hold is lifted, the dispatch sha is stamped here and the scope freezes there (later documents are FYI; a document that
 invalidates an item ⇒ STOP that item and report it, R-106). Ids from your `CE-3xxx` block; the ui row tracking this is **CE-1117**.
 
 🔒 **User, `2026-10-15`:** the design *"approved"* (R-1003) and three demos — a paratrooper squad jumps and regroups, an SF squad fast-ropes onto a
