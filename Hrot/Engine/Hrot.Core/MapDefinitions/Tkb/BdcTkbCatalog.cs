@@ -733,6 +733,7 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         c.MaxHealth = 800;
                         c.BlastSusceptibility = 0.8f;
+                        c.Weapons.Add(Dispenser(flares: 30, chaff: 30));   // ⭐ CE-2188 (BS-1 §5.4c) — its only mount: not a weapon
                     })
                     .WithBehavior(uh60);
             // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — it FLIES: a route takes it off its gear, rounds
@@ -775,14 +776,9 @@ namespace Hrot.Map.Definitions.Tkb
             DefineFpvDrone(builder);   // ⭐ M7
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
-            // ⭐⭐ CE-2188 (DESIGN_Missiles_And_Ammo §3c, AD3) — every crewed aircraft carries flares and chaff (the FPV drone none). Public
-            //   loads, rounded; a salvo of two a second, decoys living 5 s — tuning starts here.
-            foreach (var (aircraft, flares, chaff) in new[]
-                     {
-                         (TkbEntityTypes.Heli_UH60, 30, 30), (TkbEntityTypes.Heli_UH60_DoorsOff, 30, 30), (TkbEntityTypes.Heli_AH64, 60, 60),
-                         (TkbEntityTypes.Jet_AttackA10, 120, 240), (TkbEntityTypes.Jet_F16, 60, 60), (TkbEntityTypes.Cargo_C130, 120, 120),
-                     })
-                builder.WithCountermeasures(aircraft, new Fdp.Toolkit.Tkb.Domain.CountermeasuresDto { Flares = flares, Chaff = chaff });
+            // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the crewed aircraft with a brain carry a flare / chaff DISPENSER as their last
+            //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
+            //   brain (nothing could release their flares), so they carry none yet.
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
@@ -928,6 +924,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Hei, 575), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbGau8Api, 575) },
                         MuzzleOffset = new System.Numerics.Vector3(7.5f, 0f, -0.6f),
                     });
+                    c.Weapons.Add(Dispenser(flares: 120, chaff: 240));   // ⭐ CE-2188 (BS-1 §5.4c) — the LAST mount
                 })
                 .WithBehavior(type);
         }
@@ -991,9 +988,23 @@ namespace Hrot.Map.Definitions.Tkb
                         AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket,
                         MuzzleOffset = new System.Numerics.Vector3(0.5f, 1.8f, -0.6f),   // the left stub wing
                     });
+                    c.Weapons.Add(Dispenser(flares: 60, chaff: 60));   // ⭐ CE-2188 (BS-1 §5.4c) — the LAST mount
                 })
                 .WithBehavior(type);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c; 🔒 user: "Chaff launcher can be weapon type and slot could be normal one") —
+        /// an aircraft's flare / chaff DISPENSER as an ordinary weapon mount: category <see cref="WeaponCategory.Countermeasure"/>, a loadout
+        /// of <paramref name="flares"/> flares and <paramref name="chaff"/> chaff (counted, spent and shown like any round), one release
+        /// every half second (120 rpm). ⚠ Always the type's LAST mount: mount 0 is a dispenser only when the aircraft has no weapon.
+        /// </summary>
+        private static WeaponMount Dispenser(int flares, int chaff) => new()
+        {
+            WeaponType = "Flare / chaff dispenser", Ammunition = flares + chaff, RateOfFire = 120f, FireOnMove = true,
+            Category = WeaponCategory.Countermeasure, AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare,
+            Loadout = new() { (Hrot.Core.Tkb.MunitionTkbCatalog.TkbFlare, flares), (Hrot.Core.Tkb.MunitionTkbCatalog.TkbChaff, chaff) },
+        };
 
         /// <summary>The UH-60's body (CE-1041): CG-referenced, resting on its tyres.</summary>
         private static Fdp.Toolkit.Tkb.Domain.BodyGeometryDto Uh60Geometry() => new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto

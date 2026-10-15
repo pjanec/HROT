@@ -60,6 +60,8 @@ namespace Fdp.Toolkit.Combat
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c, AD1) — a guided round of the WRONG domain is worth nothing: a MANPADS against a truck,
             //   an ATGM against a flying helicopter. The one gate for the round choice, the mount ranking and Sufficient.
             if (!InDomain(world, target, ammo)) return (0f, 0f);
+            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER (its expendables) hurts nothing: worth 0, so it is never chosen
+            if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Countermeasure || Munitions.IsExpendable(world, ammo)) return (0f, 0f);
             var (pen, dmg) = CombatTkb.RoundOf(world, mount, ammo);
             var penetrator = CombatTkb.PenetratorOf(world, ammo);
             float armour = pen > 0f ? ArmourFacing(world, shooter, target, penetrator) : 0f;

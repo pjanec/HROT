@@ -25,7 +25,8 @@ namespace Fdp.Toolkit.Perception
             //   it used to read as armed for every threat reader. Here, once, for all of them. 📄 DESIGN_Sensors_And_Doctrine §7.8a.
             if (IsOutOfTheFight(view, target)) return 0f;
             // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is as armed as its gun
-            if (!view.HasComponent<WeaponState>(target)
+            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a WeaponState that is only a flare / chaff dispenser (an unarmed UH-60) arms nobody
+            if ((!view.HasComponent<WeaponState>(target) || Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(view, target))
                 && !(view is EntityRepository r && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(r, target).IsNull)) return Unarmed;
             // ⭐ CE-2165 V1 — to a VEHICLE, danger is what the target's weapons can do to MY armour (DESIGN_Vehicle_Exposure_Cycle §2).
             if (view is EntityRepository repo && ToMe(repo, self, target, out float toMe)) return toMe;
@@ -223,7 +224,7 @@ namespace Fdp.Toolkit.Perception
                 health = h.Max > 0f ? System.Math.Clamp(h.Current / h.Max, 0f, 1f) : 0f;
             }
             // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is armed too
-            bool armed = view.HasComponent<WeaponState>(self)
+            bool armed = view.HasComponent<WeaponState>(self) && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(view, self)   // ⛔ CE-2188
                          || view is EntityRepository repo && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(repo, self).IsNull;
             return health * (armed ? 1f : Unarmed);
         }

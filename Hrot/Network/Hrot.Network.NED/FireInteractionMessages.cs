@@ -75,6 +75,29 @@ namespace Hrot.NED.Messages
 
         /// <summary>Zero-based weapon slot index.</summary>
         public int WeaponIndex;
+
+        /// <summary>⭐ CE-1111 / CE-2188 (BS-1-DESIGN §5.4b F1, §5.4c; R-169 — APPENDED) — the munition type FIRED (a flare / chaff for a
+        /// dispenser); 0 = unknown.</summary>
+        public long AmmoGuid;
+
+        /// <summary>⭐ CE-1111 — the network id of the round this shot spawned (a replicated round); 0 = none (a bullet, a decoy).</summary>
+        public long RoundEntityId;
+
+        /// <summary>⭐ CE-1111 — where it left, world metres.</summary>
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+
+        /// <summary>⭐ CE-1111 — its velocity at launch (for a decoy, the aircraft's), m/s.</summary>
+        public float VelocityX;
+        public float VelocityY;
+        public float VelocityZ;
+
+        /// <summary>⭐ CE-1111 — rounds this message stands for (1 per shot, 1 per decoy).</summary>
+        public int Quantity;
+
+        /// <summary>⭐ CE-1111 — the synced sim time (s) it was fired.</summary>
+        public double FiredAt;
     }
 
     // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
@@ -97,7 +120,7 @@ namespace Hrot.NED.Messages
         public float Z;
     }
 
-    // ── Air defence (CE-2188 / CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
+    // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
 
     /// <summary>
     /// ⭐ <c>CE-2189</c> — a guided missile was launched at an aircraft (Muscle → its Brain): where from, its seeker, the flight time to it.
@@ -118,20 +141,8 @@ namespace Hrot.NED.Messages
         public float TimeToImpactS;
     }
 
-    /// <summary>
-    /// ⭐ <c>CE-2188</c> — the aircraft's Brain asks for one salvo of flares (1) or chaff (2) (Brain → Muscle); the SimHost's
-    /// <c>CountermeasureSystem</c> throws it.
-    /// </summary>
-    [DdsTopic("DispenseCountermeasure")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile,
-            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 8)]
-    public partial struct DispenseCountermeasure
-    {
-        /// <summary>Network entity ID of the aircraft.</summary>
-        public long UnitEntityId;
-        /// <summary>1 = flares, 2 = chaff (<c>DecoyKind</c>).</summary>
-        public byte Kind;
-    }
+    // ⛔ CE-2188's DispenseCountermeasure (dt 134) was RETIRED by BS-1-DESIGN §5.4c: a release is an ordinary WeaponFireRequest on the
+    //   dispenser mount, and the SimHost reports it as a WeaponFire.
 
     // ── Detonation / Damage Pipeline (POC simplified) ─────────────────────────
 

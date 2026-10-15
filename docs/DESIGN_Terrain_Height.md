@@ -362,7 +362,7 @@ built)"; H1 built one, so TH-G's grid replaces the ramps — no `ramp` features,
 kind (*"ramp peak"*) is not built and now has a grid crest to find, not a ramp peak.
 
 **Rails** (in the feature's suite, `TerrainHeightTests`): `H4_BasicDesert_HasItsRidgeAndWadi_AndThePlainUnderEverythingThatStoodOnItIsUnchanged`
-(crest, bed, slope < 20°, ground 0 under every prism and every grounded entity of every `scenarios/*` on basic-desert) ·
+(crest, bed, slope < 20°, ground 0 under every prism and every grounded entity of the three scenarios that stood on basic-desert when H4 raised the relief — `ua-air-strike`, `ua-fire-distribution`, `ua-weapon-choice`; ⭐ narrowed `2026-10-15`: a scenario authored after H4 may stand on the relief — R-249's "no special case" — and `ua-air-attack`'s column lead now does, on the wadi bank; ⛔ the first build swept every `scenarios/*`) ·
 `H4_…_TheRidgeHidesOneSideFromTheOther_AndLeavesTheWeaponChoiceLinesOpen` · `H4_…_TheNavmesh_GoesOverTheRidge_AndThroughTheWadi`
 (Infantry and Vehicle) · `H4_…_TheTrack_DipsIntoTheWadi_OnTheGround`.
 **Gates:** the H4 rails 5/5 with the terrain regressions that load basic-desert — `TerrainHeightTests` all, `CE3134_TerrainsWithoutBuildings_KeepTheirCoverDatabase` (the checksum unchanged: 313 points), `BepuTerrainIndexTests`, `TerrainDefinitionTests` — **54/54**. ⚠ The live utility demos on basic-desert (U5, U6, the air strike) were not re-run: their entities stand where the ground is still 0.

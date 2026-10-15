@@ -7,6 +7,7 @@ stale-below: nothing quotable — §7's HISTORY row block records the first-draf
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
 related-designs:
+  - designs/air-attack/DESIGN_Air_Operations.md — §9g, the live check that found a unit outside the collider grid is unhittable without a word (CE-2193, behaviors → backend)
   - DESIGN_Terrain_Height.md — plans the removal of the flat ground (R-248): an optional ESRI ASCII height grid
     (Q81 T2), GroundHeightAt(x, y) behind this file's 9 GroundZ reads, the mesher sampling it, one ground trace for
     sight and fire. It extends this model; it owns nothing else here.
@@ -324,6 +325,7 @@ classDiagram
     +int Width / Height  (fixed)
     +CellSize / OriginX / OriginY  read Geometry
     +Rebase(originX, originY, cellSize)
+    +Add(entity, position) bool  false = not placed (CE-2193)
   }
   class SpatialGridFit {
     <<static>>
@@ -337,6 +339,9 @@ classDiagram
   }
   class SpatialHashSystem {
     -TerrainWorld lastWorld
+    -HashSet~Entity~ warned  cleared on a fit
+    +int Dropped  this frame
+    +int Warnings
     main thread, live repo
   }
   class LocalGridBuilderSystem {
@@ -403,6 +408,14 @@ sequenceDiagram
 ⛔ Rejected: **resize at commit** — frees memory other threads hold (see above). **Shrink-to-terrain** — would hide an
 entity placed off the terrain that today's grid sees. **Publish the geometry from `TerrainResidency.Commit`** — a
 main-thread write into the perception grid while its builder runs on the perception thread.
+
+⭐ **`CE-2193` (backend, `2026-10-15`; behaviors' [handoff](blueprints/batches/HANDOFF_Behaviors_To_Backend_Collider_Grid.md)) — a collider
+OUTSIDE the grid is no longer silent.** 📐 Measured live (`ua-air-attack`, [Air Ops §9g](designs/air-attack/DESIGN_Air_Operations.md)): a truck
+at (0, 6 000) on `basic-desert` (grid ±750 m) took 0 of 1 358 rounds — `SpatialHashGrid.Add` dropped it with no word, so no round, near
+miss, avoidance or radius search could meet it. As built: `Add` returns **false** when it could not place the entity (outside the grid,
+or over its capacity); `SpatialHashSystem` counts them per frame (`Dropped`) and logs **one** warning per entity per terrain fit (its id,
+position and the grid's extent) — a new fit clears the set, so whoever is still outside is named again. ⛔ The grid is **not** widened
+to the entities: it follows the terrain by design (W9 above); a unit off its terrain is an authoring error to surface, not to absorb.
 
 ## 5. MODULE RELATIONSHIPS — who loads, who registers, who ticks
 

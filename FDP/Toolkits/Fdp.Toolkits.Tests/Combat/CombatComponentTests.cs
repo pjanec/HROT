@@ -112,8 +112,9 @@ namespace Fdp.Toolkit.Combat.Tests
         public void WeaponFireNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireNotification).IsValueType);
-            // Current actual layout: 2×Entity(8) + int(4) + bool(1) padded to 24 bytes.
-            Assert.Equal(24, Marshal.SizeOf<WeaponFireNotification>());
+            // 2×Entity(8) + int(4) + bool (marshalled as a 4-byte BOOL) = 24, then ⭐ CE-1111 (BS-1 §5.4b F1, appended): AmmoGuid(8) +
+            //   Round(8) + Origin(12) + Velocity(12) + Quantity(4) + FiredAt(8) = 52 ⇒ 76.
+            Assert.Equal(76, Marshal.SizeOf<WeaponFireNotification>());
         }
 
         /// <summary>

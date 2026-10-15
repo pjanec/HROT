@@ -56,6 +56,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                 {
                     if (!repo.IsAlive(shot.Shooter) || !repo.HasComponent<AcousticEmitter>(shot.Shooter)
                         || !repo.HasComponent<SimTransform>(shot.Shooter)) continue;
+                    // ⭐ CE-2188 (BS-1-DESIGN §5.4b F5) — a flare / chaff release is no gunshot: no report
+                    if (Fdp.Toolkit.Combat.Munitions.IsExpendable(repo, shot.AmmoGuid)) continue;
                     ref var a = ref repo.GetComponentRW<AcousticEmitter>(shot.Shooter);
                     var p = repo.GetComponentRO<SimTransform>(shot.Shooter).Position;
                     a.ShotTimeLeft = SoundLingerSeconds;

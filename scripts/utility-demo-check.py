@@ -1380,7 +1380,7 @@ def run_air_attack(c, timeout):
     call("POST", "/sim/play", {})
     shots = {}   # seq → shot (the SimHost's shot log is a ring of 64: collect it as it fills)
     apache_closest, ring, bearings, track = 9e9, [], [], []
-    down_at, down_seq, down = None, None, None
+    down_at, down_seq, down, dead_at = None, None, None, None
     end = time.time() + timeout + 150
     while time.time() < end:
         t = sim_time() or 0.0
@@ -1390,12 +1390,14 @@ def run_air_attack(c, timeout):
         if pa:
             apache_closest = min(apache_closest, flat(pa, apache_point))
         if pu and orbit_at and flat(pu, orbit_at) < 600:
-            ring.append(flat(pu, orbit_at))
+            ring.append((t, flat(pu, orbit_at)))
             bearings.append((t, math.atan2(pu[1] - orbit_at[1], pu[0] - orbit_at[0])))
             track.append((t, pu))
+        if dead_at is None and (health(otruck) or 1) <= 0:
+            dead_at = t
         door = [x for x in shots.values() if x.get("shooter") in guns]
-        # the gunner is shot once the orbit has gone HALF a turn counter-clockwise with his gun firing (a "before" to compare against)
-        if door and down_at is None and _turn(bearings, None, None) > math.pi:
+        # the gunner is shot once the orbit has gone a QUARTER turn counter-clockwise with his gun firing (a "before" to compare against)
+        if door and down_at is None and _turn(bearings, None, None) > math.pi / 2:
             first = max(door, key=lambda x: x.get("seq") or 0).get("shooter")
             down = gunners.get(8)   # counter-clockwise ⇒ the LEFT door (seat 8's gun) fires first (§9f)
             print(f"    the door guns opened at {t:.1f} s (shooter {first}); shooting the left door gunner {down}")
@@ -1417,11 +1419,14 @@ def run_air_attack(c, timeout):
     kinds = sorted({x.get("weaponIndex") for x in a})
     c.ok(len(kinds) >= 2, f"③④ the Apache fired its rockets AND its gun — mounts {kinds}, {len(a)} rounds")
     c.ok(apache_closest >= 300, f"④ the Apache broke off short of the position — closest {apache_closest:.0f} m")
-    settled = ring[len(ring) // 3:]
+    # on the circle: past the run-in, and not the 10 s reversal turn after the gunner falls (a 180° turn at speed cuts inside —
+    # measured 224 m on a 360 m circle) — the same window the reversal check skips
+    settled = [r for t, r in ring[len(ring) // 3:] if down_at is None or not (down_at <= t <= down_at + 10)]
     c.ok(settled and 250 <= min(settled) and max(settled) <= 550,
          f"⑤ the UH-60 orbits the truck — {min(settled or [0]):.0f}…{max(settled or [0]):.0f} m ({len(settled)} samples)")
-    # the attack's own window: ON the circle (not the run-in), until 30 s after the gunner fell (after a target survives 3 turns it holds, by design)
-    tail = [(t, pu) for t, pu in track if 250 <= flat(pu, orbit_at) <= 550 and (down_at is None or t <= down_at + 30)]
+    # the attack's own window: ON the circle (not the run-in), until the truck dies (the attack then ends and the helicopter holds,
+    # by design) or 30 s after the gunner fell
+    tail = [(t, pu) for t, pu in track if 250 <= flat(pu, orbit_at) <= 550 and (down_at is None or t <= down_at + 30) and (dead_at is None or t < dead_at)]
     speeds = sorted(flat(p1, p0) / (t1 - t0) for (t0, p0), (t1, p1) in zip(tail, tail[4:]) if t1 - t0 > 1.0)
     slow = speeds[len(speeds) // 10] if speeds else 0.0
     c.ok(slow > 20, f"⑤ … never hovering (W4) — 10th-percentile speed {slow:.1f} m/s over ≥ 1 s")

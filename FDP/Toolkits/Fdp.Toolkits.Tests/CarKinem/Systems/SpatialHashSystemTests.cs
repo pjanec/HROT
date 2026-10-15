@@ -121,6 +121,40 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2193</c> (DESIGN_Terrain_World §4.4; behaviors' handoff) — a collider the grid cannot place is SAID, once: at (2 000, 0) on
+        /// the ±750 m default grid it is dropped every frame (<c>Dropped</c> 1) and warned about exactly once over 100 frames; one at (100, 0)
+        /// is never warned about; a terrain re-fit that covers it again stops the drop. 🔴 Red-proof: before CE-2193 <c>Add</c> returned
+        /// nothing and the drop had no count and no word.
+        /// </summary>
+        [Fact]
+        public void CE2193_AColliderOutsideTheGrid_IsWarnedAboutOnce_AndARefitThatCoversItStopsTheDrop()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            var sys = new SpatialHashSystem();
+            foreach (var x in new[] { 2000f, 100f })
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 0f), Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new PhysicsCollider { Radius = 1f });
+            }
+
+            for (int i = 0; i < 100; i++) sys.Execute(repo, 0.016f);
+            Assert.Equal(1, sys.Dropped);
+            Assert.Equal(1, sys.Warnings);
+
+            repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+                { BoundsMin = new Vector2(-100f, -100f), BoundsMax = new Vector2(2500f, 500f) });
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(0, sys.Dropped);
+            Assert.Equal(1, sys.Warnings);
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — the collider hash (the door for bullets, near misses, the radius search, network raycasts
         /// and avoidance) leaves out a passenger inside an ENCLOSED vehicle and keeps one on an OPEN cabin. 📄 DESIGN_Entity_Interactions §7.2a.</summary>
         [Fact]

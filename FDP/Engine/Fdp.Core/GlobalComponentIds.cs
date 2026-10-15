@@ -907,8 +907,8 @@ namespace Fdp.Core
         /// and behaviors 2026-10-15.</summary>
         public const int Decoy = 386;
 
-        /// <summary><c>CountermeasureState</c> — ⭐ CE-2188 (§3c, AD3): an aircraft's flares and chaff left and when it may dispense next
-        /// (from its <c>Combat.Countermeasures</c> TKB entry). Written by the SimHost; never saved.</summary>
+        /// <summary>⛔ <b>RESERVED — <c>CountermeasureState</c> was retired by BS-1 §5.4c (2026-10-15)</b>: the flares and chaff are the
+        /// dispenser mount's rounds, counted on the brain like every round. ⚠ Do NOT reuse 387.</summary>
         public const int CountermeasureState = 387;
 
         /// <summary><c>MissileWarning</c> — ⭐ CE-2189 (§3c, AD4): the last missile launched at this aircraft, as its BRAIN was warned

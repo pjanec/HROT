@@ -100,7 +100,9 @@ namespace Fdp.Toolkit.Combat.Executors
                            : p.Mount == 0 ? WeaponSystems.PrimaryMount(world, entity, out mountEntity)   // ⭐ WS-3 — a bare host's primary is its station weapon
                            : MountByIndex(world, entity, p.Mount, out mountEntity);
             WeaponPostureOf.SetActiveMount(world, entity, mountIndex);   // ⭐ ui handoff P4 (W-13e) — the weapon in his hands, on the wire
-            if (!world.HasComponent<WeaponState>(mountEntity))
+            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER is not a weapon (an unarmed UH-60's only mount): nothing to fire with
+            if (!world.HasComponent<WeaponState>(mountEntity)
+                || !WeaponSystems.IsControlledIndex(mountIndex) && Countermeasures.IsDispenser(world, entity, mountIndex))
             {
                 // ⭐ WS-3 — nothing to fire with (a bare host whose station is empty): a failure, never an exception
                 ReleaseTurrets(world, entity);

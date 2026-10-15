@@ -21,7 +21,8 @@ namespace Hrot.SimHost.Tests
 {
     /// <summary>
     /// ⭐⭐ <c>CE-2189</c> / <c>CE-2188</c> (<c>docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md</c> §3c) — the air-defence loop
-    /// crosses the wire twice: the missile warning SimHost → the aircraft's brain, the flare request brain → SimHost. Two worlds with their
+    /// crosses the wire: the missile warning SimHost → the aircraft's brain, the flare release brain → SimHost (an ordinary fire request,
+    /// BS-1-DESIGN §5.4c) and the SimHost's fire back to every viewer. Two worlds with their
     /// own entity maps stand for two nodes; the egress's written sample is what the other node's ingress reads (the DDS transport itself
     /// is the shared machinery every topic rides).
     /// </summary>
@@ -46,12 +47,15 @@ namespace Hrot.SimHost.Tests
                 w.RegisterComponent<SimTransform>();
                 w.RegisterComponent<MissileWarning>();
                 w.RegisterEvent<MissileWarningEvent>();
-                w.RegisterEvent<DispenseCountermeasureIntent>();
+                w.RegisterEvent<WeaponFireIntent>();
+                w.RegisterEvent<WeaponFireNotification>();
+                w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
                 w.RegisterEvent<SensorChangedEvent>();
             }
             _onSimHost = _simHost.CreateEntity();
             _onBrain = _brain.CreateEntity();
             _brain.AddComponent(_onBrain, new SimTransform { Position = new Vector3(1000, 1000, 300), Rotation = Quaternion.Identity });
+            _brain.AddComponent(_onBrain, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             _simHostMap.Register(AircraftId, _onSimHost);
             _brainMap.Register(AircraftId, _onBrain);
         }
@@ -105,26 +109,48 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-2188</c> — the brain's flare request reaches the SimHost as a REMOTE intent on ITS entity; an unknown kind is dropped.
+        /// ⭐⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c) — a flare release crosses as an ORDINARY fire both ways: the brain's
+        /// <see cref="WeaponFireIntent"/> (the dispenser mount, the flare's type, at the aircraft) reaches the SimHost as a remote intent on
+        /// ITS entity with the type intact; the SimHost's <see cref="WeaponFireNotification"/> reaches a viewer with every field of the shot
+        /// (type, origin, velocity, quantity, time; no round). 🔴 Red-proof: before F1 the wire carried only shooter, target and slot.
         /// </summary>
         [Fact]
-        public void CE2188_AFlareRequest_CrossesToTheSimHost()
+        public void CE2188_AFlareRelease_CrossesAsAnOrdinaryFire_BothWays()
         {
-            var writer = new CapturingWriter<DispenseCountermeasure>();
-            var egress = new DispenseCountermeasureEgressTranslator(writer, _brainMap);
-            _brain.Bus.Publish(new DispenseCountermeasureIntent { Unit = _onBrain, Kind = DecoyKind.Flare });
-            _brain.Bus.SwapBuffers();
-            egress.ScanAndPublish(_brain);
-            var sample = Assert.Single(writer.Written);
-
-            var ingress = new DispenseCountermeasureIngressTranslator(participant: null, _simHostMap);
-            Apply(_simHost, (cmd, view) =>
+            const long flare = 6034;
+            var request = new CapturingWriter<WeaponFireRequest>();
+            var intentEgress = new WeaponFireIntentEgressTranslator(request, _brainMap);
+            _brain.Bus.Publish(new WeaponFireIntent
             {
-                ingress.ProcessSample(in sample, cmd, view);
-                ingress.ProcessSample(new DispenseCountermeasure { UnitEntityId = AircraftId, Kind = 9 }, cmd, view);
+                Shooter = _onBrain, Target = Entity.Null, WeaponIndex = 2, AtPoint = true,
+                TargetPoint = new Vector3(1000, 1000, 300), AmmoGuid = flare, RaisedAt = 50.0,
             });
-            var intent = Assert.Single(_simHost.Bus.Read<DispenseCountermeasureIntent>().ToArray());
-            Assert.Equal((_onSimHost, DecoyKind.Flare, true), (intent.Unit, intent.Kind, intent.IsRemote));
+            _brain.Bus.SwapBuffers();
+            intentEgress.ScanAndPublish(_brain);
+            var asked = Assert.Single(request.Written);
+            var requestIngress = new WeaponFireRequestIngressTranslator(participant: null, _simHostMap);
+            Apply(_simHost, (cmd, view) => requestIngress.ProcessSample(in asked, cmd, view));
+            var intent = Assert.Single(_simHost.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal((_onSimHost, 2, flare, true, true), (intent.Shooter, intent.WeaponIndex, intent.AmmoGuid, intent.AtPoint, intent.IsRemote));
+
+            var fire = new CapturingWriter<WeaponFire>();
+            var fireEgress = new WeaponFireNotificationEgressTranslator(fire, _simHostMap);
+            _simHost.Bus.Publish(new WeaponFireNotification
+            {
+                Shooter = _onSimHost, Target = Entity.Null, WeaponIndex = 2, AmmoGuid = flare, Round = Entity.Null,
+                Origin = new Vector3(1000, 1000, 300), Velocity = new Vector3(0, 60, 0), Quantity = 1, FiredAt = 50.1,
+            });
+            _simHost.Bus.SwapBuffers();
+            fireEgress.ScanAndPublish(_simHost);
+            var sent = Assert.Single(fire.Written);
+            Assert.Equal(0L, sent.RoundEntityId);
+            var fireIngress = new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant: null, _brainMap);
+            Apply(_brain, (cmd, view) => fireIngress.ProcessSample(in sent, cmd));
+            var seen = Assert.Single(_brain.Bus.Read<WeaponFireNotification>().ToArray());
+            Assert.Equal((_onBrain, 2, flare, Entity.Null, 1, true), (seen.Shooter, seen.WeaponIndex, seen.AmmoGuid, seen.Round, seen.Quantity, seen.IsRemote));
+            Assert.Equal(new Vector3(1000, 1000, 300), seen.Origin);
+            Assert.Equal(new Vector3(0, 60, 0), seen.Velocity);
+            Assert.Equal(50.1, seen.FiredAt, 6);
         }
     }
 }

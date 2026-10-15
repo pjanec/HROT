@@ -66,7 +66,8 @@ namespace Fdp.Toolkit.Combat.Executors
             int fireIndex = p.Mount;
             Entity mountEntity;
             int controlledIndex = WeaponSystems.IsControlledIndex(p.Mount) ? p.Mount
-                                : p.Mount == 0 && !world.HasComponent<WeaponState>(entity) ? WeaponSystems.PrimaryMount(world, entity, out _) : -1;
+                                : p.Mount == 0 && (!world.HasComponent<WeaponState>(entity) || Countermeasures.DispenserOnly(world, entity))   // ⛔ CE-2188
+                                    ? WeaponSystems.PrimaryMount(world, entity, out _) : -1;
             // ⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the weapon in his hands, on the wire (also while a hold keeps it silent)
             WeaponPostureOf.SetActiveMount(world, entity, controlledIndex >= 0 && WeaponSystems.IsControlledIndex(controlledIndex) ? controlledIndex : p.Mount);
             if (controlledIndex >= 0 && WeaponSystems.IsControlledIndex(controlledIndex))
@@ -86,6 +87,10 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             else mountEntity = MountEntity(world, entity, p.Mount);
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
+            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER is not a weapon: it is released (Countermeasures.Release), never
+            //   fired at a point
+            if (Countermeasures.IsDispenser(world, shooter, fireIndex))
+            { channel.Status = NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Failed); return; }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
             var mountDto = CombatTkb.MountOf(world, shooter, fireIndex);

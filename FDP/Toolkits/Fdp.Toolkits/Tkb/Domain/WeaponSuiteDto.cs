@@ -134,6 +134,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <inheritdoc cref="MinElevationDeg"/>
         [EditUnit("deg")]
         public float MaxElevationDeg { get; init; }
+
+        /// <summary>⭐ <c>CE-2188</c> (BS-1-DESIGN §5.4c) — this mount's rate of fire, rounds per minute; 0 = not declared. A flare / chaff
+        /// DISPENSER's release interval is 60 ÷ this (<c>Countermeasures.Release</c>).</summary>
+        [EditUnit("rpm")]
+        public float RateOfFire { get; init; }
     }
 
     /// <summary>⭐ Indirect fire IF-1 (I2, IF-C) — the arcs a mount's indirect round may fly.</summary>

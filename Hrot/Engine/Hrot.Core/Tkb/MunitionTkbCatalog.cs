@@ -109,6 +109,11 @@ namespace Hrot.Core.Tkb
         public const int Tkb23mmHei = 6032;
         /// <summary>⭐ <c>CE-2190</c> — the ZU-23-2's 23 mm API (the library's <c>"23mm API"</c>).</summary>
         public const int Tkb23mmApi = 6033;
+        /// <summary>⭐ <c>CE-2188</c> / <c>CE-1111</c> (BS-1-DESIGN §5.4c) — an aircraft's IR decoy FLARE: an expendable (DIS 8.2.2), one
+        /// round of the dispenser mount's loadout; it fools an <c>InfraRed</c> seeker.</summary>
+        public const int TkbFlare = 6034;
+        /// <summary>⭐ <c>CE-2188</c> / <c>CE-1111</c> — a CHAFF bundle: an expendable (DIS 8.2.1); it fools a <c>Radar</c> seeker.</summary>
+        public const int TkbChaff = 6035;
 
         public const string Mortar60mmHeName = "60mm mortar HE", Mortar120mmHeName = "120mm mortar HE",
                             Howitzer105HeName = "105mm howitzer HE", Howitzer155HeName = "155mm howitzer HE";
@@ -137,7 +142,8 @@ namespace Hrot.Core.Tkb
                             TankHeatMpName = "120mm HEAT-MP round", TankHeFragName = "tank HE-FRAG round", HmgApName = "12.7mm AP round",
                             Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb",
                             Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket",
-                            StingerName = "Stinger missile", IglaName = "Igla missile", Zu23HeiName = "ZU-23 23mm HE-I", Zu23ApiName = "ZU-23 23mm API";
+                            StingerName = "Stinger missile", IglaName = "Igla missile", Zu23HeiName = "ZU-23 23mm HE-I", Zu23ApiName = "ZU-23 23mm API",
+                            FlareName = "IR decoy flare", ChaffName = "chaff bundle";
 
         /// <summary>⭐ <c>CE-2187</c> / <c>CE-2190</c> — the library entries the air-defence rounds take their numbers from.</summary>
         public const string StingerLibraryName = "Stinger warhead", IglaLibraryName = "Igla warhead",
@@ -231,6 +237,14 @@ namespace Hrot.Core.Tkb
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
             Register(tkb, Zu23ApiName, Tkb23mmApi, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      null, LibraryPenetration(Zu23ApiLibraryName), LibraryDamage(Zu23ApiLibraryName));
+
+            // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the EXPENDABLES a dispenser mount carries: DIS kind 8 (expendable), domain 2
+            //   (air), category 2 flare / 1 chaff — the kind decides which seeker each fools (Munitions.DecoyOf). A flare burns ~5 s and
+            //   falls; chaff blooms and hangs longer, sinking slowly. Starter values — tuning starts here.
+            Register(tkb, FlareName, TkbFlare, new DISEntityType { Kind = 8, Domain = 2, Category = 2 },
+                     expendable: new ExpendableDto { LifeSeconds = 5f, SinkMps = 8f });
+            Register(tkb, ChaffName, TkbChaff, new DISEntityType { Kind = 8, Domain = 2, Category = 1 },
+                     expendable: new ExpendableDto { LifeSeconds = 8f, SinkMps = 2f });
         }
 
         /// <summary>⭐ <c>CE-2187</c> — the library's warhead for <paramref name="libraryName"/>, its fuze a proximity fuze of
@@ -263,7 +277,7 @@ namespace Hrot.Core.Tkb
 
         private static void Register(ITkbDatabase tkb, string name, int type, DISEntityType dis, WarheadDto? warhead = null,
                                      float penetrationMm = 0f, float damage = 0f, MissileDto? missile = null,
-                                     System.Collections.Generic.List<float>? charges = null)
+                                     System.Collections.Generic.List<float>? charges = null, ExpendableDto? expendable = null)
         {
             var t = new TkbTemplate(name, type) { DisType = dis };
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString(), HideFromPalette = true });
@@ -274,6 +288,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = penetrationMm, Damage = damage,
                                                               ChargeSpeedsMps = charges ?? new() });   // ⭐ IF-1 (I7) — the charges
             if (missile != null) t.AddDescriptor(missile);
+            if (expendable != null) t.AddDescriptor(expendable);   // ⭐ CE-2188 (§5.4c) — a flare / chaff: its decoy's life and sink
             // ⭐ CE-2186 (W2, R-2020) — what one round costs, relative: the weapon brain picks the CHEAPEST round that is enough
             if (Costs.TryGetValue(type, out float cost)) t.AddDescriptor(new MunitionCostDto { RelativeCost = cost });
             tkb.Register(t);
@@ -299,6 +314,7 @@ namespace Hrot.Core.Tkb
                 [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
+                [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
@@ -342,8 +358,8 @@ namespace Hrot.Core.Tkb
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
             };
 
-        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6033), whether or not it has a look: a round, never a body.</summary>
-        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= Tkb23mmApi;
+        /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6035), whether or not it has a look: a round, never a body.</summary>
+        public static bool IsBuiltIn(long type) => type >= TkbM67Grenade && type <= TkbChaff;
 
         /// <summary>⭐ P1 (§8 PR-A) — the look of a round of munition type <paramref name="ammo"/>: its TKB <see cref="MunitionVisualDto"/>,
         /// else the built-in one (a host with no TKB — the replay browser — still draws the built-ins), else null (no body: a bullet).</summary>

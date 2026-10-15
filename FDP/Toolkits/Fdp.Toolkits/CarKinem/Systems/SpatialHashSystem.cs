@@ -29,6 +29,16 @@ namespace CarKinem.Systems
         // ⭐ CE-3018 — the terrain this grid was last fitted to (reference compare: a commit swaps the singleton object).
         private TerrainWorld? _fittedTo;
 
+        // ⭐ CE-2193 — the colliders already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        private readonly System.Collections.Generic.HashSet<Entity> _warned = new();
+
+        /// <summary>⭐ <c>CE-2193</c> — colliders the grid could NOT place this frame (outside it, or over its capacity): no round, near
+        /// miss, avoidance or radius search can meet them. 0 when every collider is in.</summary>
+        public int Dropped { get; private set; }
+
+        /// <summary>⭐ <c>CE-2193</c> — warnings logged so far (one per dropped entity per terrain fit).</summary>
+        public int Warnings { get; private set; }
+
         public SpatialHashSystem()
         {
             // Grid dimensions and origin are defined in SpatialHashConstants.
@@ -62,6 +72,7 @@ namespace CarKinem.Systems
                     new Vector2(SpatialHashConstants.OriginX, SpatialHashConstants.OriginY),
                     SpatialHashConstants.GridWidth, SpatialHashConstants.GridHeight, SpatialHashConstants.CellSizeMeters, world);
                 _grid.Rebase(g.OriginX, g.OriginY, g.CellSize);
+                _warned.Clear();   // ⭐ CE-2193 — a new fit: warn afresh about whoever is still outside it
             }
 
             _grid.Clear();
@@ -75,13 +86,27 @@ namespace CarKinem.Systems
                 .WithComponentId(GlobalComponentIds.PhysicsCollider)
                 .Build();
 
+            Dropped = 0;
             foreach (var entity in query)
             {
                 // ⭐ CE-3110 I-2c (R-271) — the collider hash is the door for bullets (RaycastSolverSystem), near misses, the radius search,
                 //   network raycasts and avoidance: an enclosed passenger is not in it, so none of them can find, hit or avoid it.
                 if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, entity)) continue;
                 var tf = repo.GetComponent<SimTransform>(entity);
-                _grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y));
+                if (_grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y))) continue;
+                // ⭐⭐ CE-2193 (DESIGN_Terrain_World §4.4) — a collider the grid cannot place is invisible to every round: SAY SO, once.
+                //   ⛔ The grid is NOT widened to it: it follows the terrain by design (W9) — a unit off its terrain is an authoring
+                //   error to surface, not to absorb. 📐 Measured live (ua-air-attack): a truck at (0, 6 000) took 0 of 1 358 rounds.
+                Dropped++;
+                if (_warned.Add(entity))
+                {
+                    Warnings++;
+                    Fdp.Core.Logging.FdpLog<SpatialHashSystem>.Warn(
+                        $"[SpatialHash] Entity #{entity.Index} at ({tf.Position.X:F0}, {tf.Position.Y:F0}) is outside the collider grid " +
+                        $"[{_grid.OriginX:F0}..{_grid.OriginX + _grid.Width * _grid.CellSize:F0}] × " +
+                        $"[{_grid.OriginY:F0}..{_grid.OriginY + _grid.Height * _grid.CellSize:F0}] (or over its capacity): " +
+                        "no round, avoidance or radius search can meet it.");
+                }
             }
 
             // Publish as singleton (Data-Oriented pattern)

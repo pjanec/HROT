@@ -682,6 +682,32 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(target,  notifications[0].Target);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1111</c> (BS-1-DESIGN §5.4b F1) — the notification carries THE SHOT: the round entity spawned, where it left and how
+        /// fast, one round, the sim time — so a viewer draws the shot fired, never the slot's default. 🔴 Red-proof: before F1 the
+        /// notification carried only shooter, target and slot (every field below read default).
+        /// </summary>
+        [Fact]
+        public void CE1111_TheNotification_CarriesTheShot()
+        {
+            _world.SetSingleton(new GlobalTime { TotalTime = 42.0 });
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            var n = Assert.Single(_world.Bus.Read<WeaponFireNotification>().ToArray());
+            var round = Entity.Null;
+            foreach (var e in _world.Query().With<BallisticProjectile>().Build()) round = e;
+            Assert.Equal(round, n.Round);
+            AssertNear(_world.GetComponent<SimTransform>(round).Position, n.Origin);
+            AssertNear(_world.GetComponent<SimVelocity>(round).Linear, n.Velocity);
+            Assert.Equal(1, n.Quantity);
+            Assert.Equal(42.0, n.FiredAt, 6);
+            Assert.Equal(_world.GetComponent<BallisticProjectile>(round).Ammo, n.AmmoGuid);
+        }
+
         // ── T007 SC-3: Dead entity → skip gracefully ────────────────────────
 
         /// <summary>

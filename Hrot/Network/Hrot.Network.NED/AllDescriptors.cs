@@ -92,8 +92,8 @@ namespace Hrot.NED.Descriptors
         dtWeaponSystemState           = 132,
         // ⭐ CE-2189 — a missile launched at an aircraft (Muscle → its Brain). 📄 docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md §3c
         dtMissileWarning              = 133,
-        // ⭐ CE-2188 — a flare / chaff salvo the Brain asks of its aircraft (Brain → Muscle). ⚠ 133/134 measured free on backend, ui and
-        //   behaviors 2026-10-15.
+        // ⛔ RESERVED — CE-2188's flare / chaff request (Brain → Muscle), RETIRED by BS-1-DESIGN §5.4c (a release is an ordinary
+        //   WeaponFireRequest on the dispenser mount). No translator uses it. ⚠ Do NOT reuse 134.
         dtDispenseCountermeasure      = 134,
         // etc., all known descriptor types here
     }
