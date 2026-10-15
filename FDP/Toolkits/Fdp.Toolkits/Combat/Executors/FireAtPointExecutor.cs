@@ -38,6 +38,13 @@ namespace Fdp.Toolkit.Combat.Executors
     /// </summary>
     public sealed class FireAtPointExecutor : IActionExecutor<WeaponChannel>
     {
+        /// <summary>⭐ <c>CE-2173</c> slice 6c — the rounds the RUNNING action has fired so far (its state's first int): an air attack that
+        /// breaks a burst off short still knows its pass fired (Air Operations §9e).</summary>
+        public static unsafe int RoundsFired(ref WeaponChannel channel)
+        {
+            fixed (byte* st = channel.State) return *(int*)st;
+        }
+
         public unsafe void OnEnter(Entity entity, ref WeaponChannel channel, EntityRepository world)
         {
             fixed (byte* dst = channel.State) *(int*)dst = 0;   // rounds fired

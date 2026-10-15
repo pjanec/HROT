@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
+  - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS what a heavy round does to a structure (a bunker, a building)
   - docs/DESIGN_Map_3D_Mode.md — §6n draws the tubes, the towed and SP howitzers, their crews, the laid elevation (a default until IF-1 replicates it) and the firing blast (the §5 ui row)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the weapon-as-an-entity, the Station / Gunner seats and ControllerOf (a ground mortar is a weapon system its gunner controls)
   - docs/DESIGN_Entity_Interactions.md — §7.5 OWNS the team carry (the 81 / 120 mm tubes are TwoMan loads)

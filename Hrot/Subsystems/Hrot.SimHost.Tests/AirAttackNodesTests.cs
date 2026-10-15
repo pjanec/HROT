@@ -25,6 +25,9 @@ namespace Hrot.SimHost.Tests
         private const long Heli = 9408;
         private const long RocketPlane = 9409;
         private const long GunPlane = 9410;
+        /// <summary>⭐ Slice 6c — a plane with all three: the bomb rack (mount 0), a rocket pod (1), a fixed gun (2).</summary>
+        private const long MultiPlane = 9411;
+        private const float GunMuzzle = 1010f;
         private const float Dt = 1f / 60f;
         /// <summary>An A-10's turn radius (cruise² / g·tan 60° at 150 m/s, Air Operations §6a).</summary>
         private const float TurnRadius = 1300f;
@@ -59,8 +62,21 @@ namespace Hrot.SimHost.Tests
             db.Register(r);
             var g = new Fdp.Interfaces.TkbTemplate("gun-plane", GunPlane);
             g.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
-                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, FixedConeDeg = 5f, Range = 1200f, InitialAmmunition = 1100, DamagePerHit = 30 } } });
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, FixedConeDeg = 5f, Range = 1200f, InitialAmmunition = 1100, DamagePerHit = 30,
+                  MuzzleVelocity = GunMuzzle } } });
             db.Register(g);
+            var m = new Fdp.Interfaces.TkbTemplate("multi-plane", MultiPlane);
+            m.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = 6022, InitialAmmunition = 4 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket, FixedConeDeg = 8f, Range = 4000f },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon, FixedConeDeg = 5f, Range = 1200f },
+            } });
+            db.Register(m);
+            // the bomb's round: a Mk-82-like burst, 27 m injury radius (W3 reads it from the warhead)
+            var bombRound = new Fdp.Interfaces.TkbTemplate("test bomb", 6022);
+            bombRound.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { BlastInjuryRadiusM = 27f, BlastLethalRadiusM = 9f });
+            db.Register(bombRound);
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
         }
 
@@ -257,7 +273,141 @@ namespace Hrot.SimHost.Tests
             ws = default;
             Assert.Equal(NodeStatus.Failure, AirAttackNodes.Run(ref p, ref ws, rocketPlane, _w));   // no bomb for a bomb run
 
-            Assert.Null(AirAttackProfiles.Pick(_w, SpawnPlane(Vector3.Zero, GunPlane, 1100), out _));
+            // ⭐ slice 6c — a plane with only a gun now flies a GunRun (SUPERSEDES "no profile": GunRun is built)
+            Assert.Equal(AirAttackProfile.GunRun, AirAttackProfiles.Pick(_w, SpawnPlane(Vector3.Zero, GunPlane, 1100), out mount, out gun));
+            Assert.Equal(AirAttackProfiles.None, mount);
+            Assert.Equal(0, gun);
+        }
+
+        /// <summary>
+        /// ⭐⭐ Slice 6c (B12, W1; Air Operations §9e) — the weapon follows the target: an ENTITY draws the plane's gun first (GunRun), then
+        /// rockets, the bomb last; a POINT draws the bomb first; a heavy point (a building) never the gun — with the bomb and the rockets gone
+        /// it has no profile at all. A helicopter flies RunningFire either way. ✅ Red-proofs: the point order for an entity ⇒ LevelBomb ⇒ red;
+        /// the gun allowed on a heavy point ⇒ GunRun ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6c_TheWeaponFollowsTheTarget_DirectFireAtAnEntity_TheBombAtAPoint_NeverTheGunOnAHeavyPoint()
+        {
+            var plane = SpawnPlane(Vector3.Zero, MultiPlane);
+            Assert.Equal(AirAttackProfile.GunRun,
+                AirAttackProfiles.Pick(_w, plane, out _, out byte gun, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0));
+            Assert.Equal(2, gun);
+            Assert.Equal(AirAttackProfile.RocketRun,
+                AirAttackProfiles.Pick(_w, plane, out byte mount, out _, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 1 << 2));
+            Assert.Equal(1, mount);
+            Assert.Equal(AirAttackProfile.LevelBomb,
+                AirAttackProfiles.Pick(_w, plane, out mount, out _, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, (1 << 2) | (1 << 1)));
+            Assert.Equal(0, mount);
+
+            Assert.Equal(AirAttackProfile.LevelBomb, AirAttackProfiles.Pick(_w, plane, out mount, out _));
+            Assert.Equal(AirAttackProfile.RocketRun,
+                AirAttackProfiles.Pick(_w, plane, out _, out _, entity: false, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Building, 1 << 0));
+            Assert.Null(AirAttackProfiles.Pick(_w, plane, out _, out _, entity: false, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Building, (1 << 0) | (1 << 1)));
+            Assert.Equal(AirAttackProfile.GunRun,
+                AirAttackProfiles.Pick(_w, plane, out _, out _, entity: false, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Personnel, (1 << 0) | (1 << 1)));
+
+            var heli = SpawnHeli(Vector3.Zero, out _);
+            Assert.Equal(AirAttackProfile.RunningFire,
+                AirAttackProfiles.Pick(_w, heli, out _, out _, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0));
+        }
+
+        /// <summary>
+        /// ⭐⭐ Slice 6c (W3) — a weapon whose burst would reach a friend or a NEUTRAL near the point is passed over: the bomb (27 m injury)
+        /// with a friend 15 m from the point ⇒ the strike takes the next weapon (rockets, then the gun — neither has a burst here); a neutral
+        /// does the same; DANGER CLOSE fires the bomb anyway; and on a building (no gun) with the bomb and rockets out of reach the attack
+        /// fails loudly. ✅ Red-proof: the check skipped ⇒ LevelBomb with a friend inside the burst ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6c_AWeaponWhoseBurstReachesAFriendOrANeutral_IsPassedOver_UnlessDangerClose()
+        {
+            var plane = SpawnPlane(new Vector3(-8000f, 0f, 300f), MultiPlane);
+            _w.AddComponent(plane, new EntityInfo { ForceId = ForceId.Friend });
+            var man = _w.CreateEntity();
+            _w.AddComponent(man, new SimTransform { Position = new Vector3(15f, 0f, 0f), Rotation = Quaternion.Identity });
+            _w.AddComponent(man, new EntityInfo { ForceId = ForceId.Friend });
+            _w.AddComponent(man, new Health { Current = 100f, Max = 100f });
+
+            AirAttackProfile Picked(Hrot.AI.Behaviors.Orders.StrikeTargetKind kind, byte dangerClose, out NodeStatus status)
+            {
+                var p = new AirAttackParams { Point = Vector3.Zero, Kind = kind, DangerClose = dangerClose };
+                var ws = default(AirAttackState);
+                status = AirAttackNodes.Run(ref p, ref ws, plane, _w);
+                return ws.Profile;
+            }
+
+            Assert.Equal(AirAttackProfile.RocketRun, Picked(Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0, out var s1));
+            Assert.Equal(NodeStatus.Running, s1);
+            Assert.Equal(AirAttackProfile.LevelBomb, Picked(Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 1, out _));
+            _w.GetComponentRW<EntityInfo>(man).ForceId = ForceId.Neutral;
+            Assert.Equal(AirAttackProfile.RocketRun, Picked(Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0, out _));
+            _w.GetComponentRW<EntityInfo>(man).ForceId = ForceId.Hostile;
+            Assert.Equal(AirAttackProfile.LevelBomb, Picked(Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ Slice 6c (B12–B14) — Attack on a MOVING entity: a plane with only a gun flies a GunRun at a technical driving across its path
+        /// at 5 m/s. Every round is aimed at the LED point — a round flown from the muzzle at its own speed plus the plane's velocity (A4) passes
+        /// within 1.5 m of the technical; the technical survives the first pass, so the plane comes round for a second; killed during it, the
+        /// attack ends Success. ✅ Red-proofs: aiming at where the technical is ⇒ the rounds pass ~4 m behind ⇒ red; one pass only ⇒ no second
+        /// pass ⇒ red; no "destroyed ⇒ Success" ⇒ the attack runs on ⇒ red; a burst cut short by the break not counted as fired ⇒ the plane
+        /// turns back 1 km past the target as if it had fired nothing ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6c_AGunRunOnAMovingTechnical_LeadsIt_ComesRound_AndEndsWhenItIsDestroyed()
+        {
+            var plane = SpawnPlane(new Vector3(-7000f, 0f, 60f), GunPlane, 1100);
+            var tech = _w.CreateEntity();
+            var techV = new Vector3(0f, 5f, 0f);
+            _w.AddComponent(tech, new SimTransform { Position = new Vector3(0f, -150f, 0f), Rotation = Quaternion.Identity });
+            _w.AddComponent(tech, new SimVelocity { Linear = techV });
+            _w.AddComponent(tech, new Health { Current = 100f, Max = 100f });
+            var p = new AirAttackParams { Target = tech, Point = _w.GetComponentRO<SimTransform>(tech).Position };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            int shots = 0, shotsPass1 = 0;
+            float worstMiss = 0f, farthestOut = 0f;
+            var status = NodeStatus.Running;
+            for (int frame = 0; frame < 60 * 400 && status == NodeStatus.Running; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });   // the run-in re-aims on sim time (every 0.5 s)
+                status = AirAttackNodes.Run(ref p, ref ws, plane, _w);
+                ref var wc = ref _w.GetComponentRW<WeaponChannel>(plane);
+                if (wc.ActiveAction == CombatConstants.ActionIdFireAtPoint)
+                {
+                    if (wc.ActionInstanceId != entered) { executor.OnEnter(plane, ref wc, _w); entered = wc.ActionInstanceId; }
+                    executor.Execute(plane, ref wc, _w, Dt);
+                }
+                ref var w = ref _w.GetComponentRW<WeaponState>(plane);
+                w.CooldownSecondsRemaining = MathF.Max(0f, w.CooldownSecondsRemaining - Dt);
+                _w.Bus.SwapBuffers();
+                var at = _w.GetComponentRO<SimTransform>(plane).Position;
+                var pv = _w.GetComponentRO<SimVelocity>(plane).Linear;
+                var tp = _w.GetComponentRO<SimTransform>(tech).Position;
+                foreach (ref readonly var i in _w.Bus.Read<WeaponFireIntent>())
+                {
+                    shots++;
+                    // fly the round: from the plane at the muzzle speed along the aim plus the plane's velocity, against the moving target
+                    var rv = Vector3.Normalize(i.TargetPoint - at) * GunMuzzle + pv;
+                    float miss = float.MaxValue;
+                    for (float t = 0f; t < 3f; t += 0.0005f) miss = MathF.Min(miss, Vector3.Distance(at + rv * t, tp + techV * t));
+                    worstMiss = MathF.Max(worstMiss, miss);
+                }
+                if (ws.Passes == 0) { shotsPass1 = shots; farthestOut = MathF.Max(farthestOut, at.X); }
+                if (ws.Passes >= 1 && shots > shotsPass1 && CombatLife.IsAlive(_w, tech))
+                    _w.GetComponentRW<Health>(tech).Current = 0f;   // the second pass's rounds kill it
+                FlyStandIn(plane, 150f, plane: true);
+                _w.GetComponentRW<SimTransform>(tech).Position = tp + techV * Dt;
+            }
+
+            Assert.Equal(AirAttackProfile.GunRun, ws.Profile);
+            Assert.True(shotsPass1 > 0, "the first pass fired");
+            Assert.True(shots > shotsPass1, $"a second pass fired ({shots} rounds, {shotsPass1} in the first)");
+            Assert.True(worstMiss < 1.5f, $"the worst round passed {worstMiss:F2} m from the technical — it must be led");
+            // the pass that fired (its burst cut short by the 600 m break) flies OUT to the egress before it comes round — not the
+            //   "overflown with nothing fired" turn-back 1 km past the target
+            Assert.True(farthestOut > 2000f, $"the first pass turned back {farthestOut:F0} m past the target — it fired, so it flies out");
+            Assert.Equal(NodeStatus.Success, status);
         }
 
         /// <summary>
