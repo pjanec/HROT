@@ -296,8 +296,10 @@ sequenceDiagram
 ```
 
 The modules do not change (§4): the solver, damage and health systems are where they were; `TurretPose` is already replicated to the
-SimHost (W-9). ⚠ **One dead edge stays dead:** a `ui` SpArtillery is DRAWN at a laid elevation (`LaidPose`), the sim poses its gun by
-`TurretPose` — the two agree only once the howitzer's gun publishes its lay (Weapon Layers).
+SimHost (W-9). ✅ **The drawing and the sim pose the gun from ONE pose:** a `ui` SpArtillery is drawn by `LaidPose`, which reads the
+replicated `TurretPose` as published — azimuth AND elevation, a level gun included (`EntityBodyLayer3D.cs:613`, ui's CE-1114); the
+fallback elevation is only for a gun with no turret part. *(⛔ SUPERSEDED `2026-10-16` — this caption said "one dead edge stays dead: the
+two agree only once the howitzer publishes its lay"; backend's P2 lays the gun before it fires and CE-1114 draws that lay — ui steer.)*
 
 | id | decision (lean) | why | rejected · what would change it |
 |---|---|---|---|
