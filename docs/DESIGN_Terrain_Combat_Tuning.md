@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none yet
 known-conflict: none
 related-designs:
+  - docs/designs/mgmt-1/DESIGN.md — §13.3a owns the exercise archive's scenario copy (CE-3119, a §5a follow-up here)
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — §5: the new AT rounds (PG-7VL/VR, LAW, NLAW, Javelin, Kornet-class, FPV warhead, tank HEAT-MP / HE, HMG AP)
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds the AT rounds (PG-7VL/VR, LAW, NLAW, Javelin, FPV warhead) to the ammo library and a shaped-charge armour column (M2, M5)
   - DESIGN_Peek_And_Fire.md — adds AimSeconds and reload to the defaults; its demo bt-window-duel follows §3
@@ -536,6 +537,8 @@ rewritten only on change) · new `DebugTraceGizmoTests` (burst drawn for 1 s, so
 - **`CE-3119`** — the exercise archive carries a COPY of the scenario files; the terrain stays referenced by name. Measured: the archive
   pulls only each node's `.fdp` and `.fdp.meta.json` (`ReferenceArchiveHandler.cs:80-95`). 🔒 *"Terrain is part of the scenario, which i
   think shoukd become the part od the package with the recordinga (by copying). Terrain could stay referenced by name only."*
+  ✅ **Built `2026-10-15`** — snapshotted when the exercise goes live, filed as `exercises/<id>/scenario/` on export:
+  [`designs/mgmt-1/DESIGN.md`](designs/mgmt-1/DESIGN.md) §13.3a owns it.
 
 ## 5b. Gizmo scope and pins — *"selected only"*, *"all"*, and *"keep showing this unit"* *(`CE-3120`, `CE-3121`, `CE-3122`, backend, `2026-10-08`; build-state: BUILT — as-built at the end of this section)*
 

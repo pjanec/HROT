@@ -102,4 +102,113 @@ public sealed class AssetInventoryProcessManagerTests
             if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-3119 (mgmt-1 §13.3a) — the archive carries a copy of the scenario the exercise RAN: snapshotted when it
+    /// goes live, filed under <c>exercises/&lt;id&gt;/scenario/</c> on export. A Save Scenario over the same folder after
+    /// the start does not leak into the archive, and the local snapshot goes with the ledger entry.
+    /// </summary>
+    [Fact]
+    public void CE3119_TheArchive_CarriesTheScenarioAsItWasWhenTheExerciseStarted()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3119_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3119_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            const string scenarioId = "town-raid";
+            var scenarioDir = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+            Directory.CreateDirectory(scenarioDir);
+            File.WriteAllText(Path.Combine(scenarioDir, "SimHost.json"), "as-started");
+            File.WriteAllText(Path.Combine(scenarioDir, "Orchestrator.json"), "{}");
+
+            var bus     = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
+
+            // The exercise goes live from the scenario.
+            bus.PublishManaged(new TransitionStateIntent { TargetState = ClusterState.OperatingLive, ScenarioId = scenarioId, ExerciseId = exerciseId });
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.OperatingLive, ExerciseId = exerciseId });
+            bus.SwapBuffers();
+            manager.Tick();
+
+            // The scenario is saved over during the run, then the exercise stops.
+            File.WriteAllText(Path.Combine(scenarioDir, "SimHost.json"), "saved-over");
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, ExerciseId = exerciseId });
+            bus.SwapBuffers();
+            manager.Tick();
+
+            // Export: the recordings are pulled (as the gateway would), then the export completes.
+            var nasExerciseDir = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString());
+            Directory.CreateDirectory(nasExerciseDir);
+            File.WriteAllText(Path.Combine(nasExerciseDir, "rec_node_400.fdp"), "fdp-bytes");
+            var requestId = Guid.NewGuid();
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exerciseId });
+            bus.SwapBuffers();
+            manager.Tick();
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
+            bus.SwapBuffers();
+            manager.Tick();
+
+            var archived = Path.Combine(nasExerciseDir, AssetInventoryProcessManager.ArchivedScenarioDirectoryName);
+            Assert.Equal("as-started", File.ReadAllText(Path.Combine(archived, "SimHost.json")));
+            Assert.True(File.Exists(Path.Combine(archived, "Orchestrator.json")), "every scenario file is copied");
+            Assert.True(File.Exists(Path.Combine(nasExerciseDir, "Orchestrator.json")), "the CE-278 sidecar is still written");
+
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+            Assert.False(Directory.Exists(Path.Combine(ledgerDir, $"{exerciseId}.scenario")), "the snapshot goes with the ledger entry");
+            Assert.Single(new StorageGatewayModule().ScanNasExercises(Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName)));
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-3119 — a ledger entry from before the snapshot existed still archives a scenario copy: the one on the NAS now.
+    /// </summary>
+    [Fact]
+    public void CE3119_ALedgerEntryWithNoSnapshot_ArchivesTheCurrentScenario()
+    {
+        var nasRoot = Path.Combine(Path.GetTempPath(), "fdp_ce3119b_nas_" + Guid.NewGuid().ToString("N"));
+        var staging = Path.Combine(Path.GetTempPath(), "fdp_ce3119b_stg_" + Guid.NewGuid().ToString("N"));
+        const int nodeId = 400;
+
+        try
+        {
+            var exerciseId = Guid.NewGuid();
+            const string scenarioId = "hill-attack";
+            var scenarioDir = Path.Combine(nasRoot, OrchestrationConstants.ScenariosDirectoryName, scenarioId);
+            Directory.CreateDirectory(scenarioDir);
+            File.WriteAllText(Path.Combine(scenarioDir, "SimHost.json"), "current");
+
+            var ledgerDir = Path.Combine(OrchestrationConstants.GetNodeStagingRoot(staging, nodeId), "recording_ledger");
+            Directory.CreateDirectory(ledgerDir);
+            File.WriteAllText(Path.Combine(ledgerDir, $"{exerciseId}.json"), JsonSerializer.Serialize(
+                new RecordingLedgerEntry(exerciseId, scenarioId, DateTime.UtcNow.AddMinutes(-2), TimeSpan.FromSeconds(60)),
+                FdpJsonOptionsRegistry.Indented));
+
+            var bus     = new FdpEventBus();
+            var manager = new AssetInventoryProcessManager(bus, new StorageGatewayModule(), nasRoot, staging, nodeId);
+            var requestId = Guid.NewGuid();
+            bus.PublishManaged(new ExecuteStorageOpIntent { RequestId = requestId, Operation = StorageOpType.Export, ExerciseId = exerciseId });
+            bus.SwapBuffers();
+            manager.Tick();
+            bus.PublishManaged(new ClusterOpCompletedEvent { RequestId = requestId, StatusCode = OrchestrationStatusCode.Success });
+            bus.SwapBuffers();
+            manager.Tick();
+
+            var archived = Path.Combine(nasRoot, OrchestrationConstants.ExercisesDirectoryName, exerciseId.ToString(),
+                AssetInventoryProcessManager.ArchivedScenarioDirectoryName, "SimHost.json");
+            Assert.Equal("current", File.ReadAllText(archived));
+        }
+        finally
+        {
+            if (Directory.Exists(nasRoot)) Directory.Delete(nasRoot, recursive: true);
+            if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        }
+    }
 }

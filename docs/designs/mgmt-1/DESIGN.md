@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-03 (CE-3023 as-built QoS note at the Control-Plane topic block)
+updated: 2026-10-15 (§13.3a CE-3119: the exercise archive carries a copy of its scenario)
 current-answer: §8.10 "Distributed Entity Lifecycle During Replay" + §8.5 are the RULING on what runs
   during replay. The rest of this document is the drill-management / DSM design.
 known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = false "ensures LifecycleSystem,
@@ -20,6 +20,8 @@ known-rot: ⛔ §8.10 prescribes that NetworkLifecycleSystemGroup.Enabled = fals
 known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of this 3226-line file (two
   producers for one slot, R-132). A reader can quote the stale half without knowing. Prefer THIS file.
 related-designs:
+  - docs/DESIGN_Terrain_Combat_Tuning.md — §5a: the terrain NAME in the recording metadata (CE-3118) and the user ruling
+    behind §13.3a's scenario copy (CE-3119).
   - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
     entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - docs/designs/replay-and-modules/DESIGN.md — §2.1a–§2.1m: replay ISOLATION as built, the measured gap
@@ -3016,8 +3018,46 @@ during `LoadingReplay` so the Master can reset the `DdsIdAllocatorServer` (§5.7
     │   ├── {CheckpointId}_node_100.fdp
     │   ├── {CheckpointId}_node_100.dds          ← in-flight DDS supplement
     │   └── {CheckpointId}_node_200.fdp
+    ├── Orchestrator.json       ← as built (CE-278 §5): start time, scenario id, duration — the exercise sidecar
+    ├── scenario/               ← ⭐ CE-3119: a COPY of the scenario the exercise ran (its flat files)
     └── drill_manifest.json     ← ExerciseId, timestamps, node list, DSM lifecycle log
 ```
+
+#### 13.3a The scenario travels with the recordings *(`CE-3119`, backend, `2026-10-15`; build-state: BUILT)*
+
+> 🔒 **User, `2026-10-08`:** *"Terrain is part of the scenario, which i think shoukd become the part od the package with the
+> recordinga (by copying). Terrain could stay referenced by name only."*
+
+```mermaid
+sequenceDiagram
+  participant CM as ClusterMaster
+  participant AI as AssetInventoryProcessManager (master)
+  participant GW as StorageGatewayModule
+  participant L as master staging - recording_ledger
+  participant NAS as NAS
+  CM->>AI: TransitionStateIntent OperatingLive, ScenarioId
+  CM->>AI: ClusterStateUpdate enters OperatingLive, ExerciseId
+  AI->>GW: CopyScenarioFiles(scenarios/id, ledger/exerciseId.scenario)
+  GW->>NAS: read the scenario's files
+  GW->>L: snapshot (once per exercise)
+  Note over AI,L: leaves OperatingLive - ledger entry saved (existing)
+  CM->>AI: ExecuteStorageOpIntent Export, then ClusterOpCompletedEvent Success
+  AI->>NAS: Orchestrator.json sidecar (existing, CE-278)
+  AI->>GW: CopyScenarioFiles(ledger snapshot, exercises/id/scenario)
+  GW->>NAS: write the copy
+  AI->>L: delete the ledger entry and its snapshot
+```
+
+*What the picture shows that prose hid: the copy is taken when the exercise STARTS, not when it is exported — a scenario
+saved over during or after the run (Save Scenario writes the same folder) does not leak into the archive.*
+
+| decision | why |
+|---|---|
+| snapshot at the start of `OperatingLive`, archive on export | ⛔ copying at export would archive whatever the scenario folder holds THEN — a later Save Scenario to the same name would be filed as "what this exercise ran" |
+| the snapshot lives beside the ledger entry (master staging) | the ledger already survives a master restart (`HydrateLedger`); the snapshot rides the same lifetime and is deleted with it |
+| no snapshot (an entry from before CE-3119) ⇒ copy the NAS scenario at export, and log it | better a current copy than none; the log says it is not the start-time version |
+| the terrain stays a NAME | 🔒 the user's ruling; the name is already in the scenario files and in `RecordingMetadata.TerrainName` (CE-3118) |
+| import ignores `scenario/` | `PrefetchArchiveAsync` fetches each node's `.fdp` by name; replay never reads the copy — it is the record of what ran |
 
 ---
 
