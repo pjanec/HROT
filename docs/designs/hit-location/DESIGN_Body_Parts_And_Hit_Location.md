@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15 (HL-12: body profiles by DIS class + sparse per-type overrides, user-approved)
-build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built. §1 is the measured ground.
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -329,4 +329,68 @@ gun pointing at the shooter, the barrel across; the old band hit the round over 
 `BodyPartDamageTests` — the tank profile and inherited armour, the turret / gun damage, the mobility and firepower kills; ui's
 `VehicleBodyParityTests` — the generated kits = `ShapeKits`, and for EVERY catalog type of the five families: the kit, the size and the
 posed boxes at three turret poses (and inside the bound sphere). ⏭ S2b `CE-3214` weapon systems, S2c `CE-3215` aircraft.
+
+## 10. S3 — fragments land on the parts that face the burst, `CE-3212` *(backend, designed `2026-10-16`, leans under the overnight mandate)*
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectSystem { <<existing, grows>> a man with a body: one damage event PER PART struck + the blast as a whole-body event }
+  class AreaEffect { <<existing, grows>> +FragmentHit(w, target, distance) per-hit damage and penetration ★ · Fragments() unchanged }
+  class FragmentSplit { <<NEW static, Physics.BodyParts>> +Shares(boxes, pose rotation, toward burst, Span~float~ perPart) · projected areas }
+  class PersonBody { <<S1a>> Boxes(pose) · PoseOf }
+  class BodyZones { <<S1b>> zone armour on the face toward the burst · multiplier }
+  class HitMarksWriter { <<S1b, grows>> fragment marks drawn by the parts' shares ★ }
+  class DamageAssessedEvent { <<S1b>> HasBodyPart · BodyPart }
+  AreaEffectSystem ..> FragmentSplit
+  FragmentSplit ..> PersonBody
+  AreaEffectSystem ..> BodyZones
+  AreaEffectSystem ..> AreaEffect
+  AreaEffectSystem --> DamageAssessedEvent : one per part struck
+  AreaEffectSystem ..> HitMarksWriter
+```
+*What the picture shows that prose hid: no new state and no new wire — the fragment law (§3k.1 of Building Interiors) still counts the hits;
+S3 only decides WHICH PARTS they land on and what each part's zone does to them, and reuses S1b's per-part event, so `PartDamage`, the
+wounds and the marks follow with no new code downstream.*
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem (SimHost)
+  participant FS as FragmentSplit
+  participant BZ as BodyZones
+  participant HA as HealthApplicationSystem (Health owner)
+  AE->>AE: AreaEffect.Fragments(w, Person, area, r, armour, exposure) — the expected hits (unchanged)
+  AE->>FS: Shares(PersonBody.Boxes(pose), toward the burst) — each part's projected area / the total
+  AE->>BZ: each part's zone: armour on the face toward the burst (helmet, vest), multiplier
+  AE->>AE: part damage = hits × share × per-hit × chance(zone armour) × multiplier ÷ mean multiplier × exposure
+  AE->>HA: DamageAssessedEvent per part struck (+ blast, whole body)
+  HA->>HA: Health − Σ · PartDamage per part ⇒ a leg wounded by a grenade slows him
+```
+
+| id | decision (lean) | why | rejected · what would change it |
+|---|---|---|---|
+| **S3-1** | the expected hits split over the parts by their **projected area toward the burst** (the pose's boxes: `4·(h_y h_z |d·x| + h_x h_z |d·y| + h_x h_y |d·z|)`) | a prone man shows the burst his head and shoulders; a standing one his whole side — the same boxes the rounds meet | a ray per fragment (the cost S3 was told to measure: thousands of rays per burst) · occlusion between his own parts (second order) |
+| **S3-2** | each part's hits meet its ZONE's armour on the face toward the burst (helmet, vest); this **replaces the 35 % plate coverage** for a man with a body | the vest covers exactly the torso's share, which is now computed, not assumed | keeping the 35 % on top (double-counted armour) |
+| **S3-3** | the zone multipliers are **normalised by their area-weighted mean**, so an unarmoured man's expected total is the calibrated §3k.1 value | the fragment law was calibrated against published radii as a WHOLE-body dose; S3 moves where it lands, it does not re-tune it | raw multipliers (a standing man's mean is below 1: every grenade would get weaker) |
+| **S3-4** | one `DamageAssessedEvent` per part struck (`HasBodyPart`), the blast as one whole-body event; the detonation log keeps the per-target totals | S1b's chain (`PartDamage`, wounds) then takes fragments with no new code | a new event type |
+| **S3-5** | fragment `HitMarks` are drawn by the parts' shares (HL-10's uniform draw is superseded) | the marks then sit where the fragments landed | — |
+| **S3-6** | a hull keeps its whole-body fragment law in S3 | a fragment that beats a hull's facing armour is rare; S2's per-part hull is for rounds | per-part hull fragments (⏭ if a measurement shows it matters) |
+
+### 10a. S3 as built — `CE-3212` *(backend, `2026-10-16`)*
+
+As §10 draws it: `FragmentSplit.Shares` (`Physics/BodyParts/FragmentSplit.cs`), `AreaEffect.FragmentHit` (the per-hit damage and penetration
+the law already used, exposed), `AreaEffectSystem.SplitOverParts` (a man with a person body — every typed or untyped person) and the marks
+drawn by the shares (`MarkFragments(…, shares)`). Notes:
+
+| | |
+|---|---|
+| the burst's direction | from the pose's bound-sphere centre (scaled by the collider height) to the burst, in the body's frame; ONE face for every part (the face toward the burst) |
+| the platform armour | an unstated or inherited zone face keeps the armour the whole-body law used; a person's own platform armour is already its Torso's (S1b) |
+| the 35 % plate coverage | no longer applies to a man with a body (S3-2); it remains for a hand-built world with no TKB and no person body — never in production, where every person resolves at least the engine's |
+| the cost | ten boxes' silhouettes (≈ 30 multiply-adds each) per man per burst, beside his three exposure traces; ⚠ estimated by operation count, not benchmarked |
+| calibration | the §3k.1 radii rails (`W6pp_…`) pass unchanged: an unarmoured man's total is the law's by construction (S3-3) |
+
+**Rails** (`AreaEffectSystemTests`, the feature's suite): `CE3212_AnUnarmouredMan_TakesTheLawsTotal_SpreadOverHisParts` (the total equals
+hits × per-hit × exposure, eight or more parts struck, the torso more than a forearm) · `CE3212_TheVest_StopsFragmentsOnTheTorso_TheLimbsAreOpen`
+(3.5 mm fragments from behind: the soldier's torso untouched, the civilian's struck, their thighs equal).
 
