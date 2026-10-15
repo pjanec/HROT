@@ -1734,6 +1734,12 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 [DESIGN_Entity_Control.md](DESIGN_Entity_Control.md)), placing a weapon into a station in the editor (weapon-systems hand-off U2, CE-2174). ⏸ **Blocked on
 other lanes:** the stretcher / two-man carry poses (team carry T-a), the attack helicopter, door guns, minigun / GAU-8 tracer streams, Hydra
 salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun types (IF-1 / WS-4).
+⭐ **`2026-10-15` — after merging `behaviors` (T-a, F1–F4, IF-1, WS-4 landed):** UNBLOCKED — the stretcher and the two-man weapon (T-b:
+a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
+to the generic helicopter), the door gunners (404's seats 8–11; may already draw through the station path — check in a frame), a dense
+stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2), the laid elevation on the wire (no owner; IF-1 did not add it).
 
 ### 6o. CE-1097 — a face: skin, eyes, nose and mouth, a soldier's helmet — DESIGN + AS-BUILT `2026-10-14` (ui)
 
@@ -1985,6 +1991,19 @@ so the terrain and every other body draw exactly as before.
 **Rejected — one line each:** *a small image on the cube's texture coordinates* — it stretches on limbs and needs the shader changed anyway;
 *a texture projected by world position* — the pattern would slide over a walking man; *keep the boxes and skip them far away* — the layer does
 not know the camera, and a crowd close up pays in full.
+
+**AS-BUILT (`CE-1101`)** — as drawn above. The pattern runs in the part's own frame in METRES (`LitShader`'s vertex stage passes the
+mesh-local position, its size from the model-matrix column lengths, and the normal, all in HROT axes), so a patch keeps its size from torso to
+forearm. Measured: the face pass leaves terrain, vehicles and weapons pixel-identical in the existing frame rails (`ws-*`, 15 of 16 green; the
+red one, `CE3174_V`, was CE-1079's HUD renumbering, a display-only rail that had not run since — its expectation now reads the HUD as numbered).
+A frame rail asserts the shader compiled AND carries the body surface, since otherwise the C# counters would count paint the GPU never did.
+Rails `Map3DTests.CE1101_*` (faces vary, only grown men wear beards), `CE1097_*` / `CE1099_*` rewritten for painted features and patterns,
+frame rails `CE1097_V` / `CE1099_V` (`FacesPainted`, `CamoPainted`).
+
+| | |
+|---|---|
+| ![camouflage](assets/map-3d/surface-1-camo.png) | ![faces](assets/map-3d/surface-2-faces.png) |
+| *painted by the shader, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* | *eyes with irises, brows, the nose's shade and the mouth, per man* |
 
 ## 7. NOT VERIFIED — say so before it is built on
 
