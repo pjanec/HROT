@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (⭐ §4-K NEW, OPEN — the join concept reviewed from every angle: K1 every Player shares node id 300, K3 a catch-up wipes the world the joiner just received, K4/K5 fences, K6 one gate principle; J3′ superseded by K6) ·
+updated: 2026-10-15 (⭐ §4-L NEW, OPEN — L1 the master assigns node ids, L2 gated entity ingress (supersedes K3), L3 replay join, L4 "observer" instead of "best-effort"; §4-K updated with the LIVE multi-process measurements) ·
+  2026-10-15 (⭐ §4-K NEW, OPEN — the join concept reviewed from every angle: K1 every Player shares node id 300, K3 a catch-up wipes the world the joiner just received, K4/K5 fences, K6 one gate principle; J3′ superseded by K6) ·
   2026-10-15 (§4-J: J3 SUPERSEDED by J3′ — the master publishes its InSync set in mgmt-1's never-written RequiredNodeIdsJson; J4 widened; J5 detailed) ·
   2026-10-15 (⭐ §4-I APPROVED as R-4006 · ⭐ §4-J NEW, OPEN — servicing a late joiner beside a running session; finds the reliable-init barrier and operator rounds gate the running game on a joiner) ·
   2026-10-15 (§4-I: I3 SUPERSEDED by I5 — a cluster SESSION ID, none exists today) ·
@@ -51,6 +52,7 @@ related-designs:
     PARTITION that decide WHAT moves; §4-E2 here owns only HOW the bytes travel (the provider) and reuses that diff as
     its "already cached?" check.
   - docs/DESIGN_Artifact_Staging.md — owns the NAS layout and the staged TKB/terrain artifacts the provider carries.
+  - docs/DESIGN_Cluster_Membership_Use_Cases.md — owns the USE CASES this question must satisfy, each with its live HTTP test recipe and its measured status.
   - docs/DESIGN_Cross_Node_Construction_Barrier.md — owns the reliable-init wait-set and the late-joiner READ path (§2a, A7 unbuilt) that §4-J J3 narrows and relies on.
 -->
 
@@ -873,9 +875,9 @@ its own (`Take` is right, the boundary clear is right); only the order on a node
 
 | # | angle | the gap | evidence |
 |---|---|---|---|
-| **K1** | ⭐⭐ **identity** | **every Player has the same node id** unless configured: IG uses `nodeIdOverride` or the constant **300**; nothing anywhere detects two processes under one id. Two Players ⇒ one roster entry, both execute every command, one leaving releases the other's possession and ownership, and `InSync` (I1) is shared | `IgApplication.cs:654`, `IgNetworkConstants.cs:18`; no duplicate-id detection in production `Hrot/` or `FDP/` |
-| **K2** | ⭐⭐ **fast restart** | **I1 has a hole**: a node leaves `InSync` only when ejected after 5 s of silence. A process that restarts faster than that is never ejected, so the empty new process is believed in sync and never caught up | `ClusterMaster.cs:660-679` (ejection only on timeout) |
-| **K3** | 🔴🔴 **world delivery** | **a catch-up wipes the world the joiner just received.** Readers are created when the node is composed (`EntityStatesIngressPack.cs:52`), so the durable entity state arrives at once and is `Take`n (`EntityMasterIngressTranslator.cs:104`). The catch-up's load is entered from `Idle` ⇒ a world boundary (`ClusterMaster.cs:1406-1408`) ⇒ `WorldBoundaryReset.Clear` destroys every entity and clears the entity map (`LoadPhaseChain.cs:198`). Ingress then only resets its bookkeeping (`:101`); nothing re-subscribes (no such code exists). ⇒ entities that do not re-publish (anything static) **never come back** | measured, every link |
+| **K1** | ⭐⭐ **identity** | **every Player launched alike has the same node id**: the runner gives IG `base + 100` (`-n/--node-id`, default 0 ⇒ **100**, `Program.cs:719-733`); embedded with no override it is the constant **300** (`IgApplication.cs:654`). Nothing anywhere detects two processes under one id. 📐 **Measured live `2026-10-15`**: two IG processes both at id 101 ⇒ the master's fan-out counted `nodes=5` for six processes and **both** executed the load to `OperatingLive`. Two Players ⇒ one roster entry, both execute every command, one leaving releases the other's possession and ownership, and `InSync` (I1) is shared | `Program.cs:719-733`, `IgApplication.cs:654`; no duplicate-id detection in production `Hrot/` or `FDP/`; live run below |
+| **K2** | ⭐⭐ **fast restart** | **I1 has a hole**: a node leaves `InSync` only when ejected after 5 s of silence. A process that restarts faster than that is never ejected, so the empty new process is believed in sync and never caught up | `ClusterMaster.cs:660-679` (ejection only on timeout). 📐 **Measured live**: one IG restart was ejected, the next (process composed 2.6 s after the kill) was **never ejected** — timing decides |
+| **K3** | 🔴🔴 **world delivery** | **a catch-up wipes the world the joiner just received.** Readers are created when the node is composed (`EntityStatesIngressPack.cs:52`), so the durable entity state arrives at once and is `Take`n (`EntityMasterIngressTranslator.cs:104`). The catch-up's load is entered from `Idle` ⇒ a world boundary (`ClusterMaster.cs:1406-1408`) ⇒ `WorldBoundaryReset.Clear` destroys every entity and clears the entity map (`LoadPhaseChain.cs:198`). Ingress then only resets its bookkeeping (`:101`); nothing re-subscribes (no such code exists). ⇒ entities that do not re-publish (anything static) **never come back** | measured, every link. ⚠ **Live run `2026-10-15`: TODAY a late Player gets the whole replicated world WITHOUT any catch-up** (8/8 networked entities, promoted) — only because every host boots with the DEVELOPMENT TKB (`HrotEnvironment.CreateTkb()`, *"the real system loads TKB from files"*). ⇒ the wipe happens only once P7 sends a world-boundary load, and with a file TKB nothing would promote before the load |
 | **K4** | 🔴 **master side effects** | **a catch-up built on the operator's transition path would damage the running game**: it jumps the CLUSTER clock to 0, paused (`GlobalContextProcessManager.cs:44-49`), and resets the network-id authority in a running world (`ClusterMaster.cs:1406-1426`, duplicate ids — HN-037) | measured |
 | **K5** | 🔴 **genesis** | **a late-joining or restarted Brain node would duplicate the scenario**: `ScenarioEntities` runs on `Brain` (`RoleLoadRequirements.cs`), and a catch-up replays the load. ⭐ A Player (Map2D) runs only KB + terrain, so it is safe — but I2 applies to every node (R-4000) | measured |
 | **K6** | ⭐⭐ **the gates are inconsistent** | §4-A says a best-effort node may not fail or hang a round; §4-D keeps it out of the step barrier; but the reliable-init wait-set still waits for every present Player. ⭐ **Measured: no production peer has a real init condition** — the only deferring participant is `SimulatedInitReadinessParticipant`, off by default (*"the barrier completes as soon as each peer ghosts + reports"*) ⇒ a Player in the wait-set protects nothing and can only delay or abort spawns | `SimulatedInitReadinessParticipant.cs:40-43`; `NedReplicationModule.cs:338` |
@@ -890,8 +892,8 @@ its own (`Take` is right, the boundary clear is right); only the order on a node
 
 | # | lean |
 |---|---|
-| **K1+K2** | ⭐⭐ **every node process mints an INSTANCE id (GUID) at start and carries it in its heartbeat** (beside I5's session field). `InSync` is keyed by (node id, instance). A new instance under a known id is a **departure plus an arrival** — handled by the existing `NodeDeparted` path everywhere it is detected (which also fixes K8 without new code). Two instances alive under one id at once ⇒ the master refuses the newer one and says so on the panel. ⚠ **Node ids stay configuration** (the launcher assigns them) — the instance id DETECTS a collision, it does not prevent one |
-| **K3** | ⭐⭐⭐ **build first, then subscribe:** a node re-creates its durable ingress readers when it commits a load, so the durable state is delivered into a world that has its KB and terrain. ⭐ One rule on every node (R-4000) — at a normal cluster start it delivers nothing old. ⚠ **Must be measured before it is built:** that a previous run's entities are DISPOSED on the wire at unload, or re-subscribing would deliver them back |
+| **K1+K2** | ⚠ **AMENDED by L1** (ids assigned by the master unless forced). Unchanged below: ⭐⭐ **every node process mints an INSTANCE id (GUID) at start and carries it in its heartbeat** (beside I5's session field). `InSync` is keyed by (node id, instance). A new instance under a known id is a **departure plus an arrival** — handled by the existing `NodeDeparted` path everywhere it is detected (which also fixes K8 without new code). Two instances alive under one id at once ⇒ the master refuses the newer one and says so on the panel. ⚠ **Node ids stay configuration** (the launcher assigns them) — the instance id DETECTS a collision, it does not prevent one |
+| ~~**K3**~~ | ⛔ **SUPERSEDED by L2** (the user's gated-ingress idea; re-creating readers would also re-deliver the stale instances `CE-4000` measured). Was: *"build first, then subscribe: a node re-creates its durable ingress readers when it commits a load, so the durable state is delivered into a world that has its KB and terrain. ⭐ One rule on every node (R-4000) — at a normal cluster start it delivers nothing old. ⚠ Must be measured before it is built: that a previous run's entities are DISPOSED on the wire at unload."* 📐 **Measured: they are NOT** — `CE-4000` |
 | **K4** | ⭐⭐ **fence: the catch-up is built from node ops (`FanOutNodeOp`) only** — never by publishing a `TransitionStateIntent` or entering `ProcessTransitionStateIntent` |
 | **K5** | ⭐⭐ **the catch-up payload says it is a catch-up; `ScenarioLoadStep` then reads the file but enqueues no genesis** — the world already exists and arrives by replication. ⚠ What else a restarted Brain must recover (its AI state, its ownership back from the reclaim) is a separate question |
 | **K6** | ⭐⭐⭐ **ONE principle for every gate: a best-effort node never gates, a node not in sync never participates.** The reliable-init wait-set = advertises `fdp.reliable-init` ∩ `InSync` ∩ authoritative (§4-A′). Same predicate as the 2PC rounds (P2) and the step barrier (P3). Supersedes J3′ |
@@ -899,6 +901,64 @@ its own (`Take` is right, the boundary clear is right); only the order on a node
 
 ⚠ **Not examined:** a joiner arriving during a REPLAY (the catch-up path into `OperatingReplay`); what a late joiner's
 partial recording means for an archive export (R-4003); DDS discovery cost with many Players.
+⭐ *(Replay is answered in §4-L3; DDS discovery is out of scope — 🔒 user: "ignore dds discovery costs, our number are
+still small (up to 50 stations)".)*
+
+---
+
+## 4-L ⭐⭐ IDS, INGRESS, REPLAY AND THE WORD "BEST-EFFORT" *(`2026-10-15`, OPEN — leans await the user)*
+
+> 🔒 **User, `2026-10-15`:** *"can't we let the orchestrator assign node id to player dynamically if they don't force a
+> fixed one?"* · *"entity data network translators are theoretically dynamically creatable … or simply their reception
+> path always active but gated, so we might postpone their activation until the join is on proper phase."* · *"how does
+> replay late join differ from live?"* · *"what is best-effort node?"*
+
+📄 The use cases and how to test each one live: [`../DESIGN_Cluster_Membership_Use_Cases.md`](../DESIGN_Cluster_Membership_Use_Cases.md).
+
+### 4-L.1 ⭐ The two decisions as one picture
+
+```mermaid
+sequenceDiagram
+  participant N as new node process
+  participant M as ClusterMaster
+  participant D as durable entity state
+  N->>N: mint InstanceId, compose nothing id-dependent yet
+  N->>M: NodeIdRequest (InstanceId, forced id or 0, preferred id)
+  Note over N: waits here indefinitely if no master exists (its own idle)
+  M-->>N: NodeIdGrant (InstanceId, NodeId, SessionId)
+  N->>N: compose the node with that NodeId, ingress GATE CLOSED
+  D-->>N: entity samples wait untaken in the readers (one per entity)
+  M->>N: catch-up: reset to Idle, files, LoadingLive (KB + terrain)
+  N->>N: load commit, then OPEN the gate
+  N->>D: take: the current world, into a world that can build it
+  M->>N: Operating + zones, N acks, master adds N to InSync
+```
+
+*What the picture shows that prose hid: the id must exist BEFORE the node is composed, because composition bakes it in;
+and the gate closes the window between "the readers exist" and "the world can be built" without re-creating any reader.*
+
+### 4-L.2 📐 What decides these leans, measured
+
+| fact | evidence |
+|---|---|
+| ⭐ the node id is baked in at COMPOSITION — the slave, the network factory, the ELM and the translators all take it at build time | `HrotNodeBuilder.cs:163,232,238-239,251` |
+| ⭐ entity state topics are `Reliable + TransientLocal + KeepLast 1` ⇒ a reader that does not `Take` holds exactly the latest sample per entity, and a dispose arrives as that instance's state | `GenericDescriptors.cs:96` (`EntityMaster`) |
+| ⭐ entity ingress has **two drivers**: `CycloneNetworkIngressSystem` on every non-IG node, and the pure-IG `EntityStatesIngressPack` path | `NedReplicationModule.cs:418-438` |
+| 🔴 a previous run's entities stay ALIVE on the wire after a world boundary — the creator (CGF) never disposes them | 📐 live `2026-10-15`: after loading `test-move` over `hill-attack`, a fresh late joiner received ids **1000–1007** where the world held **1000**; `ddsmonitor` showed `EntityMaster` 1001–1007 `Alive` from the CGF process (SimHost disposed its own 1300/1301) — `CE-4000` |
+| ⭐ a crash DOES clean the wire: after a CGF kill every survivor dropped its entities (~11 s, DDS lease) and a later joiner received none | 📐 live `2026-10-15` |
+| ⭐ recording keeps EVERY entity, replicas included | `EcsRecordReplayController.cs:127` (`EntityFilter = null`) |
+| ⭐ replay on a node that owns nothing: ghosts come from the owners' egress flood; a seek purges and re-floods | `mgmt-1/DESIGN.md` §8.10 |
+| ⚠ the replay ghost-bypass flag is written and never read | `GhostCreationSystem.cs:15-38` (`CE-259ap`) |
+| ⛔ no debug HTTP route reads the master's roster or drives a CLUSTER replay (`/replay/load` replays one local `.fdp`) | `DebugApiHost.cs:964-968`; `/cluster/diagnostics/status` needs an ExCon `ClusterUiCache` and lists no nodes — `CE-4002` |
+
+### 4-L.3 ⭐ The leans
+
+| # | decision | lean |
+|---|---|---|
+| **L1** | ⭐⭐ **the master assigns a node id unless the node forces one.** Before composing anything id-dependent, the process sends `NodeIdRequest {InstanceId, ForcedId (0 = none), PreferredId}` and waits; the master answers `NodeIdGrant {InstanceId, NodeId, SessionId}` (Reliable, TransientLocal, keyed by `InstanceId`). Dynamic ids come from their own range; **an id is never reused within a session** (a possession or ownership record may still name it). A forced id already held by a live instance is **refused** and shown. `PreferredId` = the id the process held before — so a node meeting a NEW session (I5) keeps its id when it is free and never has to re-compose | ⭐ **LEAN.** Players are disposable and launched by people who should not have to plan ids; a duplicate becomes impossible rather than detected. ⚠ **Blast radius: a two-phase boot** — the wait for a grant moves in front of node composition. ⭐ It is also the natural home of the node's own idle: a process with no grant shows *"waiting for a cluster"*. On the editor (one process, no network, `R-4005`) the same request travels the in-process orchestration bus to its own master — a forced id, granted at once. ⚠ Not measured: whether any consumer packs a node id into fewer than 32 bits |
+| **L2** | ⭐⭐⭐ **entity ingress is GATED, on every node: closed until the node commits a load, closed again when it resets to `Idle`.** While closed, state topics are simply not taken (the reader holds the latest sample per entity); event/command topics are taken and discarded (a stale event is meaningless, and a KeepAll reader would grow). One shared gate object, read by BOTH ingress drivers. Orchestration and membership topics are never gated | ⭐ **LEAN — SUPERSEDES K3.** No reader is re-created, so nothing is re-delivered; the world arrives after the KB and terrain are resident (with a file TKB, the only order in which it can promote at all); at a normal cluster start the gate opens before genesis publishes, so nothing changes there (`R-4000`). ⛔ **Prerequisite: `CE-4000`** — while a dead run's entities are still alive on the wire, an opening gate would ingest them |
+| **L3** | ⭐ **a late join into a REPLAY is the same catch-up with three differences** | ① the joiner replays `LoadingReplay`, where nothing is ever created (K5 cannot happen) and the reliable-init barrier does not run (§8.10: the network lifecycle group is off) ⇒ K6 does not apply; ② **the joiner has no recording of this exercise**, so its replay load restores nothing and its world comes entirely from the owners' egress, as §8.10 already designs for an IG — ⭐ it must therefore succeed with "nothing to restore" (P2 already makes its failure non-fatal); ③ **a seek purges and re-floods** — a seek during a catch-up restarts the catch-up (E3), and the joiner takes part in seeks only once in sync. ⚠ Two open questions this raises: recording keeps replicas too, so a node that DID record restores entities it does not own while their owners also flood them (`EcsRecordReplayController.cs:127` vs §8.10) — needs its own question; and the bypass flag is dead (`CE-259ap`). ⛔ **Not measured live** — no route drives a cluster replay (`CE-4002`) |
+| **L4** | ⭐ **rename "best-effort node" to "OBSERVER node"** (the opposite stays "authoritative") | ⭐ **LEAN.** "Best-effort" is also a DDS reliability QoS (the heartbeat is `BestEffort`), and the two meanings sit side by side in this very design. ⭐ The meaning is unchanged: **a node that holds no simulation role** (§4-A′'s three clauses) — it receives the world and may act on it, but **nothing waits for it and nothing fails because of it**: its errors are recorded, never fail a round (C1); it is not in the step barrier (D1); spawns do not wait for it (K6) |
 
 ---
 

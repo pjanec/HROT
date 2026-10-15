@@ -1,0 +1,124 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-15 (created — the membership use cases, each with its live HTTP test recipe and its status MEASURED on a
+  multi-process cluster the same day)
+build-state: DESIGN — the use cases are the ACCEPTANCE for Q91; the decisions live there, not here.
+current-answer: §2 is the use-case table (what must hold, today's measured status, which decision covers it); §3 is how to
+  run any of them live; §4 is the measured run log.
+stale-below: nothing
+known-rot: none yet
+known-conflict: none
+related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — owns every DECISION these use cases test (§4-A..§4-L); this
+    document owns only WHAT must hold and HOW to check it live.
+  - docs/RUNBOOK_Cluster_Debugging_Over_Http.md — owns the generic debug-over-HTTP technique and its traps; §3 here is the
+    membership-specific recipe built on it (scripts/cluster-node.sh).
+  - docs/DESIGN_Node_Roles_And_Policies.md — owns the roles that decide authoritative vs observer (R-4000, R-4005).
+  - docs/DESIGN_Cross_Node_Construction_Barrier.md — owns the reliable-init wait-set that UC-15 checks.
+  - docs/designs/mgmt-1/DESIGN.md — §8.10 owns replay on a node that owns nothing (UC-11).
+-->
+
+# DESIGN — cluster membership: the use cases, and how to test each one live
+
+> 🔒 **User, `2026-10-15`:** *"let's describe the use cases the system must support and let's enable testing them using ai
+> debug HTTP and running the node processes individually (sim, cgf, player) as needed to setup the test case."*
+
+## 1. The picture
+
+```mermaid
+graph TD
+  OP[Operator] --> UC12[UC-12 cancel a stuck load]
+  OP --> UC13[UC-13 load over a loaded cluster]
+  PL[Player process] --> UC1[UC-1 present at start]
+  PL --> UC2[UC-2 join a running live session]
+  PL --> UC3[UC-3 several join at once]
+  PL --> UC4[UC-4 leave or crash]
+  PL --> UC5[UC-5 restart fast]
+  PL --> UC6[UC-6 same id twice]
+  PL --> UC11[UC-11 join a replay]
+  PL --> UC16[UC-16 join while paused]
+  NET[Network] --> UC7[UC-7 short blip]
+  NET --> UC8[UC-8 longer outage]
+  MS[Master dies] --> UC9[UC-9 nodes drop to Idle]
+  MS --> UC10[UC-10 stale node meets a new cluster]
+  AU[Authoritative node] --> UC14[UC-14 creator crashes]
+  RUN[Running game] --> UC15[UC-15 never gated by a joiner]
+```
+
+*What the picture shows: every use case has ONE actor that starts it. A test sets up the cluster, lets that actor act, and
+reads the result from the nodes' debug APIs — which is exactly the shape of §3.*
+
+## 2. The use cases
+
+Status measured `2026-10-15` on a multi-process cluster (§4) unless marked *code*. "Observer" = a node with no simulation
+role (Q91 §4-L L4, formerly "best-effort").
+
+| UC | situation | must hold | today | decided in |
+|---|---|---|---|---|
+| **UC-1** | a Player is running when the cluster loads | it loads with everyone and reaches the cluster's state | ✅ a Player already in the roster reached `OperatingLive` on the next load | — |
+| **UC-2** | a Player starts into a running live session | it receives the files, loads KB + terrain, gets the world, the clock and the zones, then takes part from the next round | 🔴 it stays `Idle` forever (no catch-up). It does get the replicated world — only because every host boots with the development TKB | Q91 §4-E, §4-I, §4-L L2 |
+| **UC-3** | several Players start together | one transfer serves them all; one catch-up each | 🔴 no catch-up | Q91 §4-E2 (user K) |
+| **UC-4** | a Player exits or crashes | no round hangs, the step barrier does not wait, its possession is released | ⚠ ejected after 5 s ✅; a round in flight waits forever (*code*, B1); the step roster picks IG by name (*code*, §4-D′) | Q91 §4-B, §4-D′, §4-F |
+| **UC-5** | a Player restarts faster than 5 s | the new process is treated as new and caught up | 🔴 one restart was not ejected at all: the master saw one continuous node | Q91 §4-K K2, §4-L L1 |
+| **UC-6** | two Players with the same id | impossible (assigned ids), or refused loudly (forced ids) | 🔴 one roster entry, both executed every command | Q91 §4-K K1, §4-L L1 |
+| **UC-7** | a network blip under 5 s | nothing happens | *code*: reliable commands are resent; not exercised live | — |
+| **UC-8** | an outage of 5–10 s, or longer | the node is reset and caught up when it returns | 🔴 *code*: it is silently re-admitted and believed | Q91 §4-I I1, I2 |
+| **UC-9** | the master dies, a Player lives | the Player drops to `Idle` — its world ended | 🔴 *code*: it keeps showing the dead world | Q91 §4-I I5 |
+| **UC-10** | a Player from a dead cluster meets a new one | reset, then caught up like any joiner | 🔴 *code*: re-admitted at face value | Q91 §4-I I5 |
+| **UC-11** | a Player joins during a replay | the same catch-up into `OperatingReplay`; world from the owners' flood | ⛔ **not testable today** — no route drives a cluster replay (`CE-4002`) | Q91 §4-L L3 |
+| **UC-12** | the operator cancels a stuck load | every node returns to `Idle`; the load can be re-issued | 🔴 *code*: cancel never reaches a load | Q91 §4-H, R-4004 |
+| **UC-13** | a scenario is loaded over a loaded one | nothing of the old world remains — on any node, or on the wire | 🔴 the old run's entities stay alive on the wire; a late joiner receives them (`CE-4000`) | Q91 §4-L L2 prerequisite |
+| **UC-14** | the creator (CGF) crashes | its entities go everywhere; a later joiner sees none | ✅ gone on every survivor after ~11 s; a later joiner received none | — |
+| **UC-15** | a Player is still catching up | no spawn in the running game is delayed or aborted; no round waits for it | 🔴 *code*: spawns wait for every peer advertising reliable-init; rounds target the whole roster | Q91 §4-J, §4-K K6 |
+| **UC-16** | a Player joins while the cluster is paused or stepping | it shows the cluster's sim time and does not step on its own | *code*: the time mode is durable and each node derives sim time from it; not exercised live | Q91 §3 |
+
+## 3. How to run any of them live
+
+⭐ **One process per node, one port each** — `scripts/cluster-node.sh` (it wraps the runbook's §1.2 and its traps).
+
+```bash
+S=scripts/cluster-node.sh
+$S start orchestrator 8100          # the master
+$S start cgf 8101                   # Brain (the scenario's creator)
+$S start simhost 8102               # simulation
+$S post 8101 /scenario/load/live '{"name":"hill-attack","waitForReady":true}'
+$S post 8101 /sim/play
+$S start ig 8103                    # a Player, id 100 (base 0 + 100)
+$S start ig 8104 1                  # a second Player, id 101 (base 1 + 100)
+$S status 8103                      # clusterState, entityCount, simTime
+$S get 8103 /entities               # networkId per entity (0 = local, not replicated)
+$S kill 8104                        # a crash
+$S stop-all
+```
+
+| to observe | how |
+|---|---|
+| a node's own state | `GET /status` → `clusterState`, `entityCount`, `simTime`, `isPaused` |
+| the replicated world on a node | `GET /entities` → the non-zero `networkId`s; compare across nodes |
+| ejections and fan-outs (the master's view) | `/tmp/n-orchestrator-<port>.log`: `ejected (heartbeat timeout)`, `fan-out complete (… nodes=N)` |
+| departures as each node saw them | `/tmp/n-<mode>-<port>.log`: `ClusterCapabilityIngest] node N left` |
+| what is ON THE WIRE (what a late joiner will get) | `ddsmonitor` (runbook §5a), then group by `TopicTypeName`, read `InstanceState` and `Sender` |
+
+### 3.1 ⛔ What cannot be tested over HTTP yet — `CE-4002`
+
+| missing | needed for | proposed route |
+|---|---|---|
+| the master's roster as the master sees it | UC-4, 5, 6, 8 (today: the orchestrator log) | `GET /cluster/roster` → per node: id, subsystem, reported state, roles, last heartbeat; later `instanceId`, `inSync` |
+| driving a CLUSTER transition with a target state and exercise id | UC-11 (replay), UC-12 (cancel) | `POST /cluster/transition {target, scenario, exerciseId, timeMode}` and `POST /cluster/cancel {targetId}` — published as the same intents the operator panel sends |
+
+⭐ Both read or publish what already exists (the roster, `TransitionStateIntent`, `CancelOperation`); neither adds behaviour.
+
+## 4. 📐 The measured run — `2026-10-15`
+
+Orchestrator 8100, CGF 8101, SimHost 8102, Players 8103 (id 100), 8104/8105 (both id 101), 8107 (id 102), ExCon 8106.
+
+| step | observed |
+|---|---|
+| load `hill-attack` live | CGF 32 entities, SimHost 26 — **8 replicated** (1000–1007) on both; the rest are node-local |
+| Player 100 started into the running session | `Idle` at +0/+10/+30/+75 s; held all 8 replicated entities, promoted with `TkbType` from the boot TKB |
+| load `test-move` over it | Player 100 (now in the roster) went to `OperatingLive`; the world held **1000** |
+| a fresh Player 101 started after that | received **1000–1007** — `ddsmonitor`: `EntityMaster` 1001–1007 still `Alive` from the CGF process; SimHost's own 1300/1301 `NotAliveDisposed` |
+| Player 101 killed and restarted, twice | first restart: ejected (`Node 101 (IG) ejected`). Second: process composed 2.6 s after the kill, debug API up at 3.7 s — **no ejection** |
+| a second process started with id 101 | fan-out `nodes=5` for six processes; **both** id-101 processes reached `OperatingLive` |
+| CGF killed | master ejected it at ~5 s; SimHost and Player logged `node 400 left (NotAliveDisposed)` at ~11 s and dropped every entity; a Player started afterwards received none |
+| oddity, not explained | after `test-move` the CGF listed a networked id **1005** with no components; no other node had it |
