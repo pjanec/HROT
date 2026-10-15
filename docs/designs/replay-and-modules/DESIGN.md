@@ -66,6 +66,7 @@ stale-below: §2.1e's class-B conclusion and its 3-step plan (superseded by §2.
   lifecycle line above; §2.1f's "asymmetry in BeginDestruction" flag (moot — see §2.1i). The other §2.1
   rows were not re-measured on 2026-09-11 and carry no claim either way.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-L L2′/L3′ (OPEN): adopts this design's freeze-gate fix (CE-259ap) as one node-level predicate, and proposes that an OBSERVER (a Player) records and restores only what it owns while authoritative nodes keep Plan A — which supersedes §2.2's "IG does not record" (R-4003).
   - docs/designs/mgmt-1/DESIGN.md — §8.10/§8.5 — THE OWNING RULE for entity lifecycle DURING replay ("the ELM pipeline is never invoked"). ⚠ This file reasoned about that for two days without finding it.
   - docs/DESIGN_Deterministic_Network_Ids.md — §2b/§4c/§4d — the PREVIEW rewind trigger, the IPreviewRewindable/PreviewStateBracket seam, and HN-018 (the ELM as its third participant).
   - docs/DESIGN_Entity_State_Sourcing.md — the RECORDED-vs-RE-DERIVED principle (R-136): state must be reconstructible from the TKB or a published TransientLocal descriptor.

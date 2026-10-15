@@ -23,6 +23,17 @@ related-designs:
 > 🔒 **User, `2026-10-15`:** *"let's describe the use cases the system must support and let's enable testing them using ai
 > debug HTTP and running the node processes individually (sim, cgf, player) as needed to setup the test case."*
 
+## 0. INVENTORY — what these use cases observe *(codebase-memory, `2026-10-15`)*
+
+| query | total | the set |
+|---|---|---|
+| `search_graph(name_pattern=".*RecordReplayController$", label=Class)` | **3** | `EcsRecordReplayController` (SimHost) · `CgfRecordReplayController` (CGF) · `ListenerRecordReplayController` (IG today — the no-op, R-4003 replaces it) |
+| `search_graph(name_pattern=".*NetworkIngressSystem$", label=Class)` | **1** | `CycloneNetworkIngressSystem` — the ONE ingress driver, on every node including the pure IG (`EntityStatesIngressPack.cs:73`); it carries the freeze gate Q91 L2′ adopts |
+| `search_graph(name_pattern="ClusterMaster\|ClusterSlave\|NodeRoster\|ClusterCapabilityIngestSystem\|SimpleClusterStateCache", label=Class)` | 22 (6 production) | `ClusterMaster` + `ClusterMasterPlanner` + `NodeRoster` (the master's view) · `ClusterSlave` (each node's state and heartbeat) · `ClusterCapabilityIngestSystem` + `SimpleClusterStateCache` (each ECS node's view of its peers; raises `NodeDeparted`) |
+
+⭐ ⇒ a test observes membership from TWO sides that can disagree: the master's roster (no HTTP route yet — `CE-4002`) and each node's
+own cache (its log's `node N left` lines). §3 reads both.
+
 ## 1. The picture
 
 ```mermaid
