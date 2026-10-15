@@ -67,11 +67,27 @@ def load(name):
     call("POST", "/perspective", {"name": "Scenario"})
     # ⭐ Prove the world IS this scenario: before CE-295 a second live load answered ok:true and changed nothing, so a
     #   check could report on the previous scenario's cast. Kept as a guard.
+    #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an
+    #   entity the file does not name is allowed when it sits in a seat (IsEmbarkedTag); anything else is the previous world.
     want = scenario_names(name)
-    got = wait_for(lambda: (n := sorted(x for x in ids_by_name())) == want and n, 30)
+    got = wait_for(lambda: (n := sorted(x for x in ids_by_name())) and set(want) <= set(n) and not _strangers(want) and n, 30)
     if got is None:
-        sys.exit(f"the loaded world is not '{name}' (want {want}, have {sorted(ids_by_name())}) — a second live load in one "
-                 f"process was a silent no-op before CE-295. Restart the cluster, or run with --launch.")
+        sys.exit(f"the loaded world is not '{name}' (want {want} + seated presets, have {sorted(ids_by_name())}; strangers "
+                 f"{_strangers(want)}) — a second live load in one process was a silent no-op before CE-295. Restart the cluster, "
+                 f"or run with --launch.")
+
+
+def _strangers(want):
+    """Loaded entities the scenario does not name and that are not seated in a host (a preset sits in its seat)."""
+    out = []
+    for r in data(call("GET", "/entities")) or []:
+        n, nid = r.get("name"), r.get("networkId")
+        if not n or n in want:
+            continue
+        comps = (data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}
+        if "IsEmbarkedTag" not in comps:
+            out.append(n)
+    return out
 
 
 def launch(port):
