@@ -1463,6 +1463,7 @@ def run_air_defence(c, timeout):
         return
     call("POST", "/sim/play", {})
     shots, warned, warn, track, evade = {}, None, None, [], []
+    gunner_dead = None
     end = time.time() + timeout + 120
     while time.time() < end:
         t = sim_time() or 0.0
@@ -1476,6 +1477,8 @@ def run_air_defence(c, timeout):
         pa = position(apache)
         if pa:
             track.append((t, pa))
+        if gunner_dead is None and (health(gunner) or 0) <= 0:
+            gunner_dead = t
         call("POST", "/perspective", {"name": "Scenario"})
         missiles = [x for x in shots.values() if x.get("shooter") == launcher]
         guns = [x for x in shots.values() if x.get("shooter") == zu23]
@@ -1492,6 +1495,7 @@ def run_air_defence(c, timeout):
     print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
     for x in missiles[:2] + guns[:2]:
         print("      shot", {k: x.get(k) for k in ("shooter", "weaponIndex", "ammo", "muzzle", "aim", "end", "hit", "outcome")})
+    print(f"    the gunner died at {gunner_dead}")
     c.ok(len(missiles) >= 1, f"① the Stinger gunner fired at an aircraft — {len(missiles)} missile(s)")
     c.ok(warned is not None, f"① the Apache was warned of the missile — {warn}")
     if warned is not None:
@@ -1500,6 +1504,63 @@ def run_air_defence(c, timeout):
         print(f"    the Apache around the warning: before {before[-1:] if before else None} after {after[:1]} … {after[-1:]}")
     c.ok(len(guns) >= 10, f"② the ZU-23 fired at an aircraft — {len(guns)} rounds")
     print(f"    health: Apache {health(apache)} · UH-60 {health(uh60)} · gunner {health(gunner)} · technical {health(tech)}")
+
+
+# ── ua-tank-corner (Urban Armour V7; docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4) — the tank's exposure cycle ─────
+#   One M1 on VehicleFightFromCover (no designated target) against an RPG man and a rifleman north of it in test-town:
+#   ① it fires · ② its first rounds go at the RPG man, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
+#   than one point (an exposure is short and a point burns) · ④ between exposures it withdraws (it does not sit in the open).
+def run_tank_corner(c, timeout):
+    ids = ids_by_name()
+    tank, rpg, rifle = ids.get("Tank"), ids.get("RPG Man"), ids.get("Rifleman")
+    if not c.ok(None not in (tank, rpg, rifle), "the tank, the RPG man and the rifleman are loaded"):
+        return
+    p_rpg, p_rifle = position(rpg), position(rifle)
+    call("POST", "/sim/play", {})
+    shots, track = {}, []
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pt = position(tank)
+        if pt:
+            track.append((t, pt))
+        mine = [x for x in shots.values() if x.get("shooter") == tank]
+        if len(mine) >= 6 or (health(rpg) or 0) <= 0 and (health(rifle) or 0) <= 0:
+            break
+        time.sleep(0.5)
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    mine = sorted((x for x in shots.values() if x.get("shooter") == tank), key=lambda x: x.get("seq") or 0)
+    for x in mine[:6]:
+        print("      tank shot", {k: x.get(k) for k in ("seq", "weaponIndex", "ammo", "muzzle", "aim", "hit", "outcome")})
+    c.ok(len(mine) >= 1, f"① the tank fired — {len(mine)} round(s)")
+    def nearer(x):
+        a = x.get("aim") or x.get("end")
+        if not a or not p_rpg or not p_rifle:
+            return None
+        d = lambda p: ((a[0] - p[0]) ** 2 + (a[1] - p[1]) ** 2) ** 0.5
+        return "rpg" if d(p_rpg) <= d(p_rifle) else "rifle"
+    first = [nearer(x) for x in mine[:2]]
+    c.ok(bool(first) and first[0] == "rpg", f"② the first rounds go at the RPG man — {first}")
+    muzzles = [tuple(x.get("muzzle") or ()) for x in mine]
+    points = []
+    for m in muzzles:
+        if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 4 for q in points):
+            points.append(m)
+    c.ok(len(points) >= 2 or (health(rpg) or 0) <= 0, f"③ it fires from more than one point (or the RPG man is down first) — {[(round(p[0]), round(p[1])) for p in points]}")
+    far = max((((p[0] - track[0][1][0]) ** 2 + (p[1] - track[0][1][1]) ** 2) ** 0.5 for t, p in track), default=0.0) if track else 0.0
+    c.ok(len(track) > 2 and far > 5, f"④ the tank moves through hide and firing points — furthest {far:.0f} m from its start")
+    stops = []
+    for t, p in track:
+        if not stops or ((p[0] - stops[-1][1][0]) ** 2 + (p[1] - stops[-1][1][1]) ** 2) ** 0.5 > 3:
+            stops.append((round(t, 1), (round(p[0]), round(p[1]))))
+    print(f"    tank path (3 m steps): {stops[:24]}")
+    print(f"    health: tank {health(tank)} · RPG man {health(rpg)} · rifleman {health(rifle)}")
 
 
 def _turn(bearings, start, stop):
@@ -1711,6 +1772,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-air-strike": run_air_strike,
              "ua-air-attack": run_air_attack,
              "ua-air-defence": run_air_defence,
+             "ua-tank-corner": run_tank_corner,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 
