@@ -53,6 +53,12 @@ namespace Hrot.Map.Common
         public const long Infantry_StingerGunner = 202;
         /// <summary>⭐ <c>CE-2187</c> (§5c) — a rifleman carrying an Igla (614).</summary>
         public const long Infantry_IglaGunner = 203;
+        /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — a rifleman who jumps on a static line
+        /// under a ROUND canopy (Gen.Parachute).</summary>
+        public const long Infantry_Paratrooper = 204;
+        /// <summary>⭐ Airborne insertion B-5 (§4) — a special-forces operator: fast-rope trained, and a military free fall under a steerable
+        /// RAM-AIR canopy (Gen.Parachute).</summary>
+        public const long Infantry_SfOperator = 205;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

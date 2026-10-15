@@ -55,6 +55,16 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 
 ⚠ Known flaky, not touched: `SquadCoordinationSystemTests.Execute_DoesNotAllocate` (red only in a full parallel run, green alone).
 
+## 3b. B-5 (`2026-10-16`) — as-built [design §7b](../../designs/airborne/DESIGN_Airborne_Insertion.md)
+
+| | |
+|---|---|
+| built | types 204 Paratrooper / 205 SF operator (`Gen.Parachute`), fast ropes on the doors-off UH-60 (404), `ReleasePoint.For` |
+| ⚠ numbers estimated, not published | the rope arm's place on the UH-60 (1.5, ±1.6, 0.4); the rope's 60 ft is the short end of the published 60–90 ft |
+| ⛔ not done | ropes on the plain UH-60 (400) — it carries nobody and does not fly (Air Ops); the scenario's wind — tkb-1's ruling makes it a singleton in a scenario section, design §7b, measuring which nodes load it |
+| gates | `Fdp.Toolkits.Tests` 3 605 / 1 fail (`SquadCoordinationSystemTests.Execute_DoesNotAllocate` — the known flaky one) / 1 skip; `Hrot.SimHost.Tests` 1 437 / 0 / 6; `Hrot.Core.Tests` 267 / 0; `Hrot.Presentation.Tests` 644 / 0 / 22 (the catalogue pin gains 204 / 205); `Hrot.Editor.Tests` 509 / 0 / 2; release-point red-proof red |
+| ⚠ found while gating | `EditorCapabilitiesTests` ×2 had been RED since WS-1 (`5c3fe8974`, `2026-10-14`, this lane): `WeaponDeploySystem` joined the Interactions capability and the rail's hand-written list never did. Fixed in the rail (the system belongs there). ⚠ the B-1…B-4 gate above did not RUN `Hrot.Editor.Tests` (built only) — so that row was missing, not green |
+
 ## 4. Next (this lane)
 B-5 (TKB: `Gen.Parachute`, rope anchors on UH-60 400 / 404, Paratrooper + SF operator, the scenario's `Wind`, the release-point helper) ·
 B-6 (`IsAircraft` in `AmmoChoice` / `AirContacts`, fall damage) · B-7…B-9 (the ejecting pilot).

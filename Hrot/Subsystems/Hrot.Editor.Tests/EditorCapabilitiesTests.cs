@@ -179,7 +179,10 @@ public class EditorCapabilitiesTests : IDisposable
                             typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),
                             // ⭐ CE-3110 — the interaction appliers (doors, embarkation), at the tail with the other cross-role infrastructure.
                             typeof(Fdp.Toolkit.Terrain.DoorCommandSystem),
-                            typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem) })
+                            typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
+                            // ⭐ Weapon systems WS-1 (W-C) — the deploy state's applier, the same Interactions capability. Added in
+                            //   5c3fe8974 (2026-10-14); this block was not updated then (found red in the airborne B-5 gates).
+                            typeof(Fdp.Toolkit.Combat.WeaponDeploySystem) })
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -265,7 +268,8 @@ public class EditorCapabilitiesTests : IDisposable
                                typeof(Hrot.SimHost.Systems.EqsResultUpdateSystem),
                                typeof(Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem),    // CE-3072 — same capability
                                typeof(Fdp.Toolkit.Terrain.DoorCommandSystem),               // CE-3110 — interaction infrastructure
-                               typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem) }),
+                               typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
+                               typeof(Fdp.Toolkit.Combat.WeaponDeploySystem) }),        // WS-1 — same capability
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.

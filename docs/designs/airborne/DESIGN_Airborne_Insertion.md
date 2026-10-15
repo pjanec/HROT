@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a); B-5…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 (wins over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
+build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b); B-6…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -354,6 +354,15 @@ index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and
 | IDL forbids two enumerators of one name in a module (case-insensitive): `DescentPhase.FreeFalling`, `CanopyKind.NoCanopy`, `ExitKind.StepOut / RopeDown / JumpOut` | `Descent.cs` |
 | a jump is a free fall under a ram-air canopy, a static line under a round one — by the man's `Gen.Parachute` (none ⇒ round) | `Descents.Start` |
 | ★ (ui steer) a man with a `Descent` is still `IsPerson` — it keys on `VehicleParams`, never on `Locomotions.Of` — and a round through his torso under a canopy hits Torso | `RaycastSolverSystemTests.B1_AManUnderACanopy_IsStillAPerson…` |
+
+### 7b. As-built — B-5 (`2026-10-16`, backend)
+
+| built | where | note |
+|---|---|---|
+| types **204 Paratrooper** (round canopy) · **205 SF operator** (ram-air), the rifleman's body / M4 / injury / person carrier / brain + `Gen.Parachute` | `BdcTkbCatalog.Jumper`, `NedTkbBuilder.WithParachute` | every canopy figure is `ParachuteModel.Defaults` (§2) — nothing invented per type. DIS 3.1.225.1 like the rifleman: SISO-REF-010 v37 sorts US lifeforms by the WEAPON carried, not by role |
+| fast ropes on the **doors-off UH-60 (404)**: one over each cabin door (`RopeAnchors` (1.5, ±1.6, 0.4) — outboard of the door guns), 60 ft (18.3 m) | `BdcTkbCatalog.DoorSeats` | ⚠ the arm's place is estimated from the drawn fuselage. ⛔ **Not on the plain UH-60 (400)**: it has no `Gen.Carrier` and no flight — Air Ops keeps it "a static body" — so ropes there would be dead data |
+| the **release point** — `ReleasePoint.For(point, height, chute, wind, carrierVelocity)`: upwind by the drift under the canopy (round) or of the fall before the pull (ram-air), short by the door throw `(v − wind)·OpenSeconds/3` | `DescentModels.cs` | ★ a static-line jumper leaving a 35 m/s helicopter 400 m up in a 4 m/s crosswind lands within 30 m of the DZ point |
+| ⏳ **the scenario's wind** — design pending below | — | ⛔ my first lean (an "environment ENTITY", the terrain-zone precedent) is OVERRULED by [tkb-1 DESIGN.md:873-893](../tkb-1/DESIGN.md) *"Global Weather is a SINGLETON, not a positionless entity"* (a transform-less entity breaks the engine's "is this spatial?" test). ⇒ `Wind` stays a singleton; the scenario carries it as a top-level section like `TerrainObjects` (one writer / reader for the save, the distributed merge and the load). ⚠ Open: whether every node that runs the parachute model also runs `ScenarioLoadStep` — measured next |
 
 ### Slice 2 — the ejecting pilot (✅ READY — the user's third demo needs it)
 The jet's crew is the type itself, so ejection **spawns a Pilot entity** (the existing entity-creation path) at the canopy BEFORE the kill (R-2021):

@@ -108,6 +108,32 @@ namespace Fdp.Toolkit.Motion
     }
 
     /// <summary>
+    /// ⭐ Airborne insertion B-5 (design §6, the "release point") — where a jumper must LEAVE the aircraft for his canopy to come down on
+    /// <c>point</c>: upwind of it by the drift during his descent, and short of it by the throw from the door (the aircraft's speed decaying
+    /// to the wind's over the opening — <see cref="ParachuteModel"/>'s Deploying phase, a time constant of a third of <c>OpenSeconds</c>).
+    /// A round canopy (static line) drifts the whole way down, so this IS its aim; a ram-air canopy flies to the point from anywhere within
+    /// its glide, so for it this is only where the drift of the fall before the pull is undone. Pure arithmetic: the Brain's drills call it
+    /// (the jumpmaster, H-1).
+    /// </summary>
+    public static class ReleasePoint
+    {
+        /// <summary>The release point (x, y) for a jump <paramref name="heightAgl"/> above <paramref name="point"/>'s ground.</summary>
+        public static Vector2 For(Vector2 point, float heightAgl, ParachuteDto chute, Vector2 wind, Vector2 carrierVelocity)
+        {
+            float tau = MathF.Max(chute.OpenSeconds, 0.5f) / 3f;
+            var throw_ = (carrierVelocity - wind) * tau;
+            if (chute.Canopy == CanopyKind.RamAir)
+            {
+                // the free fall to the pull height drifts with the wind (he tracks toward the point on top of that); the canopy does the rest
+                float fall = MathF.Max(0f, heightAgl - chute.PullHeightM) / ParachuteModel.FreeFallMps;
+                return point - wind * fall - throw_;
+            }
+            float underCanopy = heightAgl / MathF.Max(chute.SinkMps, 0.5f);
+            return point - wind * underCanopy - throw_;
+        }
+    }
+
+    /// <summary>
     /// ⭐ Airborne insertion B-4 (§1) — a descent BEGINS: <paramref name="man"/> has left <paramref name="carrier"/> by its rope or door.
     /// Adds his <see cref="Descent"/> in phase <see cref="DescentPhase.Exit"/> (the model puts him at the door); a jump is a free fall under
     /// a ram-air canopy, a static line under a round one — by his type's <c>Gen.Parachute</c>. ⛔ Only on the node owning his position

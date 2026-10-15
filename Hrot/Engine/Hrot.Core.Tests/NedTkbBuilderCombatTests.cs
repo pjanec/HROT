@@ -766,6 +766,32 @@ namespace Hrot.Map.Common.Tests
             Assert.Contains(db.GetByType(TkbEntityTypes.Technical_Zu23)!.GetDescriptor<CarrierDefDto>()!.Seats, x => x.StartWith == TkbEntityTypes.WeaponSystem_Zu23);
         }
 
+        /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — the paratrooper jumps under a ROUND
+        /// canopy, the SF operator under a RAM-AIR one (every figure the canopy's default); the doors-off Black Hawk carries a fast rope over
+        /// each cabin door — left (+y) then right, clear of its door guns — 60 ft long; the plain one (400) carries nobody, so no ropes.</summary>
+        [Fact]
+        public void B5_TheJumpersCarryTheirCanopies_AndTheDoorsOffBlackHawkItsRopes()
+        {
+            var db = BuildDatabase();
+            Assert.Equal(Fdp.Toolkit.Motion.CanopyKind.Round, db.GetByType(TkbEntityTypes.Infantry_Paratrooper)!.GetDescriptor<ParachuteDto>()!.Canopy);
+            Assert.Equal(Fdp.Toolkit.Motion.CanopyKind.RamAir, db.GetByType(TkbEntityTypes.Infantry_SfOperator)!.GetDescriptor<ParachuteDto>()!.Canopy);
+            foreach (var t in new[] { TkbEntityTypes.Infantry_Paratrooper, TkbEntityTypes.Infantry_SfOperator })
+            {
+                var tpl = db.GetByType(t)!;
+                Assert.NotNull(tpl.GetDescriptor<InjuryDefDto>());
+                Assert.Equal((byte)3, tpl.DisType.Kind);                                   // a lifeform: a person target, hit by part
+            }
+            Assert.Null(db.GetByType(TkbEntityTypes.Infantry_Rifleman)!.GetDescriptor<ParachuteDto>());
+
+            var heli = db.GetByType(TkbEntityTypes.Heli_UH60_DoorsOff)!.GetDescriptor<CarrierDefDto>()!;
+            Assert.Equal(2, heli.RopeAnchors.Count);
+            Assert.True(heli.RopeAnchors[0].Y > 0f && heli.RopeAnchors[1].Y < 0f);
+            var doorGun = heli.Seats.First(x => x.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station);
+            Assert.True(System.Math.Abs(heli.RopeAnchors[0].Y) > System.Math.Abs(doorGun.Y), "the rope hangs outboard of the door gun");
+            Assert.Equal(18.3f, heli.RopeLengthM);
+            Assert.Null(db.GetByType(TkbEntityTypes.Heli_UH60)!.GetDescriptor<CarrierDefDto>());
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();

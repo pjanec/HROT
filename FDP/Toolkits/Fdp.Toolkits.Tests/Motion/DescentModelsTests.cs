@@ -162,6 +162,31 @@ namespace Fdp.Toolkit.Tests.Motion
         }
 
         /// <summary>
+        /// ⭐ B-5 (design §6) — the RELEASE POINT: a static-line jumper who leaves a 35 m/s helicopter 400 m up at the point the helper gives,
+        /// in a 4 m/s crosswind and with no point to steer to, lands within 30 m of the DZ point — where leaving over the point lands him
+        /// some 300 m downwind. Calm and at rest, the release point IS the point. ✅ Red-proof: a helper returning the point itself ⇒ ~300 m off
+        /// ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B5_AStaticLineJumper_LeavingAtTheReleasePoint_LandsOnTheDz()
+        {
+            var chute = ParachuteModel.Defaults(CanopyKind.Round);
+            var dz = new Vector2(1000f, 500f);
+            Assert.Equal(dz, ReleasePoint.For(dz, 400f, chute, Vector2.Zero, Vector2.Zero));
+
+            var wind = new Vector2(1f, 4f);
+            var carrier = new Vector2(35f, 0f);
+            _w.SetSingleton(new Wind { Velocity = wind });
+            var at = ReleasePoint.For(dz, 400f, chute, wind, carrier);
+            var man = Body(new Vector3(at, 400f), new Descent { Kind = DescentKind.StaticLine, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round },
+                           velocity: new Vector3(carrier, 0f));
+            const float dt = 1f / 30f;
+            for (int i = 0; i < 30 * 300 && _w.GetComponent<Descent>(man).Phase != DescentPhase.Landed; i++) Step(dt);
+            var landed = _w.GetComponent<SimTransform>(man).Position;
+            Assert.True(Vector2.Distance(new Vector2(landed.X, landed.Y), dz) <= 30f, $"released at {at}, landed at {landed}");
+        }
+
+        /// <summary>
         /// ⭐ B-2 (§5.2, D-5) — under a ram-air canopy in a steady turn the BANK is the body's roll and obeys φ = atan(V ψ̇ / g) (± 2°), and
         /// the spiral sinks faster than a straight glide. A point straight below a jumper far too high is the spiral (§5.2 guidance ①).
         /// </summary>
