@@ -1,0 +1,198 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a2199d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          500,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8401
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV Standoff",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2199d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8411
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "RPG Man A1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\": {\"Objective\": [100, 100, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a2199d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          105,
+          130,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8412
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "RPG Man A2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"advance\": {\"Objective\": [105, 130, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Origin": "Superior"
+      }
+    },
+    "a2199d00-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          520,
+          540,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8402
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV Close",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2199d00-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          520,
+          460,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8413
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "RPG Man C",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": "{\"target\": 8402, \"assault\": true}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

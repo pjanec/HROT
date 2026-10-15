@@ -1507,14 +1507,15 @@ def run_air_defence(c, timeout):
 
 
 # ── ua-tank-corner (Urban Armour V7; docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4) — the tank's exposure cycle ─────
-#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against an NLAW gunner
-#   and a rifleman north of it in test-town (⚠ not an RPG man: a PG-7V's ~300 mm cannot pass an M1's 450 / 900 mm, so he is as harmless as a rifle):
+#   One M1 on its default SOP (BasicVehicleSop: a sensed threat ⇒ React VehicleFightFromCover, no designated target) against a Javelin team
+#   and a rifleman north of it in test-town (⚠ not an RPG / NLAW man: a PG-7V's ~300 mm and a direct NLAW's 500 mm cannot pass an
+#   M1's 900 mm front, so either reads as harmless as a rifle — only a top attack on its 60 mm roof is a real danger):
 #   ① it fires · ② its first rounds go at the AT gunner, not the rifleman (danger to me ranks the AT weapon first) · ③ it fires from more
 #   than one point (an exposure is short and a point burns) · ④ between exposures it withdraws (it does not sit in the open).
 def run_tank_corner(c, timeout):
     ids = ids_by_name()
     tank, rpg, rifle = ids.get("Tank"), ids.get("AT Gunner"), ids.get("Rifleman")
-    if not c.ok(None not in (tank, rpg, rifle), "the tank, the AT gunner (NLAW — top attack, a real danger to an M1) and the rifleman are loaded"):
+    if not c.ok(None not in (tank, rpg, rifle), "the tank, the AT gunner (a Javelin — top attack on the 60 mm roof, the one AT weapon a front-on M1 must fear) and the rifleman are loaded"):
         return
     p_rpg, p_rifle = position(rpg), position(rifle)
     call("POST", "/sim/play", {})
@@ -1562,6 +1563,43 @@ def run_tank_corner(c, timeout):
             stops.append((round(t, 1), (round(p[0]), round(p[1]))))
     print(f"    tank path (3 m steps): {stops[:24]}")
     print(f"    health: tank {health(tank)} · AT gunner {health(rpg)} · rifleman {health(rifle)}")
+
+
+# ── ua-ifv-standoff (Urban Armour V7; Exposure Cycle §4, CE-2196) — a 25 mm IFV out-ranges RPG men; up close an RPG kills it ─────────
+#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 400 m from two RPG men (RPG reach 300 m): no hide answers in the
+#   open, so it fights from where it stands (CE-2196) — its 25 mm hits them, they never reach it. ② "IFV Close" with an RPG man 80 m
+#   off, on an attack order at it: the RPG hits it (Bradley side 80 mm vs a PG-7V's ~300 mm).
+def run_ifv_standoff(c, timeout):
+    ids = ids_by_name()
+    far, near = ids.get("IFV Standoff"), ids.get("IFV Close")
+    a1, a2, rc = ids.get("RPG Man A1"), ids.get("RPG Man A2"), ids.get("RPG Man C")
+    if not c.ok(None not in (far, near, a1, a2, rc), "both IFVs and the three RPG men are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, closest = {}, 1e9
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pf = position(far)
+        for m in (a1, a2):
+            pm = position(m)
+            if pf and pm:
+                closest = min(closest, ((pf[0] - pm[0]) ** 2 + (pf[1] - pm[1]) ** 2) ** 0.5)
+        down = all((health(m) or 0) <= 0 for m in (a1, a2))
+        if down and (health(near) or 500) < 500:
+            break
+        time.sleep(0.5)
+    by = {}
+    for x in shots.values():
+        by.setdefault(x.get("shooter"), []).append(x)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    hurt = [m for m in (a1, a2) if (health(m) or 100) < 100]
+    c.ok(len(by.get(far, [])) >= 1 and hurt, f"① the stand-off IFV fires and hits the RPG men — {len(by.get(far, []))} rounds, hurt {[name.get(m) for m in hurt]}")
+    c.ok(closest > 300 and (health(far) or 0) >= 500, f"① from beyond their reach, untouched — closest {closest:.0f} m, health {health(far)}")
+    c.ok(len(by.get(rc, [])) >= 1 and (health(near) or 500) < 500, f"② up close the RPG hits the other IFV — {len(by.get(rc, []))} rocket(s), its health {health(near)}")
+    print(f"    health: RPG men A1 {health(a1)} · A2 {health(a2)} · C {health(rc)}")
 
 
 def _turn(bearings, start, stop):
@@ -1774,6 +1812,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-air-attack": run_air_attack,
              "ua-air-defence": run_air_defence,
              "ua-tank-corner": run_tank_corner,
+             "ua-ifv-standoff": run_ifv_standoff,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire}
 
