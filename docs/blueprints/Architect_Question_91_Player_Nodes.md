@@ -1,13 +1,23 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (APPROVED; amended by R-4001 heartbeat-only time limits — §4-B, §4-B2 — and R-4002 the file-transfer provider — §4-E2)
+updated: 2026-10-15 (REVIEW AMENDMENTS, before any run started: §4-A′ the authority predicate must FAIL SAFE ·
+  §4-D′ two name-match sites + the departure channel · §4-E′ the committed zone set is ANNOUNCED durably ·
+  §4-G′ no source-scan rail · ⭐ §4-H NEW — operator cancel returns the cluster to Idle, R-4004) ·
+  2026-10-15 (APPROVED; amended by R-4001 heartbeat-only time limits — §4-B, §4-B2 — and R-4002 the file-transfer provider — §4-E2)
 build-state: DESIGN — ✅ APPROVED 2026-10-15 (user: "accepted.") with two amendments (§0 rows I, J). Not dispatched; §4-B2
   and §4-E2 carry the measurements the amendments asked for. ⭐ DISPATCHED 2026-10-15: the backend half (P1–P7) as
   batches/HANDOFF_Coordinator_Player_Nodes.md (a session on `coordinator`; re-dispatched with R-4003 folded in), §4-F as batches/HANDOFF_Coordinator_To_Behaviors_Possession_Release.md.
 current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the answer; §4 carries each decision
   with its options, lean, blast radius and what would change the lean. §2 is the picture; §3 is what already works.
+  ⭐⭐ The PRIME sections carry a ′ and were added by the 2026-10-15 review — §4-A′, §4-D′, §4-E′, §4-G′ each
+  AMEND the section above them and WIN over it; ⭐ §4-H (operator cancel → Idle, R-4004) is new and has no
+  earlier version. ⛔ Do not quote §4-A, §4-D or §4-E without reading the prime section that follows it.
 stale-below: nothing
-known-rot: none
+known-rot: ⚠ TWO claims this document made that the review measured FALSE, both corrected in place:
+  ① §4-B2's consequences row said a stall is "cancelled by an operator with the existing
+  ClusterOpType.CancelOperation" — cancel is ARCHIVE-ONLY and reaches no load (ClusterMaster.cs:1627-1640);
+  §4-H is the fix. ② §4-A's blast-radius text called the editor authoritative — it declares NodeRole.None to
+  the roster (EditorSubsystem.cs:1153) while composing all four simulation roles; §4-A′ and R-4005 correct it.
 known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Policies §7.1 (IG must not hold
   ReferenceArchiveHandler, CE-275 ③) — RESOLVED by R-4003: that premise is superseded, IG records. Also: ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
   C:\FDP_Temp; the as-built gateway copies into {FDP_STAGING_ROOT}/nodes/node-N on the ORCHESTRATOR's own disk
@@ -187,6 +197,33 @@ disconnect is handled by three mechanisms that exist or are one predicate away �
 ⚠ **What would change the lean:** if a map station must still be able to veto. Then the distinction is genuinely a
 role and A3 returns. ⚠ The role → policy map is APPLICATION code (Hrot, the orchestrator), never FDP (R-4000).
 
+#### ⛔⛔⛔ 4-A′ — **THE PREDICATE MUST FAIL SAFE** *(amendment `2026-10-15`, review of the dispatch)*
+
+🔴 **A1 as first written is unsafe in two measured ways, and both fail SILENTLY** — the round reports success while an
+authoritative node's error was swallowed.
+
+| # | the hole | measured |
+|---|---|---|
+| **①** | ⭐⭐ **the role mask reads `None` until the capability advert lands** | `ClusterMaster.cs:539-541`, in its own words: *"Unknown-so-far ⇒ empty set / **None until the capabilities advert lands**."* The roster entry is created by the HEARTBEAT; the mask is derived from the durable `NodeCapabilities` descriptor, which arrives separately ⇒ **a real SimHost or CGF is best-effort for its whole join window** |
+| **②** | ⭐⭐⭐ **a cluster with NO authoritative node has nobody left to veto** | the editor is a one-node cluster containing itself (`§3.4` of `DESIGN_Node_Roles_And_Policies`), and `ForOneNodeCluster()` leaves `Mandatory` empty (`ClusterConfiguration.cs:51-53`) ⇒ **no load could ever fail its round in the primary authoring host** |
+
+⇒ ⭐⭐⭐ **The predicate is three clauses, not one.** A node is **best-effort** iff:
+
+```
+① its capability advert HAS been seen   (⛔ not merely "its mask is None")
+② AND its mask holds no simulation role (Brain | MuscleGround | Perception | NavigationSolver)
+③ AND the roster holds at least ONE authoritative node
+```
+
+⛔ **Otherwise it is AUTHORITATIVE.** Unknown ⇒ authoritative; alone ⇒ authoritative. ⭐ **The rail must be
+anti-vacuous**: a classification in which *every* node comes out best-effort must fail the test, or clause ③ is
+untestable and the editor case returns unnoticed.
+
+⚠ **Clause ② is only sound once `R-4005` lands** — the editor declares `NodeRole.None` to the roster today while
+composing all four simulation roles, so without the one-line fix (`EditorSubsystem.cs:1153` →
+`EditorCapabilities.DefaultRole`) clause ③ is the *only* thing protecting the editor. ⇒ **build `R-4005` first; it is
+a prerequisite of this item, not a companion to it.** 📄 [`DESIGN_Node_Roles_And_Policies.md`](../DESIGN_Node_Roles_And_Policies.md) §3.4.
+
 ### 4-B ⭐ A node leaves, or stops answering, during a round
 
 📐 Today: `EjectNode` returns early for a non-mandatory node (`ClusterMaster.cs:700`); `GenericTransactionTracker.Expected`
@@ -260,7 +297,7 @@ object nobody else can see yet; every write into shared state (the TKB database,
 |---|---|
 | ⭐ `Commit` stays short | it runs on the frame thread; a long `Commit` would stop the heartbeat, which is exactly what R-4001 forbids |
 | ⭐ a step that cannot be split stays on the frame thread **ticked**, reporting progress per tick | the scenario-entities shape |
-| ⚠ **what R-4001 deliberately leaves open** | a node alive and ticking whose step never finishes holds its round forever. ⭐ **Report it, don't time it**: the progress shows a stall; an operator cancels with the existing `ClusterOpType.CancelOperation`. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today |
+| ⚠ **what R-4001 deliberately leaves open** | a node alive and ticking whose step never finishes holds its round forever. ⭐ **Report it, don't time it**: the progress shows a stall; an operator cancels. ⛔⛔ **CORRECTED `2026-10-15`** — this row read *"an operator cancels with the EXISTING `ClusterOpType.CancelOperation`. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today."* 📐 **Measured: it does NOT.** Cancel is archive-only and the one cleanly cancellable transition state is `PARKED`, before anything is sent (`ClusterMaster.cs:1627-1640`); `LoadPhaseChain` never claims `AbortTransaction`. ⇒ **the escape R-4001 relies on did not exist — ⭐ `§4-H` builds it** (a routing fix: the abort seam is already complete) |
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 
@@ -282,6 +319,24 @@ master clock). A step waits for an ACK from every slave in the roster, with no t
 | ⭐ **D1 — the step roster is the authoritative nodes (§4-A), and a departed node is removed from `_pendingAcks`** | ⭐ **LEAN.** A Player's step ACK protects nothing; a dead Player would freeze stepping. Pause / scale still reach it through the durable `SwitchTimeModeEvent`. `DESIGN_Time_Architecture.md` already allows a roster that excludes a node |
 | D2 — keep Players in the roster, only prune on departure | ⚠ a slow-but-alive Player would gate every step |
 
+#### ⭐⭐ 4-D′ — **TWO sites, and the departure needs a CHANNEL** *(amendment `2026-10-15`)*
+
+| # | | measured |
+|---|---|---|
+| **①** | ⛔ **the name match is in TWO production places, not one** | `ClusterMaster.cs:1898` (`PublishClusterPause`) **and `ReplaySeekProcessManager.cs:56`** — both build a `SlaveNodeSetUpdatedEvent` slave set from `SubsystemName is "SimHost" or "IG" or "CGF"`. ⇒ fixing only the first leaves a Player gating every **replay seek**, and `ClusterMasterSeekTests` T9a/T9b assert `ClusterMaster` does NOT publish on seek, so no existing rail would catch it. ⚠ Three further hits are doc-comments restating the rule (`SlaveTimeTranslatorRegistration.cs:28`, `CgfSubsystem.cs:1089`, `TimeControlIntegrationTests.cs:412`) — update them with it |
+| **②** | ⛔⛔ **nothing removes a departed node from the step roster, because nothing tells the controller** | `_expectedSlaves` changes ONLY on `SlaveNodeSetUpdatedEvent` (`MasterSyncController.cs:158-159`, `:394-396`), and `Step()` re-arms `_pendingAcks` from it every time (`:360`). 🔴 And the event is published **only on pause and on seek** — never on a roster change — although its own header says *"Published by ClusterMaster **when the participating slave node set changes**"* (`TimeLocalEvents.cs:30-32`) |
+
+⇒ ⭐⭐ **The channel: `ClusterMaster.EjectNode` publishes `NodeDeparted` on the ORCHESTRATION bus**, and
+`MasterSyncController` drops that node from `_expectedSlaves` and `_pendingAcks`, completing the step if it held the
+last ACK.
+
+| ⚠ why a second publish of `NodeDeparted` is correct here, and is NOT a blanket rule | |
+|---|---|
+| 🔒 **User, `2026-10-15`:** *"orchestration events belong to orchestration bus, ECS entity related ones belong to ECS repo bus."* ⇒ ⛔ **do NOT mirror every event onto every bus.** ⭐ The rule is **publish where there is a CONSUMER, nowhere else** | 📐 `NodeDeparted` has two genuine consumers in two places: `PartialOwnerReclaimSystem` (ECS — entity ownership, `R-167`) on `repo.Bus`, and the step-barrier roster (orchestration) on the orchestration bus. ⭐ Two buses because two consumers — ⛔ not because copying is cheap |
+| ⭐ **the two buses are different OBJECTS, not layers** | `EntityRepository` constructs its own (`EntityRepository.cs:163`); `HrotNodeBuilder` constructs a separate one for orchestration (`:140`). ⛔ The orchestrator has **no `EntityRepository` and no NED module at all**, so the world-bus copy can never reach it |
+| ⭐ **one conclusion per process, delivered where its consumers live** | the NED ingest already dedupes at the producer (`_departed.Add(nodeId)`, `ClusterCapabilityIngestSystem.cs:109`); the master's copy comes from its own heartbeat timeout. ⛔ These are not two sources of truth — each process publishes what IT concluded |
+| ⭐ **also fix the contract** | publish `SlaveNodeSetUpdatedEvent` on a roster change too, so the event means what its header says |
+
 ### 4-E ⭐ Late join — the catch-up
 
 | option | |
@@ -300,6 +355,39 @@ Three things E needs that do not exist:
 
 ⚠ The catch-up relies on a node accepting a state commit from any starting state. Measured at the node layer: `ClusterSlave`
 checks nothing (`ClusterSlave.cs:411-421`). ⛔ **Not measured: each Hrot load handler** — must be checked before E is built.
+
+#### ⭐⭐⭐ 4-E′ — **THE COMMITTED ZONE SET IS ANNOUNCED DURABLY, NOT ONLY REPLAYED** *(amendment `2026-10-15`)*
+
+> 🔒 **User, `2026-10-15`:** *"someone should be responsible for publishing existing already commited and thus currently
+> active zones to anyone, not just late joiner. There is nothing to acknowledge; if late joiner needs to load the zone it
+> could still happen via 2pc, but late joiner needs to know there are zones to load in the first place."*
+
+⛔⛔ **E1 as first written is half the fix.** Remembering the set on the master lets the master replay zone rounds at one
+node; it still leaves **every** node unable to answer *"is there a zone I am missing?"* — and leaves the set invisible to
+anything but the catch-up path.
+
+⭐⭐ **The separation that makes this safe — two different FACTS, one producer each:**
+
+| the fact | owner | channel | acknowledged? |
+|---|---|---|---|
+| ⭐ **which zones the CLUSTER has committed** | the master — **one** producer | ⭐ **NEW: published durably, beside cluster state** | ⛔ **no — there is nothing to acknowledge.** It is an announcement |
+| ⭐ **whether THIS node has that zone resident** | the node, per zone | ✅ the existing `PrepareZone`/`CommitZone` round | ✅ yes, per node, as today |
+
+⇒ ⛔ **This is NOT two producers for one slot (`R-132`)** — an earlier draft of this review rejected it on exactly that
+ground and was **wrong**: it conflated *"what the cluster has"* with *"what this node holds."* ⭐ They are different
+subjects, each with a single producer, and the 2PC round keeps its acknowledgement.
+
+| ⭐ what it buys beyond the late joiner | |
+|---|---|
+| ⭐⭐ **any node can reconcile** | *"am I missing a zone?"* becomes answerable on the node, not only by the master replaying ops at it |
+| ⭐ **the shape already exists** | the master already publishes cluster state this way (`ClusterMaster.cs:1712-1720`); this is the same move for the zone set |
+| ⭐ **it does not weaken the round** | a durable announcement cannot assert residency — only the acknowledged round can. ⛔ Announcing residency would be the `R-133` silent-no-op; announcing INTENT is not |
+| ⭐ **cleared at the world boundary** | as E1 already says |
+
+⭐ **Durability is settled, not open.** 🔒 **User, `2026-10-15`: *"master is not restartable, if it dies, the world ends."***
+⇒ the master is the sole writer for the lifetime of the cluster, so `Reliable + TransientLocal` is sufficient and
+**no rebuild-from-nodes step is needed.** ⚠ An earlier draft of this section raised master restart as an open question —
+⛔ it is not one; do not re-open it.
 
 ### 4-E2 ⭐ How the bytes reach a node — **one provider, the transport behind it** *(R-4002)*
 
@@ -513,6 +601,97 @@ by the positive invariant. ⚠ The controller lives in `Hrot.SimHost`, which IG 
 non-fatal. ⛔ *(SUPERSEDED: "The PREMISE still holds; the MECHANISM is what R-4000 retires … the rail is REWRITTEN to
 R-4000's form" — the first version of this paragraph, which kept the premise.)*
 
+#### ⛔⛔ 4-G′ — **THE REPLACEMENT RAIL MAY NOT BE A SOURCE SCAN** *(amendment `2026-10-15`)*
+
+📐 The rail `P5c` replaces is a **source-text scan**: `CompositionRootSource.ReadRepoSource(IgRoot)` reads IG's `.cs`
+file off disk, `StripComments` regex-strips it, and the assertion is `code.Contains("ReferenceArchiveHandler")`
+(`CompositionRootSource.cs:37-49`). The sibling family does the same (`EveryEcsHostComposesTheLoadPhaseChainRails:64`).
+
+🔴 **G1 and that style are incompatible, and the failure is silent in BOTH directions.** G1 has
+`SerializeLocalRegistrar` build the handler itself ⇒ IG's composition root **never names it**. So a negative rail stays
+**green forever** and a positive rail written the same way is **red forever** — neither measures anything.
+
+⇒ ⭐⭐⭐ **The new rail asserts the CONSTRUCTED OBJECT** — every ECS host's composed slave holds the recording controller
+and the archive handler. ⭐ Acceptable cheaper form: assert on `SerializeLocalRegistrar`'s own source **plus** that **no
+host passes `archiveHandler: null`** (G1 should remove the parameter, which makes that checkable by compilation).
+
+| ⚠ the honest limits of the existing family — why not to extend it | |
+|---|---|
+| ⛔ **it has already produced a false green, twice** | its own header records `CE-156`: a rail asserted `Contains("TkbTranslatorSet.Base")` and passed on a **comment** saying the call had MOVED — *"two hosts were green for the wrong reason."* `StripComments` exists only because of that |
+| ⚠ **the comment strip is admittedly crude** | regex, *"not a C# parser… does not understand string literals"* |
+| ⚠ **it needs a source checkout to run at all** | `ReadRepoSource` walks up for a `docs/` folder and **throws** if there is none ⇒ these rails cannot run from a packaged test drop. ⭐ Deliberate (*"an absent file must be a loud RED, never a vacuous pass"*) — ⛔ but it is a reason not to add more of them |
+| ⛔ **scope** | retiring the family is NOT this batch. ⭐ **Not adding to it is.** |
+
+---
+
+## 4-H ⭐⭐⭐ A STUCK OR FAILED LOAD — **the operator cancels and the cluster returns to `Idle`** *(`R-4004`, `2026-10-15`)*
+
+> 🔒 **User, verbatim:** *"if cluster loading fails, operator cancels, cluster goes to the initial default state when the whole procedure can be repeated."*
+
+⭐⭐ **Why this section exists.** `R-4001` forbids every timer and names the operator cancel as the escape from a
+stuck-but-alive operation. 🔴 **That escape does not exist today**, so the rule had a hole its own §4-B2 depended on.
+
+### 4-H.1 📐 What is actually there — **the abort seam is COMPLETE and never triggered**
+
+| piece | state |
+|---|---|
+| `ILoadPartProvider.Abort(context)` — *"Frees whatever `PrepareAsync` built and never published"* | ✅ **declared** (`LoadPhaseContracts.cs:114-115`) |
+| `LoadPhaseChain.Abort(intent, repo)` — aborts **every** step, cancels the hold (`_holdTcs`), clears the exercise id | ✅ **fully implemented** (`LoadPhaseChain.cs:206-215`) |
+| `IClusterStateHandler.Abort` — implemented by `ReferenceEditLoadHandler:138`, `ReferencePrefetchHandler:66`; adapted at `HrotHandlerAdapter.cs:62` | ✅ exists |
+| `TerrainResidency.AbortStaged(staged)` — the per-step primitive for a failed background prepare | ✅ exists (`:320`) |
+| the master already fans out `NodeOpType.AbortTransaction` on cancel, on a failed round, and on a mandatory-node loss | ✅ three sites (`ClusterMaster.cs:1660`, `:1843`, `:716`) |
+| 🔴 **`ClusterSlave` never calls `Abort` — not once** | ⛔ measured: zero occurrences of `Abort` in `ClusterSlave.cs` |
+| 🔴 **`LoadPhaseChain.CanHandle` does not claim `AbortTransaction`** | ⛔ it claims only `PrepareLive`, `PrepareEdit`, `PrepareState` (`:127-147`) |
+
+⇒ ⛔⛔ **The abort fan-out reaches every node, finds no handler, and auto-ACKs `Success, not participating`
+(`ClusterSlave.cs:473-482`) while nothing rolls back** — precisely the *"capability reported present that silently
+no-ops"* `R-133` calls worse than an absent one. ⭐⭐ **`TerrainAssetHandler` already found and fixed this for its own
+ops** (`:92-103` — *"no handler in the tree claimed `NodeOpType.AbortTransaction` … the master's abort fan-out reached
+every node, found no handler, and auto-ACKed `Success` while nothing rolled back"*) and is **the pattern to copy**.
+
+⇒ ⭐⭐⭐ **This is a ROUTING fix, not a build.** The mechanism exists end to end; only its trigger is missing.
+
+### 4-H.2 ⭐ The sequence
+
+```mermaid
+sequenceDiagram
+  participant O as Operator
+  participant M as ClusterMaster
+  participant S as ClusterSlave (each node)
+  participant C as LoadPhaseChain
+  O->>M: ClusterOpRequest CancelOperation(targetId)
+  Note over M: the load round is in flight or stalled
+  M->>M: drop the in-flight tracker, no further ACKs expected
+  M->>S: AbortTransaction(targetId) to EVERY roster node
+  S->>C: Abort(intent)
+  C->>C: step.Abort for every step, cancel the hold
+  S-->>M: NodeOpStatus Success (participating)
+  M->>S: PrepareState(Idle) / CommitState(Idle)
+  S-->>M: ACK
+  M-->>O: ClusterOpStatus Cancelled, cluster state Idle
+  Note over O,S: the same load can now simply be re-issued
+```
+
+*What the picture shows that the prose hid: cancel is TWO rounds, not one — the abort frees what was staged, and a
+separate state round puts the cluster in `Idle`. ⭐ A cancel that sent only the abort would leave every node's reported
+state in `Loading*` with nothing loading, which is the half-cancelled condition this section exists to prevent.*
+
+### 4-H.3 ⭐ The decisions
+
+| # | decision | why |
+|---|---|---|
+| **H1** | ⭐⭐⭐ **`LoadPhaseChain` claims `NodeOpType.AbortTransaction` and routes it to its existing `Abort`** | ⛔ do not write a new abort path — `TerrainAssetHandler` is the precedent and `LoadPhaseChain.Abort` is already correct |
+| **H2** | ⭐⭐ **After the abort ACKs, the master drives the cluster to `ClusterState.Idle`** — the initial default state | 🔒 the user's ruling. ⭐ It is also the state every load already starts from: `R-210` has every load caller go through `ScenarioLoadSequence` (*Idle first, then the load*), so *"repeat the procedure"* needs no new path |
+| **H3** | ⭐ **Cancel is available in every `Loading*` state, not only `PARKED`** | 📐 today only a parked transition cancels cleanly (`ClusterMaster.cs:1627-1640`); that window exists before anything is sent, and it is not the case `R-4001` needs |
+| **H4** | ⭐ **Still NO timer** (`R-4001`) | ⛔ the master never cancels on its own. A stall is reported as progress; a human decides |
+| **H5** | ⚠ **The in-flight file transfer is CANCELLED, not abandoned** | 📐 today the gateway's prefetch *"registers no cancellation source, so the bytes finish landing"* (`ClusterMaster.cs:1631-1634`) — harmless then, because nothing loaded them. ⭐ With `§4-E2`'s provider, `IFileTransfer.Cancel()` exists ⇒ **use it**, and dispose the writer and readers as the normal end does |
+| **H6** | ⭐ **A node that was mid-`Prepare` on a worker** | the chain's `Abort` cancels the hold; the worker's result is **discarded, never committed** — which is exactly why `§4-B2` requires the worker to build a PRIVATE object and write nothing shared before `Commit` |
+
+### 4-H.4 ⚠ What is NOT decided here
+
+- ⛔ **Cancelling a `Replay` or an archive Export/Import** — those have their own `_activeCancellations` path and are unchanged.
+- ⛔ **What a node does if its abort itself fails.** ⭐ Report the code + message; a node that cannot reach `Idle` is a node whose heartbeat is the next thing to watch (`R-4001`).
+
 ---
 
 ## 5. OUT OF SCOPE
@@ -536,6 +715,17 @@ R-4000's form" — the first version of this paragraph, which kept the premise.)
 | the load prepare blocks the heartbeat today | ✅ `ClusterSlave.cs:208,429`; `LoadPhaseChain.cs:180-181`; both steps return `Task.CompletedTask` after synchronous work | ✅ R-4001 says it must not |
 | DDS can carry our files | ✅ measured (§4-E2), one host only | ⚠ `mgmt-1` §12.6 rejected DDS for "gigabytes"; R-4002 limits it to non-GB files |
 | a real network behaves like loopback | ⛔ **not measured (M1)** | — |
+| ⭐ **the role mask reads `None` until the capability advert lands** | ✅ `ClusterMaster.cs:539-541` (its own comment says so) | ✅ `R-4005`; `§4-A′` ① |
+| ⭐ **the editor declares TWO different roles for itself** | ✅ `EditorCapabilities.cs:60-62` (all four) vs `EditorSubsystem.cs:1153` (`None`) | ✅ user `2026-09-07`, quoted in `EditorCapabilities.cs`; `R-4005` |
+| ⭐ **the editor is in its own one-node roster** | ✅ `HrotNodeBuilder:232` builds its slave · `EditorSubsystem.cs:1699` ticks it via `OrchestrationLogicPack:68` · `:1170` + `:2185-2197` put slave and master on ONE bus | ✅ `DESIGN_Node_Roles_And_Policies` §3.4 |
+| ⭐ **`_role` affects only what a node ADVERTISES** | ✅ two consumers, `HrotNodeBuilder:232-233`; `ClusterSlave` does nothing else with it (`:83-84`, `:125-128`) | ✅ `R-172` (ownership groups are per role, reached via `EditorCapabilities.DefaultRole`) |
+| ⭐⭐ **the abort seam is complete and never triggered** | ✅ `LoadPhaseContracts.cs:114-115` · `LoadPhaseChain.cs:206-215` · `ClusterSlave.cs` has **zero** `Abort` · `CanHandle:127-147` omits `AbortTransaction` | ✅ `R-4004`; `TerrainAssetHandler.cs:92-103` is the precedent |
+| ⭐ **cancel today is archive-only and reaches no load** | ✅ `ClusterMaster.cs:1627-1640` | ⛔ **`R-4001` ASSUMED it did** — corrected by `§4-H` |
+| ⭐ **the name match has TWO production sites** | ✅ `ClusterMaster.cs:1898` + `ReplaySeekProcessManager.cs:56` | ✅ `§4-D′` ① |
+| ⭐ **`SlaveNodeSetUpdatedEvent` is under-published against its own contract** | ✅ header `TimeLocalEvents.cs:30-32` says *"when the slave node set changes"*; published only on pause (`ClusterMaster.cs:1901`) and seek (`ReplaySeekProcessManager.cs:59`) | ✅ `§4-D′` ② |
+| ⭐ **the world bus and the orchestration bus are different OBJECTS** | ✅ `EntityRepository.cs:163` vs `HrotNodeBuilder.cs:140`; `OrchestratorSubsystem` holds neither a repository nor a NED module | ✅ user `2026-10-15` (*"orchestration events belong to orchestration bus…"*) |
+| ⭐ **no zone is published anywhere durable** | ✅ zero `[DdsTopic]` matching zone; `ClusterMaster` holds no committed-zone field | ✅ `§4-E′`; `R-146` (a zone is a geographic window) |
+| ⭐ **the master is not restartable** | ⛔ not a code fact | ✅ 🔒 user `2026-10-15`: *"master is not restartable, if it dies, the world ends"* ⇒ `TransientLocal` suffices for `§4-E′` |
 
 ## 7. REJECTED, one line each
 

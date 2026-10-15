@@ -1,10 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
+updated: 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
   capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
-  handler), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
+  handler), ⭐ §3.4 is A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT (R-4005 — an all-in-one host declares
+  the union of its roles; NodeRole.None means "plays no role", not "is not networked"),
+  ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
   merely CONVENTION.
@@ -279,6 +281,51 @@ recording and replay as a listener, so it needs NO role-driven exception there. 
 volatile node can neither veto nor hang (`EjectNode` returns early for a non-mandatory node and the round keeps
 waiting — `ClusterMaster.cs:700`, `:1828`) and a step barrier that drops a node that has gone
 (`MasterSyncController.cs:566-580`). ⭐ Owned by [`Architect_Question_91_Player_Nodes.md`](blueprints/Architect_Question_91_Player_Nodes.md) — no Player role; authority derived from the simulation roles.
+
+---
+
+### 3.4 ⭐⭐⭐ A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT — **a single-process host is an ordinary node** *(user, `2026-10-15`, `R-4005`)*
+
+> 🔒 **User, verbatim:** *"The concepts must stay unified, no exceptions, and editor is just a special case of shared
+> unified generic rules."*
+> · *"Roles are never network oriented, all needs to work using internal bus events even without any network."*
+
+⭐⭐ **The rule.** A host declares the **union of the roles it actually plays**, derived from the capabilities it
+composes — ⛔ never from whether it has a DDS participant. An all-in-one host declares all of them. Every mechanism
+keyed on a role must work over the **internal bus** with no network present.
+
+⛔⛔ **`NodeRole.None` means "plays no role". It does NOT mean "is not networked."** Reading it the second way is what
+produced the defect below.
+
+#### 📐 The measured case — the editor said two different things about itself
+
+| where | what it declares | what reads it |
+|---|---|---|
+| ⭐ `EditorCapabilities.cs:60-62` | `Brain \| MuscleGround \| Perception \| NavigationSolver` — *"CGF ∪ SimHost, and deliberately not Map2D"*, per the user's `2026-09-07` ruling quoted in that file | the capability plan (`:97`) and the load chain (`EditorSubsystem.cs:1546`) |
+| 🔴 `EditorSubsystem.cs:1153` | `.WithRole("Editor", Fdp.Core.NodeRole.None)` | ⭐⭐ **the `ClusterSlave`, hence the ROSTER** — and therefore the authority split, the `hrot.asset.needs.*` tokens and the step barrier |
+
+⇒ **Two producers for one slot (`R-132`), and the roster gets the wrong one.** ⚠ The editor is *offline* — no participant,
+no DDS — but it is **not outside the cluster**: `HrotNodeBuilder` builds it a `ClusterSlave` like every host (`:232`), the
+editor registers `OrchestrationLogicPack(clusterSlave)` so that slave is ticked every frame (`EditorSubsystem.cs:1699` →
+`OrchestrationLogicPack.cs:68`), and its heartbeat lands on `_node.EventBus` — **the same bus its own `OrchestratorCore`
+reads** (`EditorSubsystem.cs:1170`, `:2185-2197`). ⇒ ⭐⭐ **the editor is a one-node cluster containing itself.**
+
+🔴 **The consequence that makes this load-bearing, not cosmetic:** with `ForOneNodeCluster()` setting `Mandatory` empty
+(`ClusterConfiguration.cs:51-53`), a role-derived authority split (§4-A of `Q91`) would make **the only node in the
+editor's cluster best-effort** ⇒ **no load could ever fail its round** in the primary authoring host.
+
+#### ⭐ The fix, and its measured blast radius
+
+⭐⭐⭐ **One line:** `.WithRole("Editor", EditorCapabilities.DefaultRole)`.
+
+📐 `HrotNodeBuilder._role` has **exactly two consumers**, both on one statement (`:232-233`): the `ClusterSlave`'s
+`fdp.role.*` tokens, and `AssetNeeds.HostCapabilities(_role)`. ⛔ `ClusterSlave` does nothing else with the mask
+(`:83-84`, `:125-128`) — no ownership, no scheduling, no handler selection; ownership groups reach the editor through
+`EditorCapabilities.DefaultRole` already (`R-172`). ⇒ the only behaviour that changes is **what the editor advertises**.
+
+⚠ **`NodeRole.AllInOne` does NOT exist** in the enum (`None, Brain, MuscleGround, Map2D, Perception, NavigationSolver`);
+the name survives only in a `.dev` batch review as a deviation. ⭐ `EditorCapabilities.DefaultRole` is the honest mask —
+⛔ do not add an `AllInOne` member to express it.
 
 ---
 
