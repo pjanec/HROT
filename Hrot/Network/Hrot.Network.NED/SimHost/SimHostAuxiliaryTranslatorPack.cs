@@ -121,6 +121,12 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
         }
 
+        // ── ⭐ CE-2176 IF-3 — where a round burst, for a fire-mission OBSERVER's brain (DESIGN_Indirect_Fire §3.8). A Brain with
+        //    neither MuscleGround nor Perception gets no detonation otherwise (the two branches above). On the Brain only the burst
+        //    memory (DetonationMemorySystem) and the map's effects read it — no damage, no heat, no sound runs there.
+        if (role.HasFlag(NodeRole.Brain) && !role.HasFlag(NodeRole.MuscleGround) && !role.HasFlag(NodeRole.Perception))
+            translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
+
         return translators;
     }
 }

@@ -139,6 +139,8 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for one self-propelled gun: its rounds on the point (Indirect Fire §4).</summary>
         public const string SelfPropelledArtilleryStrike = "SelfPropelledArtilleryStrike";
+        /// <summary>⭐ <c>CE-2176</c> IF-3 — a soldier observes and adjusts a battery's fire (ObserveFire).</summary>
+        public const string PersonObserveFire = "PersonObserveFire";
 
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>

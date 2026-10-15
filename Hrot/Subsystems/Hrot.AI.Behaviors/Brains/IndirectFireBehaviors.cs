@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
@@ -128,6 +130,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte DangerClose;
         /// <summary>1 once the plan below is made (the first tick).</summary>
         public byte Planned;
+        /// <summary>⭐ IF-3 (FM-6) — 1 = an ADJUSTING round: one gun (the one nearest the battery's centre), one round, on the point.</summary>
+        public byte Adjust;
         public float SheafWidthM;
         public float ImpactInS;
         /// <summary>Time on target: when every first round lands (sim s); 0 = when ready.</summary>
@@ -159,14 +163,14 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.ArtilleryUnitStrike)]
         public static void Resolve(in StrikeOrder order, ref ArtilleryUnitStrikeBlackboard block, EntityRepository world, Entity self)
         {
-            if (order.Method == FireMissionMethod.Adjust)
-                BehaviorLog.Warn(self, world, "fire mission: Adjust is not built yet (IF-3) — firing for effect");
+            bool adjust = order.Method == FireMissionMethod.Adjust;
             block.Mission = new BatteryFireParams
             {
                 Point = IndirectFireNodes.PointOf(in order, world),
-                Rounds = order.Rounds > 0 ? order.Rounds : IndirectFireNodes.DefaultRounds,
-                Sheaf = (byte)order.Sheaf,
-                Control = (byte)order.Control,
+                Rounds = adjust ? 1 : order.Rounds > 0 ? order.Rounds : IndirectFireNodes.DefaultRounds,
+                Adjust = adjust ? (byte)1 : (byte)0,
+                Sheaf = adjust ? (byte)FireMissionSheaf.Converged : (byte)order.Sheaf,
+                Control = adjust ? (byte)FireMissionControl.WhenReady : (byte)order.Control,
                 DangerClose = order.DangerClose ? (byte)1 : (byte)0,
                 SheafWidthM = order.SheafWidthM,
                 ImpactInS = order.ImpactInS,
@@ -237,6 +241,19 @@ namespace Hrot.AI.Behaviors.Brains
                 reach++;
             }
             if (reach == 0) { BehaviorLog.Warn(ctx.Commander, world, "fire mission refused: no gun reaches the point"); p.Planned = 1; return 0; }
+
+            // ⭐ IF-3 (FM-6) — an adjusting round: only the able gun nearest the able guns' centre fires
+            if (p.Adjust != 0 && reach > 1)
+            {
+                var mid = Vector3.Zero;
+                for (int i = 0; i < n; i++) if (p.Able[i] != 0) mid += pos[i];
+                mid /= reach;
+                int pick = -1; float best = float.MaxValue;
+                for (int i = 0; i < n; i++)
+                    if (p.Able[i] != 0 && Vector3.DistanceSquared(pos[i], mid) < best) { best = Vector3.DistanceSquared(pos[i], mid); pick = i; }
+                for (int i = 0; i < n; i++) if (i != pick) p.Able[i] = 0;
+                reach = 1;
+            }
 
             // the sheaf (FM-3): across the line of fire from the able guns' centre
             var centre = Vector3.Zero;
@@ -361,7 +378,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Fire = new FireAtPointNodeParams
             {
                 Point = point,
-                Rounds = refused || mount < 0 ? -1 : order.Rounds > 0 ? order.Rounds : IndirectFireNodes.DefaultRounds,
+                Rounds = refused || mount < 0 ? -1 : order.Method == FireMissionMethod.Adjust ? 1 : order.Rounds > 0 ? order.Rounds : IndirectFireNodes.DefaultRounds,
                 Mount = (byte)Math.Max(mount, 0),
                 FireAt = order.ImpactInS > 0f ? Fdp.Toolkit.Combat.HitModel.Now(world) + order.ImpactInS : 0d,
             };
@@ -377,5 +394,253 @@ namespace Hrot.AI.Behaviors.Brains
         [Fbt.Kernel.SharedAiAction]
         public static NodeStatus Fire(ref FireAtPointNodeParams p, Entity self, EntityRepository world)
             => p.Rounds < 0 ? NodeStatus.Failure : FireAtPointNodes.FireAtPoint(ref p, self, world);
+    }
+
+    /// <summary>⭐ <c>CE-2176</c> IF-3 — an observer's fire mission: the target, the battery, the point last called, the bracket.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ObserveFireParams
+    {
+        /// <summary>What the observer looks at (where the target really is).</summary>
+        public Vector3 Target;
+        /// <summary>The point last called to the battery.</summary>
+        public Vector3 Call;
+        public Entity Battery;
+        public int Rounds;
+        public float SheafWidthM;
+        public byte Sheaf;
+        public byte Control;
+        public byte DangerClose;
+        /// <summary>0 = not called yet · 1 = adjusting · 2 = fire for effect called.</summary>
+        public byte Phase;
+        public byte Locating;
+        /// <summary>The side of the target the last round burst on, along the observer–target line: +1 over, −1 short, 0 none yet.</summary>
+        public sbyte LastSide;
+        /// <summary>1 once a round has burst on each side (the bracket is split from then on).</summary>
+        public byte Splitting;
+        public byte Pad;
+        /// <summary>The range correction in force (m); 0 = no bracket yet.</summary>
+        public float Step;
+        /// <summary>Calls sent (the first one included).</summary>
+        public int Calls;
+        public double CalledAt;
+        /// <summary>The last burst looked at (<see cref="RecentBurst.Serial"/>).</summary>
+        public long SeenSerial;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2176</c> IF-3 (IF-E, FM-6, FM-7; 📄 docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.5, §3.8) — <c>PersonObserveFire</c>:
+    /// the FORWARD OBSERVER. He calls an adjusting round on the target (with the error of how he located it), watches where each of the
+    /// battery's rounds bursts — only a burst his eye can see counts — and corrects: the lateral error at once, the range by the bracket
+    /// (800 → 400 → 200 → 100 → 50 m). Within 50 m, or with the bracket split to 50, he calls fire for effect. Every call is a Strike to
+    /// the battery, so the observer, not the battery, owns the adjust: kill him and no correction comes.
+    /// </summary>
+    public static class PersonObserveFireBehavior
+    {
+        /// <summary>A burst this close to the target, in range and laterally, is good enough to fire for effect (m, FM-6).</summary>
+        public const float EffectWithinMetres = 50f;
+
+        /// <summary>No seen burst this long after a call ⇒ "observer lost" (s).</summary>
+        public const double BurstWaitSeconds = 180.0;
+
+        /// <summary>Farther than this the observer cannot judge a burst (m).</summary>
+        public const float MaxObservationMetres = 6000f;
+
+        /// <summary>The error of a judged burst grows with distance (m per m: 1 % — binoculars and a reticle).</summary>
+        public const float ObservationErrorPerMetre = 0.01f;
+
+        /// <summary>The first call's error by how the target was located (m, IF-F).</summary>
+        public static float LocationErrorMetres(FireMissionLocating how) => how == FireMissionLocating.Laser ? 10f : 150f;
+
+        /// <summary>The bracket's first range step: the smallest of 800 / 400 / 200 / 100 / 50 that covers the error (at most 800).</summary>
+        public static float FirstStep(float rangeError)
+        {
+            float e = MathF.Abs(rangeError);
+            foreach (float step in s_ladder) if (step >= e) return step;
+            return s_ladder[^1];
+        }
+
+        private static readonly float[] s_ladder = { 50f, 100f, 200f, 400f, 800f };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct PersonObserveFireBlackboard
+        {
+            public ObserveFireParams Observe;
+        }
+
+        [BehaviorResolver(BehaviorNames.PersonObserveFire)]
+        public static void Resolve(in ObserveFireOrder order, ref PersonObserveFireBlackboard block, EntityRepository world, Entity self)
+        {
+            var strike = new StrikeOrder { Location = order.Location, Target = order.Target };
+            block.Observe = new ObserveFireParams
+            {
+                Target = IndirectFireNodes.PointOf(in strike, world),
+                Battery = order.Battery.Resolve(world),
+                Rounds = order.Rounds,
+                Sheaf = (byte)order.Sheaf,
+                SheafWidthM = order.SheafWidthM,
+                Control = (byte)order.Control,
+                DangerClose = order.DangerClose ? (byte)1 : (byte)0,
+                Locating = (byte)order.Locating,
+            };
+        }
+
+        [Behavior(BehaviorNames.PersonObserveFire, Params = typeof(ObserveFireOrder), Categories = BehaviorCategory.Infantry)]
+        [BTreeDefinition(BehaviorNames.PersonObserveFire, Curated = true, Group = "Library/Orders", ParamsType = typeof(PersonObserveFireBlackboard))]
+        public static BTreeBuilder<PersonObserveFireBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<PersonObserveFireBlackboard, BTreeContext>()
+                .Action(bb => bb.Observe, Observe);
+
+        /// <summary>One look: call, wait for the burst, correct — see the type.</summary>
+        [Fbt.Kernel.SharedAiAction]
+        public static NodeStatus Observe(ref ObserveFireParams p, Entity self, EntityRepository world)
+        {
+            if (p.Battery.IsNull || !world.IsAlive(p.Battery) || !world.HasComponent<SimTransform>(self))
+            {
+                BehaviorLog.Warn(self, world, "observe fire: no battery to call");
+                return NodeStatus.Failure;
+            }
+            double now = Fdp.Toolkit.Combat.HitModel.Now(world);
+            var eye = world.GetComponentRO<SimTransform>(self).Position;
+            if (p.Phase == 0)
+            {
+                if (!Sees(world, eye, p.Target))
+                {
+                    BehaviorLog.Warn(self, world, "observe fire: I cannot see the target");
+                    return NodeStatus.Failure;
+                }
+                var err = Fdp.Toolkit.Perception.Sensors.AcousticPerception.Error(self.PackedValue, p.Battery.PackedValue, 0u,
+                                                                                  LocationErrorMetres((FireMissionLocating)p.Locating));
+                p.Call = Ground(world, p.Target + new Vector3(err.X, err.Y, 0f));
+                p.Phase = 1;
+                Call(ref p, world, self, now, FireMissionMethod.Adjust);
+                BehaviorLog.Trace(self, world, "observe fire: adjust fire, over");
+                return NodeStatus.Running;
+            }
+
+            Span<RecentBurst> bursts = stackalloc RecentBurst[RecentDetonations.Capacity];
+            int n = RecentDetonations.Since(world, p.CalledAt, bursts);
+            for (int i = 0; i < n; i++)
+            {
+                ref readonly var b = ref bursts[i];
+                if (b.Serial <= p.SeenSerial) continue;
+                p.SeenSerial = b.Serial;
+                if (!FromBattery(world, p.Battery, b.Shooter) || !Sees(world, eye, b.At)) continue;
+                if (p.Phase == 2)
+                {
+                    BehaviorLog.Trace(self, world, "observe fire: end of mission");
+                    return NodeStatus.Success;
+                }
+                var judged = b.At + Judged(self, b.Serial, Vector2.Distance(new Vector2(eye.X, eye.Y), new Vector2(b.At.X, b.At.Y)));
+                bool effect = Correct(ref p, eye, judged);
+                p.Call = Ground(world, p.Call);
+                if (effect)
+                {
+                    p.Phase = 2;
+                    Call(ref p, world, self, now, FireMissionMethod.FireForEffect);
+                    BehaviorLog.Trace(self, world, "observe fire: fire for effect, over");
+                }
+                else
+                {
+                    Call(ref p, world, self, now, FireMissionMethod.Adjust);
+                    BehaviorLog.Trace(self, world, $"observe fire: correction {p.Step:0} m, over");
+                }
+                return NodeStatus.Running;
+            }
+            if (now - p.CalledAt > BurstWaitSeconds)
+            {
+                if (p.Phase == 2) { BehaviorLog.Trace(self, world, "observe fire: end of mission (not observed)"); return NodeStatus.Success; }
+                BehaviorLog.Warn(self, world, "observe fire: lost — no round seen");
+                return NodeStatus.Failure;
+            }
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// FM-6 — the next call from a judged burst: the lateral error is taken out at once; the range moves by the bracket step toward the
+        /// target (doubling back and halving once a round has burst on each side). True = fire for effect (the burst within
+        /// <see cref="EffectWithinMetres"/>, or the bracket split to 50 m — the call moved by that last 50 m).
+        /// </summary>
+        public static bool Correct(ref ObserveFireParams p, Vector3 observer, Vector3 burst)
+        {
+            var line = new Vector2(p.Target.X - observer.X, p.Target.Y - observer.Y);
+            line = line.LengthSquared() > 1e-6f ? Vector2.Normalize(line) : Vector2.UnitX;
+            var right = new Vector2(line.Y, -line.X);
+            var off = new Vector2(burst.X - p.Target.X, burst.Y - p.Target.Y);
+            float range = Vector2.Dot(off, line), lateral = Vector2.Dot(off, right);
+            if (MathF.Abs(range) <= EffectWithinMetres && MathF.Abs(lateral) <= EffectWithinMetres) return true;
+
+            var move = -right * lateral;
+            sbyte side = range > EffectWithinMetres ? (sbyte)1 : range < -EffectWithinMetres ? (sbyte)-1 : (sbyte)0;
+            bool effect = false;
+            if (side != 0)
+            {
+                if (p.Step <= 0f) p.Step = FirstStep(range);
+                else if (p.Splitting != 0 || (p.LastSide != 0 && side != p.LastSide)) { p.Splitting = 1; p.Step = MathF.Max(p.Step * 0.5f, s_ladder[0]); }
+                move += line * (-side * p.Step);
+                p.LastSide = side;
+                effect = p.Splitting != 0 && p.Step <= s_ladder[0];
+            }
+            p.Call += new Vector3(move.X, move.Y, 0f);
+            return effect;
+        }
+
+        /// <summary>The observer's eye reaches the burst (its flash and smoke, 2 m up) — no terrain resident ⇒ sight is unknown ⇒ seen.</summary>
+        public static bool Sees(EntityRepository world, Vector3 eye, Vector3 at)
+        {
+            if (Vector2.Distance(new Vector2(eye.X, eye.Y), new Vector2(at.X, at.Y)) > MaxObservationMetres) return false;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            return terrain == null || !terrain.SightBlocked(eye + new Vector3(0f, 0f, 1.7f), at + new Vector3(0f, 0f, 2f));
+        }
+
+        /// <summary>A round of <paramref name="battery"/>: fired by it, by one of its guns, or by a tube one of its guns mans.</summary>
+        public static bool FromBattery(EntityRepository world, Entity battery, Entity shooter)
+        {
+            if (shooter.IsNull) return false;
+            if (shooter.Equals(battery)) return true;
+            var controller = WeaponSystems.ControllerOf(world, shooter);
+            if (!world.HasComponent<UnitRoster>(battery)) return false;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(battery);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var gun = roster.SubordinateEntities[i];
+                if (gun.Equals(shooter) || (!controller.IsNull && gun.Equals(controller))) return true;
+            }
+            return false;
+        }
+
+        // The judged offset of burst `serial` at `distance`: deterministic, inside 1 % of the distance.
+        private static Vector3 Judged(Entity observer, long serial, float distance)
+        {
+            var e = Fdp.Toolkit.Perception.Sensors.AcousticPerception.Error(observer.PackedValue, unchecked((ulong)serial), 1u, distance * ObservationErrorPerMetre);
+            return new Vector3(e.X, e.Y, 0f);
+        }
+
+        private static Vector3 Ground(EntityRepository world, Vector3 at)
+            => new(at.X, at.Y, Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? at.Z);
+
+        // A Strike to the battery: an ORDER it resolves itself (a battery, or one self-propelled gun), from a superior's rank.
+        private static void Call(ref ObserveFireParams p, EntityRepository world, Entity self, double now, FireMissionMethod method)
+        {
+            var order = new StrikeOrder
+            {
+                Location = OrderGeo.ToGeo(world, p.Call),
+                Method = method,
+                Rounds = method == FireMissionMethod.Adjust ? 1 : p.Rounds,
+                Sheaf = (FireMissionSheaf)p.Sheaf,
+                SheafWidthM = p.SheafWidthM,
+                Control = (FireMissionControl)p.Control,
+                Observer = Fdp.Toolkit.Replication.EntityRef.Of(world, self),
+                DangerClose = p.DangerClose != 0,
+            };
+            world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+            {
+                Entity = p.Battery,
+                IntentId = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor(nameof(OrderKind.Strike)),
+                JsonParams = System.Text.Json.JsonSerializer.Serialize(order, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
+                Origin = BehaviorOrigin.Superior,
+            });
+            p.Calls++;
+            p.CalledAt = now;
+        }
     }
 }

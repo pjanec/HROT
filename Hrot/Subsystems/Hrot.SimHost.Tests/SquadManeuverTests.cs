@@ -2136,5 +2136,165 @@ namespace Hrot.SimHost.Tests
             Assert.True(done);
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
+
+        // ── CE-2176 IF-3 — adjust fire: the observer and the adjusting round (DESIGN_Indirect_Fire.md §3.5, §3.8, IF-E, FM-6) ─────────
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-3 (FM-6) — an ADJUST Strike fires ONE round from ONE gun — the one nearest the battery's centre — on the point,
+        /// whatever sheaf it names. 🔴 Red-proof: ignore <c>Adjust</c> in the plan ⇒ three guns, three rounds each ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_AnAdjustingRound_IsOneRoundFromTheGunNearestTheBatteryCentre()
+        {
+            var point = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, -60f, 0f), new Vector3(0f, 5f, 0f), new Vector3(0f, 50f, 0f));
+            s.Order(System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.StrikeOrder
+            {
+                Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, point), Method = Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust,
+                Rounds = 3, Sheaf = Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.ArtilleryUnitStrike);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            var orders = FireOrders(s);
+            var only = Assert.Single(orders);
+            Assert.Equal(s.Members[1], only.Key);
+            Assert.Equal(1, only.Value.Rounds);
+            Assert.InRange(Vector2.Distance(new Vector2(only.Value.X, only.Value.Y), new Vector2(point.X, point.Y)), 0f, 2f);
+        }
+
+        /// <summary>An observer at <paramref name="at"/> told to call <paramref name="s"/>'s fire on <paramref name="target"/>.</summary>
+        private static Entity Observer(Squad s, Vector3 at, Vector3 target, int rounds = 3)
+        {
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4242 });
+            var o = s.Repo.CreateEntity();
+            s.Repo.AddComponent(o, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(o, new BehaviorState());
+            s.Repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = o, BehaviorName = BehaviorNames.PersonObserveFire, Origin = BehaviorOrigin.Superior,
+                JsonParams = System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.ObserveFireOrder
+                {
+                    Location = Hrot.AI.Behaviors.Orders.OrderGeo.ToGeo(s.Repo, target), Battery = new Fdp.Toolkit.Replication.EntityRef(4242),
+                    Rounds = rounds, Sheaf = Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel,
+                }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed),
+            });
+            return o;
+        }
+
+        /// <summary>The Strikes the battery was sent, in order, with each one's point.</summary>
+        private static List<(Hrot.AI.Behaviors.Orders.StrikeOrder Order, Vector3 At)> Calls(Squad s)
+        {
+            var list = new List<(Hrot.AI.Behaviors.Orders.StrikeOrder, Vector3)>();
+            foreach (var o in s.Orders)
+                if (o.Entity.Equals(s.Commander) && o.IntentId == Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor("Strike"))
+                {
+                    var order = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                    var at = Hrot.AI.Behaviors.Orders.OrderGeo.ToLocal(s.Repo, order.Location, 0f);
+                    list.Add((order, new Vector3(at.X, at.Y, 0f)));
+                }
+            return list;
+        }
+
+        private static void Burst(Squad s, Vector3 at, Entity shooter)
+            => Fdp.Toolkit.Combat.RecentDetonations.Add(s.Repo, at, s.Repo.GetSingleton<GlobalTime>().TotalTime + 0.001, shooter, 0);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2176</c> IF-3 acceptance (FM-6) — the observer, 1.5 km south of the target, calls an adjusting round; the guns shoot
+        /// 720 m over and 120 m right of every call (their error, and his); from what he SEES burst he takes the 120 m out at once and
+        /// brackets the range — drop 800, add 400, drop 200, drop 100 — and with the round within 50 m calls FIRE FOR EFFECT with the
+        /// mission's rounds and sheaf. The next burst ends his mission. 🔴 Red-proof: never halve the step ⇒ the second correction is
+        /// 800 again ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_TheObserver_BracketsTheRoundsOntoTheTarget_ThenCallsFireForEffect()
+        {
+            var target = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(0f, 40f, 0f));
+            var observer = Observer(s, new Vector3(5000f, -1500f, 0f), target);
+            for (int i = 0; i < 3; i++) s.Tick();
+
+            var calls = Calls(s);
+            var first = Assert.Single(calls);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.Adjust, first.Order.Method);
+            Assert.Equal(1, first.Order.Rounds);
+            Assert.InRange(Vector2.Distance(new Vector2(first.At.X, first.At.Y), new Vector2(target.X, target.Y)), 0f, 151f);   // map-located: ≤ 150 m off
+            var bias = target + new Vector3(120f, 720f, 0f) - first.At;   // looking north: +Y is over, +X is right
+
+            var steps = new List<float>();
+            for (int round = 0; round < 8; round++)
+            {
+                var last = Calls(s)[^1];
+                if (last.Order.Method == Hrot.AI.Behaviors.Orders.FireMissionMethod.FireForEffect) break;
+                Burst(s, last.At + bias, s.Members[1]);
+                for (int i = 0; i < 3; i++) s.Tick();
+                calls = Calls(s);
+                Assert.Equal(round + 2, calls.Count);
+                steps.Add(MathF.Abs(calls[^1].At.Y - calls[^2].At.Y));
+            }
+            // four corrections, then fire for effect on the last adjusted point (the round within 50 m: no move)
+            Assert.Equal(new[] { 800f, 400f, 200f, 100f, 0f }, steps.Select(x => MathF.Round(x)).ToArray());
+            var effect = Calls(s)[^1].Order;
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionMethod.FireForEffect, effect.Method);
+            Assert.Equal(3, effect.Rounds);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.FireMissionSheaf.Parallel, effect.Sheaf);
+            Assert.InRange(MathF.Abs(Calls(s)[^1].At.X + bias.X - target.X), 0f, 50f);   // the lateral error is gone
+
+            Burst(s, Calls(s)[^1].At + bias, s.Members[0]);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 3 && !done; i++) { s.Tick(); done = ObserverFinished(s, observer, out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        private static bool ObserverFinished(Squad s, Entity observer, out Fbt.NodeStatus result)
+        {
+            result = default;
+            foreach (var evt in s.Repo.Bus.Read<BehaviorFinishedEvent>())
+                if (evt.Entity.Equals(observer)) { result = evt.Result; return true; }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> IF-3 (IF-E) — the observer judges only HIS battery's rounds: a stranger's burst brings no correction; and with
+        /// none of the battery's rounds seen for 180 s he is LOST — his mission fails and no call follows. 🔴 Red-proof: accept any
+        /// shooter ⇒ the stranger's burst brings a second call ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_TheObserver_IgnoresAStrangersBurst_AndIsLostWhenHeSeesNoRound()
+        {
+            var target = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f));
+            var observer = Observer(s, new Vector3(5000f, -1500f, 0f), target);
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.Single(Calls(s));
+
+            var stranger = s.Repo.CreateEntity();
+            Burst(s, target + new Vector3(0f, 400f, 0f), stranger);
+            for (int i = 0; i < 3; i++) s.Tick();
+            Assert.Single(Calls(s));
+
+            s.Pause(Hrot.AI.Behaviors.Brains.PersonObserveFireBehavior.BurstWaitSeconds + 1.0);
+            bool done = false; Fbt.NodeStatus result = default;
+            for (int i = 0; i < 3 && !done; i++) { s.Tick(); done = ObserverFinished(s, observer, out result); }
+            Assert.True(done);
+            Assert.Equal(Fbt.NodeStatus.Failure, result);
+            Assert.Single(Calls(s));
+        }
+
+        /// <summary>⭐ <c>CE-2176</c> IF-3 — <c>DetonationMemorySystem</c> keeps each burst the node sees (where, whose); the bracket reads
+        /// them. 🔴 Red-proof: an empty system ⇒ count 0 ⇒ red.</summary>
+        [Fact]
+        public void CE2176_TheBurstMemory_RecordsEachDetonation()
+        {
+            var s = Battery(new Vector3(0f, 0f, 0f));
+            s.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = s.Members[0], HitX = 10f, HitY = 20f, HitZ = 1f, Ammo = 6029 });
+            s.Tick();
+            new Fdp.Toolkit.Combat.DetonationMemorySystem().Execute(s.Repo, 0.016f);
+            Assert.Equal(1, Fdp.Toolkit.Combat.RecentDetonations.CountOf(s.Repo));
+            Span<Fdp.Toolkit.Combat.RecentBurst> got = new Fdp.Toolkit.Combat.RecentBurst[4];
+            Assert.Equal(1, Fdp.Toolkit.Combat.RecentDetonations.Since(s.Repo, -1.0, got));
+            Assert.Equal(new Vector3(10f, 20f, 1f), got[0].At);
+            Assert.Equal(s.Members[0], got[0].Shooter);
+        }
     }
 }

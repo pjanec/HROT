@@ -16,5 +16,7 @@ namespace Hrot.AI.Behaviors.Orders
         Hold = 3,
         /// <summary>⭐ <c>CE-2173</c> (B4, R-2015) — strike a place (an aircraft first; artillery later): <see cref="StrikeOrder"/>.</summary>
         Strike = 4,
+        /// <summary>⭐ <c>CE-2176</c> IF-3 (IF-E) — observe and adjust a battery's fire on a place: <see cref="ObserveFireOrder"/>.</summary>
+        ObserveFire = 5,
     }
 }

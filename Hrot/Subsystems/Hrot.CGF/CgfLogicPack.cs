@@ -239,6 +239,8 @@ namespace Hrot.CGF
             simList.Add(_cgfThreatEvaluationSystem);
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
+            // ⭐ CE-2176 IF-3 — the bursts this node saw, for a fire-mission observer (DESIGN_Indirect_Fire §3.8).
+            simList.Add(new Fdp.Toolkit.Combat.DetonationMemorySystem());
             // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
             simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
