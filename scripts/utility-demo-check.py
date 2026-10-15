@@ -1566,7 +1566,7 @@ def run_tank_corner(c, timeout):
 
 
 # ── ua-ifv-standoff (Urban Armour V7; Exposure Cycle §4, CE-2196) — a 25 mm IFV out-ranges RPG men; up close an RPG kills it ─────────
-#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 400 m from two RPG men (RPG reach 300 m): no hide answers in the
+#   basic-desert, two vignettes. ① "IFV Standoff" (BasicVehicleSop) 340 m from two RPG men (RPG reach 300 m): no hide answers in the
 #   open, so it fights from where it stands (CE-2196) — its 25 mm hits them, they never reach it. ② "IFV Close" with an RPG man 80 m
 #   off, on an attack order at it: the RPG hits it (Bradley side 80 mm vs a PG-7V's ~300 mm).
 def run_ifv_standoff(c, timeout):
