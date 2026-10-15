@@ -79,7 +79,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [110, 100, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"target\": 8401, \"assault\": true}",
         "Origin": "Superior"
       }
     },
@@ -116,7 +116,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [115, 125, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"target\": 8401, \"assault\": true}",
         "Origin": "Superior"
       }
     },
