@@ -513,7 +513,7 @@ which is what keeps the next reader honest.
 > is by ROLE or an optimisation setting (R-4000), never by a missing handler. The rail `NodeRolePersistenceRails.
 > IgCompositionRoot_RegistersNoCheckpointSaveHandler` is superseded with it. ⚠ **R-140 is NOT touched**: it is about
 > SCENARIO persistence (IG owns no persistable entity), and the gated scenario save still enforces it.
-> 📄 Build: [`STEER_Coordinator_Player_Nodes_P5.md`](blueprints/batches/STEER_Coordinator_Player_Nodes_P5.md).
+> 📄 Build: [`HANDOFF_Coordinator_Player_Nodes.md`](blueprints/batches/HANDOFF_Coordinator_Player_Nodes.md) P5a–P5d; decision: [Q91](blueprints/Architect_Question_91_Player_Nodes.md) §4-G.
 
 > 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
 > the IG subsystem handle the clusterwide scenario save operation."*

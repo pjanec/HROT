@@ -3,13 +3,13 @@ state: LIVE
 updated: 2026-10-15 (APPROVED; amended by R-4001 heartbeat-only time limits — §4-B, §4-B2 — and R-4002 the file-transfer provider — §4-E2)
 build-state: DESIGN — ✅ APPROVED 2026-10-15 (user: "accepted.") with two amendments (§0 rows I, J). Not dispatched; §4-B2
   and §4-E2 carry the measurements the amendments asked for. ⭐ DISPATCHED 2026-10-15: the backend half (P1–P7) as
-  batches/HANDOFF_Coordinator_Player_Nodes.md (a session on `coordinator`), §4-F as batches/HANDOFF_Coordinator_To_Behaviors_Possession_Release.md.
+  batches/HANDOFF_Coordinator_Player_Nodes.md (a session on `coordinator`; re-dispatched with R-4003 folded in), §4-F as batches/HANDOFF_Coordinator_To_Behaviors_Possession_Release.md.
 current-answer: "THE PROPOSAL IN ONE PAGE" (directly below the rulings) is the answer; §4 carries each decision
   with its options, lean, blast radius and what would change the lean. §2 is the picture; §3 is what already works.
 stale-below: nothing
 known-rot: none
 known-conflict: §4-G vs NodeRolePersistenceRails / DESIGN_Node_Roles_And_Policies §7.1 (IG must not hold
-  ReferenceArchiveHandler, CE-275 ③) — resolved toward R-4000 in §4-G (the rail is rewritten, not deleted). Also: ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
+  ReferenceArchiveHandler, CE-275 ③) — RESOLVED by R-4003: that premise is superseded, IG records. Also: ⚠ docs/designs/mgmt-1/DESIGN.md §12.5 says the gateway pushes INTO each node's
   C:\FDP_Temp; the as-built gateway copies into {FDP_STAGING_ROOT}/nodes/node-N on the ORCHESTRATOR's own disk
   (AssetPrefetchProcessManager.cs:272-287), which reaches a node only when that tree is shared. §4-E2 takes the design's side.
 related-designs:
@@ -58,7 +58,7 @@ related-designs:
 | area | proposal | basis |
 |---|---|---|
 | **what a Player is** | ⭐ an ordinary **IG node** (`NodeRole.Map2D`). ⛔ No new node type, no `NodeRole.Player`, no new events | R-4000, user F |
-| **recording / replay** | ⭐ **no exception.** IG already takes part as a listener (`ListenerRecordReplayController` ACKs, records nothing) and sees a replay over the network | §3 |
+| **recording / replay** | ⭐ **no exception — IG records like every ECS host** (R-4003): the same `EcsRecordReplayController` and archive handler. ⛔ *(was: "IG takes part as a listener, records nothing" — SUPERSEDED `2026-10-15`, a pre-unification premise)* | §4-G |
 | **who may fail or hang a round** | ⭐ **derived from the ROLE:** a node holding any SIMULATION role (`Brain`, `MuscleGround`, `Perception`, `NavigationSolver`) is *authoritative*; a node with none (IG's `Map2D`, an observer) is *best-effort* — its error is recorded, never fatal | §4-A, §4-C |
 | **a node that leaves mid-round** | ⭐ removed from every in-flight round (today the round waits forever) — a bug fix for EVERY node | §4-B |
 | **a node that stops answering** | ⭐ **the heartbeat is the ONLY time limit** (R-4001): no per-round ACK timer; the heartbeat must keep beating through any valid long operation, so the load prepare moves off the frame thread | §4-B, §4-B2 |
@@ -164,7 +164,7 @@ disconnect is handled by three mechanisms that exist or are one predicate away �
 | learn pause / scale | `SwitchTimeModeEvent` is `Reliable + TransientLocal` | ✅ `TimeMessages.cs:133` |
 | sync the clock | `TimeSyncRequest` / `TimeSyncResponse` | ✅ `TimeMessages.cs:202,220` |
 | see who possesses what | `EntityPossessedBy` is durable | ✅ `SimDescriptors.cs:213` |
-| take part in recording / replay without recording | `ListenerRecordReplayController` ACKs every phase | ✅ `ListenerRecordReplayController.cs`; IG registers it at `IgNodeBootstrapper.cs:412,423` |
+| ⛔ ~~take part in recording / replay without recording~~ | ⛔ SUPERSEDED `2026-10-15` (R-4003): IG records like every ECS host — §4-G | IG still composes the listener controller today (`IgNodeBootstrapper.cs:374`); P5a replaces it |
 | watch a replay | owning nodes restore, their egress floods DDS | ✅ `mgmt-1/DESIGN.md` §8.10 *"an IG whose only copy of entity state comes from the network"* |
 | abstain from an op it has no business in | a node with no handler answers *Success, not participating* | ✅ `ClusterSlave.cs:473-482` |
 | clear a departed node's entities | `NodeDeparted` → `PartialOwnerReclaimSystem` (R-167) | ✅ `ClusterCapabilityIngestSystem.cs:115` |
@@ -499,15 +499,19 @@ that crashes while possessing leaves the unit possessed forever, its task paused
 | G2 — IG and the Editor pass one | ⚠ fixes today, leaves the optional parameter that let it happen |
 
 ⚠⚠ **A DESIGN RECORD THIS SECTION FIRST MISSED** *(found `2026-10-15` while writing the dispatch)*: IG's missing archive
-handler is NOT an accident. `NodeRolePersistenceRails.IgCompositionRoot_RegistersNoCheckpointSaveHandler`
-(`Hrot.SimHost.Tests/NodeRolePersistenceRails.cs:67-100`, CE-275 ③, `2026-09-14`) asserts IG must NOT hold
-`ReferenceArchiveHandler`, reasoning *"IG carries no ECS frame data … so it must not record"* —
-`DESIGN_Node_Roles_And_Policies.md` §7.1. ⭐ **The PREMISE still holds; the MECHANISM is what R-4000 retires:** IG records
-nothing because its record/replay controller is the listener one (`ListenerRecordReplayController`), so its archive collect
-returns no file. Enforcing "IG does not record" by IG LACKING the handler is the "behaviour by a missing handler" form R-4000
-forbids. ⇒ ✅ **G proceeds, and the rail is REWRITTEN to R-4000's form**: every ECS host holds the archive handler; a node
-whose controller is the listener one produces no `.fdp`, and the collect returns nothing (asserted on the CONSTRUCTED
-handler, not on source text). ⚠ The user approved G before this record was known — it is surfaced in the dispatch reply.
+handler was deliberate. `NodeRolePersistenceRails.IgCompositionRoot_RegistersNoCheckpointSaveHandler`
+(`Hrot.SimHost.Tests/NodeRolePersistenceRails.cs:67-100`, CE-275 ③, `2026-09-14`) forbids `ReferenceArchiveHandler` on IG,
+reasoning *"IG carries no ECS frame data … so it must not record"* (`DESIGN_Node_Roles_And_Policies.md` §7.1).
+
+✅ **RULED `2026-10-15` — R-4003, the premise itself is SUPERSEDED.** 🔒 User: *"that premise is old and not valid anymore,
+it must be a pre-unification one … IG can create its own entities if it wants to. So it might need to run its own recording.
+I prefer the unification over optimization at this stage, still the disabling would be controlled by the role or by some
+optimization settings later."* ⇒ ⭐ G widens: IG runs the same `EcsRecordReplayController` as every ECS host (today it runs
+`ListenerRecordReplayController`, `IgNodeBootstrapper.cs:374`), holds the archive handler, and the CE-275 rail is replaced
+by the positive invariant. ⚠ The controller lives in `Hrot.SimHost`, which IG does not reference ⇒ it moves down (CE-279 A2).
+⚠ Replay must then tolerate a node with no or a partial recording (a late or departed Player) — P2 makes its failure
+non-fatal. ⛔ *(SUPERSEDED: "The PREMISE still holds; the MECHANISM is what R-4000 retires … the rail is REWRITTEN to
+R-4000's form" — the first version of this paragraph, which kept the premise.)*
 
 ---
 
@@ -521,7 +525,7 @@ handler, not on source text). ⚠ The user approved G before this record was kno
 
 | the proposal rests on | code — how it IS | design — how it was MEANT to be |
 |---|---|---|
-| a Player needs no recording/replay exception | ✅ `ListenerRecordReplayController`, `IgNodeBootstrapper.cs:412,423` | ✅ `mgmt-1` §8.10 |
+| a Player needs no recording/replay exception | ✅ every other ECS host runs `EcsRecordReplayController` (4 sites); IG's listener controller is replaced (P5a) | ✅ R-4003; `mgmt-1` §8.10 |
 | roles reach the orchestrator | ✅ `ClusterMaster.cs:551`, `NodeRoster.cs:15-21` | ✅ AQ-70 §Q70-C |
 | a departed node hangs a round today | ✅ `ClusterMaster.cs:700`, `:1828` | ⛔ searched `docs/` + `.dev/` for a design of partial success: none beyond the declared field |
 | time control is not 2PC | ✅ `ClusterMaster.cs:409-443` | ✅ `DESIGN_Time_Architecture.md` |
