@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§4-J: J3 SUPERSEDED by J3′ — the master publishes its InSync set in mgmt-1's never-written RequiredNodeIdsJson; J4 widened; J5 detailed) ·
+updated: 2026-10-15 (⭐ §4-K NEW, OPEN — the join concept reviewed from every angle: K1 every Player shares node id 300, K3 a catch-up wipes the world the joiner just received, K4/K5 fences, K6 one gate principle; J3′ superseded by K6) ·
+  2026-10-15 (§4-J: J3 SUPERSEDED by J3′ — the master publishes its InSync set in mgmt-1's never-written RequiredNodeIdsJson; J4 widened; J5 detailed) ·
   2026-10-15 (⭐ §4-I APPROVED as R-4006 · ⭐ §4-J NEW, OPEN — servicing a late joiner beside a running session; finds the reliable-init barrier and operator rounds gate the running game on a joiner) ·
   2026-10-15 (§4-I: I3 SUPERSEDED by I5 — a cluster SESSION ID, none exists today) ·
   2026-10-15 (⭐ §4-I NEW, OPEN — rejoin, outages and stale nodes: the master trusts only what it witnessed;
@@ -836,7 +837,68 @@ history, which is why those are the two unmeasured rows below.*
 | ~~**J3**~~ | ⛔ **SUPERSEDED by J3′** (same day, before approval). It read *"the wait-set holds only peers in the creator's session and state … both already reaching every node's cluster cache."* ⛔ **Measured false:** the cache keeps id, role, capabilities, CPU, RAM, last-seen — **no state** (`IClusterStateCache.cs:73-87`); the heartbeat's state reaches the ingest and is dropped. And a state-equality test races: the heartbeat is 1 Hz BestEffort, and nodes commit a transition a few frames apart | — |
 | **J3′** | ⭐⭐⭐ **the master PUBLISHES its `InSync` set; a creator's wait-set = peers advertising `fdp.reliable-init` ∩ that set.** The field already exists for exactly this and is never written: `OrchestratorContextTopic.RequiredNodeIdsJson` (`OrchestrationMessages.cs:239`) — mgmt-1 §5 *"JSON int[] — which NodeIds are expected"* (`mgmt-1/DESIGN.md:327`). Reliable + TransientLocal, one producer | ⭐ **LEAN.** One authority (the master, I1) instead of every node inferring it from heartbeats; no 1 Hz staleness, no commit-skew race. A joiner is waited for from the moment the master publishes it in sync (milliseconds after its last ACK). ⚠ Entities spawned between its last ACK and that publish reach it only through the durable read path — `DESIGN_Cross_Node_Construction_Barrier.md` §2a, **A7 not built** (§3a.7). ⭐ On the editor the wait-set is empty already (one node, local excluded) — no special case (`R-4005`) |
 | **J4** | ⭐ **the "unsupported" mark is cleared whenever the node ENTERS the `InSync` set** (and on departure) | ⭐ **LEAN.** Departure alone is not enough: a node reset by I2 never departs, yet may miss a probe while reloading. The mark still does its real job — an external host that advertises `fdp.reliable-init` and never delivers is re-marked on its first missed probe |
-| **J5** | ⚠ **a bandwidth cap on the transfer provider: a TOKEN BUCKET in the sender's chunk loop** — before writing a 64 KB chunk the sender takes 64 KB of tokens; tokens refill at the cap (bytes/s); one bucket for ALL transfers, because every NAS byte leaves the one gateway ⇒ a cluster-wide cap. Effective rate = min(the cap, the ACK window's pace). It lives in the sender task, off every frame thread (§4-E2 `Start` returns at once) ⇒ waiting for tokens blocks nobody | ⚠ **LEAN: a setting, off by default, until measured** (one 64 MB transfer during a running `--mode all` session, watching entity update latency). ⚠ **Needs a user ruling: it paces on the WALL clock** — `R-143` allows sim time only, and its one exemption (`R-244`) says *"not a licence … anywhere else"*. Pacing network I/O decides nothing the simulation computes. ⚠ **Not measured:** whether one send to a bundled partition goes out once (multicast) or once per target (unicast) — the cap counts bytes WRITTEN. ⛔ Rejected: a DDS-level limit — DDS has no throughput QoS (`TRANSPORT_PRIORITY` → DSCP only helps if the switches honour it; not verified for Cyclone) |
+| ~~**J3′**~~ | ⛔ **SUPERSEDED by K6** (same day): the wait-set must also exclude BEST-EFFORT nodes, not only nodes out of sync | — |
+| **J5** | ⚠ **a bandwidth cap on the transfer provider: a TOKEN BUCKET in the sender's chunk loop** — before writing a 64 KB chunk the sender takes 64 KB of tokens; tokens refill at the cap (bytes/s); one bucket for ALL transfers, because every NAS byte leaves the one gateway ⇒ a cluster-wide cap. Effective rate = min(the cap, the ACK window's pace). It lives in the sender task, off every frame thread (§4-E2 `Start` returns at once) ⇒ waiting for tokens blocks nobody | ⚠ **LEAN: a setting, off by default, until measured** (one 64 MB transfer during a running `--mode all` session, watching entity update latency). ⚠ **Needs a user ruling: it paces on the WALL clock** — `R-143` allows sim time only, and its one exemption (`R-244`) says *"not a licence … anywhere else"*. Pacing network I/O decides nothing the simulation computes. ⭐ One send to a bundled partition goes on the wire ONCE — 🔒 user, `2026-10-15`: *"when one send serves several bundled joiners, in our default setting cyclone DDS puts it on the wire once."* ⇒ the cap counts wire bytes. ⛔ Rejected: a DDS-level limit — DDS has no throughput QoS (`TRANSPORT_PRIORITY` → DSCP only helps if the switches honour it; not verified for Cyclone) |
+
+---
+
+## 4-K ⭐⭐⭐ THE JOIN CONCEPT REVIEWED FROM EVERY ANGLE — **gaps found by measurement** *(`2026-10-15`, OPEN)*
+
+> 🔒 **User, `2026-10-15`:** *"every new question seems to change your lean. Could you review the player join concept from
+> different perspectives, trying to find further gaps?"* ⇒ every row below was measured before any lean was written.
+
+### 4-K.1 ⭐ The order a joiner must follow — the picture that exposes K3
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant J as Joiner
+  participant D as durable DDS state
+  Note over J,D: TODAY: J subscribes at boot, so D is delivered at once and TAKEN
+  D-->>J: every live entity (taken, not re-delivered)
+  M->>J: catch-up LoadingLive, entered from Idle = world boundary
+  J->>J: WorldBoundaryReset.Clear destroys every entity
+  Note over J: the world J received is gone and DDS will not send it again
+  Note over J,D: PROPOSED (K3): build first, then subscribe
+  M->>J: reset to Idle, then LoadingLive (KB + terrain)
+  J->>J: clear (old world only), commit KB + terrain
+  J->>D: re-create the durable ingress readers
+  D-->>J: every live entity, into a world that can promote it
+```
+
+*What the picture shows that prose hid: the joiner's world arrives BEFORE the step that wipes it. Every piece is correct on
+its own (`Take` is right, the boundary clear is right); only the order on a node that subscribed early is wrong.*
+
+### 4-K.2 📐 The gaps
+
+| # | angle | the gap | evidence |
+|---|---|---|---|
+| **K1** | ⭐⭐ **identity** | **every Player has the same node id** unless configured: IG uses `nodeIdOverride` or the constant **300**; nothing anywhere detects two processes under one id. Two Players ⇒ one roster entry, both execute every command, one leaving releases the other's possession and ownership, and `InSync` (I1) is shared | `IgApplication.cs:654`, `IgNetworkConstants.cs:18`; no duplicate-id detection in production `Hrot/` or `FDP/` |
+| **K2** | ⭐⭐ **fast restart** | **I1 has a hole**: a node leaves `InSync` only when ejected after 5 s of silence. A process that restarts faster than that is never ejected, so the empty new process is believed in sync and never caught up | `ClusterMaster.cs:660-679` (ejection only on timeout) |
+| **K3** | 🔴🔴 **world delivery** | **a catch-up wipes the world the joiner just received.** Readers are created when the node is composed (`EntityStatesIngressPack.cs:52`), so the durable entity state arrives at once and is `Take`n (`EntityMasterIngressTranslator.cs:104`). The catch-up's load is entered from `Idle` ⇒ a world boundary (`ClusterMaster.cs:1406-1408`) ⇒ `WorldBoundaryReset.Clear` destroys every entity and clears the entity map (`LoadPhaseChain.cs:198`). Ingress then only resets its bookkeeping (`:101`); nothing re-subscribes (no such code exists). ⇒ entities that do not re-publish (anything static) **never come back** | measured, every link |
+| **K4** | 🔴 **master side effects** | **a catch-up built on the operator's transition path would damage the running game**: it jumps the CLUSTER clock to 0, paused (`GlobalContextProcessManager.cs:44-49`), and resets the network-id authority in a running world (`ClusterMaster.cs:1406-1426`, duplicate ids — HN-037) | measured |
+| **K5** | 🔴 **genesis** | **a late-joining or restarted Brain node would duplicate the scenario**: `ScenarioEntities` runs on `Brain` (`RoleLoadRequirements.cs`), and a catch-up replays the load. ⭐ A Player (Map2D) runs only KB + terrain, so it is safe — but I2 applies to every node (R-4000) | measured |
+| **K6** | ⭐⭐ **the gates are inconsistent** | §4-A says a best-effort node may not fail or hang a round; §4-D keeps it out of the step barrier; but the reliable-init wait-set still waits for every present Player. ⭐ **Measured: no production peer has a real init condition** — the only deferring participant is `SimulatedInitReadinessParticipant`, off by default (*"the barrier completes as soon as each peer ghosts + reports"*) ⇒ a Player in the wait-set protects nothing and can only delay or abort spawns | `SimulatedInitReadinessParticipant.cs:40-43`; `NedReplicationModule.cs:338` |
+| **K7** | ⭐ **failure** | **a Player whose catch-up fails is retried forever** — I2's trigger is "in the roster and not `InSync`", and a failed node stays exactly that | follows from I2's own wording |
+| **K8** | ⭐ **possession** | after a fast restart (< 10 s, no `NodeDeparted`) the durable possession record still names the node id, so the new process "possesses" an entity it knows nothing about | `§4-F`; owned by `DESIGN_Entity_Control.md` (behaviors lane) |
+
+⭐ **Two worries that measured FINE:**
+- **the joiner's clock** — no node-side load step touches time; a slave derives sim time from the durable `SwitchTimeModeEvent` snapshot plus its wall offset (`SlaveSyncController`), so a joiner lands on the cluster's time
+- **"half-built" entities without A7** — a replica is promoted only once every mandatory TKB component has arrived (`GhostPromotionSystem`, built). A7 (*hold until the owner is `Active`*) matters only when a peer has a real init condition, and none does (K6) ⇒ **A7 is not on a Player's path**
+
+### 4-K.3 ⭐ The leans
+
+| # | lean |
+|---|---|
+| **K1+K2** | ⭐⭐ **every node process mints an INSTANCE id (GUID) at start and carries it in its heartbeat** (beside I5's session field). `InSync` is keyed by (node id, instance). A new instance under a known id is a **departure plus an arrival** — handled by the existing `NodeDeparted` path everywhere it is detected (which also fixes K8 without new code). Two instances alive under one id at once ⇒ the master refuses the newer one and says so on the panel. ⚠ **Node ids stay configuration** (the launcher assigns them) — the instance id DETECTS a collision, it does not prevent one |
+| **K3** | ⭐⭐⭐ **build first, then subscribe:** a node re-creates its durable ingress readers when it commits a load, so the durable state is delivered into a world that has its KB and terrain. ⭐ One rule on every node (R-4000) — at a normal cluster start it delivers nothing old. ⚠ **Must be measured before it is built:** that a previous run's entities are DISPOSED on the wire at unload, or re-subscribing would deliver them back |
+| **K4** | ⭐⭐ **fence: the catch-up is built from node ops (`FanOutNodeOp`) only** — never by publishing a `TransitionStateIntent` or entering `ProcessTransitionStateIntent` |
+| **K5** | ⭐⭐ **the catch-up payload says it is a catch-up; `ScenarioLoadStep` then reads the file but enqueues no genesis** — the world already exists and arrives by replication. ⚠ What else a restarted Brain must recover (its AI state, its ownership back from the reclaim) is a separate question |
+| **K6** | ⭐⭐⭐ **ONE principle for every gate: a best-effort node never gates, a node not in sync never participates.** The reliable-init wait-set = advertises `fdp.reliable-init` ∩ `InSync` ∩ authoritative (§4-A′). Same predicate as the 2PC rounds (P2) and the step barrier (P3). Supersedes J3′ |
+| **K7** | ⭐ **one catch-up attempt per instance and per cluster commit.** A failure is shown on the panel with its code and message; the operator retries the node, or a restart (a new instance, K1) retries it |
+
+⚠ **Not examined:** a joiner arriving during a REPLAY (the catch-up path into `OperatingReplay`); what a late joiner's
+partial recording means for an archive export (R-4003); DDS discovery cost with many Players.
 
 ---
 
