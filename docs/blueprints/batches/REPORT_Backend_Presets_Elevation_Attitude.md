@@ -8,7 +8,7 @@ known-conflict: none.
 related-designs:
   - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md — the handoff this report answers
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — §5a P1 (the presets), design step + as built
-  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — §3.7 P2 (laying the gun), design step + as built
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — §3.9 P2 (laying the gun), design step + as built
   - docs/DESIGN_Dead_Reckoning.md — §9 P3 (pitch and roll on the wire), design step + as built
   - docs/DESIGN_Weapon_Layers.md — W-13e P4 (the active mount), design step + as built
 -->
@@ -23,7 +23,7 @@ Scope frozen at the dispatch commit `64aaca945` (merged into `backend` at `4732a
 | item | what | state | design (step 1 + as built) |
 |---|---|---|---|
 | **P1** | the **HMMWV 102** carries an **M2 in a roof ring** (gunner seat 3 with a rifleman, exposed; ring station 4 with the M2, NeedsGunner) — its three passenger seats stay at 0–2; new **108 Technical (DShK)** and **109 Technical (minigun)** on the pickup body; 106 stays bare | ✅ | [Weapon Systems §5a](../../designs/weapons/DESIGN_Weapon_Systems.md) |
-| **P2** | a mortar (609–611), the towed gun (612) and the M109 (107) are **laid before they fire**: `FireAtPoint` orders the gun's turret (Track at the point, the solution's arc and round), waits for the muscle's OnTarget, then fires; the pose is W-9's replicated `TurretPose` — no new field. The mortars and the towed gun get a **laying turret** (cheaper than a field: the turret part already replicates and the map already reads it) | ✅ | [Indirect Fire §3.7](../../designs/indirect-fire/DESIGN_Indirect_Fire.md) |
+| **P2** | a mortar (609–611), the towed gun (612) and the M109 (107) are **laid before they fire**: `FireAtPoint` orders the gun's turret (Track at the point, the solution's arc and round), waits for the muscle's OnTarget, then fires; the pose is W-9's replicated `TurretPose` — no new field. The mortars and the towed gun get a **laying turret** (cheaper than a field: the turret part already replicates and the map already reads it) | ✅ | [Indirect Fire §3.9](../../designs/indirect-fire/DESIGN_Indirect_Fire.md) |
 | **P3** | **pitch and roll** cross the wire: every ingress site rebuilds the rotation from heading + pitch + roll through ONE helper `SimTransformBridgeSystem.EulerDegToRotation` (the exact inverse of the egress conversion) — six sites, BDC included | ✅ | [Dead Reckoning §9](../../DESIGN_Dead_Reckoning.md) |
 | **P4** | `WeaponPosture.ActiveMount` (APPENDED byte, also on `EntityWeaponPosture`): the mount the weapon brain fires — written by `AimAndFire` and `FireAtPoint` the moment they resolve it, kept when the weapon is lowered | ✅ | [Weapon Layers W-13e](../../DESIGN_Weapon_Layers.md) |
 

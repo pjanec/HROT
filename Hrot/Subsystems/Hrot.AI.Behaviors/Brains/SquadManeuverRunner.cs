@@ -55,6 +55,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>Embark</c>, or <c>LoadCasualty</c> for a soldier carrying somebody (he seats the man first); a unit member gets
         /// <c>SquadEmbark</c> (its soldiers board, not it).</summary>
         Embark = 6,
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-2, Indirect Fire §4) — fire <see cref="MemberOrder.Rounds"/> rounds at
+        /// <see cref="MemberOrder.Point"/> from mount <see cref="MemberOrder.Mount"/>, none before <see cref="MemberOrder.FireAt"/>
+        /// (time on target): the library <c>FireAtPoint</c>. A unit member holds.</summary>
+        FireAtPoint = 7,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -71,6 +75,14 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Cover;
         /// <summary>⭐ <c>CE-2152</c> C-c — the entity the order is about: the contact to suppress, the man to carry.</summary>
         public Entity Target;
+        /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: rounds to fire (≥ 1).</summary>
+        public int Rounds;
+        /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: sim time before which nothing leaves (0 = now).</summary>
+        public double FireAt;
+        /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the member's mount (own index, or 32 + k controlled).</summary>
+        public byte Mount;
+        /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the arc preference (0 Auto, 1 Low, 2 High).</summary>
+        public byte Arc;
     }
 
     /// <summary>
@@ -431,6 +443,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
+                else if (order.Kind == MemberOrderKind.FireAtPoint) Fire(ctx.World, ctx.Commander, m, in order, at);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
             ws.IssuedPhase = squad.PhaseId;
@@ -489,6 +502,18 @@ namespace Hrot.AI.Behaviors.Brains
             Publish(world, commander, member, BehaviorNames.CarryCasualty, JsonSerializer.Serialize(new CarryCasualtyParamsJsonDto
             {
                 Casualty = Fdp.Toolkit.Replication.EntityRef.Of(world, casualty), X = to.X, Y = to.Y, Speed = speed,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
+
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-2) — FIRE AT A POINT: the library <c>FireAtPoint</c> with the order's rounds, mount, arc and
+        /// fire time (a battery's gun); a member that is a UNIT holds (a battery of batteries is not built).</summary>
+        public static void Fire(EntityRepository world, Entity commander, Entity member, in MemberOrder order, Vector3 at)
+        {
+            if (IsUnit(world, member)) { Hold(world, commander, member, at, 0f); return; }
+            Publish(world, commander, member, BehaviorNames.FireAtPoint, JsonSerializer.Serialize(new FireAtPointParamsJsonDto
+            {
+                X = order.Point.X, Y = order.Point.Y, Z = order.Point.Z, Mount = order.Mount, Rounds = Math.Max(order.Rounds, 1),
+                FireAt = order.FireAt, Arc = order.Arc,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

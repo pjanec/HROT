@@ -243,7 +243,7 @@ namespace Hrot.Map.Definitions.Tkb
         }
 
         /// <summary>
-        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — the LAYING turret of a mortar / towed gun: turret 0, all round (the crew shifts the
+        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — the LAYING turret of a mortar / towed gun: turret 0, all round (the crew shifts the
         /// baseplate or the trails), inside the mount's elevation window, at a crew's rates. It is what replicates the laid elevation
         /// and azimuth (<c>dtTurretPose</c>, W-9) — no field of its own. Starter rates: 30 °/s traverse, 15 °/s elevation — a
         /// full lay (180°, 0 → 85°) in ≈ 6 s, inside FM-4's 10 s lay time.

@@ -37,5 +37,11 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>Seconds between rounds.</summary>
         [JsonPropertyName("cooldownSeconds")]
         public float CooldownSeconds;
+        /// <summary>⭐ Indirect fire IF-2 (FM-4) — sim time (s) before which nothing leaves: a battery's time on target. 0 = now.</summary>
+        [JsonPropertyName("fireAt")]
+        public double FireAt;
+        /// <summary>⭐ Indirect fire IF-2 (IF-C) — the arc a fire solution prefers: 0 = Auto (low when it clears), 1 = Low, 2 = High.</summary>
+        [JsonPropertyName("arc")]
+        public int Arc;
     }
 }

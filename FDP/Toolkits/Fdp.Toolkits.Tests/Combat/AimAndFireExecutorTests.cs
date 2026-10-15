@@ -2426,7 +2426,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public unsafe void IF1_FireAtPointParams_StillFitTheChannel()
             => Assert.True(sizeof(FireAtPointParams) <= 32, $"{sizeof(FireAtPointParams)} bytes");
 
-        // ── ⭐⭐ ui handoff P2 / P4 (HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude; DESIGN_Indirect_Fire §3.7, DESIGN_Weapon_Layers W-13e) ──
+        // ── ⭐⭐ ui handoff P2 / P4 (HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude; DESIGN_Indirect_Fire §3.9, DESIGN_Weapon_Layers W-13e) ──
 
         /// <summary>Brain then muscle, one frame at <paramref name="now"/>; the rounds that left.</summary>
         private WeaponFireIntent[] LayStep(Entity unit, Entity weapon, ref WeaponChannel channel, double now, FireAtPointExecutor brain,

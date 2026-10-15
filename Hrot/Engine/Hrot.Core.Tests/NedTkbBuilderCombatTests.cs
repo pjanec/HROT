@@ -482,7 +482,7 @@ namespace Hrot.Map.Common.Tests
                 var mount = Assert.Single(t.GetDescriptor<WeaponSuiteDto>()!.Mounts);
                 Assert.Equal((category, arc, minEl, maxEl, (ulong)ammo), (mount.Category, mount.Arc, mount.MinElevationDeg, mount.MaxElevationDeg, mount.AmmoGuid));
                 Assert.True(mount.DispersionMils > 0f && mount.Range > 0f && mount.FireOnMove != true, $"{t.Name}");
-                // ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — laid by a LAYING turret 0: all round, the mount's elevation window
+                // ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — laid by a LAYING turret 0: all round, the mount's elevation window
                 Assert.Equal(0, mount.TurretIndex);
                 var lay = Assert.Single(t.GetDescriptor<TurretSuiteDto>()!.Turrets);
                 Assert.Equal((-180f, 180f, minEl, maxEl), (lay.TraverseMinDeg, lay.TraverseMaxDeg, lay.ElevationMinDeg, lay.ElevationMaxDeg));

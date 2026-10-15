@@ -133,6 +133,15 @@ namespace Hrot.Map.Definitions.Behavior
         /// picked from the aircraft and its weapons (Air Operations §7, §9c).</summary>
         public const string AirPlatformStrike = "AirPlatformStrike";
 
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for an artillery battery: the virtual battery commander's fire mission —
+        /// every gun's aim point (the sheaf), its rounds and its fire time (time on target) (Indirect Fire §3.4).</summary>
+        public const string ArtilleryUnitStrike = "ArtilleryUnitStrike";
+
+        /// <summary>⭐ <c>CE-2176</c> IF-2 (FM-1, R-278) — STRIKE for one self-propelled gun: its rounds on the point (Indirect Fire §4).</summary>
+        public const string SelfPropelledArtilleryStrike = "SelfPropelledArtilleryStrike";
+        /// <summary>⭐ <c>CE-2176</c> IF-3 — a soldier observes and adjusts a battery's fire (ObserveFire).</summary>
+        public const string PersonObserveFire = "PersonObserveFire";
+
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";

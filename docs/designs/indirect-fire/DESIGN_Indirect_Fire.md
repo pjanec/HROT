@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-15
-build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2…IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
-current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §5 slices, §6 the demo
+build-state: IF-1 BUILT (backend, 2026-10-15 — §3.6 as built); IF-2 BUILT (behaviors, 2026-10-15 — §3.7); IF-3 BUILT (behaviors, 2026-10-15 — §3.8); laying the gun BUILT (backend, ui handoff P2, 2026-10-15 — §3.9); IF-4 READY-TO-BUILD (behaviors); IF-5 smoke and IF-6 counter-battery are DESIGN
+current-answer: §4 decisions (IF-A…IF-G, FM-1…FM-8), §3.6 IF-1 as built, §3.7 IF-2 as built, §3.8 IF-3 as built, §3.9 laying the gun on the wire (§3.5 is the adjust sequence AS BUILT), §5 slices, §6 the demo
 stale-below: nothing
-known-rot: none
+known-rot: IF-E's `FireMissionAdjustEvent` was never built — every correction is a Strike (§3.8)
 known-conflict: none
 related-designs:
   - docs/DESIGN_Map_3D_Mode.md — §6n draws the tubes, the towed and SP howitzers, their crews, the laid elevation (a default until IF-1 replicates it) and the firing blast (the §5 ui row)
@@ -18,6 +18,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §3 OWNS SquadManeuverRunner / ISquadPlay; the battery is one more play
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — OWNS the roof hit a falling round makes on a vehicle
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — lists CallFireMission (AIR-1, SQD-9), built here
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS what a brain may perceive (anonymous sensor answers, D); §3.8 here adds the burst feed to a Brain-only node and why it stays within that
 -->
 
 # DESIGN — Indirect fire: mortars, artillery and the fire mission
@@ -78,7 +79,9 @@ graph TD
     GUN["gun member: FireAtPoint behaviour<br/>(+fireAt, +arc ★)"]
     FAP["FireAtPointExecutor<br/>WeaponChannel"]
     FS1["FireSolution.For ★"]
-    OBS["ObserveFire ★ (slice 3)<br/>on the observer"]
+    OBS["PersonObserveFire ★<br/>on the observer"]
+    DMS["DetonationMemorySystem ★<br/>RecentDetonations"]
+    DIN["MunitionDetonationIngress<br/>(★ on a Brain-only node)"]
   end
   subgraph SIM["SimHost node (combat)"]
     FPS["FireProcessingSystem<br/>flies the intent's charge + arc ★"]
@@ -91,8 +94,9 @@ graph TD
   BAT --> FS1
   FAP --> FS1
   FAP -- "WeaponFireIntent +Charge +High ★" --> FPS --> BAL
-  OBS -. "FireMissionAdjustEvent ★" .-> RUN
-  OBS -. "Strike (Method=Adjust, Observer=self)" .-> TIR
+  OBS -- "Strike (Adjust · 1 round, then FireForEffect)<br/>AssignTacticalIntentEvent, crosses brain nodes" --> TIR
+  BAL -- "DetonationNotification → MunitionDetonation (DDS)" --> DIN --> DMS
+  DMS -- "bursts since the call, from the battery" --> OBS
   MTB["MortarStrike / TowedArtilleryStrike"]:::dead
   classDef dead fill:#fdd,stroke:#c00,stroke-dasharray: 4 4
 ```
@@ -134,8 +138,12 @@ classDiagram
   class SquadManeuverRunner { existing Tick · OrderFor }
   class MemberOrderKind { existing Hold … Embark · +FireAtPoint ★ }
   class IndirectFireNodes { <<static ★ behaviors>> FireMission · MountOf · Reaches }
-  class ObserveFireBehavior { <<★ slice 3>> }
-  class FireMissionAdjustEvent { <<★ slice 3>> Battery · Mission · Seq · AddM · RightM · Kind }
+  class PersonObserveFireBehavior { <<★ IF-3>> Observe · Correct · Sees · FromBattery }
+  class ObserveFireOrder { <<★ IF-3 order>> Location · Target · Battery · Locating · Rounds · Sheaf · Control · DangerClose }
+  class ObserveFireParams { <<★ IF-3>> Target · Call · Battery · Phase · Step · LastSide · Splitting · CalledAt · SeenSerial }
+  class RecentDetonations { <<★ IF-3 recorded singleton>> Count · Slots · Add · Since }
+  class DetonationMemorySystem { <<★ IF-3, CGF pack>> }
+  class AcousticPerception { existing Error hash }
   class WeaponSystems { existing ControllerOf · Controlled }
 
   FireSolution ..> ThrowArc : Clears (generalised)
@@ -155,8 +163,12 @@ classDiagram
   BatteryFireMissionPlay ..> FireSolution : time of flight per gun
   BatteryFireMissionPlay ..> MemberOrderKind : FireAtPoint
   BatteryFireMissionPlay ..> StrikeOrder
-  ObserveFireBehavior --> FireMissionAdjustEvent
-  BatteryFireMissionPlay ..> FireMissionAdjustEvent
+  PersonObserveFireBehavior ..> ObserveFireOrder : resolves
+  PersonObserveFireBehavior --> ObserveFireParams
+  PersonObserveFireBehavior ..> StrikeOrder : every call
+  PersonObserveFireBehavior ..> RecentDetonations : bursts
+  PersonObserveFireBehavior ..> AcousticPerception : location / judgement error
+  DetonationMemorySystem --> RecentDetonations
 ```
 
 *As built (IF-1, `2026-10-15`): `IndirectArc` gained `Unset` = 0 (today's `ThrowArc` rule — every pre-IF-1 mount), `FireRefusal`, three
@@ -207,24 +219,32 @@ sequenceDiagram
   P-->>Op: rounds complete, end of mission
 ```
 
-### 3.5 Adjust fire (slice 3)
+### 3.5 Adjust fire — AS BUILT (IF-3, `2026-10-15`)
 
 ```mermaid
 sequenceDiagram
-  participant O as observer (ObserveFire)
-  participant P as BatteryFireMissionPlay
+  participant O as observer (PersonObserveFire)
+  participant P as battery (ArtilleryUnitStrike)
   participant A as adjusting gun
-  O->>P: Strike(point + location error, Method Adjust, Observer self)
-  P->>A: FireAtPoint(aim, rounds 1)
-  A-->>O: shot (fired), splash (5 s before impact)
-  O->>O: sees the burst? (sight to the impact point)
-  O->>P: FireMissionAdjustEvent(Add -400) over the target
-  P->>A: FireAtPoint(aim corrected, rounds 1)
-  O->>P: Adjust(Drop 200), then (Add 100)
-  O->>P: Adjust(Kind FireForEffect) within 50 m
-  P->>P: phase FireForEffect: every gun, the sheaf, the rounds
-  O->>P: Adjust(Kind EndOfMission)
+  participant S as SimHost
+  participant M as RecentDetonations (observer's node)
+  O->>O: sees the target? else Failure
+  O->>P: Strike(target + location error, Adjust, Rounds 1, Observer self)
+  P->>A: FireAtPoint(call, rounds 1) — the gun nearest the battery's centre
+  A->>S: WeaponFireIntent
+  S-->>M: DetonationNotification (ingress on a Brain-only node)
+  O->>M: a burst after my call, from the battery's guns, that my eye sees
+  O->>O: judge it (1 % of the distance), split into range and lateral
+  O->>P: Strike(call corrected, Adjust): lateral out at once, range drop 800
+  Note over O,P: add 400, drop 200, drop 100 — the bracket halves once a round has burst on each side
+  O->>P: Strike(call, FireForEffect, the mission's rounds and sheaf) — within 50 m, or split to 50
+  O->>M: the next burst: end of mission (Success)
+  Note over O: no seen round for 180 s: observer lost (Failure) · killed: no call comes
 ```
+
+*What the picture shows that prose hid: there is no adjust event — the observer sends Strikes, the battery runs a fresh one-round mission per
+call, and so the corrections cross brain nodes by the order channel that already exists (`TacticalIntentEgress/Ingress`). The battery never
+learns where its rounds burst; only the observer does.*
 
 ### 3.6 IF-1 as built — backend, `2026-10-15`
 
@@ -244,7 +264,37 @@ weapon-systems fixture: a gunner fires the mortar he mans, nothing before `FireA
 `NedTkbBuilderCombatTests.IF1_*` · `HrotEnvironmentTests.IF1_*` · the LR-1 explosive set and the type-picker golden re-pinned on purpose.
 Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Backend_Indirect_Fire.md).
 
-### 3.7 Laying the gun — the elevation on the wire (ui handoff P2, `2026-10-15`)
+### 3.7 IF-2 as built — behaviors, `2026-10-15`
+
+| piece | where it landed | deviation from §3.2 / §5, and why |
+|---|---|---|
+| Strike fields (IF-D) | `StrikeOrder.Method / Rounds / Sheaf / SheafWidthM / Control / ImpactInS / Observer / DangerClose` + enums `FireMissionMethod`, `FireMissionSheaf`, `FireMissionControl` (`Orders/OrderDtos.cs`) | ⚠ `Munition` not added yet (one round per gun today); ⚠ `Method = Adjust` fires for effect with a warning until IF-3 |
+| the member order (FM-2) | `MemberOrderKind.FireAtPoint = 7`; `MemberOrder.Rounds / FireAt / Mount / Arc`; `SquadManeuverRunner.Fire` publishes the library `FireAtPoint` (a unit member holds) | — |
+| the shared node | `FireAtPointNodeParams.Arc / FireAt` (appended after `Started`) → the executor's params; `FireAtPointParamsJsonDto.fireAt / arc` | — |
+| the battery (FM-1) | `ArtilleryUnitStrike` → `BatteryFireMissionPlay` over `SquadManeuverRunner`, maneuver `BatteryFireMissionManeuver` (kind 14: Firing · Aborted) | ⭐ the plan (each gun's mount, aim, time of flight, rounds at the start) lives in the play's PARAMS (`BatteryFireParams`), made once at Start; every issue gives each gun only the rounds it has LEFT (a resumed mission never fires twice) |
+| sheaf / TOT / danger close (FM-3/4/5) | `IndirectFireNodes.AimPoint`, `BatteryFireMissionPlay.Plan`, `IndirectFireNodes.DangerClose` (= `HiddenTargetThrow.FriendlyInBurst` at 600 m — reused, not rewritten) | an aim point out of reach falls back to the point; open-sheaf width defaults to guns × max(2 × injury radius, 20 m) |
+| the mount | `IndirectFireNodes.MountOf`: the gun's own first mount with an `IndirectArc`, else the first controlled weapon that has one (32 + k) | — |
+| one gun (FM-1) | `SelfPropelledArtilleryStrike` → the library `FireAtPoint` node (danger close or no indirect weapon ⇒ Failure at once) | no sheaf, no TOT across guns — `ImpactInS` only delays its first round |
+| rails | `SquadManeuverTests.CE2176_*` ×4 (TOT, sheafs, out of range + danger close, resumed mission + rounds complete) · `TacticalIntentResolutionSystemTests.CE2176_*` | red-proofed by four mutants (§5 IF-2) |
+
+### 3.8 IF-3 as built — behaviors, `2026-10-15`
+
+| item | where it landed | deviation from §3.2 / §4, and why |
+|---|---|---|
+| **the burst on the brain** | `MunitionDetonationIngressTranslator` now also on a Brain with neither MuscleGround nor Perception (`SimHostAuxiliaryTranslatorPack`, cross-lane — backend's file); `RecentDetonations` (a recorded world singleton of 64 bursts, like CE-3117's `DetonationTraces` — which it is NOT: that one fills only where damage is assessed, keeps 8 and no shooter) + `DetonationMemorySystem` in `CgfLogicPack` (`Fdp.Toolkits/Combat/RecentDetonations.cs`) | 📐 measured first: no brain node saw a detonation (the ingress was MuscleGround / Perception-only), and no brain behaviour reads the bus — brains tick on their own period. On a Brain only the memory and the map's `EffectSpawnSystem` read the event (no damage, heat or sound system runs there), so the CGF map now shows bursts too. ⚠ The sensing design keeps brains to anonymous sensor answers (`DESIGN_Thermal_And_Acoustic_Sensing.md` D); this is narrower than omniscience — the observer still needs its own line of sight (`IWorldQuery.SightBlocked`, eye 1.7 m → burst + 2 m) and judges with an error |
+| **the corrections** | `PersonObserveFireBehavior` sends every call as a `StrikeOrder` to the battery (`Order.Strike`, Superior) | ⛔ **`FireMissionAdjustEvent` NOT built** (IF-E superseded): a Strike already crosses brain nodes and replaces the running mission (FM-8); a new event would need a new topic. IF-E's reason survives — the observer owns the adjust, so killing him stops it |
+| **the order** | `OrderKind.ObserveFire = 5`, `ObserveFireOrder { Location, Target, Battery, Locating, Rounds, Sheaf, SheafWidthM, Control, DangerClose }`; `Person` class → `PersonObserveFire` | — |
+| **the adjusting round** | `BatteryFireParams.Adjust`: one round, converged, when ready, from the able gun nearest the able guns' centre (FM-6); `SelfPropelledArtilleryStrike` fires 1 round | the battery has no adjust *phase*; each call is its own mission |
+| **the bracket** (FM-6) | `PersonObserveFireBehavior.Correct`: lateral removed at once; range first step = the smallest of 50 / 100 / 200 / 400 / 800 that covers the error; halve once a round has burst on each side; fire for effect within 50 m, or when split to 50 | — |
+| **errors** (IF-F, observer half) | the first call off by ≤ 150 m (map) / 10 m (laser); each judged burst off by ≤ 1 % of its distance; both deterministic (`AcousticPerception.Error`, the hash hearing uses) | ⚠ not keyed on the mission id `k` as IF-F said: keyed on (observer, battery) and (observer, burst serial) — replay-exact all the same |
+| **observer lost** | no battery round seen 180 s after a call ⇒ Failure; after fire for effect ⇒ Success (*"end of mission (not observed)"*) | FM-7's *shot* / *splash* messages to the observer are not sent — he waits for what he sees |
+
+Rails (`SquadManeuverTests`): `CE2176_AnAdjustingRound_IsOneRoundFromTheGunNearestTheBatteryCentre`,
+`CE2176_TheObserver_BracketsTheRoundsOntoTheTarget_ThenCallsFireForEffect` (800 → 400 → 200 → 100, then fire for effect),
+`CE2176_TheObserver_IgnoresAStrangersBurst_AndIsLostWhenHeSeesNoRound`, `CE2176_TheBurstMemory_RecordsEachDetonation`; the pack rails
+(`SimHostAuxiliaryTranslatorPackTests`, `CgfLogicPackTests`) moved by one each.
+
+### 3.9 Laying the gun — the elevation on the wire (ui handoff P2, `2026-10-15`)
 
 📐 **Measured:** the weapon muscle already slews a turret part's `TurretPose` — replicated (`dtTurretPose`, W-9) and read by the map —
 from a `WeaponTask` (`WeaponTaskDispatcherSystem`), but **(a)** the mortars and the towed gun have NO turret part (`turret: null`),
@@ -316,7 +366,7 @@ before `FireAt`, nothing before it) · `P2_ASelfPropelledGun_TurnsItsTurret_Befo
 | **IF-B** | **charges**: `AmmoWeaponBallisticsDto.ChargeSpeedsMps` — a speed per charge for this round from this weapon. ⭐ The speeds are *vacuum-equivalent* (`v = √(g · R_max)` per charge) so the RANGE table is right without drag; the time of flight is short of a real one — accepted. `FireSolution.For` picks the lowest charge that reaches on the chosen arc and returns the time of flight from the same closed form | a fixed speed per tube (today: one range for every distance, 45° when short) · drag (a numeric integrator for a number nobody reads) |
 | **IF-C** | **low or high per mount**: `WeaponMountDto.Arc` — `HighOnly` for a mortar, `Both` for a howitzer and a grenade launcher (⭐ `ThrowArc` stays for hand throws); `Auto` takes low when the low arc clears to the point (§3.3), else high, else refused with a reason | choosing by the gun's sight line (the trajectory is not the sight line) · a separate "dead ground" query (the arc's own clearance already answers it) |
 | **IF-D** | **Strike is the fire mission.** `StrikeOrder` gains optional fields: `Method` (FireForEffect · Adjust), `Rounds` (default 3), `Sheaf` (Converged · Parallel · Open) + `SheafWidthM`, `Control` (WhenReady · TimeOnTarget) + `ImpactInS`, `Munition` (0 = the gun's own), `Observer`, `DangerClose`. RTS defaults: fire for effect, when ready, converged, 3 rounds. An aircraft reads only `Location` / `Target` | a separate `FireMission` order (two orders for "hit that place"; the menu would offer both) |
-| **IF-E** | **the observer** (slice 3): `ObserveFire` on any soldier who sees the point — it sends Strike(Method Adjust, Observer self) to a battery and corrections as `FireMissionAdjustEvent`; the battery waits for corrections, and an observer who is killed or loses sight ends the mission (*"observer lost"*). An operator calls fire from the menu: Strike filled from the designations | the battery computing the corrections itself (kill the observer and the adjust goes on — no observer) |
+| **IF-E** | **the observer** (slice 3): `ObserveFire` on any soldier who sees the point — it sends Strike(Method Adjust, Observer self) to a battery and corrections as `FireMissionAdjustEvent` *(⛔ superseded as built: every correction is another Strike — §3.8)*; the battery waits for corrections, and an observer who is killed or loses sight ends the mission (*"observer lost"*). An operator calls fire from the menu: Strike filled from the designations | the battery computing the corrections itself (kill the observer and the adjust goes on — no observer) |
 | **IF-F** | **error, replayable**: gun dispersion on the ARC (azimuth θ from `HitModel.Deflection`, range error as a speed factor on a second ordinal stream; the mount's `DispersionMils`) — fixing the measured loss at `FireProcessingSystem.cs:177`; target-location error on the observer's call from `d(k)` with k = the mission id, scaled by how it was located (laser ~10 m, map/eye ~150 m) | a random generator (none exists; replay would diverge) · perfect first rounds (no reason to adjust) |
 | **IF-G** | **the guns**: 60 mm a `OneMan` weapon system; 81 / 120 mm `TwoMan` (team carry, §7.5) — all class `Mortar` 1.1.*.10, crewed through the Gunner seat; a 105 mm towed howitzer `TowedArtillery` 1.1.*.5, an emplaced weapon system (no towing yet); a 155 mm self-propelled howitzer `SelfPropelledArtillery` 1.1.*.4, a vehicle with a turret and a preset crew (W-I) | howitzers as soldiers with built-in mounts (the `MortarTeam` 2005 shape — nothing to crew, carry or kill separately) |
 | **FM-1** | **a virtual battery commander**: a unit entity of class `ArtilleryUnit` (11.1.*.4) whose roster is its guns (or their gunners); Strike resolves to **`ArtilleryUnitStrike`**, which runs `BatteryFireMissionPlay` over `SquadManeuverRunner`. A Strike to a self-propelled gun resolves to **`SelfPropelledArtilleryStrike`** — the same play with a roster of one | every gun deciding for itself (no sheaf, no time on target) · `MortarStrike` on a manned tube (the weapon has no brain — W-D) |

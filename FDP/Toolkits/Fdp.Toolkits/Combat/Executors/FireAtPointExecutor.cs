@@ -85,7 +85,7 @@ namespace Fdp.Toolkit.Combat.Executors
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
             // ⭐⭐ IF-1 (I1, I3) — a mount that declares an indirect arc gets a FIRE SOLUTION: the lowest charge that reaches, low or high
             //   (FireSolution.For); the intent carries it and the SimHost flies exactly that. No solution ⇒ the action fails with why.
-            //   ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — solved BEFORE the fire-time hold, so the gun is LAID while it waits.
+            //   ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — solved BEFORE the fire-time hold, so the gun is LAID while it waits.
             byte charge = 0, high = 0;
             Laying lay = Laying.NoTurret;
             if (mountDto != null && mountDto.Arc != Fdp.Toolkit.Tkb.Domain.IndirectArc.Unset && world.HasComponent<SimTransform>(shooter))
@@ -160,7 +160,7 @@ namespace Fdp.Toolkit.Combat.Executors
         internal enum Laying : byte { NoTurret, Slewing, OnTarget, OutOfArc }
 
         /// <summary>
-        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.7) — lays turret <see cref="Fdp.Toolkit.Tkb.Domain.WeaponMountDto.TurretIndex"/> of
+        /// ⭐⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — lays turret <see cref="Fdp.Toolkit.Tkb.Domain.WeaponMountDto.TurretIndex"/> of
         /// <paramref name="weapon"/> on <paramref name="point"/>: a <see cref="WeaponTaskMode.Track"/> order carrying the resolved arc and the
         /// round (a NEW epoch only when the point, the arc, the mount or the round changes), read back from the muscle's
         /// <see cref="WeaponTaskStatus"/> under that epoch. The brain names the point; the muscle solves the angle (M24). A mount with no
@@ -281,6 +281,10 @@ namespace Fdp.Toolkit.Combat
         public int Rounds;
         public byte Mount;
         [System.Text.Json.Serialization.JsonIgnore] public uint Started;
+        /// <summary>⭐ Indirect fire IF-2 (FM-2, IF-C) — the arc a fire solution prefers (Auto: low when it clears, else high).</summary>
+        public ArcPreference Arc;
+        /// <summary>⭐ Indirect fire IF-2 (FM-4) — sim time (s) before which nothing leaves (time on target); 0 = now.</summary>
+        public double FireAt;
     }
 
     /// <summary>
@@ -312,6 +316,7 @@ namespace Fdp.Toolkit.Combat
             System.Runtime.CompilerServices.Unsafe.As<byte, Executors.FireAtPointParams>(ref channel.Params[0]) = new Executors.FireAtPointParams
             {
                 Point = p.Point, CooldownSeconds = p.CooldownSeconds, Rounds = p.Rounds, Mount = p.Mount,
+                Arc = p.Arc, FireAt = p.FireAt,   // ⭐ IF-2 (FM-2, FM-4)
             };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;

@@ -54,7 +54,9 @@ namespace Hrot.SimHost.Tests
             var set = Compose(participant, NodeRole.Brain);
 
             Assert.Equal(0, Count<WeaponFireIngressTranslator>(set));
-            Assert.Equal(0, Count<MunitionDetonationIngressTranslator>(set));
+            // ⭐ CE-2176 IF-3 — the bursts DO reach a brain-only node, once: a fire-mission observer judges where its rounds land
+            //   (DESIGN_Indirect_Fire §3.8). Still no heat, no sound, no damage there — none of their systems runs on a Brain.
+            Assert.Equal(1, Count<MunitionDetonationIngressTranslator>(set));
             Assert.Equal(0, Count<AudioTargetDetectedEgressTranslator>(set));
         }
 
