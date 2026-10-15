@@ -15,6 +15,9 @@ The probe behind the measurements in `docs/blueprints/Architect_Question_91_Play
 Not part of any solution; kept so the numbers can be re-measured on a real network (M1).
 
 ```bash
+# the protocol probe (Q91 §4-E2): a per-transfer partition, several receivers, ack-gated window, close after
+#   $EXE xrecv <domain> <nodeId> <partition> <timeoutSec>   (one per receiver; a different partition = bystander)
+#   $EXE xsend <domain> <MB> <chunkKB> <window> <nodeIdsCsv> <partition>
 dotnet build -c Release            # needs the repo's nuget.config (CycloneDDS.NET 0.3.2)
 EXE="dotnet bin/Release/net8.0/DdsBlob.dll"
 # receiver first, then sender, same <domain>, in two processes (or two hosts)

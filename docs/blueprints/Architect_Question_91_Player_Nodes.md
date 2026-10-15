@@ -49,6 +49,7 @@ related-designs:
 | — | *"accepted."* | ✅ §4 approved as written, amended by I and J |
 | **I** | *"time limits should be based on heartbeat and the heartbeat must keep working during long loading operations so timeouts can never break a valid long load or other operation."* | ✅ **R-4001** — §4-B amended, §4-B2 |
 | **J** | *"remote player should expose its file share path for shared data; could be part of the initial greeting message"* · *"alternatively we could invent simple dds based file transfer - a reliable volatile message with big byte blob and relative file name and also message for first checking if the file is not cached already locally"* · *"limited for files that are not GBs in size"* · *"in any way i would like to hide the transfer type behind a provider interface that support non-blocking operation and reports when finished and support progress reporting and error code/message status. measure what is needed."* | ✅ **R-4002** — §4-E2 |
+| **K** | *"Ignore real network measurement, use smaller chunks that should work and make sure the transfer waits until they arrive in full. transfer to only the node who needs (late join) but feel free to bundle nodes that might be waiting at the initialization time so single transfer serves them all at once. After transfer done we can close the writers and readers so no memory wasted."* · *"load preparation can be run in background thread only if it is safe not touching global data"* | §4-B2 rewritten, §4-E2 protocol (measured) |
 
 ## ⭐ THE PROPOSAL IN ONE PAGE
 
@@ -209,16 +210,55 @@ node, not only Players.
 | the knowledge-base and terrain steps do ALL their work synchronously and return `Task.CompletedTask` | `KnowledgeBaseLoadStep.PrepareAsync` (TKB zip `Clear` + parse + register) · `TerrainLoadStep.cs:43-53` |
 | ⇒ **the whole loading prepare runs inline on the frame thread** — the heartbeat stops for as long as the TKB and terrain take to read | ⛔ a load longer than 5 s ejects the node that is doing it |
 
-| option | |
-|---|---|
-| ⭐ **H1 — run the loading prepare truly off the frame thread** (one `await Task.Run(...)` / `Task.Yield` at the start of the chain's loading branch) **and make the knowledge-base step STAGE like terrain already does** — parse into a fresh `TkbDatabase` in `Prepare`, swap it in at `Commit` on the frame thread | ⭐ **LEAN.** The heartbeat stays on the frame loop, so it still proves the node is ALIVE AND TICKING — a frozen frame loop is still caught. ⚠ The KB step cannot simply move: it `Clear()`s and refills the LIVE database that world systems read, so off-thread it would race them; staging is the shape `TerrainResidency` (`Prepare` → `Staged` → `Commit`) already uses |
-| H2 — move the heartbeat to its own thread | ⛔ it would beat while the frame loop is deadlocked, so a hung node would look alive forever and — with no other time limit — hang every round it is in |
-| ⭐ **the rule that falls out, for every handler** | `PrepareAsync` does its long work off the frame thread; `Commit` stays short (it runs on the frame thread and blocks the heartbeat). A long `Commit` is a defect |
+> 🔒 **User, `2026-10-15`:** *"load preparation can be run in background thread only if it is safe not touching global
+> data etc. i guess safer would be to still coordinate from main thread, make the loading operations non-blocking (maybe
+> ticked or asynchronous) but still with clear progress/status report so the coordination in main thread know what is
+> going on and the system is not blocked."* ⇒ ⛔ the earlier lean *"run the whole prepare off the frame thread"* is
+> SUPERSEDED by the rule below.
 
-⚠ **What R-4001 deliberately leaves open:** a node that is alive and ticking but whose operation never finishes (a stuck
-read) holds its round forever, because no timer may break it. ⭐ **Lean: report it, don't time it** — the transfer
-provider's progress (§4-E2) and the existing `ClusterOpType.CancelOperation` give an operator a visible stall and a
-manual cancel. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today.
+#### ⭐ The rule — **the frame thread COORDINATES; only work that touches nothing shared leaves it**
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant S as ClusterSlave (frame thread)
+  participant C as LoadPhaseChain
+  participant W as worker task
+  M->>S: PrepareState(Loading*)
+  S->>C: PrepareAsync (returns a pending task at once)
+  C->>W: KB: parse the zip into a NEW TkbDatabase
+  C->>W: terrain: parse into a NEW Staged
+  loop every frame, nothing blocks
+    S->>S: heartbeat (1 Hz)
+    S->>C: poll status (part, done, total, code, message)
+    S-->>M: NodeOpStatus InProgress + progress (rate-limited)
+  end
+  W-->>C: finished (or failed with code + message)
+  S->>C: Commit on the frame thread
+  C->>C: swap in the new TkbDatabase, commit terrain (short, O(1)-ish)
+  S-->>M: NodeOpStatus Success
+```
+
+*What the picture shows: the frame thread never waits — it polls. The ONLY work handed to a worker builds a brand-new
+object nobody else can see yet; every write into shared state (the TKB database, the world, the road graph) happens in
+`Commit`, on the frame thread. That is what makes the background part safe by construction rather than by care.*
+
+📐 **What already exists, measured:**
+
+| piece | state |
+|---|---|
+| the frame thread polls a not-yet-finished prepare every frame and commits it when done | ✅ BUILT — `ClusterSlave.cs:259-300` (`_pendingPrepare`) |
+| a step split into a pure `Prepare` that builds a private object and a frame-thread `Commit` | ✅ terrain already is — `TerrainResidency.Prepare` returns a `Staged` and touches only its own last-loaded fields; the world is written in `Commit` |
+| the knowledge-base step | 🔴 NOT safe to move — its `Prepare` `Clear()`s and refills the LIVE `TkbDatabase` (`KnowledgeBaseLoadStep.PrepareAsync`). ⇒ ⭐ parse into a NEW database in `Prepare`, swap the reference in `Commit` |
+| the scenario-entities step | ✅ already ticked on the frame thread across frames (genesis through the ECS request queue, readiness checked per frame) — ⛔ it stays there |
+| the steps actually yielding | 🔴 no — both pure steps run synchronously, so today the "async" prepare finishes inline. ⇒ the chain starts the pure work as a task and returns |
+| progress to the orchestrator | 🔴 a node's `NodeOpStatus` is counted as its ACK whatever its code (`ClusterMaster.cs:1809-1829` — `Received++` for every status). ⇒ ⭐ an `InProgress` status must be read as PROGRESS, not an ACK — one change in the master's ACK intake; the existing message and code carry it |
+
+| ⭐ consequences | |
+|---|---|
+| ⭐ `Commit` stays short | it runs on the frame thread; a long `Commit` would stop the heartbeat, which is exactly what R-4001 forbids |
+| ⭐ a step that cannot be split stays on the frame thread **ticked**, reporting progress per tick | the scenario-entities shape |
+| ⚠ **what R-4001 deliberately leaves open** | a node alive and ticking whose step never finishes holds its round forever. ⭐ **Report it, don't time it**: the progress shows a stall; an operator cancels with the existing `ClusterOpType.CancelOperation`. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today |
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 
@@ -337,6 +377,11 @@ node-side receiver; nothing in the cluster protocol changes.*
 | ⭐⭐ **already cached? — the EXISTING rule** | the receiver compares each offered `(relative path, length, mtime)` with its own file — the skip `DESIGN_Asset_Management.md` §1 ② / §8 already applies (`FileManifestEntry` carries `Length` + `LastWriteUtc`). ⛔ No second freshness rule |
 | ⭐ **which transport** | per target node: the share if its greeting advertises one, otherwise DDS. ⭐ Today's co-located nodes keep working by advertising their staging folder as the share — so there are TWO transports, not three |
 | ⭐ **the greeting** | the share path rides `NodeCapabilitiesTopic` as one token (`hrot.transfer.share=<path>`). ⚠ The existing tokens are plain names (`fdp.role.*`, `hrot.asset.needs.*`); a `key=value` token is a new FORM on an existing message |
+| ⭐⭐ **only the nodes that need it** (user K) | every transfer gets its own DDS **partition** (`hrot.xfer.<id>`); the binding takes a partition per writer and per reader (`DdsWriter(participant, topic, qos, partition)`), and only readers in that partition match the writer ⇒ a node not in the transfer receives **nothing** (measured: 0 bytes) |
+| ⭐⭐ **bundle nodes waiting at initialisation** (user K) | several targets join ONE transfer (one partition): one writer, one send, every target receives it. ⭐ A late joiner gets its own transfer |
+| ⭐⭐ **wait until it has fully arrived** (user K) | no reliance on `Write` returning: each receiver ACKs its highest gap-free chunk every 8 chunks; the sender keeps at most a window of chunks beyond the SLOWEST receiver; the transfer is done only when EVERY target has checked length + hash and ACKed done. ⭐ The sender waits until every target's reader is matched (`writer.CurrentStatus.CurrentCount`) — no sleep, no timer (R-4001) |
+| ⭐ **close after** (user K) | the chunk writer and the targets' chunk readers are disposed when the transfer ends ⇒ its partition and its history are gone. Only the small control topics (offer / need / ack) stay open |
+| ⭐ **64 KB chunks** | measured 0 `Write` timeouts in every 64 KB run; a `Timeout` that does happen is back-pressure — wait and resend the same chunk |
 | ⛔ **not for GBs** (user J) | the DDS provider refuses a file above a configured cap with a status code, so a GB asset fails loudly and goes to the share |
 | ⭐ **unified** (R-4000) | every node runs `DdsFileReceiver`; whether a node also has a share is DEPLOYMENT config, not role |
 
@@ -347,18 +392,23 @@ sequenceDiagram
   participant G as StorageGateway
   participant D as DdsFileTransferProvider
   participant R as DdsFileReceiver (node N)
-  G->>D: Start(target N, items)
+  G->>D: Start(targets, items)
   D-->>G: IFileTransfer (returns at once)
-  D->>R: FileOffer (relative path, length, mtime per file)
+  D->>R: FileOffer (partition hrot.xfer.id, targets, path + length + mtime per file)
   R->>R: compare with local files (length + mtime)
+  R->>R: open a chunk reader in the transfer partition
   R-->>D: FileNeed (only the files it lacks)
-  loop each needed file, 64 KB chunks, a bounded number in flight
-    D->>R: FileChunk (transfer id, file index, seq, byte[])
+  D->>D: open the chunk writer, wait until every target reader is matched
+  loop 64 KB chunks, at most a window beyond the slowest target
+    D->>R: FileChunk (file index, seq, byte[])
+    R-->>D: FileAck (highest gap-free seq, every 8 chunks)
   end
-  R->>R: write temp file, check length, restore mtime, rename
-  R-->>D: FileDone (file index, status code, message)
+  R->>R: write temp file, check length + hash, restore mtime, rename
+  R-->>D: FileAck done (status code, message)
+  D->>D: dispose the chunk writer
+  R->>R: dispose the chunk reader
   Note over G: polls Status each frame, reports InProgress with progress
-  D-->>G: Completion (Success, or the first failure)
+  D-->>G: Completion when EVERY target is done
 ```
 
 *What the picture shows: the "already cached" check costs one round trip before any bytes move, and every chunk and
@@ -383,6 +433,21 @@ every run compared SHA-256 at both ends.
 | the same ping **during** 256 MB in 64 KB chunks | | 875 | p50 0.78 ms · p99 2.77 ms · max 11.16 ms | — |
 | the same ping **during** 256 MB in 4 MB chunks (the failing run) | | 864 | p50 0.79 ms · p99 3.34 ms · max 7.05 ms | — |
 
+**The protocol probe** *(per-transfer partition, 3 targets + 1 bystander in another partition, ACK window of 32 × 64 KB,
+writer and readers disposed at the end)*:
+
+| run | 256 MB to 3 targets | every target intact (SHA-256) | `Write` timeouts | bystander received |
+|---|---|---|---|---|
+| 1 | 3.22 s (79 MB/s) | ✅ ✅ ✅ | 0 | **0 bytes** |
+| 2 | 3.15 s (81 MB/s) | ✅ ✅ ✅ | 0 | **0 bytes** |
+| 3 | 3.38 s (76 MB/s) | ✅ ✅ ✅ | 0 | **0 bytes** |
+| 16 KB chunks, window 128 | 6.03 s (42 MB/s) | ✅ ✅ ✅ | 0 | **0 bytes** |
+| one late joiner, 64 MB | 0.50 s (127 MB/s) | ✅ | 0 | — |
+
+Every target's reader was matched 5–6 ms after the writer was created. ⇒ ⭐ one send served three nodes at the speed of
+one, and the partition kept the data off every node that was not in the transfer. ⭐ 64 KB is the chunk to use: 16 KB
+also works but halves the throughput (per-sample overhead).
+
 ⇒ ⭐ On one host the binding moves files of our size intact and fast, and a bulk transfer moves a small reliable topic's
 p99 from ~1.6 ms to ~3 ms and its worst case from ~5 ms to ~11 ms — real, small, and far from *"pollutes the real-time
 data plane"* (`mgmt-1` §12.6).
@@ -394,8 +459,8 @@ valid long operation, not an error.
 
 | ⛔ what this does NOT yet prove — measure before building | |
 |---|---|
-| **M1** | ⛔ a real network between two hosts (and a Windows host): loopback has no packet loss and no NIC limit. ⭐ This is the measurement that can still change the lean |
-| **M2** | ⛔ several receivers: a Volatile topic delivers to EVERY matching reader. ⭐ Lean: `DdsFileReceiver` creates its chunk reader only while an offer addressed to it is open, so already-joined Players do not receive a newcomer's files |
+| ~~**M1**~~ | ⛔ **DROPPED** by the user (K): *"Ignore real network measurement"* |
+| ~~**M2**~~ | ✅ **MEASURED** — a per-transfer partition delivers only to the targets (bystander: 0 bytes in 3 runs) |
 | **M3** | ⛔ the real sizes: no TKB zip or terrain artifact is in the repo (largest scenario JSON: 23 KB). User J says not GBs; a terrain grid of 2 km at 2 m is ~4 MB of heights |
 | **M4** | ⚠ the sender's memory and back-pressure: KeepAll holds every unacknowledged chunk. ⭐ A cap on chunks in flight bounds the memory AND keeps `Write` from blocking into its `Timeout` |
 
@@ -404,7 +469,7 @@ valid long operation, not an error.
 | # | item | new / existing |
 |---|---|---|
 | N1 | `IFileTransferProvider`, `IFileTransfer`, `TransferRequest`, `TransferStatus` (in `Fdp.Toolkits/Orchestration` — no Hrot semantics) | NEW |
-| N2 | `DdsFileTransferProvider` + `DdsFileReceiver` + four topics (`FileOffer`, `FileNeed`, `FileChunk`, `FileDone`) | NEW, on the existing `byte[]` precedent |
+| N2 | `DdsFileTransferProvider` + `DdsFileReceiver` + four topics — three small control topics that stay open (`FileOffer`, `FileNeed`, `FileAck`) and one per-transfer, partitioned chunk topic (`FileChunk`) | NEW, on the existing `byte[]` precedent; the probe in `experiments/dds-file-transfer/Xfer.cs` is its skeleton |
 | N3 | `NodeShareProvider` = today's `File.Copy`, aimed at the advertised share | MOVED, not new |
 | N4 | the push `File.Copy` sites in `StorageGatewayModule` and `AssetTreeSync.cs:126` go through the provider | ⚠ the 11 `File.Copy` sites in the orchestrator mix PUSH (NAS → node) and PULL (node → NAS: save, archive, checkpoint, diagnostics) — classify them first; PULL is out of scope for Players |
 | N5 | the `hrot.transfer.share=<path>` token in each node's greeting | existing message, new token |

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Threading;
@@ -8,6 +9,8 @@ using DdsBlob;
 // usage: send <domain> <totalMB> <chunkKB> | recv <domain> <expectedBytes> <timeoutSec> <chunkKB>
 var mode = args[0]; uint domain = uint.Parse(args[1]);
 using var p = new DdsParticipant(domain);
+if (mode == "xsend") { Xfer.Send(p, int.Parse(args[2]), int.Parse(args[3]), int.Parse(args[4]), args[5].Split(',').Select(int.Parse).ToArray(), args[6]); return; }
+if (mode == "xrecv") { Xfer.Recv(p, int.Parse(args[2]), args[3], int.Parse(args[4])); return; }
 if (mode == "pingsend") { PingRun.Send(p, int.Parse(args[2])); return; }
 if (mode == "pingrecv") { PingRun.Recv(p, int.Parse(args[2])); return; }
 if (mode == "send")
