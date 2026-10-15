@@ -58,6 +58,23 @@ public sealed class RoutingTransferProviderTests
         Assert.Equal(Path.Combine("scenarios", "s1", "scenario.json"), viaDds.Items.Single().RelativePath);
     }
 
+    /// <summary>
+    /// 🔴 measured live: the orchestrator's own node advertises nothing; routed to DDS it never answered and a load parked
+    /// forever. ⭐ A node advertising neither a share nor a DDS receiver goes to the share — today's copy.
+    /// </summary>
+    [Fact]
+    public void A_node_with_no_share_and_no_dds_receiver_goes_to_the_share_never_waits_on_dds()
+    {
+        var share = new Spy();
+        var dds = new Spy();
+        var router = new RoutingTransferProvider(share, dds, hasShare: _ => false, nodeRootSeenByMaster: NodeRoot,
+                                                 canReceiveDds: id => id == 2);
+        router.Start(new TransferRequest(new[] { new TransferTarget(300, NodeRoot(300)), new TransferTarget(2, NodeRoot(2)) },
+            new[] { new TransferItem("/nas/x", "x") }));
+        Assert.Equal(new[] { 300 }, Assert.Single(share.Requests).Targets.Select(t => t.NodeId));
+        Assert.Equal(new[] { 2 }, Assert.Single(dds.Requests).Targets.Select(t => t.NodeId));
+    }
+
     [Fact]
     public void With_no_dds_transport_every_node_goes_to_the_share()
     {
