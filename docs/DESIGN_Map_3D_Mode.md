@@ -14,6 +14,7 @@ known-rot: none open — ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the descent (rope, canopy) the map draws (U-1); ⚠ its D-8 keeps §6m C-4 only for a hop ≤ 3 m and SIMULATES rope / parachute descents
   - designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS the kits' GEOMETRY half once moved sim-side (HL-1: the hit lands where the part is drawn) and HitMarks, the real hit points §6p asked for
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS the mortars and guns (IF-G) and the fire mission; §6n here draws the tubes, the howitzers, their laid elevation and blast
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — OWNS the drone (type 403, its flight body); §6n here draws it as a quadcopter
