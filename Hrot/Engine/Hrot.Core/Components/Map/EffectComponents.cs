@@ -33,6 +33,30 @@ public struct EffectAnchor
     public EffectAnchorKind Kind;
 }
 
+/// <summary>
+/// ⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9 DV-3) — an effect that MOVES: a decoy flare or a chaff cloud follows the path its release
+/// fixed — <c>Fdp.Toolkit.Combat.DecoyFlight.At(Origin, Velocity, SinkMps, now − FiredAt)</c>, the one function the SimHost's decoy uses
+/// too, so the drawn flare is where the seeker sees it. The spawn system writes the effect's <c>SimTransform</c> from it every frame.
+/// <para>⭐ RECORDED, never saved (VE-R): a replay replays the recorded positions.</para>
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(GlobalComponentIds.EffectFlight)]
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoPreview)]
+public struct EffectFlight
+{
+    /// <summary>Where it left (the aircraft at the release), world metres.</summary>
+    public Vector3 Origin;
+
+    /// <summary>The velocity it left with (the aircraft's), m/s.</summary>
+    public Vector3 Velocity;
+
+    /// <summary>How fast it sinks, m/s (the expendable's <c>ExpendableDto.SinkMps</c>).</summary>
+    public float SinkMps;
+
+    /// <summary>The synced sim time (s) it was released.</summary>
+    public double FiredAt;
+}
+
 /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — where an attached effect sits on its entity, found every frame.</summary>
 public enum EffectAnchorKind : byte
 {

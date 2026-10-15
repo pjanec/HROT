@@ -20,6 +20,13 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ W3 (VE-P) — a smoke column: puffs rising, growing and drifting off a wreck, fading out.</summary>
         Smoke = 5,
+
+        /// <summary>⭐ CE-1115 (Hrot docs/DESIGN_Visual_Effects.md §9) — a burning decoy flare: a bright star falling along its path, a short
+        /// smoke trail behind it.</summary>
+        Flare = 6,
+
+        /// <summary>⭐ CE-1115 (§9) — a chaff cloud: a grey bloom growing and thinning as it sinks.</summary>
+        Chaff = 7,
     }
 
     /// <summary>
@@ -64,5 +71,9 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>The streak along its flight; 0 ⇒ no tracer.</summary>
         public long Tracer { get; init; }
+
+        /// <summary>⭐ CE-1115 (Hrot docs/DESIGN_Visual_Effects.md §9 DV-1) — what an EXPENDABLE's release draws (a flare, a chaff cloud),
+        /// moving along its decoy path; 0 ⇒ nothing.</summary>
+        public long Release { get; init; }
     }
 }

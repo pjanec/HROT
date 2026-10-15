@@ -1677,7 +1677,7 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 | **N-2 gunners** (CE-1088) | a man in a weapon's `Gunner` seat is drawn at the kind's operator spot (behind a tripod HMG / ATGM, beside a mortar, left of a howitzer's breech), turned with the weapon's traverse, kneeling or standing with his hands on it, rifle on his back; a seat that declares a place wins. `SeatPose` gains `Stand` (a pickup's pintle gunner) and `Kneel` |
 | **N-3 carried** (CE-1085) | the classifier fix; a carried stowed weapon is drawn slung across the back |
 | **N-4 launcher in hands** (CE-1090) | a soldier AIMED within 4 s of firing a launcher (an ATGM mount, or a carried ATGM / Launcher weapon) holds the tube on his shoulder instead of the rifle (the carried weapon is not drawn twice); the flash leaves the tube's front; a recoilless launcher throws a BACKBLAST cone behind it; a mortar / gun throws a ground BLAST ring |
-| **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction). ✅ `2026-10-15` backend P2 (`b6ad14c83`): mortars 609–611 and the towed 612 have a laying turret, and every indirect gun is LAID (W-9 `TurretPose`) before it fires — `LaidPose` already reads the turret pose first, so a laid tube shows the mission's azimuth and elevation on every node before its first round; the defaults are only for a gun nobody has laid. SP howitzer: a tank hull, a big boxy turret, a long barrel |
+| **N-5 indirect** (CE-1089) | mortar tube at 60°; towed / SP howitzer at 25°; after a shot, on the node running combat, the newest round fired by that gun sets the elevation for 60 s (its launch direction). ✅ `2026-10-15` backend P2 (`b6ad14c83`): mortars 609–611 and the towed 612 have a laying turret, and every indirect gun is LAID (W-9 `TurretPose`) before it fires — `LaidPose` already reads the turret pose first, so a laid tube shows the mission's azimuth and elevation on every node before its first round; the defaults are only for a gun nobody has laid. ⭐ **CE-1114 (`2026-10-15`, user: "the barrel elevation needs to be read and used")** — ⛔ it read the elevation only when NON-ZERO and otherwise guessed it from the gun's newest round on the combat node (60 s): a published level gun (a ZU-23 on the horizon) drew at the default, and the guess existed only where combat runs. Now `ArticulationPose.Published` (set by `TurretPoseSource`) ⇒ the replicated pose is used as is, azimuth and elevation, a 0 included; only a gun with NO turret part gets the default. The round guess (`UpdateLaid`, `RememberLaid`, `LaidSeconds`) is retired — SUPERSEDED by W-9's replicated pose, as this row foresaw. Rail `Map3DTests.CE1114_*`. SP howitzer: a tank hull, a big boxy turret, a long barrel |
 | **N-6 trails** (CE-1091) | the smoke trail follows the round's REMEMBERED path (sim time, every host), so a top-attack climb and dive shows; a shell or mortar bomb draws a faint thin streak of its last 2 s |
 | **N-7 drone** (CE-1086) | family `Drone` = a `Uav` that flies as a `Rotorcraft`: an X frame, four motor pods, four rotors spinning; sized 2·radius × 2·radius × height from `Gen.Flight` |
 | **N-8 attack plane** (CE-1092) | family `AttackJet` (class `AttackAircraft`): straight wings, two engines on the rear fuselage, twin fins, the nose gun, pylons; a bomb per round left on its `Bomb` mount (`WeaponAmmo`) |
@@ -1706,7 +1706,7 @@ replay (`IsReplayActive`), so in a replay the launcher stays slung and no backbl
 | a carried weapon is drawn in a SECOND pass, on its bearer's figure frame as drawn (`OnBack`: its length from the right hip to the left shoulder) | the bearer may be drawn after the weapon in the query order |
 | the launcher-on-the-shoulder rule: AIMED and a launcher shot (an `Atgm` mount, or one firing a `Rocket` / `Missile` round — the RPG) by him or by the launcher he carries within **4 s** | ✅ `2026-10-15` CE-1107: ALSO the replicated `WeaponPosture.ActiveMount` (backend P4) — a launcher SELECTED (his own mount, or a carried launcher by its controlled index 32 + k) is shouldered while he aims, before the first shot, on every node |
 | the shouldered tube's front is the weapon tip (the muzzle flash), and also the CARRIED weapon's tip — its shot is the weapon entity's (WS-3) | the flash would otherwise leave the weapon at his feet |
-| a laid gun: its turret pose where driven, else the elevation its newest round left at (seen on this node, 60 s), else **60°** mortar / **25°** howitzer | N-5 |
+| a laid gun: ⭐ CE-1114 — its turret part's replicated pose, as published (a level gun included); with no turret part, **60°** mortar / **25°** howitzer. ⛔ SUPERSEDED: *"else the elevation its newest round left at (seen on this node, 60 s)"* | N-5 |
 | ⚠ the A-10's bombs read the `WeaponAmmo` mirror (CE-1079) — present only where a brain mirrors it; elsewhere the full load | an editor's placed plane shows four |
 | the rotor: spools over **3 s**; runs while airborne or for **20 s** after it last moved (> 2 cm a frame); a helicopter first seen airborne is at speed. The tail rotor: two crossed blades at **4.7×** the main rotor; the tail-rotor DISC is gone (a spinning disc shows nothing) | ⚠ the old S4 rail's "parked ⇒ rotor 0 at once" moved to "parked ⇒ it runs on, spools down, stands" |
 | ⭐ CE-2172 fixed in ALL THREE route gizmos (`RouteWaypointGizmo`, `RouteGizmo`, `AuthoredRouteGizmo`), not only the one the row named — the same Z-as-north read; one helper `RouteGizmo.PointOf` (a flyer's waypoint at ground + `HeightAgl`, else its own Z — 0 drapes) | three copies of one rule had one bug; now one rule |
@@ -2196,6 +2196,78 @@ only his legs and arms showed, below his gun. His seat moved into the door like 
 of him with its pivot at his chest (`BdcTkbCatalog.DoorSeats`; a cross-lane edit to Air Ops F4's catalogue data). Rail `Map3DTests.CE1106_*`.
 
 | ![](assets/map-3d/stream-1-side.png) | ![](assets/map-3d/stream-2-behind.png) | ![](assets/map-3d/stream-3-door-gun.png) |
+|---|---|---|
+
+### 6v. CE-1112 / CE-1113 — air defence drawn: the MANPADS, the ZU-23-2, their gunners and technical; no scorch under an air burst — DESIGN `2026-10-15` (ui)
+
+🔒 **User, `2026-10-15`:** *"pls implement the visualization of new weapons ammos vehicles and effects"* — backend's air defence (CE-2187,
+CE-2190; Weapon Systems §5c) added launchers 613 / 614 (DIS 1.1.*.50.6), the ZU-23-2 615 (1.1.*.50.7), gunners 202 / 203 and technical 110.
+
+**INVENTORY** (`git diff e5b108c89..HEAD` over the TKB catalogues; `search_graph` / grep for the drawing seams):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a weapon system's look is chosen by its CLASS chain | ✅ `WeaponKits.KindOf` walks `EntityClassTable.Chain` (`WeaponKits.cs:37`) | §6n N-1 |
+| 50.6 / 50.7 have no class row ⇒ they draw as an HMG | ✅ `EntityClassTable.cs:140-145` stops at 50.5; `KindOf` falls back to `Hmg` | — |
+| …so a Stinger gunner never shoulders it, and wears an HMG on his back | ✅ `EntityBodyLayer3D.Shouldering` (`:659`, `:667`) and `BlastOf` key on `Launcher or Atgm` | §6n N-3, N-4 |
+| the missiles and 23 mm rounds already have looks (smoke trail, tracer) and the ZU-23 streams | ✅ `MunitionTkbCatalog` visuals 6030–6033 (backend); `FireStreams.IsAutomatic` takes `MachineGun` | §6u B-1 |
+| a proximity burst has no target ⇒ the hit draws a ground decal under it, however high | ✅ `BallisticsSystem.cs:237` `Target = Entity.Null`; `EffectSystems.cs:107-111` | VE-M |
+| a pickup's station puts the weapon's ORIGIN at 1.6 m (an HMG pivot at 1.9 m) and its gunner kneels behind | ✅ `BdcTkbCatalog.Pickup` (`PintleZ`, the CE-1108 seat) | §6n CE-1108 |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityClassTable { <<existing, grows>> + ManpadsWeaponSystem 1.1.*.50.6 · + AaGunWeaponSystem 1.1.*.50.7 }
+    class WeaponKind { <<existing, grows>> Hmg · Minigun · Atgm · Launcher · Sentry · Mortar · TowedGun · + Manpads · + AaGun }
+    class WeaponKits { <<existing, grows>> KindOf · Kit · GunnerSpot (+ pose) · + IsShoulderFired(kind) · BlastOf }
+    class EntityBodyLayer3D { <<existing>> GunnerFrame (+ pose: a seated gunner) · Shouldering }
+    class EffectSpawnSystem { <<existing>> + a decal only for a burst near the ground }
+    WeaponKits ..> EntityClassTable
+    WeaponKits --> WeaponKind
+    EntityBodyLayer3D ..> WeaponKits
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant K as WeaponKits
+    participant C as EntityClassTable
+    L->>K: TypeOf(weapon) for a 615
+    K->>C: Chain(1.1.*.50.7)
+    C-->>K: WeaponSystem, AaGunWeaponSystem
+    K-->>L: AaGun: the ZU-23 kit (stowed on its wheels / deployed on its jacks)
+    L->>K: GunnerSpot(AaGun)
+    K-->>L: the left seat, SITTING
+    L->>L: the gunner drawn seated on it, turning with its traverse
+```
+
+*Caption:* nothing new reaches the wire — the class row alone routes every existing drawing (kit, gunner, carry, shoulder, backblast) to the
+new kinds.
+
+| decision | rule |
+|---|---|
+| **AD-V1 classes** | `ManpadsWeaponSystem` (1.1.*.50.6) and `AaGunWeaponSystem` (1.1.*.50.7) in the class table; `KindOf` maps them to `Manpads` / `AaGun` |
+| **AD-V2 the MANPADS** | a slim 1.5 m tube with a grip stock, a battery unit under the front and a folded antenna — the same lying kit stowed and deployed, like a Launcher; shouldered and back-blasting like one (`IsShoulderFired`: Launcher, Atgm, Manpads — one helper for the three copies) |
+| **AD-V3 the ZU-23-2** | two 2.6 m barrels with flash hiders above a cradle with an ammunition box each side, a turret ring, two seats; STOWED on its two wheels with the barrels level forward, DEPLOYED lowered onto three jacks with the wheels lifted — the same 17 parts, so a deploy blends |
+| **AD-V4 a seated gunner** | `GunnerSpot` returns a POSE (kneel / stand / sit); the ZU-23's gunner SITS on its left seat (hips at the seat), turning with its traverse |
+| **AD-V5 technical 110** | the bed holds the ZU-23 ON its floor (its origin at the bed, not at the HMG pintle height) and its gunner sits on the gun's seat — a cross-lane edit to backend's `Pickup` preset data (as CE-1108) |
+| **AD-V6 no scorch in the air** | a hit with no body leaves a decal only when it burst within 2 m of the ground |
+
+**Rejected — one line each:** *a ZU-23 per-type override in the drawing* — the class chain already routes every weapon (N-1); *the MANPADS as
+a plain Launcher* — a 1.5 m Stinger with a grip stock is not a 1.1 m Javelin tube, and the class row is needed anyway for the picker folder;
+*skip decals for SAM ammo only* — any burst in the air (a bomb's airburst later) has the same problem.
+
+**As-built `2026-10-15`** — matches the diagrams, plus one finding from the frame. `EntityClassTable` rows 50.6 / 50.7; `WeaponKind.Manpads` /
+`AaGun` with their kits (`WeaponKits.Manpads`, `AaGun`: 17 parts, stowed on its wheels / deployed on its jacks); `GunnerSpot` returns a
+`SeatPose` and `EntityBodyLayer3D`'s manning branch draws `Sit` as `BlockFigure.Seated` with the hips at the spot (its `GunnerFrame` gives the
+pose); `WeaponKits.IsShoulderFired` replaces the three `Launcher or Atgm` copies (`Shouldering` ×2, `BlastOf`). `EffectSpawnSystem` scorches
+only for a burst within `DecalMaxBurstHeight` (2 m). Technical 110: `BdcTkbCatalog.Pickup` gained `stationZ` and `gunnerSeat` (defaults
+unchanged for 104–109), and 110 passes the bed floor (`BedFloorZ` 0.85 m) and a `Sit` seat on the gun's left seat.
+⭐ **Found by the frame:** on the technical the deployed gun's lifted wheels stood out of the bed ⇒ **AD-V5b** `WeaponKits.Mounted`: a weapon
+embarked in a vehicle's station draws without its ground carriage (the ZU-23's jacks and wheels; every other kind keeps all parts). Rails
+`Map3DTests.CE1112_*`, the class rows folded into `CE1087_*`, `EffectTests.CE1113_*`; frame rail `Map3DFrameRail.CE1112_V`:
+
+| ![](assets/map-3d/ad-1-zu23-stinger.png) | ![](assets/map-3d/ad-2-manpads-gunners.png) | ![](assets/map-3d/ad-3-technical.png) |
 |---|---|---|
 
 ## 7. NOT VERIFIED — say so before it is built on

@@ -40,6 +40,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>The most decals alive at once (VE-H).</summary>
     public const int DecalCap = 256;
 
+    /// <summary>⭐ CE-1113 (§6v AD-V6) — the highest a burst may be above the ground and still scorch it (m).</summary>
+    public const float DecalMaxBurstHeight = 2f;
+
     private readonly List<(double BornAt, Entity Entity)> _decals = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
@@ -59,14 +62,19 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         var cmd = view.GetCommandBuffer();
         double now = SimClock.Of(world).TotalTime;
         Housekeep(world, cmd, tkb);
+        MoveDecoys(world, now);   // ⭐ CE-1115
 
         if (world.Bus.IsRegistered<WeaponFireNotification>())
         {
             foreach (ref readonly var fire in view.ReadEvents<WeaponFireNotification>())
             {
+                // ⭐ CE-1115 (§9 DV-1) — a flare / chaff release: the decoy, moving along its path; no flash, no blast, no shot
+                if (Munitions.IsExpendable(tkb, fire.AmmoGuid)) { SpawnRelease(cmd, tkb, fire, now); continue; }
                 if (fire.Shooter == Entity.Null || !view.IsAlive(fire.Shooter) || !view.HasComponent<SimTransform>(fire.Shooter)) continue;
                 var mount = CombatTkb.MountOf(world, fire.Shooter, fire.WeaponIndex);
-                var set = EffectTkbCatalog.EffectsFor(tkb, mount != null ? unchecked((long)mount.AmmoGuid) : 0L, mount?.DamagePerHit ?? 0f);
+                // ⭐ CE-1115 (§9 DV-5, BS-1 §5.4b F3) — the round actually FIRED (the fire carries it); the mount's only from an older sender
+                long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+                var set = EffectTkbCatalog.EffectsFor(tkb, fired, mount?.DamagePerHit ?? 0f);
                 var at = view.GetComponentRO<SimTransform>(fire.Shooter).Position;
                 var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
                     ? view.GetComponentRO<SimTransform>(fire.Target).Position : Vector3.Zero;
@@ -108,11 +116,55 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 if (!hitABody)
                 {
                     float gz = ground?.GroundHeightAt(point.X, point.Y) ?? 0f;
-                    Spawn(cmd, tkb, set.Decal, new Vector3(point.X, point.Y, gz), null, now);
+                    // ⭐ CE-1113 (DESIGN_Map_3D_Mode.md §6v AD-V6) — a burst in the AIR (a SAM's proximity fuze) scorches nothing below it
+                    if (point.Z - gz <= DecalMaxBurstHeight) Spawn(cmd, tkb, set.Decal, new Vector3(point.X, point.Y, gz), null, now);
                 }
             }
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-1115 (§9 DV-1 … DV-3) — a release's decoy: its munition's <c>Release</c> effect, born at the RELEASE (<c>FiredAt</c>) and living
+    /// the expendable's <c>LifeSeconds</c> (a late viewer draws it at its true age, or not at all once burnt out), placed by
+    /// <see cref="DecoyFlight.At"/> and moved by <see cref="MoveDecoys"/>.
+    /// </summary>
+    private void SpawnRelease(IEntityCommandBuffer cmd, ITkbDatabase? tkb, in WeaponFireNotification fire, double now)
+    {
+        long type = EffectTkbCatalog.EffectsFor(tkb, fire.AmmoGuid, 0f).Release;
+        if (type == 0 || EffectTkbCatalog.VisualOf(tkb, type) is null || Munitions.ExpendableOf(tkb, fire.AmmoGuid) is not { } exp) return;
+        double bornAt = fire.FiredAt > 0 ? fire.FiredAt : now;
+        if (now - bornAt >= exp.LifeSeconds) return;
+        for (int i = 0; i < Math.Max(1, fire.Quantity); i++)
+        {
+            var e = cmd.CreateEntity();
+            cmd.AddComponent(e, new SimTransform { Position = DecoyFlight.At(fire.Origin, fire.Velocity, exp.SinkMps, (float)(now - bornAt)), Rotation = Quaternion.Identity });
+            cmd.AddComponent(e, new TkbIdentity { TkbType = type });
+            cmd.AddComponent(e, Lifespan.Starting(bornAt, exp.LifeSeconds));
+            cmd.AddComponent(e, new EffectFlight { Origin = fire.Origin, Velocity = fire.Velocity, SinkMps = exp.SinkMps, FiredAt = bornAt });
+            cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved
+            Spawned++;
+        }
+    }
+
+    /// <summary>⭐ CE-1115 (§9 DV-3) — every moving effect to where its path puts it now (the SimHost's decoy is at the same point).</summary>
+    private void MoveDecoys(EntityRepository world, double now)
+    {
+        if (!world.IsComponentTypeRegistered<EffectFlight>()) return;
+        if (!ReferenceEquals(world, _flightWorld))
+        {
+            _flightWorld = world;
+            _flights = world.Query().With<EffectFlight>().With<SimTransform>().Build();
+        }
+        foreach (var e in _flights!)
+        {
+            var f = world.GetComponentRO<EffectFlight>(e);
+            ref var t = ref world.GetComponentRW<SimTransform>(e);
+            t.Position = DecoyFlight.At(f.Origin, f.Velocity, f.SinkMps, (float)(now - f.FiredAt));
+        }
+    }
+
+    private EntityRepository? _flightWorld;
+    private EntityQuery? _flights;
 
     /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)

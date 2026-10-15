@@ -175,14 +175,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 float deployed = DeploymentOf(world, e, simTime);
                 var kit = WeaponKits.Blend(look.Weapon, deployed);
                 (parts, pivots) = (kit.Parts, kit.Pivots);
-                if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon), simTime);
+                // ⭐ CE-1112 (§6v AD-V5) — in a vehicle's station (a technical's bed) it stands on the vehicle: no jacks, no wheels
+                if (world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                    && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) parts = WeaponKits.Mounted(look.Weapon, parts);
+                if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon));
             }
             else
             {
                 var kit = ShapeKits.For(look.Family);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
-                if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation, simTime);   // ⭐ CE-1089 (N-5)
+                if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
                 if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
                     parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
             }
@@ -280,7 +283,6 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
         DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
         _teamPartner.Clear();
-        UpdateLaid(world, simTime);
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
         _down.EndFrame(_drawn);
@@ -474,8 +476,16 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
             }
             case CarriageKind.Manning when world.HasComponent<SimTransform>(carriage.Holder)
-                                          && GunnerFrame(world, carriage, size, simTime, out var frame, out bool kneel):
+                                          && GunnerFrame(world, carriage, size, simTime, out var frame, out var pose):
                 body = frame;
+                // ⭐ CE-1112 (§6v AD-V4) — a gun with seats (the ZU-23): he SITS on it, his hips at the seat
+                if (pose is Fdp.Toolkit.Tkb.Domain.SeatPose.Sit or Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut)
+                {
+                    _drops.Riding(e, body.Translation.Z, simTime);
+                    _fall.Alive(e, StanceId.Crouched, simTime);
+                    return BlockFigure.Seated(pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
+                }
+                bool kneel = pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
                 _fall.Alive(e, kneel ? StanceId.Crouched : StanceId.Standing, simTime);
                 return BlockFigure.AtWeapon(kneel, soldier);
             case CarriageKind.Downed:
@@ -527,11 +537,6 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>⭐ CE-1104 (§6t) — men drawn on a stretcher, and two-man weapons drawn between their pair, by the last frame (rails).</summary>
     public int LittersDrawn { get; private set; }
     public int TeamLoadsDrawn { get; private set; }
-    private readonly Dictionary<Entity, (float Elevation, double At)> _laid = new();
-    private readonly HashSet<Entity> _roundsSeen = new();
-    private readonly HashSet<Entity> _roundsNow = new();
-    private EntityRepository? _roundsWorld;
-    private EntityQuery? _rounds;
 
     /// <summary>⭐ CE-1085 — weapons drawn on a carrier's back by the last frame (rails).</summary>
     public int CarriedDrawn { get; private set; }
@@ -573,9 +578,6 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>⭐ CE-1089 (N-5) — a self-propelled howitzer's barrel when nothing says better (radians, 25°).</summary>
     public static readonly float SpGunElevation = WeaponKits.DefaultElevation(WeaponKind.TowedGun);
 
-    /// <summary>⭐ CE-1089 (N-5) — how long a gun keeps the elevation its last round left at (s).</summary>
-    public const double LaidSeconds = 60.0;
-
     /// <summary>The man carrying <paramref name="weapon"/> (in his carry station), or null when it is not carried by a person.</summary>
     private static Entity? CarrierOf(EntityRepository world, Entity weapon)
     {
@@ -602,44 +604,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     }
 
     /// <summary>
-    /// ⭐ CE-1089 (N-5) — the turret and gun pose of a gun that fires INDIRECT: its own turret pose where it is driven; else level guns
-    /// are laid at the elevation of the last round it fired (seen on this node within <see cref="LaidSeconds"/>), else at
-    /// <paramref name="fallback"/>. ⏭ Backend's IF-1 replicated elevation will replace the fallback on every host.
+    /// ⭐ CE-1089 (N-5) / ⭐ CE-1114 (§6n) — the turret and gun pose of a weapon system or a self-propelled gun: its turret part's
+    /// REPLICATED pose whenever it has one — azimuth AND elevation, as published (W-9; backend P2 lays mortars and guns by it), a level
+    /// gun included; only a gun with no turret part is drawn at <paramref name="fallback"/> (60° mortar, 25° howitzer).
+    /// ⛔ HISTORY: the elevation was read only when it was non-zero, else guessed from the gun's newest round on the node running combat
+    /// (a stop-gap until the pose crossed the wire) — retired: a published 0 was drawn as the default and a viewer never had the guess.
     /// </summary>
-    private ArticulationPose LaidPose(EntityRepository world, Entity gun, float fallback, double now)
+    internal ArticulationPose LaidPose(EntityRepository world, Entity gun, float fallback)
     {
         var pose = _poseOf != null ? _poseOf(world, gun) : ArticulationPose.Neutral;
-        if (MathF.Abs(pose.GunElevation) > 1e-3f) return pose;
-        float elevation = _laid.TryGetValue(gun, out var laid) && now >= laid.At && now - laid.At <= LaidSeconds ? laid.Elevation : fallback;
-        return pose with { GunElevation = elevation };
+        return pose.Published ? pose : pose with { GunElevation = fallback };
     }
-
-    /// <summary>⭐ CE-1089 — remembers the elevation each gun's NEWEST round left at (where combat runs, a round knows its shooter).</summary>
-    private void UpdateLaid(EntityRepository world, double now)
-    {
-        if (!world.IsComponentTypeRegistered<BallisticProjectile>() || !world.IsComponentTypeRegistered<SimVelocity>()) return;
-        if (!ReferenceEquals(world, _roundsWorld))
-        {
-            _roundsWorld = world;
-            _rounds = world.Query().With<BallisticProjectile>().With<SimVelocity>().Build();
-            _roundsSeen.Clear();
-        }
-        _roundsNow.Clear();
-        foreach (var r in _rounds!)
-        {
-            _roundsNow.Add(r);
-            if (!_roundsSeen.Add(r)) continue;
-            var shooter = world.GetComponentRO<BallisticProjectile>(r).Shooter;
-            var v = world.GetComponentRO<SimVelocity>(r).Linear;
-            float flat = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
-            if (shooter.IsNull || v.LengthSquared() < 1f) continue;
-            _laid[shooter] = (MathF.Atan2(v.Z, flat), now);
-        }
-        _roundsSeen.IntersectWith(_roundsNow);
-    }
-
-    /// <summary>⭐ CE-1089 — a gun's laid elevation as its last round left (the rails' seam on a host with no combat).</summary>
-    internal void RememberLaid(Entity gun, float elevation, double at) => _laid[gun] = (elevation, at);
 
     /// <summary>
     /// ⭐ CE-1090 (N-4) — does <paramref name="e"/> hold a launcher on his shoulder now: ⭐ CE-1107 — the weapon he has SELECTED is a
@@ -656,7 +631,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             if (Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(active))
             {
                 var held = Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(world, e, active);
-                if (!held.IsNull && WeaponKits.TypeOf(world, tkb, held).Kind is WeaponKind.Launcher or WeaponKind.Atgm) return true;
+                if (!held.IsNull && WeaponKits.IsShoulderFired(WeaponKits.TypeOf(world, tkb, held).Kind)) return true;
             }
             else if (WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, active))) return true;
         }
@@ -664,16 +639,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (shots.FiredWithin(e, now, WeaponKits.ShoulderSeconds, out int mount)
             && WeaponKits.IsLauncher(tkb, Fdp.Toolkit.Combat.CombatTkb.MountOf(world, e, mount))) return true;
         return !carriage.Load.IsNull && shots.FiredWithin(carriage.Load, now, WeaponKits.ShoulderSeconds, out _)
-               && WeaponKits.TypeOf(world, tkb, carriage.Load).Kind is WeaponKind.Launcher or WeaponKind.Atgm;
+               && WeaponKits.IsShoulderFired(WeaponKits.TypeOf(world, tkb, carriage.Load).Kind);
     }
 
     /// <summary>
     /// ⭐ CE-1088 (N-2) — where a man in a weapon's own seat is drawn: at its seat's place when the seat declares one, else at the weapon
     /// kind's gunner spot (scaled to the weapon's size), turned with its traverse about its pivot. False for a weapon nobody mans on foot.
     /// </summary>
-    internal bool GunnerFrame(EntityRepository world, in FigureCarriage carriage, Vector3 manSize, double now, out Matrix4x4 frame, out bool kneel)
+    internal bool GunnerFrame(EntityRepository world, in FigureCarriage carriage, Vector3 manSize, double now, out Matrix4x4 frame,
+                              out Fdp.Toolkit.Tkb.Domain.SeatPose pose)
     {
-        frame = default; kneel = false;
+        frame = default; pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Stand;
         var weapon = carriage.Holder;
         if (!world.HasComponent<TkbIdentity>(weapon)) return false;
         var look = LookOf(world.GetComponentRO<TkbIdentity>(weapon).TkbType, _tkb());
@@ -682,7 +658,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         if (carriage.Seat is { HasPlace: true } seat)
         {
             frame = Carriage.InSeat(weaponBody, seat);
-            kneel = seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel;
+            pose = seat.Pose;
             return true;
         }
         if (look.Family != VisualFamily.WeaponSystem || WeaponKits.GunnerSpot(look.Weapon) is not { } spot) return false;
@@ -693,7 +669,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         frame = Matrix4x4.CreateRotationZ(spot.Facing) * Matrix4x4.CreateTranslation(spot.At * scale)
                 * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot)
                 * weaponBody;
-        kneel = spot.Kneel;
+        pose = spot.Pose;
         return true;
     }
 

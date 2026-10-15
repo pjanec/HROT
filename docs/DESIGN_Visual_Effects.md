@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-11
+updated: 2026-10-15 (§9 decoys — flares and chaff, CE-1115)
 current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
@@ -779,4 +779,76 @@ network lanes as the owner column leaned.
 
 ⚠ **Known limits, not built:** a viewer knows no fuze (LR-C — a lying grenade is drawn lying, not counting); a `WorldPos` sample that
 arrives AFTER the dispose makes a ghost the 60 s ghost timeout removes; the send rate is unmeasured for an MG burst (LR-D).
+
+
+## 9. Decoys — flares and chaff drawn from the fire *(CE-1115, ui, `2026-10-15`; build-state: BUILT)*
+
+🔒 **User, `2026-10-15`:** *"Once they push, you pls add visual effect"* · backend's split: *"Ui lane will only add rendering the effect, you do
+all the rest"* ([BS-1 §5.4c](designs/brain-split/BS-1-DESIGN.md), R-1002). The interface is §5.4c's table — this section is only its drawing.
+
+**INVENTORY** (backend `8a5f327d0` merged; grep / `search_graph` over `Countermeasures.cs`, `EffectSystems.cs`, `EffectTkbCatalog.cs`):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a release is an ordinary `WeaponFireNotification` with an expendable `AmmoGuid` (6034 flare / 6035 chaff), `Origin`, `Velocity`, `Quantity` 1, `FiredAt` | ✅ `WeaponFireEvents.cs`, `CountermeasureSystem` | BS-1 §5.4c, R-1002 |
+| the decoy's path is ONE function the SimHost's seeker also uses | ✅ `DecoyFlight.At(origin, velocity, sinkMps, t)` with `ExpendableDto { LifeSeconds, SinkMps }` (`Countermeasures.cs`) | §5.4c F6 |
+| every map host spawns effects from the fire, locally, recorded, never saved | ✅ `EffectSpawnSystem` (VE-A, VE-R) | §4 VE-A, §7 VE-R |
+| it drew the SLOT's default round, not the fired one | ✅ `EffectSystems.cs:68-69` reads `mount.AmmoGuid` | BS-1 §5.4b F3 — the drawing reader is ui's |
+| an effect never moves: world-fixed or anchored | ✅ `EffectAnchor` (muzzle / body); no velocity anywhere | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class EffectSpawnSystem { <<existing, grows>> fire: Munitions.IsExpendable? release effect : flash · moves every EffectFlight }
+    class EffectFlight { <<NEW component 389, Hrot.Core>> Origin · Velocity · SinkMps · FiredAt }
+    class MunitionEffectsDto { <<existing, grows>> + Release }
+    class EffectTkbCatalog { <<existing, grows>> + Flare 7171 · + ChaffCloud 7172 · EffectsFor }
+    class EffectKind { <<existing, grows>> + Flare · + Chaff }
+    class EffectLayer { <<existing, grows>> draws Flare (a burning star and a smoke trail) · Chaff (a growing grey cloud) }
+    class DecoyFlight { <<backend, Fdp.Toolkits Combat>> At(origin, velocity, sink, t) }
+    EffectSpawnSystem ..> DecoyFlight
+    EffectSpawnSystem --> EffectFlight
+    EffectSpawnSystem ..> EffectTkbCatalog
+    EffectLayer ..> EffectKind
+    EffectLayer ..> DecoyFlight : the trail
+```
+
+```mermaid
+sequenceDiagram
+    participant N as WeaponFireNotification (local or IsRemote)
+    participant S as EffectSpawnSystem (every map host)
+    participant L as EffectLayer
+    N->>S: AmmoGuid 6034, Origin, Velocity, FiredAt
+    S->>S: Munitions.IsExpendable, so no flash and no blast, ExpendableOf gives LifeSeconds and SinkMps
+    S->>S: spawn the release effect (TKB Release = Flare 7171): Lifespan from FiredAt, EffectFlight
+    loop every frame
+        S->>S: SimTransform = DecoyFlight.At(Origin, Velocity, SinkMps, now - FiredAt)
+        L->>L: draw the flare there, its trail along DecoyFlight a moment back
+    end
+```
+
+*Caption:* nothing new crosses the wire and nothing new is simulated on a viewer — the drawn flare stands where the seeker sees it because
+both call the one function with the one event's numbers.
+
+| decision | rule |
+|---|---|
+| **DV-1 which effect** | the munition's TKB `MunitionEffectsDto.Release` (flare → 7171, chaff → 7172), registered by `EffectTkbCatalog.RegisterAll` like every set (VE-D) |
+| **DV-2 born at the release** | `Lifespan` starts at `FiredAt` (not this frame) and lives `ExpendableDto.LifeSeconds` — a late viewer draws the same flare at the same age, or nothing once burnt out |
+| **DV-3 it moves** | `EffectFlight` (recorded, never saved) holds the release; the spawn system writes the effect's `SimTransform` from `DecoyFlight.At` every frame, so a replay replays the motion (the system is off in replay, VE-R) |
+| **DV-4 the look** | a flare: a bright white-orange star with a short grey trail behind it along its own path; chaff: a grey cloud growing to ~15 m and fading; in 2-D a small dot |
+| **DV-5 the fired round** | every fire's flash and blast use `fire.AmmoGuid` (the round actually fired), the mount's only when it is 0 (an older sender) |
+
+**Rejected — one line each:** *stream each decoy* — §5.4c: the path is a function of the event; *an anchored effect* — a decoy leaves the
+aircraft, it does not ride it; *a new effect layer* — `EffectLayer` already draws every effect kind in both modes (VE-F).
+
+**As-built `2026-10-15`** — matches the diagrams. `EffectKind.Flare` / `Chaff` and `MunitionEffectsDto.Release` (Fdp.Toolkits, the effect
+domain this design owns); `EffectFlight` (Hrot.Core, id 389, registered with the effects); `EffectTkbCatalog.Flare` 7171 / `ChaffCloud` 7172
+and the 6034 / 6035 sets; `EffectSpawnSystem.SpawnRelease` / `MoveDecoys`; `EffectLayer` draws the flare (additive star, hot core, a trail of
+8 puffs 0.12 s apart back along `DecoyFlight.At`) and the chaff (10 hashed puffs blooming over 1.5 s), 2-D a dot and a disc.
+⭐ **Found by the frame:** the rail's TKB (the body catalogue only) had no 6034 — `Munitions.IsExpendable` said no and the release drew a
+MUZZLE FLASH at the aircraft. ⇒ the rail uses the host's full TKB, and ⚠ a host whose TKB lacks the expendables would draw the same flash;
+every production host builds its TKB from `HrotEnvironment.CreateTkb` (which registers them). Rails `EffectTests.CE1115_*` ×2 (the moving
+flare, chaff, a burnt-out release drawing nothing; the FIRED round's flash), frame rail `Map3DFrameRail.CE1115_V`:
+
+![](assets/map-3d/decoy-1-flares.png)
 

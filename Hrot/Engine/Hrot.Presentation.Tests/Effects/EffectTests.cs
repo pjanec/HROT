@@ -65,7 +65,7 @@ public sealed class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(14, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast
+        Assert.Equal(16, EffectTkbCatalog.BuiltIn.Count);   // + W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -129,6 +129,79 @@ public sealed class EffectTests
         var decal = Assert.Single(fx, f => f.Type == EffectTkbCatalog.DecalLarge);   // VE-M: none for the hit on the tank
         Assert.DoesNotContain(fx, f => f.Type == EffectTkbCatalog.DecalSmall);
         Assert.Equal(0f, world.GetComponentRO<SimTransform>(decal.Entity).Position.Z); // on the ground under the hit (VE-I step 1)
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1115 (DESIGN_Visual_Effects.md §9) — a flare release (backend's fire, BS-1 §5.4c: an expendable <c>AmmoGuid</c>, origin, the
+    /// aircraft's velocity, <c>FiredAt</c>) draws a FLARE that is born at the release, moves along <c>DecoyFlight.At</c> — the point the
+    /// seeker chases — and draws no muzzle flash; chaff draws a cloud; a release already burnt out (a late viewer) draws nothing.
+    /// </summary>
+    [Fact]
+    public void CE1115_AFlareRelease_DrawsAFlareMovingAlongTheDecoyPath_NoFlash()
+    {
+        var (world, tkb) = World();
+        At(world, 100.0);
+        var heli = Unit(world, Hrot.Map.Common.TkbEntityTypes.Heli_UH60, new Vector3(0, 0, 300));
+        var origin = new Vector3(0, 0, 300);
+        var velocity = new Vector3(60, 0, 0);
+        world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+        world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbChaff,
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 99.5 });
+        world.Bus.Publish(new WeaponFireNotification { Shooter = heli, WeaponIndex = 1, AmmoGuid = MunitionTkbCatalog.TkbFlare,
+                                                       Origin = origin, Velocity = velocity, Quantity = 1, FiredAt = 90.0 });   // burnt out
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        var fx = Effects(world);
+        Assert.DoesNotContain(fx, f => EffectTkbCatalog.VisualOf(tkb, f.Type)!.Kind == EffectKind.MuzzleFlash);   // a dispenser is no gun
+        var flare = Assert.Single(fx, f => f.Type == EffectTkbCatalog.Flare).Entity;                            // the late one: nothing
+        Assert.Single(fx, f => f.Type == EffectTkbCatalog.ChaffCloud);
+        var exp = Fdp.Toolkit.Combat.Munitions.ExpendableOf(tkb, MunitionTkbCatalog.TkbFlare)!;
+        Assert.Equal(99.5, world.GetComponentRO<Lifespan>(flare).BornAtSimSeconds);                            // DV-2: born at the release
+        Assert.Equal(exp.LifeSeconds, world.GetComponentRO<Lifespan>(flare).Seconds);
+        Assert.Equal(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 0.5f), world.GetComponentRO<SimTransform>(flare).Position);
+
+        At(world, 102.0);                                                                                       // DV-3: it moves
+        Tick(world, spawn, 0.016f);
+        Assert.Equal(Fdp.Toolkit.Combat.DecoyFlight.At(origin, velocity, exp.SinkMps, 2.5f), world.GetComponentRO<SimTransform>(flare).Position);
+
+        var layer = new EffectLayer(() => world, () => tkb);
+        var drawn = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Flare);
+        Assert.NotNull(drawn.Flight);
+        Assert.NotEmpty(EffectLayer.Puffs(drawn));                                                              // its smoke trail
+    }
+
+    /// <summary>⭐ CE-1115 (§9 DV-5, BS-1 §5.4b F3) — a shot draws the flash of the round actually FIRED (the fire carries it), not the
+    /// mount's default: a T-72 firing an 81 mm mortar bomb (its set: a medium flash) shows a medium flash, not its large 125 mm one.</summary>
+    [Fact]
+    public void CE1115_AShot_DrawsTheFiredRoundsFlash_NotTheMountsDefault()
+    {
+        var (world, _) = World();
+        var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(0, 0, 3));
+        world.Bus.Publish(new WeaponFireNotification { Shooter = tank, WeaponIndex = 0, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe, Quantity = 1 });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+        var fx = Effects(world);
+        Assert.Contains(fx, f => f.Type == EffectTkbCatalog.MuzzleFlashMedium);
+        Assert.DoesNotContain(fx, f => f.Type == EffectTkbCatalog.MuzzleFlashLarge);
+    }
+
+    /// <summary>⭐ CE-1113 (DESIGN_Map_3D_Mode.md §6v AD-V6) — a burst in the AIR (a SAM's proximity fuze 400 m up, no target) draws its
+    /// explosion where it burst and scorches nothing below; one just above the ground still does.</summary>
+    [Fact]
+    public void CE1113_ABurstInTheAir_ExplodesThere_AndLeavesNoDecalOnTheGround()
+    {
+        var (world, _) = World();
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 50, HitY = 20, HitZ = 400f, Damage = 1100f });
+        world.Bus.Publish(new DetonationNotification { Target = Entity.Null, HitX = 90, HitY = 20, HitZ = 1.5f, Damage = 1100f });
+        Tick(world, new EffectSpawnSystem(), 0.016f);
+
+        var fx = Effects(world);
+        var explosions = fx.Where(f => f.Type == EffectTkbCatalog.ExplosionLarge).ToArray();
+        Assert.Equal(2, explosions.Length);
+        Assert.Contains(explosions, f => world.GetComponentRO<SimTransform>(f.Entity).Position.Z == 400f);   // drawn where it burst
+        var decal = Assert.Single(fx, f => f.Type == EffectTkbCatalog.DecalLarge);                         // only the low one scorches
+        Assert.Equal(90f, world.GetComponentRO<SimTransform>(decal.Entity).Position.X);
     }
 
     [Fact]
@@ -562,7 +635,9 @@ public sealed class EffectTests
                 mounts++;
                 Assert.True(m.AmmoGuid != 0, $"{t.Name}: a mount with no munition type");
                 Assert.True(tkb.TryGetByType(unchecked((long)m.AmmoGuid), out var ammo) && ammo != null, $"{t.Name}: munition {m.AmmoGuid} not registered");
-                Assert.Equal(2, ammo!.DisType.Kind);
+                // a round is DIS kind 2 (munition); ⭐ CE-2188 / CE-1115 — a dispenser's flare / chaff is kind 8 (expendable, BS-1 §5.4c)
+                Assert.True(ammo!.DisType.Kind == 2 || (ammo.DisType.Kind == 8 && m.Category == WeaponCategory.Countermeasure),
+                            $"{t.Name} / {ammo.Name}: DIS kind {ammo.DisType.Kind}");
                 var (warhead, source, _) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(tkb, unchecked((long)m.AmmoGuid));
                 Assert.True((warhead != null) == explosive.Contains(unchecked((long)m.AmmoGuid)), $"{t.Name} / {ammo.Name}: warhead changed — {source}");
                 if (m.Penetration > 0f)

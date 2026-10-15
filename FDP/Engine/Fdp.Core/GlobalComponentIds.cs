@@ -914,5 +914,10 @@ namespace Fdp.Core
         /// <summary><c>MissileWarning</c> — ⭐ CE-2189 (§3c, AD4): the last missile launched at this aircraft, as its BRAIN was warned
         /// (bearing, seeker kind, time to impact). Written on the brain node; never saved.</summary>
         public const int MissileWarning = 388;
+
+        /// <summary><c>EffectFlight</c> — ⭐ CE-1115 (Hrot docs/DESIGN_Visual_Effects.md §9): the release a moving effect (a decoy flare, a
+        /// chaff cloud) follows — origin, velocity, sink, sim time; every map host, recorded, never saved. ⚠ 389 measured free on backend,
+        /// ui and behaviors 2026-10-15.</summary>
+        public const int EffectFlight = 389;
     }
 }

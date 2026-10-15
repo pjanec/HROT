@@ -55,7 +55,7 @@ public sealed class EffectLayer : IMapLayer
     /// <summary>One effect, resolved for drawing: what it is, where, how far through its life, how opaque — and (W3) its own seed and
     /// age in seconds, from which its particles are derived (stateless, VE-P).</summary>
     public readonly record struct Resolved(EffectVisualDto Look, Vector3 At, Vector3 Toward, float Phase, float Opacity, Color Colour,
-                                           int Seed = 0, float Age = 0f, Vector3 Forward = default);
+                                           int Seed = 0, float Age = 0f, Vector3 Forward = default, EffectFlight? Flight = null);
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
     public List<Resolved> Resolve()
@@ -70,6 +70,7 @@ public sealed class EffectLayer : IMapLayer
         }
         var tkb = _tkb();
         bool anchored = world.IsComponentTypeRegistered<EffectAnchor>();
+        bool flying = world.IsComponentTypeRegistered<EffectFlight>();   // ⭐ CE-1115
         // ⭐ W1 (VE-Q, VE-G) — the phase is the SIM clock's: paused ⇒ frozen; in a replay, the recording's own time (VE-R).
         double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
         foreach (var e in _query!)
@@ -99,8 +100,9 @@ public sealed class EffectLayer : IMapLayer
             float remaining = life.Remaining(now);
             float opacity = look.FadeSeconds > 0f && remaining < look.FadeSeconds ? Math.Clamp(remaining / look.FadeSeconds, 0f, 1f) : 1f;
             var colour = ParseRgba(look.ColorHex);
+            EffectFlight? flight = flying && world.HasComponent<EffectFlight>(e) ? world.GetComponentRO<EffectFlight>(e) : null;
             list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now),
-                                  Forward: forward));
+                                  Forward: forward, Flight: flight));
         }
         // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
@@ -163,6 +165,28 @@ public sealed class EffectLayer : IMapLayer
                 list.Add(new Puff(at, radius, Fade(colour, 0.9f * MathF.Pow(1f - t, 0.6f) * strength * r.Opacity)));
             }
         }
+        else if (r.Look.Kind == EffectKind.Flare && r.Flight is { } f)
+        {
+            // ⭐ CE-1115 (§9 DV-4) — the smoke the flare leaves: grey puffs at where it WAS along its own path, older ones bigger and fainter
+            for (int i = 1; i <= FlareTrailPuffs; i++)
+            {
+                float back = r.Age - i * FlareTrailStep;
+                if (back < 0f) break;
+                var at = Fdp.Toolkit.Combat.DecoyFlight.At(f.Origin, f.Velocity, f.SinkMps, back);
+                float k = i / (float)FlareTrailPuffs;
+                list.Add(new Puff(at, size * (0.15f + 0.45f * k), Fade(new Color(150, 146, 138, 255), 0.75f * (1f - k) * r.Opacity)));
+            }
+        }
+        else if (r.Look.Kind == EffectKind.Chaff)
+        {
+            // ⭐ CE-1115 (§9 DV-4) — the cloud blooms over its first 1.5 s and thins as it sinks
+            float bloom = Math.Clamp(r.Age / 1.5f, 0.15f, 1f);
+            for (int i = 0; i < ChaffPuffs; i++)
+            {
+                var off = new Vector3(Hash(r.Seed, i) - 0.5f, Hash(r.Seed, i + 51) - 0.5f, (Hash(r.Seed, i + 97) - 0.5f) * 0.6f) * size * bloom;
+                list.Add(new Puff(r.At + off, size * 0.22f * bloom, Fade(r.Colour, 0.75f * r.Opacity)));
+            }
+        }
         else if (r.Look.Kind == EffectKind.Smoke)
         {
             var downwind = new Vector3(0.8f, 0.6f, 0f);   // a fixed light breeze until weather exists
@@ -179,6 +203,12 @@ public sealed class EffectLayer : IMapLayer
     }
 
     private static float Frac(float x) => x - MathF.Floor(x);
+
+    /// <summary>⭐ CE-1115 — a flare's smoke trail: this many puffs, one every <see cref="FlareTrailStep"/> s back along its path.</summary>
+    public const int FlareTrailPuffs = 8;
+    public const float FlareTrailStep = 0.12f;
+    /// <summary>⭐ CE-1115 — the puffs of a chaff cloud.</summary>
+    public const int ChaffPuffs = 10;
 
     /// <summary>A stable hash of (seed, i) in [0, 1).</summary>
     private static float Hash(int seed, int i)
@@ -277,6 +307,15 @@ public sealed class EffectLayer : IMapLayer
                     if (TracerSpan(r, out var t0, out var t1))
                         Raylib.DrawLineEx(new Vector2(t0.X, t0.Y), new Vector2(t1.X, t1.Y), MathF.Max(r.Look.Size, 1.5f * px), c);
                     break;
+                case EffectKind.Flare:
+                    // ⭐ CE-1115 — a bright dot (a few pixels at least) with its trail
+                    foreach (var puff in Puffs(r))
+                        Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y), MathF.Max(puff.Radius, 1.5f * px), Fade(puff.Colour, 0.6f));
+                    Raylib.DrawCircleV(p, MathF.Max(size / 2f, 3f * px), c);
+                    break;
+                case EffectKind.Chaff:
+                    Raylib.DrawCircleV(p, MathF.Max(size / 2f * Math.Clamp(r.Age / 1.5f, 0.15f, 1f), 3f * px), Fade(c, 0.45f));
+                    break;
                 case EffectKind.Fire:
                 case EffectKind.Smoke:
                     // ⭐ W3 (VE-P) — seen from above: the smoke column drifts downwind as a trail of thinning puffs, the flames
@@ -328,9 +367,22 @@ public sealed class EffectLayer : IMapLayer
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
                     break;
                 case EffectKind.Smoke:
+                case EffectKind.Chaff:
                     foreach (var puff in Puffs(r))
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 6, 10, puff.Colour);
                     break;
+                case EffectKind.Flare:
+                {
+                    // ⭐ CE-1115 (§9 DV-4) — the trail first, then the burning star (additive, flickering), a hot core inside it
+                    foreach (var puff in Puffs(r))
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
+                    float flicker = 0.85f + 0.15f * MathF.Sin(r.Age * 37f + r.Seed);
+                    Raylib.BeginBlendMode(BlendMode.Additive);
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * flicker), 6, 10, c);
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.03f, size / 5f), 5, 8, Fade(Color.White, r.Opacity));
+                    Raylib.EndBlendMode();
+                    break;
+                }
             }
         }
         Drawn = effects.Count;
