@@ -1189,7 +1189,7 @@ namespace CarKinem.Tests.Systems
                 repo.AddComponent(round, new SimTransform { Position = new Vector3(1f, 0f, 1.4f), Rotation = Quaternion.Identity });
                 repo.AddComponent(round, new SimVelocity { Linear = new Vector3(800f, 0f, 0f) });
                 repo.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = e });
-                repo.AddComponent(round, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.05f, CollisionLayer = 2 });
+                repo.AddComponent(round, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.05f, CollisionLayer = Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer });
                 spatial.Execute(repo, 1f / 60f);
                 kin.Execute(repo, 1f / 60f);
             }

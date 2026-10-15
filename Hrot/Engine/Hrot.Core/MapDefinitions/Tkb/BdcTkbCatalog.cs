@@ -639,7 +639,7 @@ namespace Hrot.Map.Definitions.Tkb
 
             // ⭐⭐ CE-1041 — AIRCRAFT. CG-referenced bodies resting on their gear: the gear positions are what landing and parking
             //   use (BodyGeometry.RestingPose). ⛔ No WithPhysics — that adds VehicleParametersDto, i.e. CAR kinematics; an aircraft
-            //   carries its size in Body.Geometry. ⛔ No WithBehavior — there is no flight model for a brain to drive yet.
+            //   carries its size in Body.Geometry. (⭐ CE-2185: both UH-60s now carry a brain and health, below.)
             //   Public figures, rounded; the gear's X is from the CG. DIS subcategory left 0 (generic) — not verified.
             //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60, "UH-60A Black Hawk", "SFAPMHU-------", "#56604F",
@@ -649,6 +649,21 @@ namespace Hrot.Map.Definitions.Tkb
             DefineAircraft(builder, TkbEntityTypes.Heli_UH60_DoorsOff, "UH-60A Black Hawk (doors off)", "SFAPMHU-------", "#56604F",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 21 }, Uh60Geometry());
             builder.WithCarrier(TkbEntityTypes.Heli_UH60_DoorsOff, DoorSeats());
+            // ⭐ CE-2185 (AT4, R-2021, DESIGN_Air_Operations §7c) — both Black Hawks can be downed: the AH-64 class's numbers (health 800, a
+            //   helicopter's blast susceptibility 0.8 — armour covers the crew, not the rotors). Source: the attack helicopter's entry
+            //   (no public damage model for a UH-60 exists); no armour FACES yet — the A-10 / AH-64 have none either, and per-face armour
+            //   for all four aircraft goes to the user as a proposal (the handoff's "report numbers, do not build").
+            //   ⭐ And a BRAIN (`WithBehavior`): Health is in the Brain ownership group and only the Brain node applies damage
+            //   (CE-523, `HrotOwnershipGroupsTests`) — a brainless type with Health keeps it with its creator and is never downed. The
+            //   doors-off one's design already assumes one (Air Ops: the hold's release is "the brain's").
+            foreach (var uh60 in new[] { TkbEntityTypes.Heli_UH60, TkbEntityTypes.Heli_UH60_DoorsOff })
+                builder
+                    .WithCombat(uh60, c =>
+                    {
+                        c.MaxHealth = 800;
+                        c.BlastSusceptibility = 0.8f;
+                    })
+                    .WithBehavior(uh60);
             // ⭐ Air Ops slice 2 (docs/designs/air-attack/DESIGN_Air_Operations.md §5, §6) — it FLIES: a route takes it off its gear, rounds
             //   its corners at 60 m, holds 30 m over the ground and sets it down on a Ground waypoint. Public figures, rounded: cruise
             //   ~70 m/s, climb ~8 m/s; the collider is the fuselage, not the rotor disc. The plain UH-60 (400) stays a static body.

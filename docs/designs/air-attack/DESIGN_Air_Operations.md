@@ -555,6 +555,72 @@ translator set (`TkbTranslatorSet.Base()`, `HrotEnvironment.CreateTkb()`), its c
 ⚠ Also measured, NOT approved: the A-10 and the AH-64 have health but NO armour entry (every round penetrates once AT1 lands) — the
 handoff asks backend for numbers; they come back to the user.
 
+#### 7c-i. As-built — AT1, AT3, AT4 (backend, `2026-10-15`; [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Air_Targets.md))
+
+```mermaid
+classDiagram
+  class CombatConstants { <<existing>> +BulletCollisionLayer = 4 (was 2) · +CombatCollisionLayer = 2 «new public» }
+  class CombatTkbTranslator { <<existing>> ORs CombatCollisionLayer onto a combat platform's collider · stamps one (2.5 m) when none exists }
+  class FlightTkbTranslator { <<existing>> a flyer's collider, layer 0 }
+  class FireProcessingSystem { <<existing>> a round's collider on BulletCollisionLayer }
+  class BallisticsSystem { <<existing>> a round's ray: mask = ~BulletCollisionLayer }
+  class RaycastSolverSystem { <<existing>> a round skips a static obstacle (R-243) · NEW skips a WeaponSystem (WeaponSystems.IsWeaponSystem) }
+  class AirMotionSystem { <<existing>> a dead body: the model's fall (RotorcraftModel.Falling / FixedWingModel.Fall) }
+  class DroneImpactSystem { <<existing>> a dead flyer that meets the ground rests there · NEW the ground-phase skip is for LIVE flyers only }
+  CombatTkbTranslator ..> CombatConstants
+  FireProcessingSystem ..> CombatConstants
+  BallisticsSystem ..> CombatConstants
+  FlightTkbTranslator ..> CombatTkbTranslator : the flyer's collider, then the combat bit
+  BallisticsSystem ..> RaycastSolverSystem : bullet ray
+  AirMotionSystem ..> DroneImpactSystem : same frame, after
+```
+
+*What the picture shows that prose hid: AT1 is ONE constant moving — the round leaves the combat layer's bit — and everything that
+"can be hit" follows from the translators that already OR the combat bit; the only new rule is the weapon-system skip that keeps
+today's behaviour for the 13 bodies the move would otherwise expose.*
+
+```mermaid
+sequenceDiagram
+  participant H as HealthApplicationSystem (Brain)
+  participant D as LocomotionDispatcher (Brain)
+  participant A as AirMotionSystem (the node owning the position)
+  participant I as DroneImpactSystem (same node)
+  participant E as EmbarkedStateSystem
+  H->>H: Health ≤ 0 (replicated to the Muscle)
+  D->>D: CanMove lost ⇒ OnExit: NavigationIntent None (the reported phase is left as it was)
+  E->>E: the vehicle's Health ≤ 0 ⇒ every rider killed (I-2c, R-271)
+  loop each frame while airborne
+    A->>A: dead ⇒ Falling: v.z −= g·dt (rotorcraft: the horizontal speed decays 0.5/s), p += v·dt
+    I->>I: the swept segment meets the ground ⇒ Airborne 0, v 0, at rest (no burst unless a munition, R-3007)
+  end
+```
+
+*What the picture shows that prose hid: nothing NEW was needed for the fall itself — the dead branches of both models and the rest-on-ground
+already existed (`4e4cd78b3`, M7); the one hole was the impact's ground-phase skip, which a death in the Landing phase fell through.*
+
+| AT | as built | deviation / finding |
+|---|---|---|
+| **AT1** (CE-2182) | `BulletCollisionLayer` = **4**; `CombatConstants.CombatCollisionLayer` = 2 (public, the translator's constant). Measured through the production translators (every TKB type): the FPV, A-10, AH-64 and (AT4) the doors-off UH-60 end on layer 2 and are met; soldiers and vehicles stay on 3 (unchanged) | ⚠ **13 more bodies sit on the combat layer alone — every weapon system (600–612: M2, DShK, M134, Javelin, NLAW, LAW, Kornet, TOW, sentry gun, three mortars, the 105 mm)** — with the 2.5 m fallback collider and NO height, standing at a host's seat or on a carrier (Weapon Systems §6). Made hittable they would take the rounds meant for the pickup or the man ⇒ ⭐ a round SKIPS a weapon system (`RaycastSolverSystem`, beside the obstacle skip) — today's behaviour kept; fragments and blast still break it (CE-3203). A real hit on a deployed weapon needs a real collider: proposal to the user, not built |
+| **AT3** (CE-2184) | already built by M7: `RotorcraftModel.Falling` (gravity, horizontal decay 0.5/s), `FixedWingModel.Fall` (ballistic), `DroneImpactSystem` rests a dead flyer on the ground, `EmbarkedStateSystem` kills the riders (I-2c). ⭐ Fixed: `DroneImpactSystem` skipped every flyer in a ground phase (TakingOff … Loading), alive or dead — a helicopter killed on its way down kept `Landing` and fell through the ground; the skip is now for a LIVE flyer only | the handoff's "it hovers (`RotorcraftModel.cs:53`)" read the hover line under the fall check — measured: a killed helicopter falls (rails below) |
+| **AT4** (CE-2185) | both UH-60s (400, 404): `WithCombat` health **800**, blast susceptibility **0.8** (the AH-64 class's — no public damage model for a UH-60) **and `WithBehavior`** (a brain) | ⚠ the brain is REQUIRED, not optional: Health is in the Brain ownership group and only the Brain node applies damage — `HrotOwnershipGroupsTests.…_CE523` went red without it. ⚠ the static UH-60 (400) has no flight model ⇒ its collider is the 2.5 m fallback with no height (a circle at any altitude); harmless on the ground, noted |
+
+**Rails** (the features' own suites): `RaycastSolverSystemTests.CE2182_ARoundFiredUpAtAnAircraft_MeetsIt` · `…_RoundsNeverMeetEachOther` ·
+`…_AWeaponSystemOnItsCarrier_IsNotMet_TheManIs` · `NedTkbBuilderCombatTests.CE2182_AnAircraft_IsOnTheCombatLayer_SoARoundMeetsIt` (403, 405, 406,
+404) · `…CE2185_ABlackHawk_CarriesHealth` (400, 404) · `RotorcraftModelTests.CE2184_AHelicopterKilledMidRoute_FallsToTheGround_InTheFreeFallTime_AndRestsThere`
+· `…CE2184_AHelicopterKilledWhileLanding_DoesNotFallThroughTheGround` · `…CE2184_APlaneKilledAt300m_FallsAlongItsTrack`. Riders: the existing
+`EmbarkedStateSystemTests.CE3110_I2c_AVehicleDestroyed_KillsThePassengers_…`.
+
+**Proposed armour faces — NOT built, for the user** (mm RHA-equivalent per face, the `ArmorModel` columns; public figures, rounded, not
+verified against a primary source):
+
+| type | front · side · rear · top | basis |
+|---|---|---|
+| A-10 (405) | 25 · 25 · 10 · 10 | USAF fact sheet: the titanium cockpit "bathtub" and flight-control armour survive direct hits up to 23 mm |
+| AH-64 (406) | 20 · 15 · 8 · 8 | Boeing: crew armour against 12.7 mm, critical components tolerant to 23 mm |
+| UH-60 (400, 404) | 8 · 6 · 4 · 4 | Sikorsky / US Army: the airframe and crew seats against 7.62 mm; rotor and drive tolerant to 23 mm |
+
+⇒ rifle ball would stop on the A-10's and AH-64's faces and pass a UH-60's skin; the 12.7 mm HMG and every cannon would pass all of them.
+
 
 ## 8. The bomb (A3, A4, A6, B6)
 

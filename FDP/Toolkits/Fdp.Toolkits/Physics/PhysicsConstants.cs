@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Physics
         /// <summary>
         /// CollisionLayer bitmask for all physical (non-bullet) entities.
         /// Rays fired at layer mask <c>EntityCollisionLayer</c> will hit soldiers, vehicles, etc.
-        /// Distinct from <see cref="CombatConstants.BulletCollisionLayer"/> (bit 1) defined in
+        /// Distinct from <see cref="CombatConstants.BulletCollisionLayer"/> (bit 2 since CE-2182) defined in
         /// <c>FDP.Toolkit.Combat</c>.
         /// </summary>
         public const int EntityCollisionLayer = 1;

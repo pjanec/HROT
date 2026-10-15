@@ -22,7 +22,7 @@ namespace Fdp.Toolkit.Combat.Translators
     public sealed class CombatTkbTranslator : ITkbEntityTranslator
     {
         // ⭐ Stage 0 — the defaults live in EngineFallbacks; ParameterResolver reports the same rules (no number moved).
-        private const byte  CombatCollisionLayer   = 2;
+        private const byte  CombatCollisionLayer   = CombatConstants.CombatCollisionLayer;   // ⭐ CE-2182 — no longer the round's bit
 
         public IEnumerable<Type> GetConsumedDescriptors()
         {

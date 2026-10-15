@@ -147,6 +147,11 @@ namespace Fdp.Toolkit.Physics.Systems
                     // ⭐ CE-3136 P-7a (R-243) — a static obstacle is TERRAIN: a round crosses it by the wall rule (TerrainPenetration,
                     //   its material × the chord), never stopped dead by its movement collider.
                     if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Terrain.TerrainObstacles.IsObstacle(repo, candidate)) continue;
+                    // ⭐ CE-2182 (AT1) — a WEAPON SYSTEM is not met by a round: it stands at its host's seat or on its carrier (Weapon
+                    //   Systems §6) with a 2.5 m fallback collider and no height, so meeting it would shadow the pickup or the man who
+                    //   holds it. Fragments and blast break it (CE-3203). This is today's behaviour, kept: before AT1 the round's mask
+                    //   skipped the combat layer it sits on alone.
+                    if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(repo, candidate)) continue;
 
                     var collider = repo.GetComponent<PhysicsCollider>(candidate);
 

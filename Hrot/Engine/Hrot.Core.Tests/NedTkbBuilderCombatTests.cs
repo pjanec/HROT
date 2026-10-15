@@ -595,6 +595,54 @@ namespace Hrot.Map.Common.Tests
             Fdp.Toolkit.Navigation.RouteWaypointKind kind = Fdp.Toolkit.Navigation.RouteWaypointKind.Pass)
             => new(new System.Numerics.Vector3(x, y, 0f), 0f, kind, 0f, Fdp.Toolkit.Navigation.RouteHold.None, 0f, 0L);
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2182</c> (AT1, R-2021, DESIGN_Air_Operations §7c) — every AIRCRAFT type, built through the production translator set,
+        /// carries the combat layer and NOT the round's bit, so a round's mask (everything but its own bit) meets it. 🔴 Red-proof: the
+        /// round's bit back on 2 — the combat layer's — ⇒ every flyer ends on the bit a round skips. The flying UH-60 (404) joins with its
+        /// combat platform (AT4, CE-2185).
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Drone_Fpv)]
+        [InlineData(TkbEntityTypes.Jet_AttackA10)]
+        [InlineData(TkbEntityTypes.Heli_AH64)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff)]   // CE-2185 (AT4)
+        public void CE2182_AnAircraft_IsOnTheCombatLayer_SoARoundMeetsIt(long type)
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var e = w.CreateEntity();
+            var template = BuildDatabase().GetByType(type)!;
+            foreach (var t in Hrot.Core.Tkb.TkbTranslatorSet.Base()) t.Inject(w, e, template);
+
+            int layer = w.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).CollisionLayer;
+            Assert.NotEqual(0, layer & Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            Assert.Equal(0, layer & Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer);
+            Assert.NotEqual(0, layer & ~Fdp.Toolkit.Combat.CombatConstants.BulletCollisionLayer);   // the round's mask meets it
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2185</c> (AT4, R-2021) — both Black Hawks carry a health through the production translators, so a hit, a blast or a
+        /// fragment can down them (before: no combat platform, immune). 🔴 Red-proof: without the catalogue entry neither has Health.
+        /// </summary>
+        [Theory]
+        [InlineData(TkbEntityTypes.Heli_UH60)]
+        [InlineData(TkbEntityTypes.Heli_UH60_DoorsOff)]
+        public void CE2185_ABlackHawk_CarriesHealth(long type)
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            HrotSharedComponentRegistry.RegisterAll(w);
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+                w.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var e = w.CreateEntity();
+            var template = BuildDatabase().GetByType(type)!;
+            foreach (var t in Hrot.Core.Tkb.TkbTranslatorSet.Base()) t.Inject(w, e, template);
+
+            Assert.True(w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e));
+            Assert.Equal(800f, w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Max);
+        }
+
         private static TkbDatabase BuildDatabase()
         {
             var db = new TkbDatabase();
