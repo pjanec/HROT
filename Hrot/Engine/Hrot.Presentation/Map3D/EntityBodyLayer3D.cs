@@ -77,7 +77,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     public void Draw3D(RenderContext ctx)
     {
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         _carried.Clear();
         _shouldering.Clear();
         _figureFrames.Clear();
@@ -188,6 +188,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             }
             _drawn.Add(e);
             if (look.Family == VisualFamily.Person) _figureFrames[e] = (body, size.Z);   // ⭐ CE-1085 — where a carried weapon hangs
+            if (carriage.Kind == CarriageKind.TeamFront) _teamPartner[e] = carriage.Partner;   // ⭐ CE-1104 — a two-man weapon hangs between them
             if (_shouldering.Contains(e)) ShoulderedDrawn++;
             if (carriage.Kind == CarriageKind.Manning) GunnersDrawn++;
             // ⭐ CE-1041 — a type with Body.Geometry: the kit's box sits where the TKB puts it relative to the reference point
@@ -278,6 +279,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         }
         _surface.Plain(shader);   // ⭐ CE-1101 — every later draw (and the next frame's terrain) is plain
         DrawCarried(world, shader, wreckOf: e => Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e));   // ⭐ CE-1085 — pass 2
+        _teamPartner.Clear();
         UpdateLaid(world, simTime);
         _motion.EndFrame(_drawn);
         _fall.EndFrame(_drawn);
@@ -448,6 +450,17 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             case CarriageKind.Dragged:
                 _fall.Alive(e, StanceId.Prone, simTime);
                 return BlockFigure.Towed(soldier);
+            case CarriageKind.OnStretcher when world.HasComponent<SimTransform>(carriage.Holder):
+            {
+                // ⭐ CE-1104 (§6t T-b1) — on the litter between the pair, at their hands, facing the front man's way
+                ref readonly var front = ref world.GetComponentRO<SimTransform>(carriage.Holder);
+                SimTransform? rear = !carriage.Partner.IsNull && world.IsAlive(carriage.Partner) && world.HasComponent<SimTransform>(carriage.Partner)
+                    ? world.GetComponentRO<SimTransform>(carriage.Partner) : null;
+                body = Carriage.TeamFrame(front, rear);
+                _fall.Alive(e, StanceId.Prone, simTime);
+                LittersDrawn++;
+                return BlockFigure.OnLitter(soldier);
+            }
             case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
@@ -492,6 +505,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             parts = BlockFigure.CarrierArms(parts, drag, soldier);
             motion = motion with { Lean = motion.Lean + (drag ? BlockFigure.DragLean : BlockFigure.CarryLean) };
         }
+        // ⭐ CE-1104 (§6t T-b3) — a team load: both hands on its handles, behind him at the front, ahead of him at the rear
+        if (carriage.Kind is CarriageKind.StretcherFront or CarriageKind.StretcherRear or CarriageKind.TeamFront or CarriageKind.TeamRear)
+            parts = BlockFigure.HandleArms(parts, front: carriage.Kind is CarriageKind.StretcherFront or CarriageKind.TeamFront, soldier);
         if (carriage.Wounded)
             motion = motion with
             {
@@ -506,6 +522,11 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private readonly List<(Entity Weapon, Entity Bearer, TypeLook Look, Vector3 Size, Color Colour)> _carried = new();
     private readonly HashSet<Entity> _shouldering = new();
     private readonly Dictionary<Entity, (Matrix4x4 Frame, float Height)> _figureFrames = new();
+    private readonly Dictionary<Entity, Entity> _teamPartner = new();
+
+    /// <summary>⭐ CE-1104 (§6t) — men drawn on a stretcher, and two-man weapons drawn between their pair, by the last frame (rails).</summary>
+    public int LittersDrawn { get; private set; }
+    public int TeamLoadsDrawn { get; private set; }
     private readonly Dictionary<Entity, (float Elevation, double At)> _laid = new();
     private readonly HashSet<Entity> _roundsSeen = new();
     private readonly HashSet<Entity> _roundsNow = new();
@@ -671,6 +692,21 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         {
             if (_shouldering.Contains(bearer) || !_figureFrames.TryGetValue(bearer, out var figure)) continue;
             var frame = WeaponKits.OnBack(figure.Frame, figure.Height, size);
+            // ⭐ CE-1104 (§6t T-b4) — a two-man weapon: between the pair at their hands, stowed, the front man's way
+            if (_teamPartner.TryGetValue(bearer, out var partner) && world.HasComponent<SimTransform>(bearer))
+            {
+                SimTransform? rear = world.IsAlive(partner) && world.HasComponent<SimTransform>(partner) ? world.GetComponentRO<SimTransform>(partner) : null;
+                // the stowed kit's own middle at the hands (measured: a fixed share of its size left a stowed mortar on the ground)
+                float lo = float.MaxValue, hi = float.MinValue;
+                foreach (var p in WeaponKits.Kit(look.Weapon, deployed: false).Parts)
+                {
+                    float half = p.Extent.Z / 2f;   // a box's height, an upright cylinder's length, a lying one's diameter
+                    lo = MathF.Min(lo, p.Centre.Z - half); hi = MathF.Max(hi, p.Centre.Z + half);
+                }
+                float middle = lo <= hi ? (lo + hi) / 2f * size.Z : 0f;
+                frame = Matrix4x4.CreateTranslation(0f, 0f, -middle) * Carriage.TeamFrame(world.GetComponentRO<SimTransform>(bearer), rear);
+                TeamLoadsDrawn++;
+            }
             bool wreck = wreckOf(weapon);
             foreach (var part in WeaponKits.Kit(look.Weapon, deployed: false).Parts)
             {
@@ -894,6 +930,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
 
+    /// <summary>⭐ CE-1104 (§6t T-b2) — a stretcher's canvas.</summary>
+    public static readonly Color Canvas = new(122, 116, 84, 255);
+
     /// <summary>⭐ CE-1097 (§6o F-1) — the skin (the default tone; a man's own comes from his outfit, CE-1099).</summary>
     public static readonly Color Skin = new(206, 168, 132, 255);
 
@@ -1084,6 +1123,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     private static Color Shade(ColourRole role, Color body) => role switch
     {
         ColourRole.Skin => Skin,   // ⭐ CE-1097 (§6o F-1)
+        ColourRole.Canvas => Canvas,   // ⭐ CE-1104 (§6t)
         ColourRole.Dark => Dark,
         ColourRole.Glass => Glass,
         ColourRole.Metal => Metal,

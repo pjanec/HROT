@@ -13,8 +13,8 @@ public enum PartShape : byte { Box, Cylinder, Cone }
 public enum PartAxis : byte { X, Y, Z }
 
 /// <summary>Which colour a part takes: the entity's colour, or a fixed material shade. ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1) —
-/// <see cref="Skin"/>: a figure's head.</summary>
-public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin }
+/// <see cref="Skin"/>: a figure's head. ⭐ CE-1104 — <see cref="Canvas"/>: a stretcher's.</summary>
+public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin, Canvas }
 
 /// <summary>
 /// ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-4) — which side of a block figure's HEAD box is his face (the face is drawn on it):
@@ -953,6 +953,74 @@ public static class BlockFigure
         .. Arm(new(0.28f, 0.21f, 0.12f), new(0.52f, 0.20f, 0.40f), new(0.74f, 0.10f, 0.75f), PartRole.Hull),
         .. Arm(new(0.28f, -0.21f, 0.12f), new(0.52f, -0.20f, 0.40f), new(0.74f, -0.10f, 0.75f), PartRole.Hull),
     ];
+
+    /// <summary>
+    /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t T-b1, T-b2) — ON A STRETCHER: on his back, head forward (+X, toward the front man), legs
+    /// together, arms along his sides (a soldier's rifle on his chest), centred on the litter — and the litter itself, appended after the
+    /// shared part order: its canvas and two poles 1.7 m long whose ends are the carriers' handles. The frame is the litter's
+    /// (<see cref="Carriage.TeamFrame"/>): its origin is where the poles are held.
+    /// </summary>
+    public static KitPart[] OnLitter(bool soldier) => soldier ? LitterArmed : LitterPlain;
+
+    /// <summary>⭐ CE-1104 — half a stretcher pole: the handle is this far ahead of (front) or behind (rear) the litter's middle (m).</summary>
+    public const float LitterHalfLength = 0.85f;
+
+    private static readonly Vector3 OnLitterShift = new(0.24f, 0f, 0.03f);   // his middle on the litter's, lying on the canvas
+
+    private static KitPart[] Shifted(KitPart[] parts, Vector3 by)
+    {
+        var moved = new KitPart[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+            moved[i] = parts[i] with
+            {
+                Centre = parts[i].Centre + by / S,
+                SwingPivot = parts[i].SwingPivot is { } sp ? sp + by / S : null,
+                KneePivot = parts[i].KneePivot is { } kp ? kp + by / S : null,
+            };
+        return moved;
+    }
+
+    private static readonly KitPart[] LitterBody = Shifted(
+    [
+        .. Legs(new(-0.17f, 0.10f, 0.08f), new(-1.02f, 0.11f, 0.07f), new(-0.17f, -0.10f, 0.08f), new(-1.02f, -0.11f, 0.07f), swings: false),
+        P(0.02f, 0f, 0.12f, 0.60f, 0.42f, 0.22f, ColourRole.Body),
+        Head(0.46f, 0f, 0.12f, 0.22f, 0.20f, 0.21f, FaceOn.Up),
+        .. Arm(new(0.28f, 0.22f, 0.10f), new(0.02f, 0.25f, 0.08f), new(-0.24f, 0.24f, 0.08f), PartRole.Hull),
+        .. Arm(new(0.28f, -0.22f, 0.10f), new(0.02f, -0.25f, 0.08f), new(-0.24f, -0.24f, 0.08f), PartRole.Hull),
+    ], OnLitterShift);
+
+    private static readonly KitPart[] Litter =
+    [
+        P(0f, 0f, -0.01f, 1.55f, 0.56f, 0.03f, ColourRole.Canvas),                     // the canvas
+        P(0f, 0.30f, 0f, 2f * LitterHalfLength, 0.04f, 0.04f, ColourRole.Metal),       // the poles, their ends the handles
+        P(0f, -0.30f, 0f, 2f * LitterHalfLength, 0.04f, 0.04f, ColourRole.Metal),
+    ];
+
+    private static readonly KitPart RifleOnChest = Limb(new(0.30f, -0.10f, 0.27f), new(-0.40f, 0.10f, 0.27f), 0.05f, 0.08f, ColourRole.Metal);
+    private static readonly KitPart[] LitterPlain = [.. LitterBody, .. Litter];
+    private static readonly KitPart[] LitterArmed = [.. LitterBody, Shifted([RifleOnChest], OnLitterShift)[0], .. Litter];
+
+    /// <summary>
+    /// ⭐ CE-1104 (§6t T-b3, T-b4) — a standing figure's arms on a TEAM load's handles: the front man's hands just behind his hips (the load
+    /// is behind him), the rear man's just ahead of him, both at <see cref="Carriage.HandleHeight"/> and the poles' width apart; a
+    /// soldier's rifle slung across his back. Only the arm parts (and the rifle) change; the legs keep their gait.
+    /// </summary>
+    public static KitPart[] HandleArms(KitPart[] standing, bool front, bool soldier)
+    {
+        if (standing.Length < TorsoIndex + 2 + 4) return standing;
+        var parts = (KitPart[])standing.Clone();
+        float x = front ? -0.15f : 0.15f, z = Carriage.HandleHeight;
+        var handL = new Vector3(x, 0.30f, z); var handR = new Vector3(x, -0.30f, z);
+        KitPart[] arms =
+        [
+            .. Arm(StandShoulderL, new(x * 0.5f, 0.31f, 1.12f), handL, PartRole.Hull),
+            .. Arm(StandShoulderR, new(x * 0.5f, -0.31f, 1.12f), handR, PartRole.Hull),
+        ];
+        for (int i = 0; i < 4; i++) parts[TorsoIndex + 2 + i] = arms[i];
+        if (soldier && parts.Length > TorsoIndex + 6)
+            parts[TorsoIndex + 6] = Limb(new(-0.16f, 0.22f, 1.55f), new(-0.14f, -0.24f, 0.85f), 0.05f, 0.08f, ColourRole.Metal);   // slung
+        return parts;
+    }
 
     /// <summary>⭐ CE-1081 — the dragged figure.</summary>
     public static KitPart[] Towed(bool soldier)

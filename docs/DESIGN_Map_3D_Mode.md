@@ -2064,6 +2064,71 @@ AH-64 AND the renderer's box offset (`kitToBody`) — without it the rail could 
 | ![AH-64 side](assets/map-3d/ah64-1-side.png) | ![AH-64 close](assets/map-3d/ah64-2-close.png) |
 | *one hovering with its rotors turning, one on its wheels, a UH-60 in front for scale* | *the tandem canopy, the nose sensor, the stub wing's pod and rail, the tail rotor on the left* |
 
+### 6t. CE-1104 — the stretcher and the two-man weapon: two men carry one load (team carry T-b) — DESIGN + AS-BUILT `2026-10-15` (ui)
+
+🔒 **User, `2026-10-14`:** *"we might need aomething like that for medics carrying stretcher with wounded soldier"* · *"Approwed"* (R-2017) →
+`2026-10-15` the plan *"APPROVED"*. The sim half is T-a (backend, built); this is its drawing ([Entity Interactions
+§7.5](DESIGN_Entity_Interactions.md) T-b).
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a stretcher is a CARRY MODE, not an entity | ✅ `CarryMode.Stretcher = 3` in `PassengerBuffer.Modes`; the casualty's `IsEmbarkedTag.Mode == Stretcher`, his holder the front carrier | §7.5 T2 |
+| the second man is named by the carrier | ✅ `PassengerBuffer.Assistant`; he carries `IsAssistingTag { Carrier }`, derived on every node | §7.5 T1 |
+| the sim already places all three | ✅ the assistant `AssistantBehindMetres` (2 m) behind the carrier, the casualty half way | §7.5 T3 |
+| a two-man weapon is a `TwoMan` weapon system in the carry station with an assistant | ✅ `Embarkation.IsTwoManWeapon` | §7.5 |
+| ⛔ the map does not know any of it | ✅ `Carriage.Of`: a `Stretcher` casualty falls to `Free` (drawn standing), the carrier to `Carrying` (the shoulder pose); nothing reads `IsAssistingTag` | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class CarriageKind { <<existing, grows>> + OnStretcher · StretcherFront · StretcherRear · TeamFront · TeamRear }
+    class FigureCarriage { <<existing, grows>> + Partner, the other man of the pair }
+    class Carriage { <<existing, grows>> reads the Stretcher mode and IsAssistingTag · LitterFrame }
+    class BlockFigure { <<existing, grows>> OnLitter, the casualty and the litter · HandleArms, both hands on the handles }
+    class ColourRole { <<existing, grows>> + Canvas }
+    class EntityBodyLayer3D { <<existing, grows>> the litter frame for the casualty · a two-man weapon between the pair }
+    Carriage ..> CarriageKind
+    Carriage ..> FigureCarriage
+    EntityBodyLayer3D ..> Carriage
+    EntityBodyLayer3D ..> BlockFigure
+```
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant C as Carriage
+    participant F as BlockFigure
+    L->>C: the casualty: OnStretcher, his carrier, the assistant
+    C-->>L: the litter frame, midway between the pair at hand height, facing the carrier's way
+    L->>F: OnLitter: him on his back on the litter, poles and canvas
+    L->>C: the carrier: StretcherFront · the assistant: StretcherRear
+    L->>F: HandleArms: hands behind him on the front handles, or ahead of him on the rear ones
+    L->>L: a two-man weapon: drawn between the pair, at the same height
+```
+
+*Caption:* the three are found from facts every node has (the carrier's list, the derived tags); the drawing only moves the casualty onto a
+litter between the two men and their hands onto its handles — the sim's places are kept.
+
+| decision | rule |
+|---|---|
+| **T-b1 the casualty** | on his back on the litter, head toward the front man, arms along his sides (a soldier's rifle on his chest); the litter midway between the pair at 0.80 m, facing the front man's way |
+| **T-b2 the litter** | two poles 1.7 m long and a canvas between them |
+| **T-b3 the carriers** | the front man's hands behind his hips on the front handles, the rear man's ahead of him on the rear ones; both walk with their gait; a soldier's rifle slung |
+| **T-b4 a two-man weapon** | stowed, between the pair at hand height, both men's hands on it |
+
+**Rejected — one line each:** *a stretcher entity* — the sim ruled it a carry mode (T2), so the drawing needs none; *the litter at the casualty's
+own place and height* — he is placed on the ground by the sim, the litter belongs in the men's hands.
+
+**AS-BUILT** — as drawn. A two-man weapon's stowed kit is centred on the hands by its own height (measured: a fixed share of its size
+left a stowed 120 mm mortar on the ground). ⚠ A carried weapon must carry `IsEmbarkedTag.Exposed = 1` to be drawn at all (the enclosed-
+passenger rule hides `Exposed = 0`) — true of the sim's carry station; the rail sets it. Rails `Map3DTests.CE1104_*` (the classifier and the
+team frame; the litter and the hands), frame rail `CE1104_V` (`team-*.png`).
+
+| | |
+|---|---|
+| ![team side](assets/map-3d/team-1-side.png) | ![team above](assets/map-3d/team-2-above.png) |
+| *behind: two medics carry a wounded soldier on a stretcher; in front: a mortar team carries a 120 mm mortar between them* | *from above* |
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

@@ -5,6 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
@@ -29,13 +30,24 @@ public enum CarriageKind : byte
     Downed,
     /// <summary>⭐ CE-1088 (§6n N-2) — in a weapon system's own <c>Gunner</c> seat: at his weapon (the holder is the weapon).</summary>
     Manning,
+    /// <summary>⭐ CE-1104 (§6t) — on a stretcher two men carry (the holder is the front man, the partner the rear one).</summary>
+    OnStretcher,
+    /// <summary>⭐ CE-1104 — at a stretcher's front handles (the partner is the rear man).</summary>
+    StretcherFront,
+    /// <summary>⭐ CE-1104 — at a stretcher's rear handles (the holder is the front man).</summary>
+    StretcherRear,
+    /// <summary>⭐ CE-1104 — carrying a two-man weapon at its front (the load; the partner is the rear man).</summary>
+    TeamFront,
+    /// <summary>⭐ CE-1104 — carrying a two-man weapon at its rear (the holder is the front man, the load the weapon).</summary>
+    TeamRear,
 }
 
 /// <summary>⭐ CE-1081 … CE-1083 — the answer for one person: how he is held, by what (the carrier or the vehicle), the seat (when
 /// seated), and whether he is WOUNDED (he limps — C-2; it combines with walking free or carrying). ⭐ CE-1085 (§6n N-3) — and the
 /// weapon system he CARRIES in his carry station (<paramref name="Load"/>; null when none), which combines with any of his own kinds.</summary>
+/// ⭐ CE-1104 (§6t) — and the other man of a pair carrying one load (<paramref name="Partner"/>).
 public readonly record struct FigureCarriage(CarriageKind Kind, Entity Holder = default, SeatDto? Seat = null, bool Wounded = false,
-                                             Entity Load = default)
+                                             Entity Load = default, Entity Partner = default)
 {
     public static readonly FigureCarriage Free = new(CarriageKind.Free);
 }
@@ -63,6 +75,7 @@ public static class Carriage
                     {
                         CarryMode.Carried => new FigureCarriage(CarriageKind.Carried, holder),
                         CarryMode.Dragged => new FigureCarriage(CarriageKind.Dragged, holder),
+                        CarryMode.Stretcher => new FigureCarriage(CarriageKind.OnStretcher, holder, Partner: AssistantOf(world, holder)),   // ⭐ CE-1104
                         _ => new FigureCarriage(CarriageKind.Free, Wounded: wounded),
                     };
                 // ⭐ CE-1088 (§6n N-2) — a man in a weapon system's own seat mans it (a tripod HMG, a mortar): drawn AT the weapon
@@ -74,6 +87,17 @@ public static class Carriage
         }
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && Injury.StateOf(world, e) == InjuryState.Incapacitated)
             return new FigureCarriage(CarriageKind.Downed);
+        // ⭐ CE-1104 (§6t) — the SECOND man of a team carry: at the rear of what his carrier carries (a stretcher, or a two-man weapon)
+        if (world.IsComponentTypeRegistered<IsAssistingTag>() && world.HasComponent<IsAssistingTag>(e))
+        {
+            var front = world.GetComponentRO<IsAssistingTag>(e).Carrier;
+            if (world.IsAlive(front) && world.HasComponent<PassengerBuffer>(front))
+            {
+                var (stretcher, weapon) = TeamLoadOf(world, front);
+                if (stretcher) return new FigureCarriage(CarriageKind.StretcherRear, front, Wounded: wounded);
+                if (!weapon.IsNull) return new FigureCarriage(CarriageKind.TeamRear, front, Wounded: wounded, Load: weapon);
+            }
+        }
         if (world.IsComponentTypeRegistered<PassengerBuffer>() && world.HasComponent<PassengerBuffer>(e)
             && world.IsComponentTypeRegistered<PersonCarrier>() && Embarkation.IsPersonCarrier(world, e))
         {
@@ -90,13 +114,53 @@ public static class Carriage
                 if (WeaponSystems.IsWeaponSystem(world, p)) { if (load.IsNull) load = p; }
                 else if (casualty < 0) casualty = i;
             }
+            bool paired = !list.Assistant.IsNull && world.IsAlive(list.Assistant);
             if (casualty >= 0)
-                return list.ModeOf(casualty) == CarryMode.Dragged
-                    ? new FigureCarriage(CarriageKind.Dragging, Wounded: wounded, Load: load)
-                    : new FigureCarriage(CarriageKind.Carrying, Wounded: wounded, Load: load);
+                return list.ModeOf(casualty) switch
+                {
+                    CarryMode.Dragged => new FigureCarriage(CarriageKind.Dragging, Wounded: wounded, Load: load),
+                    CarryMode.Stretcher => new FigureCarriage(CarriageKind.StretcherFront, Wounded: wounded, Load: load, Partner: list.Assistant),   // ⭐ CE-1104
+                    _ => new FigureCarriage(CarriageKind.Carrying, Wounded: wounded, Load: load),
+                };
+            if (!load.IsNull && paired && Embarkation.IsTwoManWeapon(world, load))   // ⭐ CE-1104 — a two-man weapon, the pair at it
+                return new FigureCarriage(CarriageKind.TeamFront, Wounded: wounded, Load: load, Partner: list.Assistant);
             if (!load.IsNull) return new FigureCarriage(CarriageKind.Free, Wounded: wounded, Load: load);
         }
         return wounded ? new FigureCarriage(CarriageKind.Free, Wounded: true) : FigureCarriage.Free;
+    }
+
+    /// <summary>⭐ CE-1104 — the second man <paramref name="carrier"/> names (null when none).</summary>
+    public static Entity AssistantOf(EntityRepository world, Entity carrier)
+        => world.IsComponentTypeRegistered<PassengerBuffer>() && world.HasComponent<PassengerBuffer>(carrier)
+            ? world.GetComponentRO<PassengerBuffer>(carrier).Assistant : default;
+
+    /// <summary>⭐ CE-1104 — what a team carrier carries with his assistant: a stretcher (a casualty in <see cref="CarryMode.Stretcher"/>), or
+    /// the two-man weapon in his carry station (null when none).</summary>
+    private static (bool Stretcher, Entity Weapon) TeamLoadOf(EntityRepository world, Entity carrier)
+    {
+        var list = world.GetComponentRO<PassengerBuffer>(carrier);
+        Entity weapon = default;
+        for (int i = 0; i < PassengerBuffer.Capacity; i++)
+        {
+            var p = list.Passengers[i];
+            if (p.IsNull || !world.IsAlive(p)) continue;
+            if (WeaponSystems.IsWeaponSystem(world, p)) { if (weapon.IsNull && Embarkation.IsTwoManWeapon(world, p)) weapon = p; }
+            else if (list.ModeOf(i) == CarryMode.Stretcher) return (true, default);
+        }
+        return (false, weapon);
+    }
+
+    /// <summary>⭐ CE-1104 (§6t T-b1) — how high the litter (and a two-man weapon) is held: the carriers' hands, for 1.8 m men.</summary>
+    public const float HandleHeight = 0.80f;
+
+    /// <summary>
+    /// ⭐ CE-1104 (§6t T-b1) — the frame a team load is drawn in: MIDWAY between the front man and his partner, at <see cref="HandleHeight"/>
+    /// above the ground under them, facing the front man's way. With no partner placed, at the front man's place.
+    /// </summary>
+    public static Matrix4x4 TeamFrame(in SimTransform front, in SimTransform? rear)
+    {
+        var at = rear is { } r ? (front.Position + r.Position) / 2f : front.Position;
+        return Matrix4x4.CreateFromQuaternion(front.Rotation) * Matrix4x4.CreateTranslation(at + new Vector3(0f, 0f, HandleHeight));
     }
 
     /// <summary>Seat <paramref name="seat"/> of <paramref name="vehicle"/>'s type (its <c>Gen.Carrier</c>), or null.</summary>

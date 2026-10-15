@@ -1058,6 +1058,78 @@ public sealed class Map3DTests
         Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
     }
 
+    /// <summary>⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t) — a team carry is found from the carrier's list and the derived tag: the casualty
+    /// on a STRETCHER (held by the front man, the assistant his partner), the front man at its front handles, the assistant at its rear;
+    /// a TWO-MAN weapon in the carry station with an assistant makes a front and a rear man too. The load is drawn MIDWAY between the
+    /// pair at their hands, facing the front man's way. 📌 Before: the casualty fell to Free (drawn standing), the carrier to Carrying.</summary>
+    [Fact]
+    public void CE1104_ATeamCarry_IsFoundFromTheList_AndItsLoadHangsBetweenThePair()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();
+            var front = Man(world, new Vector3(10f, 0f, 0f));
+            var rear = Man(world, new Vector3(8f, 0f, 0f));
+            var casualty = Man(world, new Vector3(9f, 0f, 0f), health: 20f);
+            Carries(world, front, casualty, Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher);
+            var list = world.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(front);
+            list.Assistant = rear;
+            world.SetComponent(front, list);
+            world.AddComponent(rear, new Fdp.Toolkit.Behavior.Components.IsAssistingTag { Carrier = front });
+
+            var onIt = Carriage.Of(world, casualty, db);
+            Assert.Equal((CarriageKind.OnStretcher, front, rear), (onIt.Kind, onIt.Holder, onIt.Partner));
+            var atFront = Carriage.Of(world, front, db);
+            Assert.Equal((CarriageKind.StretcherFront, rear), (atFront.Kind, atFront.Partner));
+            var atRear = Carriage.Of(world, rear, db);
+            Assert.Equal((CarriageKind.StretcherRear, front), (atRear.Kind, atRear.Holder));
+
+            var frame = Carriage.TeamFrame(world.GetComponentRO<SimTransform>(front), world.GetComponentRO<SimTransform>(rear));
+            Assert.True(Vector3.Distance(new Vector3(9f, 0f, Carriage.HandleHeight), frame.Translation) < 1e-4f, $"midway at the hands: {frame.Translation}");
+            Assert.True(Vector3.TransformNormal(Vector3.UnitX, frame).X > 0.99f, "facing the front man's way");
+
+            // a two-man weapon: the 120 mm mortar in the carry station, an assistant at its rear
+            var crewFront = Man(world, new Vector3(20f, 0f, 0f));
+            var crewRear = Man(world, new Vector3(18f, 0f, 0f));
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            var mortar = world.CreateEntity();
+            world.AddComponent(mortar, new SimTransform { Position = new Vector3(20f, 0f, 0f), Rotation = Quaternion.Identity });
+            world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
+            world.AddComponent(crewFront, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
+            var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = crewRear };
+            crew.Passengers[1] = mortar;
+            world.AddComponent(crewFront, crew);
+            world.AddComponent(crewRear, new Fdp.Toolkit.Behavior.Components.IsAssistingTag { Carrier = crewFront });
+            var teamFront = Carriage.Of(world, crewFront, db);
+            Assert.Equal((CarriageKind.TeamFront, mortar, crewRear), (teamFront.Kind, teamFront.Load, teamFront.Partner));
+            var teamRear = Carriage.Of(world, crewRear, db);
+            Assert.Equal((CarriageKind.TeamRear, crewFront, mortar), (teamRear.Kind, teamRear.Holder, teamRear.Load));
+        }
+    }
+
+    /// <summary>⭐ CE-1104 (§6t T-b1 … T-b3) — the figures: on the litter he lies on his back with his head toward the front man and the
+    /// litter's poles end at the handles; the front man's hands are behind him at the handles' height, the rear man's ahead of him.</summary>
+    [Fact]
+    public void CE1104_HeLiesOnTheLitter_AndTheirHandsAreOnItsHandles()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        Vector3 At(KitPart p, Vector3 unit) => Vector3.Transform(unit, p.BodyTransform(size));
+        var litter = BlockFigure.OnLitter(soldier: true);
+        Assert.True(At(litter[BlockFigure.HeadIndex], Vector3.Zero).X > At(litter[BlockFigure.TorsoIndex], Vector3.Zero).X, "his head toward the front man");
+        Assert.Equal(FaceOn.Up, litter[BlockFigure.HeadIndex].Face);
+        var poles = litter.Where(p => p.Colour == ColourRole.Metal && p.Extent.X * size.X > 1.5f).ToArray();
+        Assert.Equal(2, poles.Length);
+        Assert.All(poles, p => Assert.InRange(At(p, new Vector3(0.5f, 0f, 0f)).X, BlockFigure.LitterHalfLength - 0.01f, BlockFigure.LitterHalfLength + 0.01f));
+        Assert.Single(litter, p => p.Colour == ColourRole.Canvas);
+
+        var standing = BlockFigure.Parts(StanceId.Standing, true);
+        var frontHand = At(BlockFigure.HandleArms(standing, front: true, soldier: true)[7], new Vector3(0.5f, 0f, 0f));   // the left forearm's end
+        var rearHand = At(BlockFigure.HandleArms(standing, front: false, soldier: true)[7], new Vector3(0.5f, 0f, 0f));
+        Assert.True(frontHand.X < -0.1f && MathF.Abs(frontHand.Z - Carriage.HandleHeight) < 0.02f, $"front hands behind him at the handles: {frontHand}");
+        Assert.True(rearHand.X > 0.1f && MathF.Abs(rearHand.Z - Carriage.HandleHeight) < 0.02f, $"rear hands ahead of him: {rearHand}");
+    }
+
     /// <summary>⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the AH-64 is an ATTACK helicopter, not a UH-60: its own kit (a chin gun on a
     /// turret, four rotor blades, a tail rotor, two rocket pods), sized by its TKB box; its rotors spool as a helicopter's.</summary>
     [Fact]
@@ -1313,7 +1385,7 @@ public sealed class Map3DTests
     // ── aircraft (SISO-REF-010 platform / air categories) ──
 
     [Theory]
-    [InlineData(20, VisualFamily.Helicopter)]
+    [InlineData(20, VisualFamily.AttackHelicopter)]
     [InlineData(21, VisualFamily.Helicopter)]
     [InlineData(23, VisualFamily.Helicopter)]
     [InlineData(25, VisualFamily.Helicopter)]

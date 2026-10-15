@@ -1551,6 +1551,93 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1104 (docs/DESIGN_Map_3D_Mode.md §6t) — the (V) acceptance for a team carry: two medics carrying a wounded soldier on a stretcher,
+    /// and a mortar team carrying a 120 mm mortar between them, all facing east. Side-on, then from above. Screenshots <c>team-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1104_V_AStretcher_AndATwoManWeapon()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Put(long type, float dx, float dy, float health = 100f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = type });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            return e;
+        }
+        // the stretcher: the front medic, the rear one 2 m behind, the casualty half way (as the sim places them)
+        var front = Put(TkbEntityTypes.Infantry_Rifleman, 1.0f, 2f);
+        var rear = Put(TkbEntityTypes.Infantry_Rifleman, -1.0f, 2f);
+        var casualty = Put(TkbEntityTypes.Infantry_Rifleman, 0f, 2f, health: 35f);
+        world.AddComponent(front, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
+        var list = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = rear };
+        list.Passengers[0] = casualty;
+        list.SetMode(0, Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher);
+        world.AddComponent(front, list);
+        world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = front, Exposed = 1, Mode = Fdp.Toolkit.Behavior.Components.CarryMode.Stretcher });
+        world.AddComponent(rear, new Fdp.Toolkit.Behavior.Components.IsAssistingTag { Carrier = front });
+        // the mortar team
+        var gunner = Put(TkbEntityTypes.Infantry_Rifleman, 1.0f, -2f);
+        var loader = Put(TkbEntityTypes.Infantry_Rifleman, -1.0f, -2f);
+        var mortar = world.CreateEntity();
+        world.AddComponent(mortar, new SimTransform { Position = world.GetComponentRO<SimTransform>(gunner).Position, Rotation = Quaternion.Identity });
+        world.AddComponent(mortar, new TkbIdentity { TkbType = TkbEntityTypes.WeaponSystem_Mortar120 });
+        world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
+        world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
+        var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = loader };
+        crew.Passengers[1] = mortar;
+        world.AddComponent(gunner, crew);
+        world.AddComponent(mortar, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = gunner, Seat = 1, Exposed = 1 });   // a carried load is seen
+        world.AddComponent(loader, new Fdp.Toolkit.Behavior.Components.IsAssistingTag { Carrier = gunner });
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.9f), 8.5f, MathF.PI * 0.5f, -0.12f);   // from the south
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "team-1-side.png"));
+        Assert.Equal((Litters: 1, TeamLoads: 1), (Litters: bodies.LittersDrawn, TeamLoads: bodies.TeamLoadsDrawn));
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.5f), 7f, 0.4f, -0.8f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "team-2-above.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1103 (docs/DESIGN_Map_3D_Mode.md §6s) — the (V) acceptance for the AH-64: one on its wheels, one hovering at 18 m with its rotors
     /// turning, a UH-60 beside them for scale. Side-on, then from above and ahead. Screenshots <c>ah64-*.png</c>.
     /// </summary>
@@ -1715,9 +1802,9 @@ public sealed class Map3DFrameRail
         var tkb = Map3DTests.BuiltIn();
         Fdp.Core.DISEntityType Dis(byte category, byte sub = 0) => new() { Kind = 1, Domain = 1, Country = 225, Category = category, Subcategory = sub };
         void Type(long id, string name, Fdp.Core.DISEntityType dis) => tkb.Register(new Fdp.Interfaces.TkbTemplate(name, id) { DisType = dis });
-        Type(990001, "M2 HMG", Dis(50, 1)); Type(990002, "M134 minigun", Dis(50, 2)); Type(990003, "Kornet", Dis(50, 3));
-        Type(990004, "Javelin", Dis(50, 4)); Type(990005, "Sentry gun", Dis(50, 5)); Type(990006, "81 mm mortar", Dis(10));
-        Type(990007, "M119 105 mm", Dis(5)); Type(990008, "M109 155 mm", Dis(4));
+        Type(990001, "M2 HMG (test)", Dis(50, 1)); Type(990002, "M134 minigun (test)", Dis(50, 2)); Type(990003, "Kornet (test)", Dis(50, 3));
+        Type(990004, "Javelin (test)", Dis(50, 4)); Type(990005, "Sentry gun (test)", Dis(50, 5)); Type(990006, "81 mm mortar (test)", Dis(10));
+        Type(990007, "M119 105 mm (test)", Dis(5)); Type(990008, "M109 155 mm (test)", Dis(4));
         var pickup = new Fdp.Interfaces.TkbTemplate("Technical (test)", 990009) { DisType = Dis(6) };
         pickup.AddDescriptor(new CarrierDefDto
         {
