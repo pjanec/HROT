@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-16
 build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a); B-5…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 (wins over §1/§5 where they differ), §8 the three demos.
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 (wins over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -14,6 +14,7 @@ related-designs:
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — owns the squad drills (SquadDismount, ISquadPlay, BasicSquadSop rows); this adds SquadFastRope, SquadAirborneExit, AssembleAfterDrop
   - docs/DESIGN_Map_3D_Mode.md — owns the 3-D drawing (§6m carriage kinds, §6n weapon drawings); this adds the rope, the canopy and the descent poses
   - docs/DESIGN_Dead_Reckoning.md — owns the replicated transform; the canopy's bank rides its pitch / roll (§9, P3)
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS hit-by-part (R-3010: PersonBody / VehicleBody generated from the drawing, PartDamage, HitMarks); §9 here says how a descending man, the canopy and the rope meet it
 -->
 
 # Airborne insertion — fast-rope and parachute (and later the ejecting pilot)
@@ -382,3 +383,18 @@ drops (a C-130 type), varying wind, a canopy that fails (reserve).
 
 ⚠ **Terrain for `ua-fast-rope-roof`:** a building with a flat, reachable roof — the authoring lane picks one (or adds one to a test terrain) and states
 its roof height in the scenario's notes; the rope hold's height is above THAT roof (B-3).
+
+## 9. Hit by part during a descent — with [Body Parts and Hit Location](../hit-location/DESIGN_Body_Parts_And_Hit_Location.md) (R-3010)
+
+| fact | code (backend, `2026-10-16`) | what it means here |
+|---|---|---|
+| a round's target is a PERSON when its `VehicleParams.Class` is `Pedestrian` | `PhysicsComponents.cs:63-68` (`IsPerson`) | ✅ a descending man keeps his `VehicleParams` ⇒ he is still hit BY PART under a canopy or on a rope. ⛔ **keep it that way**: `IsPerson` must NOT move to `Locomotions.Of` — under D-1 that answers Parachute / Rope and he would become untouchable |
+| the sim poses a man by LOGICAL STANCE + weapon posture (HL-9), 11 poses generated from `BlockFigure` | `PersonBody.PoseOf`, `PersonBody.Tables.g.cs` | v1: a man on a rope or under a canopy (upright) collides as STANDING — close to how he hangs. A free-fall arch (flat) collides as standing too: rare and fast, accepted. ⏭ a descent pose in `PersonBody` only if a rail shows it matters |
+| the parity rails compare the 11 generated poses with the drawing (`PersonBodyParityTests`, ui's suite) | — | U-1's descent poses are NEW drawing poses beside the 11 ⇒ they do not touch the parity; ⛔ U-1 must not change the 11 |
+| `HitMarks` are part-local, drawn wherever the body is | HL-8 | ✅ holes and blood on a jumper are drawn the same way (S1c) |
+
+| decision | lean | rejected |
+|---|---|---|
+| **D-10** the canopy and the rope | NOT hittable parts in v1 — a round through a canopy barely matters; a rope is not cut by gunfire in practice | canopy parts (a torn canopy, a faster sink) — later, if a demo asks |
+| **D-11** the ejection seat | not an entity and not hittable (it is gone in ~1.5 s) | — |
+| **D-12** a man hit on the rope or under the canopy | the existing chain applies (`PartDamage`, `Health`, `Injury`): killed or incapacitated ⇒ the model keeps him on the rope until the bottom / under the canopy to the ground with no steering (§5.3: a man who lets go is `Falling`) | dropping every hit man off the rope — a wound does not open the hands |
