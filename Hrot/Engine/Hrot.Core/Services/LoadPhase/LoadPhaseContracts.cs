@@ -98,10 +98,20 @@ public interface ILoadPartProvider
     LoadPart Part { get; }
 
     /// <summary>
-    /// ⭐ The I/O half — runs OFF the main thread. ⛔ <b>Must not touch ECS</b>: the cluster may still
-    /// abort the round, and a mutation here would not roll back.
+    /// ⭐ The I/O half. ⛔ <b>Must not touch ECS</b>: the cluster may still abort the round, and a mutation here would
+    /// not roll back. ⚠ Runs on a WORKER only when <see cref="PreparesOffFrameThread"/> is true; otherwise inline on
+    /// the frame thread.
     /// </summary>
     Task PrepareAsync(LoadPhaseContext context, CancellationToken ct);
+
+    /// <summary>
+    /// ⭐⭐ P4 (Q91 §4-B2, R-4001) — <c>true</c> when <see cref="PrepareAsync"/> builds ONLY a private object nobody else
+    /// can see yet (and writes every shared thing in <see cref="Commit"/>), so it may run on a worker while the frame
+    /// thread keeps ticking — and the heartbeat keeps beating. ⛔ Default <c>false</c>: a step that touches anything
+    /// shared (an id allocator, a live database) prepares inline on the frame thread. 🔒 User: <i>"load preparation can
+    /// be run in background thread only if it is safe not touching global data."</i>
+    /// </summary>
+    bool PreparesOffFrameThread => false;
 
     /// <summary>
     /// ⭐ The ECS half — main thread, and the only place ECS is written.

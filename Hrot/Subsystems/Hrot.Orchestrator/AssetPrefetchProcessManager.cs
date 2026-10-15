@@ -196,6 +196,9 @@ public sealed class AssetPrefetchProcessManager
         {
             if (ack.Operation != Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles)
                 continue;
+            // ⭐ P4 — a node still preparing reports progress; only its final answer settles its files.
+            if (ack.StatusCode is OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
+                continue;
 
             if (!_pendingPrefetchAcks.TryGetValue(ack.TransactionId, out var tracker))
                 continue;

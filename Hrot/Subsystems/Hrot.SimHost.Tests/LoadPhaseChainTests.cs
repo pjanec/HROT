@@ -304,6 +304,58 @@ public sealed class LoadPhaseChainTests
         }
     }
 
+    // ── P4 (Q91 §4-B2, R-4001) — the frame thread coordinates; only a pure step leaves it ─────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P4</c> — while an off-thread step is still working, the chain's prepare is an INCOMPLETE task (so
+    /// <c>ClusterSlave</c> polls it and the frame — and the heartbeat — keep ticking), the inline step has already
+    /// run, and the off-thread one runs on a worker. ⛔ Before: every step ran inline, so the frame stopped for the
+    /// whole read.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public async Task P4_AnOffThreadStep_LeavesThePrepareIncomplete_AndRunsOffTheCallingThread()
+    {
+        var order    = new List<LoadPart>();
+        var blocking = new BlockingStep(LoadPart.Terrain);
+        var chain = LoadPhaseChain.FromRoles(
+            NodeRole.MuscleGround,
+            new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase, order), blocking },
+            world: null, hostLabel: "TestHost");
+
+        int callingThread = Environment.CurrentManagedThreadId;
+        var prepare = chain.PrepareAsync(LoadIntent(), CancellationToken.None);
+
+        Assert.True(blocking.Started.Wait(5_000), "the off-thread step never started");
+        Assert.False(prepare.IsCompleted, "the prepare must stay pending while the off-thread step works");
+        Assert.Equal(new[] { LoadPart.KnowledgeBase }, order);   // ⭐ the inline step already ran
+        Assert.NotEqual(callingThread, blocking.ThreadId);        // ⭐ and the pure one is on a worker
+
+        blocking.Release.SetResult();
+        await prepare;
+    }
+
+    /// <summary>⭐ A pure step that waits on a gate, recording the thread it ran on.</summary>
+    private sealed class BlockingStep : ILoadPartProvider
+    {
+        public BlockingStep(LoadPart part) => Part = part;
+        public LoadPart Part { get; }
+        public bool PreparesOffFrameThread => true;
+        public ManualResetEventSlim Started { get; } = new();
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int ThreadId { get; private set; }
+
+        public async Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+        {
+            ThreadId = Environment.CurrentManagedThreadId;
+            Started.Set();
+            await Release.Task;
+        }
+
+        public void Commit(LoadPhaseContext context, EntityRepository? world) { }
+        public void Abort(LoadPhaseContext context) { }
+        public bool IsResolved(EntityRepository? world) => true;
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
 
     private static ExecuteNodeOpIntent LoadIntent()

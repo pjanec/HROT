@@ -97,6 +97,42 @@ public sealed class ClusterSlaveTests
         Assert.Equal(1, handler.CommitCallCount);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>P4</c> (Q91 §4-B2, R-4001) — a deferred prepare is reported ONCE as <c>InProgress</c> (progress for the
+    /// master, never the answer), and the answer follows when the prepare completes.
+    /// </summary>
+    [Fact]
+    public void P4_ADeferredPrepare_ReportsInProgressOnce_ThenItsAnswer()
+    {
+        const int opId = 5;
+        var handler = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(handler);
+        var txId = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = txId, TargetNodeId = 3, Operation = (NodeOpType)opId });
+
+        var seen = new List<OrchestrationStatusCode>();
+        for (int frame = 0; frame < 3; frame++)   // ⭐ several frames while pending: still ONE report
+        {
+            bus.SwapBuffers();
+            slave.Tick();
+            bus.SwapBuffers();
+            foreach (var ev in bus.ReadManaged<NodeOpCompletedEvent>())
+                if (ev.TransactionId == txId) seen.Add(ev.StatusCode);
+        }
+        Assert.Equal(new[] { OrchestrationStatusCode.InProgress }, seen);
+
+        handler.PrepareGate!.SetResult(null);
+        bus.SwapBuffers();
+        slave.Tick();
+        bus.SwapBuffers();
+        foreach (var ev in bus.ReadManaged<NodeOpCompletedEvent>())
+            if (ev.TransactionId == txId) seen.Add(ev.StatusCode);
+
+        Assert.Equal(new[] { OrchestrationStatusCode.InProgress, OrchestrationStatusCode.Success }, seen);
+    }
+
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────
 
     /// <summary>

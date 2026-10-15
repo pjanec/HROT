@@ -329,7 +329,7 @@ object nobody else can see yet; every write into shared state (the TKB database,
 | ⭐ a step that cannot be split stays on the frame thread **ticked**, reporting progress per tick | the scenario-entities shape |
 | ⚠ **what R-4001 deliberately leaves open** | a node alive and ticking whose step never finishes holds its round forever. ⭐ **Report it, don't time it**: the progress shows a stall; an operator cancels. ⛔⛔ **CORRECTED `2026-10-15`** — this row read *"an operator cancels with the EXISTING `ClusterOpType.CancelOperation`. ⛔ Not measured: whether `CancelOperation` reaches a load prepare today."* 📐 **Measured: it does NOT.** Cancel is archive-only and the one cleanly cancellable transition state is `PARKED`, before anything is sent (`ClusterMaster.cs:1627-1640`); `LoadPhaseChain` never claims `AbortTransaction`. ⇒ **the escape R-4001 relies on did not exist — ⭐ `§4-H` builds it** (a routing fix: the abort seam is already complete) |
 
-#### ⏳ P4 — BEING BUILT `2026-10-15` (this table becomes the as-built when it lands)
+#### ✅ P4 AS BUILT `2026-10-15`
 
 | piece | as built |
 |---|---|
@@ -337,6 +337,7 @@ object nobody else can see yet; every write into shared state (the TKB database,
 | the chain | `LoadPhaseChain.PrepareAsync` prepares the frame-thread steps inline, in order, then runs the off-thread ones on a worker in order ⇒ it returns an incomplete task and `ClusterSlave` polls it every frame (the existing `_pendingPrepare`) |
 | which steps | terrain only (`TerrainResidency.Prepare` builds a private `Staged`). ⛔ The knowledge-base step stays inline (`R-4018`: loaded once). The scenario step stays inline (it allocates ids) |
 | progress, not an ACK | the slave publishes ONE `InProgress` status when it defers a prepare; the master's round intake and the prefetch tracker read `InProgress` / `Pending` as progress — no `Received++`, no paid ACK |
+| rails | `LoadPhaseChainTests.P4_AnOffThreadStep_LeavesThePrepareIncomplete_AndRunsOffTheCallingThread` · `ClusterSlaveTests.P4_ADeferredPrepare_ReportsInProgressOnce_ThenItsAnswer` · `ClusterMasterZoneRoundTests.P4_An_InProgress_report_is_not_the_nodes_answer` (red-proved: without the master's skip the round commits on progress alone) |
 
 ### 4-C ⭐ A best-effort node returns an ERROR
 
@@ -735,6 +736,43 @@ state in `Loading*` with nothing loading, which is the half-cancelled condition 
 | **H4** | ⭐ **Still NO timer** (`R-4001`) | ⛔ the master never cancels on its own. A stall is reported as progress; a human decides |
 | **H5** | ⚠ **The in-flight file transfer is CANCELLED, not abandoned** | 📐 today the gateway's prefetch *"registers no cancellation source, so the bytes finish landing"* (`ClusterMaster.cs:1631-1634`) — harmless then, because nothing loaded them. ⭐ With `§4-E2`'s provider, `IFileTransfer.Cancel()` exists ⇒ **use it**, and dispose the writer and readers as the normal end does |
 | **H6** | ⭐ **A node that was mid-`Prepare` on a worker** | the chain's `Abort` cancels the hold; the worker's result is **discarded, never committed** — which is exactly why `§4-B2` requires the worker to build a PRIVATE object and write nothing shared before `Commit` |
+
+### 4-H.3a ⭐⭐ AMENDMENT `2026-10-15` (build) — **the abort must REACH a stuck node**, and the "no `ClusterSlave` change" lean fails
+
+📐 **Measured while building P8:**
+
+| fact | evidence |
+|---|---|
+| while a prepare is pending, `ClusterSlave` QUEUES every new intent and dispatches none until it completes | `ClusterSlave.cs` `Tick`: `_pendingPrepare` ⇒ `_pendingIntents.Enqueue`; the drain `return`s while the task is incomplete |
+| ⇒ an `AbortTransaction` for a load whose prepare never finishes waits behind that prepare **forever** | — the exact stall `R-4001` hands to the operator |
+| the slave gives an op to the FIRST claimant only; `TerrainAssetHandler` claims EVERY `AbortTransaction` | `ClusterSlave.cs` `DispatchIntent`; `TerrainAssetHandler.CanHandle` |
+| ⇒ whichever of the terrain handler and the load chain registers first eats the other's abort | registration order differs per host |
+| an abort for a round a handler does not hold is a no-op there | `TerrainAssetHandler.RollBack` returns on an unknown transaction |
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant S as ClusterSlave
+  participant C as LoadPhaseChain
+  participant T as TerrainAssetHandler
+  Note over S,C: PrepareLive(tx) pending on a worker — later intents are queued
+  M->>S: AbortTransaction(target = tx)
+  S->>S: PREEMPT: drop the pending prepare of tx and its queued intents
+  S->>C: abort as an op — the chain holds tx, aborts every step
+  S->>T: abort as an op — holds nothing for tx, no-op
+  S-->>M: one ACK for the abort
+  M->>S: PrepareState(Idle) / CommitState(Idle) — the second round
+```
+
+*What the picture shows that the prose hid: the abort is the one op that must NOT wait in the queue it is meant to
+clear, and it is the one op that belongs to EVERY handler holding a part of the transaction.*
+
+| # | decision | why |
+|---|---|---|
+| **H7** | ⭐⭐ **`AbortTransaction` is delivered to EVERY handler that claims it, never first-match only** | an abort names a TRANSACTION; each handler rolls back its own part and no-ops otherwise. ⭐ Exclusivity (`DESIGN_Cluster_Load_Phase.md` §5.1) is about who BUILDS a load — it never applied to who rolls one back |
+| **H8** | ⭐⭐ **an abort naming the transaction of a PENDING prepare preempts it**: the pending prepare and that transaction's queued intents are dropped, the worker's result is discarded (H6), then the abort is dispatched | ⛔ without it the cancel cannot reach the node it exists for. ⚠ The worker keeps running to its end — it builds only private objects (§4-B2), so dropping its result is safe |
+| **H9** | ⭐ **the chain claims an abort only for the load it holds** (by transaction id) and aborts from the context it stored at prepare | the abort op carries no load payload, so the steps' context must come from the prepare |
+| ⛔ | ⛔ **SUPERSEDES** the handoff's lean *"route it as an ordinary handler op — needs no `ClusterSlave` change"* | measured above: an ordinary op is queued behind the stuck prepare |
 
 ### 4-H.4 ⚠ What is NOT decided here
 

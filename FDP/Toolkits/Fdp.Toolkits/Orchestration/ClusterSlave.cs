@@ -464,6 +464,17 @@ namespace Fdp.Toolkit.Orchestration
                 else
                 {
                     _pendingPrepare = (prepareTask, intent, handler);
+                    // ⭐⭐ P4 (Q91 §4-B2, R-4001) — say so ONCE: the prepare runs on, the frame (and the heartbeat) keeps
+                    //   ticking, and the master reads this as progress, never as the answer.
+                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                    {
+                        TransactionId   = intent.TransactionId,
+                        Operation       = intent.Operation,
+                        NodeId          = _nodeId,
+                        StatusCode      = OrchestrationStatusCode.InProgress,
+                        IsParticipating = true,
+                        ResultPayload   = null,
+                    });
                 }
                 return;
             }

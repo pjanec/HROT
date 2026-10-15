@@ -1797,6 +1797,12 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var ev in _eventBus.ReadManaged<NodeOpCompletedEvent>())
         {
+            // ⭐⭐ P4 (Q91 §4-B2, R-4001) — a node still PREPARING reports progress, not an answer: never counted as the
+            //   node's ACK, never paid against what it owes. ⛔ Before, every status was counted, so an InProgress report
+            //   would have completed a round the node had not finished.
+            if (ev.StatusCode is OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
+                continue;
+
             // S0501: Mirror ACKs into _inflightTransitionTx.NodeResponses for history.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
             {

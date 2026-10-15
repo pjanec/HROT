@@ -176,9 +176,24 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
 
         _pendingExerciseId = context.ExerciseId;
 
-        // ── The content itself. ⭐ EVERY required step runs, in order, off the main thread.
+        // ── The content itself. ⭐⭐ P4 (Q91 §4-B2, R-4001) — THE FRAME THREAD COORDINATES; only pure work leaves it.
+        //    📐 Before: every step was awaited inline with no prior yield (the comment here said "off the main thread";
+        //    the code did not), so a long TKB/terrain read stopped the frame — and the heartbeat — for its whole length.
+        //    ① a step whose prepare touches shared state (the scenario step allocates ids) prepares inline, FIRST;
+        //    ② the pure steps (they build private objects; every shared write is in Commit) run on a worker, in order,
+        //    so this method returns an incomplete task and ClusterSlave polls it every frame (_pendingPrepare).
+        //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
         foreach (var step in _steps)
-            await step.PrepareAsync(context, ct).ConfigureAwait(false);
+            if (!step.PreparesOffFrameThread)
+                await step.PrepareAsync(context, ct).ConfigureAwait(false);
+
+        var offFrame = _steps.Where(s => s.PreparesOffFrameThread).ToArray();
+        if (offFrame.Length > 0)
+            await Task.Run(async () =>
+            {
+                foreach (var step in offFrame)
+                    await step.PrepareAsync(context, ct).ConfigureAwait(false);
+            }, ct).ConfigureAwait(false);
 
         return null;
     }

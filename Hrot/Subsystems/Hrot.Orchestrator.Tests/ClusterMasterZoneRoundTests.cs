@@ -268,6 +268,31 @@ public sealed class ClusterMasterZoneRoundTests
         return (commits.Count > 0, outcome);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>P4</c> (Q91 §4-B2, R-4001) — a node still preparing reports <c>InProgress</c>; that is PROGRESS, never its
+    /// answer. ⛔ Before, every status was counted, so the round would have committed on progress reports alone.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void P4_An_InProgress_report_is_not_the_nodes_answer()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround), (NodeB, NodeRoleTokens.MuscleGround));
+        using var _ = master;
+
+        var requestId = Guid.NewGuid();
+        PublishLoadZone(bus, requestId, "zone-alpha");
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var prepares = ReadOps(bus, FdpNodeOpType.PrepareZone);
+        Assert.Equal(2, prepares.Count);
+
+        AckAll(bus, prepares, OrchestrationStatusCode.InProgress);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Empty(ReadOps(bus, FdpNodeOpType.CommitZone));   // ⭐ progress alone commits nothing
+
+        AckAll(bus, prepares);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(2, ReadOps(bus, FdpNodeOpType.CommitZone).Count);
+    }
+
     [Fact(Timeout = 5_000)]
     public void P2_An_observers_failure_is_recorded_but_does_not_fail_the_round()
     {
