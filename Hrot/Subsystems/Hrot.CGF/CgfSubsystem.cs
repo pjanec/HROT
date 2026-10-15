@@ -1088,7 +1088,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
-        // roster (OrchestratorSubsystem: SubsystemName is "SimHost" or "IG" or "CGF"), so the
+        // roster (⭐ P3: ClusterMaster.StepRoster — every node holding a simulation role; CGF holds Brain), so the
         // master blocks every step on a FrameAck from this node.  SimHost/IG get the
         // translators that carry that traffic from SharedApplicationBootstrapper Phase 6c; CGF
         // composes through HrotNodeBuilder directly and therefore has to register them itself.

@@ -74,6 +74,7 @@ public sealed class OrchestratorCore : IDisposable
         string nas = config.NasBasePath;
 
         _master = new ClusterMaster(bus, config);
+        _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
         // ⭐⭐⭐ HN-037 — the world's ONE id authority, so a scenario load resets it to 1000.
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;
@@ -128,7 +129,7 @@ public sealed class OrchestratorCore : IDisposable
         _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time);
 
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
-        _seek = new ReplaySeekProcessManager(bus, time);
+        _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
         // TASK-P002 — the prefetch. Must tick BEFORE ClusterMaster so PrefetchStagingCompletedEvent is ready.
         _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas);

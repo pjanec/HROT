@@ -364,6 +364,16 @@ last ACK.
 | ⭐ **one conclusion per process, delivered where its consumers live** | the NED ingest already dedupes at the producer (`_departed.Add(nodeId)`, `ClusterCapabilityIngestSystem.cs:109`); the master's copy comes from its own heartbeat timeout. ⛔ These are not two sources of truth — each process publishes what IT concluded |
 | ⭐ **also fix the contract** | publish `SlaveNodeSetUpdatedEvent` on a roster change too, so the event means what its header says |
 
+✅ **BUILT `2026-10-15` (P3) — with TWO deviations, argued here:**
+
+| as built | why it differs from the text above |
+|---|---|
+| ⭐ **the departure reaches the clock as `SlaveNodeSetUpdatedEvent`, republished whenever the step roster CHANGES** (`ClusterMaster.PublishStepRosterIfChanged`, every tick), and `MasterSyncController` now APPLIES the set when it arrives — replacing `_expectedSlaves` and dropping the pending ACKs of nodes no longer in it | ⛔ **no second `NodeDeparted` on the orchestration bus.** Once the event is published on every roster change it IS the channel — one event, one existing consumer. 🔒 *"publish where there is a consumer, nowhere else"* ⇒ a second event carrying the same fact would be the clutter the user ruled out |
+| ⭐ **the step roster is `StepRoster()`: advert landed ∧ holds a simulation role ∧ not the master's own node** — not `IsObserver`'s negation | 🔴 measured hazard: `IsObserver`'s clause ③ makes EVERY node authoritative in an all-observer cluster, which would put ExCon and the orchestrator in the barrier — neither ever ACKs a frame ⇒ stepping would hang. An empty roster is safe. ⛔ Never the master's own node: since P2a the editor holds simulation roles, and it runs the MASTER clock — it would wait for itself |
+
+Both name-match sites now call it (`ClusterMaster.PublishClusterPause`; `ReplaySeekProcessManager` takes `master.StepRoster`
+and lost its private heartbeat-name replica). Rails: `ClusterMasterSeekTests.P3_*` (3), `MasterSyncControllerTests.P3_*` (1).
+
 ### 4-E ⭐ Late join — the catch-up
 
 | option | |

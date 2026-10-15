@@ -193,6 +193,31 @@ namespace Fdp.Toolkit.Time.Tests
         }
 
         /// <summary>
+        /// ⭐ P3 (Q91 §4-D′) — a node that LEAVES the participating set mid-step stops gating it. 📐 Before, the set was
+        /// read only at the next pause, so a departed slave froze stepping for good.
+        /// </summary>
+        [Fact]
+        public void P3_A_slave_removed_from_the_set_mid_step_no_longer_gates_it()
+        {
+            long ticks  = 0;
+            var bus     = new FdpEventBus();
+            var ctrl    = CreateController(bus, config: new TimeConfig { LookaheadWallTicks = 0 }, tickSource: () => ticks);
+
+            ctrl.SwitchToDeterministic(new HashSet<int> { 1, 2 });
+            ticks = 1;
+            ctrl.Update();
+            Assert.Equal(1L, ctrl.Step(0.016f).FrameNumber);       // waits for {1, 2}
+
+            bus.PublishManaged(new FrameStepCompletedEvent { FrameID = 1, NodeID = 1 });
+            bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = new HashSet<int> { 1 } });   // node 2 left
+            bus.SwapBuffers();
+            ctrl.Update();
+
+            Assert.False(ctrl.IsAwaitingStepAcks, "the departed node 2 must no longer hold the step");
+            Assert.Equal(2L, ctrl.Step(0.016f).FrameNumber);       // and the next step waits for {1} only
+        }
+
+        /// <summary>
         /// TCU-MC001 §6 — SwitchToContinuous() publishes a Continuous event whose
         /// SimTimeSnapshot matches the controller's sim time at the moment of the call,
         /// and BarrierWallTicks is non-zero (so slaves can anchor their baseline).

@@ -337,6 +337,7 @@ public sealed class ClusterMaster : IDisposable
         IngestHeartbeats();
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
+        PublishStepRosterIfChanged();   // ⭐ P3
         DrainInjectedRequests();
 
         // ⭐⭐⭐ L8 — resume or expire a PARKED transition BEFORE new intents are admitted, so a transition
@@ -1966,10 +1967,9 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void PublishClusterPause()
     {
-        var slaveIds = _roster.ActiveNodes
-            .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-            .Select(kv => kv.Key)
-            .ToHashSet();
+        // ⭐ P3 — the step roster by ROLE, never by subsystem name (an observer never gates a step, R-4014).
+        var slaveIds = StepRoster();
+        _lastStepRoster = new HashSet<int>(slaveIds);
         _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
         _eventBus.PublishManaged(new PauseTimeIntent());
     }
@@ -2006,6 +2006,41 @@ public sealed class ClusterMaster : IDisposable
 
     private bool IsObserverByRole(NodeHealthProfile p)
         => _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) == 0;
+
+    /// <summary>The node this master runs IN (the orchestrator's own node, or the editor's) — set by the core.</summary>
+    public int LocalNodeId { get; set; } = int.MinValue;
+
+    private HashSet<int> _lastStepRoster = new();
+
+    /// <summary>
+    /// ⭐⭐ P3 (Q91 §4-D D1, §4-D′) — the nodes the clock's step barrier waits for: advert landed ∧ holds a simulation
+    /// role ∧ is not the node this master runs in. ⚠ DELIBERATELY NOT <see cref="IsObserver"/>'s clause ③: in a cluster of
+    /// observers only, ③ would make ExCon and the orchestrator "authoritative", and neither ever ACKs a frame ⇒ every step
+    /// would hang. An EMPTY roster means nobody is waited for, which is safe. ⛔ Never the master's own node: it runs the
+    /// MASTER clock (the editor, R-4005) and never ACKs a frame to itself. Replaces the name match
+    /// <c>"SimHost" or "IG" or "CGF"</c> at BOTH sites (here and <c>ReplaySeekProcessManager</c>).
+    /// </summary>
+    public IReadOnlySet<int> StepRoster()
+    {
+        var roster = new HashSet<int>();
+        foreach (var p in _roster.ActiveNodes.Values)
+            if (p.NodeId != LocalNodeId && _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) != 0)
+                roster.Add(p.NodeId);
+        return roster;
+    }
+
+    /// <summary>
+    /// ⭐ P3 ③ — publish the step roster whenever it CHANGES (a join, an advert landing, an ejection), so
+    /// <c>SlaveNodeSetUpdatedEvent</c> means what its own header says — and a departed node stops gating a step. ⭐ This IS
+    /// the departure channel to the clock: one event with an existing consumer, ⛔ not a second copy of <c>NodeDeparted</c>.
+    /// </summary>
+    private void PublishStepRosterIfChanged()
+    {
+        var now = StepRoster();
+        if (now.SetEquals(_lastStepRoster)) return;
+        _lastStepRoster = new HashSet<int>(now);
+        _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = now });
+    }
 
     /// <summary>
     /// ⭐ <c>CE-4002</c> — the master's roster as plain rows for the debug API (<c>GET /cluster/roster</c>), aged by the

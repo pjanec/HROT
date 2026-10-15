@@ -208,7 +208,7 @@ public sealed class ClusterMasterSeekTests
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
-        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus));
+        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus), master.StepRoster);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -261,7 +261,7 @@ public sealed class ClusterMasterSeekTests
 
         var bus = new FdpEventBus();
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
-        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus));
+        var seekManager  = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterBus), master.StepRoster);
 
         RegisterNode(bus, master, nodeId: 1, subsystem: "SimHost");
 
@@ -342,5 +342,70 @@ public sealed class ClusterMasterSeekTests
         // Master wall ticks must be unchanged (SnapAndPause not called).
         masterBus.SwapBuffers(); masterSync.Update();   // Q86 §4-C: the snap is a request; the clock applies it on its next Update
         Assert.Equal(wallTicksBefore, masterSync.GetCurrentState().TotalWallTicks);
+    }
+
+    // ══ P3 (Q91 §4-D D1, §4-D′) — the step roster is chosen by ROLE, never by subsystem name ════════════════════════
+
+    private static ClusterMaster MasterWith(FdpEventBus bus, int localNodeId, params (int Id, string Name, string? Role)[] nodes)
+    {
+        var master = new ClusterMaster(bus, NoMandatoryConfig()) { LocalNodeId = localNodeId };
+        foreach (var (id, name, role) in nodes)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = id, SubsystemName = name, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            });
+            if (role != null) bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = id, Capabilities = new[] { role } });
+        }
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        return master;
+    }
+
+    [Fact]
+    public void P3_The_step_roster_holds_simulation_roles_only_and_never_the_masters_own_node()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWith(bus, localNodeId: 0,
+            (0,   "Editor",  Fdp.Core.NodeRoleTokens.Brain),          // the master's own node — runs the MASTER clock
+            (1,   "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround),
+            (100, "IG",      Fdp.Core.NodeRoleTokens.Map2D),          // a Player — an observer never gates a step
+            (400, "CGF",     null));                                  // advert not landed yet
+
+        Assert.Equal(new HashSet<int> { 1 }, master.StepRoster().ToHashSet());
+    }
+
+    [Fact]
+    public void P3_A_Player_does_not_gate_a_replay_seek()
+    {
+        // ⭐ The SECOND site (ReplaySeekProcessManager) — T9a/T9b assert the master does NOT publish on seek, so they
+        //   would never catch this half.
+        var bus = new FdpEventBus();
+        using var master = MasterWith(bus, localNodeId: -1,
+            (1,   "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround),
+            (100, "IG",      Fdp.Core.NodeRoleTokens.Map2D));
+        var seek = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(new FdpEventBus()), master.StepRoster);
+
+        bus.PublishManaged(new SeekReplayIntent { TargetWallTicks = 1 });
+        bus.SwapBuffers(); seek.Tick(); bus.SwapBuffers();
+
+        var set = Assert.Single(bus.ReadManaged<SlaveNodeSetUpdatedEvent>());
+        Assert.Equal(new HashSet<int> { 1 }, set.SlaveNodeIds.ToHashSet());
+    }
+
+    [Fact]
+    public void P3_An_ejection_republishes_the_step_roster()
+    {
+        var bus = new FdpEventBus();
+        using var master = MasterWith(bus, localNodeId: -1,
+            (1, "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround),
+            (2, "SimHost", Fdp.Core.NodeRoleTokens.MuscleGround));
+        bus.ReadManaged<SlaveNodeSetUpdatedEvent>().ToList();   // the join's own publication
+
+        master.EjectNode(2);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var set = Assert.Single(bus.ReadManaged<SlaveNodeSetUpdatedEvent>());
+        Assert.Equal(new HashSet<int> { 1 }, set.SlaveNodeIds.ToHashSet());
     }
 }

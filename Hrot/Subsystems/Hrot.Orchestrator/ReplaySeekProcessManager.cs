@@ -25,13 +25,15 @@ public sealed class ReplaySeekProcessManager
     private readonly FdpEventBus          _bus;
     private readonly ITimeCommands        _time;   // Q86 §4-C: commands, never the clock itself
 
-    // NodeId -> SubsystemName, maintained from NodeHeartbeatEvent.
-    private readonly Dictionary<int, string> _nodeSubsystems = new();
+    // ⭐ P3 — the master's step roster (by ROLE). ⛔ Was a private replica of heartbeat subsystem NAMES matched against
+    //   "SimHost" or "IG" or "CGF" — a second copy of the rule, which let a Player gate every seek.
+    private readonly Func<IReadOnlySet<int>> _stepRoster;
 
-    public ReplaySeekProcessManager(FdpEventBus bus, ITimeCommands time)
+    public ReplaySeekProcessManager(FdpEventBus bus, ITimeCommands time, Func<IReadOnlySet<int>> stepRoster)
     {
         _bus        = bus        ?? throw new ArgumentNullException(nameof(bus));
         _time       = time       ?? throw new ArgumentNullException(nameof(time));
+        _stepRoster = stepRoster ?? throw new ArgumentNullException(nameof(stepRoster));
     }
 
     /// <summary>
@@ -40,23 +42,10 @@ public sealed class ReplaySeekProcessManager
     /// </summary>
     public void Tick()
     {
-        // Maintain local replica of node subsystem names from heartbeats.
-        foreach (var hb in _bus.ReadManaged<NodeHeartbeatEvent>())
-        {
-            if (hb.SubsystemName != null)
-                _nodeSubsystems[hb.NodeId] = hb.SubsystemName;
-        }
-
         // On SeekReplayIntent: publish precondition events (TASK-T002).
         foreach (var intent in _bus.ReadManaged<SeekReplayIntent>())
         {
-            var slaveIds = new System.Collections.Generic.HashSet<int>();
-            foreach (var kv in _nodeSubsystems)
-            {
-                if (kv.Value is "SimHost" or "IG" or "CGF")
-                    slaveIds.Add(kv.Key);
-            }
-            _bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
+            _bus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = _stepRoster() });
             _bus.PublishManaged(new PauseTimeIntent());
         }
 

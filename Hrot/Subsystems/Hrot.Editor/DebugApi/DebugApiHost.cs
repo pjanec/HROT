@@ -1923,7 +1923,7 @@ namespace Hrot.Editor.DebugApi
                     return Fail(504,
                         $"The step was issued but did not land within {StepAckTimeoutSeconds:0}s — "
                       + (awaiting
-                            ? "the master still reports awaitingStepAcks, so a roster node (SimHost/IG/CGF) is "
+                            ? "the master still reports awaitingStepAcks, so a step-roster node (one holding a simulation role) is "
                             + "not advancing"
                             : sawBarrier
                                 ? "the barrier drained but the clock never advanced past "
