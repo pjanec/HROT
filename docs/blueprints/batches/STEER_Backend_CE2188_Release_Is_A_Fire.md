@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — a STEER on a RUNNING batch (backend's Air Defence, CE-2187..CE-2190, started at 2270e0a85); it changes CE-2188's TRANSPORT only.
+state: SUPERSEDED 2026-10-15 by docs/designs/brain-split/BS-1-DESIGN.md §5.4c (user: no split, no magic slot — the dispenser is a weapon mount; backend builds all but the drawing). Was: LIVE — a STEER on a RUNNING batch (backend's Air Defence, CE-2187..CE-2190, started at 2270e0a85); it changes CE-2188's TRANSPORT only.
 updated: 2026-10-15
 current-answer: the whole file.
 stale-below: nothing.
@@ -10,6 +10,10 @@ related-designs:
   - docs/designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md — §3c, CE-2188's design: decoys, seduction, counts — unchanged except the message
   - docs/DESIGN_Visual_Effects.md — the ui side: the flare / chaff looks drawn from the fire event (CE-1111)
 -->
+
+> ⛔ **SUPERSEDED `2026-10-15` (backend, cross-lane note on ui's file):** 🔒 user — *"No splitting. Ui lane will only add rendering the
+> effect, you do all the rest."* · *"no magic numbers for weapon slot … chaff launcher can be weapon type"*. ⇒ read
+> [BS-1 §5.4c](../../designs/brain-split/BS-1-DESIGN.md) — its last table is the interface ui draws against.
 
 # STEER — backend, CE-2188 (flares and chaff): the release is a FIRE, both ways — no countermeasure message
 

@@ -483,6 +483,12 @@ without the fuze) · `…CE2187_AnIrSeeker_DoesNotSeeATargetOutsideItsCone` · `
 (red without the gate) · `…CE2187_TheWeaponBrain_HoldsAWrongDomainMissile` · `AreaEffectSystemTests.CE2187_AStingerBurstFourMetres…` ·
 `NedTkbBuilderCombatTests.CE2187_TheAirDefenceCatalogue_…`.
 
+⛔ **SUPERSEDED IN PART `2026-10-15` — CE-2188's TRANSPORT and COUNT** ([BS-1 §5.4c](../brain-split/BS-1-DESIGN.md), 🔒 user: *"no magic
+numbers for weapon slot … chaff launcher can be weapon type"*, *"approved"*): the release is a **fire on a dispenser weapon mount**
+(`WeaponCategory.Countermeasure`, a flare / chaff loadout counted on the brain like any round), reported by `WeaponFireNotification`.
+⇒ `CountermeasuresDto`, `CountermeasureState`, `DispenseCountermeasureIntent` and DDS `DispenseCountermeasure` (dt 134) below are being
+removed; the decoy, its `DecoyFlight` path and the seduction stay here. The two rows below that name them are history once that lands.
+
 **As built — CE-2188 / CE-2189 (`2026-10-15`)** — as the class, sequence and module diagrams above, with these details:
 
 | piece | as built |
