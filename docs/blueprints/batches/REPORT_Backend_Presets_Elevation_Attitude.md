@@ -27,7 +27,7 @@ Scope frozen at the dispatch commit `64aaca945` (merged into `backend` at `4732a
 | **P3** | **pitch and roll** cross the wire: every ingress site rebuilds the rotation from heading + pitch + roll through ONE helper `SimTransformBridgeSystem.EulerDegToRotation` (the exact inverse of the egress conversion) — six sites, BDC included | ✅ | [Dead Reckoning §9](../../DESIGN_Dead_Reckoning.md) |
 | **P4** | `WeaponPosture.ActiveMount` (APPENDED byte, also on `EntityWeaponPosture`): the mount the weapon brain fires — written by `AimAndFire` and `FireAtPoint` the moment they resolve it, kept when the weapon is lowered | ✅ | [Weapon Layers W-13e](../../DESIGN_Weapon_Layers.md) |
 
-All four are in one commit (named in the tracker line and the final section below) — P2 and P4 share `FireAtPointExecutor` and the
+All four are in one commit, **`b6ad14c83`** — P2 and P4 share `FireAtPointExecutor` and the
 weapon-brain suite.
 
 ## ⭐ Decisions I took (leans for you)
@@ -98,6 +98,10 @@ stated 8 mm (the door gun's) — the table now carries the expected value per ro
 Not run: the ClusterRunner E2E suites (T3). P3 is the one cross-node change; its invariant (ground numbers do not move) is pinned by the
 level-sample case of the P3 rail and the IG dead-reckoning suite. A live banking-aircraft check on a cluster is the ui lane's after it
 switches its drawings to the replicated values.
+
+## The sha of each item
+
+P1 · P2 · P3 · P4 — all **`b6ad14c83`** on `backend`.
 
 ## Ids allocated
 
