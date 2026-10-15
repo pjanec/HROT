@@ -1739,7 +1739,7 @@ a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` secon
 to the generic helicopter), the door gunners (404's seats 8–11; may already draw through the station path — check in a frame), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
 the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
-fire-mission form (behaviors' IF-2), the laid elevation on the wire (no owner; IF-1 did not add it).
+fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001).
 
 ### 6o. CE-1097 — a face: skin, eyes, nose and mouth, a soldier's helmet — DESIGN + AS-BUILT `2026-10-14` (ui)
 
