@@ -266,8 +266,8 @@
     "ForceId": "Hostile"
    },
    "Health": {
-    "Current": 3000,
-    "Max": 3000
+    "Current": 8000,
+    "Max": 8000
    },
    "TargetMemory": {
     "Entries": []
