@@ -65,6 +65,18 @@ namespace Fdp.Interfaces
     }
 
     /// <summary>
+    /// ⭐⭐ <c>R-4012</c> (Q91 §4-P) — an ingress system that stops taking in the world while this node RESTORES a replay
+    /// from its own recording (the recording holds everything, Plan A). Same treatment as a join: world state left in DDS,
+    /// world events discarded, the control plane still polled. Wired by the node's record/replay controller when a replay
+    /// is prepared; left unset the system behaves exactly as before.
+    /// </summary>
+    public interface IReplayRestoreGated
+    {
+        /// <summary>True while the node restores its own recording for the current replay moment.</summary>
+        System.Func<bool>? IsReplayRestoring { get; set; }
+    }
+
+    /// <summary>
     /// Translates between network descriptors and ECS components.
     /// </summary>
     public interface IDescriptorTranslator : INetworkTranslator

@@ -31,6 +31,32 @@ namespace Fdp.Core.FlightRecorder
         public int CurrentFrame => _currentFrameIndex;
         public bool IsAtEnd => _currentFrameIndex >= _frameIndex.Count - 1;
         public bool IsAtStart => _currentFrameIndex < 0;
+
+        /// <summary>
+        /// ⭐ <c>R-4012</c> (Q91 §4-P P3) — how far past its last frame a recording still counts as covering a moment: nodes
+        /// that recorded to the end of an exercise stop a frame or two apart.
+        /// </summary>
+        public static readonly long CoverageEndGraceTicks = 2 * TimeSpan.TicksPerSecond;
+
+        /// <summary>Wall-clock ticks of the first recorded frame, or 0 for an empty recording.</summary>
+        public long FirstFrameWallTicks => _frameIndex.Count > 0 ? _frameIndex[0].WallClockTicks : 0;
+
+        /// <summary>Wall-clock ticks of the last recorded frame, or 0 for an empty recording.</summary>
+        public long LastFrameWallTicks => _frameIndex.Count > 0 ? _frameIndex[_frameIndex.Count - 1].WallClockTicks : 0;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4012</c> (Q91 §4-P P3) — <b>does this recording cover the moment?</b> Inside
+        /// <c>[first frame, last frame + <see cref="CoverageEndGraceTicks"/>]</c>; <see cref="long.MaxValue"/> means "the end"
+        /// and is covered by any recording with frames. ⭐ A node asks this before it restores: outside, it restores nothing
+        /// and listens. ⛔ <see cref="SeekToWallClockTicks"/> still floors a moment before the first frame to frame 0 — callers
+        /// that must not show the first frame for an earlier moment ask here first.
+        /// </summary>
+        public bool Covers(long wallTicks)
+        {
+            if (_frameIndex.Count == 0) return false;
+            if (wallTicks == long.MaxValue) return true;
+            return wallTicks >= FirstFrameWallTicks && wallTicks <= LastFrameWallTicks + CoverageEndGraceTicks;
+        }
         
         public PlaybackController(string filePath)
         {

@@ -22,7 +22,7 @@ namespace Fdp.Network.Cyclone.Modules
     /// </summary>
     // Local implementation of Ingress System since it appears missing from Core
     [UpdateInPhase(SystemPhase.Input)]
-    public class CycloneNetworkIngressSystem : IEcsModuleSystem
+    public class CycloneNetworkIngressSystem : IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
     {
         private readonly Fdp.Interfaces.INetworkTranslator[] _translators;
         public IReadOnlyList<INetworkTranslator> Translators => _translators;
@@ -56,6 +56,9 @@ namespace Fdp.Network.Cyclone.Modules
         /// </summary>
         public System.Func<bool>? IsJoinFrozen { get; set; }
 
+        /// <inheritdoc />
+        public System.Func<bool>? IsReplayRestoring { get; set; }
+
         /// <summary>
         /// ⭐⭐ <c>R-4007</c> — wires <paramref name="isJoinFrozen"/> onto every ingress system among <paramref name="systems"/>
         /// (the kernel's scheduled systems, swept once after composition — the shape CGF's debugger gate already uses).
@@ -84,7 +87,8 @@ namespace Fdp.Network.Cyclone.Modules
             //   half the world-state translators would run against a different decision than the
             //   other half.
             bool frozen  = IsWorldStateFrozen?.Invoke() ?? false;
-            bool joining = IsJoinFrozen?.Invoke() ?? false;
+            // ⭐ R-4012 — restoring a replay from its own recording is treated like a join: the node builds the world itself.
+            bool joining = (IsJoinFrozen?.Invoke() ?? false) || (IsReplayRestoring?.Invoke() ?? false);
 
             var cmd = view.GetCommandBuffer();
             for(int i=0; i<_translators.Length; i++)

@@ -100,6 +100,19 @@ namespace Hrot.SimHost.Modules.Orchestration
         public long ActiveRecordingStartWallTicks => _activeReplayModule?.RecordingStartWallTicks ?? 0;
 
         /// <inheritdoc />
+        public long ActiveRecordingEndWallTicks => _activeReplayModule?.RecordingEndWallTicks ?? 0;
+
+        /// <inheritdoc />
+        public long ReplayAnchorWallTicks
+        {
+            get => _activeReplayModule?.AnchorWallTicks ?? 0;
+            set { if (_activeReplayModule != null) _activeReplayModule.AnchorWallTicks = value; }
+        }
+
+        /// <inheritdoc />
+        public bool IsRestoringReplay => _activeReplayModule?.IsRestoring ?? false;
+
+        /// <inheritdoc />
         public float ActiveReplayDurationSeconds
         {
             get
@@ -240,6 +253,20 @@ namespace Hrot.SimHost.Modules.Orchestration
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
+
+            // ⭐⭐ R-4012 (Q91 §4-P P6) — while this node restores its own recording it takes in no world state (the
+            //   recording holds everything). Wired HERE, by the controller every ECS host builds, so no host can miss it;
+            //   idempotent per replay. ⛔ Outside the span the predicate is false and ingress builds the flooded world.
+            int gated = 0;
+            foreach (var system in _kernel.SystemScheduler.GetAllSystems())
+            {
+                if (system is not Fdp.Interfaces.IReplayRestoreGated g) continue;
+                g.IsReplayRestoring = () => IsRestoringReplay;
+                gated++;
+            }
+            FdpLog<EcsRecordReplayController>.Info(
+                "[Node-{0}] Replay prepared ({1}); {2} ingress system(s) gated while restoring (R-4012).",
+                _nodeId, _activeReplayModule.HasRecording ? "own recording" : "NO recording — listener", gated);
         }
 
         /// <summary>
@@ -289,8 +316,10 @@ namespace Hrot.SimHost.Modules.Orchestration
                     "[EcsRecordReplayController] SeekToTimeAsync called with no active replay module.");
                 return default;
             }
-            await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
+            bool restored = await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
                 .ConfigureAwait(false);
+            // ⭐ R-4012 — outside this node's recording: nothing restored, no landed time.
+            if (!restored) return default;
             // Return the seek target time expressed as the indexing time that
             // ClusterMaster will pass to SnapAndPause.  TotalTime is the inverse
             // conversion (ticks -> seconds) so the master's MasterSyncController

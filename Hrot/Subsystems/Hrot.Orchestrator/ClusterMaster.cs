@@ -1316,11 +1316,12 @@ public sealed partial class ClusterMaster : IDisposable
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
                             new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
                     }
-                    else if (step is OperationStep opStep && opStep.Operation == ClusterOpType.ReplaySeek)
-                    {
-                        FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(), opStep.DomainPayload, activeNodeIds);
-                    }
+                    // ⭐⭐ C9 (Q91 §4-P P2) — a ReplaySeek step is NOT fanned out here: its payload would be built before any
+                    //   node answered the prepare round (no replay zero yet), and with a throw-away transaction it never ran
+                    //   as a round, so nothing snapped the clock (measured live). NoteReplayEntry carries the moment to the
+                    //   seek round that starts when this transition completes.
                 }
+                NoteReplayEntry(tx.TransactionId, trajectory);
 
                 FdpLog<ClusterMaster>.Info(
                     "[Orchestrator] S0502: TransitionState fan-out complete (transaction={0}, nodes={1}).",
@@ -1649,8 +1650,9 @@ public sealed partial class ClusterMaster : IDisposable
             return;
         }
         var txId = Guid.NewGuid();
+        // ⭐ C9 (R-4012) — every node measures the target from the SAME zero.
         FanOutNodeOp(NodeOpType.NodeReplaySeek, txId,
-            new ReplaySeekPayload(intent.TargetWallTicks), seekNodeIds);
+            new ReplaySeekPayload(intent.TargetWallTicks, _replayAnchorWallTicks), seekNodeIds);
         _pendingTransactions[txId] = new GenericTransactionTracker
         {
             RequestId                       = intent.RequestId,
@@ -1990,6 +1992,7 @@ public sealed partial class ClusterMaster : IDisposable
             }
             var aggregated = TryAggregate(txId, tracker.NodeResponses);
             PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
+            OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
         }
 
         if (tracker.BroadcastClusterStateOnComplete)
