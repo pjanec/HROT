@@ -383,7 +383,7 @@ classDiagram
   class GuidanceKind { <<existing, grows>> Unguided Command FireAndForget +InfraRed +Radar }
   class WarheadDto { <<existing, grows>> Fuze +ProximityFuzeM }
   class FuzeKind { <<existing, grows>> Impact Time +Proximity }
-  class TargetDomain { <<new>> Any Ground Air }
+  class TargetDomain { <<new>> Either Ground Air }
   class CountermeasuresDto { <<new TKB, on an aircraft type>> Flares Chaff Salvo IntervalS DecoySeconds }
   class CountermeasureState { <<new component 387, SimHost>> Flares Chaff NextAt }
   class Decoy { <<new component 386>> Kind Owner Until }
@@ -458,12 +458,29 @@ graph TD
 |---|---|
 | `GuidanceKind.InfraRed` steers like `FireAndForget` (its own seeker, `LastSeen`) but sees its target only inside its **cone** (`SeekerConeDeg` about its velocity) | only an IR round can be seduced by a flare; out of the cone it flies to where it last saw the target |
 | `GuidanceKind.Radar` exists for chaff only — **no munition uses it** (AD6) | chaff is railed against a test round |
-| `MissileDto.TargetDomain` Air / Ground / Any: `AmmoChoice.Split` values a round at **0** against the wrong domain (the target is Air when `Locomotions.InAir`) | ⭐ one gate for the round choice, the mount ranking (`StandardInputs`) and behaviors' `Sufficient` — a MANPADS is never chosen against a truck, an ATGM never against a flying helicopter; a LANDED helicopter is a ground target |
+| `MissileDto.TargetDomain` Air / Ground / Either: `AmmoChoice.Split` values a round at **0** against the wrong domain (the target is Air when `Locomotions.InAir` — by its locomotion CLASS, so a helicopter on its pad is still Air) | ⭐ one gate for the round choice, the mount ranking (`StandardInputs`) and behaviors' `Sufficient` — a MANPADS is never chosen against a truck, an ATGM never against a helicopter, flying or landed (the class decides — measured, `Locomotion.cs:53`) |
 | the proximity fuze: `WarheadDto.Fuze = Proximity`, `ProximityFuzeM`; the round bursts (the off-target `DetonationNotification`, the existing area effect) the tick its step passes within `ProximityFuzeM` of its target's middle | a SAM rarely strikes the hull; the fragments' 3-D distance does the damage, so a burst at a decoy spares the aircraft by geometry, not by a rule |
 | a dispense: the aircraft type's `CountermeasuresDto` ⇒ `CountermeasureState` on the SimHost; a `DispenseCountermeasureIntent` spawns `Salvo` decoys (flare or chaff) at the aircraft, its velocity, falling, for `DecoySeconds`; ignored while the interval has not passed or the count is 0 | the BRAIN decides when (CE-2191); the engine decides what happens |
 | seduction: each homing round of the matching seeker (flare ↔ InfraRed, chaff ↔ Radar) with a new decoy in its cone draws ONCE per salvo — `SimRng.FromSim(round, salt, simTime)`; above its `FlareRejection` / `ChaffRejection` it re-targets the nearest such decoy | deterministic (replay, R-3009's spirit); a round that ignored one salvo can still take the next |
 | the warning: published by `FireProcessingSystem` the moment a guided round is launched at an **air** target; one per round | AD4; "on lock" needs no second event — the brain's lock is the gunner's aim time, the launch follows it |
 | `SimRng` moves to `Fdp.Toolkits` (namespace `Fdp.Toolkit.Determinism`), unchanged | ⭐ one generator for brain and engine (user-approved); its callers in `Hrot.AI.Behaviors` change only their `using` (cross-lane, named) |
+
+**As built — CE-2187 (`2026-10-15`)** — matches the table above, with these deviations, each argued:
+
+| deviation | why |
+|---|---|
+| ⭐ a HOMING seeker (IR, radar) steers at the **lead point** (`TargetLead.Point`, AT2's predictor) of a target it sees; command and fire-and-forget rounds still pursue | 📐 measured: pure pursuit at the 30°/s turn limit passed **6.8 m** behind a helicopter crossing at 60 m/s — outside the 4 m fuze. A real IR missile flies proportional navigation; the lead is its cheapest honest stand-in |
+| the IR lock is the mount's `AimSeconds` (4 s) — no `LockSeconds` on `MissileDto` | one aim clock (D3, R-234), as the Javelin's lock already is |
+| `TargetDomain.Either`, not `Any` | the DDS code generator emits the enum as IDL, where `any` is a keyword (the build failed on it) |
+| an aircraft is `Air` by its locomotion CLASS (`Locomotion.cs:53`) — a helicopter on its pad too | the one domain rule already in the code; no landed flag exists |
+| the weapon brain HOLDS a wrong-domain missile (`ActionReason.WrongDomain`, weapon posture Ready) | `WeaponChoice` falls back to mount 0 when every mount scores 0 — without the hold a soldier with only a Stinger fired it at a truck |
+| `WeaponCategory.Sam` (11, appended): the `Guided` profile, one round per press, does not fire on the move | a MANPADS is not an ATGM to the operator HUD (`SAM`) or the 3-D launcher kit (cross-lane `Hrot.Presentation`, a name and a launcher test) |
+| the library gains `"Stinger warhead"`, `"Igla warhead"` (frag), `"23mm HEI"`, `"23mm API"` | one source for warhead numbers (R-212); the SAMs take the library warhead with the fuze switched to proximity (4 m) |
+
+Rails: `GuidedRoundSystemTests.CE2187_AnIrRound_HomesOnACrossingHelicopter_AndBurstsWithinItsProximityFuze` (red without the lead, red
+without the fuze) · `…CE2187_AnIrSeeker_DoesNotSeeATargetOutsideItsCone` · `AmmoChoiceTests.CE2187_ASamIsWorthNothingAgainstATruck_…`
+(red without the gate) · `…CE2187_TheWeaponBrain_HoldsAWrongDomainMissile` · `AreaEffectSystemTests.CE2187_AStingerBurstFourMetres…` ·
+`NedTkbBuilderCombatTests.CE2187_TheAirDefenceCatalogue_…`.
 
 ## 4. Firing on the move (D-L)
 

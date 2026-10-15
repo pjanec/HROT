@@ -230,7 +230,7 @@ namespace Fdp.Toolkit.Combat.Systems
         /// ⭐ Stage 6 (<c>CE-1032</c>, W-3) — an off-target burst: a <see cref="DetonationNotification"/> with no target, carrying the
         /// munition (the area effect reads its warhead from it, next frame's Simulation) — and the end of the shot's record.
         /// </summary>
-        private static void Detonate(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 at, ShotRecord? shot, uint tick)
+        internal static void Detonate(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 at, ShotRecord? shot, uint tick)
         {
             repo.Bus.Publish(new DetonationNotification
             {

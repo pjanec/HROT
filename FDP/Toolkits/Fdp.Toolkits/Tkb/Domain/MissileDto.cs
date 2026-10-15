@@ -13,6 +13,25 @@ namespace Fdp.Toolkit.Tkb.Domain
         Command = 1,
         /// <summary>The round's own seeker, locked before launch (Javelin, NLAW): it follows the target it sees.</summary>
         FireAndForget = 2,
+        /// <summary>⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c, AD1) — a HEAT seeker (Stinger, Igla): steers like
+        /// <see cref="FireAndForget"/> but sees only inside its cone, and a flare in that cone can seduce it (<c>CE-2188</c>).</summary>
+        InfraRed = 3,
+        /// <summary>⭐ <c>CE-2188</c> (§3c, AD6) — a RADAR seeker: chaff can seduce it. ⚠ No munition uses it yet (the radar SAM is a
+        /// later design question); it exists so chaff has something to decoy.</summary>
+        Radar = 4,
+    }
+
+    /// <summary>⭐ <c>CE-2187</c> (§3c, AD1) — what a guided munition may be fired at: the weapon choice values it at 0 against the
+    /// other domain (<c>AmmoChoice</c>) — a MANPADS is never chosen against a truck, an ATGM never against a flying helicopter.</summary>
+    public enum TargetDomain : byte
+    {
+        /// <summary>Either domain (the default — every munition before CE-2187). ⚠ Not "Any": the DDS code generator emits this enum as
+        /// IDL, where <c>any</c> is a keyword.</summary>
+        Either = 0,
+        /// <summary>A target on the ground — anything whose locomotion is not an aircraft's.</summary>
+        Ground = 1,
+        /// <summary>An aircraft (<c>Locomotions.InAir</c>: by its locomotion class — a helicopter on its pad is still one).</summary>
+        Air = 2,
     }
 
     /// <summary>
@@ -60,5 +79,24 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("m")]
         [Description("Overfly: the height above the roof the round passes at.")]
         public float OverflyHeightM { get; init; } = 1f;
+
+        /// <summary>⭐ <c>CE-2187</c> (§3c) — the domain it may be fired at.</summary>
+        [Description("What it may be fired at: Either, Ground or Air (the weapon choice never picks it against the other).")]
+        public TargetDomain TargetDomain { get; init; }
+
+        /// <summary>⭐ <c>CE-2187</c> (§3c) — an IR / radar seeker's field of view, the full angle about the round's flight; 0 = it sees
+        /// all round (a fire-and-forget round before CE-2187). Out of it the round flies to where it last saw its target; a decoy inside
+        /// it may seduce it.</summary>
+        [EditUnit("deg")]
+        [Description("Seeker field of view, full angle about the flight direction (0 = all round).")]
+        public float SeekerConeDeg { get; init; }
+
+        /// <summary>⭐ <c>CE-2188</c> (§3c, AD3) — the chance an IR seeker IGNORES a flare salvo in its cone (0 = always seduced).</summary>
+        [Description("Chance the IR seeker ignores a flare salvo in its cone (0..1).")]
+        public float FlareRejection { get; init; }
+
+        /// <summary>⭐ <c>CE-2188</c> — the chance a radar seeker ignores a chaff salvo in its cone (0 = always seduced).</summary>
+        [Description("Chance the radar seeker ignores a chaff salvo in its cone (0..1).")]
+        public float ChaffRejection { get; init; }
     }
 }

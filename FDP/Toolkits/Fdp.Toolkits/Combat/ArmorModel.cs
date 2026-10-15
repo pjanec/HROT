@@ -279,7 +279,7 @@ namespace Fdp.Toolkit.Combat
         /// fire on the move (at twice the spread — <see cref="HitModel"/>). An unknown mount fires as before.
         /// </summary>
         public static bool FiresOnTheMove(WeaponMountDto? mount)
-            => mount?.FireOnMove ?? mount?.Category switch { WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Howitzer => false, _ => true };
+            => mount?.FireOnMove ?? mount?.Category switch { WeaponCategory.Atgm or WeaponCategory.Sam or WeaponCategory.Mortar or WeaponCategory.Howitzer => false, _ => true };
 
         private static Penetrator PenetratorOfAmmo(EntityRepository world, long ammo) => PenetratorOf(DbOf(world), ammo);
 

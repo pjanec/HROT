@@ -526,6 +526,9 @@ namespace Fdp.Toolkit.Combat.Executors
         public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
         {
             long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
+            //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
+            if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;
             if (CombatTkb.MissileOf(world, ammo) is { MinRangeM: > 0f } missile
                 && world.HasComponent<SimTransform>(unit) && world.HasComponent<SimTransform>(target)
                 && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < missile.MinRangeM)
