@@ -1595,6 +1595,9 @@ def run_ifv_standoff(c, timeout):
         by.setdefault(x.get("shooter"), []).append(x)
     name = {v: k for k, v in ids.items()}
     print("    shots by shooter:", {name.get(s, s): len(v) for s, v in by.items()})
+    for x in by.get(far, [])[:4]:
+        print("      stand-off shot", {k: x.get(k) for k in ("target", "weaponIndex", "muzzle", "aim", "end", "hit", "outcome", "sigma", "penetration")})
+    print("    stand-off targets:", {name.get(t, t): n for t, n in __import__("collections").Counter(x.get("target") for x in by.get(far, [])).items()})
     hurt = [m for m in (a1, a2) if (health(m) or 100) < 100]
     c.ok(len(by.get(far, [])) >= 1 and hurt, f"① the stand-off IFV fires and hits the RPG men — {len(by.get(far, []))} rounds, hurt {[name.get(m) for m in hurt]}")
     c.ok(closest > 300 and (health(far) or 0) >= 500, f"① from beyond their reach, untouched — closest {closest:.0f} m, health {health(far)}")
