@@ -135,9 +135,28 @@ namespace Hrot.SimHost.Tests
             int k = 0;
             foreach (var f in boxed.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public))
             {
-                if (f.IsInitOnly || Array.IndexOf(Numeric, f.FieldType) < 0) continue;
-                k++;
-                f.SetValue(boxed, Convert.ChangeType(7 + k, f.FieldType));
+                if (f.IsInitOnly) continue;
+                if (Array.IndexOf(Numeric, f.FieldType) >= 0)
+                {
+                    k++;
+                    f.SetValue(boxed, Convert.ChangeType(7 + k, f.FieldType));
+                    any = true;
+                    continue;
+                }
+                // ⭐ one level into a value-type field (a PickableGeoPoint's Latitude / Longitude): a behaviour that reads only its
+                //   order's Location (AirPlatformStrike — a Strike order whose numbers are the fire mission's) is still exercised
+                if (!f.FieldType.IsValueType || f.FieldType.IsPrimitive || f.FieldType.IsEnum) continue;
+                object inner = f.GetValue(boxed)!;
+                bool set = false;
+                foreach (var g in f.FieldType.GetFields(BindingFlags.Instance | BindingFlags.Public))
+                {
+                    if (g.IsInitOnly || Array.IndexOf(Numeric, g.FieldType) < 0) continue;
+                    k++;
+                    g.SetValue(inner, Convert.ChangeType(7 + k, g.FieldType));
+                    set = true;
+                }
+                if (!set) continue;
+                f.SetValue(boxed, inner);
                 any = true;
             }
             // ⭐ hand-written contracts are PROPERTY-shaped ([JsonPropertyName] on get/set), generated ones field-shaped
