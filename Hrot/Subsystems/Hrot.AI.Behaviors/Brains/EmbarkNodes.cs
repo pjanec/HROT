@@ -25,6 +25,9 @@ namespace Hrot.AI.Behaviors.Brains
         [JsonIgnore] public Vector3 WalkTo;
         /// <summary>Runtime: the interaction activation this node started (0 = none) — never authored.</summary>
         [JsonIgnore] public uint Started;
+        /// <summary>⭐ <c>CE-2176</c> — the seat role to take: Passenger (0) rides; Gunner MANS a crew weapon (<c>ManWeapon</c>,
+        /// Weapon Systems §4b). Appended.</summary>
+        public Fdp.Toolkit.Behavior.Components.SeatRole Role;
     }
 
     /// <summary>The params of <see cref="EmbarkNodes.Disembark"/>: nothing authored — the vehicle is the one the unit is aboard.</summary>
@@ -118,7 +121,7 @@ namespace Hrot.AI.Behaviors.Brains
             EndWalk(ref p, self, world);
             ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
             Start(world, self, ref channel, BehaviorConstants.ActionIdEmbark);
-            Unsafe.As<byte, EmbarkParams>(ref channel.Params[0]) = new EmbarkParams { VehicleEntity = vehicle, MaxBoardingRange = range };
+            Unsafe.As<byte, EmbarkParams>(ref channel.Params[0]) = new EmbarkParams { VehicleEntity = vehicle, MaxBoardingRange = range, Role = p.Role };
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
         }

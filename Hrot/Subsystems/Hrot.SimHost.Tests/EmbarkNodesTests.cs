@@ -91,6 +91,48 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, EmbarkNodes.Embark(ref p, soldier, _w));                      // already aboard: at once
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2176</c> (Weapon Systems §4b, W-B) — MANNING is boarding the Gunner seat. A two-man crew weapon (the 81 mm: a Gunner seat,
+        /// then the loader's plain seat): a plain <c>Embark</c> takes the LOADER's seat and controls nothing; <c>ManWeapon</c> (the same node,
+        /// <c>Role = Gunner</c>) takes seat 0 and is the weapon's one controller — the man a fire mission finds the tube through.
+        /// 📐 Live (`ua-indirect-fire` ①): the gunners boarded seat 1, so <c>BatteryFireMissionPlay.Plan</c> logged "no indirect weapon".
+        /// ✅ Red-proofs: the executor ignoring the role ⇒ the ManWeapon man in seat 1 ⇒ red; the resolver not setting Gunner ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2176_ManWeapon_TakesTheGunnerSeat_AndControlsTheWeapon_APlainEmbarkTakesTheLoadersSeat()
+        {
+            Entity Mortar()
+            {
+                var m = Vehicle(new Vector3(0f, 0f, 0f));
+                var seats = new CarrierSeats { SeatCount = 2 };
+                seats.Roles[0] = SeatRole.Gunner;
+                seats.Roles[1] = SeatRole.Passenger;   // the loader
+                _w.AddComponent(m, seats);
+                _w.AddComponent(m, new WeaponSystemParams { NeedsOperator = 1 });
+                return m;
+            }
+            var rider = Mortar();
+            var plain = Soldier(Embarkation.BoardingPoint(_w, rider));
+            var ride = new EmbarkNodeParams { Vehicle = rider };
+            Assert.Equal(NodeStatus.Running, EmbarkNodes.Embark(ref ride, plain, _w));
+            Dispatch(plain, new EmbarkExecutor());
+            Assert.Equal(1, _w.GetComponentRO<IsEmbarkedTag>(plain).Seat);                     // the loader's seat
+            Assert.True(WeaponSystems.ControllerOf(_w, rider).IsNull);                         // nobody mans it
+
+            var tube = Mortar();
+            var gunner = Soldier(Embarkation.BoardingPoint(_w, tube));
+            var block = default(ManWeaponBehavior.ManWeaponBlackboard);
+            ManWeaponBehavior.Resolve(default, ref block, _w, gunner);
+            Assert.Equal(SeatRole.Gunner, block.Board.Role);
+            var man = block.Board;
+            man.Vehicle = tube;
+            Assert.Equal(NodeStatus.Running, EmbarkNodes.Embark(ref man, gunner, _w));
+            Dispatch(gunner, new EmbarkExecutor());
+            Assert.Equal(NodeStatus.Success, EmbarkNodes.Embark(ref man, gunner, _w));
+            Assert.Equal(0, _w.GetComponentRO<IsEmbarkedTag>(gunner).Seat);                    // the Gunner seat
+            Assert.Equal(gunner, WeaponSystems.ControllerOf(_w, tube));                        // he controls it
+        }
+
         [Fact]
         public void CE1056_Disembark_LeavesBesideTheHull_ThroughTheOwner_AndNotAboardIsSuccess()
         {

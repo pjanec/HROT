@@ -33,6 +33,34 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2176</c> (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §4b, W-B) — <c>ManWeapon</c>, a library behaviour: walk to a crew
+    /// weapon system and board its GUNNER seat — manning is boarding (W-B), the same <see cref="EmbarkNodes.Embark"/> node with
+    /// <c>Role = Gunner</c>. ⭐ The seat decides the controller (<c>WeaponSystems.ControllerOf</c>: the man in its Gunner seat), so a fire
+    /// mission finds the weapon through him. A plain <c>Embark</c> takes a passenger seat (a two-man mortar's loader) and controls nothing.
+    /// </summary>
+    public static class ManWeaponBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ManWeaponBlackboard
+        {
+            public EmbarkNodeParams Board;
+        }
+
+        [BehaviorResolver(BehaviorNames.ManWeapon)]
+        public static void Resolve(in ManWeaponParamsJsonDto authored, ref ManWeaponBlackboard block, EntityRepository world, Entity self)
+            => block.Board = new EmbarkNodeParams
+            {
+                Vehicle = authored.Weapon.Resolve(world), Speed = authored.Speed, Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner,
+            };
+
+        [Behavior(BehaviorNames.ManWeapon, Params = typeof(ManWeaponParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]
+        [BTreeDefinition(BehaviorNames.ManWeapon, Curated = true, Group = "Library/Basic", ParamsType = typeof(ManWeaponBlackboard))]
+        public static BTreeBuilder<ManWeaponBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<ManWeaponBlackboard, BTreeContext>()
+                .Action(bb => bb.Board, EmbarkNodes.Embark);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1056</c> I-2d — <c>Disembark</c>, a library behaviour: leave the vehicle the unit is aboard (beside the hull, at its seat).
     /// One node, <see cref="EmbarkNodes.Disembark"/>; Success at once when not aboard. The squad <c>SquadDismount</c> gives it to each
     /// member aboard (DESIGN_Squad_Tactics §5a).

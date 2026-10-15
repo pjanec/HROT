@@ -87,8 +87,8 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "Embark",
-        "Params": "{\"vehicle\": 21762}",
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21762}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -149,8 +149,8 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "Embark",
-        "Params": "{\"vehicle\": 21763}",
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21763}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
@@ -211,8 +211,8 @@
         "Entries": []
       },
       "Behavior": {
-        "Name": "Embark",
-        "Params": "{\"vehicle\": 21764}",
+        "Name": "ManWeapon",
+        "Params": "{\"weapon\": 21764}",
         "Origin": "Superior"
       },
       "UnitSubordinate": {
