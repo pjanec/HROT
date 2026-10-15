@@ -111,7 +111,7 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void Select_CallsSwitchPerspective()
     {
-        var wm = CreateManager();
+        var wm = SetupPerspectives(("w-IG", "IG"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         Assert.Equal("Default", wm.CurrentPerspective);
 
         wm.SelectPerspective("IG");
@@ -122,7 +122,7 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void SelectPerspective_FiresOnPerspectiveChanged()
     {
-        var wm = CreateManager();
+        var wm = SetupPerspectives(("w-ExCon", "ExCon"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         string? old = null, @new = null;
         wm.OnPerspectiveChanged += (o, n) => { old = o; @new = n; };
 
@@ -167,7 +167,7 @@ public class PerspectiveMenuTests : IDisposable
     [Fact]
     public void IsPerspectiveActive_MatchesCurrent()
     {
-        var wm = CreateManager();
+        var wm = SetupPerspectives(("w-IG", "IG"));   // ⭐ CE-3166 — A0 (ec0a2da5f): only a CLAIMED perspective can be switched to
         wm.SwitchPerspective("IG");
 
         Assert.True(wm.IsPerspectiveActive("IG"));
