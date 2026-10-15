@@ -511,7 +511,7 @@ public static class ShapeKits
 /// right upper arm, right forearm (+ rifle) — so a
 /// stance change and a fall can blend.
 /// </summary>
-public static class BlockFigure
+public static partial class BlockFigure
 {
     private static readonly Vector3 S = new(0.35f, 0.55f, 1.8f);
 

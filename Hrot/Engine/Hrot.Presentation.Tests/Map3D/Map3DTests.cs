@@ -2861,6 +2861,112 @@ public sealed class Map3DTests
         Assert.InRange(Vector3.Distance(tip, new Vector3(0, 0, -2f)), 0f, 1e-4f);
     }
 
+    // ── ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne drawn ─────────────────────────────────────────────────────────────────
+
+    private static Fdp.Toolkit.Motion.Descent Descending(Fdp.Toolkit.Motion.DescentKind kind, Fdp.Toolkit.Motion.DescentPhase phase, double since,
+                                                         Fdp.Toolkit.Motion.CanopyKind canopy = Fdp.Toolkit.Motion.CanopyKind.Round)
+        => new() { Kind = kind, Phase = phase, PhaseSince = since, Canopy = kind == Fdp.Toolkit.Motion.DescentKind.FastRope ? Fdp.Toolkit.Motion.CanopyKind.NoCanopy : canopy };
+
+    /// <summary>⭐ CE-1119 (§6w AB-V2) — every descent phase has its figure in the shared part order (so it blends): the rope slide's hands
+    /// above his head, the arch face down, hands up on the toggles under the canopy and down at the hips in the flare, sitting once landed;
+    /// the canopy figure grows out of the tuck over the whole opening; off the rope he is a man on his feet (no figure).</summary>
+    [Fact]
+    public void CE1119_EveryDescentPhase_HasItsFigure_InTheSharedOrder_AndBlendsFromTheOneBefore()
+    {
+        const float H = 1.8f;
+        int armed = BlockFigure.Parts(StanceId.Standing, true).Length;
+        float Z(KitPart[] parts, int i) => parts[i].Centre.Z * H;
+        const int HandL = BlockFigure.HeadIndex + 2;   // the left forearm (shared order: legs 0-3, torso 4, head 5, left arm 6-7)
+        foreach (var kind in new[] { Fdp.Toolkit.Motion.DescentKind.FastRope, Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentKind.FreeFall })
+            foreach (var phase in Enum.GetValues<Fdp.Toolkit.Motion.DescentPhase>())
+            {
+                var figure = DescentDraw.Figure(Descending(kind, phase, 0.0), 10.0, soldier: true, openSeconds: 4f);
+                if (kind == Fdp.Toolkit.Motion.DescentKind.FastRope && phase == Fdp.Toolkit.Motion.DescentPhase.Landed) { Assert.Null(figure); continue; }
+                Assert.NotNull(figure);
+                Assert.Equal(armed, figure!.Length);
+                Assert.NotEqual(FaceOn.None, figure[BlockFigure.HeadIndex].Face);
+            }
+
+        var rope = BlockFigure.Descending(DescentPose.RopeSlide, true);
+        Assert.True(Z(rope, HandL) > Z(rope, BlockFigure.HeadIndex), "on the rope his hands are above his head");
+        Assert.Equal(FaceOn.Down, BlockFigure.Descending(DescentPose.Arch, true)[BlockFigure.HeadIndex].Face);
+        var under = BlockFigure.Descending(DescentPose.UnderCanopy, true);
+        var flare = BlockFigure.Descending(DescentPose.Flare, true);
+        Assert.True(Z(under, HandL) > Z(under, BlockFigure.HeadIndex), "under the canopy: hands up on the toggles");
+        Assert.True(Z(flare, HandL) < Z(flare, BlockFigure.TorsoIndex), "the flare: toggles pulled down to the hips");
+        Assert.True(Z(BlockFigure.Descending(DescentPose.SittingOut, true), BlockFigure.TorsoIndex) < 0.6f, "landed: sitting on the ground");
+
+        // the canopy figure grows out of the tuck over the whole opening, and is complete when it has opened
+        var deploying = Descending(Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentPhase.Deploying, 10.0);
+        Assert.Equal(BlockFigure.Descending(DescentPose.Tuck, true)[HandL].Centre, DescentDraw.Figure(deploying, 10.0, true, 4f)![HandL].Centre);
+        Assert.Equal(under[HandL].Centre, DescentDraw.Figure(deploying, 14.0, true, 4f)![HandL].Centre);
+        float mid = Z(DescentDraw.Figure(deploying, 12.0, true, 4f)!, HandL);
+        Assert.InRange(mid, Z(BlockFigure.Descending(DescentPose.Tuck, true), HandL) + 0.1f, Z(under, HandL) - 0.1f);
+        // a free-fall team opens out of the arch
+        var mff = Descending(Fdp.Toolkit.Motion.DescentKind.FreeFall, Fdp.Toolkit.Motion.DescentPhase.Deploying, 10.0);
+        Assert.Equal(FaceOn.Down, DescentDraw.Figure(mff, 10.0, true, 4f)![BlockFigure.HeadIndex].Face);
+        // a civilian has no weapon part
+        Assert.Equal(armed - 1, BlockFigure.Descending(DescentPose.UnderCanopy, false).Length);
+    }
+
+    /// <summary>⭐ CE-1119 (§6w AB-V3, AB-V4) — the canopy: none on a rope, at the exit or in free fall; a thin streamer opening to a 10 m round
+    /// dome 6.5 m above his shoulders with eight lines (or a three-cell 8.5 m ram-air wing with three lines a side), both with risers; on landing
+    /// it falls flat on the ground behind him and the lines go.</summary>
+    [Fact]
+    public void CE1119_TheCanopy_OpensFromAStreamer_FliesAboveHim_AndFallsFlatBehindHim()
+    {
+        Assert.Equal(-1f, DescentDraw.Opening(Descending(Fdp.Toolkit.Motion.DescentKind.FastRope, Fdp.Toolkit.Motion.DescentPhase.Slide, 0), 1, 4f));
+        Assert.Equal(-1f, DescentDraw.Opening(Descending(Fdp.Toolkit.Motion.DescentKind.FreeFall, Fdp.Toolkit.Motion.DescentPhase.FreeFalling, 0), 1, 4f));
+        Assert.Equal(-1f, DescentDraw.Opening(Descending(Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentPhase.Exit, 0), 1, 4f));
+        var deploying = Descending(Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentPhase.Deploying, 10.0);
+        Assert.True(DescentDraw.Opening(deploying, 11.0, 4f) < DescentDraw.Opening(deploying, 13.0, 4f));
+        Assert.Equal(1f, DescentDraw.Opening(deploying, 20.0, 4f));
+        Assert.Equal(0f, DescentDraw.Collapse(Descending(Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentPhase.Canopy, 0), 5));
+        Assert.Equal(1f, DescentDraw.Collapse(Descending(Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.DescentPhase.Landed, 0), 5));
+
+        var pieces = new List<CanopyPiece>();
+        var lines = new List<(Vector3 A, Vector3 B)>();
+        DescentDraw.Canopy(Fdp.Toolkit.Motion.CanopyKind.Round, 1f, 0f, pieces, lines);
+        var dome = pieces[0].Local;
+        Assert.Equal(2f * DescentDraw.RoundRadius, dome.M11, 2);                                  // 10 m across
+        Assert.Equal(DescentDraw.ShoulderL.Z + DescentDraw.RoundLines, dome.Translation.Z, 2);     // its skirt 6.5 m above his shoulders
+        Assert.Equal(2 + 8, lines.Count);                                                          // two risers, eight lines
+        Assert.All(lines.Skip(2), l => Assert.True(l.B.Z > l.A.Z + 5f, "every line runs up from his risers to the skirt"));
+
+        DescentDraw.Canopy(Fdp.Toolkit.Motion.CanopyKind.Round, 0.05f, 0f, pieces, lines);
+        Assert.True(pieces[0].Local.M11 < 1f, "opening: a thin streamer");
+
+        DescentDraw.Canopy(Fdp.Toolkit.Motion.CanopyKind.RamAir, 1f, 0f, pieces, lines);
+        Assert.Equal(3, pieces.Count);
+        Assert.Equal(2 + 6, lines.Count);
+        var left = pieces.OrderByDescending(p => p.Local.Translation.Y).First().Local.Translation;
+        Assert.True(left.Z < pieces[0].Local.Translation.Z, "the wing's tips arch down");
+        Assert.True(left.Y > DescentDraw.RamAirSpan / 4f, "its tip cell out at the side");
+
+        DescentDraw.Canopy(Fdp.Toolkit.Motion.CanopyKind.Round, 1f, 1f, pieces, lines);
+        Assert.Empty(lines);
+        Assert.True(pieces[0].Local.Translation.Z < 0.5f && pieces[0].Local.Translation.X < -2f, "landed: lying flat on the ground behind him");
+    }
+
+    /// <summary>⭐ CE-1119 (§6w AB-V5) — a rope hangs from its top to the surface under it, the spare coiled there; a rope too short for the
+    /// hover hangs free at its length; a stick runs exactly from one end to the other.</summary>
+    [Fact]
+    public void CE1119_ARope_HangsFromItsTop_ToTheSurface_OrFreeAtItsLength()
+    {
+        var top = new Vector3(5f, 6f, 20f);
+        var (bottom, spare) = DescentDraw.Rope(top, 8f, 18f);   // a 12 m hover over an 8 m roof
+        Assert.Equal(new Vector3(5f, 6f, 8f), bottom);
+        Assert.Equal(6f, spare, 3);
+        (bottom, spare) = DescentDraw.Rope(top, 0f, 18f);       // 20 m up on an 18 m rope
+        Assert.Equal(new Vector3(5f, 6f, 2f), bottom);
+        Assert.Equal(0f, spare);
+        var stick = DescentDraw.Stick(top, bottom, DescentDraw.RopeThickness);
+        Assert.True(Vector3.Distance(Vector3.Transform(new Vector3(0.5f, 0f, 0f), stick), bottom) < 1e-3f
+                    || Vector3.Distance(Vector3.Transform(new Vector3(-0.5f, 0f, 0f), stick), bottom) < 1e-3f);
+        Assert.True(Vector3.Distance(Vector3.Transform(new Vector3(0.5f, 0f, 0f), stick), top) < 1e-3f
+                    || Vector3.Distance(Vector3.Transform(new Vector3(-0.5f, 0f, 0f), stick), top) < 1e-3f);
+    }
+
     /// <summary>⭐ CE-1034 H5d — the highway-rest terrain: a height grid, a highway under an overpass to a drivers' rest area.</summary>
     internal static TerrainWorld HighwayRest()
     {
