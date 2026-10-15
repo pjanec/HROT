@@ -70,6 +70,15 @@ def load(name):
     #   ⭐ WS-4 (W-I, Weapon Systems §4d): a host's seat presets spawn their own entities (a technical's M2 and its gunner) — so an
     #   entity the file does not name is allowed when it sits in a seat (IsEmbarkedTag); anything else is the previous world.
     want = scenario_names(name)
+    # ⭐ CE-2176 IF-4 — a SECOND cluster left running on the same DDS domain doubles the world: every name twice, two SimHosts
+    #   materialising it, and orders landing on a copy whose roster another node owns. The name guard below cannot see it
+    #   (it reads names into a dict), so count them.
+    rows = data(call("GET", "/entities")) or []
+    names = [r.get("name") for r in rows if r.get("name") in want]
+    twice = sorted({n for n in names if names.count(n) > 1})
+    if twice:
+        sys.exit(f"the loaded world has {len(twice)} scenario name(s) twice ({twice[:5]}) — another ClusterRunner on the same DDS "
+                 f"domain? (ps -eo pid,args | grep [H]rot.ClusterRunner)")
     got = wait_for(lambda: (n := sorted(x for x in ids_by_name())) and set(want) <= set(n) and not _strangers(want) and n, 30)
     if got is None:
         sys.exit(f"the loaded world is not '{name}' (want {want} + seated presets, have {sorted(ids_by_name())}; strangers "
