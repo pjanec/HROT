@@ -33,6 +33,9 @@ namespace Hrot.SimHost.Serializers
     /// </remarks>
     public sealed class BrainDiagnosticsTranslator : IEntityScenarioTranslator
     {
+        /// <summary>⭐ <c>CE-3207</c> — a diagnostic dump: the clipboard / debug dump shows it, a scenario save never writes it (R-192).</summary>
+        public bool IsDiagnosticOnly => true;
+
         /// <summary>
         /// ⭐⭐⭐ <b><c>CE-317</c> — the DOM key, and it is NOT a component name.</b>
         ///

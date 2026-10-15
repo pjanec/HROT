@@ -192,6 +192,7 @@ namespace Fdp.Toolkit.Scenario
                 // Run custom translators first.
                 foreach (var translator in _translators)
                 {
+                    if (translator.IsDiagnosticOnly) continue;   // ⭐ CE-3207 — a dump is never a scenario's content (R-192)
                     if (!translator.CanTranslate(repo, entity)) continue;
 
                     var entries = translator.Extract(repo, entity, saveResolver);
