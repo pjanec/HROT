@@ -295,6 +295,7 @@ kills it, taking one hit (3000 → 2550). 📐 **What the run taught — five ro
 | mobility kill — `CanMove` stripped or `Wounds.Has(Mobility)` | `StandAndFight` and never drives again | a hull that cannot reach a hide fights where it stands |
 | firepower kill — `CanShoot` stripped or `Wounds.Has(Firepower)` | withdraws into its hide (the normal reverse / scoot) and never exposes again; still Success when nothing is left to fight | a broken gun has no business in the open |
 | both | Failure (nothing it can do; the crew's bail-out is R-263's damage states) | — |
+| arrival | ⭐ CE-2205: one test, `MoveStatus` — within `ArrivalRadius` **4 m** (was 2) of the hide / firing point HAS arrived, the move stopped, whatever the follower says | live: an M1 sent 2.3 m to a cover point (inside its ~5 m turning circle) orbited it for 60 s and the cycle never left MoveToHide — the motion half is backend's (CE-2206, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)) |
 | drive speed | `Speed` 0 ⇒ **5 m/s** (was: the type's own) | CE-2198: at 20 m/s an M1 overshot its hide by its braking distance (~26 m) into a building — the follower does not brake for a short leg (backend [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Vehicle_Overshoot.md)) |
 
 Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).

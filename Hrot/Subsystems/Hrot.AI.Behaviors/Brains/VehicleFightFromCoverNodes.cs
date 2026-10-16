@@ -113,8 +113,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The two sensor sites.</summary>
         public const int HideSite = 0x21650001, FiringSite = 0x21650002;
 
-        /// <summary>Arrival radius of the node's moves (m) — a hull, not a man.</summary>
-        public const float ArrivalRadius = 2f;
+        /// <summary>Arrival radius of the node's moves (m) — a hull, not a man. ⭐ CE-2205: was 2 m; live (ua-javelin-lock) an M1 (9.8 m long, a ~5 m
+        /// turning circle) sent to a cover point 2.3 m off ORBITED it for 60 s and the cycle never reached its hide.</summary>
+        public const float ArrivalRadius = 4f;
 
         /// <summary>A heard heavy weapon (a launch) within this of the threat's bearing cuts an exposure short (degrees).</summary>
         public const float LaunchBearingDegrees = 30f;
@@ -242,6 +243,25 @@ namespace Hrot.AI.Behaviors.Brains
             return now - ws.WaitingSince < p.NoCoverSeconds;
         }
 
+        /// <summary>
+        /// ⭐ CE-2205 — the move's answer, with ONE arrival test the cycle owns: a hull already within <see cref="ArrivalRadius"/> of the point
+        /// (ground distance) HAS arrived — its move is stopped and the answer is Success, whatever the follower reports. 📌 Live: a point
+        /// inside the hull's turning circle is never reached by the follower; it orbits it (the motion half is backend's, CE-2206).
+        /// </summary>
+        internal static NodeStatus MoveStatus(EntityRepository world, Entity self, Vector3 point)
+        {
+            if (world.HasComponent<SimTransform>(self))
+            {
+                var at = world.GetComponentRO<SimTransform>(self).Position;
+                if (new Vector2(at.X - point.X, at.Y - point.Y).Length() <= ArrivalRadius)
+                {
+                    LocomotionMoveTo.Stop(world, self);
+                    return NodeStatus.Success;
+                }
+            }
+            return LocomotionMoveTo.Status(world, self);
+        }
+
         private static void GoToHide(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world, Vector3 hide)
         {
             ws.HidePoint = hide;
@@ -253,7 +273,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void MoveToHide(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
                                        Entity self, EntityRepository world, double now)
         {
-            var status = LocomotionMoveTo.Status(world, self);
+            var status = MoveStatus(world, self, ws.HidePoint);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status == NodeStatus.Success) { EnterHidden(ref ws, in p, self, world, now); return; }
@@ -295,7 +315,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Exposing(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
-            var status = LocomotionMoveTo.Status(world, self);
+            var status = MoveStatus(world, self, ws.FiringPoint);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status != NodeStatus.Success)
@@ -374,7 +394,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static void Withdrawing(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world, double now)
         {
-            var status = LocomotionMoveTo.Status(world, self);
+            var status = MoveStatus(world, self, ws.HidePoint);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status == NodeStatus.Success) EnterHidden(ref ws, in p, self, world, now);

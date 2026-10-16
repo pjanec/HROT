@@ -51,6 +51,8 @@ namespace Hrot.SimHost.Tests
             public int AimedRounds, TrackedSteps;
             /// <summary>The fake weapon reports a guided round in flight (the executor's <see cref="ActionReason.Guiding"/>).</summary>
             public bool Guiding;
+            /// <summary>⭐ CE-2205 — the fake follower never arrives (live: a hull orbits a point inside its turning circle).</summary>
+            public bool Orbits;
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -137,6 +139,7 @@ namespace Hrot.SimHost.Tests
                     fixed (byte* src = loco.Params) Moves.Add((((MoveToParams*)src)->Destination, ((MoveToParams*)src)->ReverseAllowed == 1));
                     return;   // arrives on the next step
                 }
+                if (Orbits) return;
                 loco.Status = NodeStatus.Success;
             }
 
@@ -557,6 +560,28 @@ namespace Hrot.SimHost.Tests
             e.Repo.GetComponentRW<Health>(e.Enemy).Current = 0f;
             Assert.Equal(NodeStatus.Running, e.Step());
             Assert.Equal(live, e.Ws.Threat);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2205</c> — A HULL WITHIN ITS ARRIVAL RADIUS HAS ARRIVED. 📌 Live <c>ua-javelin-lock</c>: an M1 sent to a cover point 2.3 m
+        /// off (inside its ~5 m turning circle) orbited it for 60 s and the cycle never reached Hidden. With a follower that never arrives:
+        /// a hide 2.3 m off is reached (Hidden, the move stopped); one 10 m off is still being driven to. ✅ Red-proof: the old 2 m radius,
+        /// or the move's own answer only ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2205_AHideInsideTheArrivalRadius_IsReached_EvenWhenTheFollowerNeverArrives()
+        {
+            var d = new Duel(Tank()) { Orbits = true };
+            d.Step();
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 5, new Vector3(-2.2f, 0.8f, 0f));
+            Assert.Equal(VehiclePhase.Hidden, d.RunUntil(VehiclePhase.Hidden, 5));
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, d.Repo.GetComponentRO<LocomotionChannel>(d.Self).ActiveAction);   // the move stopped
+
+            var far = new Duel(Tank()) { Orbits = true };
+            far.Step();
+            far.Answer(VehicleFightFromCoverNodes.HideSite, 5, HideA);
+            far.Run(5);
+            Assert.Equal(VehiclePhase.MoveToHide, far.Ws.Phase);
         }
 
         /// <summary>The hull's capability bits (what <c>CombatLife.ApplyHitCapabilities</c> leaves after a mobility / firepower kill).</summary>
