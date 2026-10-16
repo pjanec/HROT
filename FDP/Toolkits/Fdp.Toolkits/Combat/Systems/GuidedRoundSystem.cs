@@ -29,6 +29,55 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>A top-attack round climbs at this angle.</summary>
         public const float ClimbAngleDeg = 30f;
 
+        private const float Deg = MathF.PI / 180f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2201</c> (DESIGN_Missiles_And_Ammo §3, "the profile fits") — does a TOP-ATTACK flight fit a goal
+        /// <paramref name="groundRangeM"/> away (horizontal), launched <paramref name="launchAboveGoalM"/> above it at
+        /// <paramref name="speedMps"/>, and to what <paramref name="apexM"/> (m above the launch point, ≤ <see cref="MissileDto.CruiseAltitudeM"/>).
+        /// The ONE answer the launch (<c>FireProcessingSystem</c>: Climb or direct, and the cruise height) and the danger a target reads
+        /// (<c>ThreatDanger</c>: the top or the face) both use. It is this system's own flight, in closed form, at the turn limit
+        /// (radius R = speed / <see cref="TurnRateDegPerSec"/>): the climb arc onto <see cref="ClimbAngleDeg"/> (or less, for a low apex),
+        /// the straight climb, the pitch-over arc back to level (it peaks R·(1 − cos climb) above the apex), and the dive lead the cruise
+        /// branch below triggers on. It fits when that ground ≤ the range AND the peak is high enough for the dive arc to complete
+        /// (R·(1 − cos dive) — it then arrives at the dive angle, on the roof). The highest fitting apex is taken; none ⇒ false (direct).
+        /// 📐 Javelin (140 m/s, cruise 150 m, dive 60°): R ≈ 267 m, a full profile needs ≈ 730 m, a capped one ≈ 600 m — below that it
+        /// flies direct (measured live: a 230 m top attack overflew the tank and hit the sand 580 m beyond it).
+        /// A missile with no speed or no cruise height declares no geometry: its declared <see cref="MissileDto.TopAttackMinRangeM"/> alone.
+        /// </summary>
+        public static bool TopAttackFits(MissileDto missile, float speedMps, float groundRangeM, float launchAboveGoalM, out float apexM)
+        {
+            apexM = 0f;
+            if (missile.Guidance != GuidanceKind.FireAndForget || !missile.TopAttack || groundRangeM < missile.TopAttackMinRangeM) return false;
+            if (speedMps <= 0f || missile.CruiseAltitudeM <= 0f) { apexM = MathF.Max(missile.CruiseAltitudeM, 0f); return true; }
+            float r = speedMps / (TurnRateDegPerSec * Deg);
+            float climb = ClimbAngleDeg * Deg, dive = MathF.Max(missile.DiveAngleDeg, 10f) * Deg;
+            float floor = r * (1f - MathF.Cos(dive));   // the dive arc completes above this ⇒ it arrives at the dive angle
+            float apex = missile.CruiseAltitudeM;
+            if (Ground(apex, out _) > groundRangeM)
+            {
+                float lo = 0f, hi = apex;   // the ground needed grows with the apex: the highest one that fits
+                for (int i = 0; i < 24; i++) { float mid = 0.5f * (lo + hi); if (Ground(mid, out _) <= groundRangeM) lo = mid; else hi = mid; }
+                apex = lo;
+            }
+            Ground(apex, out float peak);
+            if (apex <= 0f || peak + launchAboveGoalM < floor) return false;
+            apexM = apex;
+            return true;
+
+            // the ground the profile needs to an apex a, and the height it peaks at
+            float Ground(float a, out float peakAbove)
+            {
+                float arcTop = r * (1f - MathF.Cos(climb));
+                float pitch = a >= arcTop ? climb : MathF.Acos(1f - a / r);   // a low apex is reached still in the first arc
+                float climbGround = 2f * r * MathF.Sin(pitch) + MathF.Max(0f, a - arcTop) / MathF.Tan(climb);
+                peakAbove = a + r * (1f - MathF.Cos(pitch));
+                float height = peakAbove + launchAboveGoalM;
+                float lead = r * MathF.Sin(dive) + MathF.Max(0f, height - r * (1f - MathF.Cos(dive))) / MathF.Tan(dive);
+                return climbGround + lead;
+            }
+        }
+
         private EntityQuery? _rounds;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -164,7 +213,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 goal = TargetLead.Point(pos, Vector3.Zero, g.SpeedMps, targetPoint, targetVelocity);
             var toGoal = goal - pos;
             if (toGoal.LengthSquared() < 1e-6f) return false;
-            if (g.TopAttack == 0 || g.Phase == GuidedPhase.Dive) { desired = Vector3.Normalize(toGoal); return true; }
+            // ⭐ CE-2201 — a top attack's DIVE is the branch below (at least the dive angle, homing once the line is steeper). ⛔ It was
+            //   returned here as pure pursuit, so the dive branch was dead and the arrival angle was luck (900 m: 40° down, the side).
+            if (g.TopAttack == 0) { desired = Vector3.Normalize(toGoal); return true; }
 
             var flat = new Vector2(toGoal.X, toGoal.Y);
             float horizontal = flat.Length();
@@ -191,8 +242,14 @@ namespace Fdp.Toolkit.Combat.Systems
             }
             // cruise: level at the cruise height until the dive must begin — the turn onto the dive angle is an arc of radius
             // speed / turn rate (R), so it starts R·sin(dive) + the rest of the height at the dive angle before the target
+            // ⭐ CE-2201 — from the round's CURRENT pitch γ (the cruise's altitude hold swings it after the pitch-over): the arc from γ to
+            //   −dive covers R·(sin γ + sin dive) of ground and drops R·(cos γ − cos dive). ⛔ The level-entry lead (γ = 0) fell 23–73 m
+            //   short entering pitched down and overflew entering pitched up (750–1000 m, measured).
             float r = g.SpeedMps / (TurnRateDegPerSec * (MathF.PI / 180f));
-            float lead = r * MathF.Sin(dive) + MathF.Max(0f, height - r * (1f - MathF.Cos(dive))) / MathF.Tan(dive);
+            float speed = vel.Length();
+            float pitch = speed > 1e-3f ? MathF.Asin(Math.Clamp(vel.Z / speed, -1f, 1f)) : 0f;
+            float lead = r * (MathF.Sin(pitch) + MathF.Sin(dive))
+                       + MathF.Max(0f, height - r * (MathF.Cos(pitch) - MathF.Cos(dive))) / MathF.Tan(dive);
             if (height > 0f && horizontal <= lead)
             {
                 g.Phase = GuidedPhase.Dive;

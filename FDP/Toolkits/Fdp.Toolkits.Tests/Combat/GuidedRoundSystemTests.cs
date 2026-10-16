@@ -131,6 +131,65 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(Facing.Top, ArmorModel.FacingOfArrival(_w.GetComponentRO<SimTransform>(tank), arrival));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2201</c> (DESIGN_Missiles_And_Ammo §3, "the profile fits") — the Javelin's own numbers (140 m/s, cruise 150 m, dive 60°,
+        /// top attack from 150 m) at a hull <paramref name="range"/> m away, launched as <c>FireProcessingSystem</c> launches it
+        /// (<see cref="GuidedRoundSystem.TopAttackFits"/> ⇒ Climb to the fitting apex, or direct): EVERY range reaches the hull, and every
+        /// range the top attack is chosen for arrives on the ROOF (≥ 45° down). 230 m — the live <c>ua-javelin-lock</c> shot — and 300 m are
+        /// below the profile's geometric minimum (≈ 600 m at the 30°/s turn) and fly direct; 650 m flies a capped apex; ≥ 750 m the full one.
+        /// 🔴 Red before: at 230 m the round was launched into the 150 m climb, overflew the tank and hit the ground 580 m beyond it.
+        /// </summary>
+        [Theory]
+        [InlineData(230f, false)]
+        [InlineData(300f, false)]
+        [InlineData(450f, false)]
+        [InlineData(620f, true)]
+        [InlineData(650f, true)]
+        [InlineData(700f, true)]
+        [InlineData(750f, true)]
+        [InlineData(800f, true)]
+        [InlineData(900f, true)]
+        [InlineData(1000f, true)]
+        [InlineData(1200f, true)]
+        [InlineData(1500f, true)]
+        [InlineData(2000f, true)]
+        [InlineData(2500f, true)]
+        public void CE2201_TheTopAttack_ArrivesOnTheRoof_AtEveryRangeItIsChosenFor_ElseFliesDirect(float range, bool top)
+        {
+            var javelin = new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, TopAttack = true, TopAttackMinRangeM = 150f,
+                                           CruiseAltitudeM = 150f, DiveAngleDeg = 60f };
+            var tank = Unit(new Vector3(range, 0, 0), hull: 2.4f);
+            var middle = AimPoint.Middle(_w, tank, out _, out _);
+            var launch = new Vector3(0, 0, 1);
+            var horizontal = new Vector2(middle.X - launch.X, middle.Y - launch.Y).Length();
+            Assert.Equal(top, GuidedRoundSystem.TopAttackFits(javelin, 140f, horizontal, launch.Z - middle.Z, out float apex));
+            if (range >= 750f) Assert.Equal(150f, apex);
+            var round = Round(launch, Vector3.Normalize(middle - launch) * 140f, new GuidedRound
+            {
+                Guidance = GuidanceKind.FireAndForget, Target = tank, Gunner = Unit(Vector3.Zero),
+                TopAttack = (byte)(top ? 1 : 0), Phase = top ? GuidedPhase.Climb : GuidedPhase.Cruise,
+                CruiseZ = launch.Z + (top ? apex : javelin.CruiseAltitudeM), DiveAngleDeg = 60, LastSeen = middle,
+            });
+            float closest = float.MaxValue, maxZ = 0f;
+            Vector3 arrival = default;
+            for (int f = 0; f < 60 * 30; f++)
+            {
+                Step(round);
+                var p = _w.GetComponentRO<SimTransform>(round).Position;
+                maxZ = MathF.Max(maxZ, p.Z);
+                float d = Vector3.Distance(p, middle);
+                if (d < closest) { closest = d; arrival = _w.GetComponentRO<SimVelocity>(round).Linear; }
+                if (d < 2f || p.Z < 0f) break;
+            }
+            Assert.True(closest < 3f, $"{range} m ({(top ? $"top, apex {apex:0}" : "direct")}): missed by {closest:0.0} m, peaked at {maxZ:0} m");
+            if (top)
+            {
+                float descent = MathF.Asin(-arrival.Z / arrival.Length()) * 180f / MathF.PI;
+                Assert.True(descent >= 45f, $"{range} m (apex {apex:0}): arrived {descent:0} deg down");
+                Assert.Equal(Facing.Top, ArmorModel.FacingOfArrival(_w.GetComponentRO<SimTransform>(tank), arrival));
+            }
+        }
+
         /// <summary>⭐ M4 — the steering limit: one frame turns the velocity at most 30°/s × dt toward the aim.</summary>
         [Fact]
         public void M4_TheTurn_IsLimitedTo30DegreesASecond()

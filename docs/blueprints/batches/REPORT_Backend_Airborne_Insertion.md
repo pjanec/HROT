@@ -84,6 +84,17 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | ⛔ not done | F-16 / C-130 (no brain, no combat block); the drawing (U-2, ui) |
 | ⚠ cross-lane | `CgfLogicPack` (the executor list), `EditorCapabilitiesTests` (+`EjectionSystem` in both lists), `EntityTypeCatalogTests` (+206) |
 
+## 3e. CE-2200 / CE-2201 (`2026-10-16`, behaviors' [Javelin handoff](HANDOFF_Behaviors_To_Backend_Javelin_Lock.md)) — folded into [Missiles & Ammo §3a](../../designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md)
+
+| | |
+|---|---|
+| CE-2200 | `AimAndFireExecutor.NeedsLock`: a guided round from a mount with `AimSeconds` never fires blind (`HoldNotSeen`); an RPG / LAW still does |
+| CE-2201 | `GuidedRoundSystem.TopAttackFits`: one launch-time answer for `FireProcessingSystem` and `ThreatDanger`. It takes the highest apex that fits the range, otherwise the round flies direct. Javelin: full profile from ~727 m, capped from ~607 m, direct below |
+| ⭐ found on the way (both pre-existing, same file) | ① the DIVE branch was dead code (pure pursuit returned first), so the arrival angle was luck: 40° down, on the side, at 900 m. ② the dive trigger assumed a LEVEL entry; with ① fixed it fell 23–73 m short or overflew at 750–1000 m. Both fixed; a 2D replica swept 600–2590 m: every range that fits hits |
+| ⚠ for behaviors | `ua-javelin-lock` ②'s 230 m shot is now a DIRECT hit. To show a top attack, put the open tank ≥ ~610 m away |
+| gates | `Fdp.Toolkits.Tests` 3 632 / 2 / 1 — both reds are `SquadCoordinationSystemTests` allocation counts (the known flaky family, not touched: alone 1 red then 2 green); `Hrot.SimHost.Tests` 1 441 / 0 / 6; `tracker-counts --check` OK; `design-digest --check` OK; `rulings-check` 215 / 215; Mermaid 13 / 13 parse |
+| red-proofs | CE-2200: 2 / 2 locking rows red with the gate bypassed. CE-2201: 6 / 14 rows red with the old range-only rule. The dive fixes: 900 m red with ①, then 750 / 800 / 900 / 1000 red with ② |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
-Then the behaviors lane's CE-2198 (a tank overshooting a short move).
+The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. Later: CE-3214 (S2b: weapon systems by part), CE-3215 (S2c: aircraft by part).

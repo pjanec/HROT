@@ -321,8 +321,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ M4 — the guided round's guidance, target and lifetime (an unguided missile gets its lifetime and speed only)
                 if (missile != null && repo.IsComponentTypeRegistered<GuidedRound>())
                 {
-                    bool top = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && missile.TopAttack && !evt.AtPoint
-                               && Vector3.Distance(origin, targetPos) >= missile.TopAttackMinRangeM;
+                    // ⭐ CE-2201 (§3) — top attack only where the climb-and-dive FITS the range, to the highest apex that does; else direct
+                    float apex = 0f;
+                    bool top = !evt.AtPoint && GuidedRoundSystem.TopAttackFits(missile, velocity.Length(),
+                                   new Vector2(targetPos.X - muzzlePos.X, targetPos.Y - muzzlePos.Y).Length(), muzzlePos.Z - targetPos.Z, out apex);
                     repo.AddComponent(bullet, new GuidedRound
                     {
                         Guidance      = missile.Guidance,
@@ -332,7 +334,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         Gunner        = shooter,
                         SpeedMps      = velocity.Length(),
                         LifetimeTicks = missile.MaxFlightSeconds > 0f ? (uint)MathF.Ceiling(missile.MaxFlightSeconds * GuidedRound.TicksPerSecond) : 0u,
-                        CruiseZ       = muzzlePos.Z + missile.CruiseAltitudeM,
+                        CruiseZ       = muzzlePos.Z + (top ? apex : missile.CruiseAltitudeM),
                         DiveAngleDeg  = missile.DiveAngleDeg,
                         LastSeen      = targetPos,
                         // ⭐ CE-3198 (§3b) — the overfly top attack, at a HULL only (a man is attacked direct)

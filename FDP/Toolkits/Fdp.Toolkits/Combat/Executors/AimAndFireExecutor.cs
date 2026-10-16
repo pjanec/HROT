@@ -369,12 +369,24 @@ namespace Fdp.Toolkit.Combat.Executors
         /// (<see cref="HiddenTargetThrow.LastKnown"/>), the magazine, the friendly line to the POINT, the ROE. An indirect mount
         /// never fires blind (that is the throw's decision, W-12e). It counts as a round of this action.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2200</c> (DESIGN_Missiles_And_Ammo §3, M4 D-D) — does this mount LOCK before it fires: a guided round (its
+        /// <see cref="Fdp.Toolkit.Tkb.Domain.MissileDto"/>, any guidance but <c>Unguided</c>) from a mount that declares an aim time
+        /// (the lock clock). Such a mount never fires a blind round — it has nothing to lock on. An RPG / LAW (unguided) keeps its blind round.
+        /// </summary>
+        public static bool NeedsLock(EntityRepository world, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, long loadedAmmo)
+            => mountDto is { AimSeconds: > 0f }
+               && CombatTkb.MissileOf(world, loadedAmmo != 0 ? loadedAmmo : unchecked((long)mountDto.AmmoGuid))
+                  is { Guidance: not Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided };
+
         private static void FireBlind(Entity entity, ref WeaponChannel channel, EntityRepository world, in AimAndFireParams p,
                                       int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mountDto, ref WeaponState weapon,
                                       Entity mountEntity, long loadedAmmo, Entity shooter)
         {
             channel.Status = NodeStatus.Running;
-            if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
+            // ⭐ CE-2200 — nor does a mount that LOCKS: a blind round has no lock (M4 D-D, "the lock IS the aim time")
+            if (CombatTkb.WarheadOf(world, mountDto) is { Indirect: true } || NeedsLock(world, mountDto, loadedAmmo)
+                || !HiddenTargetThrow.LastKnown(world, entity, p.Target, out var point))
             {
                 Say(world, entity, ActionReason.HoldNotSeen, p.Target);
                 return;

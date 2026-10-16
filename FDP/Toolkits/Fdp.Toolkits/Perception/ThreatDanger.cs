@@ -138,8 +138,9 @@ namespace Fdp.Toolkit.Perception
             if (face == null) armour = Thinnest(mine, penetrator);
             else
             {
-                bool dives = missile != null && missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget && missile.TopAttack
-                             && distance >= missile.TopAttackMinRangeM;
+                // ⭐ CE-2201 (DESIGN_Missiles_And_Ammo §3) — it dives on my top only where its climb-and-dive fits the range: the launch's own answer
+                bool dives = missile != null
+                             && Fdp.Toolkit.Combat.Systems.GuidedRoundSystem.TopAttackFits(missile, missile.SpeedMps, distance, 0f, out _);
                 armour = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(mine, dives ? Fdp.Toolkit.Combat.Facing.Top : face.Value, penetrator);
             }
             return Fdp.Toolkit.Combat.ArmorModel.PenetrationChance(penetration, armour);
