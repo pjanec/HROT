@@ -32,6 +32,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6d — a helicopter whose guns are its DOOR guns (the doors-off UH-60) circles the target with the door that bears
         /// turned to it, its door gunners firing; a gunner shot ⇒ his gun falls silent and the orbit turns the other door in (§9f).</summary>
         DoorGunOrbit = 5,
+        /// <summary>⭐ Slice 6e (B5, §9i) — the FPV drone: (a point) search the area, pick the best target, then pursue it at the cruise
+        /// height and dive on it from above; the drone IS its warhead — the Muscle's impact ends the flight.</summary>
+        Dive = 6,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -66,6 +69,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ Slice 6d — a door-gun orbit's radius (m); 0 ⇒ <see cref="AirAttackNodes.DefaultOrbitRadiusM"/>, at least two turn
         /// radii, at most 0.8 × the door gun's range.</summary>
         public float OrbitRadiusM;
+        /// <summary>⭐ Slice 6e (§9i D-4) — a drone's search circle round the struck point (m); 0 ⇒ <see cref="AirAttackNodes.DefaultSearchRadiusM"/>.</summary>
+        public float SearchRadiusM;
+        /// <summary>⭐ Slice 6e (§9i D-2) — the dive's angle below the horizontal (degrees); 0 ⇒ <see cref="AirAttackNodes.DefaultDiveAngleDeg"/>.</summary>
+        public float DiveAngleDeg;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — the attack's working state (the stage of the pass, the weapon's release node).</summary>
@@ -103,6 +110,10 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Decoys;
         /// <summary>⭐ <c>CE-2191</c> — the stage the evasion returns to: the orbit, or (any other) a fresh run-in.</summary>
         public byte Resume;
+        /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the drone's battery counts from it).</summary>
+        public double StartedAt;
+        /// <summary>⭐ Slice 6e — 1 once the battery ran out: the dive is straight down.</summary>
+        public byte BatteryOut;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -134,6 +145,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (heavy) firstGun = None;   // W1: a heavy point never takes the gun
             var locomotion = Locomotions.Of(world, aircraft);
             AirAttackProfile? picked = null;
+            if (DetonatesOnImpact(world, aircraft))
+            {
+                // ⭐ slice 6e (§9i D-1) — a flyer that IS its warhead dives on its target; its mount 0 is the warhead
+                mount = 0;
+                gun = None;
+                return AirAttackProfile.Dive;
+            }
             if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing)
                 picked = entity
                     ? firstGun != None ? AirAttackProfile.GunRun : rockets != None ? AirAttackProfile.RocketRun
@@ -148,6 +166,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (picked is { } p) MountsFor(bomb, rockets, firstGun, p, out mount, out gun);
             return picked;
         }
+
+        /// <summary>⭐ Slice 6e (§9i D-1, R-3007) — a flyer that bursts when it meets something: its type's <c>Gen.Flight DetonatesOnImpact</c>.</summary>
+        public static bool DetonatesOnImpact(EntityRepository world, Entity aircraft)
+            => world.IsComponentTypeRegistered<FlightParams>() && world.HasComponent<FlightParams>(aircraft)
+               && world.GetComponentRO<FlightParams>(aircraft).DetonatesOnImpact != 0;
 
         /// <summary>⭐ Slice 6c (W1) — a point that needs a heavy weapon.</summary>
         public static bool Heavy(StrikeTargetKind kind)
@@ -164,6 +187,12 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 mount = gun = None;
                 return DoorGuns(world, aircraft, stackalloc byte[MaxDoorGuns]) > 0;
+            }
+            if (profile == AirAttackProfile.Dive)
+            {
+                mount = 0;
+                gun = None;
+                return DetonatesOnImpact(world, aircraft);
             }
             Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
             return MountsFor(bomb, rockets, firstGun, profile, out mount, out gun);
@@ -299,7 +328,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2191</c> — how much of the break turns AWAY from the missile (the rest puts it on the beam).</summary>
         public const float EvadeDragFraction = 0.3f;
 
+        /// <summary>⭐ Slice 6e (§9i D-2) — a drone's cruise height above its target (m) and its dive angle (degrees) — FPV §2.</summary>
+        public const float DefaultDiveHeightAgl = 60f, DefaultDiveAngleDeg = 60f;
+        /// <summary>⭐ Slice 6e (§9i D-4) — a drone's search circle round a struck point (m).</summary>
+        public const float DefaultSearchRadiusM = 150f;
+        /// <summary>⭐ Slice 6e — the dive is re-aimed this often (s): every re-aim is a new intent on the wire.</summary>
+        public const double DiveSteerPeriod = 0.2;
+
         private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
+        private const byte StageSearch = 6, StagePursue = 7, StageDive = 8;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
 
         /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
@@ -330,7 +367,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Stage == StageStart)
             {
                 if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
-                if (ws.Profile == AirAttackProfile.DoorGunOrbit)
+                if (ws.Profile == AirAttackProfile.Dive)
+                {
+                    // ⭐ slice 6e (§9i) — an entity is pursued at once; a point is searched first
+                    ws.Stage = entity ? StagePursue : StageSearch;
+                    ws.StartedAt = now;
+                    ws.NextSteer = 0;
+                }
+                else if (ws.Profile == AirAttackProfile.DoorGunOrbit)
                 {
                     // ⭐ slice 6d — no run-in: it flies onto the circle from wherever it is
                     ws.Stage = StageOrbit;
@@ -355,6 +399,8 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.NextSteer = 0;
                 }
             }
+
+            if (ws.Profile == AirAttackProfile.Dive) return Dive(ref p, ref ws, self, world, at, now);
 
             // ⭐ CE-2191 (§7e) — a missile warning interrupts any stage: decoys, a break onto the missile's beam, then the attack comes round
             if (NewWarning(world, self, ref ws, now)) BeginEvade(ref p, ref ws, self, world, at);
@@ -469,6 +515,80 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Stage = StageRunIn;
             ws.NextSteer = 0;
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ Slice 6e (§9i) — the drone's attack: <b>Search</b> (a point: circle it, pick the best remembered target in the area —
+        /// <see cref="DroneTargets.Pick"/>), <b>Pursue</b> (the point above the target at the cruise height), <b>Dive</b> (once the
+        /// horizontal distance is within height / tan(angle): at the target's middle, full speed, re-aimed every
+        /// <see cref="DiveSteerPeriod"/>). The battery (<c>EnduranceSeconds</c>) ⇒ straight down. The Muscle's impact ends the flight.
+        /// </summary>
+        private static NodeStatus Dive(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, double now)
+        {
+            var flight = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self) : default;
+            float speed = p.Speed > 0f ? p.Speed : flight.MaxSpeedMps;
+            float height = p.AttackHeightAgl > 0f ? p.AttackHeightAgl : DefaultDiveHeightAgl;
+            if (ws.BatteryOut == 0 && flight.EnduranceSeconds > 0f && now - ws.StartedAt >= flight.EnduranceSeconds)
+            {
+                ws.BatteryOut = 1;   // D-6 — whatever is below
+                ws.Stage = StageDive;
+                ws.NextSteer = 0;
+            }
+            if (ws.BatteryOut != 0)
+            {
+                if (now < ws.NextSteer) return NodeStatus.Running;
+                ws.NextSteer = now + DiveSteerPeriod;
+                float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f;
+                return LocomotionMoveTo.Issue(world, self, new Vector3(at.X, at.Y, ground), speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;
+            }
+
+            if (ws.Stage == StageSearch)
+            {
+                if (now < ws.NextSteer) return NodeStatus.Running;
+                ws.NextSteer = now + SteerPeriod;
+                float radius = p.SearchRadiusM > 0f ? p.SearchRadiusM : DefaultSearchRadiusM;
+                var picked = DroneTargets.Pick(world, self, p.Point, radius);
+                if (!picked.IsNull && Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, picked, out var where, out _))
+                {
+                    p.Target = picked;
+                    p.Point = where;
+                    ws.Stage = StagePursue;
+                    ws.NextSteer = 0;
+                    return NodeStatus.Running;
+                }
+                // circle the point (D-4): straight at it from afar, then the point 30° ahead on the circle, as the door-gun orbit
+                var off = new Vector2(at.X - p.Point.X, at.Y - p.Point.Y);
+                Vector3 to;
+                if (off.Length() > 1.2f * radius) to = p.Point;
+                else
+                {
+                    float bearing = MathF.Atan2(off.Y, off.X) + OrbitLeadRad;
+                    to = p.Point + new Vector3(MathF.Cos(bearing) * radius, MathF.Sin(bearing) * radius, 0f);
+                }
+                return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius)
+                    ? NodeStatus.Running : NodeStatus.Failure;
+            }
+
+            // the target (Run keeps p.Point on it and ends the attack when it is dead)
+            var aim = p.Point;
+            if (!p.Target.IsNull && world.HasComponent<SimTransform>(p.Target))
+                aim.Z += Fdp.Toolkit.Combat.AimPoint.Middle(world, p.Target, out _, out _).Z - world.GetComponentRO<SimTransform>(p.Target).Position.Z;
+            float flat = new Vector2(aim.X - at.X, aim.Y - at.Y).Length();
+            float angle = (p.DiveAngleDeg > 0f ? p.DiveAngleDeg : DefaultDiveAngleDeg) * MathF.PI / 180f;
+            if (ws.Stage == StagePursue && flat <= MathF.Max(at.Z - aim.Z, 0f) / MathF.Tan(angle))
+            {
+                ws.Stage = StageDive;
+                ws.NextSteer = 0;
+            }
+            if (now < ws.NextSteer) return NodeStatus.Running;
+            if (ws.Stage == StagePursue)
+            {
+                ws.NextSteer = now + SteerPeriod;
+                return LocomotionMoveTo.Issue(world, self, new Vector3(aim.X, aim.Y, p.Point.Z + height), speed, AirOrderNodes.DefaultArrivalRadius)
+                    ? NodeStatus.Running : NodeStatus.Failure;
+            }
+            ws.NextSteer = now + DiveSteerPeriod;
+            return LocomotionMoveTo.Issue(world, self, aim, speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;   // D-3
         }
 
         /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its
@@ -845,6 +965,58 @@ namespace Hrot.AI.Behaviors.Brains
                 _ => DefaultAttackHeightAgl,
             };
             return LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ Slice 6e (§9i D-5; FPV Drone §2's "DroneTargetDecision") — what an FPV drone dives on: the live, identified, hostile contact in
+    /// its OWN memory, inside the searched area, with the best freshness × its warhead's share of a kill (<see cref="AmmoChoice.ExpectedDamage"/>
+    /// over the target's maximum health — the one damage rule, R-212 A1) × (a vehicle 1, anything else 0.3).
+    /// </summary>
+    public static class DroneTargets
+    {
+        /// <summary>The weight of a target that is not a vehicle (a person).</summary>
+        public const float PersonWeight = 0.3f;
+
+        /// <summary>The best target remembered within <paramref name="radius"/> (flat, m) of <paramref name="centre"/>; Null when none.</summary>
+        public static unsafe Entity Pick(EntityRepository world, Entity drone, Vector3 centre, float radius)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()
+                || !world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(drone)) return Entity.Null;
+            ref readonly var memory = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(drone);
+            var best = Entity.Null;
+            float bestScore = 0f;
+            for (int i = 0; i < memory.Count; i++)
+            {
+                if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;   // heard, never identified: nothing to dive on
+                var e = new Entity((ulong)memory.EntityIds[i]);
+                if (!world.IsAlive(e) || !CombatLife.IsAlive(world, e) || !Hostile(world, drone, e)) continue;
+                if (new Vector2(memory.PositionsX[i] - centre.X, memory.PositionsY[i] - centre.Y).Length() > radius) continue;
+                float score = Score(world, drone, e, memory.Freshness[i]);
+                if (score > bestScore) { bestScore = score; best = e; }
+            }
+            return best;
+        }
+
+        /// <summary>freshness × the warhead's share of a kill × the kind's weight.</summary>
+        public static float Score(EntityRepository world, Entity drone, Entity target, float freshness)
+        {
+            var mount = CombatTkb.MountOf(world, drone, 0);
+            float max = world.HasComponent<Health>(target) ? world.GetComponentRO<Health>(target).Max : 0f;
+            if (max <= 0f) max = CombatTkb.PlatformOf(world, target)?.MaxHealth ?? 0f;
+            float damage = mount != null ? AmmoChoice.ExpectedDamage(world, drone, target, mount, unchecked((long)mount.AmmoGuid)) : 0f;
+            float share = max > 0f ? MathF.Min(1f, damage / max) : (damage > 0f ? 1f : 0f);
+            float kind = Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, target) ? 1f : PersonWeight;
+            return MathF.Max(freshness, 0f) * share * kind;
+        }
+
+        /// <summary>Another force, not a neutral one (perception remembers every other force, neutrals included).</summary>
+        private static bool Hostile(EntityRepository world, Entity a, Entity b)
+        {
+            if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(a) || !world.HasComponent<EntityInfo>(b)) return true;
+            var mine = world.GetComponentRO<EntityInfo>(a).ForceId;
+            var theirs = world.GetComponentRO<EntityInfo>(b).ForceId;
+            return theirs != mine && theirs != ForceId.Neutral;
         }
     }
 

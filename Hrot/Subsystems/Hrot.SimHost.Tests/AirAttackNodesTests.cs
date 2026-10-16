@@ -991,5 +991,189 @@ namespace Hrot.SimHost.Tests
             Assert.True(ws.Swept > sweptAtWarn + MathF.PI / 2f, $"the same orbit carried on: swept {sweptAtWarn:F2} → {ws.Swept:F2} rad");
             Assert.True(shots.Count > firedBefore, "the door gun fires again on the resumed orbit");
         }
+    
+        // ═══════════════════════════════════════════════════════ ⭐ Slice 6e (§9i) — Dive: the FPV drone
+
+        private const long Drone = 9412;
+        private const float DroneSpeed = 30f, DroneClimb = 8f, DroneAccel = 15f;
+
+        /// <summary>An FPV drone as <c>BdcTkbCatalog.DefineFpvDrone</c> states it: a Rotorcraft that DETONATES on impact, 30 m/s, climbs 8 m/s,
+        /// its warhead its mount 0 (450 damage); hostile.</summary>
+        private Entity SpawnDrone(Vector3 at, float enduranceSeconds = 0f)
+        {
+            if (_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is Fdp.Toolkit.Tkb.TkbDatabase db && !db.TryGetByType(Drone, out _))
+            {
+                var t = new Fdp.Interfaces.TkbTemplate("test fpv drone", Drone);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { InitialAmmunition = 1, Range = 0.8f, DamagePerHit = 450 } } });
+                db.Register(t);
+            }
+            var e = SpawnPlane(at, Drone, 1, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            _w.SetComponent(e, new Fdp.Toolkit.Motion.FlightParams
+            {
+                MaxSpeedMps = DroneSpeed, ClimbMps = DroneClimb, AccelMps2 = DroneAccel, TurnRadiusM = 10f,
+                DetonatesOnImpact = 1, EnduranceSeconds = enduranceSeconds,
+            });
+            _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
+            return e;
+        }
+
+        private Entity SpawnGround(Vector3 at, float health, bool vehicle, ForceId force)
+        {
+            var t = _w.CreateEntity();
+            _w.AddComponent(t, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(t, new SimVelocity());
+            _w.AddComponent(t, new Health { Current = health, Max = health });
+            _w.AddComponent(t, new EntityInfo { ForceId = force });
+            if (vehicle) _w.AddComponent(t, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.Tank });
+            return t;
+        }
+
+        private unsafe void Remember(Entity drone, params Entity[] contacts)
+        {
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+            foreach (var c in contacts)
+            {
+                var at = _w.GetComponentRO<SimTransform>(c).Position;
+                mem.EntityIds[mem.Count] = (long)c.PackedValue;
+                mem.PositionsX[mem.Count] = at.X; mem.PositionsY[mem.Count] = at.Y; mem.PositionsZ[mem.Count] = at.Z;
+                mem.Freshness[mem.Count] = 1f;
+                mem.Count++;
+            }
+            if (_w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(drone)) _w.SetComponent(drone, mem);
+            else _w.AddComponent(drone, mem);
+        }
+
+        /// <summary>The stand-in for <c>RotorcraftModel</c>'s point move: horizontal toward the point at up to its speed, braking √(2·a·d);
+        /// vertical capped at ±ClimbMps — as the model flies it (no instant velocity).</summary>
+        private void FlyDrone(Entity e)
+        {
+            var move = MoveOf(e);
+            ref var tr = ref _w.GetComponentRW<SimTransform>(e);
+            var to = move.Destination - tr.Position;
+            var flat = new Vector2(to.X, to.Y);
+            float along = MathF.Min(MathF.Min(move.Speed > 0f ? move.Speed : DroneSpeed, MathF.Sqrt(2f * DroneAccel * flat.Length())), flat.Length() / Dt);
+            var h = flat.LengthSquared() > 1e-6f ? Vector2.Normalize(flat) * along : Vector2.Zero;
+            float vz = Math.Clamp(to.Z / Dt, -DroneClimb, DroneClimb);
+            var v = new Vector3(h, vz);
+            _w.GetComponentRW<SimVelocity>(e).Linear = v;
+            tr.Position += v * Dt;
+            _w.GetComponentRW<LocomotionChannel>(e).Status = to.Length() <= MathF.Max(move.ArrivalRadius, 0.5f) ? NodeStatus.Success : NodeStatus.Running;
+        }
+
+        private NodeStatus DroneStep(ref AirAttackParams p, ref AirAttackState ws, Entity drone, int frame)
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+            var status = AirAttackNodes.Run(ref p, ref ws, drone, _w);
+            FlyDrone(drone);
+            return status;
+        }
+
+        /// <summary>
+        /// ⭐ §9i ① — an FPV drone ordered to Attack a tank 600 m off: it picks <b>Dive</b> (it detonates on impact), pursues at 60 m above
+        /// the tank, begins the dive within height / tan 60° (≈ 35 m, horizontal), every dive point is the tank's middle, it comes down on
+        /// it from ABOVE (the last 5 m of descent steeper than 45°), and the attack ends — Success — the frame the tank is destroyed.
+        /// ✅ Red-proofs (mutants): no Dive pick ⇒ no profile, Failure at once; the dive never begun (pursue only) ⇒ it hovers 60 m over
+        /// the tank ⇒ red; the dive aimed at the pursuit height ⇒ it never comes down ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6e_AnFpvDrone_PursuesATank_AndDivesOnItFromAbove_UntilItIsDestroyed()
+        {
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 20f));
+            var tank = SpawnGround(Vector3.Zero, 1000f, vehicle: true, ForceId.Friend);
+            Assert.Equal(AirAttackProfile.Dive, AirAttackProfiles.Pick(_w, drone, out var mount, out _, entity: true, Hrot.AI.Behaviors.Orders.StrikeTargetKind.Unspecified, 0));
+            Assert.Equal(0, mount);
+            var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, tank, out _, out _);
+            float maxPursuit = 0f, diveStartFlat = -1f;
+            var track = new System.Collections.Generic.List<Vector3>();
+            NodeStatus status = NodeStatus.Running;
+            int frame = 0;
+            for (; frame < 60 * 120 && status == NodeStatus.Running; frame++)
+            {
+                status = DroneStep(ref p, ref ws, drone, frame);
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                var dest = MoveOf(drone).Destination;
+                bool diving = Vector3.Distance(dest, middle) < 0.01f;
+                if (!diving) maxPursuit = MathF.Max(maxPursuit, dest.Z);
+                else
+                {
+                    if (diveStartFlat < 0f) diveStartFlat = new Vector2(at.X, at.Y).Length();
+                    track.Add(at);
+                }
+                if (Vector3.Distance(at, middle) < 1f) break;   // the Muscle's impact would meet the hull here
+            }
+            Assert.Equal(AirAttackProfile.Dive, ws.Profile);
+            Assert.InRange(maxPursuit, 59.9f, 60.1f);                                   // the pursuit at the cruise height above the tank
+            Assert.InRange(diveStartFlat, 0f, 36f);                                     // ≤ 60 / tan 60° (+ one frame)
+            Assert.True(track.Count > 0 && Vector3.Distance(track[^1], middle) < 1f, $"the drone came down on the tank — last at {(track.Count > 0 ? track[^1] : default)}");
+            int k = track.FindIndex(q => q.Z <= middle.Z + 5f);
+            var leg = track[^1] - track[Math.Max(0, k - 1)];
+            Assert.True(-leg.Z >= new Vector2(leg.X, leg.Y).Length(), $"from above: the last leg {leg}");   // steeper than 45°
+            _w.GetComponentRW<Health>(tank).Current = 0f;                               // the warhead's work (DroneImpactSystem)
+            Assert.Equal(NodeStatus.Success, DroneStep(ref p, ref ws, drone, ++frame));
+        }
+
+        /// <summary>
+        /// ⭐ §9i ② — a drone sent to a POINT searches it and dives on what it remembers there: of a tank (1000 hp — its warhead's 450 is
+        /// 0.45 of a kill, a vehicle ×1), a rifleman (100 hp — a whole kill, but a person ×0.3) and its OWN side's tank, it picks the
+        /// enemy TANK; a contact outside the search radius is passed over.
+        /// ✅ Red-proofs (mutants): the person weight 1 ⇒ the rifleman (1.0 &gt; 0.45) ⇒ red; no force test ⇒ its own tank (nearer the point,
+        /// the same score) can win ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6e_ADroneOnAPoint_SearchesIt_AndPicksTheEnemyTank_OverARiflemanAndItsOwnSide()
+        {
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f));
+            var own = SpawnGround(new Vector3(5f, 0f, 0f), 1000f, vehicle: true, ForceId.Hostile);
+            var rifleman = SpawnGround(new Vector3(-30f, 10f, 0f), 100f, vehicle: false, ForceId.Friend);
+            var tank = SpawnGround(new Vector3(80f, 40f, 0f), 1000f, vehicle: true, ForceId.Friend);
+            var far = SpawnGround(new Vector3(400f, 0f, 0f), 1000f, vehicle: true, ForceId.Friend);
+            Remember(drone, own, far, rifleman, tank);
+            Assert.Equal(tank, DroneTargets.Pick(_w, drone, Vector3.Zero, AirAttackNodes.DefaultSearchRadiusM));
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            for (int frame = 0; frame < 5; frame++) DroneStep(ref p, ref ws, drone, frame);
+            Assert.Equal(tank, p.Target);                                               // the search handed its pick to the pursuit
+            Assert.Equal(Vector3.Zero + new Vector3(80f, 40f, 0f), p.Point);
+        }
+
+        /// <summary>
+        /// ⭐ §9i ② (the search) — with nothing remembered in the area the drone CIRCLES the point at the cruise height (150 m round it), it
+        /// does not hover on it; ⭐ ③ the battery — at <c>EnduranceSeconds</c> it dives straight down where it is.
+        /// ✅ Red-proofs (mutants): the circle steered at the point ⇒ it hovers over it ⇒ red; no battery ⇒ it circles on ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S6e_ADroneFindingNothing_CirclesThePoint_ThenItsBatteryEndsInADiveStraightDown()
+        {
+            var drone = SpawnDrone(new Vector3(-600f, 0f, 60f), enduranceSeconds: 60f);
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            float minR = float.MaxValue, maxR = 0f, swept = 0f, last = float.NaN;
+            int frame = 0;
+            for (; frame < 60 * 59; frame++)
+            {
+                DroneStep(ref p, ref ws, drone, frame);
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                float r = new Vector2(at.X, at.Y).Length();
+                if (frame > 60 * 30)   // well after the 600 m approach (20 s at 30 m/s)
+                {
+                    minR = MathF.Min(minR, r); maxR = MathF.Max(maxR, r);
+                    float b = MathF.Atan2(at.Y, at.X);
+                    if (!float.IsNaN(last)) { float d = b - last; if (d > MathF.PI) d -= 2f * MathF.PI; if (d < -MathF.PI) d += 2f * MathF.PI; swept += d; }
+                    last = b;
+                }
+            }
+            Assert.InRange(minR, 100f, 200f);
+            Assert.InRange(maxR, 100f, 200f);
+            Assert.True(MathF.Abs(swept) > MathF.PI / 2f, $"it went round: {swept:F2} rad");
+            for (; frame < 60 * 62; frame++) DroneStep(ref p, ref ws, drone, frame);
+            var here = _w.GetComponentRO<SimTransform>(drone).Position;
+            var dest = MoveOf(drone).Destination;
+            Assert.Equal(1, ws.BatteryOut);
+            Assert.True(new Vector2(dest.X - here.X, dest.Y - here.Y).Length() < 30f * 0.25f && dest.Z <= 0.01f,
+                $"straight down: dest {dest}, at {here}");
+        }
     }
 }

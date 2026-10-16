@@ -1219,7 +1219,7 @@ door-gun rounds hit (median 2.7 m), the truck dies.
 | the Orbit Truck carries **8 000** health | ⭐ a demo setting, not a model: at 100 the run-in's first 30 rounds killed it before the orbit; at 3 000 it died before the gunner was shot |
 | the reversal turn cuts inside the circle (224 m on ≈ 360 m) at ≥ 21 m/s | a 180° turn at speed; the check skips the 10 s after the gunner falls for the band, as for the turn sign. ⚠ The orbit settles ≈ 40 m inside `OrbitRadiusM` — the 30° lead point's chord |
 
-### 9i. Slice 6e (behaviors) — Dive: the FPV drone searches, picks, pursues and dives on the roof — build-state: READY-TO-BUILD `2026-10-16`
+### 9i. Slice 6e (behaviors) — Dive: the FPV drone searches, picks, pursues and dives on the roof — build-state: BUILT `2026-10-16` (rails; live in `ua-drone-shelter`)
 
 Builds §7's row *"drone (FPV) · its warhead ⇒ Dive (FPV §3's sequence; B5)"* — the Brain half of [FPV Drone](../vehicle-tactics/DESIGN_FPV_Drone.md)
 §2/§3, whose Muscle half (flight, impact, sound) backend built (FPV §6). It unblocks the demo `ua-drone-shelter`
@@ -1301,6 +1301,14 @@ Rails (`AirAttackNodesTests`, the same stand-in flight): ① an Attack on a tank
 35 m (horizontal), every dive point the tank's middle, the last leg descending ≥ 45° · ② a Strike on a point with a tank and a rifleman
 remembered — the circle, then the TANK picked (D-5), then the dive · ③ the battery — no contact, endurance out ⇒ the dive straight down ·
 ④ the target dead ⇒ Success. Demo: `ua-drone-shelter` (Urban Armour §8).
+
+| as built | why / deviation |
+|---|---|
+| ★ `AirAttackProfile.Dive = 6` · `AirAttackProfiles.DetonatesOnImpact` (Pick's first row, MountsFor) · `AirAttackParams.SearchRadiusM / DiveAngleDeg` · `AirAttackState.StartedAt / BatteryOut` · `AirAttackNodes.Dive` (Search · Pursue · Dive · the battery) · `DefaultDiveHeightAgl` 60, `DefaultDiveAngleDeg` 60, `DefaultSearchRadiusM` 150, `DiveSteerPeriod` 0.2 s · ★ `DroneTargets.Pick / Score` | as the class diagram |
+| the dive is re-aimed every 0.2 s, not every frame | each `LocomotionMoveTo.Issue` is a new intent on the wire |
+| `DroneTargets.Hostile` = another force, not Neutral | perception remembers every other force, neutrals too |
+| the dive ENDS near-vertical over the roof | `RotorcraftModel` caps the descent at `ClimbMps` (8 m/s) and brakes horizontally as it closes (D-3) |
+| rails `AirAttackNodesTests.S6e_AnFpvDrone_PursuesATank_AndDivesOnItFromAbove_UntilItIsDestroyed` · `S6e_ADroneOnAPoint_SearchesIt_AndPicksTheEnemyTank_OverARiflemanAndItsOwnSide` · `S6e_ADroneFindingNothing_CirclesThePoint_ThenItsBatteryEndsInADiveStraightDown` — the stand-in flies as `RotorcraftModel` (horizontal ≤ speed with √(2ad) braking, vertical ± 8 m/s) | red-proved by 7 mutants: no Dive pick · the dive never begun · the dive at the pursuit height · the person weight 1 · no force test · the circle steered at the point · no battery. `Hrot.SimHost.Tests` 1455 / 0 / 6 |
 
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 
