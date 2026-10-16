@@ -40,6 +40,7 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Pending;
             /// <summary>⭐ CE-1078 — the locked shot's unit (null = <see cref="PendingPoint"/>).</summary>
             public Entity PendingTarget;
+            /// <summary>The locked shot's point: in the world, or ⭐ CE-1125 in <see cref="PendingTarget"/>'s own frame when it is on a unit.</summary>
             public System.Numerics.Vector3 PendingPoint;
             /// <summary>⭐ CE-1078 — the weapon action's round count at which the locked shot has left (counted when it was locked).</summary>
             public int Cap;
@@ -143,7 +144,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.ShotSeq = input.ShotSeq;
                 ws.Pending = 1;
                 ws.PendingTarget = ShotTargetOf(world, self, input.ShotTarget);
-                ws.PendingPoint = input.AimPoint;
+                // ⭐ CE-1125 — a point on a unit is held in HIS frame, so the shot goes where the crosshair was on him as he moves
+                ws.PendingPoint = ws.PendingTarget.IsNull ? input.AimPoint : AimPoint.ToUnitFrame(world, ws.PendingTarget, input.AimPoint);
                 ws.Cap = fired + 1;
             }
             int ammoSteps = (byte)(input.AmmoSeq - ws.AmmoSeq);
@@ -162,7 +164,8 @@ namespace Hrot.AI.Behaviors.Brains
             p = ws.Pending != 0
                 ? new AimAndFireParams
                 {
-                    Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Point = ws.PendingPoint, Rounds = ws.Cap,
+                    Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Rounds = ws.Cap,
+                    Point = ws.PendingTarget.IsNull ? ws.PendingPoint : AimPoint.FromUnitFrame(world, ws.PendingTarget, ws.PendingPoint),
                     CooldownSeconds = OperatorCooldownSeconds,
                 }
                 : new AimAndFireParams

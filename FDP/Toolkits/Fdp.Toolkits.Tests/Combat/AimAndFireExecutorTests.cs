@@ -2107,6 +2107,51 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        /// <summary>
+        /// ⭐ CE-1125 — a locked shot goes to the point the crosshair put ON the unit (his head, here), not his middle. 🔒 User,
+        /// 2026-10-16: "when i aim at character and fire i always hit the belly of a standing figure".
+        /// </summary>
+        [Fact]
+        public void CE1125_ALockedShot_GoesToTheCrosshairPointOnTheUnit_NotHisMiddle()
+        {
+            var target = SpawnTarget(new Vector3(30f, 0f, 0f));
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
+            var middle = AimPoint.Middle(_world, target, out _, out _);
+            var head = middle + new Vector3(0f, 0f, 0.7f);
+            AskOperatorShot(ref channel, target, head, cap: 1);
+            _executor.OnEnter(shooter, ref channel, _world);
+            int shots = 0;
+            for (int f = 0; f < 60; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
+                {
+                    Assert.Equal(head, shot.TargetPoint);
+                    shots++;
+                }
+            }
+            Assert.Equal(1, shots);
+        }
+
+        /// <summary>⭐ CE-1125 — the point is carried in the unit's own frame: after he walks on and turns, it is still the same spot on him.</summary>
+        [Fact]
+        public void CE1125_APointOnAUnit_FollowsHim_AsHeMovesAndTurns()
+        {
+            var unit = SpawnTarget(new Vector3(30f, 0f, 0f));
+            var onHim = new Vector3(30.2f, 0.1f, 1.7f);
+            var local = AimPoint.ToUnitFrame(_world, unit, onHim);
+
+            ref var t = ref _world.GetComponentRW<SimTransform>(unit);
+            t.Position = new Vector3(35f, 4f, 0f);
+            t.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);
+
+            var carried = AimPoint.FromUnitFrame(_world, unit, local);
+            Assert.Equal(1.7f, carried.Z, 3);
+            Assert.Equal(35f - 0.1f, carried.X, 3);   // (0.2, 0.1) turned 90°: (-0.1, 0.2)
+            Assert.Equal(4f + 0.2f, carried.Y, 3);
+        }
+
         /// <summary>⭐ CE-1079 (D-3) — the operator's round switch holds the trigger like a reload; once it is done the round that
         /// leaves is the LOADED one (the per-shot path now carries it too) and its type's count drops.</summary>
         [Fact]

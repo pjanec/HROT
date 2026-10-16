@@ -341,6 +341,8 @@ namespace Fdp.Toolkit.Combat.Systems
                         ProximityM    = CombatTkb.WarheadOf(repo, ammo) is { Fuze: Fdp.Toolkit.Tkb.Domain.FuzeKind.Proximity, ProximityFuzeM: > 0f } pw
                                         ? pw.ProximityFuzeM : 0f,
                         Rejection     = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar ? missile.ChaffRejection : missile.FlareRejection,
+                        TurnRateDegPerSec = missile.TurnRateDegPerSec,   // ⭐ CE-2222 — the profile TopAttackFits just fitted
+                        ClimbAngleDeg     = missile.ClimbAngleDeg,
                     });
                     // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c, AD4) — a GUIDED missile launched at an aircraft warns it: its brain (local, or
                     //   over the wire) learns where from, the seeker and the flight time. One warning per round, at launch.

@@ -1174,6 +1174,22 @@ LOADING) · `PossessionStationTests.CE1078_*` + `CE1079_*` ×2 (counters, lock, 
 `PossessionReplicationTests.CE3174_*` extended (the new frame and ammo fields cross) · `DebugApiOrdersTests.CE1078_*` ×2 (through the real
 possession: one press one round, a press during a reload waits, RMB drops it; a grenade ignores a held trigger).
 
+#### 13.7a CORRECTION — a locked shot goes to the crosshair point ON the unit, not his middle (`CE-1125`, `2026-10-16`, ui)
+
+🔒 User: *"in FPS mode when i aim at character and fire i always hit the belly of a standing figure like if the aiming raycast ignore the
+point where i am aiming."* 📐 Measured: the station sent the box hit (D-4) and the unit's id; the brain passed both on; but the per-shot
+path of `AimAndFireExecutor.OperatorFire` aimed a locked shot at `AimPoint.Middle(unit)` and dropped the point — a standing man's middle
+is his belly. The rail `CE1078_PerShot…` even pinned "at the unit, not at the point" (it still holds: its point is 40 m off the unit).
+
+| ⭐ rule (supersedes D-1's "aims at its unit" for the per-shot path) | |
+|---|---|
+| the brain holds a locked point IN THE UNIT'S FRAME (`AimPoint.ToUnitFrame` at the press, `FromUnitFrame` each tick) | the shot still follows him as he moves and turns (D-1), now to the same spot on him |
+| `AimPoint.Operator(unit, point)` — the point while it is within `OnUnitMetres` (1.5 m) + his hull height of his middle, else the middle | one rule for the shot (executor) and the HUD ring (`PossessionStation.LockedWorldPoint`) |
+| ⛔ unchanged: the turret path | a turreted or guided weapon's lock keeps naming the UNIT (the muscle follows it; a missile locks on him) — fired at his middle |
+| a bullet then strikes the part its ray meets | `HitResolutionSystem` (CE-3209) — so the head point is a head hit |
+
+Rails: `AimAndFireExecutorTests.CE1125_ALockedShot_GoesToTheCrosshairPointOnTheUnit_NotHisMiddle`, `CE1125_APointOnAUnit_FollowsHim_AsHeMovesAndTurns`.
+
 ## 8. Known limits and defects found while designing
 
 | | |
