@@ -66,6 +66,8 @@ const EXPECTED_TOOLS = [
   //   gather -> SMB pull to NAS), ⛔ never a second collection mechanism. Status reads the same
   //   ClusterUiCache the ExCon panel renders.
   'trigger_cluster_diagnostic_dump', 'get_cluster_diagnostic_status',
+  // ⭐ CE-4002 — the cluster membership routes: roster, operator transition, operator cancel (R-4004).
+  'get_cluster_roster', 'request_cluster_transition', 'cancel_cluster_operation',
   // ⭐ Scenario authoring is WORLD manipulation (Q56-C): place/configure/assign already had
   //   routes; delete was the one gap.
   'delete_entity',

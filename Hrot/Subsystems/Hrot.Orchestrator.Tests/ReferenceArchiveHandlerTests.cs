@@ -176,7 +176,9 @@ public sealed class ReferenceArchiveHandlerTests
         // The registrar puts scenario-save first, archive second — the canonical order every host now uses.
         var eventBus = new FdpEventBus();
         using var slave = new ClusterSlave(1, "Test", eventBus);
-        SerializeLocalRegistrar.Register(slave, scenario, archive);
+        SerializeLocalRegistrar.Register(slave, scenario, Path.GetTempPath(), nodeId: 1);
+        // ⭐⭐ P5b — the registrar BUILT the archive handler: every host that registers has one (asserted on the slave).
+        Assert.True(slave.IsHandlerRegistered<ReferenceArchiveHandler>());
 
         // Payload-aware selection: a scenario payload is claimed by the scenario handler, NOT the archive one.
         Assert.False(archive.CanHandle(new ExecuteNodeOpIntent

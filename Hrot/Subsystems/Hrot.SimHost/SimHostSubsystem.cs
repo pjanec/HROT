@@ -74,6 +74,8 @@ namespace Hrot.SimHost
                 // ⭐⭐ HN-029 — the node's own control-plane bus; see SimHostApp.OrchestrationBus.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _app?.OrchestrationBus),
+                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _app?.OrchestrationBus),
                 // ⭐⭐⭐ CE-163 — SimHost's OWN committed cluster state, from its OWN ClusterSlave, through
                 //    the SAME shared projection CGF and IG use. 🔒 "every ECS node must use the same shared
                 //    code" — ⛔ the identical line, deliberately, in all three composition roots.

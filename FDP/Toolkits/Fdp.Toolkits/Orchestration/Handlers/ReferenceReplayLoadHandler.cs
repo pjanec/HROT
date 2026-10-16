@@ -177,12 +177,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
 
                 var maxNetworkId    = _controller.ActiveMaxNetworkId;
                 var durationSeconds = _controller.ActiveReplayDurationSeconds;
+                // ⭐ R-4012 (Q91 §4-P P1) — this node's span, so the master can compute the ONE replay zero.
+                long first = _controller.ActiveRecordingStartWallTicks;
+                long last  = _controller.ActiveRecordingEndWallTicks;
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s).",
-                    exerciseId, maxNetworkId, durationSeconds);
+                    "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s, span {3}).",
+                    exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
-                return new ReplayPrepareResult(maxNetworkId, durationSeconds);
+                return new ReplayPrepareResult(maxNetworkId, durationSeconds, first, last);
             }
             else if (intent.Operation == NodeOpType.FinalizeReplay)
             {
@@ -197,12 +200,18 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     ? rsp.TargetWallTicks
                     : long.MaxValue;
 
+                // ⭐⭐ R-4012 (Q91 §4-P P1) — ONE timeline: the master's anchor (the earliest first frame across the cluster).
+                //   ⛔ Was: every node added its OWN start, so a node that began recording late (a late Player) restored a
+                //   moment shifted by its join delay. A payload without an anchor keeps the node's own start, as before.
+                if (intent.DomainPayload is ReplaySeekPayload { AnchorWallTicks: > 0 } anchored)
+                    _controller.ReplayAnchorWallTicks = anchored.AnchorWallTicks;
+
                 // Shift the relative slider ticks into absolute UTC indexing time — SATURATING.
                 // 🔴 A plain add overflowed for "seek to the end" (long.MaxValue — this handler's own default, and what
                 //    scripts send): start + MaxValue wrapped NEGATIVE, the playback clamped that to frame 0, and a
                 //    "seek to the end" restored the FIRST frame (measured: ClusterOpE2eScriptTests.RecordAndReplaySeek,
                 //    target -8584107341263421530, an empty world). CE-497.
-                long startTicks          = _controller.ActiveRecordingStartWallTicks;
+                long startTicks          = _controller.ReplayAnchorWallTicks;
                 long absoluteTargetTicks = relativeTicks > 0 && startTicks > long.MaxValue - relativeTicks
                     ? long.MaxValue
                     : startTicks + relativeTicks;
@@ -210,11 +219,21 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 GlobalTime restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks)
                     .ConfigureAwait(false);
 
+                // ⭐⭐ R-4012 — outside this node's recording: it restored nothing and listens. It reports no landed time, so
+                //   the master takes the time from a node that did restore (ReplaySeekAggregator skips an empty result).
+                if (restoredTime.TotalWallTicks == 0)
+                {
+                    FdpLog<ReferenceReplayLoadHandler>.Info(
+                        "[ReferenceReplayLoadHandler] NodeReplaySeek: target {0} is outside this node's recording — listening (R-4012).",
+                        absoluteTargetTicks);
+                    return new ReplaySeekResult(default);
+                }
+
                 // The restored frame contains the historical TotalTime from the live simulation.
                 // We must convert the actual landed absolute wall ticks back into a relative
                 // 0-based duration (in seconds) so the Orchestrator's UI slider stays in bounds.
                 long actualAbsoluteTicks = restoredTime.TotalWallTicks;
-                double relativeLandedSeconds = (actualAbsoluteTicks - _controller.ActiveRecordingStartWallTicks) / (double)TimeSpan.TicksPerSecond;
+                double relativeLandedSeconds = (actualAbsoluteTicks - startTicks) / (double)TimeSpan.TicksPerSecond;
 
                 // Overwrite the time going back to the Orchestrator
                 restoredTime.TotalTime = Math.Max(0.0, relativeLandedSeconds);

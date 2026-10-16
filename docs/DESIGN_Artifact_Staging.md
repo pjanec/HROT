@@ -10,12 +10,16 @@ current-answer: §2 is the measured gap, §3-§5 are the model, §6 is the skip 
 stale-below: §8-V1 is ANSWERED — read §9.1, not §8. §4's sequence omits the named-but-unpublished
   artifact arm, which §9.3 adds.
 stale-below: nothing — new document.
-known-rot: TWO things this design assumed that the build measured false, both in §9 —
+known-rot: ⛔⛔ R-4018 (2026-10-15): the TKB is no longer NAMED by the scenario — one TKB per deployment, its name
+  from the orchestrator's configuration (docs/designs/tkb-1/DESIGN.md §0). ⭐ The TKB COPY STAYS, from the same NAS master
+  copy, and also runs when a node joins the cluster; the scenario-header consensus on TkbName goes. Build item CE-4003.
+  ALSO: TWO things this design assumed that the build measured false, both in §9 —
   (a) §2/§4 speak only of the TKB NAME, but the terrain name rides the SAME staged header and had to be
   carried too, or S4 was impossible; (b) §5's "terrain inherits everything here unchanged" is true of the
   HEADER and false of the ARTIFACT — see §9.4.
 known-conflict: none.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-E2: the staged artifacts reach a node through a transfer provider (share or DDS) instead of a File.Copy into a shared tree; the NAS layout here is unchanged.
   - docs/DESIGN_Cluster_Load_Phase.md — §10 owns what a scenario naming NO terrain does on every node (unload, CE-3075); §9.7 here is the staging half that makes CGF see "none".
   - docs/DESIGN_Asset_Management.md — ⭐⭐ THE GENERAL CASE this document is the one-artifact-kind slice
     of. It REUSES this document's (length, mtime) skip verbatim and generalises the flat single-file

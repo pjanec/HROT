@@ -35,6 +35,9 @@ public sealed class OrchestratorCoreOptions
     /// <summary>The world's ONE id authority, reset at a scenario load (HN-037). Null ⇒ the host has none.</summary>
     public Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority? IdAuthority { get; init; }
 
+    /// <summary>⭐⭐ P6 part 2 (Q91 §4-E2) — the DDS file transport for nodes that advertised no share; null = share only (today).</summary>
+    public Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? DdsTransfer { get; init; }
+
     /// <summary>The file dialog the diagnostics panel opens.</summary>
     public required Fdp.Presentation.Abstractions.IFileDialogService FileDialogService { get; init; }
 }
@@ -74,6 +77,7 @@ public sealed class OrchestratorCore : IDisposable
         string nas = config.NasBasePath;
 
         _master = new ClusterMaster(bus, config);
+        _master.LocalNodeId = o.StagingNodeId;   // ⭐ P3 — the master never waits for the node it runs in
         // ⭐⭐⭐ HN-037 — the world's ONE id authority, so a scenario load resets it to 1000.
         //    📄 docs/DESIGN_Deterministic_Network_Ids.md §11.
         _master.IdAuthority = o.IdAuthority;
@@ -114,7 +118,17 @@ public sealed class OrchestratorCore : IDisposable
         };
         _globalContext = new GlobalContextProcessManager(bus, contextHandler);
 
-        var storageGateway = new StorageGatewayModule();
+        // ⭐⭐ P6 part 2 — the transport per target: the share a node advertised, else DDS (when this host has one).
+        var transfer = o.DdsTransfer == null
+            ? StorageGatewayModule.DefaultProvider
+            : new Fdp.Toolkit.Orchestration.Transfer.RoutingTransferProvider(
+                StorageGatewayModule.DefaultProvider, o.DdsTransfer,
+                hasShare: nodeId => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.ParseShare(
+                    _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null) != null,
+                nodeRootSeenByMaster: nodeId => OrchestrationConstants.GetNodeStagingRoot(OrchestrationConstants.ResolveStagingRoot(), nodeId),
+                canReceiveDds: nodeId => Fdp.Toolkit.Orchestration.Transfer.TransferTokens.HasDdsReceiver(
+                    _master.ActiveNodeCapabilitySnapshot().TryGetValue(nodeId, out var tokens) ? tokens : null));
+        var storageGateway = new StorageGatewayModule(transfer);
         _storage   = new StorageProcessManager(bus, storageGateway, nas);                         // TASK-S002
         _inventory = new AssetInventoryProcessManager(                                            // CGF1-S0506
             bus, storageGateway, nas, OrchestrationConstants.ResolveStagingRoot(), o.StagingNodeId);
@@ -128,10 +142,10 @@ public sealed class OrchestratorCore : IDisposable
         _liveBranch = new LiveBranchProcessManager(bus, replayMasterModule, time);
 
         // TASK-T002 — the seek. Must tick BEFORE ClusterMaster so its precondition events precede the fan-out.
-        _seek = new ReplaySeekProcessManager(bus, time);
+        _seek = new ReplaySeekProcessManager(bus, time, _master.StepRoster);   // ⭐ P3 — one roster rule
 
         // TASK-P002 — the prefetch. Must tick BEFORE ClusterMaster so PrefetchStagingCompletedEvent is ready.
-        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas);
+        _prefetch = new AssetPrefetchProcessManager(bus, storageGateway, nas, tkbName: config.TkbName);   // ⭐ R-4018
 
         // ⭐ CE-3021 — explicit publish / refresh over the SAME gateway and NAS (silent-default rule).
         _master.AssetSync = new AssetSyncService(storageGateway, nas, _master.ActiveNodeCapabilitySnapshot);

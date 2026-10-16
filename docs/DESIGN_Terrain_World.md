@@ -32,6 +32,7 @@ related-designs:
   - docs/designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — owns "SimTransform.Position.Z is authoritative"; W8 is how SimHost honours it.
   - docs/designs/anim-ctrl/AnimationControl_BrainMuscle_MiniDesign_v0_3.md — owns StanceIntent/StanceStatus, which W5's posture-driven eye height reads.
   - docs/DESIGN_Map_3D_Mode.md — the map's 3-D mode: renders this world lit and colour-shaded, adding an OPTIONAL per-triangle tag output to TerrainWorldMesh (navmesh output unchanged). (DESIGN_Godot_3D_Viewer.md, DEFERRED, held the earlier Godot plan.)
+  - blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the SUMO net rides the terrain folder (R-4021); every node parses it once for the traffic layer and dead reckoning.
 -->
 
 # DESIGN — **the terrain world** *(SimHost's test terrain: one file, one model, every query derived)*

@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using Fdp.Interfaces;
@@ -107,6 +108,35 @@ namespace Hrot.SimHost.Tests
 
             system.Execute(repo, 0f);                          // once only
             Assert.Single(t1.DisposedIds);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — a WIPED world (entering Idle; <c>WorldBoundaryReset.Clear</c> destroys with no
+        /// DestructionOrder and moves the <c>WorldEpoch</c>) deletes on the wire every entity this node OWNED — once, on every
+        /// translator — and never a replica. 🔴 Before: the ids were forgotten and nothing was written, so a durable
+        /// <c>EntityMaster</c> kept the dead run alive for every late joiner.
+        /// </summary>
+        [Fact]
+        public void CE4000_AWipedWorld_DeletesEveryOwnedEntity_OnTheWire_OnceAndNeverAReplica()
+        {
+            var repo = CreateWorld();
+            var t1 = new MockTranslator();
+            var t2 = new MockTranslator();
+            var system = new CycloneNetworkCleanupSystem(new[] { t1, t2 });
+
+            CreateAuthoritativeEntity(repo, netId: 1001L);
+            CreateAuthoritativeEntity(repo, netId: 1002L);
+            CreateAuthoritativeEntity(repo, netId: 1300L, primaryOwner: 2, localNode: 1);   // a replica of node 2's
+            system.Execute(repo, 0f);
+            Assert.Empty(t1.DisposedIds);
+
+            Hrot.Map.Common.ClusterLoad.WorldBoundaryReset.Clear(repo);   // the wipe: entities gone, epoch moved
+            system.Execute(repo, 0f);
+            Assert.Equal(new[] { 1001L, 1002L }, t1.DisposedIds.OrderBy(x => x));
+            Assert.Equal(new[] { 1001L, 1002L }, t2.DisposedIds.OrderBy(x => x));
+
+            system.Execute(repo, 0f);                                     // once only
+            Assert.Equal(2, t1.DisposedIds.Count);
         }
 
         [Fact]

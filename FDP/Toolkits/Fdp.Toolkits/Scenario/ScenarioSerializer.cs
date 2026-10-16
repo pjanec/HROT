@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Scenario
     /// <code>
     /// {
     ///   "$meta": { "docType": "...", "schemaVersion": 1 },
-    ///   "Header": { "TkbName": "..." },
+    ///   "Header": { "TerrainName": "..." },
     ///   "Entities": {
     ///     "&lt;guid&gt;": { "ComponentName": { "field": "..." } }
     ///   }
@@ -242,19 +242,10 @@ namespace Fdp.Toolkit.Scenario
             // ── Assemble root DOM ────────────────────────────────────────────────
             var root = new JsonObject { ["Entities"] = entitiesNode };
 
-            // ⚠ The Header node is written only when it has something to say, and each field is
-            //   independently optional: a scenario may name a terrain and no TKB, or vice versa.
-            //   ⛔ Do not reinstate "TkbName decides whether Header exists" — that would silently drop a
-            //   terrain name on any scenario without a TKB.
-            if (header.TkbName != null || header.TerrainName != null)
-            {
-                var headerNode = new JsonObject();
-                if (header.TkbName != null)
-                    headerNode["TkbName"] = JsonValue.Create(header.TkbName);
-                if (header.TerrainName != null)
-                    headerNode["TerrainName"] = JsonValue.Create(header.TerrainName);
-                root["Header"] = headerNode;
-            }
+            // ⚠ The Header node is written only when it has something to say. ⛔⛔ R-4018: never a TKB name —
+            //   a scenario does not name a TKB (one TKB per deployment).
+            if (header.TerrainName != null)
+                root["Header"] = new JsonObject { ["TerrainName"] = JsonValue.Create(header.TerrainName) };
             // ⭐ Buildings 5e — the terrain objects' state (its doors), keyed by terrain-object key; absent when nothing differs from
             //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
             if (Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)

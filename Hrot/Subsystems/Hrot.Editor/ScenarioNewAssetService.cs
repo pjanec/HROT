@@ -16,12 +16,10 @@ namespace Hrot.Editor;
 /// Uses <see cref="IScenarioCreationSession"/> as a narrow testable seam.
 ///
 /// <para>⛔⛔ <b><c>H3</c> — this kind offers NO BLANK TEMPLATE, deliberately</b> (design §2.1e ⑤c
-/// <c>G3</c>). 📐 The measured reason: <c>Header.TkbName</c> is stamped at save from
-/// <c>ITkbDatabase.ActiveTkbName</c>, whose only writer reads it back OUT of a staged scenario header —
-/// so a blank scenario has no way to acquire a TKB at all and inherits the last cluster load's, or
-/// <c>null</c>, at which point <c>ScenarioSerializer</c> omits the whole header. ⚠ With the terrain
-/// name (§2.1e ①) the identical hole opens. ⇒ every new scenario starts from a SEED that carries both
-/// names, and <c>"Empty"</c> is gone rather than left as a trap.</para>
+/// <c>G3</c>). 📐 The measured reason: <c>Header.TerrainName</c> is stamped at save from the terrain the node has
+/// RESIDENT, so a blank scenario has no way to acquire a terrain at all. ⇒ every new scenario starts from a SEED that
+/// carries the terrain name, and <c>"Empty"</c> is gone rather than left as a trap. ⛔ <c>R-4018</c>: the TKB is no
+/// longer part of this — a scenario never names one.</para>
 /// </remarks>
 public sealed class ScenarioNewAssetService : INewAssetService
 {
@@ -117,7 +115,7 @@ public sealed class ScenarioNewAssetService : INewAssetService
         // Build the full scenario name: <relPath>/<name> (or just <name> if relPath is empty).
         var fullName = string.IsNullOrEmpty(relPath) ? name : relPath + "/" + name;
 
-        // ⛔⛔ H3 — REFUSE rather than mint a scenario with no terrain and no TKB, and name the recipes
+        // ⛔⛔ H3 — REFUSE rather than mint a scenario with no terrain, and name the recipes
         //    that would have worked (the RecipeByName refusal shape: correctable in one step).
         //    ⚠ RecipeByName.Resolve returns (null, null) for a kind with no blank template — which its
         //    own header documents as legitimate — so the refusal has to live HERE, at the only place
@@ -129,9 +127,9 @@ public sealed class ScenarioNewAssetService : INewAssetService
                 ? "(none — no seed scenarios are deployed under Recipes/Scenarios)"
                 : string.Join(", ", available.Select(r => $"'{r.Name}'"));
             throw new InvalidOperationException(
-                "[ERROR] Scenario offers no blank template: a scenario minted with no terrain and no TKB "
-              + "cannot acquire either afterwards (the header's TkbName is stamped from a value whose only "
-              + "writer reads it back out of a staged header). Create from a seed instead. Available: "
+                "[ERROR] Scenario offers no blank template: a scenario minted with no terrain cannot acquire "
+              + "one afterwards (the header's TerrainName is stamped from the terrain the node has resident). "
+              + "Create from a seed instead. Available: "
               + offered + ". List them with GET /assets/recipes.");
         }
 

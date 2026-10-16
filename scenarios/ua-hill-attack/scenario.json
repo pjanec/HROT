@@ -1,0 +1,343 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a2230000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          275,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8600
+      },
+      "TkbIdentity": {
+        "TkbType": 303
+      },
+      "EntityInfo": {
+        "Name": "Hill Platoon",
+        "ForceId": "Friend"
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "a2230000-0000-4000-8000-0000000000aa",
+              "executingEngine": "",
+              "behaviorName": "PlatoonHillAttack",
+              "behaviorParams": "{\"firingLineStart\":[52.521617532301796,13.408417951193242],\"firingLineEnd\":[52.5216174889335,13.40968495033758],\"baselineStart\":[52.52125806975171,13.408417923296051],\"baselineEnd\":[52.52125802638397,13.409684912099186],\"tankSpacing\":20,\"targetAreaNetworkId\":8620}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "a2230000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          245,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8601
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2230000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2230000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          265,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8602
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2230000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2230000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          285,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8603
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2230000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2230000-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          305,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8604
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2230000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a2230000-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          255,
+          380,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8611
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2230000-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          300,
+          395,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.7071068,
+          0.7071068
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8612
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2230000-0000-4000-8000-000000000030": {
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -70,
+            "Y": -50
+          },
+          {
+            "X": -70,
+            "Y": 50
+          },
+          {
+            "X": 70,
+            "Y": 50
+          },
+          {
+            "X": 70,
+            "Y": -50
+          }
+        ],
+        "Version": 0
+      },
+      "SimTransform": {
+        "Position": [
+          277,
+          388,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8620
+      },
+      "NetworkAuthority": {
+        "PrimaryOwnerId": 0,
+        "LocalNodeId": 0
+      },
+      "NetworkTransform": {
+        "LastPosition": [
+          0,
+          0,
+          0
+        ],
+        "LastRotation": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8803
+      },
+      "MapDisplayComponent": {
+        "LayerMask": 8
+      },
+      "MapOverlayStyle": {
+        "FillColor": [
+          255,
+          0,
+          0,
+          80
+        ],
+        "BorderColor": [
+          255,
+          255,
+          255,
+          255
+        ],
+        "LineThickness": 2,
+        "IsClosed": true
+      }
+    }
+  }
+}

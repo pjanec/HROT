@@ -28,6 +28,8 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
     {
         float maxDuration    = 0f;
         long  maxNetworkId   = 0L;
+        long  firstFrame     = 0L;   // ⭐ R-4012 — the earliest first frame across the cluster: the replay's zero
+        long  lastFrame      = 0L;   //            the latest last frame: the replay's end
 
         foreach (var nodeDict in nodeResponses.Values)
         {
@@ -38,12 +40,21 @@ public sealed class ReplayConsensusAggregator : INodeResponseAggregator
                 var result = JsonSerializer.Deserialize<ReplayPrepareResult>(json, _deserializeOptions);
                 if (result.DurationSeconds > maxDuration) maxDuration  = result.DurationSeconds;
                 if (result.MaxNetworkId    > maxNetworkId) maxNetworkId = result.MaxNetworkId;
+                if (result.FirstFrameWallTicks > 0 && (firstFrame == 0 || result.FirstFrameWallTicks < firstFrame))
+                    firstFrame = result.FirstFrameWallTicks;
+                if (result.LastFrameWallTicks > lastFrame) lastFrame = result.LastFrameWallTicks;
             }
             catch { /* non-ReplayPrepareResult JSON — skip */ }
         }
 
+        // ⭐⭐ R-4012 (Q91 §4-P P1) — with spans known, the replay lasts from the earliest first frame to the latest last
+        //   frame. ⛔ Was the longest single recording, which is shorter than the exercise when no node recorded all of it.
+        if (firstFrame > 0 && lastFrame > firstFrame)
+            maxDuration = System.Math.Max(maxDuration, (float)((lastFrame - firstFrame) / (double)System.TimeSpan.TicksPerSecond));
+
         return maxDuration > 0f
-            ? new ReplayPrepareResult(MaxNetworkId: maxNetworkId, DurationSeconds: maxDuration)
+            ? new ReplayPrepareResult(MaxNetworkId: maxNetworkId, DurationSeconds: maxDuration,
+                                      FirstFrameWallTicks: firstFrame, LastFrameWallTicks: lastFrame)
             : null;
     }
 }

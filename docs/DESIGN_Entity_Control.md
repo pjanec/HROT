@@ -11,6 +11,7 @@ related-designs:
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS PersonBody / VehicleBody, the parts a round meets; §8g's crosshair meets the same parts through one function (BodyPartRay)
   - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
   - docs/designs/audio/DESIGN_FPS_Audio.md — sound exists only while PossessionStation holds a unit; the ear is the FPS camera (AU-3)
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-F: PossessionSystem also releases a unit when its station's node DEPARTS (today only Esc or death).
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the simple pilot models that answer M-4 (mouse-aim plane, helicopter hover hold) and ControlScheme.FixedWing (R-2015)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — makes manual drive per locomotion class (a Vertical axis, a control scheme per class at the station) so every motion model is possessable (MD-D)
@@ -30,6 +31,7 @@ related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the Brain / MuscleGround groups the new components join
   - docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2d — OWNS the raw-input route to backend gizmos (the key queue's one reader, CE-3175)
   - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — R-4023 hands a vehicle to SUMO by a follow mode (KinematicsMode.Traffic), following M-6's rejection of an ownership move and M-1's Manual-mode shape.
 -->
 
 # DESIGN — **entity control** *(orders over HTTP, RTS clicks, the menu, and FPS possession — one path)*
@@ -276,6 +278,8 @@ sequenceDiagram
         S->>B: ReleasePossessionEvent
     else unit killed (Health ≤ 0)
         B->>B: PossessionSystem releases on its own
+    else the station's node departs (Q91 §4-F, CE-2231)
+        B->>B: NodeDeparted{S} ⇒ PossessionSystem releases every unit S holds (no timer, R-4001)
     end
     B->>B: clear OperatorControl ⇒ the paused task resumes (R-203)
     B-->>S: PossessedBy cleared ⇒ station leaves FPS, camera stays where it was

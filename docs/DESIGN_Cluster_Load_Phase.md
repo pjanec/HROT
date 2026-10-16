@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
+updated: 2026-10-15 (§8.2 CE-4000 F2: entering Idle wipes the world and deletes what the node owned) · 2026-10-15 (§8: the clear moved to the START of the prepare — P4 made the prepare span frames) · 2026-10-06 (§8.1 CE-3076: the WorldEpoch list completed — EQS config, damage, lifecycle status, entity info, mission control, brain tick, dispatchers; CE-3093 the clock is not reset at the boundary) · 2026-10-05 (§8 CE-2101: the world boundary clears every host; §9 CE-295: a load over a loaded cluster unloads first; §10 CE-3075: a scenario naming no terrain unloads the resident one)
 build-state: L1-L8 BUILT 2026-09-18 (§6 the AS-BUILT of L1-L7, §7.7 the AS-BUILT of L8, §5.2 the measured acceptance).
   ⭐ L8 (the deterministic staging WAIT — parked transitions) closed the half of L6 that §6.4 had deferred:
   every wait-on-a-clock in the load path is DELETED.
@@ -15,11 +15,15 @@ current-answer: §4 (the per-role contract), §5 (the plan + the MET acceptance)
   three-copy drift it retires.
 stale-below: §2 describes the world BEFORE this batch. It is kept because the defect it measures is the
   whole argument for §3-§4; ⛔ do not read it as current.
-known-rot: nothing known
+known-rot: ⛔⛔ R-4018 (2026-10-15): the knowledge base is NOT a scenario load part — one TKB per deployment, synced
+  and loaded when a node joins the cluster and re-checked before every scenario load (docs/designs/tkb-1/DESIGN.md §0);
+  TkbName leaves the load payload and travels with the file sync. Build item CE-4003.
 known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride the scenario-load
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — a Player that joins LATE runs this same per-role load chain,
+    replayed to the one node by the orchestrator (§4-E there); it adds nothing to the chain.
   - DESIGN_Geo_Origin.md — CE-3126: the terrain step's commit also switches every node's geo origin.
   - docs/DESIGN_Terrain_World.md — owns the terrain's CONTENT; its §5 made the terrain world UNIVERSAL (every ECS node; the navmesh bake stays NavigationSolver-only) — folded into §4.1a's table 2026-10-03.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file,
@@ -195,7 +199,7 @@ classDiagram
   class LoadPhasePayload {
     <<record struct>>
     +string ScenarioId
-    +string TkbName      « NEW »
+    +string TkbName      « REMOVED R-4018 »
     +string TerrainName  « NEW »
     +bool IsNewScenario
     +ClusterState TargetState
@@ -427,7 +431,8 @@ exists on every host; only `Brain`'s requirement pulls it into that host's chain
 
 | part | carried by | consumed by |
 |---|---|---|
-| **which** TKB / terrain / scenario | ⭐ the **load message** (§3's payload) — the orchestrator extracts the names from the master scenario on the NAS | every node, per its role |
+| **which** terrain / scenario | ⭐ the **load message** (§3's payload) — the orchestrator extracts the terrain name from the master scenario on the NAS | every node, per its role |
+| **which** TKB | ⭐ **`R-4018`, as built `2026-10-15`:** ⛔ NOT the load message and NOT the scenario. One TKB per deployment, named by `ClusterConfiguration.TkbName` (default `HrotDefault`); the prefetch's TKB sync (`StorageGatewayModule.SyncTkb`) copies it and leaves a `StagedTkb` record naming it, which the knowledge-base step reads. No master copy ⇒ no record ⇒ the built-in catalogue | the knowledge-base step |
 | **the bytes** (TKB archive, terrain definition, scenario file) | ⭐ the **staging copy** — NAS → per-node directory, before the content step | the loaders |
 | **what this node needs** | ⭐ **the node's own role** — never on the wire | the chain, locally |
 
@@ -450,7 +455,7 @@ first"* without hanging terrain off a handler four roles do not have.
 
 | # | item | owner surface |
 |---|---|---|
-| **L1** | Add `TkbName` and `TerrainName` to the load payload; the orchestrator fills them from the master scenario header it already reads. ⭐ The payload crosses the wire as **JSON**, so this is purely additive — no wire id, no compatibility break (`R-42` does not bite) | `ReferenceEditLoadHandler.cs` payload · `StorageGatewayModule` / the transition fan-out |
+| **L1** | ⛔ *`TkbName` half REMOVED by `R-4018` (`2026-10-15`) — see §4.2's TKB row.* Add `TkbName` and `TerrainName` to the load payload; the orchestrator fills them from the master scenario header it already reads. ⭐ The payload crosses the wire as **JSON**, so this is purely additive — no wire id, no compatibility break (`R-42` does not bite) | `ReferenceEditLoadHandler.cs` payload · `StorageGatewayModule` / the transition fan-out |
 | **L2** | Introduce the ordered **load-phase chain**: one registered handler per ECS host claiming `PrepareLive`/`PrepareEdit`, running its steps in order and ACKing once. ⭐ Composed from **`roles × providers`** (§4.1b), never from a per-bootstrapper registration order; a required part with no provider fails **loudly at startup** | new, beside `SerializeLocalRegistrar` |
 | **L3** | Re-home `TkbLoadClusterStateHandler` and `TerrainLoadClusterStateHandler` as **steps**, reading their name from the payload, falling back to the staged header only when the payload is silent (one release of tolerance) | both handlers |
 | **L4** | Register the chain on **every ECS host** — CGF, SimHost, IG, editor. ⭐⭐⭐ The **knowledge-base step is unconditional** on all of them (§4.1 — `Q65-A′`; today only SimHost has one, so CGF and IG silently ignore a scenario's `TkbName`); the **terrain step** goes only to `MuscleGround`/`NavigationSolver` (§4.1a); the **scenario step** only where `Brain` is composed | the three bootstrappers + the editor |
@@ -776,7 +781,7 @@ one that matters, because it is the only one where the files actually have to ar
 
 | | |
 |---|---|
-| ✅ **a `CancelOperation` now clears a parked entry** *(built `2026-09-18`, after the section below was first written)* | ⭐ **Parking created the first transition state that CAN be cancelled cleanly** — nothing has been sent, so there is nothing to undo, and the branch returns before the `AbortTransaction` fan-out for exactly that reason. 📐 Why it was absent rather than broken: `ProcessCancelOperationIntent` resolves its target through `_activeCancellations`, which **only** the ExportArchive and ImportArchive branches ever write *(`ClusterMaster.cs:1472`, `:1506`; specified that way in `.dev/_DONE/cgf-1/batches/CGF-1-BATCH-28-INSTRUCTIONS.md` §C.4)* — a transition was never a cancel target, and before parking there was no window in which it could have been one. ⚠ **It abandons the TRANSITION, not the copy**: the gateway registers no cancellation source, so the bytes finish landing in the node staging roots. Harmless — nothing loads them — but it is why the log says *"abandoned"*, not *"stopped"*. Pinned by `A_parked_transition_can_be_cancelled_and_fans_out_nothing`, which also asserts the single parked slot is RELEASED, so the next transition is admitted rather than rejected as busy |
+| ✅ **a `CancelOperation` now clears a parked entry** *(built `2026-09-18`, after the section below was first written)* | ⭐ **Parking created the first transition state that CAN be cancelled cleanly** — nothing has been sent, so there is nothing to undo, and the branch returns before the `AbortTransaction` fan-out for exactly that reason. 📐 Why it was absent rather than broken: `ProcessCancelOperationIntent` resolves its target through `_activeCancellations`, which **only** the ExportArchive and ImportArchive branches ever write *(`ClusterMaster.cs:1472`, `:1506`; specified that way in `.dev/_DONE/cgf-1/batches/CGF-1-BATCH-28-INSTRUCTIONS.md` §C.4)* — a transition was never a cancel target, and before parking there was no window in which it could have been one. ✅ **`2026-10-15` — and it STOPS the copy** (P8 H5 with P6, [`Q91`](blueprints/Architect_Question_91_Player_Nodes.md) §4-H): the master publishes `PrefetchCancelRequestedEvent`, the saga cancels the copy's token and the gateway's transfer removes its partial files; rail `P8_H5_Cancelling_a_parked_load_stops_its_staging_copy`. ⛔ HISTORY: *"it abandons the TRANSITION, not the copy — the bytes finish landing"*. Pinned by `A_parked_transition_can_be_cancelled_and_fans_out_nothing`, which also asserts the single parked slot is RELEASED, so the next transition is admitted rather than rejected as busy |
 | ⚠ **the bound is wall-clock, and it is the only clock left** | `ParkedTransitionExpirySeconds`, default 300 s. ⛔ It is not a retry and it never proceeds — it fails the request. ⭐ It exists because a distribution that never reports at all *(a node ejected mid-copy, a saga that was never constructed)* must not hang the master forever |
 
 ## 8. ⭐⭐⭐ `CE-2101` — **THE WORLD BOUNDARY CLEARS EVERY HOST** *(AS-BUILT `2026-10-05`, backend)*
@@ -794,9 +799,10 @@ sequenceDiagram
   Note over M: trajectory OperatingLive -> UnloadingLive -> Idle -> LoadingLive
   M->>M: IsWorldBoundaryLoad(Idle, LoadingLive) = true (ONE rule, also resets ids to 1000)
   M->>N: PrepareLive {..., IsWorldBoundary: true}
-  N->>W: Commit, BEFORE any step
+  N->>W: PrepareAsync START, frame thread, BEFORE any step prepares
   W->>W: map.Clear, DestroyEntity every entity, WorldEpoch++, GlobalTime reset, WorldResetEvent
-  N->>N: KB, terrain, scenario steps commit into the empty world
+  Note over N: window until this node's Commit (P4 made it span frames) - replicas of a faster node's committed new world arrive and are KEPT
+  N->>N: KB, terrain, scenario steps commit into the new world
   T->>T: next scan or poll: WorldEpoch moved, clear per-id bookkeeping (no wire dispose)
 ```
 
@@ -811,7 +817,7 @@ classDiagram
   class EditLoadHandlerPayload { <<existing, grows>> +IsWorldBoundary }
   class NodeTransitionPayloadDto { <<existing, grows>> +IsWorldBoundary }
   class LoadPhaseContext { <<existing, grows>> +IsWorldBoundary }
-  class LoadPhaseChain { <<existing, grows>> +entityMap; Commit clears first }
+  class LoadPhaseChain { <<existing, grows>> +entityMap; PrepareAsync clears first }
   class WorldBoundaryReset { <<NEW>> +Clear(world, map, host)$ }
   class WorldEpoch { <<NEW managed singleton, id 332>> +Advance$ +Moved$ }
   ClusterMaster ..> EditLoadHandlerPayload
@@ -826,11 +832,12 @@ classDiagram
 | **DESTROY every entity, not `SoftClear`** | `SoftClear` wipes the entity index, so generations restart at 1 (`EntityIndex.Clear`) and a handle cached before the wipe ALIASES the new entity at the same index; destroying bumps generations (`EntityIndex.cs:164`), so stale handles go DEAD. 📐 Measured safe: SimHost and CGF hold **0** entities at boot, so nothing but scenario content is destroyed |
 | **`WorldEpoch` clears translator per-id bookkeeping** | 🔴 measured: `EntityMasterEgressTranslator._publishedNetIds` ("exactly once per net id") outlived the wipe ⇒ the reused id 1000 never re-published its master ⇒ SimHost's ghost had no `TkbIdentity`, was never promoted, built no TKB sensors ⇒ the unit perceived nothing. Guarded the same way: BDC master egress, brain-intent send-on-change + held, master-ingress owner retries, route-ingress deferrals, `CycloneNetworkCleanupSystem._trackedEntities`. ⛔ NOT `Dispose(id)`: that writes "entity deleted" on the wire, and a late dispose of a REUSED id could destroy the new run's ghost |
 | the map is passed per host | IG, CGF, editor pass theirs; SimHost resolves the world singleton late (it is set after composition) |
+| ⭐⭐ **the clear runs at the START of the prepare, not at Commit** *(`2026-10-15`, coordinator, P4 follow-up)* | 🔴 measured: after P4 ([`Q91`](blueprints/Architect_Question_91_Player_Nodes.md) §4-B2 — the terrain prepares on a worker, so the prepare spans frames) a faster node commits and its entities replicate in BEFORE this node has processed its own Commit, and a Commit-time clear destroyed them — lost entities, and SimHost's queued blueprint application threw `Entity is not alive` (`SpatialCoreTkbTranslator.Inject` ← `BlueprintApplicationSystem`; `TimeControlIntegrationTests.Stop_PausesTheClock…CE3068` red 3 of 12 runs, green 8/8 before P4). ⭐ At prepare start nothing of the new world exists anywhere yet (no node commits before every node prepared), so it is still *"before the load builds the new world"*. ⚠ An aborted load leaves the world EMPTY — accepted: it is a boundary, and the cancel's Idle round follows (P8). ⛔ HISTORY: built `2026-10-05` as *"Commit, BEFORE any step"* |
 | the editor's own edit-path pre-wipe (`ScenarioFileService.NewScenario`) stays | it now also advances `WorldEpoch`; ⚠ it still uses `SoftClear` (generation reset) — a follow-up could route it through `WorldBoundaryReset` |
 
 Rails: `TakeCoverScenarioTests.CE2101_ASecondLiveLoad_StartsFromTheFile_OnEveryHost` (cluster: once per host, at the authored
-position, perceiving again — red before on position, then on perception), `LoadPhaseChainTests.TheWorldBoundary_ClearsTheWorldBeforeAnyStepCommits_CE2101`
-(boundary clears and kills stale handles; non-boundary keeps the world), `TheWorldBoundaryResetsTheIdAuthorityTests.The_world_boundary_is_a_load_entered_from_Idle_CE2101`.
+position, perceiving again — red before on position, then on perception), `LoadPhaseChainTests.TheWorldBoundary_ClearsTheWorldBeforeAnyStepPrepares_CE2101`
+(boundary clears and kills stale handles; non-boundary keeps the world), `TheWorldBoundary_KeepsAnEntityThatArrivesDuringTheLoadWindow_CE2101_P4` (red against the Commit-time clear), `TheWorldBoundaryResetsTheIdAuthorityTests.The_world_boundary_is_a_load_entered_from_Idle_CE2101`.
 
 ### 8.1 ✅ AS-BUILT `2026-10-06` — `CE-3076`: the `WorldEpoch` list was not complete
 
@@ -862,6 +869,72 @@ longer exists. Measured after: 2/2 second-load runs engage and kill both hostile
 the load both CGF and SimHost still read the LAST world's time (14.9 s) until Play, which then restarts it near 0. Anything
 stamped during the load carries the old clock — the commander's `BehaviorState.RunSince` = 14.9 s, so
 `SopConditions.SensedFresh` ignores senses from the new world's first ~15 s.
+
+### 8.2 ⭐⭐⭐ `CE-4000` (F2, `R-4019`) — **IDLE IS EMPTY EVERYWHERE: entering `Idle` wipes the world AND deletes what the node owned** *(design `2026-10-15`, coordinator; `build-state: BUILDING`)*
+
+🔒 User, `2026-10-15`: *"F2 approved."* 📐 The defect it fixes (`CE-4000`, measured live): the §8 clear destroys locally and
+deliberately writes no "deleted" (`CycloneNetworkCleanupSystem.cs:46`), so `EntityMaster` — `TransientLocal`, depth 1
+(`GenericDescriptors.cs:96`) — keeps the dead run alive on the wire and every late joiner receives it.
+
+```mermaid
+sequenceDiagram
+  participant S as ClusterSlave (every node)
+  participant C as LoadPhaseChain (IIdleResetHandler)
+  participant W as WorldBoundaryReset
+  participant X as CycloneNetworkCleanupSystem
+  participant R as other node: EntityMasterIngressTranslator
+  Note over S: CommitState to Idle, OR DropToIdle (C2: new session / master gone)
+  S->>C: OnEnteredIdle() (only when the state CHANGED to Idle)
+  C->>W: Clear(world, map, host)
+  W->>W: destroy every entity, WorldEpoch++
+  X->>X: next Export pass: WorldEpoch moved - DisposeAll(each OWNED id it tracked), then forget
+  X-->>R: EntityMaster dispose (key only)
+  R->>R: sender (sender tracking) != recorded owner? ignore + log. else destroy as today
+```
+
+*What the picture shows that prose hid:* the deletes go out when the cluster ENTERS Idle — a whole load cycle before the
+next run reuses any id — and the only new code is one hook, one changed line in the cleanup system, and one guard; the wipe,
+the dispose fan-out and the sender identity all exist already.
+
+```mermaid
+classDiagram
+  class IIdleResetHandler { <<NEW, optional on IClusterStateHandler>> +OnEnteredIdle() }
+  class ClusterSlave { <<existing, grows>> commit to Idle and DropToIdle call OnEnteredIdle }
+  class LoadPhaseChain { <<existing, grows>> implements IIdleResetHandler }
+  class WorldBoundaryReset { <<existing>> +Clear(world, map, host)$ }
+  class CycloneNetworkCleanupSystem { <<existing, changed>> epoch moved: DisposeAll tracked, then forget }
+  class EntityMasterIngressTranslator { <<existing, grows>> ProcessDispose(netId, sender) guard }
+  class SenderRegistry { <<existing, CycloneDDS.NET>> GetSender(index).AppInstanceId }
+  ClusterSlave ..> IIdleResetHandler
+  LoadPhaseChain ..|> IIdleResetHandler
+  LoadPhaseChain ..> WorldBoundaryReset
+  CycloneNetworkCleanupSystem ..> WorldBoundaryReset : sees its WorldEpoch move
+  EntityMasterIngressTranslator ..> SenderRegistry
+```
+
+```mermaid
+graph TD
+  SL[ClusterSlave.Tick - every ECS host: SimHost, CGF, IG, editor] -->|enters Idle| CH[LoadPhaseChain - registered on all five composition roots]
+  CH --> WB[WorldBoundaryReset.Clear]
+  K[kernel Export phase, every frame] --> CL[CycloneNetworkCleanupSystem]
+  CL -->|DisposeAll| EG[egress translators' Dispose]
+  ING[kernel Input phase] --> EMI[EntityMasterIngressTranslator.PollIngress]
+  EX[ExCon: no chain, no world] -.->|not reached: owns no entities| CH
+  style EX stroke-dasharray: 5 5
+```
+
+*What the module picture shows:* the hook is reached on exactly the hosts that own a world — every ECS host registers the
+chain (`IgNodeBootstrapper.cs:413`, `CgfApplication.cs:206`, `CgfSubsystem.cs:1264`, `NodeBootstrapper.cs:410`,
+`EditorSubsystem.cs:1550`); ExCon has none and owns nothing, so nothing is missed there.
+
+| ⭐ decision | why · rejected |
+|---|---|
+| the trigger is a direct handler hook, the way `ITickableClusterStateHandler` already is | it fires in the same frame on BOTH routes into Idle (`ClusterSlave.cs:431` commit, `:639` drop). ⛔ Rejected: reading `TkClusterStateChangedEvent` in the chain — the chain reads no bus today and the event is double-buffered (a frame late) |
+| the deletes reuse `DisposeAll`, the in-game destruction path | ⭐ a wiped world sends exactly what a destroyed entity sends. ⚠ Which is also its LIMIT: most egress translators' `Dispose` only drop a cache — `CE-4007` |
+| the guard: a delete whose sender is KNOWN and differs from the entity's KNOWN owner is ignored and logged | 📐 measured: a key-only dispose sample still names its writer (`EntityMasterTranslatorTests.CE4000_ADisposeSample_NamesTheNodeThatDisposedIt`). ⭐ Either side unknown ⇒ accepted, as today — rejecting a real delete would leave exactly the stale entity this fixes |
+| the §8 load-start clear stays | after an Idle wipe it finds an empty world; it still protects a load that did not pass through Idle |
+| ⚠ accepted cost | after Stop the final world can no longer be inspected — only replay shows it (the user's F2 trade) |
+| ⭐⭐ **and every WRITER deletes what it wrote** *(`CE-4007`, added after the live run)* | 📐 measured live: with only the owned-entity `DisposeAll`, seven TransientLocal topics still carried the dead run and a late Player built ghosts from them — their `Dispose` dropped a cache only, and several are written by a node that is not the entity's primary owner. ⇒ `EntityDamage`, `EntityWeaponAmmo`, `EntityWeaponPosture`, `NavigationIntent`, `NavigationStatus`, `EntityBrainIntent` egress, `PeerLifecycleStatusEgressSystem` — and, since the `backend` merge, the World Environment's `EntityScenarioClock` / `EntityWeather` egress (`CE-3216`, built in parallel) — each `DisposeInstance` every key they published when their `WorldEpoch` moves |
 
 ## 9. ⭐⭐⭐ `CE-295` — **A LOAD OVER A LOADED CLUSTER UNLOADS FIRST — the caller asks** *(AS-BUILT `2026-10-05`, backend)*
 

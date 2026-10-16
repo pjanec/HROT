@@ -20,13 +20,17 @@ namespace Fdp.ModuleHost.Tests
             public ModuleTier Tier { get; set; } = ModuleTier.Slow;
             public int UpdateFrequency { get; set; } = 1;
             
+            // ⭐ A convoy (one SharedSnapshotProvider) forms only for modules the main thread WAITS for (FrameSynced): the kernel keeps
+            //   Asynchronous modules out (ModuleHostKernel.AssignProvider…, `Mode != RunMode.Asynchronous`), because an async module that
+            //   finishes early would re-acquire the snapshot a slower convoy member still holds — frames stale, its events read twice (TM-023).
             public ExecutionPolicy Policy 
             {
                 get
                 {
                     var p = Tier == ModuleTier.Fast 
                         ? ExecutionPolicy.FastReplica() 
-                        : ExecutionPolicy.SlowBackground(UpdateFrequency <= 1 ? 60 : 60/UpdateFrequency);
+                        : ExecutionPolicy.SlowBackground(UpdateFrequency <= 1 ? 60 : 60/UpdateFrequency)
+                            .WithMode(RunMode.FrameSynced);
                     p.MaxExpectedRuntimeMs = 2000; // Increased for test stability
                     return p;
                 }

@@ -50,6 +50,8 @@ namespace Hrot.SimHost.Tests
             public readonly List<Vector3> Unreachable = new();
             /// <summary>⭐ <c>CE-3158</c> G4 — the target of every aimed action started, in order.</summary>
             public readonly List<Entity> AimedAt = new();
+            /// <summary>⭐ <c>CE-2228</c> — a command-guided round is in flight: the aimed fire stays Running and says <c>Guiding</c>.</summary>
+            public bool Guiding;
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -148,6 +150,13 @@ namespace Hrot.SimHost.Tests
                     _fired = 0;
                     Fires.Add((ch.ActiveAction, rounds, aimed ? default : Unsafe.As<byte, FireAtPointParams>(ref ch.Params[0]).Point));
                     if (aimed) AimedAt.Add(Unsafe.As<byte, AimAndFireParams>(ref ch.Params[0]).Target);
+                }
+                if (aimed && Guiding)
+                {
+                    ref var row = ref Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(Self);
+                    row.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Guiding;
+                    row.Weapon.At = Time;
+                    return;
                 }
                 _fired++;
                 if (aimed) AimedRounds++; else BlindRounds++;
@@ -263,6 +272,35 @@ namespace Hrot.SimHost.Tests
             status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
             d.Run(10);
             Assert.Contains(new Vector3(8f, 3f, 0f), d.Moves);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2228</c> (Exposure Cycle §7, V6: <i>"a TOW-type gunner holds sight through the flight"</i>) — with a command-guided round
+        /// in flight the gunner stays up at the window past the exposure cap AND with the target out of sight, and comes down once it has
+        /// landed. 🔴 Red-proof: without the guiding check he ducks at the exposure cap (or the lost-sight grace) and drops the missile.
+        /// </summary>
+        [Fact]
+        public void CE2228_AGuidedRoundInFlight_HoldsTheGunnerUp_UntilItLands()
+        {
+            var d = new Duel(Window());
+            d.Repo.AddComponent(d.Self, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched), (8f, 3f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            d.Guiding = true;
+            d.Step();
+            Assert.True(PeekAndFireNodes.Guiding(d.Repo, d.Self));
+            d.See(false);                                                       // the target drops out of sight mid-flight
+            d.Run(PeekAndFireNodes.ExposeFor(in d.P, d.Repo, d.Self) + d.P.GraceSeconds + 2.0);
+            Assert.Equal(PeekPhase.Aimed, d.Ws.Phase);                          // still up, still guiding
+
+            d.Guiding = false;                                                  // the round lands: the aimed fire ends
+            ref var ch = ref d.Repo.GetComponentRW<WeaponChannel>(d.Self);
+            ch.Status = NodeStatus.Success;
+            ref var row = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
+            row.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
+            d.Step();
+            Assert.NotEqual(PeekPhase.Aimed, d.Ws.Phase);                       // and down he comes
         }
 
         /// <summary>

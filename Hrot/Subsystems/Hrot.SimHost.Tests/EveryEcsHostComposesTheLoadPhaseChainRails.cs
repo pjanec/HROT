@@ -72,8 +72,7 @@ namespace Hrot.SimHost.Tests
                 $"{relativePath} must offer a KnowledgeBaseLoadStep. ⭐ The knowledge base is required by "
               + "EVERY ECS node — not by any role — because every ECS node composes the full genesis "
               + "pipeline and must be able to resolve the templates of entities it may be asked to "
-              + "create (Q65-A′). 🔴 CGF and IG had none at all and would have ignored a scenario's "
-              + "TkbName entirely.");
+              + "create (Q65-A′). ⭐ R-4018: it loads the deployment's one TKB, synced by the orchestrator.");
         }
 
         /// <summary>

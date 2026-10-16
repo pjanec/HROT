@@ -959,7 +959,7 @@ mirrors every tick, which is what lets the motion side re-arm for the next stop.
 
 Still open in slice 3: `SquadRecover`, the rescue mission tree, and the two scenarios (`ua-air-assault`, `ua-air-rescue`).
 
-### 9j. Slice 3c (behaviors) — the round trip: `SquadRecover` and the rescue mission — build-state: DESIGN `2026-10-16`
+### 9j. Slice 3c (behaviors) — the round trip: `SquadRecover` and the rescue mission — build-state: BUILT `2026-10-16` (both demos PASS live)
 
 📐 INVENTORY (`2026-10-16`): `SquadCasualtyCarePlay` (`CasualtyCareBehavior.cs`) — the care play: coverers suppress, the medic
 `CarryCasualty`s a ROSTER member (`CasualtyCare.Uncared` walks the roster only) to a cover point and puts him down; Done = he lies there ·
@@ -994,14 +994,17 @@ sequenceDiagram
   participant S as squad (MissionPlan + BasicSquadSop)
   participant M as medic
   H->>S: LZ, Unloading ⇒ SOP SquadDismount
-  S->>S: task 1 SquadMarch(near the man)
-  S->>S: task 2 SquadRecover(man, To = LZ): coverers suppress (or hold)
+  Note over S: aboard: SOP SquadRide pauses the mission task (re-asked every SOP tick)
+  S->>S: task 1 SquadRecover(man, To = LZ): coverers suppress (or hold)
   S->>M: CarryCasualty(man, LZ, Keep)
   M->>M: PickUp · walk to the LZ carrying (no PutDown)
-  S->>S: task 3 SquadMarch(LZ)
-  S->>S: task 4 SquadEmbark(UH-60): the medic ⇒ LoadCasualty, the rest ⇒ Embark
-  H->>H: LZ Pickup stop, HoldUnit = squad ⇒ release when all aboard
+  S->>S: task 2 SquadEmbark(UH-60): the medic ⇒ LoadCasualty, the rest ⇒ Embark
+  M->>H: LoadCasualty: PutDown beside it, then Embark(Passenger = man) — range from the MEDIC (CE-2225)
+  H->>H: LZ Pickup stop, HoldUnit = squad (remapped on load, CE-2226) ⇒ release when all aboard
 ```
+
+*As built `2026-10-16` — ⛔ SUPERSEDED: the four-task plan (SquadMarch ▸ SquadRecover ▸ SquadMarch ▸ SquadEmbark). Two tasks do it:
+the carry already walks to `To`, and `SquadEmbark` walks every man to the boarding point.*
 
 | rule | as designed |
 |---|---|
@@ -1011,6 +1014,16 @@ sequenceDiagram
 | the end | `Keep` ⇒ Done when the medic CARRIES the man within `AtCoverMetres` of `To`; else Done when he LIES at the point (today) |
 | the helicopter | route: LZ `Unload` ▸ LZ `Pickup` (`HoldUnit` = the squad) ▸ exit; `AirHolds.ShouldRelease` (built) releases the pickup when every live member is aboard — the loaded casualty is seated by `LoadCasualty` first |
 | demos | `ua-air-assault` (insert only: land, dismount, the squad marches on) · `ua-air-rescue` (the round trip above) |
+
+**Live, `2026-10-16`** (`scripts/utility-demo-check.py`, checks `run_air_assault` / `run_air_rescue`):
+
+| | result |
+|---|---|
+| ⭐ `ua-air-assault` | ✅ **PASS 7/7** — lands at 32.9 s (Unloading), nobody out in the air, six out, lift-off after the last man, the squad's centre at the objective |
+| ⭐ `ua-air-rescue` | ✅ **PASS 8/8** — lands 23.9 s, out 24.5 s, the Medic takes the pilot at 42.3 s, seated in the UH-60 at 59.4 s with all five aboard, lifts off at 69.0 s, the pilot alive (11.9 HP of 29) |
+| 🔴 found and fixed on the way | ① **`CE-2225`** — `EmbarkExecutor` measured a loaded casualty's boarding range from HIM; PutDown lays him a body-length from his carrier, just outside it ⇒ `Running` for ever (the rail had moved him onto the boarding point by hand). Now the loader's range. ② **`CE-2226`** — the Pickup waypoint's `HoldUnit` kept its SAVED network id across the load's id re-allocation (the type plan cannot reach `RoutePlan.Waypoints`) ⇒ the hold never released; `StagingEntityExtractor` remaps it. ③ the checker compared `IsEmbarkedTag.Vehicle` (an entity ref, `"[0, v1]"`) to network ids |
+| ⚠ the clock | the pilot bleeds out in ~108 s from 29 HP (incapacitated): the scenario puts him 22 m from the LZ and starts the UH-60 ~90 m out, so the round trip fits with ~40 s to spare |
+| ⚠ not covered | contact during the rescue (the coverers suppress only when the squad has one — none in this scenario) |
 
 ### 9c. As-built `2026-10-14` — slice 5, the strike (behaviors): `AirAttack` LevelBomb and `AirPlatformStrike`
 

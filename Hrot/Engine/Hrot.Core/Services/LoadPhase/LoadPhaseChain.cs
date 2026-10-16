@@ -33,7 +33,7 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// never from a hand-written registration order, so <i>"this host forgot to register a step"</i> cannot be
 /// expressed — a required part with no provider throws at startup instead of being silently absent.</para>
 /// </summary>
-public sealed class LoadPhaseChain : ITickableClusterStateHandler
+public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler
 {
     private readonly IReadOnlyList<ILoadPartProvider> _steps;
     private readonly EntityRepository? _world;
@@ -42,6 +42,9 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     private readonly string _hostLabel;
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
 
+    // ⭐ P8 — the load in flight (from its Loading* prepare until its hold resolves), which an abort may name.
+    private Guid               _loadTransactionId;
+    private LoadPhaseContext?  _loadContext;
     private TaskCompletionSource<object?>? _holdTcs;
     private Guid _pendingExerciseId;
 
@@ -137,6 +140,13 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     /// </remarks>
     public bool CanHandle(ExecuteNodeOpIntent intent)
     {
+        // ⭐⭐ P8 (Q91 §4-H, H1/H9) — the abort of the load THIS chain holds, and only that one. ⛔ The op-level
+        //   CanHandle does not claim aborts: an abort names a transaction, and only the intent says which.
+        if (intent.Operation == NodeOpType.AbortTransaction)
+            return _loadTransactionId != Guid.Empty
+                && intent.DomainPayload is AbortTransactionPayload abort
+                && abort.TargetTransactionId == _loadTransactionId;
+
         if (intent.Operation == NodeOpType.PrepareLive || intent.Operation == NodeOpType.PrepareEdit)
             return true;
 
@@ -149,6 +159,13 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     /// <inheritdoc/>
     public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
+        // ⭐⭐ P8 — the operator's cancel reaches the chain as an ordinary op naming the load (CanHandle checked that).
+        if (intent.Operation == NodeOpType.AbortTransaction)
+        {
+            AbortLoad();
+            return null;
+        }
+
         var maybe = LoadPhaseContext.From(intent);
         if (maybe is not { } context) return null;
 
@@ -175,10 +192,38 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         if (!context.IsLoadingPhase) return null;
 
         _pendingExerciseId = context.ExerciseId;
+        _loadTransactionId = intent.TransactionId;   // ⭐ P8 — the load an abort may name
+        _loadContext       = context;
 
-        // ── The content itself. ⭐ EVERY required step runs, in order, off the main thread.
-        foreach (var step in _steps)
-            await step.PrepareAsync(context, ct).ConfigureAwait(false);
+        // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host: the load
+        //   builds from the file, never on the previous run's entities. ⛔ Not on live-from-replay, which the master never
+        //   marks. 📄 docs/DESIGN_Deterministic_Network_Ids.md §11b · docs/DESIGN_Cluster_Load_Phase.md §8.
+        //   ⭐⭐ HERE, on the frame thread before any step prepares — ⛔ NOT at Commit. 📐 Since P4 the prepare spans frames,
+        //   and a faster node's committed entities replicate in during that window; a Commit-time clear destroyed them
+        //   (lost entities, and a queued blueprint application threw "Entity is not alive" — measured on
+        //   TimeControlIntegrationTests CE3068, 3 of 12 runs). Everything that arrives after this line is the new world.
+        if (context.IsWorldBoundary && _world != null)
+            WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
+
+        // ── The content itself. ⭐⭐ P4 (Q91 §4-B2, R-4001) — THE FRAME THREAD COORDINATES; only pure work leaves it.
+        //    📐 Before: every step was awaited inline with no prior yield (the comment here said "off the main thread";
+        //    the code did not), so a long TKB/terrain read stopped the frame — and the heartbeat — for its whole length.
+        //    ① a step whose prepare touches shared state (the scenario step allocates ids) prepares inline, FIRST;
+        //    ② the pure steps (they build private objects; every shared write is in Commit) run on a worker, in order,
+        //    so this method returns an incomplete task and ClusterSlave polls it every frame (_pendingPrepare).
+        //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
+        var steps = StepsFor(context);
+        foreach (var step in steps)
+            if (!step.PreparesOffFrameThread)
+                await step.PrepareAsync(context, ct).ConfigureAwait(false);
+
+        var offFrame = steps.Where(s => s.PreparesOffFrameThread).ToArray();
+        if (offFrame.Length > 0)
+            await Task.Run(async () =>
+            {
+                foreach (var step in offFrame)
+                    await step.PrepareAsync(context, ct).ConfigureAwait(false);
+            }, ct).ConfigureAwait(false);
 
         return null;
     }
@@ -192,27 +237,54 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
         // 🔴 repo is null at both of ClusterSlave's dispatch sites; the injected world carries production.
         var world = repo ?? _world;
 
-        // ⭐⭐ CE-2101 — the world boundary (a load entered from Idle) starts from an EMPTY world on every host, BEFORE any
-        //   step publishes: the load builds from the file, never on the previous run's entities. ⛔ Not on
-        //   live-from-replay, which the master never marks. 📄 docs/DESIGN_Deterministic_Network_Ids.md §11b.
-        if (context.IsWorldBoundary && world != null)
-            WorldBoundaryReset.Clear(world, _entityMap, _hostLabel);
-
-        foreach (var step in _steps)
+        // ⛔ The CE-2101 world-boundary clear is NOT here any more — it runs at the start of PrepareAsync (see there).
+        foreach (var step in StepsFor(context))
             step.Commit(context, world);
     }
+
+    /// <summary>
+    /// ⭐⭐ C7 (Q91 §4-M, <c>R-4015</c>) — the steps a load runs: all of them, or — on a late joiner's CATCH-UP — only the
+    /// universal parts (knowledge base, terrain). ⛔ The scenario is never read on a catch-up: the world already exists and
+    /// arrives by replication; a restarted Brain re-running genesis would duplicate every unit.
+    /// </summary>
+    private IEnumerable<ILoadPartProvider> StepsFor(LoadPhaseContext context)
+        => context.IsCatchUp ? _steps.Where(s => s.Part != LoadPart.ScenarioEntities) : _steps;
 
     /// <inheritdoc/>
     public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
     {
-        var maybe = LoadPhaseContext.From(intent);
-        if (maybe is { } context)
-            foreach (var step in _steps)
+        if (LoadPhaseContext.From(intent) is { } context) _loadContext = context;
+        AbortLoad();
+    }
+
+    /// <summary>
+    /// ⭐⭐ P8 (Q91 §4-H) — undo the load in flight: every step frees what its prepare built (from the context stored
+    /// at prepare — the abort op carries no load payload), the hold is cancelled, and the chain forgets the load.
+    /// ⚠ A step still preparing on a worker finishes on its own; its result is never committed (H6).
+    /// </summary>
+    private void AbortLoad()
+    {
+        if (_loadContext is { } context)
+            foreach (var step in StepsFor(context))
                 step.Abort(context);
 
         _holdTcs?.TrySetCanceled();
         _holdTcs = null;
         _pendingExerciseId = Guid.Empty;
+        _loadTransactionId = Guid.Empty;
+        _loadContext       = null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node entered <c>Idle</c>: empty its world. The same clear as the world
+    /// boundary (<see cref="WorldBoundaryReset"/>); the network cleanup sees the <c>WorldEpoch</c> move and deletes, on the
+    /// wire, every entity this node owned — so a late joiner never receives the dead run. ⚠ Any load still held is
+    /// forgotten (its abort already ran on the cancel path). 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §8.2.
+    /// </summary>
+    public void OnEnteredIdle()
+    {
+        if (_world != null)
+            WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
     }
 
     /// <inheritdoc/>
@@ -225,10 +297,12 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler
     {
         if (_holdTcs == null) return;
 
-        foreach (var step in _steps)
+        foreach (var step in _loadContext is { } held ? StepsFor(held) : _steps)
             if (!step.IsResolved(_world)) return;
 
         _holdTcs.TrySetResult(null);
         _holdTcs = null;
+        _loadTransactionId = Guid.Empty;   // ⭐ P8 — the load is done; nothing left to abort
+        _loadContext       = null;
     }
 }

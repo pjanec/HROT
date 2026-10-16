@@ -1,0 +1,149 @@
+<!--STATUS
+state: LIVE — ⭐⭐ TAKEN OVER 2026-10-15 BY THE COORDINATOR SESSION ITSELF (session_01PDdifL7XwrR7exE7UmJ7kF), which now
+  IMPLEMENTS the whole Player programme. 🔒 User: "You are the one who takes the whole player programme. Other session is
+  on hold". ⛔ The on-hold implementation session must NOT start this file. Verified: no started-marker existed on any
+  branch. Phases: A (test routes + CE-4000) → B (P1-P8 below) → C (Q91 §4-I..§4-L). Scope = every APPROVED decision in
+  Q91 at the commit that adds this STATUS (R-4000..R-4017).
+  ⚠ Earlier stamps: 1d2eac460, 7a1f7297e, 5ff85a6eb (frozen at fe1095d68). None had a run.
+updated: 2026-10-15
+current-answer: the whole file. ⭐ Items carrying a ′ (P5c′) AMEND the plain-numbered item below them and WIN over it.
+stale-below: nothing.
+known-rot: none. ⚠ Two claims in the FIRST dispatch were measured false by the 2026-10-15 review and are corrected in
+  the items themselves: P3 named ONE name-match site (there are two), and P4's open question "does CancelOperation reach
+  a load prepare" is now ANSWERED — it does not, which is why P8 exists.
+known-conflict: none. (P5 was rewritten before any run started — R-4003: IG records like every ECS host. The separate
+  STEER file that first carried it is folded in here and deleted.)
+related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — THE design (approved 2026-10-15): every item cites its section; the UML lives there
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.3 R-4000 (one code path on every node) and §7.1's SUPERSEDED banner (R-4003, the basis of P5)
+  - docs/DESIGN_Unified_Cluster_Handler_Registration.md — CE-279's deferred A2 (move shared pieces down) is what P5a needs
+  - docs/DESIGN_Cluster_Load_Phase.md — the load chain P4 reworks and P7 replays to one node
+  - docs/designs/mgmt-1/DESIGN.md — §12.5/§12.6 the Storage Gateway that P6 puts behind the provider
+  - docs/blueprints/DESIGN_Time_Architecture.md — the step barrier P3 changes
+  - docs/DESIGN_Asset_Management.md — the (length, mtime) diff P6 reuses as "already cached?"
+-->
+
+# HANDOFF — the Player node *(TAKEN OVER: the coordinator session implements it, phases A → B → C)*
+
+⭐⭐ **2026-10-15 — this is now the coordinator session's OWN work plan** (user: *"You are the one who takes the whole player
+programme"*). The paragraph below is the original dispatch text, kept for history; the scope is Phases A, B and C.
+
+**For (original dispatch):** an implementation session working on the **`coordinator`** branch. ⭐ **Re-dispatched** (rule 1a) at the commit that
+merges the P5 steer — the first stamp (`1d2eac460`) never had a run. **From:** the coordinator session that wrote
+[Q91](../Architect_Question_91_Player_Nodes.md). ⭐ **That session is ON HOLD until you return** — nobody else pushes to
+`coordinator` while you run, so you own the branch. ⭐ **Dispatched at the commit that adds this file**: your scope is FROZEN
+there; documents that change after it are FYI. If a later document invalidates an item, **STOP that item and report it**; do
+every item that is not blocked (R-106).
+
+⭐ **This is NOT a frame — the design exists and is approved.** Q91 carries the decisions, the class and sequence diagrams
+(§2, §4-B2, §4-E2) and the measurements. ⭐ Obligation ③: check those diagrams before building and report *"matches / deviates
+HERE and why"*. ⭐ Obligation ⑤: fold every deviation back into Q91 (prior state marked SUPERSEDED) before you report.
+
+## 0. Why
+
+The user wants the system to run as a multiplayer game: SimHost and CGF as servers, **any number of disposable Player nodes**.
+A Player is an ordinary **IG node** — no new node type, no new role (R-4000). Today a late node is never brought up to the
+cluster's state, a node that dies mid-round hangs that round, a load blocks the node's own heartbeat, and files reach a node
+only through a shared folder. Q91 fixes all four without inventing new cluster events.
+
+🔒 The rulings you build under — read the rows in [`RULINGS.md`](../RULINGS.md) and the quotes in Q91 §0:
+**R-4000** one code path on every node, behaviour differs by ROLE, never by a missing handler · **R-4001** the heartbeat is
+the ONLY time limit; nothing blocks the frame thread; the frame thread coordinates · **R-4002** file transfer behind one
+provider interface · **R-4003** IG records like every ECS host — unification over optimisation.
+
+## 1. Before anything
+
+1. `git fetch origin coordinator && git checkout coordinator && git merge --ff-only origin/coordinator` — the dispatch commit
+   or later. Push an empty `chore: started HANDOFF_Coordinator_Player_Nodes at <sha>` marker (rule 1b).
+2. **Ids:** you are the coordinator lane — allocate tracker ids from **`CE-4000`…** (the tracker's "ID blocks" table; update
+   its *next free*). New rows go at the END of the coordinator area. State every id in your report.
+3. **Index the graph** (`/opt/codebase-memory-mcp/codebase-memory-mcp cli index_repository …`) — every item below starts with
+   its feature's OWN suite (T-1), named in the table.
+
+## 1a. ⭐ PHASE A — make the use cases testable, and stop the old run leaking *(added 2026-10-15)*
+
+📄 Acceptance for the whole programme: [`DESIGN_Cluster_Membership_Use_Cases.md`](../../DESIGN_Cluster_Membership_Use_Cases.md) (UC-1..UC-16), each run live with `scripts/cluster-node.sh`.
+
+| # | item | basis | acceptance |
+|---|---|---|---|
+| **A1** | **`CE-4002` — the debug routes the use cases need**: `GET /cluster/roster` (the master's roster: id, subsystem, reported state, roles, last heartbeat — later instance/session/inSync), `POST /cluster/transition {target, scenario, exerciseId, timeMode}`, `POST /cluster/cancel {targetId}`. They READ the roster or PUBLISH the intents the operator panel already sends — no new behaviour. ⚠ Cross-lane: the debug API lives in `Hrot.Editor` (ui lane's area) — say so in the commit | use-cases §3.1 | the debug API's own suite; then UC-4/5/6 observed live through the roster route, and a cluster replay driven over HTTP |
+| **A2** | **`CE-4000` — a load over a loaded cluster leaves the old run's entities alive on the wire.** Root-cause first (lead: `WorldBoundaryReset.Clear` advances `WorldEpoch` in the same call that destroys, so egress never writes the disposes), then fix so the creator disposes every instance it owned | `CE-4000`; prerequisite of R-4007 | UC-13 live: load `hill-attack` then `test-move`; a fresh late Player and `ddsmonitor` see only the new world |
+
+## 2. The items — in this order
+
+| # | item | Q91 | measure FIRST | acceptance — rails go in the FEATURE'S suite |
+|---|---|---|---|---|
+| **P1** | **A node that leaves is removed from every in-flight round.** `EjectNode` (`ClusterMaster.cs:690`) today returns early for a non-mandatory node and the round's `Expected` stays fixed (`:1828`) ⇒ the round waits forever. Remove the node from every `GenericTransactionTracker` (`Expected--`, drop it from `Targets`) and complete the round when it was the last missing ACK. ⭐ A bug fix for EVERY node | §4-B B1 | — | `Hrot.Orchestrator.Tests` (`ClusterMasterFanOutTests` or the bootstrap/ejection suite): a 3-node round, one node ejected before ACKing ⇒ the round completes. Red-proof with the fix reverted |
+| **P2a** | ⭐ **PREREQUISITE of P2 — the editor declares its real role** (`R-4005`). `EditorSubsystem.cs:1153` `.WithRole("Editor", Fdp.Core.NodeRole.None)` → `EditorCapabilities.DefaultRole`. 📐 The editor already declares `Brain\|MuscleGround\|Perception\|NavigationSolver` for its capability plan (`EditorCapabilities.cs:60-62`, `:97`) and its load chain (`:1546`) — only the roster copy says `None`, and that is the copy P2 reads. ⛔ One line; `_role` has exactly two consumers (`HrotNodeBuilder:232-233`) and `ClusterSlave` does nothing else with it | §4-A′ · [`DESIGN_Node_Roles_And_Policies` §3.4](../../DESIGN_Node_Roles_And_Policies.md) | ⛔ **nothing to measure — already measured.** Just confirm no third declaration appeared | `Hrot.Editor.Tests`: the editor's composed slave advertises the four `fdp.role.*` tokens. ⚠ Check whether any rail pins `NodeRole.None` for the editor and re-point it |
+| **P2** | **Authority comes from the role — and the predicate FAILS SAFE.** A node is **best-effort** iff ① its capability advert HAS been seen **and** ② its mask holds no simulation role (`Brain`, `MuscleGround`, `Perception`, `NavigationSolver`) **and** ③ the roster holds at least one authoritative node. ⛔⛔ **Otherwise AUTHORITATIVE** — unknown ⇒ authoritative, alone ⇒ authoritative. 🔴 Clauses ① and ③ are not optional: `ClusterMaster.cs:539-541` says *"None until the capabilities advert lands"* ⇒ without ① a real SimHost is best-effort for its join window; without ③ the editor's one-node cluster (`Mandatory` empty, `ClusterConfiguration.cs:51-53`) could never fail a load. A best-effort node's ERROR is recorded but does not fail the round — wire the declared-and-unread `DistributedTransaction.AllowPartialSuccess` | §4-A, **§4-A′**, §4-C | the role mask per node is already in the roster (`ClusterMaster.cs:551`, `NodeRoster.NodesWithRole`); ⭐ clause ① needs the CAPABILITY SET, not just the mask | an IG-role node returning `Failure` ⇒ the round still succeeds and its response is recorded; a SimHost-role node returning `Failure` ⇒ the round fails (unchanged); ⭐ a node whose advert has NOT landed ⇒ authoritative; ⭐ a one-node cluster ⇒ that node is authoritative. ⛔⛔ **ANTI-VACUITY: a classification in which EVERY node is best-effort must FAIL the rail** |
+| **P3** | **The clock's step barrier waits for authoritative nodes only, and drops a node that leaves.** ① Replace the name match `"SimHost" or "IG" or "CGF"` with the P2 predicate at **BOTH** production sites — `ClusterMaster.cs:1898` *(`PublishClusterPause`)* **and `ReplaySeekProcessManager.cs:56`**; update the three doc-comments that restate it (`SlaveTimeTranslatorRegistration.cs:28`, `CgfSubsystem.cs:1089`, `TimeControlIntegrationTests.cs:412`). ② ⭐ **Give the departure a CHANNEL:** `ClusterMaster.EjectNode` publishes `NodeDeparted` on the **orchestration** bus, and `MasterSyncController` drops that node from `_expectedSlaves` + `_pendingAcks`, completing the step if it held the last ACK. 🔒 *publish where there is a consumer, nowhere else* — ⛔ this is NOT a licence to mirror events across buses. ③ ⭐ Publish `SlaveNodeSetUpdatedEvent` on a **roster change** too, so it means what its own header says (`TimeLocalEvents.cs:30-32`) | §4-D, **§4-D′** | ⛔ **do NOT** make `MasterSyncController` read the ECS `repo.Bus` — it is a different object (`EntityRepository.cs:163` vs `HrotNodeBuilder.cs:140`) and the orchestrator has no repository at all | `Fdp.Toolkits.Tests/Time/MasterSyncControllerTests` + `PauseBarrierSyncTests`: a step with a node removed mid-step completes; ⭐ a **seek** with a Player present is not gated by it (the `ReplaySeekProcessManager` half — ⚠ `ClusterMasterSeekTests` T9a/T9b assert `ClusterMaster` does not publish on seek, so they will NOT catch a miss here); ⭐ **integration:** `TimeControlIntegrationTests`, `TheBarrierHaltsEveryNodeTests` (gate row 8) |
+| **P4** | **The load never blocks the frame thread; the frame thread coordinates.** ① `LoadPhaseChain` starts the PURE work of its steps as a task and returns (the frame thread already polls an unfinished prepare: `ClusterSlave.cs:259-300`). ② ⭐ `KnowledgeBaseLoadStep` parses the TKB zip into a **NEW** `TkbDatabase` in `Prepare` and swaps it in at `Commit` — today it `Clear()`s and refills the LIVE database, which is not safe off the frame thread. Terrain already has this shape (`TerrainResidency.Prepare` → `Staged` → `Commit`). The scenario-entities step stays ticked on the frame thread. ③ Progress: the chain reports `{part, done, total, code, message}`; the slave sends it as `NodeOpStatus` with code **`InProgress`**, rate-limited ⇒ ④ ⭐ the master reads `InProgress` as PROGRESS and does NOT count it as the node's ACK (today every status increments `Received`: `ClusterMaster.cs:1809-1829`) and surfaces it on `ClusterOpStatus(InProgress, …)` | §4-B2 (the sequence diagram) | ⭐ who reads `TkbDatabase` and how the instance is shared — a swap must reach every holder (`search_graph` + grep for the injected instance); ⛔ and whether `ClusterOpType.CancelOperation` reaches a load prepare — REPORT it, do not build a timer | `Hrot.SimHost.Tests/LoadPhaseChainTests`, `KnowledgeBaseLoadStepTests`, `TerrainLoadStepTests`: a step whose pure work is held open ⇒ the slave's `Tick` keeps returning and the heartbeat keeps beating; the live database is untouched until `Commit`. Master: an `InProgress` status does not complete a round |
+| **P5a** | **IG records like every ECS host (R-4003)** — `EcsRecordReplayController` replaces `ListenerRecordReplayController("IG")` (`IgNodeBootstrapper.cs:374`). 📐 SimHost, CGF, the Editor and Stride already use it (`NodeBootstrapper.cs:272`, `CgfApplication.cs:163`, `EditorSubsystem.cs:1512`, `EditorStrideSubsystem.cs:851`). ⭐ ExCon keeps the listener controller: it holds no ECS world, so there is nothing to record — a missing DEPENDENCY, not a role exception | §4-G | ⭐ **where the controller can live.** It is in `Hrot.SimHost`, which IG does NOT reference (CGF, the Editor and Stride do). ⭐ **Lean: move it down** to an assembly IG and the others already reference (`Hrot.Common`, or `Hrot.Network.Orchestration` where the listener lives) — CE-279's deferred A2. ⛔ A `Hrot.SimHost` reference from IG would pull the server node into every Player. Measure its dependencies first; ⚠ **move/rename only with Roslyn** | after a live exercise in which IG owned an entity, IG's `.fdp` exists; SimHost's and CGF's are unchanged |
+| **P5b** | **Every ECS host holds the archive handler** — `SerializeLocalRegistrar` builds `ReferenceArchiveHandler` itself (it needs only the temp root and node id); IG (`IgNodeBootstrapper.cs:455`) and the Editor (`EditorSubsystem.cs:1559`) stop passing `null` | §4-G | the empty-manifest path end to end (`ReferenceArchiveHandler.cs:75-78` → `StorageConsensusAggregator.cs:35`) for a node with nothing recorded | `Hrot.Orchestrator.Tests/ReferenceArchiveHandlerTests`: an export over a cluster with an IG includes IG's `.fdp` |
+| **P5c′** | ⛔⛔ **AMENDS P5c BELOW — THE REPLACEMENT RAIL MAY NOT BE A SOURCE SCAN** (§4-G′). 🔴 The rail being replaced reads IG's `.cs` file off disk and asserts `code.Contains("ReferenceArchiveHandler")` (`CompositionRootSource.cs:37-49`). After P5b/G1 the registrar builds the handler, so IG's root **never names it** ⇒ a negative rail is green forever and a positive one written the same way is red forever — **vacuous both ways**. ⭐ Assert on the **CONSTRUCTED OBJECT**; acceptable cheaper form: assert `SerializeLocalRegistrar`'s own source **plus** that no host passes `archiveHandler: null` (G1 should delete the parameter, making that a compile-time fact). ⛔ Retiring the source-scan family is NOT this batch — not adding to it is | §4-G′ | — | *(acceptance below)* |
+| **P5c** | ⛔ **The rail `NodeRolePersistenceRails.IgCompositionRoot_RegistersNoCheckpointSaveHandler` is SUPERSEDED** (its premise *"IG carries no ECS frame data, so it must not record"* is pre-unification — R-4003). Replace it, in the same suite, with the positive invariant: *every ECS host composes the same recording controller and archive handler*. ⚠ `GlobalContextClusterOpHandler` (the other name in its list) is the ORCHESTRATOR's own context writer — keep whatever it asserts about it if that still holds, and say what you did | §4-G | — | `Hrot.SimHost.Tests/NodeRolePersistenceRails` + `EveryEcsHostComposesTheLoadPhaseChainRails`: the new rail goes red if any ECS host composes the listener controller or omits the archive handler |
+| ~~**P5d**~~ | ⛔ **SUPERSEDED by C9 (R-4012)** — replay is span-based, not "tolerate a missing file". Was: **Replay tolerates a node with no recording** — a Player that joined late or left early has a partial or missing `.fdp`. With P2, a best-effort node's failure no longer fails the round; confirm `PrepareReplay` on a node whose file is absent reports a code + message instead of throwing, and the rest replay normally | §4-G | what `EcsRecordReplayController.PrepareReplayAsync` does with no file today | `ClusterMasterReplayTests` / `ClusterMasterSeekTests`: a replay with one node's file missing completes for the others |
+| **P6** | **The transfer provider.** N1–N6 of §4-E2: `IFileTransferProvider` / `IFileTransfer` / `TransferRequest` / `TransferStatus` in `Fdp.Toolkits/Orchestration`; `NodeShareProvider` (today's `File.Copy`, aimed at a share the node advertises as `hrot.transfer.share=<path>` in its greeting); `DdsFileTransferProvider` + `DdsFileReceiver` (on EVERY node). ⭐ The protocol is the MEASURED one (§4-E2): per-transfer partition `hrot.xfer.<id>`, 64 KB chunks, ACK window beyond the slowest target, done only when every target verified length + hash, a `Write` `Timeout` = back-pressure (wait, resend), chunk writer and readers DISPOSED at the end. Several targets may share one transfer. ⭐ The probe `docs/blueprints/experiments/dds-file-transfer/Xfer.cs` is its skeleton | §4-E2 (both diagrams) | ⭐ classify the 11 `File.Copy` sites (`StorageGatewayModule.cs` ×8, `AssetTreeSync.cs:126`, `StorageProcessManager.cs:261`, `ClusterDiagnosticsPanel.cs:401`) into PUSH (NAS → node) and PULL (node → NAS). ⛔ Only PUSH moves behind the provider in this batch | a new suite for the provider (it is a new feature): DDS transfer to 3 targets in one partition + a bystander that receives nothing; a cached file is skipped; a corrupted chunk fails with a code + message; the reader and writer are disposed afterwards. `StorageGatewayTests` + `ClusterMasterPrefetchTests` stay green with the share provider in the co-located case |
+| **P7** | ⚠ **AMENDED by Phase C** — build it under C3 (trigger = not `InSync`, reset to `Idle` first), C7 (per-node ops only, universal load parts only, own saga) and R-4007 (ingress frozen until the load commits). **Late join — replay the EXISTING ops to the one node.** When a node appears while the cluster is past `Idle`: `PrefetchFiles` through the provider (P6) → the state steps `ClusterMasterPlanner` already computes from `Idle` → `PrepareZone`/`CommitZone` for each loaded zone; then it is an ordinary participant. ⭐ E1 **(WIDENED by §4-E′)**: the master REMEMBERS the committed zone set (cleared at the world boundary) **AND PUBLISHES IT DURABLY** beside cluster state, to EVERY node — not only to a late joiner. 🔒 User: *"someone should be responsible for publishing existing already commited and thus currently active zones to anyone, not just late joiner… but late joiner needs to know there are zones to load in the first place."* ⭐ It is an ANNOUNCEMENT with nothing to acknowledge; the per-node LOAD stays the existing `PrepareZone`/`CommitZone` round. ⛔ Not two producers for one slot — *which zones the cluster has* and *whether this node holds one* are different facts. ⭐ `Reliable + TransientLocal` suffices: the master is the sole writer and is not restartable (user, `2026-10-15`). ⭐ E3: a cluster transition during a catch-up restarts the catch-up from the new state; the node joins cluster-wide rounds only once its heartbeat reports the cluster's state. ⭐ Nodes waiting at the same moment are caught up together (one transfer, P6) | §4-E (E1–E3), §2.2 | ⛔⛔ **each Hrot load handler accepts a state commit from whatever state the node is in** — the node layer checks nothing (`ClusterSlave.cs:411-421`), the handlers were never checked. Measure before building; a handler that refuses is a STOP-and-report for P7 only | `Hrot.Orchestrator.Tests`: a node appearing in `OperatingLive` receives prefetch → the state path → the zones, in that order. ⭐ **Live** (runbook [`RUNBOOK_Cluster_Debugging_Over_Http.md`](../../RUNBOOK_Cluster_Debugging_Over_Http.md)): start a cluster, load a scenario, START an extra IG node — it reaches `OperatingLive` and sees the entities; KILL it during a zone load — the round completes |
+
+| **P8** | ⭐⭐⭐ **A STUCK OR FAILED LOAD: THE OPERATOR CANCELS AND THE CLUSTER RETURNS TO `Idle`** (`R-4004`). 🔒 User: *"if cluster loading fails, operator cancels, cluster goes to the initial default state when the whole procedure can be repeated."* ⭐⭐ **This is a ROUTING fix, not a build — the abort seam is already complete:** `ILoadPartProvider.Abort` (`LoadPhaseContracts.cs:114-115`), `LoadPhaseChain.Abort` (`:206-215` — aborts every step, cancels the hold, clears the exercise id), `TerrainResidency.AbortStaged` (`:320`), and the master already fans `AbortTransaction` out on cancel (`ClusterMaster.cs:1660`). 🔴 **Only the trigger is missing:** `ClusterSlave` never calls `Abort` (zero occurrences) and `LoadPhaseChain.CanHandle` omits `AbortTransaction` (`:127-147`) ⇒ the fan-out auto-ACKs `Success, not participating` while nothing rolls back (`ClusterSlave.cs:473-482`) — the `R-133` silent no-op. ⭐ **`TerrainAssetHandler` is the pattern** (`:92-103`, `:118`, `:176`) — it already solved this for its own ops; copy it, do not invent. ⇒ ① `LoadPhaseChain` claims `AbortTransaction` and routes to its existing `Abort`; ② after the abort ACKs the master drives the cluster to `ClusterState.Idle`; ③ cancel works in any `Loading*`, not only `PARKED`; ④ ⛔ **still no timer** (`R-4001`) — a human decides; ⑤ the in-flight transfer is `IFileTransfer.Cancel()`ed and its writer/readers disposed, not left to land | **§4-H** (the sequence diagram is §4-H.2) | ⭐ whether `ClusterSlave` should call `Abort` directly or route it as an ordinary handler op — `TerrainAssetHandler` does the latter and needs no `ClusterSlave` change; **prefer that** and say which you did | `Hrot.SimHost.Tests/LoadPhaseChainTests`: an `AbortTransaction` mid-prepare ⇒ every step's `Abort` ran, the hold is cancelled, the live database is untouched. `Hrot.Orchestrator.Tests`: cancel during `LoadingLive` ⇒ abort fans out, then the cluster reaches `Idle`, and **re-issuing the same load succeeds**. ⭐ Red-proof by reverting the `CanHandle` claim — the node must then auto-ACK and the state must stay in `Loading*`. ⭐ **Live** (runbook): start a load, cancel it, load again |
+
+**Dependencies:** P7 needs P1, P2 and P6; P5d needs P2; ⭐ **P2 needs P2a** (the editor's role) — without it clause ③ is the only protection and the rail cannot distinguish the two causes. P8 is independent. Everything else is independent. A blocked item stops ONLY itself (R-106).
+
+## 2a. ⭐ PHASE C — Q91 §4-I..§4-L *(added 2026-10-15; every row is an APPROVED ruling)*
+
+⭐ The UML lives in Q91 (§4-J.1, §4-K.1, §4-L.1) — build against it and fold any deviation back there.
+
+| # | item | ruling · Q91 |
+|---|---|---|
+| **C1** | **The master assigns node ids** — a process asks with its computer name + process id (forced id or 0, preferred id) BEFORE composing anything id-dependent, and waits; ids never reused in a session; a forced id held by a live process is refused loudly; the editor asks its in-process master | R-4009, R-4016 · §4-L L1 |
+| **C2** | **The cluster session id** — minted by the master at start, on `ClusterStateTopic`, echoed in the heartbeat; a node that sees another session, or the master's writer gone, drops to `Idle` | R-4006 · §4-I I5 |
+| **C3** | **The `InSync` set** — a node enters by ACKing the commit the cluster is at, leaves on ejection; operator rounds target `InSync` only; the catch-up trigger is "in the roster and not `InSync`", starting with a reset to `Idle`; one attempt per process per commit, a failure shown on the panel; the set is published (`OrchestratorContextTopic.RequiredNodeIdsJson`, designed in mgmt-1 §5, never written) | R-4006, R-4013 J1, R-4014 K7 · §4-I I1/I2, §4-J |
+| **C4** | **`TransactionEpoch` written** — telemetry only | R-4006 · §4-I I4 |
+| **C5** | **The freeze gate on every node** — `CycloneNetworkIngressSystem.IsWorldStateFrozen` wired in shared composition to one predicate (not joined · debugger halt · replaying locally); a `TranslatorClass.WorldEvent` category whose translators are DRAINED while frozen for a join | R-4007 · §4-L L2′ |
+| **C6** | **Spawns wait only for in-sync authoritative peers** — wait-set = advertises `fdp.reliable-init` ∩ `InSync` ∩ authoritative; the "unsupported" mark cleared on entering `InSync` and on departure | R-4014 K6, R-4013 J4 · §4-K, §4-J |
+| **C7** | **The catch-up** — its own per-node saga (never the parked slot); per-node ops only, never the operator's transition path; the universal load parts only (KB + terrain), never the scenario | R-4013 J2, R-4017 K4, R-4015 K5′ · §4-J, §4-K |
+| **C8** | **Transfer cap** — a token bucket in the provider's sender, wall clock, off by default | R-4013 J5 |
+| **C9** | **Replay by span** — every ECS node records everything; per seek/step a node restores locally inside its recording's span and listens outside; a seek outside the span reports "not covered" (today it restores frame 0, `PlaybackController.cs:274-275`) | R-4012 · §4-L L3‴ |
+| **C10** | **One record/replay controller** — delete `CgfRecordReplayController`; `EcsRecordReplayController` on every ECS host with no role gate (`NodeBootstrapper.cs:270`); none on ExCon after checking who reads its `IsReplayActive` | R-4010, R-4011 · §4-L L5 |
+| **C11** | **"best-effort" → "observer"** in the predicate and its rails (P2) | §4-L L4 |
+
+**Order:** C1 → C2 → C3 (needs C1, C2) → C5, C6 (need C3) → C7 (needs C3, P6, P7) · C4, C8, C9, C10, C11 independent. A blocked item stops only itself (R-106).
+
+## 3. Fences
+
+- ⛔ **R-4001: no new timer of any kind** — not on a round, not on an ACK, not on a transfer. A stall is reported (progress), never timed out. ⭐ **The escape is P8**: a human cancels and the cluster returns to `Idle` (`R-4004`). ⛔ The master never cancels on its own.
+- ⛔ **R-4005: a role is what a host DOES, never a network fact.** `NodeRole.None` means "plays no role", not "is not networked" — P2a. ⛔ Do not add a `NodeRole.AllInOne` member; `EditorCapabilities.DefaultRole` is the honest mask.
+- ⛔ **Publish where there is a CONSUMER, nowhere else** (user, `2026-10-15`): orchestration events on the orchestration bus, ECS entity events on the ECS repo bus. ⚠ `NodeDeparted` goes on both ONLY because it has a real consumer on each.
+- ⛔ **R-4000: no behaviour by a missing handler**, and no `NodeRole.Player` — authority is derived from the existing roles.
+- ⛔ **R-4003: no switch to turn IG's recording off** — *"unification over optimization at this stage"*; when one comes it is a role or an optimisation setting.
+- ⛔ **R-140 is NOT touched** — it is about SCENARIO persistence; the gated scenario save keeps IG's scenario slice empty.
+- ⛔ `CgfRecordReplayController` has zero constructions (CGF already uses the real controller) — do not delete it here; name it in the report as a retirement candidate.
+- ⛔ **No new cluster events.** The catch-up is the existing ops sent to one node; progress is the existing `InProgress` code.
+- ⛔ **Not this batch:** possession release on node loss (the behaviors lane has it — `HANDOFF_Coordinator_To_Behaviors_Possession_Release.md`) ·
+  interest management · real-network measurements · the PULL direction of file transfer · finishing `OrchestratorContextTopic`.
+- ⚠ **The backend lane is busy adding behaviour support to the simulation models.** Stay out of the simulation modules; the files you
+  touch are the orchestrator, `Fdp.Toolkits/Orchestration` + `Time`, `Hrot.Core/Services/LoadPhase`, and the composition roots'
+  REGISTRATION lines (IG, Editor, SimHost, CGF). ⭐ **A cross-lane edit is allowed and SAID** — name the lane and file in the commit.
+
+## 4. Report back — the gate report contract (CLAUDE.md rule 8)
+
+One row per gate: verbatim command · pass / fail / skip · delta vs the dispatch sha · a `--no-build` column · every red confirmed
+pre-existing against the dispatch sha · golden movement as a diff shape · the tree clean after each suite · both quarantine counts ·
+`tracker-counts.py --check` · `rulings-check.py` · `design-digest.py --check` · every id allocated.
+
+⭐⭐ **Row 8 — this batch changes the orchestrator, the clock and cross-node transport**, so name and RUN the integration suites:
+`Hrot.ClusterRunner.Integration.Tests` filtered to `TimeControlIntegrationTests`, `TheBarrierHaltsEveryNodeTests` and the
+orchestration/prefetch tests — in isolation if the full suite is flaky. If a suite cannot gate, that is a FINDING with the base-sha
+proof. ⚠ `Fdp.Toolkits.Tests` rotates its flaky set (`DEBT-AIB-030`) — confirm by `--filter`, say so.
+
+⭐ Plus: Q91 folded to the as-built (each deviation, prior state SUPERSEDED), the per-item sha on `coordinator`, the P4, P5a and P7
+measure-first results (P5a: which assembly the controller moved to, the Roslyn diff size), and the live late-join run (P7) with what you saw.
+
+⭐⭐ **And three things this batch specifically owes, because each replaces a rail or a claim rather than adding one:**
+
+| | |
+|---|---|
+| **P2** | the **anti-vacuity** result — state explicitly that a classification in which every node is best-effort FAILS the rail, and show the one-node-cluster case passing as authoritative |
+| **P5c′** | **what the new rail asserts, in one sentence**, and the confirmation that it is NOT `CompositionRootSource.ReadRepoSource` + `Contains`. ⚠ If you keep a source scan, that is a deviation to argue, not a detail |
+| **P8** | the **red-proof**: revert the `CanHandle` claim and show the node auto-ACKing while the state stays in `Loading*`. ⛔ Without it, P8's rail cannot be distinguished from one that passes because nothing was stuck |

@@ -1056,6 +1056,40 @@ const TOOLS = [
     },
   },
 
+  // ⭐ CE-4002 — the cluster membership routes (docs/DESIGN_Cluster_Membership_Use_Cases.md §3.1).
+  {
+    name: 'get_cluster_roster',
+    description: TOOL_DEFS['get_cluster_roster'].description,
+    inputSchema: TOOL_DEFS['get_cluster_roster'].inputSchema,
+    async handler() {
+      try {
+        return toolSuccess(await callApi('GET', '/cluster/roster'));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_cluster_roster'); }
+    },
+  },
+
+  {
+    name: 'request_cluster_transition',
+    description: TOOL_DEFS['request_cluster_transition'].description,
+    inputSchema: TOOL_DEFS['request_cluster_transition'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/cluster/transition', toolArgs));
+      } catch (err) { return toolError(err.message, err.envelope, 'request_cluster_transition'); }
+    },
+  },
+
+  {
+    name: 'cancel_cluster_operation',
+    description: TOOL_DEFS['cancel_cluster_operation'].description,
+    inputSchema: TOOL_DEFS['cancel_cluster_operation'].inputSchema,
+    async handler(toolArgs) {
+      try {
+        return toolSuccess(await callApi('POST', '/cluster/cancel', { targetId: toolArgs.targetId }));
+      } catch (err) { return toolError(err.message, err.envelope, 'cancel_cluster_operation'); }
+    },
+  },
+
   {
     name: 'get_architecture_diagnostics',
     description: TOOL_DEFS['get_architecture_diagnostics'].description,

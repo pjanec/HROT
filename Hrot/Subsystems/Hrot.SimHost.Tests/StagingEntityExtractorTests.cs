@@ -810,6 +810,62 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>Writes an <see cref="InitialBrainIntent"/> (the saved AI, CE-3042) whose task AND SOP slots name one target by
         /// network id in their params JSON.</summary>
+        private sealed class StubRouteTranslator : IEntityScenarioTranslator
+        {
+            private const string DomKey = "_stubRoute";
+            private readonly long _unitNetId;
+
+            public StubRouteTranslator(long unitNetId) => _unitNetId = unitNetId;
+
+            public BitMask512 GetConsumedComponentsMask() => new BitMask512();
+            public IEnumerable<string> GetOutputDomKeys() { yield return DomKey; }
+
+            public bool CanTranslate(EntityRepository repo, Entity entity)
+                => repo.GetEntityIndex().GetComponentMask(entity.Index).IsSet(GlobalComponentIds.SimTransform);
+
+            public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+                => new Dictionary<string, object> { [DomKey] = new JsonObject { ["HoldUnit"] = _unitNetId } };
+
+            public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+            {
+                if (!scenarioData.TryGetValue(DomKey, out var raw)) return;
+                var unit = ((JsonObject)raw)["HoldUnit"]!.GetValue<long>();
+                var plan = new Hrot.Map.Common.Components.RoutePlan();
+                plan.Mutate(l =>
+                {
+                    l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Unload });
+                    l.Add(new Hrot.Map.Common.Components.RouteWaypoint { Hold = Fdp.Toolkit.Navigation.RouteHold.Pickup, HoldUnit = unit });
+                });
+                repo.SetManagedComponent(entity, plan);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2226</c> — a route's Pickup waypoint names the unit it waits for by its SAVED network id, and the load re-allocates
+        /// every id: the waypoint comes back naming the unit's NEW id. 🔴 Measured live on <c>ua-air-rescue</c>: it kept 9510, the hold
+        /// found nobody, and the UH-60 never lifted — <c>RoutePlan.Waypoints</c> is a read-only view the <see cref="EntityRef"/> type
+        /// plan cannot reach.
+        /// </summary>
+        [Fact]
+        public void CE2226_ARoutesPickupUnit_IsRemapped()
+        {
+            _goldRepo.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
+            var route = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(route, new SimTransform());
+            _goldRepo.SetComponent(route, new NetworkIdentity { Value = 9502L });
+            var squad = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(squad, new NetworkIdentity { Value = 9510L });
+
+            var serializer = BuildSerializer(new StubRouteTranslator(9510L));
+            var requests = new StagingEntityExtractor()
+                .Extract(serializer, SerializeGoldRepo(_goldRepo, serializer), new StubIdAllocator(3001));
+
+            var plan = requests.Single(r => r.PreAllocatedNetworkId == 3001L).InitialComponents!
+                .OfType<Hrot.Map.Common.Components.RoutePlan>().Single();
+            Assert.Equal(0L, plan.Waypoints[0].HoldUnit);      // a stop that names nobody stays so
+            Assert.Equal(3002L, plan.Waypoints[1].HoldUnit);   // the squad's NEW id
+        }
+
         private sealed class StubBrainIntentTranslator : IEntityScenarioTranslator
         {
             private const string DomKey = "_stubBrain";

@@ -84,8 +84,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// unit that cannot carry a stance just moves.</remarks>
         /// <remarks>⭐ <c>CE-2167</c> (V5) — <paramref name="reverseAllowed"/>: a vehicle may BACK to the destination (it keeps facing its
         /// way — out of a firing position and back into the hide, Exposure Cycle §4–§5); a person turns and walks as before.</remarks>
+        /// <remarks>⭐ <c>CE-2230</c> — <paramref name="onSurface"/>: the destination is a place on the map (x, y), its height the surface's
+        /// there (<c>FlagDestinationOnSurface</c>, R-252) — a commander's 2-D slot, not a 3-D point.</remarks>
         public static unsafe bool Issue(EntityRepository world, Entity self, Vector3 destination, float speed, float arrivalRadius,
-                                        MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false)
+                                        MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false, bool onSurface = false)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return false;
             if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
@@ -101,6 +103,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ArrivalRadius  = arrivalRadius,
                 Speed          = speed,
                 ReverseAllowed = reverseAllowed ? (byte)1 : (byte)0,
+                Flags          = onSurface ? NavigationConstants.FlagDestinationOnSurface : (byte)0,
             };
             fixed (byte* dst = channel.Params)
             {

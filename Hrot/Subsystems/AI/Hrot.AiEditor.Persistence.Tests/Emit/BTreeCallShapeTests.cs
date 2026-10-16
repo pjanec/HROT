@@ -152,10 +152,8 @@ public sealed class BTreeCallShapeTests
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000094", BTreeDelegateShapeDto.NoParams),
         // ⭐ CE-1118 H-3 (D-23) — the pilot's SOP row: AirborneIndividualNodes.OnTheGround is (Entity, EntityRepository) ⇒ NoParams.
         ("PilotSop.btree.json", "c1118000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Plain),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.Plain),
+        // CE-2230: the run's ONE node is the vehicle exposure cycle (lane mode) — its a1..a4 bespoke nodes are retired.
+        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.Stateful),
         ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Stateful),
         ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Stateful),
         ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),

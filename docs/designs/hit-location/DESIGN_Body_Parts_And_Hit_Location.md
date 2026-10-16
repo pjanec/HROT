@@ -17,6 +17,7 @@ related-designs:
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — §6's CE-2182 row ("a direct hit on a DEPLOYED weapon needs a real collider first"): S2 gives weapon systems their parts
   - docs/DESIGN_Terrain_World.md — §4.4 OWNS the collider grid (W9, CE-2193); this file changes how a ROUND queries it (a cell walk), not the grid
   - docs/DESIGN_Weapon_Layers.md — OWNS TurretPose (W-9), the replicated pose S2's turret and gun parts are posed by
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-1: the new civilian family carries body zones (HL-12) and uses the civilian poses (HL-9).
 -->
 
 # Body parts and hit location — one part list for drawing, colliding and damage

@@ -1149,7 +1149,11 @@ namespace Hrot.Editor
                         SubsystemName = "Editor",
                         Headless      = true,
                     })
-                    .WithRole("Editor", Fdp.Core.NodeRole.None)
+                    // ⭐⭐ P2a / R-4005 — a role is what a host DOES, never a network fact: the editor composes all four
+                    //    simulation roles (its capability plan and load chain read EditorCapabilities.DefaultRole), so it
+                    //    tells the roster the same. ⛔ It said None here while composing all four — two producers for one
+                    //    slot (R-132), and the roster copy is the one authority and the step barrier read.
+                    .WithRole("Editor", EditorCapabilities.DefaultRole)
                     // ⭐ Standalone, NOT Master: what `new TimeControllerConfig { Role = TimeRole.Standalone }`
                     //   said here before, and TimeControllerFactory routes both to MasterSyncController.
                     .WithTimeRole(TimeRole.Standalone)
@@ -1558,8 +1562,8 @@ namespace Hrot.Editor
             Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
                 clusterSlave,
                 new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, tkbDb, _world!, EditorNodeId),
-                archiveHandler: null);
+                    scenarioSerializer, _world!, EditorNodeId),
+                recordingRoot: isolatedTempRoot, nodeId: EditorNodeId);   // ⭐ P5b — the editor's recording is archived too
             // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host. ⭐ The
             //   editor needs it as much as any node: §9.6 rules the zone load is ALWAYS cluster-wide, and
             //   the editor IS a single-node cluster, so its own zone load arrives here as a NodeOp.
@@ -2295,6 +2299,10 @@ namespace Hrot.Editor
                         // ⛔ The editor holds this bus, so not passing it would be the silent-default defect —
                         //    the forwarding rail in DebugApiCompositionTests asserts this argument by name.
                         requestTransition: intent => _orchestrationBus!.PublishManaged(intent),
+                        // ⭐⭐ CE-4002 — the in-process master's roster and the operator's cancel on the same bus.
+                        //    ⛔ The editor HOLDS both, so not passing them is the silent-default defect.
+                        clusterRoster:     () => _orchestratorCore?.Master.DescribeRoster(),
+                        requestCancel:     intent => _orchestrationBus!.PublishManaged(intent),
                         // ⭐⭐⭐ MD-001 — the sinks GET /logs reads. 📄 DESIGN_Mcp_Diagnostics_Federation §2.1.
                         // ⛔⛔ Measured: NEITHER composition root passed this, so `_logSinks` fell to
                         //    Array.Empty and get_logs answered [] on EVERY host — while the SAME records

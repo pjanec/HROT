@@ -502,6 +502,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             //    path the operator's own "Load into Live" button takes.
             requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                    .TransitionsVia(() => _context?.EventBus),
+            // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+            requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _context?.EventBus),
             // ⭐⭐⭐ CE-163 — CGF's OWN committed cluster state, from its OWN ClusterSlave, through the SAME
             //    shared projection SimHost and IG use. 🔒 "every ECS node must use the same shared code".
             // ⚠ Lazy for a LOAD-BEARING reason, not style: Initialize REPLACES the context's slave with the
@@ -1086,7 +1088,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
-        // roster (OrchestratorSubsystem: SubsystemName is "SimHost" or "IG" or "CGF"), so the
+        // roster (⭐ P3: ClusterMaster.StepRoster — every node holding a simulation role; CGF holds Brain), so the
         // master blocks every step on a FrameAck from this node.  SimHost/IG get the
         // translators that carry that traffic from SharedApplicationBootstrapper Phase 6c; CGF
         // composes through HrotNodeBuilder directly and therefore has to register them itself.
@@ -1113,27 +1115,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         var newClusterSlave = new ClusterSlave(_context.NodeId, "CGF", _context.EventBus, DefaultRole,
             capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(DefaultRole));
 
-        var nedModuleForAfterSeek = replicationModule as Hrot.Common.Abstractions.INedReplicationModule;
-        Action? afterSeekAction = nedModuleForAfterSeek?.AfterSeekCallback;
-
-        // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Resolved BEFORE the controller so the
-        //   clear composes into the same afterSeek chain the NetworkEntityMap rebuild already uses.
-        //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
+        // ⭐⭐ P5a — the ONE composition every ECS host uses: a seek clears the ELM's bookkeeping (§2.1m step 3) before the
+        //   transport's own post-seek hook, and the ELM is gated while a replay is active (§2.1m step 1).
         var cgfGateElm = _context.BaseModules?
             .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault();
-        if (cgfGateElm != null)
-        {
-            var chained = afterSeekAction;
-            afterSeekAction = () => { cgfGateElm.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
-        }
-
-        var rrController = new Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController(
-            _context.Kernel, _context.NodeId, _context.World, afterSeek: afterSeekAction);
-
-        // ⭐⭐ Step 1 of DESIGN.md §2.1m — gate the ELM during replay (mgmt-1/DESIGN.md §8.10: "the ELM
-        //    pipeline is never invoked"). ⭐ Reuses the existing IRecordReplayController.IsReplayActive.
-        if (cgfGateElm != null)
-            cgfGateElm.IsReplayActive = () => rrController.IsReplayActive;
+        var rrController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
+            _context.Kernel, _context.NodeId, _context.World,
+            (replicationModule as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback, cgfGateElm);
 
         var storageProvider = new LocalDiskStorageProvider(isolatedTempRoot);
 
@@ -1290,7 +1278,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   cannot exist. 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.1, §6.
         //   CE-279 Layer A — built here, registered below via SerializeLocalRegistrar with CGF's archive handler.
         var cgfScenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-            scenarioSerializer, _context.TkbDb, _context.World, _context.NodeId);
+            scenarioSerializer, _context.World, _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
             scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
@@ -1338,7 +1326,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
             newClusterSlave,
             cgfScenarioSaveHandler,
-            new ReferenceArchiveHandler(isolatedTempRoot, _context.NodeId));
+            recordingRoot: isolatedTempRoot, nodeId: _context.NodeId);
         // ⭐⭐⭐ D3 — the terrain/zone op handler, via the shared registrar, on every ECS host.
         //   ⭐ C8 — `service:` is NO LONGER null. CGF composes a real TerrainLoadService, so a zone op
         //   does actual residency work here rather than ACKing with nothing to do. 🔒 The brain having
@@ -1684,6 +1672,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    ⚠ AFTER Kernel.Initialize() on purpose: modules register their ingress systems from
         //    RegisterSystems(), so before this line the scheduler does not yet hold them all.
         WireWorldStateFreezeGate();
+
+        // ⭐⭐ R-4007 (Q91 §4-M) — a node BEHIND its cluster takes in no world state and discards world events.
+        if (_context.ClusterSlave is { } joinSlave)
+            Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.WireJoinGate(
+                _context.Kernel.SystemScheduler.GetAllSystems(), () => joinSlave.IsJoinFrozen);
 
         // ── Visualization (non-headless only) ─────────────────────────────────────
         if (!_headless)

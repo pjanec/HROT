@@ -43,6 +43,8 @@ namespace Hrot.Map.Common.Replication.Egress
         // Keyed by Entity; value is the last-published (IntentId, Result, Phase).
         // ProgressS is omitted from the key — it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
+        private readonly System.Collections.Generic.HashSet<long> _publishedIds = new();   // ⭐ CE-4007
+        private int _worldEpoch;
         private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result, NavigationPhase Phase)> _lastPublished = new();
 
         // Heartbeat: republish ProgressS every 5 s even when nothing has changed,
@@ -69,6 +71,13 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
+                foreach (var id in _publishedIds) _writer.DisposeInstance(new Hrot.NED.Descriptors.NavigationStatus { EntityId = (int)id });
+                _publishedIds.Clear();
+                _lastPublished.Clear();
+            }
             var query = view.Query()
                 .With<EcsNavigationStatus>()
                 .With<NetworkIdentity>()
@@ -102,6 +111,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
+                _publishedIds.Add(netId.Value);   // ⭐ CE-4007 — what this writer must delete on a wipe
                 _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
                 {
                     EntityId              = (int)netId.Value,

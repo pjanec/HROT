@@ -30,8 +30,24 @@ namespace Hrot.Orchestrator;
 /// Bypasses <c>WaitingRoomCoordinator</c> — boots instantly; UI renders immediately with a banner while
 /// mandatory nodes are not yet ready (CGF1-S0105).
 /// </summary>
-public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
+public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar, Hrot.Presentation.DebugApi.IProvidesDebugSurface
 {
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the orchestrator's debug surface: the MASTER's roster (only the node hosting the
+    /// <c>ClusterMaster</c> can answer it), and cluster transitions and cancels published onto the bus the master reads
+    /// directly. 📄 <c>docs/DESIGN_Cluster_Membership_Use_Cases.md</c> §3.1. ⛔ No world, no clock drive, no
+    /// architecture — this subsystem has no ECS kernel, and absence is reported, never fabricated.
+    /// </summary>
+    public Hrot.Presentation.DebugApi.ISubsystemDebugProvider? CreateDebugProvider()
+        => new Hrot.Presentation.DebugApi.SubsystemDebugProvider(
+            subsystemName:     Name,
+            perspective:       "Orchestrator",
+            requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider.TransitionsVia(() => _bus),
+            // ⚠ The master holds the WIRE enum; the provider speaks the toolkit's — kept numerically identical on purpose.
+            clusterState:      () => _core is null ? null : (Fdp.Toolkit.Orchestration.ClusterState)(int)_core.Master.CurrentClusterState,
+            clusterRoster:     () => _core?.Master.DescribeRoster(),
+            requestCancel:     Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _bus));
+
     // ⭐ Q86 (R-215) — the master and every process manager live in the ONE core the editor builds too.
     private OrchestratorCore? _core;
     private Fdp.Presentation.Abstractions.IFileDialogService? _fileDialogService;
@@ -148,6 +164,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             // ⭐⭐⭐ HN-037 — type-tested: only the NED factory hosts a real authority (docs/DESIGN_Deterministic_Network_Ids.md §11).
             IdAuthority       = _idAllocatorServerHandle as Fdp.Toolkit.NetworkSpawning.IWorldIdAuthority,
             FileDialogService = _fileDialogService,
+            DdsTransfer       = _networkFactory?.CreateFileTransferProvider(),   // ⭐ P6 part 2 — DDS to nodes with no share
         });
 
         // The orchestrator is also a cluster NODE (diagnostics dump) — host-only, not part of the core.

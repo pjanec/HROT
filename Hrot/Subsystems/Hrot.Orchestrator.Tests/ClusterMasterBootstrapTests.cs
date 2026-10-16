@@ -431,5 +431,110 @@ public sealed class ClusterMasterBootstrapTests
         var events = bus.ReadManaged<ClusterStateTransitionedEvent>().ToList();
         Assert.DoesNotContain(events, e => e.NewStateId == Fdp.Toolkit.Orchestration.ClusterState.Idle);
     }
-}
 
+    // ══ P1 (Q91 §4-B, B1) — a node that leaves is removed from every in-flight round ══════════════════════════════
+    // 📐 Before: EjectNode returned early for a non-mandatory node and a tracker's Expected was fixed at fan-out, so a
+    //    round whose node died waited FOREVER (ClusterMaster.cs:700, :1828). ⭐ No timer (R-4001): the heartbeat timeout
+    //    that ejects the node is the only time limit; the round then completes on the nodes that remain.
+
+    private static void Beat(FdpEventBus bus, int nodeId, string name) =>
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId = nodeId, SubsystemName = name,
+            LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+        });
+
+    private static void Step(FdpEventBus bus, ClusterMaster master) { bus.SwapBuffers(); master.Tick(); bus.SwapBuffers(); }
+
+    private static (ClusterMaster Master, Guid Request, Guid Tx) TwoNodeCheckpoint(FdpEventBus bus)
+    {
+        var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f });
+        Beat(bus, 1, "SimHost");
+        Beat(bus, 100, "IG");
+        Step(bus, master);
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TakeCheckpointIntent { RequestId = request });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().Where(i => i.Operation == FdpNodeOpType.TakeSnapshot).ToList();
+        Assert.Equal(2, ops.Count);
+        return (master, request, ops[0].TransactionId);
+    }
+
+    private static void Ack(FdpEventBus bus, Guid tx, int nodeId) =>
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = tx, Operation = FdpNodeOpType.TakeSnapshot, NodeId = nodeId,
+            StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
+        });
+
+    [Fact]
+    public void P1_A_round_completes_when_its_last_unanswered_node_is_ejected()
+    {
+        var bus = new FdpEventBus();
+        var (master, request, tx) = TwoNodeCheckpoint(bus);
+        using var _ = master;
+
+        Ack(bus, tx, 1);
+        Step(bus, master);
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);   // still owed by 100
+
+        master.EjectNode(100);
+        bus.SwapBuffers();   // ⚠ a direct call publishes outside Tick: ONE swap makes it readable (production ejects inside Tick)
+
+        var done = Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+        Assert.Equal(OrchestrationStatusCode.Success, done.StatusCode);
+    }
+
+    [Fact]
+    public void P1_Ejecting_a_node_that_already_answered_takes_nothing_off_the_round()
+    {
+        var bus = new FdpEventBus();
+        var (master, request, tx) = TwoNodeCheckpoint(bus);
+        using var _ = master;
+
+        Ack(bus, tx, 1);
+        Step(bus, master);
+        master.EjectNode(1);      // ⛔ node 1 owes nothing — the round must still wait for node 100
+        bus.SwapBuffers();
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+
+        Ack(bus, tx, 100);
+        Step(bus, master);
+        Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+    }
+
+    [Fact]
+    public void P1_A_transition_drops_every_prepare_ack_the_ejected_node_still_owed()
+    {
+        // ⭐ A transition from Idle to OperatingLive has TWO prepare steps (LoadingLive, OperatingLive) under ONE
+        //   transaction, so a node owes two ACKs there — the per-node count, not a flat "minus one", is what must go.
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 600f });
+        Beat(bus, 1, "SimHost");
+        Beat(bus, 100, "IG");
+        Step(bus, master);
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent
+        {
+            TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive,
+        });
+        Step(bus, master);
+        var prepares = bus.ReadManaged<ExecuteNodeOpIntent>()
+                          .Where(i => i.TargetNodeId == 1 && i.Operation != FdpNodeOpType.CommitState).ToList();
+        Assert.True(prepares.Count >= 2, $"expected two prepare steps for node 1, saw {prepares.Count}");
+
+        foreach (var p in prepares)
+            bus.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId = p.TransactionId, Operation = p.Operation, NodeId = 1,
+                StatusCode = OrchestrationStatusCode.Success, IsParticipating = true,
+            });
+        Step(bus, master);
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+
+        master.EjectNode(100);
+        bus.SwapBuffers();
+        Assert.Single(bus.ReadManaged<ClusterOpCompletedEvent>(), e => e.RequestId == request);
+    }
+}

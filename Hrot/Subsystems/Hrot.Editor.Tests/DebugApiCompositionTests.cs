@@ -39,6 +39,10 @@ public sealed class DebugApiCompositionTests
     // request a cluster transition. Without the hand-off POST /scenario/load/live answers
     // NOT_SUPPORTED_HERE(scenario.load) in the EDITOR — the mode that has always been able to load.
     [InlineData("requestTransition:", "POST /scenario/load/live refuses in the editor")]
+    // CE-4002: the editor runs the ONE OrchestratorCore in-process, so it holds the master's roster and the bus a
+    // cancel travels on. Without the hand-offs GET /cluster/roster and POST /cluster/cancel refuse in the editor.
+    [InlineData("clusterRoster:", "GET /cluster/roster refuses in the editor, which hosts the master")]
+    [InlineData("requestCancel:", "POST /cluster/cancel refuses in the editor (R-4004's escape)")]
     public void TheDebugApiServiceIsHandedItsDependencies(string argument, string consequence)
     {
         var call = DebugApiServiceConstruction();

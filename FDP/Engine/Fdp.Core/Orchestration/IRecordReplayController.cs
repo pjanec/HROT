@@ -100,6 +100,18 @@ namespace Fdp.Core.Orchestration
         /// </summary>
         long ActiveRecordingStartWallTicks { get; }
 
+        /// <summary>⭐ R-4012 (Q91 §4-P) — the last recorded frame's wall-clock ticks, or <c>0</c> (no replay, or no recording).</summary>
+        long ActiveRecordingEndWallTicks { get; }
+
+        /// <summary>
+        /// ⭐⭐ R-4012 (Q91 §4-P P1) — the replay timeline's zero in wall-clock ticks: the CLUSTER's anchor once a seek has
+        /// delivered it, else this node's own first frame. Set by the seek handler.
+        /// </summary>
+        long ReplayAnchorWallTicks { get; set; }
+
+        /// <summary>⭐⭐ R-4012 — true while this node restores the current replay moment from its own recording.</summary>
+        bool IsRestoringReplay { get; }
+
         /// <summary>
         /// Returns the highest network entity ID encountered in the active recording,
         /// or <c>0</c> when no replay is active.  Published to the orchestrator via

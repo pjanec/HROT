@@ -39,6 +39,11 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     public LoadPart Part => LoadPart.Terrain;
 
     /// <inheritdoc/>
+    /// <remarks>⭐ P4 — pure: <c>TerrainResidency.Prepare</c> builds a private <c>Staged</c> and touches only its own
+    /// last-loaded fields; the world is written in <see cref="Commit"/>.</remarks>
+    public bool PreparesOffFrameThread => true;
+
+    /// <inheritdoc/>
     public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
     {
         string? requested = !string.IsNullOrWhiteSpace(context.TerrainName)

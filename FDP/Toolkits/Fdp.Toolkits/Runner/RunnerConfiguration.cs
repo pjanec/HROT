@@ -31,9 +31,15 @@ namespace Fdp.Toolkit.Runner
         [Option("script", HelpText = "Path to headless test script JSON")]
         public string TestScriptPath { get; set; } = string.Empty;
 
-        /// <summary>Base node ID for deterministic multi-instance offsetting (default 0 = use legacy constants).</summary>
-        [Option('n', "node-id", Default = 0, HelpText = "Base node ID for multi-instance offsetting (0 = legacy)")]
+        /// <summary>
+        /// Base node ID for deterministic multi-instance offsetting. ⭐⭐ <c>C1</c> (Q91 §4-O, <c>R-4009</c>): ABSENT (−1) means
+        /// "not forced" — a single-subsystem launch then asks the cluster master for its id; any other launch uses base 0.
+        /// </summary>
+        [Option('n', "node-id", Default = -1, HelpText = "Base node ID for multi-instance offsetting. Absent: a single-subsystem node asks the cluster master for its id")]
         public int NodeId { get; set; }
+
+        /// <summary>⭐ C1 — true when no node id was given on the command line (or in the config file).</summary>
+        public bool NodeIdAbsent => NodeId < 0;
 
         /// <summary>Force fixed-step time instead of wall-clock dt (CI mode).</summary>
         [Option("deterministic", Default = false, HelpText = "Force fixed-step time (CI mode)")]

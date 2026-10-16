@@ -91,6 +91,116 @@ export const TOOLS_CATALOG = [
   },
 
   {
+    "name": "cancel_cluster_operation",
+    "group": "A — Lifecycle & status",
+    "summary": "The operator's cancel (R-4004): cancel a cluster request in flight by its transactionId; the cluster returns to Idle.",
+    "http": {
+      "method": "POST",
+      "path": "/cluster/cancel"
+    },
+    "params": [
+      {
+        "name": "targetId",
+        "type": "string",
+        "required": true,
+        "description": "The transactionId of the request to cancel (a GUID)"
+      }
+    ],
+    "returns": "{ published:true, targetId }",
+    "notes": [
+      "ASYNCHRONOUS: confirms the cancel was published; read get_status for the cluster returning to Idle.",
+      "Any node with an orchestration bus can publish it; a host without one answers 503."
+    ],
+    "example": {
+      "args": {
+        "targetId": "00000000-0000-0000-0000-000000000000"
+      },
+      "gist": "cancel a cluster load in flight"
+    },
+    "hint": "Req: targetId (the transactionId from request_cluster_transition). Example: cancel_cluster_operation({targetId:\"…\"})",
+    "manualVerify": true
+  },
+
+  {
+    "name": "get_cluster_roster",
+    "group": "A — Lifecycle & status",
+    "summary": "Every node the cluster master holds, as the MASTER sees it: id, subsystem, its own reported state, roles, heartbeat age.",
+    "http": {
+      "method": "GET",
+      "path": "/cluster/roster"
+    },
+    "params": [],
+    "returns": "{ count, nodes[{ nodeId, subsystem, reportedState, roles, secondsSinceHeartbeat }], note }",
+    "notes": [
+      "reportedState is each node's OWN claim from its heartbeat, not the cluster's state — read get_status for that.",
+      "A node leaves the list after the heartbeat timeout (default 5 s) of silence.",
+      "Only the node hosting the ClusterMaster can answer (the orchestrator process, or the editor's in-process core); elsewhere it answers 503 — check the 'cluster.roster' cell in get_capabilities."
+    ],
+    "example": {
+      "args": {},
+      "gist": "list the nodes in the cluster"
+    },
+    "hint": "No args. Example: get_cluster_roster({})",
+    "manualVerify": false
+  },
+
+  {
+    "name": "request_cluster_transition",
+    "group": "A — Lifecycle & status",
+    "summary": "Ask the cluster master to move the whole cluster to a target state — the same TransitionStateIntent the operator panel publishes.",
+    "http": {
+      "method": "POST",
+      "path": "/cluster/transition"
+    },
+    "params": [
+      {
+        "name": "target",
+        "type": "string",
+        "required": true,
+        "description": "The ClusterState to move to (e.g. Idle, OperatingReplay); the refusal lists the legal names"
+      },
+      {
+        "name": "scenario",
+        "type": "string",
+        "required": false,
+        "description": "Scenario id for a load"
+      },
+      {
+        "name": "exerciseId",
+        "type": "string",
+        "required": false,
+        "description": "Exercise GUID for a replay"
+      },
+      {
+        "name": "timeMode",
+        "type": "string",
+        "required": false,
+        "description": "Time mode for the load"
+      },
+      {
+        "name": "targetWallTicks",
+        "type": "number",
+        "required": false,
+        "description": "Wall-clock ticks the transition should take effect at"
+      }
+    ],
+    "returns": "{ published:true, transactionId, target, note }",
+    "notes": [
+      "ASYNCHRONOUS: the answer confirms the intent was PUBLISHED, not that the cluster reached the state — poll get_status or get_cluster_roster.",
+      "Pass the returned transactionId to cancel_cluster_operation to cancel it; a cancel returns the cluster to Idle (R-4004).",
+      "Any node with an orchestration bus can publish it; a host without one answers 503."
+    ],
+    "example": {
+      "args": {
+        "target": "Idle"
+      },
+      "gist": "return the cluster to Idle"
+    },
+    "hint": "Req: target (a ClusterState name). Example: request_cluster_transition({target:\"OperatingReplay\", exerciseId:\"…\"})",
+    "manualVerify": true
+  },
+
+  {
     "name": "switch_perspective",
     "group": "A — Lifecycle & status",
     "summary": "Switch the active perspective, then report what actually happened.",
@@ -1581,7 +1691,7 @@ export const TOOLS_CATALOG = [
         "description": "only rounds fired at this network id"
       }
     ],
-    "returns": "{ count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first",
+    "returns": "{ count, returned, shots:[{seq, tick, endTick, shooter, target, weaponIndex, muzzle, aim, ordinal, sigmaRad, deflectionRad, penetration, penetrationSource, damage, outcome:InFlight|Hit|StoppedByTerrain|Expired, end, hit, arrivingDamage, arrivingPenetration, raisedAt, firedAt, tripSeconds, caughtUpSeconds, crossings:[{kind, label, material, resistanceMmRha, roundPenetrationMm, chance, passed, at}]}] } — newest first; raisedAt/tripSeconds (CE-2180): the brain's synced sim time and the trip to this node (null when not stamped); caughtUpSeconds: how far a bomb was flown forward to start from its release",
     "notes": [
       "Written by the systems that decide each round (FireProcessing, Ballistics, HitResolution) — never recomputed, so it cannot disagree with what happened.",
       "Served where the fire chain runs (SimHost, Editor); elsewhere it says no round was fired on this node.",
@@ -1676,7 +1786,7 @@ export const TOOLS_CATALOG = [
         "description": "Network entity ID (long)"
       }
     ],
-    "returns": "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}], maneuver:{active, kind, kindName, phase, phaseName, phaseSince, members:[{slot, networkId, name, order:{kind, point, cover, issuedAt}|null}], history:[{t, phase, phaseName, event}], gates?:{covering, set}, care?:{casualty, medic, stage, coverPoint}}|null } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
+    "returns": "commander: { role:'commander', memberCount, members:[{slot, networkId, name, assignment:{networkId, name, score, focusFireCount}|null}], lastMergeTick, contactCount, contacts:[{networkId, name | heard:true, threat, position, sources, lastSeenTick}], maneuver:{active, kind, kindName, phase, phaseName, phaseSince, members:[{slot, networkId, name, order:{kind, point, cover, issuedAt, target}|null}], history:[{t, phase, phaseName, event}], gates?:{covering, set}, care?:{casualty, medic, stage, coverPoint}}|null } · member: { role:'member', commander:{networkId, name}, assignment } · otherwise { role:'none' }",
     "notes": [
       "The assignment is the leader's fire distribution (CE-3088): recomputed after each merge of the pool (≈ 10 Hz), at most 2 members per target.",
       "An assignment is a consideration in the member's own threat ranking, not an order — a hurt member may still break off (its posture).",

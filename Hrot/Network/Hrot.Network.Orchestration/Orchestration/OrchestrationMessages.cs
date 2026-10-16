@@ -97,7 +97,13 @@ namespace Hrot.NED.Descriptors.Orchestration
         public ClusterState CurrentState;
         public Guid ExerciseId;
         public long StateStartWallTicks;
+        /// <summary>⭐ C4 (Q91 §4-I I4, R-4006) — telemetry only: incremented by the master on every completed round. ⛔ Never
+        /// decides membership (the master's InSync set does).</summary>
         public int TransactionEpoch;
+        /// <summary>⭐⭐ C2 (Q91 §4-I I5, R-4006) — THE CLUSTER SESSION: minted by the master when it starts (one master = one
+        /// session; the master is not restartable). A node that sees a DIFFERENT session — or this writer gone — knows the
+        /// world it belonged to has ended and drops to <c>Idle</c>.</summary>
+        public Guid SessionId;
     }
 
     /// <summary>
@@ -187,12 +193,108 @@ namespace Hrot.NED.Descriptors.Orchestration
         [DdsManaged] public string ResultJson;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>C1</c> (Q91 §4-O, <c>R-4009</c>/<c>R-4016</c>) — a process with no configured node id asks the master for one, BEFORE it
+    /// composes anything id-dependent. Identified by facts it already has: its computer name and process id (no random id).
+    /// ⚠ Keyed by the process id plus a stable 64-bit hash of the computer name (<c>NodeIdKeys.ComputerHash</c>); the name
+    /// itself rides as data.
+    /// </summary>
+    // ══ P6 part 2 (Q91 §4-E2, R-4002) — the DDS file transfer. Commands, not state: Reliable + Volatile (R-136 §1.1). ══
+
+    /// <summary>⭐ The sender offers files to named targets: path relative to the node's staging root, length, mtime, SHA-256.</summary>
+    [DdsTopic("FileOffer")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileOffer
+    {
+        [DdsKey] public long TransferId;
+        /// <summary>The DDS partition the chunks of THIS transfer travel in (only its targets join it).</summary>
+        [DdsManaged] public string Partition;
+        /// <summary>JSON <c>int[]</c> — the nodes this transfer is for.</summary>
+        [DdsManaged] public string TargetsJson;
+        /// <summary>JSON array of <c>{ RelativePath, Length, LastWriteUtcTicks, Sha256 }</c>, indexed by file index.</summary>
+        [DdsManaged] public string ItemsJson;
+    }
+
+    /// <summary>⭐ A target's answer to an offer: the file indices it lacks (the rest it already holds — same length + mtime).</summary>
+    [DdsTopic("FileNeed")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileNeed
+    {
+        [DdsKey] public long TransferId;
+        [DdsKey] public int NodeId;
+        /// <summary>JSON <c>int[]</c> of file indices.</summary>
+        [DdsManaged] public string NeededJson;
+    }
+
+    /// <summary>⭐ One 64 KB piece of one file, in the transfer's own partition.</summary>
+    [DdsTopic("FileChunk")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileChunk
+    {
+        [DdsKey] public long TransferId;   // ⭐ the probe's shape: one instance per transfer, KeepAll holds every chunk
+        public int FileIndex;
+        public int Seq;
+        public int SeqCount;
+        [DdsManaged] public byte[] Data;
+    }
+
+    /// <summary>
+    /// ⭐ A target's progress: the highest gap-free chunk of a file (every 8 chunks), or — with <c>FileIndex = -1</c> and
+    /// <c>Done</c> — its verdict on the whole transfer (<c>Code</c> is an <c>OrchestrationStatusCode</c>).
+    /// </summary>
+    [DdsTopic("FileAck")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    public partial struct FileAck
+    {
+        [DdsKey] public long TransferId;
+        [DdsKey] public int NodeId;
+        [DdsKey] public int FileIndex;
+        public int ContiguousSeq;
+        public bool Done;
+        public int Code;
+        [DdsManaged] public string Message;
+    }
+
+    [DdsTopic("NodeIdRequest")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct NodeIdRequest
+    {
+        [DdsKey] public long ComputerHash;
+        [DdsKey] public int ProcessId;
+        [DdsManaged] public string ComputerName;
+        /// <summary>The id the process insists on (0 = none: let the master choose).</summary>
+        public int ForcedId;
+        /// <summary>The id the process held before (0 = none) — granted again when free.</summary>
+        public int PreferredId;
+    }
+
+    /// <summary>⭐⭐ <c>C1</c> — the master's answer, on the same key as the request.</summary>
+    [DdsTopic("NodeIdGrant")]
+    [DdsIdlFile("hrot-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct NodeIdGrant
+    {
+        [DdsKey] public long ComputerHash;
+        [DdsKey] public int ProcessId;
+        public int NodeId;
+        public Guid SessionId;
+        public bool Refused;
+        [DdsManaged] public string Reason;
+    }
+
     [DdsTopic("NodeHeartbeat")]
     [DdsIdlFile("hrot-orchestration")]
     [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct NodeHeartbeat
     {
         [DdsKey] public int NodeId;
+        /// <summary>⭐ C2 (Q91 §4-I I5) — the cluster session this node follows (empty until it has seen one).</summary>
+        public Guid SessionId;
         [DdsManaged] public string SubsystemName;
         public ClusterState LocalClusterState;
         public long WallTicksUtc;
@@ -298,5 +400,27 @@ namespace Hrot.NED.Messages
 
         /// <summary>The provided <c>currentVersion</c> does not match the live version (optimistic locking).</summary>
         VersionConflict = 8,
+    }
+}
+
+namespace Hrot.NED.Descriptors.Orchestration
+{
+    /// <summary>⭐ <c>C1</c> — the key of a <see cref="NodeIdRequest"/>/<see cref="NodeIdGrant"/>: one definition for both sides.</summary>
+    public static class NodeIdKeys
+    {
+        /// <summary>A stable 64-bit FNV-1a hash of the upper-cased computer name (never <c>string.GetHashCode</c>, which is per-process).</summary>
+        public static long ComputerHash(string computerName)
+        {
+            unchecked
+            {
+                ulong h = 14695981039346656037UL;
+                foreach (char c in (computerName ?? string.Empty).ToUpperInvariant())
+                {
+                    h ^= c;
+                    h *= 1099511628211UL;
+                }
+                return (long)h;
+            }
+        }
     }
 }

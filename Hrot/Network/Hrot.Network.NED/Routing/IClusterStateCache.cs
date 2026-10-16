@@ -64,6 +64,12 @@ namespace Hrot.Network.Routing
         /// <paramref name="maxSilenceSeconds"/> seconds.
         /// </summary>
         void PruneStale(double nowUtcSeconds, double maxSilenceSeconds = 10.0);
+
+        /// <summary>
+        /// ⭐⭐ C6 (Q91 §4-N, R-4014 K6) — is <paramref name="nodeId"/> in the master's <c>InSync</c> set? ⭐ True for every node
+        /// while no set has been received (no master, or none published yet) — fail-safe toward waiting.
+        /// </summary>
+        bool IsInSync(int nodeId) => true;
     }
 
     /// <summary>

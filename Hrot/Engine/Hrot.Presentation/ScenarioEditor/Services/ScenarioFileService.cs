@@ -39,7 +39,6 @@ public sealed class ScenarioFileService
 
     private readonly ScenarioSerializer _serializer;
     private readonly FdpEventBus? _bus;
-    private readonly ITkbDatabase? _tkbDb;
     private readonly MigrationServices? _migrationServices;
     private Action? _worldResetObservers;
 
@@ -53,12 +52,10 @@ public sealed class ScenarioFileService
     public ScenarioFileService(
         ScenarioSerializer serializer,
         FdpEventBus? bus = null,
-        ITkbDatabase? tkbDb = null,
         MigrationServices? migrationServices = null)
     {
         _serializer        = serializer  ?? throw new ArgumentNullException(nameof(serializer));
         _bus               = bus;
-        _tkbDb             = tkbDb;
         _migrationServices = migrationServices;
     }
 
@@ -104,7 +101,7 @@ public sealed class ScenarioFileService
         //   runs on every host through HrotScenarioSaveHandler. ⚠ The former migration-journal branch was
         //   unreachable in production (LastLoadResult has been permanently null since HN-037 removed the only
         //   writer), so collapsing it here is behaviour-preserving.
-        var header = new ScenarioHeader("Hrot.Scenario", TkbName: _tkbDb?.ActiveTkbName,
+        var header = new ScenarioHeader("Hrot.Scenario",   // ⛔ R-4018: never a TKB name
             TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(repo));   // CE-3015
         ScenarioSaveCore.Write(_serializer, repo, filePath, header);
     }

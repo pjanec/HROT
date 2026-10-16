@@ -194,13 +194,13 @@ public class CE472_IntentAndJsonNodeTests
         Assert.Equal(e, sent.Entity);                    // Target unwired ⇒ self
         Assert.Equal("HullDownAttack", sent.IntentId);
 
-        HullDownAttackParams p;
-        HillAttackTankNodes.ParseHullDownAttackParams(sent.JsonParams, (byte*)&p, Marshal.SizeOf<HullDownAttackParams>());
+        // ⭐ CE-2230: the receiver is the curated resolver HillAttackTankNodes.ResolveHullDownAttackRun now; its authored input is
+        //   read by BehaviorParams.FromBlockResolver — this deserialisation, with these options.
+        var p = Read(sent.JsonParams);
         Assert.Equal(12.5f, p.SlotX);
         Assert.Equal(4242L, p.TargetNetworkId);
         Assert.Equal(15f, p.ApproachSpeed);
         Assert.Equal(5f, p.CreepSpeed);
-        Assert.Equal(1, p.MaxRounds);
 
         // ⭐ parity with the live C# commander's own payload (HillAttackCommanderNodes, the HullDownAttack dispatch —
         //   the retired HullDownIntentJson helper built the same DTO): same inputs ⇒ the receiver sees the same struct
@@ -208,13 +208,13 @@ public class CE472_IntentAndJsonNodeTests
             new HullDownAttackParams
             {
                 SlotX = 12.5f, TargetNetworkId = 4242L, ApproachSpeed = 15f, CreepSpeed = 5f,
-                MaxRounds = 1, RoundsFired = 0, LastObservedAmmo = -1,
             },
             Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-        HullDownAttackParams h;
-        HillAttackTankNodes.ParseHullDownAttackParams(oracle, (byte*)&h, Marshal.SizeOf<HullDownAttackParams>());
-        Assert.Equal(h, p);
+        Assert.Equal(Read(oracle), p);
     }
+
+    private static HullDownAttackParams Read(string json)
+        => System.Text.Json.JsonSerializer.Deserialize<HullDownAttackParams>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
     [Fact]
     public void ToJson_ThenFromJson_RoundTrips_AndFromJsonNeverThrowsOnBadInput()

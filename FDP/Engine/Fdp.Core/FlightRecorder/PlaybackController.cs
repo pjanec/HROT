@@ -31,6 +31,34 @@ namespace Fdp.Core.FlightRecorder
         public int CurrentFrame => _currentFrameIndex;
         public bool IsAtEnd => _currentFrameIndex >= _frameIndex.Count - 1;
         public bool IsAtStart => _currentFrameIndex < 0;
+
+        /// <summary>
+        /// ⭐ <c>R-4012</c> (Q91 §4-P P3) — how far outside its first and last frame a recording still counts as covering a moment.
+        /// 📐 Measured live: nodes present for a whole exercise start recording when their own load hold ends — SimHost 0.7 s after
+        /// CGF — and stop a frame or two apart. ⛔ Without the grace, a node present all along LISTENS at the replay's very start.
+        /// A late joiner is many seconds out and still listens.
+        /// </summary>
+        public static readonly long CoverageGraceTicks = 2 * TimeSpan.TicksPerSecond;
+
+        /// <summary>Wall-clock ticks of the first recorded frame, or 0 for an empty recording.</summary>
+        public long FirstFrameWallTicks => _frameIndex.Count > 0 ? _frameIndex[0].WallClockTicks : 0;
+
+        /// <summary>Wall-clock ticks of the last recorded frame, or 0 for an empty recording.</summary>
+        public long LastFrameWallTicks => _frameIndex.Count > 0 ? _frameIndex[_frameIndex.Count - 1].WallClockTicks : 0;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4012</c> (Q91 §4-P P3) — <b>does this recording cover the moment?</b> Inside
+        /// <c>[first frame − <see cref="CoverageGraceTicks"/>, last frame + <see cref="CoverageGraceTicks"/>]</c> (a moment in the
+        /// lead-in shows the first frame); <see cref="long.MaxValue"/> means "the end" and is covered by any recording with frames. ⭐ A node asks this before it restores: outside, it restores nothing
+        /// and listens. ⛔ <see cref="SeekToWallClockTicks"/> still floors a moment before the first frame to frame 0 — callers
+        /// that must not show the first frame for an earlier moment ask here first.
+        /// </summary>
+        public bool Covers(long wallTicks)
+        {
+            if (_frameIndex.Count == 0) return false;
+            if (wallTicks == long.MaxValue) return true;
+            return wallTicks >= FirstFrameWallTicks - CoverageGraceTicks && wallTicks <= LastFrameWallTicks + CoverageGraceTicks;
+        }
         
         public PlaybackController(string filePath)
         {

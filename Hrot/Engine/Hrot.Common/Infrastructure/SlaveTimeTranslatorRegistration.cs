@@ -25,7 +25,8 @@ namespace Hrot.Common.Infrastructure;
 /// second copy of it. Before that extraction the CGF node had a <c>SlaveSyncController</c> but no
 /// translators at all: it never heard a pause, never received a frame order, and never ACKed —
 /// while the orchestrator still listed it in the lockstep roster
-/// (<c>SubsystemName is "SimHost" or "IG" or "CGF"</c>), so the master blocked on it forever.</para>
+/// (then by subsystem name; ⭐ P3: now <c>ClusterMaster.StepRoster</c>, by simulation role), so the master blocked on it
+/// forever.</para>
 ///
 /// <para>All three factories accept a null participant and become safe no-ops in that case
 /// (headless / offline test paths), so this is registered unconditionally: the

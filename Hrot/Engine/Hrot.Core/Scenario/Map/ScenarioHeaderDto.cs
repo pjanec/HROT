@@ -4,7 +4,8 @@ namespace Hrot.Map.Common.Scenario;
 
 /// <summary>
 /// Header section of the HROT scenario envelope JSON file.
-/// Identifies the subsystem type and optional TKB name.
+/// Identifies the subsystem type and the optional terrain name.
+/// ⛔ <c>R-4018</c>: no TKB name — a scenario never names a TKB; an older file's <c>tkbName</c> is ignored on read.
 /// </summary>
 public sealed class ScenarioHeaderDto
 {
@@ -14,14 +15,8 @@ public sealed class ScenarioHeaderDto
     public string? SubsystemType { get; set; }
 
     /// <summary>
-    /// Identifies the TKB required by this scenario. Null means "no opinion" -- the node uses the fallback catalog.
-    /// </summary>
-    public string? TkbName { get; set; }
-
-    /// <summary>
     /// Identifies the TERRAIN required by this scenario, with an optional subfolder path
-    /// (e.g. "desert/kandahar"). Null means "no opinion" and the scenario still loads, exactly like
-    /// <see cref="TkbName"/>.
+    /// (e.g. "desert/kandahar"). Null means "no opinion" and the scenario still loads.
     ///
     /// <para>⭐ A NAME and nothing more: what the terrain CONTAINS (road networks, terrain DB,
     /// heightmaps, built-in buildings) is declared in the terrain asset's own definition file, never

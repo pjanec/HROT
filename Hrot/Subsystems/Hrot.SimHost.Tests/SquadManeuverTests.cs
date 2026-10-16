@@ -391,7 +391,7 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick();
             Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
             Assert.True(CoverQuery(s).IsNull, "a named point: no cover query");
-            for (int i = 0; i < 250; i++) s.Tick();                               // nobody to suppress: the medic goes after CoveringSeconds
+            for (int i = 0; i < 370; i++) s.Tick();                               // nobody to suppress: the medic goes after CoveringSeconds (5 s)
             Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
             var carry = s.Orders.Last(o => o.Entity.Equals(medic));
             Assert.Equal(BehaviorNames.CarryCasualty, carry.IntentId);
@@ -418,7 +418,9 @@ namespace Hrot.SimHost.Tests
             s.Order("{}", BehaviorNames.CasualtyCare);
             s.Tick(); s.Tick();
             s.Answer(CoverQuery(s), new Vector3(6, -4, 0));
-            for (int i = 0; i < 250; i++) s.Tick();                               // 4 s > CoveringSeconds (3 s)
+            for (int i = 0; i < 250; i++) s.Tick();                               // 4 s: the covering may still come (CE-2227 — 5 s)
+            Assert.Equal(CasualtyCareManeuver.PhaseSuppress, s.Phase);
+            for (int i = 0; i < 120; i++) s.Tick();                               // 6 s > CoveringSeconds (5 s)
             Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
             Assert.Equal(BehaviorNames.CarryCasualty, LastIntent(s, medic));
             Assert.Equal(SquadDrillTrace.EventTimeout, SquadDrillTrace.Of(s.Repo, s.Commander).History[^1].Event);

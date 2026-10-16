@@ -214,10 +214,14 @@ namespace Fdp.Toolkit.Orchestration
                     LocalStateId  = _localStateId,
                     WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
                     SubsystemName = _subsystemName,
+                    SessionId     = _followingSessionId,   // ⭐ C2
                     // CE-286 (C-roles): the heartbeat is telemetry-only; the role mask travels as fdp.role.*
                     // tokens on the durable NodeCapabilities descriptor (published once at join above).
                 });
             }
+
+            // ⭐⭐ C2 (Q91 §4-I I5, R-4006) — follow ONE cluster session.
+            FollowClusterSession();
 
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
@@ -236,7 +240,18 @@ namespace Fdp.Toolkit.Orchestration
                     if (intent.TargetNodeId != 0 && intent.TargetNodeId != _nodeId)
                         continue;
 
-                    if (_pendingPrepare.HasValue)
+                    // ⭐⭐ P8 (Q91 §4-H.3a, H8) — an abort naming the PENDING prepare's transaction does not wait in the
+                    //   queue it exists to clear: it preempts, then runs now. ⛔ Otherwise a stuck load could never be
+                    //   cancelled — the case R-4001 hands to the operator.
+                    if (_pendingPrepare.HasValue
+                     && intent.Operation == NodeOpType.AbortTransaction
+                     && intent.DomainPayload is AbortTransactionPayload preempting
+                     && preempting.TargetTransactionId == _pendingPrepare.Value.Intent.TransactionId)
+                    {
+                        PreemptPendingPrepare(preempting.TargetTransactionId);
+                        DispatchIntent(intent);
+                    }
+                    else if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
                         ClusterState sd = intent.DomainPayload switch
@@ -418,6 +433,14 @@ namespace Fdp.Toolkit.Orchestration
                     PreviousStateId = previousStateId,
                     NextStateId     = nextStateId,
                 });
+                if (previousStateId != nextStateId) NotifyIfEnteredIdle();
+                return;
+            }
+
+            // ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort goes to EVERY handler that claims it, never the first only.
+            if (intent.Operation == NodeOpType.AbortTransaction)
+            {
+                DispatchAbort(intent);
                 return;
             }
 
@@ -464,6 +487,17 @@ namespace Fdp.Toolkit.Orchestration
                 else
                 {
                     _pendingPrepare = (prepareTask, intent, handler);
+                    // ⭐⭐ P4 (Q91 §4-B2, R-4001) — say so ONCE: the prepare runs on, the frame (and the heartbeat) keeps
+                    //   ticking, and the master reads this as progress, never as the answer.
+                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                    {
+                        TransactionId   = intent.TransactionId,
+                        Operation       = intent.Operation,
+                        NodeId          = _nodeId,
+                        StatusCode      = OrchestrationStatusCode.InProgress,
+                        IsParticipating = true,
+                        ResultPayload   = null,
+                    });
                 }
                 return;
             }
@@ -479,6 +513,170 @@ namespace Fdp.Toolkit.Orchestration
                 IsParticipating = false,
                 ResultPayload   = null,
             });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H8) — drop the pending prepare of <paramref name="transactionId"/> and every queued intent
+        /// of that transaction. ⚠ The prepare's task runs on to its end; its result is discarded, never committed — it
+        /// built only private objects (§4-B2, H6). Its op is answered <c>Cancelled</c>.
+        /// </summary>
+        private void PreemptPendingPrepare(Guid transactionId)
+        {
+            var dropped = _pendingPrepare!.Value.Intent;
+            _pendingPrepare = null;
+
+            int before = _pendingIntents.Count;
+            var keep = new Queue<ExecuteNodeOpIntent>(_pendingIntents.Count);
+            foreach (var queued in _pendingIntents)
+                if (queued.TransactionId != transactionId) keep.Enqueue(queued);
+            _pendingIntents.Clear();
+            foreach (var queued in keep) _pendingIntents.Enqueue(queued);
+
+            FdpLog<ClusterSlave>.Warn(
+                "[ClusterSlave] Abort preempts the pending {0} of transaction {1}; {2} queued intent(s) of it dropped.",
+                dropped.Operation, transactionId, before - _pendingIntents.Count);
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = dropped.TransactionId,
+                Operation       = dropped.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = OrchestrationStatusCode.Cancelled,
+                IsParticipating = true,
+                ResultPayload   = null,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ P8 (Q91 §4-H.3a, H7) — an abort names a TRANSACTION, so every handler holding part of it rolls its part
+        /// back; a handler holding nothing for it no-ops. ⛔ First-match dispatch let whichever handler registered first
+        /// swallow every abort. One answer is sent for the abort op.
+        /// </summary>
+        private void DispatchAbort(ExecuteNodeOpIntent intent)
+        {
+            bool participating = false;
+            bool failed        = false;
+            foreach (var handler in _handlers)
+            {
+                if (!handler.CanHandle(intent)) continue;
+                participating = true;
+
+                var task = handler.PrepareAsync(intent, default);
+                if (!task.IsCompleted)
+                {
+                    // ⛔ An abort must not wait: a handler whose abort is asynchronous is a defect, reported loudly.
+                    FdpLog<ClusterSlave>.Error(
+                        "[ClusterSlave] {0} answered AbortTransaction asynchronously — its rollback was not committed.",
+                        handler.GetType().Name);
+                    failed = true;
+                    continue;
+                }
+                if (task.IsFaulted)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] {0} failed to abort: {1}",
+                        handler.GetType().Name, task.Exception?.GetBaseException().ToString() ?? "unknown");
+                    failed = true;
+                    continue;
+                }
+                handler.Commit(intent, repo: null);
+            }
+
+            _eventBus?.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = intent.TransactionId,
+                Operation       = intent.Operation,
+                NodeId          = _nodeId,
+                StatusCode      = failed ? OrchestrationStatusCode.Failure : OrchestrationStatusCode.Success,
+                IsParticipating = participating,
+                ResultPayload   = null,
+            });
+        }
+
+        // ── C2 — the cluster session this node follows ────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — the cluster session this node follows (empty until it has seen one). Rides the heartbeat.
+        /// </summary>
+        public Guid FollowingSessionId => _followingSessionId;
+        private Guid _followingSessionId;
+
+        /// <summary>The cluster state last announced by the master this node follows (<c>Idle</c> until one is seen).</summary>
+        private ClusterState _clusterState = ClusterState.Idle;
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4007</c> (Q91 §4-M) — <b>is this node BEHIND its cluster?</b> It follows a master's session, it is in
+        /// <c>Idle</c>, and the cluster it follows is not: it has no world to put replicated state into, so its world ingress
+        /// stays closed (<c>CycloneNetworkIngressSystem.IsJoinFrozen</c>) until it commits a load. ⭐ A cluster at rest in
+        /// <c>Idle</c>, and a node with no master, are never frozen.
+        /// </summary>
+        public bool IsJoinFrozen =>
+            _followingSessionId != Guid.Empty
+            && _localStateId == (int)ClusterState.Idle
+            && _clusterState != ClusterState.Idle;
+
+        /// <summary>
+        /// ⭐⭐ C2 — a DIFFERENT session id, or the master's cluster-state writer gone, means the world this node belonged to has
+        /// ended: drop to <c>Idle</c> and forget whatever that world's master had asked for. ⭐ Deterministic, no timer: the node
+        /// learns it is stale the moment the new master's durable sample arrives. ⚠ What the node does with the WORLD it still
+        /// holds is not decided here (Q91 §4-I I6 ties it to <c>CE-4000</c>); the next load's world boundary clears it.
+        /// </summary>
+        private void FollowClusterSession()
+        {
+            if (_eventBus == null) return;
+            foreach (var ev in _eventBus.ReadManaged<ClusterStateUpdateEvent>())
+            {
+                if (ev.MasterGone)
+                {
+                    if (_followingSessionId != Guid.Empty)
+                        DropToIdle($"the master of session {_followingSessionId} is gone");
+                    _followingSessionId = Guid.Empty;
+                    _clusterState = ClusterState.Idle;
+                    continue;
+                }
+                _clusterState = ev.CurrentState;
+                if (ev.SessionId == Guid.Empty) continue;   // a sender that does not carry the session says nothing about it
+                if (_followingSessionId != Guid.Empty && ev.SessionId != _followingSessionId)
+                    DropToIdle($"a new cluster session {ev.SessionId} replaced {_followingSessionId}");
+                _followingSessionId = ev.SessionId;
+            }
+        }
+
+        private void DropToIdle(string why)
+        {
+            if (_pendingPrepare.HasValue)
+            {
+                var stale = _pendingPrepare.Value;
+                _pendingPrepare = null;
+                stale.Handler.Abort(stale.Intent, repo: null);
+            }
+            _pendingIntents.Clear();
+
+            int previous = _localStateId;
+            _localStateId = (int)ClusterState.Idle;
+            if (previous != _localStateId)
+            {
+                _eventBus?.Publish(new TkClusterStateChangedEvent { PreviousStateId = previous, NextStateId = _localStateId });
+                NotifyIfEnteredIdle();
+            }
+            FdpLog<ClusterSlave>.Warn("[ClusterSlave] Node {0} drops to Idle: {1}.", _nodeId, why);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node has just ENTERED <c>Idle</c> (either route): every handler that owns
+        /// the world empties it, so the node deletes what it owned on the wire and <c>Idle</c> is empty everywhere.
+        /// </summary>
+        private void NotifyIfEnteredIdle()
+        {
+            if (_localStateId != (int)ClusterState.Idle) return;
+            foreach (var handler in _handlers)
+            {
+                if (handler is not IIdleResetHandler idle) continue;
+                try { idle.OnEnteredIdle(); }
+                catch (Exception ex)
+                {
+                    FdpLog<ClusterSlave>.Error("[ClusterSlave] Node {0}: {1}.OnEnteredIdle failed: {2}",
+                        _nodeId, handler.GetType().Name, ex.Message);
+                }
+            }
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────

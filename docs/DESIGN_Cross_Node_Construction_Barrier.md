@@ -36,6 +36,7 @@ related-designs:
   - FDP/Docs/projects/toolkits/FDP.Toolkit.Lifecycle.md — owns the ELM participant/ack mechanism this builds on.
   - docs/designs/replay-and-modules/DESIGN.md — §2.1m the ELM rewind boundary (OnWorldReplaced/ResumeFromRestoredWorld) that new participants inherit.
   - docs/blueprints/batches/FRAME_Construction_Barrier_Participants.md — the frame that scoped this (pieces A–D, prerequisites P1–P3).
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-J measures that the production wait-set (every present peer advertising fdp.reliable-init) makes a running game wait on, and abort spawns for, a node still catching up; J3 proposes narrowing the wait-set to peers in the creator's session and state, J4 clearing the never-cleared "unsupported" override on departure. OPEN.
   - docs/blueprints/Architect_Question_69_Construction_Barrier_And_Rewind_Contract.md — the asks + §9 reconciliation this design answers.
   - docs/blueprints/Architect_Question_70_Host_Capabilities_And_Reliable_Init_Degradation.md — §3c consumer view; owns the host-capability token facility + the non-supporting-host degradation.
   - docs/designs/two-ack/TwoAck-DESIGN.md — the REMOTE requestor's two-phase view (SstStatusCode InProgress/NotSupported); this barrier is the mechanism its ack sits on (its STATUS notes the pre-barrier "vacuous" gap this fills).

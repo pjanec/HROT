@@ -113,6 +113,32 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
+        // ⭐⭐ C1 (Q91 §4-O, R-4009/R-4016) — a single-subsystem node launched with NO id asks the cluster master for one,
+        //   BEFORE anything id-dependent is composed. ⭐ Any launch that names its id (-n) keeps today's base + offset exactly;
+        //   the orchestrator IS the master, and a multi-subsystem launch hosts its own — both use base 0 when none is given.
+        int? grantedNodeId = null;
+        if (config.NodeIdAbsent)
+        {
+            bool asks = config.RequestedSubsystems.Count == 1
+                     && !config.RequestedSubsystems.Contains("orchestrator", StringComparer.OrdinalIgnoreCase)
+                     && !config.RequestedSubsystems.Contains("all", StringComparer.OrdinalIgnoreCase)
+                     && !config.RequestedSubsystems.Contains("editor", StringComparer.OrdinalIgnoreCase);
+            if (asks)
+            {
+                var grant = Hrot.Network.NED.Factory.NodeIdBroker.AwaitGrant(
+                    (uint)config.DomainId, forcedId: 0, preferredId: 0, Console.WriteLine);
+                if (grant.Refused)
+                {
+                    Console.Error.WriteLine($"[Runner] The cluster master refused a node id: {grant.Reason}");
+                    return 1;
+                }
+                grantedNodeId = grant.NodeId;
+                Console.WriteLine($"[Runner] C1: the cluster master granted node id {grant.NodeId} (session {grant.SessionId}).");
+            }
+            config.NodeId = 0;
+        }
+        int ResolveNodeId(string subsystemName, int baseNodeId) => grantedNodeId ?? ResolveAppNodeId(subsystemName, baseNodeId);
+
         // Add NLog file target when LogDirectory is configured
         string resolvedLogDir = string.IsNullOrWhiteSpace(config.LogDirectory)
             ? Path.Combine(AppContext.BaseDirectory, "logs")
@@ -212,7 +238,7 @@ class Program
         
                 // 2. Extract a rough name for NodeId resolution (e.g., "SimHostSubsystem" -> "SimHost")
                 string subName = type.Name.Replace("Subsystem", "");
-                int subNodeId = ResolveAppNodeId(subName, config.NodeId);
+                int subNodeId = ResolveNodeId(subName, config.NodeId);   // ⭐ C1 — the granted id when one was asked for
 
                 // 3. Create an isolated DDS Participant with a unique Instance ID
                 var participant = HrotEnvironment.CreateParticipant(config.DomainId);
@@ -276,7 +302,7 @@ class Program
             //   why. ⭐ The default lives in ONE place (the [Option] attribute); this is only the
             //   unwrap, and it agrees with it.
             ResetLayoutOnRun = config.ResetLayout ?? true,
-            NodeIdResolver = ResolveAppNodeId,
+            NodeIdResolver = ResolveNodeId,   // ⭐ C1
         };
 
         // ── Create + run orchestrator ─────────────────────────────────────────

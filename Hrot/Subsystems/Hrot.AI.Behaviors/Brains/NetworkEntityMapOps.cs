@@ -9,7 +9,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <c>FunctionCall</c> nodes (see <c>docs/blueprints/AimAndFireSpecific_Slice_Design.md</c>,
     /// architect Q6-B). Resolves a replicated <c>TargetNetworkId</c> to a local <see cref="Entity"/>
     /// via the <c>NetworkEntityMap</c> world-singleton -- the first slice needing the target-resolve
-    /// capability. Does not modify or replace the C# oracle (<c>HillAttackTankNodes</c>).
+    /// capability. (The C# oracle it mirrored, <c>HillAttackTankNodes.Action_AimAndFireSpecific</c>, is retired by <c>CE-2230</c>.)
     /// </summary>
     public static class NetworkEntityMapOps
     {

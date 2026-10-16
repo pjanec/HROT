@@ -22,6 +22,7 @@ known-conflict: docs/designs/cgf-1/mgmt-DESIGN.md is a 3216-line NEAR-COPY of th
 related-designs:
   - docs/DESIGN_Terrain_Combat_Tuning.md — §5a: the terrain NAME in the recording metadata (CE-3118) and the user ruling
     behind §13.3a's scenario copy (CE-3119).
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — reuses §12.5/§12.6's gateway push for a ONE-node late-join catch-up (§4-E2 there), and records that the as-built gateway copies into a shared staging tree rather than into each node. ⚠ Its §4-E/§4-I choose a MASTER-DRIVEN join where §5 here designs a node-driven one, and keep §4.2's `TransactionEpoch` (never written as-built) as telemetry only — OPEN until §4-I is approved.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — the terrain/zone/asset model (Area entities, the
     entity-is-the-definition rule, PrepareTerrainAsset/CommitTerrainAsset and the road compile).
   - docs/designs/replay-and-modules/DESIGN.md — §2.1a–§2.1m: replay ISOLATION as built, the measured gap

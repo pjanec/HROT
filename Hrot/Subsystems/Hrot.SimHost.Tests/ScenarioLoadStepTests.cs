@@ -71,7 +71,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         ClusterState target = ClusterState.LoadingLive,
         string? scenarioId = "scn1",
         bool isNew = false)
-        => new(txId, target, scenarioId, TkbName: null, TerrainName: null,
+        => new(txId, target, scenarioId, TerrainName: null,
                ExerciseId: Guid.Empty, IsNewScenario: isNew);
 
     private string SerializeGold()

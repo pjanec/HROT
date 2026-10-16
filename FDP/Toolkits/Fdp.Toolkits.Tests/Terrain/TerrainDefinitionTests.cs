@@ -49,15 +49,16 @@ public sealed class TerrainDefinitionTests
     }
 
     [Fact]
-    public void Serialize_WithBothNames_CarriesBoth()
+    public void Serialize_CarriesTheTerrainName_AndNeverATkbName()
     {
+        // ⛔ R-4018 — was "with both names, carries both"; a scenario never names a TKB.
         ComponentTypeRegistry.Clear();
         using var repo = new EntityRepository();
 
         var dom = new ScenarioSerializerBuilder("Hrot.SimHost").Build()
-            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TkbName: "Alpha_v1", TerrainName: "kandahar"));
+            .Serialize(repo, new ScenarioHeader("Hrot.SimHost", TerrainName: "kandahar"));
 
-        Assert.Equal("Alpha_v1", dom["Header"]!["TkbName"]!.GetValue<string>());
+        Assert.Null(dom["Header"]!["TkbName"]);
         Assert.Equal("kandahar", dom["Header"]!["TerrainName"]!.GetValue<string>());
     }
 

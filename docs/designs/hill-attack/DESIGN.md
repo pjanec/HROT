@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-13 (R-2006)
-current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
-stale-below: nothing.
+updated: 2026-10-16 (CE-2230 built)
+current-answer: ⭐ §0 (CE-2230, BUILT 2026-10-16 — the tank run IS the vehicle exposure cycle's lane mode; one round then back, pairs crest together and alternate, R-2022; §0.5 the slices as built). §1, §2, §4–§6 still describe the commander, the area query and the contracts; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
+stale-below: ⛔ HISTORY at the bottom (the pre-CE-2230 tank run, §3.1–§3.2).
 known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) (the `PlatoonHillAttackBpAuthoring` mention near §4 is history) · ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
   destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
   fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
@@ -10,7 +10,7 @@ known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are
   C# commander — staging reserves nothing, see §2.3. The blueprint twin keeps the old behaviour by user ruling).
 known-conflict: none.
 related-designs:
-  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the repeatable vehicle exposure (the hill attack is re-pointed at it later); ⚠ measured: AI reverse is clamped to ≥ 0 (BicycleModel.cs:34), so ReverseToBaseline is assumed not to reverse — V5
+  - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the repeatable vehicle exposure — owns the cycle the hill attack's run now IS (lane mode, CE-2230 §0); the reverse is V5's
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — generalises HullDownAttackRun's one exposure into a repeatable urban hide / expose / reverse cycle (V4)
   - ../brain-split/BS-1-DESIGN.md — §5.1a: the generic AimAndFireExecutor's no-fire guards (CE-321), which reuse CombatLife.
   - ../../blueprints/DESIGN_Entity_Reference.md — §6.1's `TargetAreaNetworkId` is an `EntityRef` (2026-10-03), no longer `long` + attributes.
@@ -31,6 +31,144 @@ engaging enemies in a designated target area, and cycling until the area is clea
 
 The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented Design
 (DOD) constraints, occurrence-scoped storage, and the 256 component-type limit.
+
+---
+
+## §0 — CE-2230: the tank run rebuilt on the vehicle exposure cycle *(BUILT `2026-10-16` — H-1, H-2, H-3, H-5; HA-3 ruled by the user, R-2022)*
+
+> 🔒 **User, `2026-10-16`:** *"Hill attack needs Complete ground-up rework … the tanks that are creeping forward, they should stop as
+> soon as they see the targets that are supposed to be under the hill, so the tanks are not exposed in full to enemy fire. They go just
+> as far as they can start firing at the targets. They could also use the full reverse capability now. And they should use the usual
+> behaviors when seeing enemy entities, so picking the targets and picking the correct weapon and firing until the enemy is
+> eliminated. using standard behaviors."*
+
+`build-state: DESIGN` — the phases below (§3–§4) are the build being replaced; this section is the replacement.
+
+### §0.1 INVENTORY *(codebase-memory, `2026-10-16`)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph .*(HullDown\|HillAttack\|HillCrest\|Crest).*` (Class) | 21 | `HillAttackCommanderNodes`, `HillAttackTankNodes`, `HillAttackMutableState`, `HullDownAttackParams/Blackboard/IntentDto/Mapper`, `PlatoonHillAttackParams(+JsonDto)`, `HillAttackGizmo`, `HillCrestHullDownManeuver` (+ tests) |
+| `search_graph .*(HullDown\|HillCrest\|SightHeight\|TurretHeight\|FirstSight\|Crest).*` (Method) | 7 | the tank tree, its params parser, two terrain rails — ⛔ **no "first sight" query exists anywhere** |
+| `grep HillCrestHullDownManeuver\.` (non-test) | 1 | `SquadDrillNames` only — a config stub with **no runner** (`DESIGN_Squad_Tactics`: "nothing runs them") |
+| the engagement path the rework reuses | — | `VehicleFightFromCoverNodes` (hide / expose / engage / reverse, exposure budget, near-miss cut) · `PostureNodes.Fire` (the ONE aimed step, `MountAuto` ⇒ the weapon brain picks weapon and round, M8) · `PostureNodes.UntilTargetDown` + `DesignatedTarget` (a named target ranked first and entered in memory) · `SightNow.Sees` (seen THIS frame) · `LocomotionMoveTo.Issue(reverseAllowed)` (V5 reverse) |
+
+### §0.2 What the build does today — measured
+
+| claim | code — how it IS | design basis — how it was MEANT |
+|---|---|---|
+| the creep stops only for the ONE assigned target, and never looks during the approach | ✅ `HillAttackTankNodes.cs:220-222` (`!isFarPhase && …TargetNetworkId`) | ✅ §3.1 "until the assigned target enters line of sight"; `.dev/_DONE/hill-attack/initial-idea.md`: *"until it sees the target well"* |
+| fire is a bespoke node at a fixed target, ONE round per run | ✅ `:328` `Action_AimAndFireSpecific`; `HillAttackCommanderNodes.cs:476` `MaxRounds = 1` | ⛔ R-261 *"the behaviour names the target; the weapon brain picks weapon and ammo"* — the bespoke node predates it |
+| the reverse works now | ✅ V5 (`DESIGN_Vehicle_Exposure_Cycle` §5): `hill-attack-close` tank 1002 backed 115 m at −10 m/s | ✅ §3.1 phase 4 |
+| the scenarios have NO hill | ✅ `berlin` has no height grid; live `2026-10-16`: `/perception/los` 1001→1006 clear from t = 0; memory stays empty until a tank is ~100 m off (t ≈ 24 s) | ✅ CE-174 ruling: `VisionRange` 100 stands in for the hill; ⛔ the user's `scenarios/hill-attack/` is not to be changed |
+| a real crest exists | ✅ `basic-desert` ridge: x 220–330, crest y = 210 at 10 m, foot y ≈ 160 / 260 (`basic-desert.height.asc`) | ✅ `DESIGN_Terrain_Height` H2 (a hill blocks sight and fire), H4 |
+| stopping at first sight IS hull-down | ✅ sight runs from the TKB eye (`SensorMount`, tank 2.5 m — `/perception/los` `eyeHeight`) and is one segment both ways | ✅ R-246 *"if your eye sees out, your head shows"* — at the first sight only the turret top clears the crest |
+
+### §0.3 The design — **one cycle, a second way to expose**
+
+The hill run IS the exposure cycle (`R-256` L1(d): one implementation per concept), with the commander supplying what the cycle
+otherwise searches for: the **hide** is the tank's baseline slot, and the **exposure** is a drive along a LANE (from the firing slot,
+along the attack direction) that ends the moment the tank SEES a target — instead of a drive to an EQS firing point.
+
+```mermaid
+classDiagram
+  class PlatoonHillAttack { <<existing BTree, commander>> waves · area query · slots }
+  class HullDownAttackRun { <<existing BTree name, REBUILT>> ONE node: VehicleFightFromCover(lane) }
+  class HullDownRunConfig { <<new block>> fight : VehicleFightFromCoverParams }
+  class VehicleFightFromCoverParams { <<existing, + lane fields>> +GivenHide · +LaneStart · +LaneDir · +Approach/CreepSpeed · +MaxExposures · +DesignatePacked }
+  class VehicleFightFromCoverNodes { <<existing>> Choose · MoveToHide · Hidden · Exposing · Engaging · Withdrawing }
+  class LaneExposure { <<new private step>> approach → creep → stop on SightNow.Sees }
+  class PostureNodes { <<existing>> Fire(target, MountAuto) · Designate (extracted from UntilTargetDown) }
+  class DesignatedTarget { <<existing>> the commander's pick ranked first }
+  class HullDownAttackParams { <<existing DTO, trimmed>> Slot · Baseline · AttackDir · Target · Speeds }
+  class HillAttackTankNodes { <<existing — 5 nodes RETIRED>> ResolveHullDownAttackRun (curated resolver) only }
+  PlatoonHillAttack ..> HullDownAttackParams : dispatches (intent HullDownAttack)
+  HullDownAttackRun --> HullDownRunConfig : block
+  HullDownAttackRun --> VehicleFightFromCoverNodes : lane mode
+  VehicleFightFromCoverNodes --> PostureNodes : Designate(DesignatePacked)
+  VehicleFightFromCoverNodes --> LaneExposure : when LaneDir ≠ 0
+  VehicleFightFromCoverNodes --> PostureNodes : Fire
+  PostureNodes --> DesignatedTarget
+  HullDownAttackParams ..> HullDownRunConfig : ResolveHullDownAttackRun
+```
+*What the picture shows that prose hid: nothing new beside one private step — the commander, the cycle, the fire step and the
+designation all exist; the tank's five bespoke nodes go.*
+
+```mermaid
+sequenceDiagram
+  participant C as PlatoonHillAttack
+  participant T as HullDownAttackRun (tank)
+  participant N as VehicleFightFromCover (lane)
+  participant L as LocomotionMoveTo
+  participant F as PostureNodes.Fire / weapon brain
+  C->>T: HullDownAttack {slot, baseline, dir, target, goAt} — one goAt for the whole wave (H-5)
+  T->>N: ResolveHullDownAttackRun: payload → lane params (one round, one exposure, reverse)
+  N->>N: Designate(DesignatePacked): ranked first, entered in memory
+  N->>N: Choose: hide = the given baseline slot (no hide query)
+  N->>L: drive to the hide · Hidden (gun tracking the reported target) until goAt — the pair leaves together
+  N->>L: Exposing: approach the lane start, then creep along dir
+  loop every tick of the creep
+    N->>N: SightNow.Sees(locked target)? (any body point clear)
+  end
+  N->>L: seen → Stop (hull-down: only the turret clears the crest)
+  N->>F: Fire(target, MountAuto) — the weapon brain picks gun and round (M8)
+  F-->>N: ONE round left (RoundsPerExposure = 1, HA-3)
+  N->>L: Withdraw: REVERSE to the hide (V5) — on a hit / near miss before the round, at once
+  N-->>T: MaxExposures reached (or nothing left to fight) → back in the hide → Success
+  T-->>C: run ended (BehaviorFinished) · wave completion as today (§4.5)
+```
+*What the picture shows: the stop is a sight test on EVERY creep tick (today: none during the approach), and the run ends through the
+cycle's own withdraw — no separate retreat node.*
+
+```mermaid
+graph TD
+  REG["curated registrar (Hrot.AI.Behaviors)"] -->|registers| HDA["HullDownAttackRun tree"]
+  REG -->|registers| VFC["VehicleFightFromCover node (shared)"]
+  BTS["BrainTickSystem — CGF brain, every frame"] -->|ticks| PHA["PlatoonHillAttack (commander)"]
+  BTS -->|ticks| HDA
+  PHA -->|AssignTacticalIntentEvent| TIR["TacticalIntentResolutionSystem (CGF)"]
+  TIR -->|HullDownAttackMapper| HDA
+  HDA --> VFC
+  VFC -->|LocomotionChannel| LOC["locomotion executor (SimHost)"]
+  VFC -->|WeaponChannel| AAF["AimAndFireExecutor + AmmoChoice (SimHost)"]
+  SNS["perception → ActiveSensorTracks (brain)"] -->|SightNow.Sees| VFC
+```
+*Who calls it each frame: `BrainTickSystem` on the CGF brain ticks both trees; the SimHost executors act on the channels. No new
+system, no new registration — the only edge that changes is HullDownAttackRun → VehicleFightFromCover.*
+
+### §0.4 Decisions — lean per item *(the user approves or names the one to change)*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **HA-1** | where the tank run lives | ⭐ **inside the exposure cycle**: `VehicleFightFromCover` gains a LANE exposure (given hide + lane start + direction) and `MaxExposures`; `HullDownAttackRun` becomes `Sequence{ Parallel(1){UntilTargetDown ‖ cycle(lane, 1 exposure)}, reverse home }` | the shared cycle gains 4 params, all zero = today's behaviour (every existing vehicle demo unchanged); the 5 tank nodes and their 2 deactivator test classes are deleted | if the cycle's urban rules (hide heat, scoot, relocate) fight the lane — then a sibling node reusing the cycle's steps |
+| **HA-2** | when the creep stops | ⭐ **the first tick the tank SEES its locked target** (`SightNow.Sees` — any body point clear), checked through the WHOLE drive, approach included; the 50 m overshoot cap stays (CE-174) | lane mode only | if "first sight" proves too early (one pixel of the target) — then require ≥ 2 body points, a one-line change |
+| **HA-3** | how long it stays up | ✅ **USER, `2026-10-16` — ONE ROUND, THEN BACK INTO COVER** (shoot and duck): the cycle's `RoundsPerExposure = 1` at its target, then the reverse; a hit or near miss before the round sends it back at once, and the cycle's exposure budget stays ON (the standard rule). The PAIRS alternate — one pair comes up, fires, goes back; the next pair comes up — until every target is dead. 🔒 *"the tank doesn't stay up until there is anything to fire at. The tank is firing just one round and then moving back to cover. Because if it would stay, it would be exposed to enemy fire, which is the goal not to be. So the tanks go in pairs, usually. They reach the crest of the hill, they fire at their target and they go back. And another pair comes up the hill and does the same procedure. And they alternate like that until all targets are dead."* ⛔ SUPERSEDED lean: *"until nothing it SEES is alive"* | lane mode only | — |
+| **HA-4** | target and weapon | ⭐ **the commander's pick is a DESIGNATION** (ranked first, entered in memory so the tank tracks it from behind the crest); the weapon brain picks the gun and the round (`MountAuto`, M8); the ONE round is the cycle's `RoundsPerExposure = 1` (HA-3), counted by the executor | the commander's dispatch DTO drops `MaxRounds`/`RoundsFired`/`LastObservedAmmo` (the bespoke ammo-diff counter) | none expected — R-261 |
+| **HA-5** | the commander | ⭐ **kept as it is** — its waves ARE the alternating pairs (HA-3): `Entity.Index` parity splits a platoon of four into two pairs (§4.4), each wave one exposure per tank, the loop runs until the area query finds no live target; area query, slots, burned slots, return to baseline unchanged — only its dispatch payload changes | `HillAttackCommanderNodes` dispatch only | if you want the squad-manoeuvre runner instead — it does not exist (`HillCrestHullDownManeuver` is a stub); that is its own programme |
+| **HA-6** | the demo | ⭐ **a new `ua-hill-attack` on `basic-desert`'s ridge** (platoon south of it, two enemy tanks north, beyond the crest), with a live check: no tank's hull above the crest when it fires, every tank reverses, both enemies die; `hill-attack` / `hill-attack-close` stay untouched (CE-174) and keep running | a new scenario + checker entry | if you would rather the existing scenarios move to the ridge |
+
+**Rejected:** a new hill-only fire node — duplicates `PostureNodes.Fire` (R-256 L1(d)) · the squad-manoeuvre `HillCrestHullDown` —
+no runner exists · an EQS "hull-down point" query — the lane already gives the line, and the sight test is exact where a sampled
+query is not · moving `hill-attack` to a real hill — CE-174 keeps the user's scenario as it is.
+
+**Design docs checked:** `DESIGN_Vehicle_Exposure_Cycle` — applies: owns the cycle, already says the hill attack is re-pointed at it,
+and asks for "the nearest point that sees the target" to be designed once (§6 open point) — the LANE is that answer on open ground,
+the town keeps its EQS ring · `DESIGN_Urban_Armour_Tactics` — applies: D-I (the behaviour never names a round), D-J (a tank reverses) ·
+`DESIGN_Missiles_And_Ammo` §2a — applies: M8 round choice inside the executor · `DESIGN_Peek_And_Fire` G8 — does not: infantry only,
+"hull-down is its own manoeuvre" · `Squad_Coordination_Design_v1_1` §8.4 — does not: a manoeuvre table with no runner ·
+`REVIEW_Behaviour_Library_Genericity` L5/§6 — superseded in part: it kept the hill fire and reverse demo-local; this retires them into
+the library cycle.
+
+### §0.5 Slices *(after approval)*
+
+| slice | what | rails |
+|---|---|---|
+| **H-1** ✅ BUILT `2026-10-16` | the cycle's lane mode: `UseGivenHide`/`GivenHide`, `LaneStart`/`LaneDir`, `ApproachSpeed`/`CreepSpeed`/`MaxOvershootMetres`, `MaxExposures`; the lane step `LaneStatus`; a lane attempt with no sight still counts as the run; with a given hide "nothing left to fight" backs into the hide first; a given hide asks no hide query, a lane no firing-point query; `LocomotionMoveTo.Issue(onSurface)` for 2-D slots | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · one round, then the reverse to the given hide · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
+| **H-2** ✅ BUILT `2026-10-16` | `HullDownAttackRun.btree.json` is ONE node — `VehicleFightFromCover` bound to `Params.fight` of the new block `HullDownRunConfig`; the curated resolver `HillAttackTankNodes.ResolveHullDownAttackRun` turns the commander's `HullDownAttackParams` into the lane run (baseline = given hide, slot + attack dir = lane, network id → `DesignatePacked`, one round, one exposure, reverse); `HullDownAttackParams` trimmed to 40 bytes; the 5 tank nodes, their deactivators, parser, constants and code tree deleted. ⚠ **Deviation from HA-1's sketch** *(`Sequence{Parallel(1){UntilTargetDown ‖ cycle}, reverse home}`)*: the cycle carries the designation (`DesignatePacked`, through the extracted `PostureNodes.Designate`) and backs into the given hide itself when nothing is left — so the tree needs no decorator, no Parallel and no second reverse node | `HillAttackNodeTests.CE304_TheCommandersPayload_LandsInTheRootSlot_AsTheLaneRun` (the real chain: event → ingress → resolver → root slot) · `SC_HA013_4` (the cycle node is resource-owning) · `HillAttackIntegrationTests` (the feature's own suite) · `CE472` / `BTreeCallShapeTests` / `HillAttackDtosTests` re-homed |
+| **H-3** ✅ BUILT `2026-10-16` | `scenarios/ua-hill-attack` (basic-desert: four M1s south of the ridge, baseline y 140, firing line y 180; two idle T-72s north at y 380–395 inside the target area) + `run_hill_attack` in `scripts/utility-demo-check.py`; the runbook row | 📐 live, first run: PASS — 6 rounds, every one from y≈205 (crest 210: hull-down); 6 exposures, ONE round each; every finished exposure backed home nose-north (reverse); both T-72s dead at 136 s, no tank hit |
+| **H-5** ✅ BUILT `2026-10-16` | ⚠ **found live in H-3: the pair did not crest TOGETHER** (12–20 s apart). 📐 Two causes, measured with a per-second probe: ① the wave members left their hides at different times; ② each first drove up to 80 m ALONG the baseline to the slot nearest its random firing slot (`Action_DispatchWaveWithTargets`, CE-202 scatter), arrived facing the wrong way and spent 10–15 s turning. ⭐ Built: ① ONE go time per wave — the commander holds the wave's orders until all are known and stamps `HullDownAttackParams.GoAt` = now + the slowest member's drive to its hide + 2 s settle; the resolver passes it as `VehicleFightFromCoverParams.HoldUntil`; `Hidden` does not drive out before it · ② the HIDE is where the tank already stands on the baseline (within 25 m of it; off it, the slot as before) — out diagonally to its lane, a straight reverse back. The firing-slot scatter and the slot masks are unchanged. Rejected: a two-step wave (send to hides, wait, release) — more commander tree surgery for what one shared time does; a per-tank "ready" handshake — cross-entity state the cycle does not hold | `HillAttackNodeTests.CE2230_H5_AWavesOrders_ShareOneGoTime_PastTheSlowestDriveToItsHide` (one go time; own spot; off-baseline ⇒ slot) · `VehicleFightFromCoverNodesTests.CE2230_H5_TheHullWaitsInItsHide_UntilTheWavesGoTime` — both red-proved · live `ua-hill-attack` ③b: 6 of 6 exposures crest with their mate within 6 s; both T-72s dead at 73 s (was 136 s) |
+| **H-6** ✅ BUILT `2026-10-16` | 🔒 **User, `2026-10-16` (R-2023):** *"It is also important that for the next turn, the new tank pair appears at a different location than the previous one, so the enemy cannot aim and wait for the tank to reappear at the same place."* 📐 Before: the firing slot was random among the free ones, and a slot leaves the pool only when a tank DIES there, so the next pair could come up where the last one fired. ⭐ **Built — four parts, each forced by a measurement:** ① the commander remembers where the last TWO waves came up (`HillAttackMutableState.LastFireAlong` / `PrevFireAlong`, metres along the firing line; the state 120 → 192 bytes) — 📐 live, a pair once came back to its own spot two waves later, the wave between having fired nothing; ② `PickFiringPoint` scans candidates across every non-burned slot, shifted ± 0.4 of the slot pitch, in two tiers: only those ≥ 12 m (or the best the line allows) from the last pair and the mate survive, then the wave before (weight 1.5) decides, drawn at random among the near-best — unpredictable, never close (📐 a best-of-12 random draw landed 7.2 m off; one weighted score for both waves let the last pair slip to 8.8 m); ③ a pair needs distinct POINTS, not slots — the mate's slot is no longer blocked (📐 after a wave at both ends of a 3-slot line, the second tank was left 5.3 m from an end); ④ the lane creep starts AT the lane start and runs ON the lane line (`VehicleFightFromCoverNodes.LaneStatus`) — 📐 started 15 m short, on the diagonal from the hide, a tank crested up to ~10 m beside its commanded point. The demo's firing line is the full-height crest (x 232–318, 86 m; was 70 m — four earlier points plus the mate do not fit 12 m apart on 70) | `HillAttackNodeTests.CE2230_H6_ANewPair_NeverComesUpWhereTheLastPairDid` (40 waves on the demo's 86 m line: ≥ 10 m from the last pair, ≥ 6 m from the one before; ⚠ on a 70 m 3-slot line only the last-pair rule can be held — four earlier points plus the mate do not fit) · `CE2230_H6_AfterAPairAtBothEnds_TheNextPairStillFindsNewGround` (40 sim times, through the dispatcher) · `VehicleFightFromCoverNodesTests.CE2230_H6_FromAHideBesideTheLane_TheHullCrestsOnTheLane_NotBesideIt` — each red-proved (history ignored / mate's slot blocked / the old creep start) · live `ua-hill-attack` ⑥, three runs: PASS — nearest to the last pair 12.5–25.1 m, to the pair before 7.7–11.0 m; every other check green |
+| **H-4** ✅ `2026-10-16` | the as-built folded into §0 and §2.2; the old tank run (§3.1–§3.2) moved to ⛔ HISTORY — §4 (the commander) stays live | — |
 
 ---
 
@@ -221,7 +359,7 @@ a 16-subordinate platoon).
 
 ### 2.2 Subordinate Tank DTOs
 
-**`HullDownAttackParams`** (40 bytes):
+**`HullDownAttackParams`** (48 bytes since `CE-2230` H-5 — `GoAt` (double, the wave's go time) at offset 40; `MaxRounds` / `RoundsFired` / `LastObservedAmmo` removed in H-2):
 - Firing slot: `SlotX`, `SlotY` (8 bytes).
 - Baseline slot: `BaselineX`, `BaselineY` (8 bytes).
 - Attack direction: `AttackDirX`, `AttackDirY` (8 bytes).
@@ -231,7 +369,7 @@ a 16-subordinate platoon).
   inside behavior nodes at runtime; the unmanaged params struct never stores a local
   generational entity pointer.
 
-**`HullDownAttackBlackboard`** — single-field wrapper containing `Params`.
+⛔ **`HullDownAttackBlackboard`** — removed (`CE-2230` H-2); the run's block is `HullDownRunConfig { fight }` (§0). ⚠ The baseline coordinates are the tank's HIDE: since H-5 the spot it already stands on when within 25 m of the baseline, else the slot (§0.5).
 
 ### 2.3 Architectural Notes on 1D Slot Parameterization
 
@@ -266,65 +404,7 @@ every attacker of a wave return to the same slot (`CE-460`). ⚠ The blueprint t
 
 **Goal:** Implement the subordinate tank behavior and its tactical intent mapper.
 
-### 3.1 Behavior Summary
-
-The `HullDownAttackRun` behavior drives a single tank through a four-phase attack run:
-
-1. **Approach** — navigate at `ApproachSpeed` toward the rough firing slot.
-2. **Creep and Scan** — slow tactical creep along the attack direction vector, continuing
-   past the rough slot until the assigned target enters line of sight. If the tank
-   overshoots the slot by more than a defined tactical limit (default 50 m) without
-   acquiring the target, `Action_CreepToAndBeyondSlot` returns `NodeStatus.Failure`,
-   aborting the engagement attempt. The BTree topology guarantees `Action_ReverseToBaseline`
-   still executes via an overshoot fallback node (see 3.2).
-3. **Engagement** — halt forward movement, aim, and fire at the specific assigned target.
-4. **Retreat** — reverse to the assigned baseline slot using `ReverseAllowed`.
-
-Phases 1 and 2 are handled by a single action (`Action_CreepToAndBeyondSlot`) with an
-internal distance check, interrupted by a `Selector` the moment `Condition_HasTarget`
-succeeds. The tank never scans opportunistically. `Condition_HasTarget` resolves
-`p.TargetNetworkId` to a local ECS entity via `NetworkEntityMap`, then scans
-`TargetMemory` for that entity.
-
-### 3.2 BTree Topology
-
-```
-Sequence
-  Selector
-    // Engagement path: creep until target visible, then fire
-    Sequence
-      Selector
-        Condition_HasTarget          // succeeds when assigned target is in TargetMemory
-        Action_CreepToAndBeyondSlot  // Running while creeping; Failure when overshoot limit exceeded
-      Action_AimAndFireSpecific      // [WritesChannel(Weapon)]
-    // Overshoot fallback: engagement path failed; proceed unconditionally to reverse
-    Action_AbortEngagement           // always returns NodeStatus.Success immediately
-  Action_ReverseToBaseline           // [WritesChannel(Locomotion)] — guaranteed to run
-```
-
-The outer `Selector` has two children. The first (the engagement `Sequence`) succeeds
-when a target was found and fired upon. If it fails for any reason — including
-`Action_CreepToAndBeyondSlot` returning `Failure` on overshoot — the second child
-`Action_AbortEngagement` succeeds immediately, ensuring the outer `Selector` always
-succeeds and `Action_ReverseToBaseline` always executes.
-
-The Roslyn-generated failure-reset wrapper on `Action_CreepToAndBeyondSlot` (via
-`[WritesChannel(Locomotion)]`) clears the `LocomotionChannel` automatically whenever the
-action is preempted or returns `Failure`.
-
-`Action_AbortEngagement` is a trivial one-line node with no channel writes:
-`return NodeStatus.Success;`
-
-`Action_AimAndFireSpecific` resolves `p.TargetNetworkId` via `NetworkEntityMap` to a
-local `Entity`, writes it to `WeaponChannel`, then returns `NodeStatus.Running` while
-the weapon channel reports the engagement in progress. It returns `NodeStatus.Success`
-when either the weapon channel confirms the engagement concluded OR
-the target is knocked out (`!CombatLife.IsAlive`, `CE-466`) — because standard executors do not natively detect target
-destruction and would leave the node stuck in `Running` indefinitely.
-
-`Action_ReverseToBaseline` writes the reverse locomotion intent to `LocomotionChannel`.
-It returns `NodeStatus.Running` while `LocomotionChannel.Status == NodeStatus.Running`
-and `NodeStatus.Success` when `LocomotionChannel.Status == NodeStatus.Success`.
+⭐ **`CE-2230` — the run is §0's: ONE node, the vehicle exposure cycle in its lane mode** (`HullDownAttackRun.btree.json` → `VehicleFightFromCover` bound to `HullDownRunConfig.fight`, filled by `HillAttackTankNodes.ResolveHullDownAttackRun`). ⛔ The four-phase topology and its five bespoke nodes are in **⛔ HISTORY** at the bottom.
 
 ### 3.3 ITacticalOrderMapper: HullDownAttackMapper
 
@@ -564,3 +644,68 @@ ParseParams = (json, ptr) => ParsePlatoonHillAttackParams(json, ptr, geoTransfor
 
 `geoTransform` and `entityMap` are injected into `AiBehaviorFactory` at construction
 time from the DI container.
+
+## ⛔ HISTORY
+
+### ⛔ §3.1–§3.2 — the pre-`CE-2230` tank run *(SUPERSEDED `2026-10-16` by §0; the nodes are deleted — do not quote as current)*
+
+#### 3.1 Behavior Summary
+
+The `HullDownAttackRun` behavior drives a single tank through a four-phase attack run:
+
+1. **Approach** — navigate at `ApproachSpeed` toward the rough firing slot.
+2. **Creep and Scan** — slow tactical creep along the attack direction vector, continuing
+   past the rough slot until the assigned target enters line of sight. If the tank
+   overshoots the slot by more than a defined tactical limit (default 50 m) without
+   acquiring the target, `Action_CreepToAndBeyondSlot` returns `NodeStatus.Failure`,
+   aborting the engagement attempt. The BTree topology guarantees `Action_ReverseToBaseline`
+   still executes via an overshoot fallback node (see 3.2).
+3. **Engagement** — halt forward movement, aim, and fire at the specific assigned target.
+4. **Retreat** — reverse to the assigned baseline slot using `ReverseAllowed`.
+
+Phases 1 and 2 are handled by a single action (`Action_CreepToAndBeyondSlot`) with an
+internal distance check, interrupted by a `Selector` the moment `Condition_HasTarget`
+succeeds. The tank never scans opportunistically. `Condition_HasTarget` resolves
+`p.TargetNetworkId` to a local ECS entity via `NetworkEntityMap`, then scans
+`TargetMemory` for that entity.
+
+#### 3.2 BTree Topology
+
+```
+Sequence
+  Selector
+    // Engagement path: creep until target visible, then fire
+    Sequence
+      Selector
+        Condition_HasTarget          // succeeds when assigned target is in TargetMemory
+        Action_CreepToAndBeyondSlot  // Running while creeping; Failure when overshoot limit exceeded
+      Action_AimAndFireSpecific      // [WritesChannel(Weapon)]
+    // Overshoot fallback: engagement path failed; proceed unconditionally to reverse
+    Action_AbortEngagement           // always returns NodeStatus.Success immediately
+  Action_ReverseToBaseline           // [WritesChannel(Locomotion)] — guaranteed to run
+```
+
+The outer `Selector` has two children. The first (the engagement `Sequence`) succeeds
+when a target was found and fired upon. If it fails for any reason — including
+`Action_CreepToAndBeyondSlot` returning `Failure` on overshoot — the second child
+`Action_AbortEngagement` succeeds immediately, ensuring the outer `Selector` always
+succeeds and `Action_ReverseToBaseline` always executes.
+
+The Roslyn-generated failure-reset wrapper on `Action_CreepToAndBeyondSlot` (via
+`[WritesChannel(Locomotion)]`) clears the `LocomotionChannel` automatically whenever the
+action is preempted or returns `Failure`.
+
+`Action_AbortEngagement` is a trivial one-line node with no channel writes:
+`return NodeStatus.Success;`
+
+`Action_AimAndFireSpecific` resolves `p.TargetNetworkId` via `NetworkEntityMap` to a
+local `Entity`, writes it to `WeaponChannel`, then returns `NodeStatus.Running` while
+the weapon channel reports the engagement in progress. It returns `NodeStatus.Success`
+when either the weapon channel confirms the engagement concluded OR
+the target is knocked out (`!CombatLife.IsAlive`, `CE-466`) — because standard executors do not natively detect target
+destruction and would leave the node stuck in `Running` indefinitely.
+
+`Action_ReverseToBaseline` writes the reverse locomotion intent to `LocomotionChannel`.
+It returns `NodeStatus.Running` while `LocomotionChannel.Status == NodeStatus.Running`
+and `NodeStatus.Success` when `LocomotionChannel.Status == NodeStatus.Success`.
+

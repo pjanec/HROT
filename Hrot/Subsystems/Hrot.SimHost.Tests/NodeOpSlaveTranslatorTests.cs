@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -56,6 +57,48 @@ public sealed class NodeOpSlaveTranslatorTests
         Assert.Single(intents);
         Assert.Equal(FdpNodeOpType.PrepareLive, intents[0].Operation);
         Assert.IsType<EditLoadHandlerPayload>(intents[0].DomainPayload);
+    }
+
+    // ── C2 (Q91 §4-I I5, R-4006): the node reads the cluster SESSION, and learns when the master is gone ───────────
+
+    /// <summary>
+    /// ⭐⭐ C2 — a node's translator turns the master's cluster-state sample into a bus event carrying the SESSION, and the
+    /// master's writer going away into a <c>MasterGone</c> event. ⛔ Before: no node but ExCon read this topic at all.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterState_ReachesTheNodeWithItsSession_AndTheWriterGoingAwayIsMasterGone()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var cmdReader       = new DdsReader<NodeOpCommand>(participant);
+        using var statusWriter    = new DdsWriter<NodeOpStatus>(participant);
+        using var heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
+        using var stateReader     = new DdsReader<ClusterStateTopic>(participant);
+        var stateWriter           = new DdsWriter<ClusterStateTopic>(participant);
+
+        var bus        = new FdpEventBus();
+        var translator = new NodeOpSlaveTranslator(cmdReader, statusWriter, heartbeatWriter, bus, nodeId: 5,
+            clusterStateReader: stateReader);
+        Thread.Sleep(400);
+
+        var session = Guid.NewGuid();
+        stateWriter.Write(new ClusterStateTopic { CurrentState = NedClusterState.Idle, SessionId = session });
+        Thread.Sleep(300);
+        translator.Tick();
+        bus.SwapBuffers();
+        var seen = Assert.Single(bus.ReadManaged<ClusterStateUpdateEvent>());
+        Assert.Equal(session, seen.SessionId);
+        Assert.False(seen.MasterGone);
+
+        stateWriter.Dispose();   // ⭐ the master process ends
+        bool gone = false;
+        for (int i = 0; i < 20 && !gone; i++)
+        {
+            Thread.Sleep(100);
+            translator.Tick();
+            bus.SwapBuffers();
+            gone = bus.ReadManaged<ClusterStateUpdateEvent>().Any(e => e.MasterGone);
+        }
+        Assert.True(gone, "the master's writer going away must reach the node as MasterGone");
     }
 
     // ── Test 2: DDS NodeOpCommand (different nodeId) → no intent ─────────────
