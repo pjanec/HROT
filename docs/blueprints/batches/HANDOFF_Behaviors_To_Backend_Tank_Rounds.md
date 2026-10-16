@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — behaviors → backend: a tank's HE / HEAT rounds fly through soft targets, and one of its rounds hit its own hull (CE-2203, CE-2204)
 
-**Dispatched at the commit that adds this file** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
+**Dispatched at `923fc9352`** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
 
 ## The measurement (live `ua-tank-ammo`, basic-desert, `2026-10-16`)
 
