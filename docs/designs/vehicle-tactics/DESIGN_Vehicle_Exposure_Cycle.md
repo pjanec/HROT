@@ -379,7 +379,16 @@ from a line of sight, beyond the Kornet's minimum.
 |---|---|---|
 | 4 | the ATGM technical moved to **(185, 295)** — its line to the tank at (200, 120) runs down the street gap (x 170–230), ~176 m, past the Kornet's 100 m | ✅ it fires; the tank's first round goes at it (②); in one run it scooted, in the next the tank killed it (hull, gunner and Kornet at 0 HP) ~2 s after its first missile |
 | 4 | the check's ① required the ATGM technical to drive ≥ 5 m after its shot | ⭐ checker: a technical the tank kills after its shot has done its part — the row above names that ending |
-| 4–7 | ⛔ the HMG technical drives to (285, 230) by 30 s and stays there 100 s, its weapon `Aiming` with no sight (progress 0 / needed 0), never out to a firing point. It shot from (263, 226) when the ATGM technical was still hidden | ⏳ **open**: the HMG's phase is not on the debug API; lean: the tank now turns north to the ATGM first and the HMG's `ToMe` budget never clears — measure the node state next |
+| 4–7 | ⛔ the HMG technical drives to (285, 230) by 30 s and stays there 100 s, its weapon `Aiming` with no sight (progress 0 / needed 0), never out to a firing point. It shot from (263, 226) when the ATGM technical was still hidden | ⛔ the `ToMe`-budget lean was WRONG — see runs 8–9 |
+| 8 | after **CE-2229** (a blind hide is left and burned): the HMG technical still ends at (285, 230) | 📐 geometry: from Block C's south face (y 230) the line to the tank at (200, 120) crosses the L-Block's west column (x 230–255, y 110–170); the nearest point that sees the tank is ~31 m away, outside the 25 m firing ring |
+| 9 | the HMG technical started at (305, 135): it took a hide in the **L-Block's inner corner** (275, 132) and stayed 200 s | ⚠ the L-Block is an L (south bar y 110–130, west column x 230–255), not its bounding box; from the inner corner every line to the tank crosses the L. Start reverted to (270, 215) |
+
+⏳ **Open design point (behaviors, `2026-10-16`) — a hide is chosen with no regard for whether it can be FOUGHT from.** `FindVehicleHide` scores
+"hidden from every threat, near self"; `FindVehicleFiringPoint` then searches only a ~25 m ring round that hide. In a town the nearest hide is often
+deep in a corner whose every line to the target crosses the same block (runs 3, 8, 9). CE-2229 makes the vehicle LEAVE such a hide, but the next
+nearest hide is usually as blind. ⭐ Lean: anchor the search the other way — find where the target can be SEEN first (a donut round self, wider than
+25 m), then the nearest hide within a short drive of that point; ⚠ the hill attack's rework (`CE-2230`, *"stop as soon as they see the targets"*)
+needs the same "nearest point that sees it" query, so it is designed there once, for both.
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the

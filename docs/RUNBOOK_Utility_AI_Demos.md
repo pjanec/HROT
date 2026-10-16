@@ -43,7 +43,7 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 | two clusters | ⛔ never two at once on one machine: they share the DDS domain and contaminate each other's runs |
 | `No space left on device` | every `--mode all` run leaves an exercise recording under `$TMPDIR/FDP_Temp/exercises` (and per-node `.fdp` files) — a long sweep fills a cloud session's disk; `rm -rf /tmp/FDP_Temp/exercises/*` between runs (asked of backend, `2026-10-16`) |
 
-⭐ **Full sweep `2026-10-16`** (after backend's CE-2222 and behaviors' CE-2224…CE-2228): **34 of 35 PASS** live; ⏳ `ua-technical-scoot` (parked for geometry, Exposure Cycle §6) re-run with its ATGM technical moved to (185, 295), where its line to the tank runs down the street gap between the 20 m and 9 m blocks.
+⭐ **Full sweep `2026-10-16`** (after backend's CE-2222 and behaviors' CE-2224…CE-2228): **34 of 35 PASS** live; ⏳ `ua-technical-scoot` (parked for geometry, Exposure Cycle §6) re-run with its ATGM technical moved to (185, 295), where its line to the tank runs down the street gap between the 20 m and 9 m blocks. Re-run after CE-2229: the ATGM half PASSES; the HMG technical still hides where no firing point sees the tank — a design gap in hide choice, carried by CE-2230 (Exposure Cycle §6, runs 8–9).
 
 ## 2. The scenarios
 
