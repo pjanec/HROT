@@ -47,7 +47,7 @@ namespace Hrot.Common.EntityCreation
                 {
                     if (EjectionOf(repo, e) is not { AutoEjectBelowFraction: > 0f } ej) continue;
                     ref readonly var h = ref repo.GetComponentRO<Health>(e);
-                    if (h.Current > 0f && h.Max > 0f && h.Current <= ej.AutoEjectBelowFraction * h.Max) _toEject.Add(e);
+                    if (h.Current > 0f && h.Max > 0f && h.Current <= ej.AutoEjectBelowFraction * h.Max || Wrecked(repo, e)) _toEject.Add(e);   // ⭐ CE-3215
                 }
             foreach (var aircraft in _toEject) Eject(repo, aircraft);
         }
@@ -56,7 +56,7 @@ namespace Hrot.Common.EntityCreation
         {
             if (_ejected.Contains(aircraft) || !repo.IsAlive(aircraft) || !repo.HasComponent<Health>(aircraft)) return;
             ref readonly var health = ref repo.GetComponentRO<Health>(aircraft);
-            if (health.Current <= 0f || !Embarkation.OwnsHealth(repo, aircraft)) return;
+            if (health.Current <= 0f && !Wrecked(repo, aircraft) || !Embarkation.OwnsHealth(repo, aircraft)) return;   // ⭐ CE-3215 — a wreck still ejects
             if (EjectionOf(repo, aircraft) is not { PilotType: > 0 } ej || !repo.HasComponent<SimTransform>(aircraft)) return;
             if (!repo.HasSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()) return;   // no creation here (replay)
             _ejected.Add(aircraft);
@@ -84,6 +84,11 @@ namespace Hrot.Common.EntityCreation
                 repo.Bus.Publish(new DamageAssessedEvent { HitEntity = aircraft, TotalDamage = health.Current });
             Ejections++;
         }
+
+        /// <summary>⭐ <c>CE-3215</c> (hit location §12 S2c-6) — killed in one blow by a CATASTROPHIC part (its tail, an engine): the crew
+        /// still gets out (once — the latch).</summary>
+        private static bool Wrecked(EntityRepository repo, Entity aircraft)
+            => Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, aircraft, WoundEffect.Catastrophic);
 
         private EjectionDto? EjectionOf(EntityRepository repo, Entity e)
         {

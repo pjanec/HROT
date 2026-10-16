@@ -136,6 +136,8 @@ namespace Fdp.Toolkit.Physics.Systems
                                 shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) switch   // ⭐ CE-3211 — a vehicle's parts
                                 {
                                     { Stowed: not null } => Fdp.Toolkit.Physics.BodyParts.WeaponPart.NameOf(hit.BodyPart),   // ⭐ CE-3214 — a weapon's
+                                    { } air when Fdp.Toolkit.Physics.BodyParts.AircraftPart.IsAircraft(air.Plan)
+                                        => Fdp.Toolkit.Physics.BodyParts.AircraftPart.NameOf(hit.BodyPart),   // ⭐ CE-3215 — an aircraft's
                                     not null => Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart),
                                     _ => Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart),
                                 };

@@ -108,6 +108,20 @@ namespace Fdp.Toolkit.Physics.BodyParts
         private static readonly ConditionalWeakTable<TkbTemplate, VehicleShape?[]> s_cache = new();
         private static float s_maxBoundRadius;
 
+        private static readonly ConditionalWeakTable<ITkbDatabase, object> s_primed = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-3215</c> — builds the shape of EVERY type in <paramref name="db"/> once (per database), so <see cref="MaxBoundRadius"/> is
+        /// the catalogue's before the first ray: ⛔ it grew only when a type's shape was first built, in the narrow phase — AFTER the cell walk
+        /// had chosen its pad — so the first rounds at a new helicopter type could miss its tail, ~10 m from its point.
+        /// </summary>
+        public static void Prime(ITkbDatabase? db)
+        {
+            if (db == null || s_primed.TryGetValue(db, out _)) return;
+            foreach (var t in db.GetAll()) Of(t);
+            s_primed.AddOrUpdate(db, db);
+        }
+
         /// <summary>The largest bound radius of any vehicle shape built so far (m) — the cell walk's pad (S2-9).</summary>
         public static float MaxBoundRadius => Volatile.Read(ref s_maxBoundRadius);
 

@@ -24,7 +24,37 @@ public class VehicleBodyParityTests
 {
     /// <summary>The families S2 covers (S2-1), in the generated table's order.</summary>
     private static readonly VisualFamily[] Families =
-        { VisualFamily.Tank, VisualFamily.Afv, VisualFamily.SpArtillery, VisualFamily.WheeledCar, VisualFamily.WheeledUtility };
+        { VisualFamily.Tank, VisualFamily.Afv, VisualFamily.SpArtillery, VisualFamily.WheeledCar, VisualFamily.WheeledUtility,
+          VisualFamily.Helicopter, VisualFamily.AttackHelicopter, VisualFamily.Jet, VisualFamily.AttackJet, VisualFamily.CargoPlane };   // ⭐ CE-3215
+
+    /// <summary>
+    /// ⭐ <c>CE-3215</c> (§12 S2c-2) — an AIRCRAFT kit's part ids, by the index of its colliding parts: the air kits carry no roles that name
+    /// a fuselage, wing, engine or tail, so the map is explicit — and checked (<see cref="CheckAircraftIds"/>): a glass part is the Cockpit,
+    /// a turret / gun role its id, and the map is as long as the kit.
+    /// </summary>
+    private static readonly Dictionary<VisualFamily, byte[]> AircraftIds = new()
+    {
+        [VisualFamily.Helicopter] = new byte[] { 0, 1, 4, 4, 3 },                    // fuselage, cockpit, tail boom, fin, mast
+        [VisualFamily.Jet] = new byte[] { 0, 0, 1, 2, 2, 4, 4, 4, 3 },               // fuselage, nose, canopy, wings, tailplanes, fin, nozzle
+        [VisualFamily.CargoPlane] = new byte[] { 0, 0, 1, 2, 3, 3, 3, 3, 4, 4, 4 },  // fuselage, nose, cockpit, wing, 4 engines, tail, fin, tailplane
+        [VisualFamily.AttackJet] = new byte[] { 0, 0, 6, 1, 2, 3, 3, 4, 4, 4 },      // fuselage, nose, the GAU-8, canopy, wing, 2 engines, tailplane, 2 fins
+        [VisualFamily.AttackHelicopter] = new byte[]                                  // fuselage, nose, sensor ball, 2 canopies, 2 nacelles, pylon, mast,
+            { 0, 0, 1, 1, 1, 3, 3, 3, 3, 4, 4, 4, 2, 2, 7, 7, 7, 7, 5, 6 },          //   boom, fin, stabiliser, 2 stub wings, 2 pods, 2 rails, turret, barrel
+    };
+
+    private static byte IdOf(VisualFamily family, int i, KitPart p) => AircraftIds.TryGetValue(family, out var ids) ? ids[i] : IdOf(p);
+
+    private static void CheckAircraftIds(VisualFamily family, KitPart[] drawn)
+    {
+        if (!AircraftIds.TryGetValue(family, out var ids)) return;
+        Assert.True(ids.Length == drawn.Length, $"{family}: {ids.Length} ids for {drawn.Length} colliding parts — update the map");
+        for (int i = 0; i < drawn.Length; i++)
+        {
+            if (drawn[i].Colour == ColourRole.Glass) Assert.True(ids[i] == AircraftPart.Cockpit, $"{family} part {i} is glass, mapped {AircraftPart.NameOf(ids[i])}");
+            if (drawn[i].Role == PartRole.Turret) Assert.Equal(AircraftPart.Turret, ids[i]);
+            if (drawn[i].Role == PartRole.Gun) Assert.Equal(AircraftPart.Gun, ids[i]);
+        }
+    }
 
     /// <summary>The parts that collide: hull, turret and gun parts (spokes, rotors, gear and limbs do not).</summary>
     private static bool Collides(KitPart p) => p.Role is PartRole.Hull or PartRole.Turret or PartRole.Gun;
@@ -45,7 +75,7 @@ public class VehicleBodyParityTests
     private static readonly (float Az, float El)[] Poses = { (0f, 0f), (0.7f, 0.1f), (-1.9f, 0.25f), (0.3f, 0.436f), (0f, 1.047f) };
 
     [Fact]
-    public void CE3211_TheBoxesTheRoundsMeet_AreThePartsTheMapDraws_ForEveryCatalogVehicle()
+    public void CE3211_TheBoxesTheRoundsMeet_AreThePartsTheMapDraws_ForEveryCatalogVehicle()   // ⭐ CE-3215 — and every catalog aircraft
     {
         if (Environment.GetEnvironmentVariable("HROT_GEN_VEHICLE_BODY") == "1") Generate();
 
@@ -56,11 +86,12 @@ public class VehicleBodyParityTests
             var sim = VehicleBody.KitNamed(family.ToString());
             Assert.True(sim != null, $"{family}: no generated kit — regenerate (HROT_GEN_VEHICLE_BODY=1)");
             var drawn = kit.Parts.Where(Collides).ToArray();
+            CheckAircraftIds(family, drawn);   // ⭐ CE-3215
             Assert.True(drawn.Length == sim!.Parts.Length, $"{family}: {sim.Parts.Length} parts vs {drawn.Length} drawn — regenerate");
             Assert.Equal(ShapeKits.DefaultSize(family), sim.DefaultSize);
             for (int i = 0; i < drawn.Length; i++)
             {
-                Assert.Equal(IdOf(drawn[i]), sim.Parts[i].Part);
+                Assert.Equal(IdOf(family, i, drawn[i]), sim.Parts[i].Part);
                 Assert.Equal(drawn[i].Centre, sim.Parts[i].Centre);
                 Assert.Equal(drawn[i].Extent, sim.Parts[i].Extent);
             }
@@ -95,7 +126,7 @@ public class VehicleBodyParityTests
                 for (int i = 0; i < n; i++)
                 {
                     var m = drawn[i].BodyTransform(look.Size, pivots, pose) * kitToBody;
-                    var want = VehicleBody.BoxOf(IdOf(drawn[i]), drawn[i].Shape == PartShape.Box ? KitShape.Box : KitShape.Cylinder, m);
+                    var want = VehicleBody.BoxOf(IdOf(look.Family, i, drawn[i]), drawn[i].Shape == PartShape.Box ? KitShape.Box : KitShape.Cylinder, m);
                     var got = boxes[i];
                     string at = $"{t.Name} part {i} ({VehiclePart.NameOf(want.Part)}) at az {az} el {el}";
                     Assert.True(Vector3.Distance(want.Centre, got.Centre) < 1e-3f, $"{at}: centre {got.Centre} vs drawn {want.Centre}");
@@ -241,7 +272,8 @@ public class VehicleBodyParityTests
 
     private static void Generate()
     {
-        static string F(float v) => v.ToString("0.#####", CultureInfo.InvariantCulture) + "f";
+        // ⭐ CE-3215 — round-trip: the AH-64's kit is COMPUTED (its own metres ÷ its box), so 5 decimals were not ui's parts exactly
+        static string F(float v) => v.ToString("R", CultureInfo.InvariantCulture) + "f";
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated> by Hrot.Presentation.Tests VehicleBodyParityTests (HROT_GEN_VEHICLE_BODY=1) from ui's ShapeKits —");
         sb.AppendLine("//   do not edit by hand; CE-3211, docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §9 S2-2 </auto-generated>");
@@ -259,14 +291,15 @@ public class VehicleBodyParityTests
             var kit = ShapeKits.For(family);
             var size = ShapeKits.DefaultSize(family);
             var parts = kit.Parts.Where(Collides).ToArray();
-            // the main hull box: the largest hull-id box — where the engine region lies (S2-4)
+            CheckAircraftIds(family, parts);   // ⭐ CE-3215 — a map that no longer fits the kit is not written
+            // the main hull box: the largest hull-id box — where the engine region lies (S2-4); an aircraft has none
             int engine = -1;
             float best = 0f;
             for (int i = 0; i < parts.Length; i++)
             {
                 var p = parts[i];
                 float v = p.Extent.X * p.Extent.Y * p.Extent.Z;
-                if (p.Shape == PartShape.Box && IdOf(p) == VehiclePart.Hull && v > best) { best = v; engine = i; }
+                if (!AircraftIds.ContainsKey(family) && p.Shape == PartShape.Box && IdOf(p) == VehiclePart.Hull && v > best) { best = v; engine = i; }
             }
             sb.AppendLine($"            new(\"{family}\", new({F(size.X)}, {F(size.Y)}, {F(size.Z)}), new({F(kit.Pivots.Turret.X)}, {F(kit.Pivots.Turret.Y)}), " +
                           $"new({F(kit.Pivots.GunTrunnionXZ.X)}, {F(kit.Pivots.GunTrunnionXZ.Y)}), new VehicleKitPart[]");
@@ -274,11 +307,11 @@ public class VehicleBodyParityTests
             for (int i = 0; i < parts.Length; i++)
             {
                 var p = parts[i];
-                byte id = IdOf(p);
+                byte id = IdOf(family, i, p);
                 string role = p.Role switch { PartRole.Turret => "KitRole.Turret", PartRole.Gun => "KitRole.Gun", _ => "KitRole.Hull" };
                 sb.AppendLine($"                new({id}, KitShape.{p.Shape}, new({F(p.Centre.X)}, {F(p.Centre.Y)}, {F(p.Centre.Z)}), " +
                               $"new({F(p.Extent.X)}, {F(p.Extent.Y)}, {F(p.Extent.Z)}), KitAxis.{p.Axis}, {F(p.PitchDegrees)}, {F(p.YawDegrees)}, {role}" +
-                              (i == engine ? ", EngineBox: true" : "") + $"),   // {VehiclePart.NameOf(id)}");
+                              (i == engine ? ", EngineBox: true" : "") + $"),   // {(AircraftIds.ContainsKey(family) ? AircraftPart.NameOf(id) : VehiclePart.NameOf(id))}");
             }
             sb.AppendLine("            }),");
         }

@@ -18,6 +18,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         Mobility = 3,
         /// <summary>⭐ <c>CE-3211</c> (S2-8, R-263) — a vehicle's turret or gun: the firepower kill (<c>CanShoot</c> off).</summary>
         Firepower = 4,
+        /// <summary>⭐ <c>CE-3215</c> (§12 S2c-5, HL-7 / R-263 "destroyed") — a part whose loss ends the body: <c>Health</c> to 0 (an
+        /// aircraft's engine or tail ⇒ the crash, CE-2184).</summary>
+        Catastrophic = 5,
     }
 
     /// <summary>

@@ -636,6 +636,46 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.AddComponent(hmg, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
             Assert.Equal(0, FromLeft(9.95f, 0.11f).HasHit);
         }
+
+        // ── ⭐⭐ CE-3215 (hit location §12 S2c) — a round meets an AIRCRAFT's parts ────────────────────────────────────────────────────
+
+        private const long HeliType = 9315;
+
+        /// <summary>A UH-60-like helicopter (the Helicopter kit at its default 19.8 × 16.4 × 5.1 m) on the ground at (10, 0), facing +x.</summary>
+        private Entity SpawnHelicopter()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("T-test helicopter", HeliType) { DisType = new DISEntityType { Kind = 1, Domain = 2, Category = 21 } };
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 5f, ArmorSide = 5f, ArmorRear = 5f, ArmorTop = 5f });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var heli = SpawnCollider(new Vector2(10f, 0f), radius: 8f, layer: 1);
+            _world.GetComponentRW<PhysicsCollider>(heli).Height = 5.1f;
+            _world.AddComponent(heli, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HeliType });
+            _world.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = 8f });   // a measured grid (production's), not the hand-built pad
+            return heli;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3215</c> (S2c-1, S2c-2) — a round from the side meets the helicopter part it crosses: the cabin is the Fuselage, the glass
+        /// nose the Cockpit, the boom the Tail, the mast the Engine (the drive); a round through the rotor disc away from the mast misses
+        /// (rotors do not collide). 🔴 Red before: one cylinder, every hit "the body".
+        /// </summary>
+        [Fact]
+        public void CE3215_ARound_MeetsTheHelicopterPartItCrosses_TheRotorDiscIsEmpty()
+        {
+            var heli = SpawnHelicopter();
+            var cabin = FromLeft(10f, 1.8f);
+            Assert.Equal((heli, (byte)1, Fdp.Toolkit.Physics.BodyParts.AircraftPart.Fuselage), (cabin.HitEntity, cabin.HasBodyPart, cabin.BodyPart));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.AircraftPart.Cockpit, FromLeft(16.8f, 1.94f).BodyPart);
+            var boom = FromLeft(4.46f, 2.55f);   // 5.5 m off its point: the cell walk's pad must reach it
+            Assert.Equal((heli, Fdp.Toolkit.Physics.BodyParts.AircraftPart.Tail), (boom.HitEntity, boom.BodyPart));
+            Assert.True(boom.BodyPart == Fdp.Toolkit.Physics.BodyParts.AircraftPart.Tail, $"boom: hit {boom.HasHit} part {boom.BodyPart} entity {boom.HitEntity} t {boom.T}");
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.AircraftPart.Engine, FromLeft(11.19f, 3.4f).BodyPart);
+            Assert.Equal(0, FromLeft(8f, 3.7f).HasHit);   // the blades' height, away from the mast
+            Assert.Equal((byte)0, FromLeft(10f, 1.8f, new RaycastSolverSystem { VehicleParts = false }).HasBodyPart);   // the parts off: one body
+        }
 }
 }
 

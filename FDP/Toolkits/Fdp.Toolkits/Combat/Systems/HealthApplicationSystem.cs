@@ -98,6 +98,11 @@ namespace Fdp.Toolkit.Combat.Systems
                         });
                     ref var parts = ref repo.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.PartDamage>(targetEntity);
                     parts.Add(evt.BodyPart, Fdp.Toolkit.Physics.BodyParts.PartDamage.LevelFor(evt.TotalDamage, health.Max));
+                    // ⭐⭐ CE-3215 (hit location §12 S2c-5) — a CATASTROPHIC zone over its threshold (an aircraft's engine or tail) ends the
+                    //   body: Health to 0, the one value every reader of a killed body follows (the fall and crash, CE-2184).
+                    if (health.Current > 0f
+                        && Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, targetEntity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Catastrophic))
+                        health.Current = 0f;
                 }
 
                 // At zero HP: strip mobility and shoot capabilities. ⛔ The entity is NOT destroyed —

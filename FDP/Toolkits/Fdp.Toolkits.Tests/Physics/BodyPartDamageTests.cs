@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Physics.Tests
     /// </summary>
     public sealed class BodyPartDamageTests : IDisposable
     {
-        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5, Tank = 6, Hmg = 7, Atgm = 8;
+        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5, Tank = 6, Hmg = 7, Atgm = 8, Heli = 9, AttackJet = 10;
         private readonly EntityRepository _world = new();
         private readonly TkbDatabase _db = new();
 
@@ -65,6 +65,12 @@ namespace Fdp.Toolkit.Physics.Tests
                 var w = Type(id, new DISEntityType { Kind = 1, Domain = 1, Category = 50, Subcategory = sub });
                 w.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 80f, ArmorFront = 1.5f, ArmorSide = 1.5f, ArmorRear = 1.5f, ArmorTop = 1.5f });
                 _db.Register(w);
+            }
+            foreach (var (id, cat) in new[] { (Heli, (byte)21), (AttackJet, (byte)2) })   // ⭐ CE-3215 — aircraft
+            {
+                var a = Type(id, new DISEntityType { Kind = 1, Domain = 2, Category = cat });
+                a.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 5f, ArmorSide = 5f, ArmorRear = 5f, ArmorTop = 5f });
+                _db.Register(a);
             }
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
@@ -427,5 +433,45 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.False(WeaponSystems.CanFire(_world, w, out var why));
             Assert.Equal(WeaponHold.Destroyed, why);
         }
+
+        // ── ⭐⭐ CE-3215 (§12 S2c) — an aircraft's parts ───────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ <c>CE-3215</c> (S2c-3, S2c-7) — a helicopter gets the Rotorcraft plan and its kit by DIS, an attack jet the FixedWing
+        /// plan and the AttackJet kit; their engine and tail zones are Catastrophic.</summary>
+        [Fact]
+        public void CE3215_AnAircraft_GetsItsFamilysProfile_ByDis()
+        {
+            var heli = BodyZones.Of(_db.GetByType(Heli))!;
+            Assert.Equal((BodyPlan.Rotorcraft, "Helicopter"), (heli.Plan, heli.Kit));
+            var jet = BodyZones.Of(_db.GetByType(AttackJet))!;
+            Assert.Equal((BodyPlan.FixedWing, "AttackJet"), (jet.Plan, jet.Kit));
+            Assert.Equal(WoundEffect.Catastrophic, heli.ZoneOf(AircraftPart.Tail)!.Effect);
+            Assert.Equal(WoundEffect.Catastrophic, jet.ZoneOf(AircraftPart.Engine)!.Effect);
+            Assert.NotNull(VehicleBody.Of(_db.GetByType(Heli)));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3215</c> (S2c-5) — a helicopter's TAIL over its threshold (128) is the crash: Health to 0 (the fall, CE-2184, follows
+        /// Health), though most of its health is left; a fuselage hit of the same size only takes its health. An ENGINE wrecks it at 96.
+        /// 🔴 Red-proof: without the Catastrophic rule the tail-shot helicopter keeps 450 health and flies on.
+        /// </summary>
+        [Fact]
+        public void CE3215_AShotOffTail_IsTheCrash_AFuselageHitIsNot()
+        {
+            var a = Body(Heli, health: 1000f);
+            Apply(a, AircraftPart.Tail, 400f);   // level 102 < 128
+            Assert.Equal(600f, _world.GetComponentRO<Health>(a).Current);
+            Apply(a, AircraftPart.Tail, 150f);   // level 140 ⇒ the tail is gone
+            Assert.Equal(0f, _world.GetComponentRO<Health>(a).Current);
+
+            var b = Body(Heli, health: 1000f);
+            Apply(b, AircraftPart.Fuselage, 550f);
+            Assert.Equal(450f, _world.GetComponentRO<Health>(b).Current);
+
+            var c = Body(Heli, health: 1000f);
+            Apply(c, AircraftPart.Engine, 380f);   // level 97 ⇒ wrecked
+            Assert.Equal(0f, _world.GetComponentRO<Health>(c).Current);
+        }
 }
 }
+

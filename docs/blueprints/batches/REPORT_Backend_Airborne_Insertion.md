@@ -118,6 +118,17 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 3 / 3 red: the burst at once + Spent (CE-2203), the generation ignored (the slot rail), the once-guard off (the hits-once rail). ⚠ the first red-proof run missed the third — a script pattern that did not match; re-run alone, red |
 | ⚠ for behaviors | re-run `ua-tank-ammo`: the HE / HEAT rounds should now meet the technical and the riflemen |
 
+## 3h. CE-3215 (`2026-10-16`) — hit location S2c: aircraft by part, as drawn in [design §12 / §12a](../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md)
+
+| | |
+|---|---|
+| built | the five air kits by part (explicit id maps, checked); `Catastrophic` (engine, tail, cockpit, wing past their thresholds) ⇒ Health 0 ⇒ the CE-2184 fall; the crew of a wreck still ejects (once) |
+| found by the rail | ⭐ the cell walk's pad could be too small for a type no ray had met yet (`MaxBoundRadius` grew in the narrow phase) — now primed per TKB database |
+| ⚠ estimated | every zone multiplier and threshold (starter numbers) |
+| gates | `Fdp.Toolkits.Tests` 3 643 / 1 (`SquadCoordinationSystemTests.Execute_DoesNotAllocate_…` — the known flaky allocation count, not touched) / 1; `Hrot.SimHost.Tests` 1 443 / 0 / 6; `Hrot.Presentation.Tests` 662 / 0 / 26; `Hrot.Core.Tests` 268 / 0; `Hrot.Editor.Tests` 509 / 0 / 2 |
+| red-proofs | 2 / 2 red: the Catastrophic rule off (the tail rail), the wreck rule off (the ejection rail); the solver rail's own parts-off row |
+| ⚠ wire | `BodyPlan` gains `FixedWing` (appended; the `PartDamage` header — IDL regenerated) |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
-The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b: weapon systems by part) is built. Next: CE-3215 (S2c: aircraft by part).
+The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b) and CE-3215 (S2c) are built — the hit-location programme's slices are all in.

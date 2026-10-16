@@ -103,6 +103,29 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Frame().Spawned);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3215</c> (hit location §12 S2c-6) — a jet killed in ONE blow by a Catastrophic part (its tail shot off: Health 0 at once,
+        /// never through the 20 % band) still ejects its pilot — once; a jet dead with no such wound does not (B-9 above).
+        /// 🔴 Red-proof: without the wreck rule the dead jet ejects nobody.
+        /// </summary>
+        [Fact]
+        public void CE3215_AJetWreckedByItsTail_StillEjects_Once()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!;
+            var a10 = new Fdp.Interfaces.TkbTemplate("A-10-like", JetType + 1) { DisType = new Fdp.Core.DISEntityType { Kind = 1, Domain = 2, Category = 2 } };
+            a10.AddDescriptor(new EjectionDto { PilotType = PilotType, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
+            a10.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 600f, ArmorFront = 5f, ArmorSide = 5f, ArmorRear = 5f, ArmorTop = 5f });
+            db.Register(a10);
+            var jet = Jet(health: 0f);
+            _w.SetComponent(jet, new TkbIdentity { TkbType = JetType + 1 });
+            var parts = new Fdp.Toolkit.Physics.BodyParts.PartDamage { Plan = Fdp.Toolkit.Physics.BodyParts.BodyPlan.FixedWing };
+            parts.Add(Fdp.Toolkit.Physics.BodyParts.AircraftPart.Tail, 200);
+            _w.AddComponent(jet, parts);
+            Assert.Single(Frame().Spawned);
+            Assert.Empty(Frame().Spawned);
+        }
+
         /// <summary>⭐ D-14 — a node that does not own the jet's Health ejects nobody (the owner does).</summary>
         [Fact]
         public void B8_ANodeNotOwningTheJetsHealth_EjectsNobody()

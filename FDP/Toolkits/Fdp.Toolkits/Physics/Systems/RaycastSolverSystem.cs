@@ -147,6 +147,9 @@ namespace Fdp.Toolkit.Physics.Systems
 
             // ⭐ CE-3211 — each vehicle's main turret, found ONCE per tick (the parallel loop only reads the map)
             var turretOf = VehicleParts ? TurretsOf(repo) : null;
+            // ⭐ CE-3215 — every type's shape built once per database, so the pad below already covers the largest body (a helicopter's tail)
+            if (VehicleParts && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>())
+                Fdp.Toolkit.Physics.BodyParts.VehicleBody.Prime(repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>());
 
             Parallel.For(0, count, i =>
             {

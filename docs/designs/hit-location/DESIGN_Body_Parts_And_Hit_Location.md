@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16 (§11 / §11a: weapon systems by part, CE-3214)
-build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built. §1 is the measured ground.
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); S2c (aircraft) BUILT 2026-10-16 (§12a, CE-3215); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -487,4 +487,81 @@ between the tripod's legs and one over it miss, the parts off ⇒ CE-2182's skip
 `BodyPartDamageTests.CE3214_AWeaponType_GetsItsKindsProfile_ByDis` · `.CE3214_AWrecked_Weapon_Part_BreaksTheWeapon_ATripodLegDoesNot` ·
 ui's `VehicleBodyParityTests.CE3214_…_ForEveryCatalogWeapon` (the generated kits = `WeaponKits`, and for every catalogue weapon type the kind,
 the size and the posed boxes stowed, half-deployed and deployed at three lays, inside the bound sphere).
+
+## 12. S2c — aircraft by part, `CE-3215` *(backend, designed `2026-10-16`, leans under the overnight mandate)*
+
+🔒 Basis: §6's S2 row (R-3010) names the Rotorcraft plan; the tracker row asks for *"fuselage, tail, wings, engines, the chin turret; rotors
+do not collide; a tail or engine zone ⇒ the crash (CE-2184)"*. A crash is `Health ≤ 0` (`RotorcraftModel` / `FixedWingModel`, CE-2184), and
+HL-7 already says *"Catastrophic ⇒ destroyed"* — so the crash is a zone effect that empties `Health` in the one damage chain.
+
+#### INVENTORY — what was measured *(`2026-10-16`)*
+
+| query | found |
+|---|---|
+| ui's `ShapeKits` (`ShapeKit.cs`) | five air kits — Helicopter, Jet, CargoPlane, AttackJet, AttackHelicopter (+ Drone); their parts carry NO roles that name a fuselage, wing, engine or tail (all `Hull`), only Rotor / TailRotor / Gear, and the AH-64's Turret / Gun |
+| `EntityClassTable` | Helicopter `1.2.*.20-25` (20 = AttackHelicopter) · Jet `1.2.*.1,2,6,7,40,47,50` (2 = AttackAircraft, 50 = Uav) · CargoPlane `1.2.*.3,4,5,8,57` |
+| catalogue aircraft with a combat platform | UH-60 ×2 (`1.2.225.21`), AH-64 (`.20`), A-10 (`.2`), the FPV drone (`1.2.0.50`, drawn as a Drone); ⛔ F-16 and C-130 have none (no body — HL-12) |
+| the crash | `RotorcraftModel` / `FixedWingModel` fall when `Health ≤ 0` (CE-2184) · `EjectionSystem` ejects at ≤ 20 % while alive (B-9) |
+| `WoundEffect` | None · Slow · Aim · Mobility · Firepower — no destroying effect yet |
+
+```mermaid
+classDiagram
+  direction LR
+  class AircraftPart { <<NEW byte ids, Rotorcraft + FixedWing plans>> Fuselage 0 · Cockpit 1 · Wing 2 · Engine 3 · Tail 4 · Turret 5 · Gun 6 · Stores 7 }
+  class BodyPlan { <<existing, grows>> + FixedWing 6 (appended) }
+  class WoundEffect { <<existing, grows>> + Catastrophic 5 (appended) }
+  class VehicleBody { <<existing>> Kits ⊃ the five air kits (generated) — the S2 solver branch, unchanged }
+  class HealthApplicationSystem { <<existing, grows>> a Catastrophic wound ⇒ Health 0 }
+  class EjectionSystem { <<existing, grows>> also ejects from an aircraft a Catastrophic wound just killed }
+  class RotorcraftModel { <<existing>> Health ≤ 0 ⇒ falls (CE-2184) }
+  class FixedWingModel { <<existing>> Health ≤ 0 ⇒ falls }
+  class VehicleBodyParityTests { <<ui suite, grows>> the air families, ids by an explicit per-kit map, checked against the roles and the glass }
+  VehicleBody ..> AircraftPart
+  HealthApplicationSystem ..> WoundEffect
+  RotorcraftModel ..> HealthApplicationSystem : Health
+  FixedWingModel ..> HealthApplicationSystem : Health
+  EjectionSystem ..> WoundEffect
+  VehicleBodyParityTests ..> VehicleBody : writes / compares
+```
+*What the picture shows that prose hid: no new hit path and no new crash path — the air kits join the S2 table, and "the tail is shot off"
+reaches the existing fall through the one value every reader already obeys (`Health`).*
+
+```mermaid
+sequenceDiagram
+  participant RS as RaycastSolverSystem
+  participant HA as HealthApplicationSystem (Health owner)
+  participant EJ as EjectionSystem
+  participant FM as RotorcraftModel / FixedWingModel
+  RS-->>HA: hit + part Tail (a round through the boom) ⇒ DamageAssessed(+part)
+  HA->>HA: PartDamage[Tail] += level ⇒ the Tail zone (Catastrophic) over its threshold ⇒ Health = 0
+  EJ->>EJ: a Catastrophic wound on an aircraft that ejects ⇒ the pilot out (once)
+  FM->>FM: Health ≤ 0 ⇒ it falls and crashes (CE-2184), its riders die
+```
+
+| id | decision (lean) | why | rejected · what would change it |
+|---|---|---|---|
+| **S2c-1** | scope: the Helicopter, AttackHelicopter, Jet, AttackJet and CargoPlane kits; the **Drone stays whole** (an FPV drone is 0.6 m — one box is its body) | the kits exist; the drone's collider is already its size | parts for a drone (no measurable gain) |
+| **S2c-2** | part ids by an EXPLICIT per-kit map in the generator (the air kits carry no roles to derive them from), checked by the rail: a `Glass` part is the Cockpit, a `Turret` / `Gun` role is the Turret / Gun, and the map's length is the kit's colliding parts | S2-3's rule needs roles the air kits do not have; the checks catch a kit edit | a geometric rule (an AH-64 rocket pod and an engine nacelle are both dark cylinders along x) |
+| **S2c-3** | plans: Rotorcraft (helicopters), **FixedWing** (jets, cargo — appended `= 6`) | the plan is the `PartDamage` header; one id set serves both | one Aircraft plan (the plan enum already says Rotorcraft) |
+| **S2c-4** | zones (one profile per family, by DIS): Fuselage ×1 · Cockpit ×1.5, Catastrophic at 160 · Wing ×0.6, Catastrophic at 192 · **Engine ×1, Catastrophic at 96** · **Tail ×0.7, Catastrophic at 128** · Turret ×1, Firepower at 64 · Gun ×0.3, Firepower at 32 · Stores ×0.5; `inheritArmour` | the tracker's "a tail or engine zone ⇒ the crash"; the cockpit and a wing too, harder | starter numbers — tuning starts here |
+| **S2c-5** | **Catastrophic** (`WoundEffect` 5, appended) ⇒ `Health` = 0 on the Health owner, in `HealthApplicationSystem`, right after the part's level is added | HL-7 / R-263's "destroyed"; every reader of a killed aircraft (the fall, the riders, the drawing) follows `Health` | a separate crash flag (a second death) |
+| **S2c-6** | `EjectionSystem` also ejects from an aircraft a Catastrophic wound has just killed (once, the same latch) | B-9 ejects on damage; a tail shot off is the textbook ejection | the pilot dying with every catastrophic hit |
+| **S2c-7** | the profiles' DIS lists: Helicopter `1.2.*.21…25`, AttackHelicopter `1.2.*.20`, Jet `1.2.*.1,6,7,40,47` (⛔ not 50 — the drone), AttackJet `1.2.*.2`, CargoPlane `1.2.*.3,4,5,8,57` | `bodies.json` takes a list, not a range; the rail checks every catalogue aircraft draws as its sim kit | — |
+
+### 12a. S2c as built — `CE-3215` *(backend, `2026-10-16`)*
+
+Built as §12 draws it: `AircraftPart`, `BodyPlan.FixedWing` (6), `WoundEffect.Catastrophic` (5), the five air kits in the generated
+`VehicleBody.Kits` (explicit id maps in ui's `VehicleBodyParityTests`, checked against the glass and the roles), five `bodies.json`
+profiles, `HealthApplicationSystem`'s Catastrophic ⇒ Health 0, `EjectionSystem`'s wreck ejection, `/combat/shots` naming an aircraft's
+parts. Deviations:
+
+| as designed | as built | why |
+|---|---|---|
+| — | ⭐ `VehicleBody.Prime(db)`: every TKB type's shape built once per database, before the solver's parallel loop | 📐 found by the rail: `MaxBoundRadius` grew only when a type's shape was first built — in the narrow phase, AFTER the cell walk chose its pad — so the first rounds at a new helicopter type could miss its tail (~10 m from its point) |
+| the generator prints 5 decimals | round-trip (`R`) for every kit | the AH-64's kit is computed (its metres ÷ its box); the ground kits print the same strings either way (byte-identical regeneration) |
+
+**Rails:** `RaycastSolverSystemTests.CE3215_ARound_MeetsTheHelicopterPartItCrosses_TheRotorDiscIsEmpty` (cabin, glass, boom 5.5 m off its
+point, mast; the blades' height empty; parts off ⇒ one body) · `BodyPartDamageTests.CE3215_AnAircraft_GetsItsFamilysProfile_ByDis` ·
+`.CE3215_AShotOffTail_IsTheCrash_AFuselageHitIsNot` · `EjectionSystemTests.CE3215_AJetWreckedByItsTail_StillEjects_Once` · ui's
+`VehicleBodyParityTests` (every catalogue aircraft with a combat platform — both UH-60s, the AH-64, the A-10 — kit, size and posed boxes).
 
