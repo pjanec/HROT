@@ -36,26 +36,47 @@ namespace Fdp.Toolkit.Combat
         {
             float maxAz = MathF.Max(0f, t.TraverseRateDegPerSec) * Deg * dt;
             float maxEl = MathF.Max(0f, t.ElevationRateDegPerSec) * Deg * dt;
-            float elGoal = Math.Clamp(elevation, t.ElevationMinDeg * Deg, t.ElevationMaxDeg * Deg);
-
-            float azNow, azDelta;
-            if (IsFullCircle(t))
-            {
-                azNow = Wrap(pose.Azimuth);
-                azDelta = Wrap(azimuth - azNow);            // the short way round
-            }
-            else
-            {
-                float lo = t.TraverseMinDeg * Deg, hi = t.TraverseMaxDeg * Deg;
-                azNow = Math.Clamp(Wrap(pose.Azimuth), lo, hi);
-                azDelta = Math.Clamp(Wrap(azimuth), lo, hi) - azNow;   // inside the arc: never through the dead zone
-            }
+            float elGoal = ElevationGoal(elevation, t);
+            float azDelta = AzimuthDelta(pose, azimuth, t, out float azNow);
 
             return new TurretPose
             {
                 Azimuth = Wrap(azNow + Math.Clamp(azDelta, -maxAz, maxAz)),
                 Elevation = pose.Elevation + Math.Clamp(elGoal - pose.Elevation, -maxEl, maxEl),
             };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1109</c> (DESIGN_Indirect_Fire FM-4) — the seconds <see cref="Step"/> needs from <paramref name="pose"/> to be on
+        /// (<paramref name="azimuth"/>, <paramref name="elevation"/>): <see cref="Step"/>'s own arithmetic in closed form — both axes slew
+        /// together, so the slower axis decides; the same short way round / inside-the-arc rule; done once within
+        /// <see cref="OnTargetTolerance"/>, as <see cref="OnTarget"/> reads it. An axis already there costs 0; one that must move at a rate
+        /// of 0 never arrives (+∞).
+        /// </summary>
+        public static float SecondsTo(TurretPose pose, float azimuth, float elevation, TurretDto t)
+        {
+            float az = AxisSeconds(MathF.Abs(AzimuthDelta(pose, azimuth, t, out _)), t.TraverseRateDegPerSec);
+            float el = AxisSeconds(MathF.Abs(ElevationGoal(elevation, t) - pose.Elevation), t.ElevationRateDegPerSec);
+            return MathF.Max(az, el);
+        }
+
+        private static float AxisSeconds(float delta, float rateDegPerSec)
+            => delta <= OnTargetTolerance ? 0f : rateDegPerSec <= 0f ? float.PositiveInfinity : (delta - OnTargetTolerance) / (rateDegPerSec * Deg);
+
+        private static float ElevationGoal(float elevation, TurretDto t) => Math.Clamp(elevation, t.ElevationMinDeg * Deg, t.ElevationMaxDeg * Deg);
+
+        /// <summary>The azimuth still to turn from <paramref name="pose"/>: the short way round all round, else inside the arc (never
+        /// through its dead zone). <paramref name="azNow"/> is the pose's azimuth as the slew starts from it.</summary>
+        private static float AzimuthDelta(TurretPose pose, float azimuth, TurretDto t, out float azNow)
+        {
+            if (IsFullCircle(t))
+            {
+                azNow = Wrap(pose.Azimuth);
+                return Wrap(azimuth - azNow);            // the short way round
+            }
+            float lo = t.TraverseMinDeg * Deg, hi = t.TraverseMaxDeg * Deg;
+            azNow = Math.Clamp(Wrap(pose.Azimuth), lo, hi);
+            return Math.Clamp(Wrap(azimuth), lo, hi) - azNow;   // inside the arc: never through the dead zone
         }
 
         /// <summary>True when <paramref name="pose"/> is within <see cref="OnTargetTolerance"/> of the aim on both angles.</summary>

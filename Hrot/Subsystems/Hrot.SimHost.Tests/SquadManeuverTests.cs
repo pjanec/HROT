@@ -2312,8 +2312,63 @@ namespace Hrot.SimHost.Tests
                 fireAt.Add(o.FireAt);
             }
             Assert.True(impacts.Max() - impacts.Min() < 1e-3, $"impacts {string.Join(", ", impacts)}");
-            Assert.True(impacts[0] >= t0 + IndirectFireNodes.LaySeconds);
+            Assert.True(impacts[0] >= t0 + IndirectFireNodes.LayMarginSeconds);
             Assert.True(fireAt[2] < fireAt[1] && fireAt[1] < fireAt[0], "the farthest gun fires first");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1109</c> (FM-4) — TIME ON TARGET WITH REAL TURRETS: three M109-rate guns (10 °/s traverse, 5 °/s elevation), the
+        /// FARTHEST one (it fires first, so it has no flight-time slack) facing AWAY from the target. Every gun's fire time leaves its own
+        /// turret the seconds it needs to be laid from where it points now (the far-facing gun's 180° ≈ 18 s), and every first round still
+        /// lands together. 🔴 Red-proof: the old fixed 10 s lay ⇒ that gun's fire time comes ~8 s before its turret can be on ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1109_TimeOnTarget_LeavesEachTurretItsOwnLayTime_AGunFacingAwayIsLaidBeforeItFires()
+        {
+            var point = new Vector3(5000f, 0f, 0f);
+            var s = Battery(new Vector3(0f, 0f, 0f), new Vector3(-1500f, 40f, 0f), new Vector3(-3000f, 80f, 0f));
+            var turret = new Fdp.Toolkit.Tkb.Domain.TurretDto
+            {
+                TraverseRateDegPerSec = 10f, ElevationRateDegPerSec = 5f, ElevationMinDeg = -3f, ElevationMaxDeg = 75f,
+            };
+            var mount = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+            {
+                Category = IfMount.Category, Arc = IfMount.Arc, MinElevationDeg = IfMount.MinElevationDeg, MaxElevationDeg = IfMount.MaxElevationDeg,
+                MuzzleVelocity = IfMount.MuzzleVelocity, InitialAmmunition = IfMount.InitialAmmunition, TurretIndex = 0,
+            };
+            var t = new Fdp.Interfaces.TkbTemplate("m109", IfGunType);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { mount } });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { turret } });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(t);
+            s.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.TurretPose>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Components.TurretPose>();
+            var parts = s.Members.Select(g => Fdp.Toolkit.Combat.TurretParts.Ensure(s.Repo, g, 0)).ToArray();
+            Assert.All(parts, p => Assert.False(p.IsNull));
+            s.Repo.SetComponent(parts[2], new Fdp.Toolkit.Combat.Components.TurretPose { Azimuth = MathF.PI });   // the farthest gun (it fires first) faces away
+
+            double t0 = s.Repo.GetSingleton<GlobalTime>().TotalTime;
+            Strike(s, point, Hrot.AI.Behaviors.Orders.FireMissionControl.TimeOnTarget);
+            for (int i = 0; i < 4; i++) s.Tick();
+
+            var orders = FireOrders(s);
+            Assert.Equal(3, orders.Count);
+            var impacts = new List<double>();
+            for (int i = 0; i < 3; i++)
+            {
+                var g = s.Members[i];
+                var o = orders[g];
+                var aim = new Vector3(o.X, o.Y, o.Z);
+                var sol = Fdp.Toolkit.Combat.FireSolution.For(null, s.At(g), aim, mount, null);
+                Assert.True(sol.Ok);
+                impacts.Add(o.FireAt + sol.TimeOfFlight);
+                float lay = IndirectFireNodes.LaySecondsFor(s.Repo, g, mount, aim, in sol);
+                Assert.True(o.FireAt >= t0 + lay, $"gun {i} fires at +{o.FireAt - t0:F1} s, its turret needs {lay:F1} s");
+            }
+            Assert.InRange(IndirectFireNodes.LaySecondsFor(s.Repo, s.Members[2], mount, new Vector3(orders[s.Members[2]].X, orders[s.Members[2]].Y, 0f),
+                                                           Fdp.Toolkit.Combat.FireSolution.For(null, s.At(s.Members[2]), point, mount, null)), 17.5f, 18.5f);
+            Assert.True(impacts.Max() - impacts.Min() < 1e-3, $"impacts {string.Join(", ", impacts)}");
         }
 
         /// <summary>

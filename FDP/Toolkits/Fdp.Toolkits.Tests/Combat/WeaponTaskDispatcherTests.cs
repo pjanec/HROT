@@ -125,6 +125,46 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(MathF.Abs(TurretSlew.Wrap(Pose(full).Azimuth - 182f * Deg)) < 0.5f * Deg, $"azimuth {Pose(full).Azimuth / Deg}°");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1109</c> (DESIGN_Indirect_Fire FM-4) — <see cref="TurretSlew.SecondsTo"/> is <see cref="TurretSlew.Step"/> in closed form:
+        /// a full circle the short way round, a limited arc the long way inside it (never through the dead zone), the slower axis
+        /// deciding, an axis of rate 0 never arriving — and stepping <see cref="TurretSlew.Step"/> reaches OnTarget at that time.
+        /// 🔴 Red-proof: the short way on a limited arc (|Wrap(Δ)|) ⇒ the dead-zone case reads 40° / 30 °/s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1109_SecondsTo_IsStepsOwnArithmetic_InClosedForm()
+        {
+            static float S(float deg, float rate) => (deg - 0.5f) / rate;   // OnTarget is within 0.5°
+            static void Near(float want, float got) => Assert.True(MathF.Abs(want - got) < 1e-3f, $"want {want}, got {got}");
+            var full = new TurretDto { TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f, ElevationMinDeg = -6f, ElevationMaxDeg = 30f };
+            var arc = new TurretDto { TraverseMinDeg = -170f, TraverseMaxDeg = 170f, TraverseRateDegPerSec = 30f, ElevationRateDegPerSec = 30f,
+                                      ElevationMaxDeg = 10f };
+
+            // a full circle: 170° → −170° is 20° the short way through ±180
+            Near(S(20f, 24f), TurretSlew.SecondsTo(new TurretPose { Azimuth = 170f * Deg }, -170f * Deg, 0f, full));
+            // a limited arc: 160° → −160° goes 320° the long way inside it, never 40° through its dead zone
+            Near(S(320f, 30f), TurretSlew.SecondsTo(new TurretPose { Azimuth = 160f * Deg }, -160f * Deg, 0f, arc));
+            // the slower axis decides: 12° of traverse (0.5 s) and 12° of elevation (2 s)
+            Near(S(12f, 6f), TurretSlew.SecondsTo(default, 12f * Deg, 12f * Deg, full));
+            // an elevation past the limit is laid to the limit, as Step lays it
+            Near(S(30f, 6f), TurretSlew.SecondsTo(default, 0f, 80f * Deg, full));
+            // a rate of 0: never there — unless that axis is already on
+            var frozen = new TurretDto { TraverseRateDegPerSec = 0f, ElevationRateDegPerSec = 5f, ElevationMaxDeg = 45f };
+            Assert.True(float.IsPositiveInfinity(TurretSlew.SecondsTo(default, 10f * Deg, 0f, frozen)));
+            Near(S(10f, 5f), TurretSlew.SecondsTo(default, 0f, 10f * Deg, frozen));
+            Assert.Equal(0f, TurretSlew.SecondsTo(new TurretPose { Azimuth = 0.1f * Deg }, 0f, 0f, full));
+
+            // and Step agrees: stepping at 60 Hz reaches OnTarget within a frame of SecondsTo
+            foreach (var (t, from, az, el) in new[] { (full, 170f, -170f, 20f), (arc, 160f, -160f, 5f), (full, -90f, 45f, -4f) })
+            {
+                var pose = new TurretPose { Azimuth = from * Deg };
+                float want = TurretSlew.SecondsTo(pose, az * Deg, el * Deg, t);
+                int frames = 0;
+                while (!TurretSlew.OnTarget(pose, az * Deg, el * Deg) && frames < 60 * 60) { pose = TurretSlew.Step(pose, az * Deg, el * Deg, t, Dt); frames++; }
+                Assert.InRange(frames * Dt, want - Dt - 1e-3f, want + Dt + 1e-3f);
+            }
+        }
+
         [Fact]
         public void WL2_AMovingTarget_IsFollowed_AndAGoneTargetFails()
         {

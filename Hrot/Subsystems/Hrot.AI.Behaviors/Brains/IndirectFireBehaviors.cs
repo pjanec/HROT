@@ -28,8 +28,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Friendly troops this close to the point refuse the mission unless it says danger close (m, FM-5).</summary>
         public const float DangerCloseMetres = 600f;
 
-        /// <summary>The lay time the battery adds before the first round of a time-on-target mission (s, FM-4).</summary>
-        public const float LaySeconds = 10f;
+        /// <summary>⭐ <c>CE-1109</c> (FM-4) — the time-on-target margin past the slowest gun's lay + flight: the OnTarget settle and one
+        /// think (s). ⛔ SUPERSEDED: a fixed <c>LaySeconds = 10</c> for every gun — an M109 (10 °/s) turning 180° needs 18 s.</summary>
+        public const float LayMarginSeconds = 2f;
 
         /// <summary>Rounds per gun when the order names none.</summary>
         public const int DefaultRounds = 3;
@@ -86,6 +87,30 @@ namespace Hrot.AI.Behaviors.Brains
             if (ammo == 0) ammo = unchecked((long)dto.AmmoGuid);
             return FireSolution.For(Fdp.Toolkit.World.WorldQuery.Of(world), world.GetComponentRO<SimTransform>(weapon).Position, point,
                                     dto, FireSolution.ChargesOf(db, dto, ammo));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1109</c> (FM-4) — the seconds <paramref name="weapon"/>'s turret needs to be laid on <paramref name="aim"/> by
+        /// <paramref name="solution"/>'s arc, from where it points NOW: <see cref="TurretSlew.SecondsTo"/> on the azimuth / elevation the
+        /// muscle will solve (<see cref="BallisticAim.Solve"/>, as <c>WeaponTaskDispatcherSystem</c> does). 0 for a mount with no turret
+        /// part (it fires without laying, as <c>FireAtPointExecutor.Lay</c> does). A turret part whose pose this node does not hold reads
+        /// the worst case — turned all the way round. A turret that can never get there (a rate of 0) costs 0: it will not fire anyway.
+        /// </summary>
+        public static float LaySecondsFor(EntityRepository world, Entity weapon, Fdp.Toolkit.Tkb.Domain.WeaponMountDto dto, Vector3 aim, in Solution solution)
+        {
+            if (dto.TurretIndex < 0 || !TurretParts.HostsTurrets(world) || !world.HasComponent<SimTransform>(weapon)) return 0f;
+            var part = TurretParts.Find(world, weapon, dto.TurretIndex);
+            var turret = CombatTkb.TurretOf(world, weapon, dto.TurretIndex);
+            if (part.IsNull || turret == null) return 0f;
+            long ammo = AmmoChoice.LoadedAmmo(world, weapon);
+            if (ammo == 0) ammo = unchecked((long)dto.AmmoGuid);
+            var (azimuth, elevation) = BallisticAim.Solve(world, weapon, turret, dto, aim,
+                                                          solution.High ? ArcPreference.High : ArcPreference.Low, ammo);
+            var pose = world.HasComponent<TurretPose>(part)
+                ? world.GetComponentRO<TurretPose>(part)
+                : new TurretPose { Azimuth = TurretSlew.Wrap(azimuth + MathF.PI), Elevation = elevation };
+            float seconds = TurretSlew.SecondsTo(pose, azimuth, elevation, turret);
+            return float.IsFinite(seconds) ? seconds : 0f;
         }
 
         /// <summary>FM-5 — a friend of <paramref name="unit"/>'s force within <see cref="DangerCloseMetres"/> of <paramref name="point"/>.</summary>
@@ -272,7 +297,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (p.Able[i] != 0 && CombatTkb.WarheadOf(world, dtos[i]) is { } wh) burst = MathF.Max(burst, wh.BlastInjuryRadiusM);
                 width = reach * MathF.Max(2f * burst, IndirectFireNodes.MinGunSpacingMetres);
             }
-            float maxTof = 0f;
+            float lead = 0f;   // ⭐ CE-1109 — the slowest gun's lay + flight
             for (int i = 0; i < n; i++)
             {
                 if (p.Able[i] == 0) continue;
@@ -283,11 +308,11 @@ namespace Hrot.AI.Behaviors.Brains
                 var s = IndirectFireNodes.SolutionFor(world, weapons[i], dtos[i]!, aim);
                 if (!s.Ok) { aim = p.Point; s = IndirectFireNodes.SolutionFor(world, weapons[i], dtos[i]!, aim); }   // the sheaf's edge out of reach: the point
                 p.AimX[i] = aim.X; p.AimY[i] = aim.Y; p.AimZ[i] = aim.Z; p.Tof[i] = s.TimeOfFlight;
-                maxTof = MathF.Max(maxTof, s.TimeOfFlight);
+                lead = MathF.Max(lead, IndirectFireNodes.LaySecondsFor(world, weapons[i], dtos[i]!, aim, in s) + s.TimeOfFlight);
             }
             // time on target (FM-4): every first round lands at ImpactAt
             p.ImpactAt = (FireMissionControl)p.Control == FireMissionControl.TimeOnTarget
-                ? ctx.Now + MathF.Max(maxTof + IndirectFireNodes.LaySeconds, p.ImpactInS)
+                ? ctx.Now + MathF.Max(lead + IndirectFireNodes.LayMarginSeconds, p.ImpactInS)
                 : 0d;
             p.Planned = 1;
             return reach;
