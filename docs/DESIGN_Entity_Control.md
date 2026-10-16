@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key DESIGN, preliminary — not ready to build (§8h)
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144, PRELIMINARY DESIGN, not ready to build)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend) and the station (§8h.8, ui) built 2026-10-16; the brain half (behaviors) in flight
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8 the station; the brain half, CE-1154/1155/1157, in flight)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -944,7 +944,7 @@ caller that asks `PickFilter.Aim` is the FPS station — every other click still
 | SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
 | the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
 
-## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — ✅ READY TO BUILD (`CE-1151`…`CE-1158`)
+## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — 🔨 BUILDING (`CE-1151`…`CE-1158`: backend §8h.7 and the station §8h.8 built; behaviors' brain half in flight)
 
 🔒 **User, `2026-10-16`:** *"There should be a key (or keys) that allows acting on stuff aimed at - opening/closing doors, dragging a body,
 possessing a vehicle (becoming a driver there) or weapon operator if the standalone or vehicle mounted weapon is clicked - this needs bigger
@@ -1044,6 +1044,36 @@ sequenceDiagram
     S->>V: DisembarkEntityCommand
 ```
 
+⭐ **AS-BUILT (`CE-1158`, `2026-10-16`) — the same sequence with the waits the station really makes** (§8h.8). ⛔ The diagram above is
+the design; keep it for the intent, build from this one.
+
+```mermaid
+sequenceDiagram
+    participant D as PossessionStation (station)
+    participant O as EntityOrders
+    participant S as soldier's brain
+    participant V as vehicle's brain
+    D->>S: frame UseSeq+1 (sent when E is let go), target = the BMP, verb 0 = Drive
+    D->>D: ArmDrive: step AwaitBoard
+    S->>V: EmbarkEntityCommand, Role Driver
+    V-->>D: replicated IsEmbarkedTag, the soldier in the Driver seat
+    D->>O: Possess(soldier, Riding)
+    S-->>D: replicated PossessedBy, Riding (step AwaitRiding)
+    D->>O: Possess(vehicle, Fps)
+    O->>O: release this station's other Fps units (none: he rides)
+    V-->>D: PossessedBy on the vehicle, HeldHere = the vehicle
+    Note over D: the view stayed in first person throughout (soft leave)
+    D->>O: E in the vehicle: Possess(rider, Fps)
+    O->>V: Release (the vehicle was this station's other Fps unit)
+    S-->>D: PossessedBy Fps, HeldHere = the soldier
+    D->>S: his first frame: UseSeq+1, verb 0 = Get out
+    S->>V: DisembarkEntityCommand
+```
+
+*What the picture shows that the design's hid:* possessing the vehicle as Fps releases the station's other Fps unit (GAP2's fix) — so the
+station must WAIT until the soldier's possession replicates as Riding, or it would release him. And Get out needs no explicit release: the
+rider's Fps possession lets the vehicle go.
+
 *Caption:* the hand-over is ORCHESTRATED BY THE STATION, after the boarding shows in replicated state, because the soldier and the vehicle can
 be owned by different brain nodes — no single brain could move possession between them atomically.
 
@@ -1065,7 +1095,9 @@ graph TD
 ```
 
 *Caption:* the dashed edges are the new wiring; ⚠ the red boxes are measured gaps the slices must close — today a manned ZU-23 never
-reaches the operator's weapon keys, and a second `Possess` leaves the station holding two units.
+reaches the operator's weapon keys, and a second `Possess` leaves the station holding two units. ✅ **Both closed by `CE-1158`** (§8h.8):
+`PossessionStation.Hud.Slots` lists the controlled weapons after the man's own, and `EntityOrders.Possess(unit, Fps)` releases the station's
+other Fps unit.
 
 ### 8h.3 Decisions — ✅ PRELIMINARY (user, `2026-10-16`), each open to change
 
@@ -1171,6 +1203,34 @@ Built against §8h.2's diagrams; the class names are the diagram's. Where it dif
 
 Rails: `InteractionTransportTests.CE3172_PossessControlRelease…` (the three fields cross unchanged), `PossessionReplicationTests.CE1156_…`
 and `.CE1153_…`, `OperatorUseActionsTests` (door, body, vehicle, weapon, params, `CanEmbark` ≡ `TryEmbark`).
+
+### 8h.8 AS-BUILT — the station (`CE-1158`, `2026-10-16`, ui)
+
+Built against §8h.2's diagrams and the [ui handoff](blueprints/batches/HANDOFF_Use_Key_To_UI.md); the driving sequence as built is the
+second sequence diagram in §8h.2. All in `Hrot/Engine/Hrot.Presentation/Map3D/PossessionStation.cs` plus `EntityOrders.Possess(unit, mode)`.
+
+| part | as built | deviation, and why |
+|---|---|---|
+| ① the press | `FpsCameraDriver` counts `UseSeq`; the frame carries `UseSeq` / `UseVerb` / `UseTarget` | ⚠ **counted when `E` is LET GO**, not pressed: a tap and a hold start the same, so the verb is known only at release. The target is fixed at the press |
+| ② hold-`E` | held ≥ `HoldSeconds` (0.3 s) opens the list; the wheel and 1-4 pick a verb (not a weapon) while it is open; `UseVerb` = the picked index in `OperatorUseActions.For`'s list | — |
+| ③ the prompt | `Hud.Prompt` — `E  Open door` · `E  Drive BMP-2` (the target's TKB name for Drive / Pilot / Board / Man) · greyed `E  Open door (too far)` with `Hud.ReasonText` | ⚠ **drawn UNDER THE CROSSHAIR, not in `Hud.Lines`** — with the list (O-1: "by the crosshair") and the verdict, it is about what the operator looks at; the bottom-left block (CE-1140) keeps the status |
+| ④ the verdict | `OperatorUseStatus` on the held unit, shown when its `UseSeq` is our last press **in this possession**, Done or Refused, for `VerdictSeconds` (2 s) | — |
+| ⑤ controlled mounts | `Hud.Slots` — own mounts 0…n-1, then `WeaponSystems.Controlled` as 32+k; keys 1-4 and the wheel walk it; `Hud.Resolve` gives the holder for the ammo, the fire mode and the barrel ring | — |
+| ⑥ the hand-over | `ArmDrive` after a Drive / Pilot press; steps `AwaitBoard` (the replicated `IsEmbarkedTag` in a Driver seat) → `Possess(soldier, Riding)` → `AwaitRiding` → `Possess(vehicle, Fps)` → `AwaitVehicle`; `TryGetOut` on `E` or Esc with a rider → `Possess(rider, Fps)` and his first frame carries the Get-out press (`QueueUse`); the view stays in first person between the two units (a soft leave); `HandOverTimeout` 15 s | ⚠ **one wait the design did not draw**: the vehicle is possessed only once the soldier's possession REPLICATES as Riding — possessing it earlier releases him (GAP2's rule). ⚠ **Get out sends no release**: the rider's Fps possession lets the vehicle go. ⭐ **added**: a rider whose vehicle this station no longer drives is released (checked once a second) — possessing someone else from the menu while driving would otherwise strand him held |
+| ⑦ orders | `EntityOrders.Possess(unit, mode)`; `Possess(unit)` = Fps (the menu and HTTP call sites unchanged); Fps releases this station's other Fps units, Riding releases nothing; `HeldHere` skips Riding and takes the newest `Epoch` | — |
+| ⑧ help | the keys line ends `E use (hold E: more)` | — |
+
+⚠ **For `CE-1154` (behaviors):** every new possession starts the station's counters at 0 (a new `FpsCameraDriver`), exactly as for
+`ShotSeq`. The brain's "the frame `Seq` went backwards ⇒ reset" rule must reset its last-seen `UseSeq` too, or the first press after a
+hand-over is read as already handled.
+
+⚠ **Owed:** the frame screenshots and the live cluster run (open a door, drag, man a ZU-23, drive a BMP and get out, from a CGF and an IG
+station) — they need the brain half (`CE-1154` / `CE-1155` / `CE-1157`), not yet delivered.
+
+Rails (`PossessionStationTests`, `CE1158_…`): the tap counts one press with the primary verb and the target · hold-E, 1-4 pick a verb
+not a weapon · the prompt for a door (open, closed, locked, far), a man down and standing, a vehicle (near, far) and a weapon, drawn in its
+colour · the verdict only for our press, once done or refused, for 2 s · a manned weapon joins the keys as mount 32 · Drive rides the
+soldier then drives the vehicle, Get out hands back and his first frame gets out · a second Fps possess leaves one held, a rider is kept.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
