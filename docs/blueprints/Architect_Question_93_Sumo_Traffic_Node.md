@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: DESIGN — the five main decisions are APPROVED by the user 2026-10-16 (§0, R-4020…R-4024). §4 holds the
-  remaining sub-decisions, each with a lean, not yet ruled. Nothing is dispatched; §6 is the slice plan.
-current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the open leans; §5 the known limits.
+build-state: DESIGN — all decisions RULED by the user 2026-10-16 (§0, R-4020…R-4029) except two follow-ups with leans
+  (§4 E2b flat nets, E7b no LFS). Nothing is dispatched; §6 is the slice plan.
+current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions (ruled + the two open); §5 the known limits.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: none.
@@ -17,8 +17,8 @@ related-designs:
   - docs/DESIGN_Cluster_Load_Phase.md — owns WHEN terrain loads and the role→load-part contract (terrain is universal);
     the traffic node's SUMO load runs inside that step.
   - docs/DESIGN_Geo_Origin.md — owns the terrain's geo origin (R-229); §4 E1 here maps the SUMO net's UTM frame onto it.
-  - docs/designs/navig-2/Navigation_Design_v2_0.md — §5.2a owns the road GRAPH our own units route on (R-230/R-231);
-    §4 E3 here derives that graph from the SUMO net.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — §5.2a owns the road GRAPH our own units route on (R-230/R-231).
+    ⛔ R-4026: it stays SEPARATE from and independent of the SUMO net — no derivation either way.
   - docs/DESIGN_Entity_Control.md — M-6 rejected moving a unit's ownership to a controlling station; R-4023 (the
     handover by a follow mode) follows that precedent. M-1's KinematicsMode.Manual is the shape KinematicsMode.Traffic copies.
   - docs/DESIGN_Entity_Ownership_Transfer.md — TransferEntityOwnershipRequest: the REJECTED handover alternative (§0 D7).
@@ -46,6 +46,7 @@ related-designs:
 - *"because we need to use the optimized DDS network scheme for sumo sharp cars, we do not need to solve the issue with sending thousands of cars using our DDS scheme."*
 - *"A local entities ok, B ok, C ok, D1 and D7 ok."*
 - *"we can store the sumo road network as part of the terrain and synchronize this the same way as the terrain."*
+- *"E1 ok. E2 no,.keep height from sumo, as roads are rendeded from sumo net. E3 no, keep them separate and independent, sumo ones are complex, ours are simple. E4 ok.E5 ok. To ensure unique network ids, sumo could use our allocator. E5 ok. E7 packages ok, just need to be compiled and stored as part of hrot repo (lfs?) as they are not on nuget.org. E9 ok. E10 ok."*
 
 ## 0. The approved decisions
 
@@ -56,6 +57,11 @@ related-designs:
 | **D1 + A + B + C** | ⭐⭐ A **separate traffic node** (an ECS host with a new `Traffic` role) runs SumoSharp, whose engine keeps its own data as the truth. **A** — every receiving node keeps one **local-only** ECS entity per car (pose + collider; never published, never saved) so the map, line of sight, avoidance and picking see traffic. **B** — the dead-reckoning clock is the **cluster sim time** (`GlobalTime`), and the traffic node steps SUMO on that same clock. **C** — the lanes dead reckoning needs come from the receiver's own parse of the terrain's net file, checked against the publisher by a **net hash** | **R-4022** |
 | **D7** | ⭐⭐ Handing one of our vehicles to SUMO is a **follow mode, not an ownership move**: SimHost keeps ownership; SUMO drives a shadow car named `hrot:<networkId>`; SimHost's new `KinematicsMode.Traffic` follows its dead-reckoned pose; leaving the mode takes it back. ⛔ Rejected: `TransferEntityOwnershipRequest` of the kinematic group — Entity Control M-6 already rejected an ownership move for control; on a traffic-node crash the keys return to the creator (CGF, no kinematics) and the vehicle freezes; on hand-back SimHost resumes from stale `VehicleState`/`NavState` | **R-4023** |
 | **D4** | ⭐ Roads and traffic lights are drawn by one new map layer **styled on SumoSharp's CityLib** (lane ribbons, lane markings, crosswalks, signal heads), drawn through the shared gizmo seam so all five map hosts get it | **R-4024** |
+| **E1 + E2** | ⭐ SUMO coordinates map onto ours UTM → WGS84 → local ENU through the terrain origin (E1). **Heights come from SUMO** — the roads are rendered from the SUMO net, so the cars ride the same lane z (E2; our lean "our ground is the height" was REJECTED) | **R-4025** |
+| **E3** | ⛔ Our own road graph (CarKinem `RoadNetworkBlob`, `roads.json`) stays **separate and independent** of the SUMO net — SUMO's is complex, ours is simple; no derivation either way | **R-4026** |
+| **E4 + E5 + E9 + E10** | our entities reach SUMO as lane obstacles + crowd discs (E4); each node records its local cars, the traffic node does not step SUMO in replay (E5); received samples are stamped with SUMO sim time (E9); the traffic node is an optional cluster member (E10) | **R-4027** |
+| **E7** | SumoSharp is consumed as its two NuGet packages, **compiled from a pinned SumoSharp commit and stored in the HROT repo** (they are not on nuget.org) | **R-4028** |
+| **E11** | every SUMO car gets a cluster-unique **network id from our allocator** (`DdsIdAllocator`), carried on SumoSharp's lifecycle record, so a car is the same id on every node | **R-4029** |
 
 ## 1. INVENTORY *(2026-10-16 — codebase-memory `search_graph` (MCP + CLI), grep, three read-only sweeps; `check_index_coverage` NOT run)*
 
@@ -99,7 +105,7 @@ classDiagram
   class TrafficObstacleFeed { <<NEW, traffic node>> our replicas to obstacles and discs }
   class TrafficHandoverSystem { <<NEW, traffic node>> intent to SpawnVehicle or Despawn }
   class TrafficMirrorModule { <<NEW, every receiving node>> DR at GlobalTime, local entities, IReplayRestoreGated }
-  class TrafficCar { <<NEW component, local only>> +VehicleHandle +string SumoId +byte Kind }
+  class TrafficCar { <<NEW component, local only>> +long NetworkId +VehicleHandle +byte Kind }
   class TrafficRoadGizmo { <<NEW, map hosts>> ribbons markings crosswalks signal heads }
   class KinematicsMode { <<existing enum, grows>> +Traffic }
   class CarKinematicsSystem { <<existing, grows>> Traffic follows the hrot shadow car }
@@ -165,6 +171,7 @@ sequenceDiagram
   loop while SUMO time + dt <= t
     TN->>E: Tick (fixed dt)
   end
+  TN->>TN: on Departed, take a network id from our allocator (R-4029)
   TN->>P: PublishStep(snapshot)
   P->>W: only cars whose DR error exceeds the policy, plus lifecycle and TL changes
   W-->>M: samples stamped with SUMO sim time
@@ -244,16 +251,19 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 
 | id | question | ⭐ lean | rejected — one line each | blast radius |
 |---|---|---|---|---|
-| **E1** | how SUMO coordinates map onto ours | at terrain load, convert the net's `<location>` (`netOffset` + `projParameter`) **UTM → WGS84 → local ENU** through the terrain origin (R-229), fit once as a 2-D rigid transform kept in `TrafficNetCache.ToLocal`; accept `+proj=utm` only, refuse others with a load error | identity (the net's x/y as our metres): wrong for any georeferenced net · a general projection library: one more native or large dependency for one projection | new UTM converter (~100 lines); SumoSharp parser must read `<location>` (it ignores it today) |
-| **E2** | car height | our terrain is the ground: `IWorldQuery.SurfaceZ(x, y, laneZ)` on each node, SUMO's lane z only as the hint (bridges) | SUMO's `PosZ` as-is: disagrees with our height grid wherever the net's z was not built from it | mirror module only |
-| **E3** | do our own units drive SUMO roads | yes, a later slice: derive the CarKinem `RoadNetworkBlob` from the net's edges (lane count, width, speed) so `RoutePlanner` routes on the same roads (R-230) | a second hand-authored `roads.json` beside the net: two road truths | `TerrainResidency` + a converter |
-| **E4** | how our entities reach SUMO | vehicles → `AddMovingObstacle` after `LaneProjection.Project` (≤ 3 m from a lane, else ignored); infantry and every unit off-lane → crowd discs (`ICrowdFootprintSource`), which cars and pedestrians both react to | discs only: cars would not queue behind a convoy on the lane · obstacles only: off-lane infantry crossing a road would be invisible | traffic node only |
-| **E5** | replay | each node's recorder records its local `TrafficCar` entities (R-4012 Plan A); in replay the mirror module is gated like ingress (`IReplayRestoreGated`) and the traffic node does not step SUMO. Known limit: a node OUTSIDE its recording span shows no cars (mirrors are not flooded) | SumoSharp's `.simrec` replayed onto the topics: a second recording mechanism, and its seek re-reads from the start | mirror module; recording size to measure |
+| **E1** | coordinates | ✅ **RULED (R-4025)** — at terrain load, convert the net's `<location>` (`netOffset` + `projParameter`) **UTM → WGS84 → local ENU** through the terrain origin (R-229), fit once as a 2-D rigid transform in `TrafficNetCache.ToLocal`; `+proj=utm` only, others refused with a load error | identity: wrong for any georeferenced net · a projection library: a large dependency for one projection | new UTM converter (~100 lines); SumoSharp's parser must read `<location>` (it ignores it today) |
+| **E2** | car and road height | ✅ **RULED (R-4025)** — **SUMO's z**: roads are drawn at the lane z and cars ride `PosZ`. ⛔ The lean (our `IWorldQuery.SurfaceZ`) was REJECTED: the roads come from the SUMO net, so the cars must match them | — | mirror module; ⚠ consequence in §5 |
+| **E2b** | ⚠ OPEN — a **flat (2-D) net** has no z (`Lane.ShapeZ` null ⇒ `PosZ` 0) | ⭐ when the net carries no z, BOTH roads and cars **drape onto our ground** — the 3-D map's existing rule (Z = 0 is "drape", `GizmoRenderer3D` M18/P4) for the roads, `IWorldQuery.GroundHeightAt` for the cars; a net WITH z is used as-is (R-4025) | cars and roads at z 0: everything sinks into or floats above any non-flat terrain | mirror module + road layer |
+| **E3** | our units on SUMO roads | ⛔ **RULED NO (R-4026)** — the two road systems stay separate and independent | derive `RoadNetworkBlob` from the net (our lean) — rejected: SUMO's model is complex, ours is simple | none |
+| **E4** | how our entities reach SUMO | ✅ **RULED (R-4027)** — vehicles → `AddMovingObstacle` after `LaneProjection.Project` (≤ 3 m from a lane, else ignored); infantry and every off-lane unit → crowd discs (`ICrowdFootprintSource`), which cars and pedestrians both react to | discs only: cars would not queue behind a convoy · obstacles only: off-lane infantry crossing a road invisible | traffic node only |
+| **E5** | replay | ✅ **RULED (R-4027)** — each node's recorder records its local `TrafficCar` entities (R-4012 Plan A); in replay the mirror module is gated like ingress (`IReplayRestoreGated`) and the traffic node does not step SUMO. Known limit: a node OUTSIDE its recording span shows no cars (mirrors are not flooded) | SumoSharp's `.simrec` replayed onto the topics: a second recording mechanism, and its seek re-reads from the start | mirror module; recording size to measure |
 | **E6** | pedestrians | phase 2, same pattern: SumoSharp's 4 pedestrian topics, local mirror entities for **promoted** pedestrians only (full collision avoidance, the ones cars see), realism zone around our units; ambient pedestrians drawn from their route-seed-time function, no entities | all pedestrians as entities: 20 000 entities per node for background walkers · now, in slice 1: pedestrians are SumoSharp's real-time bottleneck (7–15 steps/s on 4–8 cores) | phase 2 |
-| **E7** | how SumoSharp enters the build | NuGet packages `SumoSharp` + `SumoSharp.Dds`, pinned, from a CI-published feed; licence `EPL-2.0 OR GPL-2.0-or-later` acknowledged | a git submodule / project reference: 240 docs and 5 000 files in our tree, two build systems | build only |
+| **E7** | how SumoSharp enters the build | ✅ **RULED (R-4028)** — the packages `SumoSharp` + `SumoSharp.Dds`, **built from a pinned SumoSharp commit and committed into HROT's existing local feed `nugets/`** (`nuget.config` already declares `LocalFeed = ./nugets`); a script `scripts/update-sumosharp.sh` packs them with a version that names the commit (⚠ SumoSharp's own pack defaults to `0.1.0` every time, which a stale NuGet cache silently reuses); licence `EPL-2.0 OR GPL-2.0-or-later` | a git submodule / project reference: 5 000 files and a second build system · a CI feed: SumoSharp is not published anywhere | build only; `.gitignore` gains `!nugets/SumoSharp*.nupkg` (it ignores `*.nupkg` today) |
+| **E7b** | ⚠ OPEN — Git LFS for the `.nupkg` files? | ⭐ **plain git, no LFS.** HROT uses no LFS today (no `.gitattributes`, `git lfs ls-files` empty); cloud sessions clone with LFS smudging skipped, so an LFS package would arrive as a pointer stub and every cloud build would fail restore. The packages are small managed assemblies (the native DDS runtime comes from `CycloneDDS.NET` on nuget.org, which HROT already uses) — ⚠ size not measured yet; if one exceeds ~10 MB, revisit | LFS: breaks restore in every session that skips LFS, and adds a tool to every clone | `.gitignore`, `nugets/` |
 | **E8** | `sumo/geometry` | OFF (R-4021); the publisher still exposes the net hash (on `sumo/status`) for C's check | keep it on as a fallback: two sources for the same lanes | publisher config |
-| **E9** | the receiver's time stamps | stamp each sample with the frame's own **SUMO sim time** (= cluster sim time, §3.2), not the DDS SourceTimestamp — a small SumoSharp option on `DdsSubscriber` | keep wall-clock stamps and fit a rate: breaks on pause, speed-up and replay | one SumoSharp change |
-| **E10** | traffic-node id and lifetime | an ordinary cluster member (master-assigned id, R-4009), **optional** in `ClusterConfiguration` — if it dies, traffic simply stops (lifecycle disposes reach every mirror; a mirror whose feed falls silent for N s clears its cars) | mandatory: a crashed traffic node would fail the exercise | orchestrator config |
+| **E9** | the receiver's time stamps | ✅ **RULED (R-4027)** — stamp each sample with the frame's own **SUMO sim time** (= cluster sim time, §3.2), not the DDS SourceTimestamp — a small SumoSharp option on `DdsSubscriber` | keep wall-clock stamps and fit a rate: breaks on pause, speed-up and replay | one SumoSharp change |
+| **E10** | traffic-node id and lifetime | ✅ **RULED (R-4027)** — an ordinary cluster member (master-assigned id, R-4009), **optional** in `ClusterConfiguration` — if it dies, traffic simply stops (lifecycle disposes reach every mirror; a mirror whose feed falls silent for N s clears its cars) | mandatory: a crashed traffic node would fail the exercise | orchestrator config |
+| **E11** | unique ids for SUMO cars | ✅ **RULED (R-4029)** — the traffic node takes one network id per car from **our allocator** (`DdsIdAllocator`, chunks of 100, `DdsIdAllocator.cs:31-33`) and the id rides SumoSharp's lifecycle record (its `Name`, or a new numeric field if a flow-spawned car cannot be named — a small SumoSharp change); the mirror stores it in **`TrafficCar.NetworkId`, ⛔ NEVER in `NetworkIdentity`** — egress publishes every entity that has one (`GeoSpatialEgressTranslator.cs:121-123`). Shadow cars (R-4023) carry the handed vehicle's own id | SumoSharp's `VehicleHandle` as the id: a separate 32+16 space whose slots are recycled, and different on every node's mirror | traffic node + mirror; ⚠ a system that resolves a network id through NED's entity map will not find a mirror — a follow-up when the first such reader appears |
 
 ## 5. Known limits *(measured unless marked)*
 
@@ -261,6 +271,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 - No brake lights or turn signals in SumoSharp (searched `src`, none); `Acceleration` and the lane-change phase byte are the only inputs.
 - `CivilianCar` (TKB 1002) has no `Health`: a hit does nothing (`CombatTkbTranslator.cs:49-53`). Destroying a SUMO car is a later question (it would need `Despawn` on the traffic node).
 - `TerrainResidency` loads only the FIRST entry of `roadNetworks[]` (`:214-232`).
+- ⚠ R-4025's consequence: with SUMO's z, roads and cars sit where the NET says, which can differ from our height grid where the net's z was not built from it — a road may hover over, or sink into, our terrain mesh. A terrain must ship a net whose z matches its height grid (or a flat net, E2b).
 - *(Inference, not run)* `RoadNetworkGizmo` emits Z = 0 (drape) and so would draw a bridge road on the ground below it; the new layer must use the lane z on bridges.
 - The vehicle-type id is always 0 on the wire (`ReplicationPublisher.cs:84-88`): car / bus / truck models need the type carried — lifecycle carries the SUMO id and dims only.
 
@@ -273,7 +284,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | 3 | local entities carry `SimTransform` + `PhysicsCollider` (R-4022 A); rail: a mirror entity is never egressed; SimHost avoidance and LOS see cars | our vehicle stops behind a SUMO car; a rail fails if a `TrafficCar` entity gains `NetworkIdentity` |
 | 4 | E4 obstacle feed | a SUMO car brakes for our convoy on its lane |
 | 5 | R-4023 handover (`KinematicsMode.Traffic`) | a vehicle handed over arrives at its destination on SUMO roads and is taken back; ownership never changes |
-| 6 | E3 road graph for our units · E6 pedestrians | — |
+| 6 | E6 pedestrians | promoted pedestrians near our units react to them; ambient ones are drawn without entities |
 
 ## 7. ⛔ HISTORY
 
