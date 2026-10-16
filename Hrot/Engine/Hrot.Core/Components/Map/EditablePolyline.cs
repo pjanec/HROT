@@ -17,7 +17,7 @@ namespace Hrot.IG.Components;
 /// </summary>
 [DataPolicy(DataPolicy.SnapshotViaClone)]
 [ComponentId(GlobalComponentIds.EditablePolyline)]
-public sealed class EditablePolyline
+public sealed class EditablePolyline : Fdp.Toolkit.Terrain.IAreaOutline
 {
     /// <summary>
     /// Ordered list of XY vertices <b>RELATIVE to the entity's <c>SimTransform.Position</c></b>
@@ -37,6 +37,9 @@ public sealed class EditablePolyline
     /// </para>
     /// </summary>
     public List<Vector2> Points { get; set; } = new();
+
+    /// <summary>⭐ CE-3216 S1 — the outline as toolkit code reads it (the weather field's regions).</summary>
+    IReadOnlyList<Vector2> Fdp.Toolkit.Terrain.IAreaOutline.Points => Points;
 
     /// <summary>
     /// Version counter intended to be incremented on each committed edit so subscribers could

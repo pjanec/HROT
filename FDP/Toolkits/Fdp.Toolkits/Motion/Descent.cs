@@ -71,19 +71,7 @@ namespace Fdp.Toolkit.Motion
 
 namespace Fdp.Toolkit.Motion
 {
-    /// <summary>
-    /// ⭐ Airborne insertion D-6 — the scenario's wind: one constant velocity (m/s, the direction it blows TOWARD), read by the parachute
-    /// model and the release-point rule. Absent ⇒ calm.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.Wind)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct Wind
-    {
-        public Vector2 Velocity;
-
-        /// <summary>The wind in <paramref name="world"/>, zero when no scenario set one.</summary>
-        public static Vector2 Of(EntityRepository world)
-            => world.HasSingleton<Wind>() ? world.GetSingleton<Wind>().Velocity : Vector2.Zero;
-    }
+    // ⛔ CE-3216 W-5 (R-3012) — the `Wind` world singleton (D-6: one constant velocity per scenario) is RETIRED: the parachute and the
+    //   release point read Fdp.Toolkit.Weather.WeatherField.WindAt (the regional blend and the profile at a height). Component id 393 is
+    //   RESERVED (GlobalComponentIds.Wind) — never reuse. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md W-5.
 }

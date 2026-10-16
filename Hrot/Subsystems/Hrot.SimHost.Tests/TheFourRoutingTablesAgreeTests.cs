@@ -57,6 +57,9 @@ public class TheFourRoutingTablesAgreeTests
         ("GeoPosition.Longitude", AttributeIds.GeoLon,     "{\"GeoPosition\":{\"Longitude\":34.0}}"),
         ("GeoPosition.Altitude",  AttributeIds.GeoAlt,     "{\"GeoPosition\":{\"Altitude\":100.0}}"),
         ("Heading",               AttributeIds.Heading, "{\"Heading\":90.0}"),
+        // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time and its display offset
+        ("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    "{\"ScenarioStartUtcTicks\":638450000000000000}"),
+        ("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, "{\"ScenarioUtcOffsetMinutes\":120}"),
     };
 
     public static IEnumerable<object[]> VocabularyCases()
@@ -91,7 +94,8 @@ public class TheFourRoutingTablesAgreeTests
     public void TheWholeVocabularyInOnePatchEmitsOneRecordEach()
     {
         const string all = "{\"Name\":\"Charlie\",\"Affiliation\":\"FORCE_OPPOSING\",\"Heading\":90.0," +
-                           "\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}}";
+                           "\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}," +
+                           "\"ScenarioStartUtcTicks\":638450000000000000,\"ScenarioUtcOffsetMinutes\":120}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -282,10 +286,15 @@ public class TheFourRoutingTablesAgreeTests
             AttributeVocabulary.All.Select(d => d.JsonPath).OrderBy(p => p, StringComparer.Ordinal).ToArray(),
             props.Select(kv => kv.Key).OrderBy(p => p, StringComparer.Ordinal).ToArray());
 
-        // ⭐⭐ And the types are truthful: the geo paths and Heading are numbers, not strings.
+        // ⭐⭐ And the types are truthful: the geo paths and Heading are numbers, the clock's two are integers (CE-3216), the rest strings.
         foreach (var d in AttributeVocabulary.All)
         {
-            string expected = d.Kind == AttributeValueKind.CsFloat64 ? "number" : "string";
+            string expected = d.Kind switch
+            {
+                AttributeValueKind.CsFloat64 => "number",
+                AttributeValueKind.CsInt32 or AttributeValueKind.CsInt64 => "integer",
+                _ => "string",
+            };
             Assert.Equal(expected, props[d.JsonPath]!["type"]!.GetValue<string>());
         }
     }
@@ -382,8 +391,10 @@ public class TheFourRoutingTablesAgreeTests
         var e = repo.CreateEntity();
         repo.AddComponent(e, default(Fdp.Core.EntityInfo));
         repo.AddComponent(e, default(SimTransform));
+        repo.AddComponent(e, default(Fdp.Toolkit.Weather.ScenarioClock));   // ⭐ CE-3216 — the clock's two attributes
         repo.SetAuthority<Fdp.Core.EntityInfo>(e, true);
         repo.SetAuthority<SimTransform>(e, true);
+        repo.SetAuthority<Fdp.Toolkit.Weather.ScenarioClock>(e, true);
         return (repo, e);
     }
 

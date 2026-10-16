@@ -7,6 +7,7 @@ stale-below: nothing — what the build changed is in §8 with the earlier wordi
 known-rot: none (§8 lists where the build refined §2 / §6 / AU-8).
 known-conflict: none.
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — S4: the ambient beds by time of day and the wind from WeatherField
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS what the AI HEARS (AcousticSignatureDto ranges, SoundSourceClass, SoundEmissionSystem, R-205); this file PLAYS sound to the operator and reuses those ranges and classes so the two agree (AU-4)
   - docs/DESIGN_Visual_Effects.md — OWNS the effect pattern this mirrors: effect TYPES in the TKB with their look (VE-C), the ammo → effect mapping with a calibre default (VE-D), spawned from the fire / detonation events on every map host (VE-A)
   - docs/DESIGN_Entity_Control.md — §8d OWNS FPS possession (PossessionStation, FpsCameraDriver, the HUD): the switch that turns sound on and the listener's ear

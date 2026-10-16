@@ -196,7 +196,10 @@ namespace Hrot.Core.Tkb
                                       Overfly = true, OverflyHeightM = 1f });   // ⭐ CE-3198 — the overfly top attack (§3b)
             Register(tkb, JavelinName, TkbJavelinMissile, Dis(2, Usa, 1, 8), ShapedChargeOf(TowLibraryName, tandem: true), 760f, 1500f,   // "Javelin"
                      new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, MaxFlightSeconds = 20f, MinRangeM = 65f, TargetDomain = TargetDomain.Ground,
-                                      TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f });
+                                      TopAttack = true, TopAttackMinRangeM = 150f, CruiseAltitudeM = 150f, DiveAngleDeg = 60f,
+                                      // ⭐ CE-2222 — a missile, not a 30 °/s airframe: at 120 °/s and a 45° climb the profile FITS from its own
+                                      //   150 m (apex ~48 m at 200 m); at the engine's 30 °/s it fitted only beyond ~610 m, so every closer shot flew direct
+                                      TurnRateDegPerSec = 120f, ClimbAngleDeg = 45f });
             Register(tkb, KornetName, TkbKornetMissile, Dis(2, Russia, 1, 15), ShapedChargeOf(TowLibraryName, tandem: true), 1100f, 2000f,   // "AT-14"
                      new MissileDto { Guidance = GuidanceKind.Command, SpeedMps = 300f, MaxFlightSeconds = 20f, MinRangeM = 100f, TargetDomain = TargetDomain.Ground });
             Register(tkb, FpvWarheadName, TkbFpvWarhead, Dis(2, 0, 1), ShapedChargeOf(Rpg7LibraryName), 400f, 450f);   // no entry: anti-armour, guided

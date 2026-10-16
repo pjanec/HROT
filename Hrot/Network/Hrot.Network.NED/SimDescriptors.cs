@@ -100,6 +100,67 @@ namespace Hrot.NED.Descriptors
         public double Until;
     }
 
+    // ⭐ CE-3216 S1-0 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md W-4, W-8) — the scenario clock (the authored START TIME)
+    //   on the World Environment entity, published by its owner (the creating Brain) on change and applied on every other node. Every
+    //   node then derives UTC = start + its own synced sim time (ScenarioTime.Utc) — nothing is sent per frame. Reliable +
+    //   TransientLocal + KeepLast(1) keyed by entity, like the door: a late joiner gets the current start time.
+    [DdsTopic("EntityScenarioClock")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityScenarioClock
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>UTC ticks at sim time 0 (<c>ScenarioClock.StartUtcTicks</c>).</summary>
+        public long StartUtcTicks;
+
+        /// <summary>The display offset from UTC, minutes (<c>ScenarioClock.DisplayUtcOffsetMinutes</c>).</summary>
+        public short DisplayUtcOffsetMinutes;
+    }
+
+    // ⭐ CE-3216 S1 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md §1, W-0…W-3) — AUTHORED weather (WeatherConditions): the global
+    //   weather on the World Environment, a regional one on a Weather Region. Published by the owner (the creating Brain) on change, applied
+    //   on every other node; every node derives the weather at any point itself (WeatherField). Flat fields (the dtPartDamage shape): 8 wind
+    //   levels, 4 cloud layers. Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner gets the current weather.
+    [DdsTopic("EntityWeather")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityWeather
+    {
+        [DdsKey]
+        public int EntityId;
+
+        public float GroundTemperatureC;
+        public float LapseRateKPerKm;
+        public float SeaLevelPressureHpa;
+        public float RelativeHumidity;
+        public float VisibilityM;
+        public float FogTopM;
+        public float FogVisibilityM;
+        public byte Precipitation;
+        public float PrecipitationMmPerHour;
+        public float FeatherM;
+
+        /// <summary>Wind levels used (≤ 8): altitude MSL m · from ° · speed m/s · gust m/s.</summary>
+        public byte WindCount;
+        public float W0Alt; public float W0From; public float W0Speed; public float W0Gust;
+        public float W1Alt; public float W1From; public float W1Speed; public float W1Gust;
+        public float W2Alt; public float W2From; public float W2Speed; public float W2Gust;
+        public float W3Alt; public float W3From; public float W3Speed; public float W3Gust;
+        public float W4Alt; public float W4From; public float W4Speed; public float W4Gust;
+        public float W5Alt; public float W5From; public float W5Speed; public float W5Gust;
+        public float W6Alt; public float W6From; public float W6Speed; public float W6Gust;
+        public float W7Alt; public float W7From; public float W7Speed; public float W7Gust;
+
+        /// <summary>Cloud layers used (≤ 4): base MSL m · thickness m · octas · kind.</summary>
+        public byte CloudCount;
+        public float C0Base; public float C0Thick; public byte C0Octas; public byte C0Kind;
+        public float C1Base; public float C1Thick; public byte C1Octas; public byte C1Kind;
+        public float C2Base; public float C2Thick; public byte C2Octas; public byte C2Kind;
+        public float C3Base; public float C3Thick; public byte C3Octas; public byte C3Kind;
+    }
+
     // ⭐ WL-1b (CE-1049) — a turret's pose (its part child's TurretPose), published by the node owning dtTurretPose (the Muscle) and
     //   applied on every other node's turret part, so a viewer — IG included — sees the turret turn. 📄 docs/DESIGN_Weapon_Layers.md
     //   §5b, W-9, W-10. Keyed (hull network id, part id = 2000 + turret index) — the EQS sensor key shape (EqsSensorConfigTopic).

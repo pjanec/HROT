@@ -101,4 +101,16 @@ public static class AttributeIds
     /// existing three to match the prose is not a free edit and is not attempted here.</para>
     /// </summary>
     public const ushort Heading = 13;
+
+    // ── CE-3216 S1-0 — the scenario clock (R-3012, W-8; docs/designs/weather/DESIGN_Weather_And_Time.md) ─────────────────
+    // ⚠ In the 1–99 "core" range, beside the entity data: a scenario-level attribute of the World Environment, not a domain extension.
+
+    /// <summary>
+    /// ⭐ The scenario START TIME — <c>ScenarioClock.StartUtcTicks</c> (UTC ticks at sim time 0). Value type: <c>Int64</c>. A runtime
+    /// edit simply sets a new start time, applied as sent by the clock's owner (W-8).
+    /// </summary>
+    public const ushort ScenarioStartUtcTicks = 20;
+
+    /// <summary>⭐ The clock's display offset from UTC in minutes — <c>ScenarioClock.DisplayUtcOffsetMinutes</c>. Value type: <c>Int32</c>.</summary>
+    public const ushort ScenarioUtcOffsetMinutes = 21;
 }

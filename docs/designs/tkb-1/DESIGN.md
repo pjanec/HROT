@@ -17,6 +17,7 @@ stale-below: §6.6's "NOT derivable at all" verdict on MandatoryComponents, and 
   TkbComponentConventions (deleted 2026-09-13). §6.6a's "filled at ITkbDatabase.Register" prescription —
   neither half was built that way; see §6.6b's DEVIATION and §6.6a's own AS-BUILT block.
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — builds the first POSITIONLESS entity (the World Environment: no SimTransform), as this file's 2026-09-13 analysis allows
   - ../../DESIGN_Body_Geometry_And_Ground_Contact.md — adds the engine-neutral `Body.Geometry` descriptor (reference point,
     size, box offset, ground-contact points) and the first built-in aircraft (CE-1041).
   - ../../DESIGN_Map_3D_Mode.md — the 3-D map's entity colour (§3.7, EntityAppearance) copies §6.6a's

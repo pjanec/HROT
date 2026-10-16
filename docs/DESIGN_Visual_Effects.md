@@ -9,6 +9,7 @@ known-conflict: none.
 related-designs:
   - DESIGN_Entity_Control.md — §8g OWNS the operator's fire modes (SIGHT / LOCK) and the crosshair on the body parts asked in the same exchange as §10
   - DESIGN_World_Query_Seam.md — OWNS TraceCrossing; §10 IM-4 adds the entry / exit normals to it
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: smoke drifts on the real wind instead of W3's fixed breeze
   - designs/audio/DESIGN_FPS_Audio.md — the SOUND twin of this pattern: sound types in the TKB (SoundTkbCatalog 7201+), the munition → sound set with a calibre default, from the same fire / detonation events (AU-5)
   - designs/brain-split/BS-1-DESIGN.md — OWNS the fire event these effects are made from; §5.4b (CE-1111, R-1002) gives it the fired round, origin, velocity and quantity, and carries flare / chaff releases
   - DESIGN_Injury_States.md — OWNS the injury states (CE-2155); an incapacitated figure is a later presentation item

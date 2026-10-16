@@ -934,8 +934,18 @@ namespace Fdp.Core
         /// measured free on backend, ui and behaviors 2026-10-16.</summary>
         public const int Descent = 392;
 
-        /// <summary>⭐ Airborne insertion D-6 — the scenario's wind (a world singleton, <c>Fdp.Toolkit.Motion.Wind</c>): absent ⇒ calm.
-        /// ⚠ 393 measured free on backend, ui and behaviors 2026-10-16.</summary>
+        /// <summary>⛔ <b>RESERVED — the <c>Wind</c> world singleton (airborne insertion D-6) was RETIRED by CE-3216 W-5 (2026-10-16)</b>:
+        /// the wind is <c>Fdp.Toolkit.Weather.WeatherField.WindAt</c> (regional, a profile with height). ⚠ Do NOT reuse 393.</summary>
         public const int Wind = 393;
+
+        /// <summary><c>ScenarioClock</c> — ⭐ CE-3216 S1-0 (docs/designs/weather/DESIGN_Weather_And_Time.md W-4, W-8): the scenario's
+        /// authored start time (UTC ticks at sim time 0), on the positionless World Environment entity; saved as authored, replicated
+        /// (<c>dtScenarioClock</c>, Brain group). ⚠ 394 measured free on backend, ui and behaviors 2026-10-16.</summary>
+        public const int ScenarioClock = 394;
+
+        /// <summary><c>WeatherConditions</c> — ⭐ CE-3216 S1 (DESIGN_Weather_And_Time.md §1, W-0…W-3): AUTHORED weather — the global weather on
+        /// the World Environment, a regional one on a Weather Region; saved as authored, replicated (<c>dtWeather</c>, Brain group).
+        /// ⚠ 395 measured free on backend, ui and behaviors 2026-10-16.</summary>
+        public const int WeatherConditions = 395;
     }
 }
