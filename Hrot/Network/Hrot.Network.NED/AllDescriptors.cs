@@ -110,6 +110,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-1128 — a round marked a surface of the world (Muscle → every map host): the puff and the mark. 📄 docs/DESIGN_Visual_Effects.md §10.
         //   ⚠ 138 / 139 are backend's (dtScenarioClock, dtWeather, measured on origin/backend 2026-10-16) — 140 measured free on all three lanes.
         dtRoundImpact                 = 140,
+        // ⭐ CE-1153 — the brain's verdict on the operator's last USE press (Brain group → every node, for the FPS HUD).
+        //   📄 docs/DESIGN_Entity_Control.md §8h.6. Reserved for this item at dispatch; measured free on ui, behaviors, backend, coordinator.
+        dtOperatorUseStatus           = 141,
         // etc., all known descriptor types here
     }
 

@@ -947,5 +947,10 @@ namespace Fdp.Core
         /// the World Environment, a regional one on a Weather Region; saved as authored, replicated (<c>dtWeather</c>, Brain group).
         /// ⚠ 395 measured free on backend, ui and behaviors 2026-10-16.</summary>
         public const int WeatherConditions = 395;
+
+        /// <summary><c>OperatorUseStatus</c> — ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6): the brain's verdict on the operator's last USE
+        /// press {UseSeq, ActionId, Outcome, Reason}, on the possessed unit, Brain group, replicated as <c>dtOperatorUseStatus</c> (141) so the
+        /// station's HUD on another node reads it.</summary>
+        public const int OperatorUseStatus = 396;
     }
 }

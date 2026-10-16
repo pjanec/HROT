@@ -76,6 +76,11 @@ namespace Hrot.NED.Messages
         public byte CancelSeq;
         public byte AmmoSeq;
         public long ShotTarget;
+        /// <summary>⭐ CE-1151 (appended after ShotTarget; DESIGN_Entity_Control §8h U-2) — the use press counter, its verb (0 = primary)
+        /// and the network id of what the crosshair rested on.</summary>
+        public byte UseSeq;
+        public byte UseVerb;
+        public long UseTarget;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.Embark"/> case. Nothing beyond the header (target = the vehicle, actor =

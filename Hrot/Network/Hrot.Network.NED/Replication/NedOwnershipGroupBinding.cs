@@ -114,6 +114,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtManualDrive, GlobalComponentIds.ManualDrive);
         map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
         map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
+        map.RegisterMapping((long)EDescriptorType.dtOperatorUseStatus, GlobalComponentIds.OperatorUseStatus);   // ⭐ CE-1153 — the use verdict
         map.RegisterMapping((long)EDescriptorType.dtPartDamage, GlobalComponentIds.PartDamage);   // ⭐ CE-3210 — wounds, beside Health
         map.RegisterMapping((long)EDescriptorType.dtHitMarks, GlobalComponentIds.HitMarks);       // ⭐ CE-3210 — where rounds struck
         map.RegisterMapping((long)EDescriptorType.dtDescent, GlobalComponentIds.Descent);          // ⭐ airborne B-1 — a man coming down

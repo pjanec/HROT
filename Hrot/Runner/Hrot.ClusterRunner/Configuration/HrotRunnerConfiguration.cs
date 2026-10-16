@@ -97,6 +97,16 @@ namespace Hrot.ClusterRunner.Configuration
         [Option("input-dir", Required = false, HelpText = "Directory to migrate (for --mode migrate). Defaults to current directory.")]
         public string InputDirectory { get; set; } = string.Empty;
 
+        /// <summary>
+        /// ⭐ CE-3218 — keep only the newest N exercise recordings per <c>exercises</c> directory at start-up (≤ 0 keeps all).
+        /// Unset: <c>FDP_KEEP_EXERCISES</c>, else 20 on a scratch staging root (the temp dir), else keep all
+        /// (<see cref="Fdp.Toolkit.Orchestration.ExerciseRetention"/>).
+        /// </summary>
+        [Option("keep-exercises", Required = false,
+                HelpText = "Keep only the newest N exercise recordings at start-up (<= 0 keeps all). Default: FDP_KEEP_EXERCISES, "
+                         + "else 20 when the staging root is the temp directory, else keep all.")]
+        public int? KeepExercises { get; set; }
+
         /// <summary>When true, --mode migrate reports what would be done without writing any files.</summary>
         [Option("dry-run", Required = false, Default = false, HelpText = "Report what would be done without writing files")]
         public bool DryRun { get; set; }

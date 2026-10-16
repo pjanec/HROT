@@ -101,11 +101,32 @@ namespace Fdp.Toolkit.Behavior
         public static EmbarkResult TryEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger,
             CarryMode mode = CarryMode.Seated, Entity assistant = default)
         {
+            var result = Check(repo, passenger, vehicle, role, ref mode, assistant, out int seat);
+            if (result == EmbarkResult.AlreadyAboard) { Board(repo, passenger, vehicle, seat); return result; }
+            if (result != EmbarkResult.Applied) return result;
+            return Seat(repo, passenger, vehicle, seat, mode, assistant);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1152</c> (DESIGN_Entity_Control §8h U-5/U-6) — <see cref="TryEmbark"/>'s checks WITHOUT seating anyone: what it would answer
+        /// (<see cref="EmbarkResult.Applied"/> = it would board). ⭐ One rule, no copy: <see cref="TryEmbark"/> runs exactly this check and
+        /// only then seats. Reads only replicated components (the passenger list, the seats, health and the injury band, the weapon
+        /// system's kinds), so a station predicting the use key and the brain deciding it agree.
+        /// </summary>
+        public static EmbarkResult CanEmbark(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role = SeatRole.Passenger,
+            CarryMode mode = CarryMode.Seated, Entity assistant = default)
+            => Check(repo, passenger, vehicle, role, ref mode, assistant, out _);
+
+        /// <summary>The one boarding rule: the result, the seat it would take (or the one it already holds) and the carry mode.</summary>
+        private static EmbarkResult Check(EntityRepository repo, Entity passenger, Entity vehicle, SeatRole role,
+            ref CarryMode mode, Entity assistant, out int seat)
+        {
+            seat = -1;
             if (!repo.IsAlive(passenger) || !repo.IsAlive(vehicle) || !repo.HasComponent<PassengerBuffer>(vehicle)) return EmbarkResult.Invalid;
             // ⭐ CE-3110 (R-272) — a UNIT is not a physical actor: it takes no seat and carries nobody (its members do the boarding).
             if (Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, passenger) || Has<Fdp.Core.CommandHierarchy.UnitEntity>(repo, vehicle)) return EmbarkResult.Invalid;
             int aboard = SlotOf(repo, passenger, vehicle);
-            if (aboard >= 0) { Board(repo, passenger, vehicle, aboard); return EmbarkResult.AlreadyAboard; }
+            if (aboard >= 0) { seat = aboard; return EmbarkResult.AlreadyAboard; }
             // ⭐⭐ Team carry T-a (R-2017 T4; DESIGN_Entity_Interactions §7.5.3) — a STRETCHER and a TWO-MAN weapon need a named, fit second
             //   man; every other load refuses one. Only a person carries a team load.
             bool team = IsPersonCarrier(repo, vehicle) && (mode == CarryMode.Stretcher || IsTwoManWeapon(repo, passenger));
@@ -122,7 +143,9 @@ namespace Fdp.Toolkit.Behavior
                 int station = FreeStation(repo, vehicle, kinds.MountKinds);
                 if (station == -2) return EmbarkResult.Invalid;   // no station on this type accepts it
                 if (station < 0) return EmbarkResult.Full;
-                return Seat(repo, passenger, vehicle, station, IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated, assistant);
+                seat = station;
+                mode = IsPersonCarrier(repo, vehicle) ? CarryMode.Carried : CarryMode.Seated;
+                return EmbarkResult.Applied;
             }
             if (role == SeatRole.Station) return EmbarkResult.Invalid;   // ⭐ WS-2 — a station holds a weapon, never a man
             if (IsPersonCarrier(repo, vehicle))
@@ -133,9 +156,8 @@ namespace Fdp.Toolkit.Behavior
                 if (mode == CarryMode.Seated) mode = CarryMode.Carried;
             }
             else mode = CarryMode.Seated;
-            int seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
-            if (seat < 0) return EmbarkResult.Full;
-            return Seat(repo, passenger, vehicle, seat, mode, assistant);
+            seat = FreeSeat(repo, vehicle, role);   // ⭐ CE-2151 — the type's seats, by role
+            return seat < 0 ? EmbarkResult.Full : EmbarkResult.Applied;
         }
 
         /// <summary>The reach (m) within which a team load's second man must stand by the carrier (R-2017 T4).</summary>

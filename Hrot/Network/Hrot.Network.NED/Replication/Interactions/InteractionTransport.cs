@@ -149,6 +149,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                     StationNodeId = e.StationNodeId, Seq = e.Seq, Forward = e.Forward, Lateral = e.Lateral, Steer = e.Steer, Yaw = e.Yaw,
                     Gait = e.Gait, Trigger = e.Trigger, Mount = e.Mount, AimX = e.AimPoint.X, AimY = e.AimPoint.Y, AimZ = e.AimPoint.Z, Vertical = e.Vertical, Stance = e.Stance,
                     ShotSeq = e.ShotSeq, CancelSeq = e.CancelSeq, AmmoSeq = e.AmmoSeq, ShotTarget = e.ShotTarget,
+                    UseSeq = e.UseSeq, UseVerb = e.UseVerb, UseTarget = e.UseTarget,   // ⭐ CE-1151
                 },
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
@@ -159,6 +160,7 @@ namespace Hrot.Map.Common.Replication.Interactions
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), Stance = p.ControlFrame.Stance,
                 ShotSeq = p.ControlFrame.ShotSeq, CancelSeq = p.ControlFrame.CancelSeq, AmmoSeq = p.ControlFrame.AmmoSeq,
                 ShotTarget = p.ControlFrame.ShotTarget, IsRemote = true,
+                UseSeq = p.ControlFrame.UseSeq, UseVerb = p.ControlFrame.UseVerb, UseTarget = p.ControlFrame.UseTarget,   // ⭐ CE-1151
             });
 
         /// <summary>⭐ CE-3110 I-2a (R-224, 📄 docs/DESIGN_Entity_Interactions.md §7) — a passenger boards; the VEHICLE's owner applies it.</summary>

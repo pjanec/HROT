@@ -91,6 +91,69 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(theirs).Origin);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1156</c> (docs/DESIGN_Entity_Control.md §8h U-4, O-2) — a unit held in <see cref="PossessionMode.Riding"/> (its human
+        /// is driving a vehicle) keeps its task paused under origin Possession but takes NO control frame; switching Fps ↔ Riding on the
+        /// same station is a take-over, so the operator behaviour keeps running and frames route again in Fps. Drives the real
+        /// <see cref="PossessionSystem"/> and <see cref="Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem"/>.
+        /// </summary>
+        [Fact]
+        public void CE1156_ARidingUnit_StaysPaused_TakesNoFrames_AndFpsRidingIsATakeOver()
+        {
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            var possession = new PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            void Frame()
+            {
+                w.Bus.SwapBuffers(); possession.Execute(w, 0.016f);
+                w.Bus.SwapBuffers(); ingress.Execute(w, 0.016f);
+            }
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+            w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit, true);
+            Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(w, unit);
+            w.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+            {
+                Entity = unit, BehaviorName = Hrot.Map.Definitions.Behavior.BehaviorNames.Idle, JsonParams = "{}",
+                Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
+            });
+            w.Bus.SwapBuffers(); ingress.Execute(w, 0.016f);
+            int op = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            int idle = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle);
+
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Fps });
+            Frame();
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 1, Forward = 1f });
+            Frame();
+            Assert.Equal(1u, w.GetComponentRO<OperatorInput>(unit).Seq);                       // Fps: frames arrive
+
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Riding });
+            Frame();
+            Assert.Equal(PossessionMode.Riding, w.GetComponentRO<PossessedBy>(unit).Mode);
+            var riding = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, riding.Origin);   // the task stays paused
+            Assert.Equal(op, riding.ActiveBehaviorHash);                                         // the operator behaviour kept running
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 2, Forward = 1f, UseSeq = 1 });
+            Frame();
+            Assert.False(w.HasComponent<OperatorInput>(unit));                                   // a rider takes no frames
+
+            w.Bus.Publish(new PossessRequestEvent { Unit = unit, StationNodeId = 7, Mode = PossessionMode.Fps });
+            Frame();
+            Assert.Equal(op, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = unit, StationNodeId = 7, Seq = 3, Forward = 1f });
+            Frame();
+            Assert.Equal(3u, w.GetComponentRO<OperatorInput>(unit).Seq);                       // Fps again: frames route
+
+            w.Bus.Publish(new ReleasePossessionEvent { Unit = unit, StationNodeId = 7 });
+            Frame();
+            Assert.Equal(idle, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).ActiveBehaviorHash);   // the task resumes
+        }
+
         [Fact]
         public void CE3173_ManualDrive_TheAxesOfTheBrain_AreAppliedOnTheMuscle()
         {
@@ -148,6 +211,35 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in released, cmd, station);
                 cmd.Playback(station);
                 Assert.False(station.HasComponent<PossessedBy>(stationsUnit));
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1153</c> (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on a use press crosses to the station's node as
+        /// STATE: <see cref="OperatorUseStatus"/> written on the brain, published by the egress (it owns <c>dtOperatorUseStatus</c>) and
+        /// applied whole on the other node. An unknown unit is dropped.
+        /// </summary>
+        [Fact]
+        public void CE1153_OperatorUseStatus_TheBrainsVerdict_ReachesTheStation()
+        {
+            var verdict = new OperatorUseStatus
+            {
+                UseSeq = 7, ActionId = Fdp.Toolkit.Behavior.BehaviorConstants.ActionIdOpenDoor,
+                Outcome = UseOutcome.Refused, Reason = UseReason.Locked,
+            };
+            var sample = EntityOperatorUseStatusEgressTranslator.ToSample(66L, verdict);
+            var (station, unit, map) = Node(66L);
+            using (station)
+            {
+                station.RegisterComponent<OperatorUseStatus>();
+                var ingress = new EntityOperatorUseStatusIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, station);
+                var stranger = EntityOperatorUseStatusEgressTranslator.ToSample(99L, verdict);   // nobody here has id 99
+                ingress.Apply(in stranger, cmd, station);
+                cmd.Playback(station);
+                Assert.Equal(verdict, station.GetComponentRO<OperatorUseStatus>(unit));
+                Assert.Equal(1, ingress.DroppedSampleCount);
             }
         }
 

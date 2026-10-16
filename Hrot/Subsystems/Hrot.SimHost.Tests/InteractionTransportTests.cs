@@ -125,6 +125,7 @@ namespace Hrot.SimHost.Tests
                 Unit = unit, StationNodeId = 300, Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
                 Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
                 Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242L,   // ⭐ CE-1074 / CE-1078 / CE-1079
+                UseSeq = 6, UseVerb = 1, UseTarget = 777L,   // ⭐ CE-1151
             });
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = 300 });
             station.Bus.SwapBuffers();
@@ -159,6 +160,7 @@ namespace Hrot.SimHost.Tests
                 frame.Yaw, frame.Gait, frame.Trigger, frame.Mount));
             Assert.Equal(new System.Numerics.Vector3(10f, 20f, 3f), frame.AimPoint);
             Assert.Equal(((byte)2, (byte)5, (byte)3, (byte)9, 4242L), (frame.Stance, frame.ShotSeq, frame.CancelSeq, frame.AmmoSeq, frame.ShotTarget));
+            Assert.Equal(((byte)6, (byte)1, 777L), (frame.UseSeq, frame.UseVerb, frame.UseTarget));   // ⭐ CE-1151 — the use press arrives unchanged
             Assert.True(frame.IsRemote);
             var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
             Assert.Equal(300L, release.StationNodeId);

@@ -15,6 +15,10 @@ namespace Fdp.Toolkit.Behavior.Possession
         None = 0,
         /// <summary>First person: the station drives the body and fires its weapon.</summary>
         Fps = 1,
+        /// <summary>⭐ CE-1156 (DESIGN_Entity_Control §8h U-4, O-2) — held while its human drives a vehicle: the station keeps the unit, so its
+        /// task stays paused under origin Possession, but no control frame reaches it (the vehicle is the one being driven). A change
+        /// between Fps and Riding on the same station is a take-over: the operator behaviour keeps running.</summary>
+        Riding = 2,
     }
 
     /// <summary>Event ids of possession (range 5200–5299; free by a census of every event id on all lanes, <c>2026-10-11</c>).</summary>
@@ -86,6 +90,13 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1078 / CE-1080 — the network id of the unit under the crosshair at the last press (0 = the ground point).</summary>
         public long ShotTarget;
         public bool IsRemote;
+        /// <summary>⭐ CE-1151 (§8h U-2, appended) — the operator's USE presses, counted (wraps): a new value asks the brain to act on
+        /// <see cref="UseTarget"/> (a door, a man who is down, a vehicle, a standalone weapon).</summary>
+        public byte UseSeq;
+        /// <summary>⭐ CE-1151 — which verb of the target's list (0 = the primary).</summary>
+        public byte UseVerb;
+        /// <summary>⭐ CE-1151 — the network id of what the crosshair rested on at the last use press (0 = nothing).</summary>
+        public long UseTarget;
     }
 
     /// <summary>
@@ -123,6 +134,10 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1078 / CE-1079 — the frame's press counters and the shot's target (<see cref="OperatorControlFrameEvent"/>).</summary>
         public byte ShotSeq, CancelSeq, AmmoSeq;
         public long ShotTarget;
+        /// <summary>⭐ CE-1151 (§8h U-2, appended) — the use press counter, its verb (0 = primary) and its target network id
+        /// (<see cref="OperatorControlFrameEvent.UseSeq"/>).</summary>
+        public byte UseSeq, UseVerb;
+        public long UseTarget;
     }
 
     /// <summary>
@@ -164,12 +179,14 @@ namespace Fdp.Toolkit.Behavior.Possession
                 foreach (ref readonly var f in repo.Bus.Read<OperatorControlFrameEvent>())
                 {
                     if (!OwnsBrain(repo, f.Unit) || !HeldBy(repo, f.Unit, f.StationNodeId)) continue;
+                    if (repo.GetComponentRO<PossessedBy>(f.Unit).Mode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
                     if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) continue;
                     var input = new OperatorInput
                     {
                         Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
                         Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
                         ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
+                        UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
                     };
                     if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
                     else repo.AddComponent(f.Unit, input);
