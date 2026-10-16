@@ -47,5 +47,7 @@ namespace Fdp.Toolkit.Combat.Components
         public float ProximityM;
         /// <summary>⭐ <c>CE-2188</c> (§3c, AD3) — the chance its seeker ignores a decoy salvo of its kind (flare for IR, chaff for radar).</summary>
         public float Rejection;
+        /// <summary>⭐ <c>CE-2222</c> — its turn rate (°/s) and top-attack climb (°), from its <c>MissileDto</c>; 0 = the engine's.</summary>
+        public float TurnRateDegPerSec, ClimbAngleDeg;
     }
 }

@@ -45,13 +45,19 @@ namespace Fdp.Toolkit.Combat.Systems
         /// flies direct (measured live: a 230 m top attack overflew the tank and hit the sand 580 m beyond it).
         /// A missile with no speed or no cruise height declares no geometry: its declared <see cref="MissileDto.TopAttackMinRangeM"/> alone.
         /// </summary>
+        /// <summary>⭐ <c>CE-2222</c> — a missile's own turn rate (°/s), else the engine's <see cref="TurnRateDegPerSec"/>.</summary>
+        public static float TurnRateOf(float stated) => stated > 0f ? stated : TurnRateDegPerSec;
+
+        /// <summary>⭐ <c>CE-2222</c> — a missile's own top-attack climb (°), else the engine's <see cref="ClimbAngleDeg"/>.</summary>
+        public static float ClimbOf(float stated) => stated > 0f ? stated : ClimbAngleDeg;
+
         public static bool TopAttackFits(MissileDto missile, float speedMps, float groundRangeM, float launchAboveGoalM, out float apexM)
         {
             apexM = 0f;
             if (missile.Guidance != GuidanceKind.FireAndForget || !missile.TopAttack || groundRangeM < missile.TopAttackMinRangeM) return false;
             if (speedMps <= 0f || missile.CruiseAltitudeM <= 0f) { apexM = MathF.Max(missile.CruiseAltitudeM, 0f); return true; }
-            float r = speedMps / (TurnRateDegPerSec * Deg);
-            float climb = ClimbAngleDeg * Deg, dive = MathF.Max(missile.DiveAngleDeg, 10f) * Deg;
+            float r = speedMps / (TurnRateOf(missile.TurnRateDegPerSec) * Deg);   // ⭐ CE-2222 — the missile's own turn and climb
+            float climb = ClimbOf(missile.ClimbAngleDeg) * Deg, dive = MathF.Max(missile.DiveAngleDeg, 10f) * Deg;
             float floor = r * (1f - MathF.Cos(dive));   // the dive arc completes above this ⇒ it arrives at the dive angle
             float apex = missile.CruiseAltitudeM;
             if (Ground(apex, out _) > groundRangeM)
@@ -94,7 +100,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 var pos = repo.GetComponentRO<SimTransform>(e).Position;
                 ref var vel = ref repo.GetComponentRW<SimVelocity>(e).Linear;
                 if (Steer(repo, world, ref g, pos, vel, out var desired))
-                    vel = Turn(vel, desired, TurnRateDegPerSec * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
+                    vel = Turn(vel, desired, TurnRateOf(g.TurnRateDegPerSec) * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
                 // ⭐ CE-3198 (§3b) — the overfly fuze: fires DOWN as the round passes over the roof
                 if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) { repo.DestroyEntity(e); continue; }
                 // ⭐ CE-2187 (§3c, AD2) — the proximity fuze: bursts where its step passes closest to its target
@@ -235,7 +241,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (pos.Z >= g.CruiseZ) g.Phase = GuidedPhase.Cruise;
                 else
                 {
-                    float c = MathF.Cos(ClimbAngleDeg * (MathF.PI / 180f)), s = MathF.Sin(ClimbAngleDeg * (MathF.PI / 180f));
+                    float c = MathF.Cos(ClimbOf(g.ClimbAngleDeg) * (MathF.PI / 180f)), s = MathF.Sin(ClimbOf(g.ClimbAngleDeg) * (MathF.PI / 180f));
                     desired = new Vector3(h.X * c, h.Y * c, s);
                     return true;
                 }
@@ -245,7 +251,7 @@ namespace Fdp.Toolkit.Combat.Systems
             // ⭐ CE-2201 — from the round's CURRENT pitch γ (the cruise's altitude hold swings it after the pitch-over): the arc from γ to
             //   −dive covers R·(sin γ + sin dive) of ground and drops R·(cos γ − cos dive). ⛔ The level-entry lead (γ = 0) fell 23–73 m
             //   short entering pitched down and overflew entering pitched up (750–1000 m, measured).
-            float r = g.SpeedMps / (TurnRateDegPerSec * (MathF.PI / 180f));
+            float r = g.SpeedMps / (TurnRateOf(g.TurnRateDegPerSec) * (MathF.PI / 180f));
             float speed = vel.Length();
             float pitch = speed > 1e-3f ? MathF.Asin(Math.Clamp(vel.Z / speed, -1f, 1f)) : 0f;
             float lead = r * (MathF.Sin(pitch) + MathF.Sin(dive))

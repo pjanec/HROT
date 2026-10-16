@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§3a the top-attack profile fits the range, the dive branch and pitch-aware trigger, a locking mount never fires blind — CE-2201, CE-2200)
+updated: 2026-10-16 (§3a′ a missile's own turn rate and climb — the Javelin top-attacks from its declared 150 m, CE-2222; §3a the profile fits the range, CE-2201, CE-2200)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -285,7 +285,7 @@ Model D-A), so nothing marks a hit "top attack".*
 
 | rule | why |
 |---|---|
-| steering = turn the velocity toward the aim point at a fixed turn rate (≤ 30°/s) at `SpeedMps` — no aerodynamics, no thrust curve | D-D |
+| steering = turn the velocity toward the aim point at a fixed turn rate at `SpeedMps` — no aerodynamics, no thrust curve. ⭐ The rate is MUNITION DATA (`MissileDto.TurnRateDegPerSec`, 0 = the engine's 30°/s — CE-2222, §3a′) | D-D |
 | ⭐ **where it lives and what crosses the wire**: `GuidedRoundSystem` runs on the MUSCLE beside `BallisticsSystem` — the round, its target, the launcher's turret pose and the terrain are all on that node; **no new channel**: the fire intent already names the target, and the turret task (Brain → Muscle, `EntityWeaponTask`) keeps the sight on it | user: "where is missile steering living, how would it work, what channel?" |
 | `MaxFlightSeconds` replaces the 2 s bullet lifetime for a guided round (Javelin ~20 s, TOW ~22 s) | §1: a 2 km missile vanished mid-flight |
 | `SpeedMps` replaces the generated `range × 0.5` muzzle speed for a missile | §1: the TOW flew ~7× too fast |
@@ -332,7 +332,7 @@ passed the tank.*
 |---|---|---|
 | ⭐⭐ does the climb-and-dive fit? | `GuidedRoundSystem.TopAttackFits(missile, speed, groundRange, launchAboveGoal, out apex)`: the system's own flight in closed form, as in the picture; it fits when the ground needed ≤ the range AND the peak ≥ R·(1 − cos dive), so the dive arc completes and the round arrives at the dive angle. It takes the HIGHEST apex ≤ `CruiseAltitudeM` that fits (bisection: the ground grows with the apex); none fits ⇒ false | 📐 the handoff's lean ("an apex capped by range, a direct fallback below the geometric minimum"); ⛔ raising `TopAttackMinRangeM` to ~730 m would have thrown away the capped band (607–727 m) |
 | who asks it | ⭐ **one function, two readers**: `FireProcessingSystem` at launch (Climb with `CruiseZ` = muzzle + apex, or direct) and `ThreatDanger` (my top, or the face it meets) | the danger a tank reads must be the flight it will actually get |
-| below the minimum | **direct**: the seeker homes on the middle and meets the face it meets (front/side) | D-D's ≤ 30°/s is a ruling; a tighter turn just for short range would be a second flight model |
+| below the minimum | **direct**: the seeker homes on the middle and meets the face it meets (front/side) | ⛔ SUPERSEDED by §3a′ (CE-2222): *"D-D's ≤ 30°/s is a ruling"* was wrong — the user's D-D is *"guidance kinds as munition data … not a full flight model"*; the 30°/s was this design's detail. A per-missile rate is munition data on the ONE flight model, not a second one |
 | a missile with no `SpeedMps` or no `CruiseAltitudeM` | declares no geometry ⇒ the declared `TopAttackMinRangeM` alone (as before) | test fixtures and partial TKB data keep their behaviour |
 | ⭐ the dive itself | ⛔ **found dead and fixed**: `Steer` returned pure pursuit for `Phase == Dive` BEFORE the dive branch, so §4a's *"holds at least the dive angle, then homes once the line is steeper"* never ran, and the arrival angle was down to timing. 📐 At 900 m the full profile arrived 40° down, on the side; the 1200 m rail passed by luck. Now the dive branch runs | §4a's row states the intent; the code had fallen behind it |
 | ⭐ the dive TRIGGER reads the round's pitch | ⛔ SUPERSEDES §4a's lead `R·sin θ + (h − R(1−cos θ)) / tan θ`, which is the LEVEL-entry case. The cruise's altitude hold swings the pitch after the pitch-over (a +36 m overshoot), so the dive now starts at `R·(sin γ + sin θ) + (h − R(cos γ − cos θ)) / tan θ`, with γ = the current pitch (the same arc, from γ to −θ) | 📐 once the dive branch was live, the level lead fell 23–73 m short entering pitched down (750, 800, 900 m) and overflew entering pitched up (1000 m). A 2D replica of `Steer` that reproduced those misses to the decimetre then swept 600–2590 m in 10 m steps: every fitting range hits, ≥ 45° down |
@@ -343,6 +343,18 @@ passed the tank.*
 `AimAndFireExecutorTests.CE2200_ALockingMount_NeverFiresBlind_AnRpgDoes`. Both are red-proofed.
 ⚠ **Consequence for the `ua-javelin-lock` demo** (behaviors): Javelin B's 230 m shot is now a DIRECT hit, not "from above". Check ② must
 place the open tank ≥ ~610 m away to see a top attack, or accept a direct hit at 230 m.
+
+### 3a′. A missile's own turn rate and climb — the Javelin top-attacks from its declared 150 m (`CE-2222`; backend `2026-10-16`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Top_Attack_Range.md))
+
+📐 **Measured** (behaviors, offline): at the engine's 30°/s the Javelin's profile fitted only beyond **~610 m**, while its TKB says
+`TopAttackMinRangeM = 150` — so every closer Javelin flew DIRECT onto the front (live `ua-javelin-lock` ①, ~190 m).
+
+| | |
+|---|---|
+| ⭐ the rule | `MissileDto.TurnRateDegPerSec` and `ClimbAngleDeg` (0 = the engine's 30°/s and 30°), carried on `GuidedRound`; `GuidedRoundSystem.TurnRateOf` / `ClimbOf` feed BOTH `TopAttackFits` and the flight (the turn, the climb, the dive lead) — the one profile, so the launch, `ThreatDanger.ToMe` and the round still agree |
+| the Javelin | **120°/s, 45° climb** (R = 140 / 2.09 ≈ 67 m): fits from exactly its 150 m, apex ≈ 48 m at 200 m (sized with a replica of `TopAttackFits`: 90°/s fitted from ~200 m, 150°/s from 150 m at ~63 m) |
+| rejected | ① a steeper climb alone — at 30°/s it moves the minimum only 610 → 590 m (the dive ARC, R·(1 − cos 60°) ≈ 133 m, is the floor) · ② raising `TopAttackMinRangeM` to 610 m — it would make the data true and the weapon wrong (a real Javelin top-attacks from ~150 m) |
+| rails | `GuidedRoundSystemTests.CE2222_TheJavelinsOwnTurn_TopAttacksFromItsDeclared150m` (150 … 2000 m, every one arrives on the ROOF; red-proved) · the CE-2201 sweep kept as the engine-default case |
 
 ### 3b. The OVERFLY top attack — the NLAW (`CE-3198`, backend `2026-10-15`; gate lifted by the user)
 

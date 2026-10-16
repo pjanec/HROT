@@ -155,9 +155,32 @@ namespace Fdp.Toolkit.Combat.Tests
         [InlineData(2000f, true)]
         [InlineData(2500f, true)]
         public void CE2201_TheTopAttack_ArrivesOnTheRoof_AtEveryRangeItIsChosenFor_ElseFliesDirect(float range, bool top)
+            => FlyAtAHull(new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, TopAttack = true, TopAttackMinRangeM = 150f,
+                                           CruiseAltitudeM = 150f, DiveAngleDeg = 60f }, range, top);
+
+        /// <summary>
+        /// ⭐ <c>CE-2222</c> — the Javelin's OWN turn (120 °/s) and climb (45°), as <c>MunitionTkbCatalog</c> now states them: the profile fits
+        /// from its declared 150 m — every range from 150 m top-attacks and arrives on the ROOF (≥ 45° down), the live <c>ua-javelin-lock</c>
+        /// shot (~190 m) included. 📐 At the engine's 30 °/s it fitted only beyond ~610 m (the sweep above), so every closer Javelin flew direct
+        /// onto the front. 🔴 Red-proof: drop the per-missile turn from <c>TopAttackFits</c> ⇒ 150 m … 600 m fly direct ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(150f)]
+        [InlineData(190f)]
+        [InlineData(230f)]
+        [InlineData(300f)]
+        [InlineData(450f)]
+        [InlineData(620f)]
+        [InlineData(1000f)]
+        [InlineData(2000f)]
+        public void CE2222_TheJavelinsOwnTurn_TopAttacksFromItsDeclared150m(float range)
+            => FlyAtAHull(new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, TopAttack = true, TopAttackMinRangeM = 150f,
+                                           CruiseAltitudeM = 150f, DiveAngleDeg = 60f, TurnRateDegPerSec = 120f, ClimbAngleDeg = 45f }, range, top: true);
+
+        /// <summary>A round launched as <c>FireProcessingSystem</c> launches it at a hull <paramref name="range"/> m off: it must reach the
+        /// hull, and a top attack must arrive on the roof.</summary>
+        private void FlyAtAHull(MissileDto javelin, float range, bool top)
         {
-            var javelin = new MissileDto { Guidance = GuidanceKind.FireAndForget, SpeedMps = 140f, TopAttack = true, TopAttackMinRangeM = 150f,
-                                           CruiseAltitudeM = 150f, DiveAngleDeg = 60f };
             var tank = Unit(new Vector3(range, 0, 0), hull: 2.4f);
             var middle = AimPoint.Middle(_w, tank, out _, out _);
             var launch = new Vector3(0, 0, 1);
@@ -169,6 +192,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 Guidance = GuidanceKind.FireAndForget, Target = tank, Gunner = Unit(Vector3.Zero),
                 TopAttack = (byte)(top ? 1 : 0), Phase = top ? GuidedPhase.Climb : GuidedPhase.Cruise,
                 CruiseZ = launch.Z + (top ? apex : javelin.CruiseAltitudeM), DiveAngleDeg = 60, LastSeen = middle,
+                TurnRateDegPerSec = javelin.TurnRateDegPerSec, ClimbAngleDeg = javelin.ClimbAngleDeg,
             });
             float closest = float.MaxValue, maxZ = 0f;
             Vector3 arrival = default;

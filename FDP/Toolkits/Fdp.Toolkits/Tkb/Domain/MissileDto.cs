@@ -71,6 +71,17 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("Top attack: the dive angle.")]
         public float DiveAngleDeg { get; init; }
 
+        /// <summary>⭐ <c>CE-2222</c> — how fast the round turns (°/s); 0 = the engine's <c>GuidedRoundSystem.TurnRateDegPerSec</c>. A missile
+        /// turns far tighter than an airframe: the turn radius (speed / rate) sets the shortest range its climb-and-dive fits.</summary>
+        [EditUnit("deg/s")]
+        [Description("How fast the round turns; 0 = the engine default (30 deg/s). Sets the shortest range a top attack fits.")]
+        public float TurnRateDegPerSec { get; init; }
+
+        /// <summary>⭐ <c>CE-2222</c> — the top attack's climb angle (°); 0 = the engine's <c>GuidedRoundSystem.ClimbAngleDeg</c>.</summary>
+        [EditUnit("deg")]
+        [Description("Top attack: the climb angle; 0 = the engine default (30 deg).")]
+        public float ClimbAngleDeg { get; init; }
+
         /// <summary>⭐ <c>CE-3198</c> (DESIGN_Missiles_And_Ammo §3b) — the NLAW's OVERFLY top attack: fly just above the
         /// target's roof and fire the charge DOWN as it passes over (a hull only; a man is attacked direct).</summary>
         [Description("Fire-and-forget only: fly over a vehicle's roof and fire the charge down as it passes (the NLAW).")]
