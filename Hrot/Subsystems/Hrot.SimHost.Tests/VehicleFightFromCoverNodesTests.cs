@@ -531,7 +531,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ <c>CE-2202</c> — A BODY IS NOT A THREAT. The one remembered enemy is knocked out (Health 0 — the body stays in the world and in
         /// memory, CE-267 / CE-466) while still in sight: the cycle ends (Success) instead of guarding the corpse. With a second, live enemy
-        /// remembered (unseen, so nothing scores above zero), that one is the threat. 📌 Live <c>ua-ifv-standoff</c>: the IFV stood over
+        /// remembered (an old memory — it scores nothing, so the ranking's top is not him), that one is the threat. 📌 Live <c>ua-ifv-standoff</c>: the IFV stood over
         /// a dead RPG man while two live ones walked up to it. ✅ Red-proof: keeping the dead current ⇒ Running / the corpse.
         /// </summary>
         [Fact]
@@ -551,7 +551,7 @@ namespace Hrot.SimHost.Tests
             e.Repo.AddComponent(live, new Health { Current = 100f, Max = 100f });
             ref var mem = ref e.Repo.GetComponentRW<TargetMemory>(e.Self);
             mem.EntityIds[1] = (long)live.PackedValue; mem.Modalities[1] = (byte)SensorModality.Visual;
-            mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.Freshness[1] = 0f;   // an OLD memory: it scores nothing, so only the live-fallback (not the ranking) can find him
             mem.PositionsX[1] = 60f; mem.PositionsY[1] = 40f; mem.Count = 2;
             Assert.Equal(NodeStatus.Running, e.Step());
             e.Repo.GetComponentRW<Health>(e.Enemy).Current = 0f;
