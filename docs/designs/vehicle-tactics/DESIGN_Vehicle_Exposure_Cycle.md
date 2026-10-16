@@ -340,6 +340,13 @@ target expiring from memory, which ends the designation, is how `TopThreat` (CE-
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
+⏸ **Update, after CE-2215/2216 (`2026-10-16`):** ① now runs end to end — A sees the tank on its drive out, the tank sees A, the tank
+fires back — ⛔ and still loses the lock race. 📐 Probed: the tank rates A at danger **0.11** (A is ~19° off the nose ⇒ the eye→hull line
+reads FRONT, and the direct Javelin barely beats the front's CE armour). 0.11 < `AtDangerMin` ⇒ A does not bound the budget, which is the
+budget working as designed. The round then scored on the **SIDE** (760 mm, 3000 → 1500). ⇒ the face the danger model predicts and the face
+the impact is scored on disagree for this shot: **CE-2217 (backend)**. Not measured: what turned the impact to the side (the missile
+curving after the reversing tank, the tank turning, or the body-part face).
+
 ⏸ **`ua-technical-scoot` (`2026-10-16`) — written, three runs, parked; geometry, not behaviour, so far:**
 
 | run | what happened | lesson |
