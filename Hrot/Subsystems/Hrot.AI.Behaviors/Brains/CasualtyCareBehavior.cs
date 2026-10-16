@@ -25,7 +25,9 @@ namespace Hrot.AI.Behaviors.Brains
         public float Speed;
         /// <summary>How far around the casualty the cover query looks (m).</summary>
         public float CoverSearchRadius;
-        /// <summary>The medic goes after this long even when not every coverer has fired (s).</summary>
+        /// <summary>The medic goes after this long even when not every coverer has fired (s). ⭐ <c>CE-2227</c>: 5 s (was 3) — live, the
+        /// slowest coverer's first round comes 2–3.8 s after the order (turn, raise, aim), so 3 s sent the medic before the covering
+        /// in about half the runs of <c>ua-casualty-care</c>.</summary>
         public float CoveringSeconds;
         /// <summary>The whole drill gives up after this long in one phase (s).</summary>
         public float PhaseTimeoutSeconds;
@@ -303,7 +305,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The play's defaults (shared by the reaction's <c>Rescue</c>).</summary>
         public static CasualtyCareParams Defaults(float speed) => new()
         {
-            Speed = speed > 0f ? speed : 3f, CoverSearchRadius = 25f, CoveringSeconds = 3f, PhaseTimeoutSeconds = 90f,
+            Speed = speed > 0f ? speed : 3f, CoverSearchRadius = 25f, CoveringSeconds = 5f, PhaseTimeoutSeconds = 90f,
         };
 
         [BehaviorResolver(BehaviorNames.CasualtyCare)]

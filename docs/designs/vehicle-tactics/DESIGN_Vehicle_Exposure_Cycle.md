@@ -340,6 +340,12 @@ target expiring from memory, which ends the designation, is how `TopThreat` (CE-
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
+✅ **Update, after backend's `CE-2222` (`2026-10-16`) — ① PASSES live:** with the Javelin's turn rate and climb as munition data
+(120 °/s, 45°), its top attack fits from its declared 150 m, so A at ~190 m dives on the roof and the cycling tank rates it dangerous.
+`ua-javelin-lock` 5/5: ② the tank left in the open locked and hit (2 launches, 2 hits); ① the cycling tank fights (it fires), A sees and
+aims at it in 4 sampled seconds with a best lock of **3.8 of 4 s**, and its short exposures deny the lock — 1 launch, 0 hits, health
+untouched (1500). ⛔ The park below is history.
+
 ⏸ **Update, after backend's CE-2217 (`2026-10-16`) — ① PARKED on `CE-2222` (backend):** backend measured ② live 2/2 on the
 HULL FRONT (the face the danger model predicts). ① still loses the lock race, and that is now RIGHT by the model: A, ~190 m off and ~19°
 off the nose, fires DIRECT (front armour, `ToMe` 0.11), so the tank has nothing to hide from. 📐 Why it is direct: `GuidedRoundSystem.TopAttackFits`
