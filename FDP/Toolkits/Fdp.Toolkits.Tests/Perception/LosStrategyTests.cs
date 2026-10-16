@@ -332,5 +332,55 @@ namespace Fdp.Toolkit.Perception.Tests
             new PerceptionTkbTranslator().Inject(world, bare, plain);
             Assert.False(world.HasComponent<SensorMount>(bare));   // ⇒ the strategy's default mount
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-1160 — ONE strategy, TWO threads, two views: the EQS solver (background thread, its snapshot) and the map's EQS verdict
+        /// (draw thread, the live world) share a template's sight test. 🔒 User, 2026-10-16: the editor froze ("1 frame drawn in few
+        /// seconds") when a unit was selected, then died with ArgumentOutOfRangeException in <c>ColliderOcclusion.Blocking</c> under
+        /// <c>EqsSensorGizmo.DrawVerdict</c>. Each thread's batch is its own now: no throw, and each view gets its own answer.
+        /// 🔴 Red-proof: a single shared batch throws or answers with the other view's colliders.
+        /// </summary>
+        [Fact]
+        public void CE1160_OneStrategy_TwoThreads_TwoViews_EachBatchIsItsOwn()
+        {
+            var (blocked, bObs, bTgt) = ObserverAndTarget100mEast();
+            var wall = blocked.CreateEntity();
+            blocked.AddComponent(wall, new SimTransform { Position = new Vector3(50f, 0f, 0f) });
+            blocked.AddComponent(wall, new PhysicsCollider { Radius = 3f });
+            var (clear, cObs, cTgt) = ObserverAndTarget100mEast();
+            for (int i = 0; i < 300; i++)   // many colliders off the line: the two batches differ in size, not only in content
+            {
+                var e = clear.CreateEntity();
+                clear.AddComponent(e, new SimTransform { Position = new Vector3(i % 30 * 10f, 40f + i / 30 * 10f, 0f) });
+                clear.AddComponent(e, new PhysicsCollider { Radius = 1f });
+            }
+
+            foreach (ILosStrategy strategy in new ILosStrategy[]
+            {
+                new PlanarCircleLosStrategy(PhysicsRadiusReader()),
+                new TerrainWorldLosStrategy(() => (TerrainWorld?)null, PhysicsRadiusReader(), (_, _) => 0f),
+            })
+            {
+                int wrong = 0;
+                Exception? thrown = null;
+                void Loop(EntityRepository world, Entity o, Entity t, bool expected)
+                {
+                    try
+                    {
+                        for (int n = 0; n < 2000; n++)
+                        {
+                            strategy.BeginBatch(world);
+                            if (strategy.IsVisible(world, o, t) != expected) System.Threading.Interlocked.Increment(ref wrong);
+                        }
+                    }
+                    catch (Exception ex) { thrown = ex; }
+                }
+                var a = System.Threading.Tasks.Task.Run(() => Loop(blocked, bObs, bTgt, expected: false));
+                var b = System.Threading.Tasks.Task.Run(() => Loop(clear, cObs, cTgt, expected: true));
+                System.Threading.Tasks.Task.WaitAll(a, b);
+                Assert.Null(thrown);
+                Assert.Equal(0, wrong);
+            }
+        }
     }
 }

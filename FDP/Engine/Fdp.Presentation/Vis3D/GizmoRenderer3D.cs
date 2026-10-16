@@ -51,6 +51,9 @@ namespace Fdp.Toolkit.Vis3D
 
         private const int RingSegments = 40;
 
+        /// <summary>⭐ CE-1160 — the most dashes one dashed / dotted path draws; a longer path gets longer dashes.</summary>
+        public const int MaxDashesPerPath = 1024;
+
         /// <summary>The ground height (level 0) at (x, y) — the surface z = 0 shapes are draped on. Null ⇒ flat at 0.</summary>
         public Func<float, float, float>? GroundHeight { get; set; }
 
@@ -338,6 +341,16 @@ namespace Fdp.Toolkit.Vis3D
 
             float mpp = 1f / MathF.Max(1e-3f, _zoomAt(path[path.Count / 2]));
             float on = (style == LineStyle.Dashed ? 8f : 3f) * mpp, off = (style == LineStyle.Dashed ? 8f : 4f) * mpp;
+            // ⭐ CE-1160 — a path's dashes are capped. 📐 Measured: the selected tank's EQS search ring (12 km radius, 75 km around) is
+            //   ~3 600 segments from most cameras, but its dash length comes from the zoom at ONE point (the path's middle), so a camera
+            //   near that point made 8-pixel dashes a few centimetres long ⇒ 101 232 lines for one ring. Past the cap the dashes stretch.
+            float period = on + off;
+            if (total / period > MaxDashesPerPath)
+            {
+                float stretch = total / (period * MaxDashesPerPath);
+                on *= stretch;
+                off *= stretch;
+            }
             float along = 0f, phase = 0f;
             bool drawing = true;
             for (int i = 1; i < path.Count; i++)

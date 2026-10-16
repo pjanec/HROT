@@ -85,6 +85,37 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(4, b.DroppedCount);
         }
 
+        /// <summary>⭐ CE-1160 — 🔒 User, 2026-10-16: <i>"If i click Entity OFF, i am no longer able to open menu by right clicking the
+        /// entity, green selection stop showing … I need the entity selection and right click work always independently of what i pick in
+        /// the debug layers menu."</i> The entity pick box is an invisible layer-0 box; refusing it with the Entities layer left the
+        /// terminal's hit-test nothing to find.</summary>
+        [Fact]
+        public void CE1160_APickTarget_IsNeverRefusedByLayer_NorEvicted_ButAVisibleBoxOnAHiddenLayerStillIs()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 4);
+            b.SetActiveLayers(new LayerMask256());            // every layer hidden — Entities (0) included
+            var pickBox = DebugPrimitive.MakeBox2D(new Vector2(10f, 20f), new Vector2(2f, 2f), new Rgba32(0, 0, 0, 0),
+                sizeMode: SizeMode.WorldMeters, target: PipelineTarget.Map2D, layer: 0, anchorId: 1000);   // as EntityPresentationGizmoShared.EmitPickBox
+            var segment = DebugPrimitive.MakePickSegment(Vector2.Zero, new Vector2(5f, 0f), networkId: 1001);
+            var visible = DebugPrimitive.MakeBox2D(new Vector2(10f, 20f), new Vector2(2f, 2f), new Rgba32(255, 0, 0, 255),
+                layer: 0, anchorId: 1000);                    // a drawn symbol box: still hidden by its layer
+            b.EmitRaw(pickBox);
+            b.EmitRaw(segment);
+            b.EmitRaw(visible);
+
+            var frame = b.GetFrame().ToArray();
+            Assert.Equal(2, frame.Length);
+            Assert.All(frame, p => Assert.True(DebugPrimitiveBuffer.IsPickTarget(in p)));
+            Assert.Equal(1, b.SuppressedCount);
+
+            b.SetActiveLayers(OnlyLayerZero());
+            Line(b, Visible); Line(b, Visible);               // full (4)
+            b.EmitRaw(DebugPrimitive.MakeLayerControlMask(OnlyLayerZero()));
+            b.DrawMainMenuBinding("[{\"label\":\"View\"}]");
+            frame = b.GetFrame().ToArray();
+            Assert.Equal(2, frame.Count(p => DebugPrimitiveBuffer.IsPickTarget(in p)));   // the plain lines gave way, not the pick targets
+        }
+
         [Fact]
         public void CE1071_EndFrame_ResetsTheCounts_ButKeepsTheMask()
         {

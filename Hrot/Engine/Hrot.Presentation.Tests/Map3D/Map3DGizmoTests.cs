@@ -183,6 +183,21 @@ public sealed class Map3DGizmoTests
         Assert.Null(LabelOverlay3D.ScreenOf(in behind, cam, null));
     }
 
+    /// <summary>⭐ CE-1160 — a selected tank's EQS search ring is 12 km in radius. 📐 Measured: ~3 600 lines from most cameras, but
+    /// 101 232 for ONE ring with the camera near the point the dash length is taken from (8 px there is a few centimetres).</summary>
+    [Fact]
+    public void CE1160_AHugeDashedRing_IsCapped_WhereverTheCameraIs()
+    {
+        var ring = DebugPrimitive.MakeSphere(new Vector3(530f, 500f, 0f), 12000f, new Rgba32(0, 255, 255, 100), 1f, style: LineStyle.Dashed);
+        foreach (var eye in new[] { new Vector3(530f, 200f, 300f), new Vector3(-11470f, 500f, 50f) })
+        {
+            var sink = new CaptureSink();
+            var r = new GizmoRenderer3D();
+            r.Draw(Triage(new DebugPrimitiveTriage3D(), ring), q => 1040f / MathF.Max(0.5f, Vector3.Distance(q, eye)), sink);
+            Assert.InRange(sink.Lines.Count, 1, 3 * GizmoRenderer3D.MaxDashesPerPath + 40 * GizmoRenderer3D.MaxSegments);
+        }
+    }
+
     [Fact]
     public void S3_DashedLines_KeepPixelDashes_AndGradientsBlendAlongTheLine()
     {

@@ -62,9 +62,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                      or DebugPrimitiveShape.ContextMenuBinding or DebugPrimitiveShape.MainMenuBinding
                      or DebugPrimitiveShape.StructInspector;
 
+        /// <summary>⭐ CE-1160 — a PICK TARGET: an invisible <see cref="DebugPrimitiveShape.Box2D"/> carrying an anchor id, emitted purely so
+        /// the terminal's hit-test can find the entity (<c>EntityPresentationGizmoShared.EmitPickBox</c>, <c>DebugPrimitive.MakePickSegment</c>).
+        /// 🔒 User, 2026-10-16: <i>"I need the entity selection and right click work always independently of what i pick in the debug layers
+        /// menu."</i> 🔴 It sits on layer 0 (so a tool handle on a higher layer still wins the pick), and CE-1071 refused hidden layers at
+        /// emit ⇒ turning <c>Entities</c> off removed every pick box: no hover, no selection, no entity menu. Never refused by layer and
+        /// never evicted for a protected primitive (like an anchor); it is drawn by nobody, so the mask has nothing to hide.</summary>
+        public static bool IsPickTarget(in DebugPrimitive p)
+            => p.Shape == DebugPrimitiveShape.Box2D && p.BoxAnchorId != 0 && p.Color.A == 0 && p.FillColor.A == 0;
+
         private bool RefusedByLayer(in DebugPrimitive p)
         {
-            if (!_layersKnown || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor) return false;
+            if (!_layersKnown || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in p)) return false;
             if (_activeLayers.IsSet(p.DebugLayer)) return false;
             Interlocked.Increment(ref _suppressedCount);
             return true;
@@ -79,7 +88,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 for (int i = Math.Min(_evictFrom, _primitives.Length - 1); i >= 0; i--)
                 {
                     var shape = _primitives[i].Shape;
-                    if (IsProtected(shape) || shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                    if (IsProtected(shape) || shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in _primitives[i])) continue;
                     _primitives[i] = p;
                     _evictFrom = i - 1;
                     Interlocked.Increment(ref _droppedCount);

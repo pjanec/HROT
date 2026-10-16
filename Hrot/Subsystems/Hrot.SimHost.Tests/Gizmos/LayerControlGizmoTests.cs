@@ -28,6 +28,32 @@ namespace Hrot.SimHost.Tests.Gizmos
         private static IComponentEditService MakeEditService()
             => new ComponentEditServiceBuilder().Build();
 
+        // ⭐ CE-1160 — 🔒 User, 2026-10-16: "I need the entity selection and right click work always independently of what i pick in the
+        //   debug layers menu." With every toggle off the selection ring is still drawn: it sits on the first bit no toggle owns.
+        [Fact]
+        public void CE1160_EveryLayerToggleOff_TheSelectionRing_IsStillEmittedAndKept()
+        {
+            var dto = new LayerControlDto { Entities = false, Perception = false, Doors = false, Paths = false, Roads = false, Labels = false };
+            var mask = dto.ToMask();
+            Assert.False(mask.IsSet(0));
+            Assert.True(DebugTraceLayers.Selection >= LayerControlDto.FirstUntoggledLayer);
+            Assert.True(mask.IsSet(DebugTraceLayers.Selection));
+
+            using var w = new EntityRepository();
+            w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+            w.RegisterComponent<SimTransform>();
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
+            w.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(10f, 20f, 0f) });
+            var buffer = new DebugPrimitiveBuffer();
+            buffer.SetActiveLayers(mask);
+            new SelectionHighlightGizmo().Draw(w, e, buffer);
+
+            var ring = Assert.Single(buffer.GetFrame().ToArray());
+            Assert.Equal(DebugPrimitiveShape.Sphere, ring.Shape);
+            Assert.Equal(DebugTraceLayers.Selection, ring.DebugLayer);
+        }
+
         // GZH011_1: LayerControlGizmo.SchemaHash equals the FNV-1a hash of the DTO's full type name.
         [Fact]
         public void GZH011_1_SchemaHash_MatchesComputedHash()

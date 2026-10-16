@@ -62,7 +62,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var color = sel.IsPrimarySelection ? PrimaryOutline : Secondary;
             // ⭐ CE-3147 — the same query the pick areas use, so ring and hit area agree for a truck AND for a man.
             float radiusMetres = Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.InteractionRadiusMetres(view, entity);
-            draw.DrawSphere(pos, radiusMetres, color, thickness: RingThicknessPx, sizeMode: SizeMode.WorldMeters);
+            // ⭐ CE-1160 — on the always-on Selection layer: no debug layer toggle may hide what is selected.
+            draw.DrawSphere(pos, radiusMetres, color, thickness: RingThicknessPx, sizeMode: SizeMode.WorldMeters, layer: DebugTraceLayers.Selection);
         }
     }
 }
