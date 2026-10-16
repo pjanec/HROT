@@ -1648,11 +1648,19 @@ def run_javelin_lock(c, timeout):
     if not c.ok(None not in (cyc, opn, ja, jb), "both tanks and both Javelin teams are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots = {}
+    shots, trace, next_sample = {}, [], 0.0
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
+        if time.time() >= next_sample and not _dead(cyc):   # the cycle against the lock, every second
+            next_sample = time.time() + 1.0
+            pc = position(cyc)
+            md = data(call("GET", f"/entities/{cyc}/memory")) or {}
+            knows = [round(x.get("freshness") or 0) for x in md.get("slots") or [] if x.get("networkId") == ja]
+            st = ((data(call("GET", f"/entities/{ja}/weapons")) or {}).get("status") or {})
+            trace.append((len(trace),
+                          tuple(round(v) for v in pc[:2]) if pc else None, knows, st.get("reason"), st.get("progress"), st.get("needed")))
         if _hurt(opn, 3000) and _dead(ja):
             break
         time.sleep(0.5)
@@ -1673,6 +1681,8 @@ def run_javelin_lock(c, timeout):
     c.ok(len(by.get(cyc, [])) >= 1, f"① the cycling tank fights — {len(by.get(cyc, []))} round(s)")
     c.ok(not a_hits and not _hurt(cyc, 3000), f"① its short exposures deny Javelin A a lock — {len(by.get(ja, []))} launch(es), {len(a_hits)} hit(s), health {health(cyc)}")
     print(f"    health: Tank Cycling {health(cyc)} · Tank Open {health(opn)} · Javelin A {health(ja)} · Javelin B {health(jb)}")
+    for row in trace[:60]:
+        print("      cycle s", row)
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
