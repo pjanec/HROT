@@ -20,6 +20,7 @@ related-designs:
   - docs/DESIGN_Orders_Params_Entity_Classes.md — OWNS the class table and order resolution (R-278); this file adds the WeaponSystem class (Kind 1, Domain 1, Category 50)
   - docs/DESIGN_Entity_Control.md — possession of the gunner seat (a player firing a pickup's HMG) is a later item here
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Weapon_Systems.md · HANDOFF_Behaviors_To_Ui_Weapon_Systems.md — the dispatches of WS-1…WS-4 and WS-5
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-4: an armed hostile civilian picks up a separable weapon (PickUp, FireWhileCarried).
 -->
 
 # Weapon systems — weapons you can place, mount, carry, deploy and man

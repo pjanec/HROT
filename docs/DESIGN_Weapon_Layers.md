@@ -34,6 +34,7 @@ related-designs:
     to TurretPose instead of inventing a second one.
   - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162): LD-1 reuses W-14's body turn (HumanGait.FacingTurn) for a look direction, LD-2 points the vision cone along it
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-6/CV-9: non-lethal warhead kinds and the thrown stone/Molotov reuse the grenade throw (W-12e/f).
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle

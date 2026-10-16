@@ -29,6 +29,8 @@ related-designs:
   - designs/eqs-2/EQS_Design_v1.3_final.md — OWNS EQS generators, tests, templates
   - DESIGN_Peek_And_Fire.md — OWNS the fight-from-cover node and CoverClaim (the claim pattern §8 generalises)
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the open speed / retreat decisions several behaviours here depend on
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §8: SUMO pedestrians that panic become our civilian entities for good (CGF creates them, P4) and need CIV-2/CIV-7 as a production HSM (P5).
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — the BUILD of the civilian rows (CIV-1…7, ASY-5, SQD-13) and of D3/D4/D5: one civilian family + HSM, crowds, riots, non-lethal force (R-4033…R-4036).
 -->
 
 # Operations behaviour catalogue — what a library for modern operations needs

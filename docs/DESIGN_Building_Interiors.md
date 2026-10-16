@@ -36,6 +36,7 @@ related-designs:
     diagnostics (routes, gizmo layers) for everything in this doc.
   - designs/eqs-2/EQS_Design_v1.3_final.md §19 — OWNS the EQS pipeline, its tests and the starter templates (§19.6 lists FindWindowFiringPosition); TerrainCoverProvider reads building panels by face since §3l.
   - DESIGN_Terrain_Zones_And_Assets.md §2.1c — buildings are static/bakeable terrain content.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-7: panicking civilians shelter through openable doors (FindEnterableShelter, a new InsideTest) and are deleted after a hide time (R-4035).
 -->
 
 # Enterable buildings — walls, doors, windows, floors *(target state, CE-1031)*

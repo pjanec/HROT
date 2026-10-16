@@ -56,6 +56,7 @@ related-designs:
     cluster's Loading* phase: the per-ROLE contract, the ordered load-phase chain, and the shared
     content names riding the load MESSAGE. ⛔ It SUPERSEDES §2.1e ④ here (see §10.9) — this doc keeps
     WHAT terrain and zones ARE and gives up the scheduling question entirely.
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — a SUMO .net.xml as a second road-net FORMAT in roadNetworks[] (R-4021); the traffic demand is a scenario entity, the net stays a terrain asset.
 -->
 
 # DESIGN — **Terrain, zones and the asset build**
