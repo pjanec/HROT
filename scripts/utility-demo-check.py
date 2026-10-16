@@ -1855,6 +1855,45 @@ def run_rpg_window(c, timeout):
     print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
 
 
+# ── ua-weapon-systems (Weapon Systems §10, WS-6) — a sentry gun holds a gate, a soldier sets up an M2, a soldier picks up a Javelin ─────
+#   basic-desert, three vignettes on one field. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 250 m:
+#   the gun fires on its own and hurts him. ② "M2 Gunner" on SetUpWeapon with a STOWED "M2 HMG" 8 m off: he walks to it, takes its
+#   Gunner seat, and it is Deployed (DeploySeconds 20). ③ "Javelin Man" on CarryWeapon with a stowed "Javelin" 8 m off: he carries it.
+def run_weapon_systems(c, timeout):
+    ids = ids_by_name()
+    sentry, intruder = ids.get("Sentry Gun"), ids.get("Intruder")
+    m2, gunner, jav, jman = ids.get("M2 HMG"), ids.get("M2 Gunner"), ids.get("Javelin"), ids.get("Javelin Man")
+    if not c.ok(None not in (sentry, intruder, m2, gunner, jav, jman), "the sentry gun, the intruder, the M2 and its gunner, the Javelin and its man are loaded"):
+        return
+    deploy = lambda n: (comps(n).get("WeaponSystemState") or {}).get("Deploy")
+    print(f"    start: M2 deploy {deploy(m2)} · Javelin deploy {deploy(jav)} · sentry deploy {deploy(sentry)}")
+    call("POST", "/sim/play", {})
+    shots, manned, deployed, carried, t = {}, None, None, None, 0
+    end = time.time() + timeout + 60
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        t += 1
+        if manned is None and _aboard(gunner) is not None:
+            manned = t
+        if deployed is None and str(deploy(m2)) in ("2", "Deployed"):
+            deployed = t
+        if carried is None and _aboard(jav) is not None:
+            carried = t
+        if t % 10 == 0:
+            print(f"      @{t}s M2 {deploy(m2)} gunner aboard {_aboard(gunner)} · Javelin aboard {_aboard(jav)} · intruder {health(intruder)} at {position(intruder)}")
+        if manned and deployed and carried and _hurt(intruder, 100):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
+    at_him = [x for x in shots.values() if x.get("shooter") == sentry]
+    c.ok(len(at_him) >= 1 and _hurt(intruder, 100), f"① the sentry gun fires on its own and hurts the intruder — {len(at_him)} round(s), his health {health(intruder)}")
+    c.ok(manned is not None, f"② the gunner mans the M2 — aboard after {manned} s ({_aboard(gunner)})")
+    c.ok(deployed is not None, f"② the M2 is set up — Deployed after {deployed} s (now {deploy(m2)})")
+    c.ok(carried is not None, f"③ the Javelin man carries the Javelin — after {carried} s ({_aboard(jav)})")
+
+
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
 #   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
 #   y 210 hid every target and it never fired), against an enemy T-72 (240 m), an HMG technical (230 m) and two riflemen (230 m,
@@ -2338,6 +2377,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-javelin-lock": run_javelin_lock,
              "ua-technical-scoot": run_technical_scoot,
              "ua-rpg-window": run_rpg_window,
+             "ua-weapon-systems": run_weapon_systems,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)

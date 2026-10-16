@@ -524,6 +524,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("PlatformMove", Assert.Single(Order(repo, system, t72, "Move", "{}")).BehaviorName);
             Assert.Equal("PersonAttack", Assert.Single(Order(repo, system, soldier, "Attack", "{}")).BehaviorName);
         }
+
+        /// <summary>
+        /// ⭐⭐ WS-6 (Weapon Systems §10) — with the PRODUCTION registry, a WEAPON SYSTEM's (class 1.1.*.50) ATTACK resolves to
+        /// <c>WeaponSystemAttack</c> and its HOLD to <c>WeaponSystemHold</c> — not the land platform's exposure cycle (it cannot move) nor
+        /// <c>PlatformHold</c> (Idle: a holding sentry gun never fired); a tank's attack stays <c>LandPlatformAttack</c>. 🔴 Red-proof: drop the
+        /// <c>[Behavior]</c> on <c>BuildAttack</c> and the sentry gun resolves to <c>LandPlatformAttack</c>.
+        /// </summary>
+        [Fact]
+        public void WS6_AWeaponSystemsAttackAndHold_ResolveTo_WeaponSystemAttackAndHold()
+        {
+            var registry = new BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), registry);
+            var sentry = Typed(repo, Dis(1, 1, 225, 50, 5));
+            var hmg    = Typed(repo, Dis(1, 1, 225, 50, 1));
+            var t72    = Typed(repo, Dis(1, 1, 222, 1, 2, 1));
+            Assert.Equal("WeaponSystemAttack", Assert.Single(Order(repo, system, sentry, "Attack", "{}")).BehaviorName);
+            Assert.Equal("WeaponSystemHold", Assert.Single(Order(repo, system, sentry, "Hold", "{}")).BehaviorName);
+            Assert.Equal("WeaponSystemAttack", Assert.Single(Order(repo, system, hmg, "Attack", "{}")).BehaviorName);
+            Assert.Equal("LandPlatformAttack", Assert.Single(Order(repo, system, t72, "Attack", "{}")).BehaviorName);
+        }
     
 
         /// <summary>

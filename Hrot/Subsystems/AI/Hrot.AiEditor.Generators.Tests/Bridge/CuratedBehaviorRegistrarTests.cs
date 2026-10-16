@@ -133,6 +133,11 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformAttack,     // CE-2173 slice 6c (B12-B14)
             Hrot.Map.Definitions.Behavior.BehaviorNames.AirPlatformMove,       // CE-2173 B4
             Hrot.Map.Definitions.Behavior.BehaviorNames.ManWeapon,             // CE-2176 (Weapon Systems §4b)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SetUpWeapon,           // WS-6 (Weapon Systems §10)
+            Hrot.Map.Definitions.Behavior.BehaviorNames.PackUpWeapon,          // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.CarryWeapon,           // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemAttack,    // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemHold,      // WS-6
         };
 
         foreach (var name in curated)

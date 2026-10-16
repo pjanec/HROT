@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16 (§6 CE-2182 row superseded by CE-3214: a weapon not embarked is hit by its parts; §5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — BUILT; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
-build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — SetUpWeapon / PackUpWeapon / CarryWeapon and the demo not yet; 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
-current-answer: §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
+build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — ⭐ the rest of WS-6 designed in §10 (BUILDING `2026-10-16`); 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
+current-answer: ⭐ §10 WS-6 the weapon behaviours (orders, set up / pack up / carry) · §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
@@ -423,3 +423,83 @@ at the REQUEST TIER — the same place a template's child blueprints are spawned
 | ⭐ **WS-6 `ManWeapon` — BUILT `2026-10-15`** (behaviors, for IF-4) | the library behaviour `ManWeapon { weapon }` (`EmbarkBehaviors.cs`) boards the weapon's `Gunner` seat: `EmbarkNodeParams.Role` / `EmbarkParams.Role` (APPENDED) carry the role and `EmbarkExecutor` asks `Embarkation.FreeSeat(role)` — a plain `Embark` still takes the first PASSENGER seat (the loader's), so it never controls the weapon. ⚠ **DEVIATION — the gunner keeps his fire**: `Embarkation.Board` stripped `CanMove | CanShoot` from every rider, so the man in a weapon's own Gunner seat — its controller (WS-3), who fires it AS the weapon through his own `WeaponChannel` — had every weapon action failed by `WeaponDispatcherSystem`'s capability gate before the executor ran. 📐 Found live (IF-4 ①: the section's FireAtPoint reported Failure with the executor never entered); the IF-1 rails missed it because they call the executor directly. ⇒ `Embarkation.StrippedOn(vehicle, seat)`: a weapon system's Gunner seat takes only `CanMove`; every other seat (a vehicle's crew seats included — W-I, the HOST fires there) is unchanged. Rails: `EmbarkNodesTests.CE2176_ManWeapon_TakesTheGunnerSeat_ControlsAndFiresTheWeapon_APlainEmbarkTakesTheLoadersSeat` · the `MannedMortar` premise in `AimAndFireExecutorTests` (IF-1's suite) | §4b's *"ManWeapon: the soldier boards the M2's Gunner seat"* as drawn; §6's capability side was never stated — it is now |
 | ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
 | ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |
+
+## 10. WS-6 — the weapon behaviours (behaviors, `2026-10-16`; build-state: READY-TO-BUILD → BUILDING)
+
+⭐ **Measured before drawing** — INVENTORY: `search_graph(name_pattern=".*WeaponSystem.*", label=Class)` → **11** (the DTO, params/state, translators, `WeaponSystems`, the replication rails — no behaviour); `.*WeaponDeploy.*` → **3** (`WeaponDeploySystem`, `WeaponDeployment`, its rail); `.*(SetUp|PackUp|Carry)Weapon.*\|.*WeaponSystem(Attack\|Hold).*` (Method) → **0** (codebase-memory CLI; `check_index_coverage` is not available through the CLI, so the zero is corroborated by `grep`, not by a coverage check). Then reads:
+a weapon system is class **`WeaponSystem` (DIS 1.1.\*.50)** under the land platform (`EntityClassTable.cs:140`), so by R-278 an
+**Attack** order resolves today to `LandPlatformAttack` (the vehicle exposure cycle — it needs a `LocomotionChannel` and FAILS on a weapon)
+and **Hold** to `PlatformHold` (`Idle` — a sentry gun told to hold never fires). `PostureNodes.Engage` (fire at the top threat, re-aim when
+it changes) and `PostureNodes.UntilTargetDown` (an order's named target, Success when down) already exist; `PickUp` / `PutDown`
+(`CarryNodes`) already board a portable weapon (`Embarkation.TryEmbark`'s WS-2 branch); `ManWeapon` (§9) boards the Gunner seat;
+`WeaponDeployment.Deploy / Pack` start the deploy state on its owner — nothing yet WAITS for it.
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponSystemOrders { <<★ static, Hrot.AI.Behaviors>> WeaponSystemAttack «AttackOrder» · WeaponSystemHold «HoldOrder» }
+  class WeaponSystemBehaviors { <<★ static>> SetUpWeapon «weapon» · PackUpWeapon «weapon» · CarryWeapon «weapon» }
+  class WeaponSystemNodes { <<★ static, [SharedAiAction]>> DeployWeapon(ref DeployWeaponParams) «Deploy / Pack, then WAIT for the state» }
+  class DeployWeaponParams { <<★>> Weapon : Entity · Pack : byte · Started : byte «runtime» }
+  class PostureNodes { <<existing>> Engage · UntilTargetDown }
+  class CarryNodes { <<existing>> PickUp · PutDown }
+  class EmbarkNodes { <<existing>> Embark «Role = Gunner» · Disembark }
+  class WeaponDeployment { <<existing, Fdp.Toolkits Combat>> Deploy · Pack · Owns }
+  class CombatPostureBehavior { <<existing>> Resolve «one reading of an order's target» }
+  WeaponSystemOrders ..> PostureNodes
+  WeaponSystemOrders ..> CombatPostureBehavior : the target
+  WeaponSystemBehaviors ..> CarryNodes
+  WeaponSystemBehaviors ..> EmbarkNodes
+  WeaponSystemBehaviors ..> WeaponSystemNodes
+  WeaponSystemNodes ..> WeaponDeployment
+  WeaponSystemNodes --> DeployWeaponParams
+```
+
+*What the picture shows that prose hid: ONE new node (`DeployWeapon`); the two orders are compositions of two existing posture nodes; the
+three soldier behaviours are sequences of existing carry / embark nodes around that one node. Nothing new on the wire.*
+
+```mermaid
+sequenceDiagram
+  participant S as Soldier — SetUpWeapon (CGF)
+  participant C as PutDown / Embark (existing)
+  participant D as DeployWeapon ★
+  participant W as WeaponDeployment (the weapon's owner)
+  S->>C: PutDown — Success at once when he carries nothing
+  S->>C: Embark Role=Gunner — walk to it, board its Gunner seat (ManWeapon)
+  S->>D: DeployWeapon { weapon }
+  D->>W: Deploy(weapon) once — false when already Deployed
+  loop each tick
+    D->>W: read WeaponSystemState.Deploy
+  end
+  D-->>S: Success at Deployed · Failure: weapon gone / state not ours / Stowed again
+  Note over S: now the controller (§6) — his weapon brain fires the weapon
+```
+
+```mermaid
+graph TD
+  BT["BrainTickSystem (CgfLogicPack, every frame)"] --> O["WeaponSystemAttack / WeaponSystemHold — on the WEAPON (automatic, unmanned: it controls itself, §6)"]
+  BT --> SB["SetUpWeapon / PackUpWeapon / CarryWeapon — on the SOLDIER"]
+  TI["TacticalIntentResolutionSystem: an order to class WeaponSystem → WeaponSystem&lt;Order&gt; (R-278)"] --> O
+  SB --> DW["DeployWeapon ★ → WeaponDeployment (the weapon's owner: CGF holds the Brain group, WS-4)"]
+  DS["WeaponDeploySystem (existing, owner)"] -. advances the state DeployWeapon waits on .-> DW
+```
+
+*What the module picture shows: the orders reach a weapon only through the class lookup — so the lookup rail is the proof they are reached;
+the deploy is advanced by `WeaponDeploySystem`, which already ticks, so `DeployWeapon` only waits.*
+
+| behaviour | built from | why this shape |
+|---|---|---|
+| `WeaponSystemAttack` | `Parallel(1){ UntilTargetDown ‖ Engage }`, the target read by `CombatPostureBehavior.Resolve` (as `LandPlatformAttack`) | a weapon cannot move: it fights the named target from where it stands, and the order ends when the target is down |
+| `WeaponSystemHold` | `Engage` | 🔒 W-E *"automatic turret is required"* — a holding sentry gun fights whatever comes; `Idle` (today's `PlatformHold`) would make it a statue |
+| `SetUpWeapon { weapon }` | `Sequence{ PutDown · Embark(Gunner) · DeployWeapon }` | §4b: put down (if carried), man it, set it up |
+| `PackUpWeapon { weapon }` | `Sequence{ DeployWeapon(Pack) · Disembark }` | packing is done at the weapon; he then steps off — carrying it is `CarryWeapon` |
+| `CarryWeapon { weapon }` | `PickUp { weapon, Carried }` | one implementation of picking things up (the casualty's); a TWO-MAN weapon needs the team carry, whose AI is ⏸ later (T-c, `CE-2178`, user: *"add it as tracked item for later"*) — it fails there, as `TryEmbark` refuses it without an assistant |
+
+| ⚠ cut, and why | |
+|---|---|
+| the automatic weapon's **SOP** (§8) | ⇒ `WeaponSystemHold` IS its standing behaviour: one row (*fire at what it sees*) needs no SOP asset; a scenario names it. A reaction table can come when a weapon has more than one thing to do |
+| a manned weapon's **orders** | an order to the GUNNER today runs `PersonAttack` (CombatPosture — it would walk him off the gun). ⏸ not in this slice; noted in the tracker row |
+
+Rails, in the features' own suites: `TacticalIntentResolutionSystemTests` (a weapon system's Attack / Hold resolve to these, a tank's do
+not — mirrors `V4_ATanksAttackOrder…`), `CuratedBehaviorRegistrarTests` (the names register), `WeaponSystemNodesTests` ★ (DeployWeapon
+deploys and waits, packs and waits, fails on a weapon it does not own), and the demo `ua-weapon-systems`.
