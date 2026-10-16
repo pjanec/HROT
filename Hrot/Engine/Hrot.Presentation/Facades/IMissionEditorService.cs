@@ -26,8 +26,10 @@ public interface IMissionEditorService
     /// technology (and every test double) stays correct as it is; ⭐ a production implementation that CAN
     /// overrides it and derives <see cref="GetAvailableBehaviors"/> from it — one list, not two.
     /// </summary>
+    /// <remarks>⚠ CE-1124: a double that returns no list (a Moq mock's default is <see langword="null"/>) is "no behaviours", not a
+    /// throw — the panel calls this inside an ImGui window, and an exception there takes the whole test host down.</remarks>
     IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(long entityId)
-        => GetAvailableBehaviors(entityId).Select(n => new BehaviorChoice(n, null)).ToList();
+        => (GetAvailableBehaviors(entityId) ?? Array.Empty<string>()).Select(n => new BehaviorChoice(n, null)).ToList();
 
     /// <summary>
     /// Returns the current <see cref="MissionPlan"/> and its optimistic-lock version,
