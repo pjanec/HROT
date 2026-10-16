@@ -337,9 +337,10 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
-            // ⭐ CE-1078 (§8e D-1) — a locked shot aims at its unit (followed as it moves); else the station's point
+            // ⭐ CE-1078 (§8e D-1) — a locked shot aims at its unit (followed as it moves); else the station's point.
+            //   ⭐ CE-1125 — AT THE POINT THE CROSSHAIR PUT ON HIM (the brain carries it with him), the middle only when it is not on him.
             var point = !p.Target.IsNull && world.IsAlive(p.Target) && world.HasComponent<SimTransform>(p.Target)
-                ? AimPoint.Middle(world, p.Target, out _, out _) : p.Point;
+                ? AimPoint.Operator(world, p.Target, p.Point) : p.Point;
             if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, point); return; }
             if (switching) { SayAt(world, entity, ActionReason.Reloading, point); return; }
             // ⭐ CE-1078 — in operator mode Rounds is a CAP on the action's rounds (one locked shot = fired + 1), never an end
