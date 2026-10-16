@@ -19,7 +19,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// the replicated <see cref="PossessedBy"/> into and out of first person (the operator's view restored, never saved), the controls
 /// becoming control frames on the bus, and the HUD's text.
 /// </summary>
-public sealed class PossessionStationTests
+public sealed partial class PossessionStationTests
 {
     private static readonly Vector2 Viewport = new(1280, 720);
 
