@@ -340,6 +340,17 @@ target expiring from memory, which ends the designation, is how `TopThreat` (CE-
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
+⏸ **`ua-technical-scoot` (`2026-10-16`) — written, three runs, parked; geometry, not behaviour, so far:**
+
+| run | what happened | lesson |
+|---|---|---|
+| 1 | the tank started in its hide south of the 4-storey block; nobody fired | no firing point of an attacker can see a tank hidden from it — start the target where the attackers' firing points see it |
+| 2 | the tank at the crossing (200, 200): the HMG technical **shot and scooted** (some 20 positions, 2 rounds); the ATGM technical never fired | the Kornet's `MinRangeM` is 100 m and its firing points were closer than that |
+| 3 | the tank in the south street (200, 120): nobody fired | from the ATGM technical's hide behind the 20 m block, no point within the 25 m `FiringSearchRadius` sees past the block |
+
+⇒ Next step, not taken: print the technicals' firing-point sensor answers (as `ua-javelin-lock` does) and place each hide one block-corner
+from a line of sight, beyond the Kornet's minimum.
+
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the
 technical and the men. ⛔ Those rounds fly through a soft body and burst 230 m beyond it — **CE-2203** (backend). One of the M1's own rounds hit
