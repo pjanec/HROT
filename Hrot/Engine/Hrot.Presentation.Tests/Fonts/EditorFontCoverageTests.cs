@@ -126,7 +126,7 @@ public sealed class EditorFontCoverageTests
     public void CE1063_TheBakedAtlas_HoldsTheSymbols()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
-        using var frame = UiFrameHarness.Begin(320, 200);
+        using var frame = UiFrameHarness.Begin();
         new EditorFontService().Initialize(1f, 1f);
         // ⛔ Assert AFTER the frame: an exception between ImGui.Begin and End trips ImGui's native assert and kills the test host.
         var missing = new List<string>();

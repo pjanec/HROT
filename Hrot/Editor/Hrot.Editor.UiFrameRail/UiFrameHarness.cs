@@ -69,24 +69,83 @@ public static class UiFrameHarness
             return false;
         }
 
+        // ⭐ CE-1039 — the probe opens the window the sessions will use (kept on Linux), under the gate like a session.
+        Gate.Wait();
         try
         {
             Raylib_cs.Raylib.SetTraceLogLevel(Raylib_cs.TraceLogLevel.Error);
-            Raylib_cs.Raylib.InitWindow(64, 64, "uiframe-probe");
-            bool ready = Raylib_cs.Raylib.IsWindowReady();
-            Raylib_cs.Raylib.CloseWindow();
-
-            _available = ready;
-            if (!ready) _unavailableReason = "DISPLAY is set but Raylib could not create a window (no GL?)";
-            return ready;
+            OpenOrBind(DefaultWidth, DefaultHeight);
+            Leave();
+            _available = true;
+            return true;
         }
         catch (Exception ex)
         {
-            // ⚠ A missing native libraylib is a DllNotFoundException, not a return value.
-            _unavailableReason = $"{ex.GetType().Name}: {ex.Message}";
+            // ⚠ A missing native libraylib is a DllNotFoundException, not a return value; a window that never became ready
+            //   is the InvalidOperationException OpenOrBind throws.
+            _unavailableReason = ex is InvalidOperationException
+                ? "DISPLAY is set but Raylib could not create a window (no GL?)"
+                : $"{ex.GetType().Name}: {ex.Message}";
             _available = false;
             return false;
         }
+        finally { Gate.Release(); }
+    }
+
+    // ── CE-1039: ONE window per process ───────────────────────────────────────
+
+    /// <summary>The size every rail asks for (<see cref="Begin"/>'s default).</summary>
+    public const int DefaultWidth = 1280, DefaultHeight = 800;
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-1039</c> — the window is KEPT for the life of the test process (Linux / GLX), not opened and closed per rail.</b>
+    /// 📐 Measured from a core dump: the test host that aborted "between tests" died with SIGSEGV in
+    /// <c>InitWindow → rlglInit → rlLoadTexture</c> calling a NULL GL function — a fresh window whose context came up unusable
+    /// (GLAD loaded nothing), which under Xvfb/Mesa happened about once per few hundred window creations, i.e. once in four or
+    /// five suite runs at ~25 windows a run. ⇒ one creation per process instead. A GL context is current on ONE thread and
+    /// xUnit moves rails across pool threads, so a session BINDS the kept context on its own thread and RELEASES it when it ends
+    /// (<see cref="GlxContext"/>). Elsewhere (no GLX: Windows) each session still opens and closes its own window.
+    /// </summary>
+    private static GlxContext.Binding? _keptWindow;
+    private static int _windowWidth, _windowHeight;
+
+    /// <summary>True when the window is being kept between sessions (rails).</summary>
+    public static bool KeepsWindow => _keptWindow is not null;
+
+    /// <summary>How many windows this process has created (rails).</summary>
+    public static int WindowsCreated { get; private set; }
+
+    /// <summary>Opens the window, or binds the kept one, on THIS thread at <paramref name="width"/> × <paramref name="height"/>.
+    /// ⛔ Call under <see cref="Gate"/>.</summary>
+    internal static void OpenOrBind(int width, int height)
+    {
+        if (_keptWindow is { } kept)
+        {
+            if (!GlxContext.Bind(kept))
+                throw new InvalidOperationException("the kept window's GL context could not be bound on this thread");
+            if (width == _windowWidth && height == _windowHeight) return;
+            Raylib_cs.Raylib.CloseWindow();   // another size: a new window (rare — the rails all ask for the default)
+            _keptWindow = null;
+        }
+
+        Raylib_cs.Raylib.InitWindow(width, height, "hrot-uiframe-rail");
+        WindowsCreated++;
+        if (!Raylib_cs.Raylib.IsWindowReady())
+        {
+            Raylib_cs.Raylib.CloseWindow();
+            throw new InvalidOperationException("Raylib window did not become ready.");
+        }
+        _windowWidth = width;
+        _windowHeight = height;
+        if (OperatingSystem.IsLinux()) _keptWindow = GlxContext.Current();
+    }
+
+    /// <summary>Ends a session's use of the window: releases the kept one's context, or closes the window.
+    /// ⛔ Call under <see cref="Gate"/>, on the thread that opened or bound it.</summary>
+    internal static void Leave()
+    {
+        if (_keptWindow is { } kept) GlxContext.Release(kept);
+        else Raylib_cs.Raylib.CloseWindow();
     }
 
     /// <summary>
@@ -95,7 +154,7 @@ public static class UiFrameHarness
     /// whole batch exists to end.
     /// </summary>
     /// <param name="width">⭐ Wide enough that the app's real layout is not itself the constraint.</param>
-    public static UiFrameSession Begin(int width = 1280, int height = 800)
+    public static UiFrameSession Begin(int width = DefaultWidth, int height = DefaultHeight)
     {
         if (!IsAvailable())
             throw new InvalidOperationException(

@@ -8,7 +8,8 @@ using rlImGui_cs;
 namespace Hrot.Editor.UiFrameRail;
 
 /// <summary>
-/// ⭐⭐ <b>One rendered window, for the life of one rail.</b> ⛔ Created only through
+/// ⭐⭐ <b>One rail's use of the rendered window</b> (its own ImGui context; on Linux the process's ONE window, kept between rails —
+/// <c>CE-1039</c>, see <see cref="UiFrameHarness.KeepsWindow"/>). ⛔ Created only through
 /// <see cref="UiFrameHarness.Begin"/>, which holds the process-wide gate Raylib's non-re-entrancy
 /// requires.
 /// </summary>
@@ -27,12 +28,8 @@ public sealed class UiFrameSession : IDisposable
 
         Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
         // ⛔ No VSync flag: a rail renders a handful of frames and must not wait on a refresh interval.
-        Raylib.InitWindow(width, height, "hrot-uiframe-rail");
-        if (!Raylib.IsWindowReady())
-        {
-            Raylib.CloseWindow();
-            throw new InvalidOperationException("Raylib window did not become ready.");
-        }
+        // ⭐ CE-1039: the process's one window, bound on this thread (opened the first time).
+        UiFrameHarness.OpenOrBind(width, height);
 
         rlImGui.Setup(true);
     }
@@ -94,8 +91,8 @@ public sealed class UiFrameSession : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(UiFrameSession));
     }
 
-    /// <summary>⭐ Tears the window down and releases the process-wide gate. ⛔ Skipping either strands
-    /// every later rail in the assembly.</summary>
+    /// <summary>⭐ Shuts the session's ImGui down, releases the window (its GL context, or the window itself where it is not kept)
+    /// and the process-wide gate. ⛔ Skipping any of them strands every later rail in the assembly.</summary>
     public void Dispose()
     {
         if (_disposed) return;
@@ -104,7 +101,7 @@ public sealed class UiFrameSession : IDisposable
         try
         {
             rlImGui.Shutdown();
-            Raylib.CloseWindow();
+            UiFrameHarness.Leave();   // CE-1039: release the kept window's context (or close the window off GLX)
         }
         finally { _gate.Release(); }
     }

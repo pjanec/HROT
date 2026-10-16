@@ -61,3 +61,19 @@ happens to run inside a rendered frame.
 ⛔ **It does not simulate a human.** ⭐ It does not have to: the failures are **state → draw**, so a rail
 puts the app in a state **programmatically** *(open the asset, select the variable, raise the gesture)*
 and then renders. ⚠ **Input simulation is a separate, later question** — do not let it block ①.
+
+## ⭐ The in-test harness keeps ONE window per process *(CE-1039, `2026-10-16`)*
+
+The probe above became `Hrot.Editor.UiFrameRail` (`UiFrameHarness` / `UiFrameSession`). 📐 A core dump of the test host that
+"crashed between tests" showed SIGSEGV in `InitWindow → rlglInit → rlLoadTexture` calling a NULL GL function — a fresh window
+whose context came up unusable. At ~25 window creations per suite run that was the one-in-a-few-runs abort.
+
+| ⭐ rule | |
+|---|---|
+| on Linux the harness opens the window ONCE (at 1280×800, the size every rail asks for) and keeps it | a session binds the window's GLX context on its own thread and releases it in `Dispose` (`GlxContext`) — xUnit moves rails across threads, and a context is current on one thread at a time |
+| elsewhere (no GLX) each session still opens and closes its own window | — |
+| a rail that asks for another size gets a new window | rare; avoid it |
+| GL objects now outlive a session | a static GPU cache keyed to the window (e.g. `LitShader.Shared`) stays valid; `LitShader.Reset()` in a rail just recompiles |
+| ⚠ if Xvfb itself dies, the next `InitWindow` dies the same way | check `pgrep Xvfb` before reading a crash as a harness fault |
+
+Rail: `Hrot.Presentation.Tests/UiFrame/OneWindowPerProcessTests` (three sessions on three threads, one window).
