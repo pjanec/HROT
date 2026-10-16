@@ -259,6 +259,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⚠ ctx.RubberBand is still honoured — a host that needs the handle before Build() returns
             //   passes its own and the pack adopts it rather than making a second one.
             var rubberBand = ctx.RubberBand ?? new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            MapUiStates.Set(ctx.World, rubberBand);   // ⭐ CE-1136 — the 3-D view lends it its projection (RubberBandOverlay3D)
             statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBand));
 
             var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
@@ -329,6 +330,8 @@ namespace Hrot.ScenarioEditor.Map
                 // ⭐ CE-3171 (DESIGN_Entity_Control §8a) — the RTS command tool, armed from View › RTS Command Mode. It routes three
                 //   gestures to three existing writes (the selection request, EntityOrders, the station's hit test) — Measure's shape.
                 var rts = new RtsCommands(ctx.World, () => selection.SelectedEntities, () => menuOrders.PickService?.Invoke());
+                var rtsMode = new RtsModeState();
+                MapUiStates.Set(ctx.World, rtsMode);   // ⭐ CE-1132 — the map's overlay draws the legend and the attack reticle from it
                 tools.Register(
                     new Hrot.ScenarioEditor.Tools.ToolDescriptor(Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand, "RTS Command Mode",
                         Hrot.ScenarioEditor.Tools.ToolModality.Modal, Hrot.ScenarioEditor.Tools.ToolArbiter.Global, ToggleOnReactivate: true),
@@ -337,7 +340,7 @@ namespace Hrot.ScenarioEditor.Map
                         if (menuOrders.PickService?.Invoke() is null)   // a headless host: nobody to click
                             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
                         var id = GlobalGizmoManager.NewId();
-                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id)));
+                        globalManager.Register(id, new RtsCommandGizmo(rts, () => globalManager.Unregister(id), rtsMode));
                         return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
                     });
                 actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleRtsCommand, (_, _) =>
@@ -456,6 +459,8 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider));   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
             // ⭐ CE-3174 (docs/DESIGN_Entity_Control.md §8d) — this map host as a first-person station: it follows the replicated
             //   PossessedBy, so a unit held by this node puts the map into its eyes (camera driver, cursor lock, HUD) and losing it
             //   leaves. Here, so no map host can lack it.

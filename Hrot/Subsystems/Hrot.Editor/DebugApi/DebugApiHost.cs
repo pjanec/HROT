@@ -281,6 +281,8 @@ namespace Hrot.Editor.DebugApi
         {
             // Group A — status
             _routes.Add(new("GET", "/status", _ => RunMain(s => s.GetStatus())));
+            // ⭐ CE-1145 — the map view's frame rate and camera (a process-wide snapshot, no main-thread hop)
+            _routes.Add(new("GET", "/diagnostics/render", _ => Task.FromResult(Ok(Hrot.UI.Common.Map3D.RenderTelemetry.ToJson()))));
 
             // ⭐⭐ /shutdown IS A ROUTE. 📌 It used to be handled inline before route dispatch, which made it
             //    invisible to GET /capabilities — a real endpoint the manifest did not list, in the very

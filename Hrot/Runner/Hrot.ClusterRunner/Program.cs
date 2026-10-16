@@ -671,9 +671,12 @@ class Program
                     ImGuiNET.ImGui.PopStyleColor();
                     ImGuiNET.ImGui.PopStyleVar(2);
 
-                    ImGuiNET.ImGui.DockSpace(ImGuiNET.ImGui.GetID("MainDockSpace"),
+                    var mainDockId = ImGuiNET.ImGui.GetID("MainDockSpace");
+                    ImGuiNET.ImGui.DockSpace(mainDockId,
                         DockspaceLayout.CentralSize(viewport.WorkSize.X, viewport.WorkSize.Y, toolbarHeight, statusBarHeight),
                         ImGuiNET.ImGuiDockNodeFlags.PassthruCentralNode);
+                    // ⭐ CE-1140 / CE-1145 — where the map is SEEN (the dockspace's open hole), for the overlays that want a visible corner
+                    Fdp.Presentation.WindowManager.OpenMapArea.ReportCentralNodeOf(mainDockId, viewport.Size);
                     ImGuiNET.ImGui.End();
                     // --------------------------------
 

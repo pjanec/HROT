@@ -164,31 +164,68 @@ public sealed class Map3DTests
         Assert.Equal(1, asked);
     }
 
-    /// <summary>⭐ CE-1044 — plain WASD is fine-grained (a tenth of the distance per second); Shift or Ctrl is 10× that; both 30×.</summary>
-    [Theory]
-    [InlineData(false, false, 10f)]
-    [InlineData(true,  false, 100f)]
-    [InlineData(false, true,  100f)]
-    [InlineData(true,  true,  300f)]
-    public void CE1044_FlySpeed_IsATenthOfTheDistancePerSecond_BoostedByShiftAndCtrl(bool shift, bool ctrl, float metresPerSecond)
+    /// <summary>
+    /// ⭐⭐ CE-1142 (supersedes CE-1044's "a tenth of the distance") — the fly speed follows the EYE's height above the ground, starts at a
+    /// quarter, reaches full in a second and keeps accelerating to 5× while held; Shift ×4, Ctrl ×20, both ×100 — distinct. 🔒 User,
+    /// 2026-10-16: "slower starting speed with acceleration desired … Ctrl+alt+shift modifiers are somewhat weak, similar to each other".
+    /// </summary>
+    [Fact]
+    public void CE1142_TheFlySpeed_FollowsTheEyeHeight_StartsSlow_Accelerates_AndTheModifiersAreDistinct()
     {
-        var cam = FlyCamera();                              // distance 100 ⇒ 10 m/s plain
+        Assert.Equal(4f, MapCamera3D.FlySpeed(10f, 1f, false, false), 3);            // 10 m up: 4 m/s once ramped
+        Assert.Equal(1f, MapCamera3D.FlySpeed(10f, 0f, false, false), 3);            // the press: a quarter
+        Assert.Equal(20f, MapCamera3D.FlySpeed(10f, 5f, false, false), 3);           // held 5 s: 5×
+        Assert.Equal(MapCamera3D.FlyMinSpeed, MapCamera3D.FlySpeed(0.5f, 1f, false, false), 3);   // on the ground: the floor
+        Assert.Equal(16f, MapCamera3D.FlySpeed(10f, 1f, true, false), 3);
+        Assert.Equal(80f, MapCamera3D.FlySpeed(10f, 1f, false, true), 3);
+        Assert.Equal(400f, MapCamera3D.FlySpeed(10f, 1f, true, true), 3);
+    }
+
+    /// <summary>⭐ CE-1142 — a metre above a soldier with the pivot far ahead, a short tap moves centimetres, not the 30 m/s the old
+    /// distance-based speed flew (Distance 300 ⇒ 30 m/s).</summary>
+    [Fact]
+    public void CE1142_CloseToTheGround_ATapMovesCentimetres_WhateverTheLookDistance()
+    {
+        var cam = FlyCamera();
+        cam.Pose = new CameraPose(new Vector3(300f, 0f, 0f), 300f, 0f, -0.004f);   // the eye ~1.2 m up, looking 300 m ahead
         var input = new FakeInput { RightDown = true, MousePosition = new Vector2(600, 400) };
+        Frame(cam, input);                                  // arms the look
         input.Keys.Add((int)Raylib_cs.KeyboardKey.W);
-        if (shift) input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftShift);
-        if (ctrl)  input.Keys.Add((int)Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey.LeftControl);
-        Frame(cam, input, 0.1f);                            // the press frame
-        // ⭐ CE-1072 — the fly EASES in (FlyEaseSeconds), so the speed is read once it has settled, over the last frame
-        for (int i = 0; i < 20; i++) Frame(cam, input, 0.1f);
         var eye = cam.Eye;
-
-        Frame(cam, input, 0.1f);
-
-        Assert.Equal(metresPerSecond * 0.1f, Vector3.Distance(eye, cam.Eye), 1);
+        for (int i = 0; i < 12; i++) Frame(cam, input);     // ~0.2 s
+        Assert.InRange(Vector3.Distance(eye, cam.Eye), 0.005f, 0.3f);
     }
 
     /// <summary>
-    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to the 12 % step it used to JUMP.
+    /// ⭐⭐ CE-1138 — a LONE wheel click is a small step (4 % of the distance, was 12 %); clicks in quick succession grow it, so a fast
+    /// spin travels far. 🔒 User, 2026-10-16: "the mouse scroll zoom in 3d map still seem to make a very big jump … multiple wheel
+    /// clicks needed to switch to faster mode for travelling long distances."
+    /// </summary>
+    [Fact]
+    public void CE1138_ALoneClickNudges_AFastSpinTravelsFar()
+    {
+        var lone = FlyCamera();
+        var input = new FakeInput { MousePosition = new Vector2(600, 400) };
+        for (int c = 0; c < 5; c++)                         // five clicks a second apart
+        {
+            input.MouseWheelMove = 1f; Frame(lone, input, 0.016f);
+            input.MouseWheelMove = 0f; for (int i = 0; i < 60; i++) Frame(lone, input, 0.016f);
+        }
+        var spin = FlyCamera();
+        for (int c = 0; c < 5; c++)                         // the same five, 50 ms apart
+        {
+            input.MouseWheelMove = 1f; Frame(spin, input, 0.016f);
+            input.MouseWheelMove = 0f; for (int i = 0; i < 3; i++) Frame(spin, input, 0.016f);
+        }
+        for (int i = 0; i < 120; i++) Frame(spin, input, 0.016f);
+        Assert.Equal(100f * MathF.Pow(0.96f, 5), lone.Distance, 1);   // five lone nudges: ~18 m
+        Assert.True(100f - spin.Distance >= 1.8f * (100f - lone.Distance),
+            $"the spin went to {spin.Distance:F1} m, the lone clicks to {lone.Distance:F1} m");   // the same clicks, fast: ~twice as far
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1072 (docs/DESIGN_Map_3D_Mode.md §6l) — a wheel click GLIDES (over a few frames) to its step instead of JUMPING
+    /// (⭐ CE-1138: a lone click's step is 4 % now, was 12 %).
     /// 🔒 User, 2026-10-14: "the scroll button based camera moving forwards and backwards jumps with each click instead of being a
     /// smooth flight".
     /// </summary>
@@ -201,11 +238,11 @@ public sealed class Map3DTests
         input.MouseWheelMove = 0f;
         Assert.Equal(100f, cam.Distance, 3);                // the click frame: nothing jumped
         Frame(cam, input);
-        Assert.InRange(cam.Distance, 88.01f, 99.9f);        // the next frame: on the way, not there
+        Assert.InRange(cam.Distance, 96.01f, 99.9f);        // the next frame: on the way, not there
         float previous = cam.Distance;
         for (int i = 0; i < 60; i++) Frame(cam, input);
         Assert.True(cam.Distance < previous);
-        Assert.Equal(88f, cam.Distance, 1);                 // where the old jump landed
+        Assert.Equal(96f, cam.Distance, 1);                 // a lone click's 4 % (CE-1138)
 
         input.MouseWheelMove = -1f;                         // and back out the same way
         Frame(cam, input);

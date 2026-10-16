@@ -19,7 +19,8 @@ namespace Fdp.Toolkit.Vis3D
     /// and <see cref="MapCamera.Target"/> are kept at their equivalents (pixels per metre at the look-at point, its XY).
     ///
     /// <para>Free camera, Unity scene view (M8): <b>right-drag looks</b> around the eye, <b>W/A/S/D/Q/E move only while the right
-    /// button is held</b> (so tools keep their keys; Shift is faster), the <b>middle button pans</b>, the <b>wheel dollies</b>.
+    /// button is held</b> (so tools keep their keys; ⭐ CE-1142 Shift faster, Ctrl travel, both cross the map; a held key accelerates),
+    /// the <b>middle button pans</b>, the <b>wheel dollies</b> (⭐ CE-1138 a lone click nudges, a fast spin travels).
     /// A right CLICK stays the context menu — the canvas tells drag from click.</para>
     ///
     /// <para>⭐ <b>North is UP in 3-D, and in 2-D too</b> since CE-1040 (docs/DESIGN_Map_North_Up.md) — the swap keeps the
@@ -53,6 +54,25 @@ namespace Fdp.Toolkit.Vis3D
         /// over a few frames instead of a step. 0 = instant.</summary>
         public float FlyEaseSeconds { get; set; } = 0.08f;
 
+        /// <summary>⭐ CE-1138 — the share of the distance ONE lone wheel click travels (it was 12 %: a big jump far out).</summary>
+        public const float WheelBaseShare = 0.04f;
+
+        /// <summary>⭐ CE-1138 — clicks closer together than this (s) are one STREAK; each click in a streak travels further.</summary>
+        public const float WheelStreakSeconds = 0.35f;
+
+        /// <summary>⭐ CE-1138 — how much each further click of a streak adds to the step (×), and the most a step may grow to.</summary>
+        public const float WheelStreakGrowth = 0.6f, WheelStreakMax = 8f;
+
+        /// <summary>⭐ CE-1142 — fly speed per metre of the EYE's height above the ground (m/s per m), at least <see cref="FlyMinSpeed"/>.</summary>
+        public const float FlySpeedPerHeight = 0.4f, FlyMinSpeed = 0.6f;
+
+        /// <summary>⭐ CE-1142 — a fly STARTS at this share of its speed, reaches it after <see cref="FlyRampSeconds"/>, and keeps
+        /// accelerating to <see cref="FlyMaxAcceleration"/>× by <see cref="FlyAccelerateSeconds"/> of holding a key.</summary>
+        public const float FlyStartShare = 0.25f, FlyRampSeconds = 1f, FlyMaxAcceleration = 5f, FlyAccelerateSeconds = 5f;
+
+        /// <summary>⭐ CE-1142 — the modifiers, distinct: Shift ×4 (faster), Ctrl ×20 (travel), both ×100 (cross the map).</summary>
+        public const float FlyShiftBoost = 4f, FlyCtrlBoost = 20f, FlyBothBoost = 100f;
+
         /// <summary>The ground height at a point — keeps the look-at point on the relief (R-248). Null ⇒ the look-at Z is kept.</summary>
         public Func<float, float, float>? GroundHeight { get; set; }
 
@@ -64,6 +84,10 @@ namespace Fdp.Toolkit.Vis3D
         private bool _looking, _panning;
         private float _wheelTravel;                  // ⭐ CE-1072 — metres of eye travel along the view the wheel still owes (+ = in)
         private Vector3 _flyVelocity;               // ⭐ CE-1072 — the eased W/A/S/D velocity (m/s)
+        private float _flyHeld;                     // ⭐ CE-1142 — seconds a move key has been held (the acceleration)
+        private float _wheelIdle = float.PositiveInfinity;   // ⭐ CE-1138 — seconds since the last wheel click
+        private int _wheelStreak;                   // ⭐ CE-1138 — clicks in the current streak (0 = a lone click)
+        private float _wheelSign;
         private Vector2? _frameViewport;            // ⭐ CE-1072 — the window size, read once a frame
         private Vector2 _followedXY = new(float.NaN, float.NaN);   // the look-at XY the ground height was last matched at
 
@@ -188,6 +212,7 @@ namespace Fdp.Toolkit.Vis3D
                 SyncEquivalents();
                 return;
             }
+            if (float.IsFinite(_wheelIdle)) _wheelIdle += dt;
             if (!IsAnimating) GlideWheel(dt);
             if (IsAnimating)
             {
@@ -247,12 +272,19 @@ namespace Fdp.Toolkit.Vis3D
             float wheel = input.MouseWheelMove;
             if (wheel != 0f)
             {
-                // ⭐ CE-1072 — a click adds eye travel along the view; Update glides it out. Each step is 12 % of the distance the
-                //   glide is heading to (as before), and at the pivot a flat step, so the wheel keeps flying forward (Unity).
+                // ⭐ CE-1072 — a click adds eye travel along the view; Update glides it out; at the pivot a flat step, so the wheel
+                //   keeps flying forward (Unity). ⭐ CE-1138 — a LONE click is a small step (WheelBaseShare of the distance); clicks in
+                //   quick succession, the same way, grow it (a streak), so a fast spin travels far and one click nudges. 🔒 User,
+                //   2026-10-16: "multiple wheel clicks needed to switch to faster mode for travelling long distances".
+                float sign = MathF.Sign(wheel);
+                _wheelStreak = _wheelIdle <= WheelStreakSeconds && sign == _wheelSign ? _wheelStreak + 1 : 0;
+                _wheelIdle = 0f;
+                _wheelSign = sign;
+                float grow = WheelStepGrowth(_wheelStreak);
                 float heading = Distance - _wheelTravel;
                 _wheelTravel += heading > MinDistance * 1.01f
-                    ? heading * (1f - MathF.Pow(0.88f, wheel))
-                    : MathF.Max(0.5f, MinDistance) * wheel;
+                    ? heading * (1f - MathF.Pow(1f - MathF.Min(0.5f, WheelBaseShare * grow), wheel))
+                    : MathF.Max(0.5f, MinDistance) * wheel * grow;
                 if (WheelGlideSeconds <= 0f) GlideWheel(float.PositiveInfinity);
                 used = true;
             }
@@ -268,13 +300,13 @@ namespace Fdp.Toolkit.Vis3D
                     Pitch = Math.Clamp(Pitch - delta.Y * LookSpeed, MinPitch, MaxPitch);
                     LookAt = eye + Forward * Distance;
 
-                    // ⭐ CE-1044 — Unity-like speeds. 🔒 User, 2026-10-10: plain WASD "around 10 times slower allowing for finer flight";
-                    //    Shift / Ctrl faster. Base = a tenth of the distance per second (min 0.5 m/s); Shift or Ctrl = 10× that (the
-                    //    old speed); both = 30×.
+                    // ⭐ CE-1142 — the speed follows how high the EYE is above the ground (it followed the look-at DISTANCE, which
+                    //    after a fly is arbitrary: a metre above a soldier with the pivot 300 m ahead flew at 30 m/s). A press starts
+                    //    slow and accelerates while held; the modifiers are distinct (Shift faster, Ctrl travel, both cross the map).
+                    //    🔒 User, 2026-10-16: "way to fast for small movemenet at high zoom … slower starting speed with acceleration
+                    //    desired … Ctrl+alt+shift modifiers are somewhat weak, similar to each other - i need a way how to travel larger distances".
                     bool shift = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
                     bool ctrl  = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
-                    float boost = shift && ctrl ? 30f : (shift || ctrl) ? 10f : 1f;
-                    float speed = MathF.Max(0.5f, Distance * 0.1f) * boost;
                     var move = Vector3.Zero;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.W)) move += Forward;
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.S)) move -= Forward;
@@ -284,6 +316,8 @@ namespace Fdp.Toolkit.Vis3D
                     if (input.IsKeyDown((MapKeyboardKey)KeyboardKey.Q)) move -= Vector3.UnitZ;
                     // ⭐ CE-1072 — eased: the velocity heads for the keys' velocity with a short time constant, so a tap or a release
                     //   is a quick ramp rather than a step (a step at an uneven frame rate is what reads as a jerk).
+                    _flyHeld = move != Vector3.Zero ? _flyHeld + _dt : 0f;
+                    float speed = FlySpeed(EyeHeightAboveGround(), _flyHeld, shift, ctrl);
                     var wanted = move != Vector3.Zero ? Vector3.Normalize(move) * speed : Vector3.Zero;
                     float k = FlyEaseSeconds <= 0f ? 1f : 1f - MathF.Exp(-_dt / FlyEaseSeconds);
                     _flyVelocity += (wanted - _flyVelocity) * k;
@@ -293,7 +327,7 @@ namespace Fdp.Toolkit.Vis3D
                 _looking = true;
                 used = true;
             }
-            else { _looking = false; _flyVelocity = Vector3.Zero; }
+            else { _looking = false; _flyVelocity = Vector3.Zero; _flyHeld = 0f; }
 
             if (input.IsMouseButtonDown(MapMouseButton.Middle))
             {
@@ -310,6 +344,32 @@ namespace Fdp.Toolkit.Vis3D
             _lastMouse = mouse;
             if (used) { Sanitise(); SyncEquivalents(); }
             return used;
+        }
+
+        /// <summary>⭐ CE-1138 — how much a wheel click of a streak's <paramref name="streak"/>-th further click grows the base step.</summary>
+        public static float WheelStepGrowth(int streak) => MathF.Min(WheelStreakMax, 1f + WheelStreakGrowth * streak);
+
+        /// <summary>
+        /// ⭐ CE-1142 — the fly speed (m/s): <see cref="FlySpeedPerHeight"/> × the eye's <paramref name="heightAboveGround"/> (at least
+        /// <see cref="FlyMinSpeed"/>), ramped from <see cref="FlyStartShare"/> to full over <see cref="FlyRampSeconds"/> of
+        /// <paramref name="heldSeconds"/>, then accelerating to <see cref="FlyMaxAcceleration"/>× by <see cref="FlyAccelerateSeconds"/>;
+        /// Shift / Ctrl / both boost it.
+        /// </summary>
+        public static float FlySpeed(float heightAboveGround, float heldSeconds, bool shift, bool ctrl)
+        {
+            float basis = MathF.Max(FlyMinSpeed, MathF.Max(0f, heightAboveGround) * FlySpeedPerHeight);
+            float ramp = heldSeconds < FlyRampSeconds
+                ? FlyStartShare + (1f - FlyStartShare) * (heldSeconds / FlyRampSeconds)
+                : 1f + (FlyMaxAcceleration - 1f) * MathF.Min(1f, (heldSeconds - FlyRampSeconds) / (FlyAccelerateSeconds - FlyRampSeconds));
+            float boost = shift && ctrl ? FlyBothBoost : ctrl ? FlyCtrlBoost : shift ? FlyShiftBoost : 1f;
+            return basis * ramp * boost;
+        }
+
+        /// <summary>⭐ CE-1142 — how high the eye is above the ground under it (the eye's own height when no ground is known).</summary>
+        public float EyeHeightAboveGround()
+        {
+            var eye = Eye;
+            return GroundHeight != null ? eye.Z - GroundHeight(eye.X, eye.Y) : eye.Z;
         }
 
         /// <summary>
