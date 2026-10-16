@@ -165,21 +165,8 @@ public static class BlueprintDocumentFactory
         // The editor registry is created first so BlueprintGraphModel can use it to expose
         // type-zero Default values on unset In-data pins (FIX-A: BF-BATCH-0607).
         Func<Guid, BlueprintSignature?>? peerLookup = BuildPeerSignatureLookup(peerAssetCatalog);
-        var builtinRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
-        // Register FixedString32/64/128 as string-editor types (unmanaged; authored as plain text).
-        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
-        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
-        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
-        // ⭐ DESIGN_Entity_Reference D6 — an EntityRef default is its network id, typed as text; DefaultLiteral rejects a
-        // non-integer with a reason. (A blueprint is reusable, so a concrete entity normally arrives through a parameter.)
-        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.EntityRef), new StringPinEditor());
-        // Wrap with the enum-sentinel interceptor so any TypeKey starting with "global::" returns
-        // an EnumPinEditor backed by BlueprintEnumValueProvider (AN6).
-        // The inner registry handles all non-enum (primitive / FixedString) TypeKeys.
-        // DO NOT edit PinDefaultValueEditorRegistry.CreateWithBuiltins (framework contract).
         var enumProvider   = new BlueprintEnumValueProvider();
-        IPinDefaultValueEditorRegistry editorRegistry =
-            new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
+        IPinDefaultValueEditorRegistry editorRegistry = CreatePinEditorRegistry(enumProvider);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
             editorRegistry, enumProvider, behaviorActions, attachmentProviders);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
@@ -2558,5 +2545,30 @@ public static class BlueprintDocumentFactory
             list.AddRange(extra);
 
         return list;
+    }
+
+    /// <summary>
+    /// The Blueprint canvas's pin-editor registry: the framework built-ins, FixedString / EntityRef as text, the widened numeric
+    /// widths (CE-1006) and the enum-sentinel interceptor. One place, so a rail can hold the production wiring.
+    /// </summary>
+    internal static IPinDefaultValueEditorRegistry CreatePinEditorRegistry(BlueprintEnumValueProvider enumProvider)
+    {
+        var builtinRegistry = PinDefaultValueEditorRegistry.CreateWithBuiltins();
+        // Register FixedString32/64/128 as string-editor types (unmanaged; authored as plain text).
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString32), new StringPinEditor());
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString64), new StringPinEditor());
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.FixedString128), new StringPinEditor());
+        // ⭐ DESIGN_Entity_Reference D6 — an EntityRef default is its network id, typed as text; DefaultLiteral rejects a
+        // non-integer with a reason. (A blueprint is reusable, so a concrete entity normally arrives through a parameter.)
+        builtinRegistry.Register(new TypeKey(BlueprintTypeSystem.EntityRef), new StringPinEditor());
+        // ⭐ CE-1006 — every other numeric width a variable or parameter may have: the int / float editor through a converting proxy,
+        // so a Set Variable of a double or long variable gets its inline value box like a float or int one.
+        foreach (var (typeId, editor) in WidenedPinEditor.All())
+            builtinRegistry.Register(new TypeKey(typeId), editor);
+        // Wrap with the enum-sentinel interceptor so any TypeKey starting with "global::" returns
+        // an EnumPinEditor backed by BlueprintEnumValueProvider (AN6).
+        // The inner registry handles all non-enum (primitive / FixedString) TypeKeys.
+        // DO NOT edit PinDefaultValueEditorRegistry.CreateWithBuiltins (framework contract).
+        return new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
     }
 }
