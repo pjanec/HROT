@@ -1731,6 +1731,9 @@ def run_technical_scoot(c, timeout):
         if tick % 10 == 0:   # what the ATGM technical's sensors answer and why its weapon holds, every ~10 s
             st = ((data(call("GET", f"/entities/{atgm}/weapons")) or {}).get("status") or {})
             md = data(call("GET", f"/entities/{atgm}/memory")) or {}
+            tst = ((data(call("GET", f"/entities/{tank}/weapons")) or {}).get("status") or {})
+            tmd = data(call("GET", f"/entities/{tank}/memory")) or {}
+            print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('entity'), m.get('sees')) for m in (tmd.get('entries') or [])][:3]} · health {health(tank)}")
             print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
                   f" knows {[(m.get('entity'), m.get('sees')) for m in (md.get('entries') or [])][:3]}")
             for sn in (data(call("GET", f"/entities/{atgm}/sensors")) or {}).get("sensors") or []:
@@ -1788,6 +1791,10 @@ def run_rpg_window(c, timeout):
         pt = position(rpg)
         if pt:
             track.append(tuple(round(v, 1) for v in pt[:3]))
+        st = ((data(call("GET", f"/entities/{ifv}/weapons")) or {}).get("status") or {})
+        md = data(call("GET", f"/entities/{ifv}/memory")) or {}
+        print(f"      @{len(track)}s IFV weapon {st.get('reason')} · knows {[(m.get('entity'), m.get('sees')) for m in (md.get('entries') or [])][:3]}"
+              f" · RPG health {health(rpg)} · IFV health {health(ifv)}")
         if _dead(ifv) or _dead(rpg):
             break
         time.sleep(1.0)
@@ -1796,7 +1803,7 @@ def run_rpg_window(c, timeout):
     print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in xs)))
     mine = [x for x in xs if x.get("shooter") == rpg]
     for x in mine[:6]:
-        print("      RPG", {k: x.get(k) for k in ("muzzle", "outcome", "hitFace", "penetration")})
+        print("      RPG", {k: x.get(k) for k in ("muzzle", "aim", "end", "hit", "outcome", "hitFace", "penetration", "crossings")})
     stops = []
     for q in track:
         if not stops or sum((a - b) ** 2 for a, b in zip(q, stops[-1])) ** 0.5 > 1.5:
