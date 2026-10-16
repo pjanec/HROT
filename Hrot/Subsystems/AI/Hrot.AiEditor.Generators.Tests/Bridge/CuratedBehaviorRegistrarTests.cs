@@ -136,6 +136,7 @@ public sealed class CuratedBehaviorRegistrarTests
             Hrot.Map.Definitions.Behavior.BehaviorNames.SetUpWeapon,           // WS-6 (Weapon Systems §10)
             Hrot.Map.Definitions.Behavior.BehaviorNames.PackUpWeapon,          // WS-6
             Hrot.Map.Definitions.Behavior.BehaviorNames.CarryWeapon,           // WS-6
+            Hrot.Map.Definitions.Behavior.BehaviorNames.SquadRecover,          // CE-2173 slice 3c
             Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemAttack,    // WS-6
             Hrot.Map.Definitions.Behavior.BehaviorNames.WeaponSystemHold,      // WS-6
         };

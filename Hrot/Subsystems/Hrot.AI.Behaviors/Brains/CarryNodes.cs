@@ -35,6 +35,8 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>Runtime: the interaction activation this node started (0 = none) — never authored.</summary>
         [JsonIgnore] public uint Started;
+        /// <summary>⭐ <c>CE-2173</c> slice 3c — 1 ⇒ keep him (Success, nothing put down); set by <c>CarryCasualty</c>'s resolver from <c>keep</c>.</summary>
+        [JsonIgnore] public byte Skip;
     }
 
     /// <summary>The params of <see cref="CarryNodes.LoadCasualty"/>: the vehicle to seat the carried man in, how fast to walk to it.</summary>
@@ -147,6 +149,7 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus PutDown(ref PutDownNodeParams p, Entity self, EntityRepository world)
         {
+            if (p.Skip != 0) return NodeStatus.Success;   // ⭐ CE-2173 slice 3c — keep carrying him
             if (p.Started != 0 && EmbarkNodes.OwnsInteraction(world, self, p.Started, BehaviorConstants.ActionIdPutDown))
             {
                 ref var running = ref world.GetComponentRW<InteractionChannel>(self);

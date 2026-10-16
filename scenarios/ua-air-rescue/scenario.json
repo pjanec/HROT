@@ -1,0 +1,407 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a2173400-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9500
+      },
+      "TkbIdentity": {
+        "TkbType": 404
+      },
+      "EntityInfo": {
+        "Name": "UH-60 (doors off)",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": "{\"routeEntityId\": 9502, \"Speed\": 15}",
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 5,
+        "Passengers": [
+          "a2173400-0000-4000-8000-000000000010",
+          "a2173400-0000-4000-8000-000000000011",
+          "a2173400-0000-4000-8000-000000000012",
+          "a2173400-0000-4000-8000-000000000013",
+          "a2173400-0000-4000-8000-000000000014"
+        ],
+        "Seats": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    },
+    "a2173400-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9510
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Rescue squad",
+        "ForceId": "Friend"
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "b2173400-0000-4000-8000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "SquadRecover",
+              "behaviorParams": "{\"casualty\": 9520, \"to\": [190, 334, 0]}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "b2173400-0000-4000-8000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "SquadEmbark",
+              "behaviorParams": "{\"vehicle\": 9500, \"timeoutSeconds\": 90}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2173400-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9511
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173400-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173400-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "a2173400-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9512
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Medic",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173400-0000-4000-8000-0000000000c0",
+        "Designation": "Medic"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173400-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "a2173400-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9513
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173400-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173400-0000-4000-8000-000000000001",
+        "Seat": 2
+      }
+    },
+    "a2173400-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9514
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173400-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173400-0000-4000-8000-000000000001",
+        "Seat": 3
+      }
+    },
+    "a2173400-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          20,
+          390,
+          30
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9515
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a2173400-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "a2173400-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "a2173400-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          190,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 29,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9520
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Downed pilot",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a2173400-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          190,
+          340,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9502
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Rescue route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 190,
+            "Y": 340,
+            "Z": 0,
+            "TargetSpeed": 10,
+            "HeightAgl": 0,
+            "Hold": "Unload"
+          },
+          {
+            "X": 192,
+            "Y": 342,
+            "Z": 0,
+            "TargetSpeed": 3,
+            "HeightAgl": 0,
+            "Hold": "Pickup",
+            "HoldUnit": 9510
+          },
+          {
+            "X": 20,
+            "Y": 390,
+            "Z": 0,
+            "TargetSpeed": 30,
+            "HeightAgl": 40
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

@@ -120,6 +120,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — a commander's casualty care: the squad covers, the medic brings a man who is down to
         /// cover (DESIGN_Squad_Tactics §7.5).</summary>
         public const string CasualtyCare = "CasualtyCare";
+        /// <summary>⭐ CE-2173 slice 3c — the squad brings in a man who is down (any man, a downed pilot too) and keeps him carried.</summary>
+        public const string SquadRecover = "SquadRecover";
 
         /// <summary>⭐ <c>CE-2158</c> F-b — a commander closes on an objective in contact by halves: one suppresses, the other rushes to
         /// cover, then they swap (DESIGN_Squad_Tactics §7.6).</summary>

@@ -39,6 +39,13 @@ namespace Hrot.AI.Behaviors.Brains
         public byte CasualtySlot;
         /// <summary>Runtime: the medic's roster slot.</summary>
         public byte MedicSlot;
+        /// <summary>⭐ <c>CE-2173</c> slice 3c (Air Operations §9j, <c>SquadRecover</c>) — where to bring him when
+        /// <see cref="HasDestination"/> (no cover query).</summary>
+        public Vector3 Destination;
+        /// <summary>1 ⇒ <see cref="Destination"/> is the point.</summary>
+        public byte HasDestination;
+        /// <summary>1 ⇒ the medic keeps carrying him at the point: Done when he CARRIES him there, not when he lies there.</summary>
+        public byte Keep;
     }
 
     /// <summary>
@@ -72,10 +79,13 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             int casualty = CasualtyCare.Uncared(in ctx, p.Casualty);
+            // ⭐ CE-2173 slice 3c — a man down who is NOT of this squad (a downed pilot): no roster slot
+            if (casualty < 0 && CasualtyCare.OutsiderToCareFor(ctx.World, p.Casualty)) casualty = CasualtyCare.Outsider;
             if (casualty < 0) return PlayStart.Fail;
-            int medic = CasualtyCare.MedicFor(in ctx, casualty);
+            var casualtyEntity = casualty == CasualtyCare.Outsider ? p.Casualty : ctx.Roster.SubordinateEntities[casualty];
+            int medic = CasualtyCare.MedicFor(in ctx, casualty, casualtyEntity);
             if (medic < 0) return PlayStart.Fail;
-            p.Casualty = ctx.Roster.SubordinateEntities[casualty];
+            p.Casualty = casualtyEntity;
             p.CasualtySlot = (byte)casualty;
             p.Medic = ctx.Roster.SubordinateEntities[medic];
             p.MedicSlot = (byte)medic;
@@ -96,7 +106,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
             if (ws.HasAnswer == 0)
             {
-                if (ws.ThreatId == 0) ws.HasAnswer = SquadManeuverRunner.NoAnswer;   // nothing to hide from: bring him to where the medic waited
+                if (ws.ThreatId == 0 || p.HasDestination != 0) ws.HasAnswer = SquadManeuverRunner.NoAnswer;   // nothing to hide from: bring him to where the medic waited
                 else SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindCoverFromTarget.BlueprintId, CoverSite, p.CoverSearchRadius,
                                                     p.Casualty, new Entity((ulong)ws.ThreatId));
             }
@@ -136,7 +146,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (phase == CasualtyCareManeuver.PhaseGo)
             {
                 evt = PhaseEventKind.DefiladeReached;
-                if (LiesInCover(ref p, ref ws, in ctx)) return true;
+                if (p.Keep != 0 ? CarriedThere(ref p, ref ws, in ctx) : LiesInCover(ref p, ref ws, in ctx)) return true;
                 // ⭐ CE-2152 R-e — 📐 measured live: the medic's carry ended (he could not reach the man) and the drill waited in Go
                 //   while the man bled out. Not carrying him and no longer running the carry ⇒ send him again.
                 if (!Carrying(ref p, in ctx) && ctx.Now - ws.IssuedAt >= ResendSeconds && !RunsTheCarry(in ctx, p.Medic)) ws.Reissue = 1;
@@ -162,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return new MemberOrder
                     {
                         Kind = MemberOrderKind.CarryCasualty, Target = p.Casualty, Point = CoverPoint(ref p, ref ws), Speed = p.Speed,
-                        Cover = ws.HasAnswer == 1 ? (byte)1 : (byte)0, RoleId = CasualtyCareManeuver.RoleMedic,
+                        Cover = ws.HasAnswer == 1 ? (byte)1 : (byte)0, RoleId = CasualtyCareManeuver.RoleMedic, Keep = p.Keep,
                     };
                 if (phase == CasualtyCareManeuver.PhaseRecall)
                     return new MemberOrder
@@ -183,7 +193,16 @@ namespace Hrot.AI.Behaviors.Brains
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
         /// <summary>Where the medic brings him: the cover query's answer, else where the medic waited.</summary>
-        private static Vector3 CoverPoint(ref CasualtyCareParams p, ref SquadPlayState ws) => ws.HasAnswer == 1 ? ws.Answer : p.MedicFrom;
+        private static Vector3 CoverPoint(ref CasualtyCareParams p, ref SquadPlayState ws)
+            => p.HasDestination != 0 ? p.Destination : ws.HasAnswer == 1 ? ws.Answer : p.MedicFrom;
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3c — the medic CARRIES him within <see cref="AtCoverMetres"/> of the point.</summary>
+        private static bool CarriedThere(ref CasualtyCareParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            if (!Carrying(ref p, in ctx) || !ctx.World.HasComponent<SimTransform>(p.Medic)) return false;
+            var d = ctx.At(p.Medic) - CoverPoint(ref p, ref ws); d.Z = 0f;
+            return d.Length() <= AtCoverMetres;
+        }
 
         /// <summary>⭐ <c>CE-2152</c> R-e — a medic who stopped carrying out the order is sent again after this long (s).</summary>
         public const double ResendSeconds = 2d;
@@ -226,13 +245,24 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>The medic for the man in slot <paramref name="casualty"/>: the live <c>Medic</c>, else the nearest member in the fight
         /// who is not the squad's leader; −1 when nobody can go.</summary>
+        /// <summary>⭐ <c>CE-2173</c> slice 3c — the "slot" of a casualty who is not a member (no roster bit, never marked cared for).</summary>
+        public const int Outsider = 255;
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3c — <paramref name="man"/> is down (incapacitated, alive) and nobody carries him yet.</summary>
+        public static bool OutsiderToCareFor(EntityRepository world, Entity man)
+            => !man.IsNull && world.IsAlive(man) && world.HasComponent<SimTransform>(man) && !world.HasComponent<IsEmbarkedTag>(man)
+               && Injury.StateOf(world, man) == InjuryState.Incapacitated;
+
         public static int MedicFor(in SquadPlayContext ctx, int casualty)
+            => MedicFor(in ctx, casualty, casualty >= 0 && casualty < ctx.Roster.Count ? ctx.Roster.SubordinateEntities[casualty] : Entity.Null);
+
+        /// <summary>The medic for <paramref name="man"/> (roster slot <paramref name="casualty"/>, or <see cref="Outsider"/>).</summary>
+        public static int MedicFor(in SquadPlayContext ctx, int casualty, Entity man)
         {
             for (int i = 0; i < ctx.Roster.Count; i++)
                 if (i != casualty && ctx.Live(i, out var m) && Designation(ctx.World, in ctx.Roster, i, m) == TacticalDesignation.Medic) return i;
             var leader = ctx.World.HasComponent<SquadLeadership>(ctx.Commander) ? ctx.World.GetComponentRO<SquadLeadership>(ctx.Commander).Leader : Entity.Null;
-            var him = ctx.World.HasComponent<SimTransform>(ctx.Roster.SubordinateEntities[casualty])
-                ? ctx.At(ctx.Roster.SubordinateEntities[casualty]) : Vector3.Zero;
+            var him = !man.IsNull && ctx.World.HasComponent<SimTransform>(man) ? ctx.At(man) : Vector3.Zero;
             int best = -1; float bestD = float.MaxValue;
             for (int i = 0; i < ctx.Roster.Count; i++)
             {
@@ -297,5 +327,29 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CasualtyCareBehavior.Run")]
         public static void Deactivate_Run(ref CasualtyCareParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
             => SquadManeuverRunner.DropSensor(ref ws, world);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2173</c> slice 3c (📄 docs/designs/air-attack/DESIGN_Air_Operations.md §9j) — the library <c>SquadRecover</c>: the care play
+    /// pointed at a named man who is down — of the squad or NOT (a downed pilot) — brought to a named point and, by default, KEPT on his
+    /// carrier there, so the next step (<c>SquadEmbark</c>) loads him. The same play as <c>CasualtyCare</c>; a mission plan sequences it.
+    /// </summary>
+    public static class SquadRecoverBehavior
+    {
+        [BehaviorResolver(BehaviorNames.SquadRecover)]
+        public static void Resolve(in SquadRecoverParamsJsonDto authored, ref CasualtyCareBehavior.CasualtyCareBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Order = CasualtyCareBehavior.Defaults(authored.Speed);
+            block.Order.Casualty = authored.Casualty.Resolve(world);
+            if (authored.To != Vector3.Zero) { block.Order.Destination = authored.To; block.Order.HasDestination = 1; }
+            block.Order.Keep = authored.PutDown ? (byte)0 : (byte)1;
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.SquadRecover, Params = typeof(SquadRecoverParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [BTreeDefinition(BehaviorNames.SquadRecover, Curated = true, Group = "Library/Squad", ParamsType = typeof(CasualtyCareBehavior.CasualtyCareBlackboard))]
+        public static BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<CasualtyCareBehavior.CasualtyCareBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, CasualtyCareBehavior.Run);
     }
 }

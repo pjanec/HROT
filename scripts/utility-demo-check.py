@@ -105,7 +105,10 @@ def launch(port):
         sys.exit(f"build it first: dotnet build Hrot/Runner/Hrot.ClusterRunner ({RUNNER} missing)")
     # ⭐ a merge does not rebuild the runner: 📌 2026-10-15 a live ua-air-strike ran a 10:08 binary after a 13:03 merge of the new fragment
     #   law and "failed" ④ on the old law. Refuse a runner older than the newest engine source unless told otherwise.
-    stale = newest_source_after(os.path.getmtime(RUNNER))
+    # the newest assembly in the runner's bin is the build moment — MSBuild leaves the runner's OWN dll untouched when only a
+    # dependency changed, so its mtime alone reports a fresh build as stale
+    built = max(os.path.getmtime(os.path.join(os.path.dirname(RUNNER), f)) for f in os.listdir(os.path.dirname(RUNNER)) if f.endswith(".dll"))
+    stale = newest_source_after(built)
     if stale:
         msg = f"the runner ({RUNNER}) is older than {stale} — rebuild: dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore"
         if os.environ.get("HROT_ALLOW_STALE_RUNNER") != "1":
@@ -366,15 +369,18 @@ def run_fire_distribution(c, timeout):
         call("POST", "/trace/observe", {"networkId": r, "on": True})
     call("POST", "/sim/play", {})
 
-    # ① the leader's squad: four members, the merged pool holds the three hostiles
-    sq = wait_for(lambda: (x := squad(leader)) and x.get("memberCount") == 4 and x.get("contactCount", 0) >= 3 and x, timeout)
-    if not c.ok(sq is not None, "the squad forms (4 members) and its merged pool holds the three hostiles"):
+    # ① the squad: its five members, the merged pool holds the three hostiles. ⭐ CE-2125 (2026-10-11) migrated the scenario to a
+    #   body-less "Squad" commander — the leader is a member now (Leader + four riflemen); ⛔ SUPERSEDED: squad(leader), 4 members
+    #   (the check went red on that, not on the behaviour — measured 2026-10-16: every man remembered all three hostiles).
+    cmd = ids.get("Squad") or leader
+    sq = wait_for(lambda: (x := squad(cmd)) and x.get("memberCount", 0) >= 5 and x.get("contactCount", 0) >= 3 and x, timeout)
+    if not c.ok(sq is not None, f"the squad forms (5 members) and its merged pool holds the three hostiles — {squad(cmd).get('memberCount')} / {squad(cmd).get('contactCount')}"):
         return
 
     # ② every member is assigned a target; the fire is spread; no target has more than two
     def assigned():
-        x = squad(leader)
-        a = [((m.get("assignment") or {}).get("name")) for m in x.get("members", [])]
+        x = squad(cmd)
+        a = [((m.get("assignment") or {}).get("name")) for m in x.get("members", []) if m.get("networkId") in riflemen]
         return len(a) == 4 and all(a) and a
     a = wait_for(assigned, timeout)
     print(f"    assignments: {a}")
@@ -2210,6 +2216,103 @@ def run_fast_rope_roof(c, timeout):
     c.ok(left_at is not None and last is not None and left_at >= last, f"③ ★ the helicopter left only after the last landing — left {left_at}, last down {last}")
 
 
+# ── CE-2173 slice 3c — the air assault: a doors-off UH-60 lands a squad at an LZ; it dismounts and carries on with its order ────
+#   docs/designs/air-attack/DESIGN_Air_Operations.md §9 (B8, B10, B11): the SOP rides, dismounts on Unloading, the task resumes.
+
+def run_air_assault(c, timeout):
+    ids = ids_by_name()
+    heli, sq = ids.get("UH-60 (doors off)"), ids.get("Air assault squad")
+    men = [ids.get("Leader")] + [ids.get(f"Rifleman {i}") for i in range(1, 6)]
+    if not c.ok(heli is not None and sq is not None and None not in men, "the UH-60, the squad and its six men are loaded"):
+        return
+    c.ok(all(_aboard(m) for m in men), "all six start aboard")
+    lz, objective = (190.0, 340.0), (200.0, 195.0)
+    call("POST", "/sim/play", {})
+    landed_at, all_out_at, left_at, timeline, next_sample = None, None, None, [], 0.0
+    out = {}
+    end = time.time() + timeout * 4
+    while time.time() < end:
+        t = sim_time() or 0.0
+        ph = str((comps(heli).get("NavigationStatus") or {}).get("Phase"))
+        hp = position(heli)
+        if landed_at is None and hp and flat(hp, lz) <= 10.0 and ph in ("Unloading", "Landed", "Loading"):
+            landed_at = t
+        for m in men:
+            if m not in out and not _aboard(m):
+                out[m] = t
+        if all_out_at is None and len(out) == len(men):
+            all_out_at = t
+        if landed_at is not None and left_at is None and hp and flat(hp, lz) > 30.0:
+            left_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 2.0
+            timeline.append((round(t, 1), ph, tuple(round(v) for v in hp) if hp else None, sum(1 for m in men if _aboard(m))))
+        if all_out_at is not None and left_at is not None:
+            break
+        time.sleep(0.25)
+    for row in timeline[:40]:
+        print("      lz @", row)
+    c.ok(landed_at is not None, f"① the helicopter lands at the LZ {lz} (Unloading within 10 m) — at {landed_at}")
+    early = [m for m, at in out.items() if landed_at is None or at < landed_at - 0.5]
+    c.ok(not early, f"① nobody leaves it in the air — {len(early)} out before the landing")
+    c.ok(all_out_at is not None, f"② all six dismount at the LZ — {len(out)} out")
+    c.ok(left_at is not None and all_out_at is not None and left_at >= all_out_at,
+         f"③ the helicopter lifts off only once the squad is out — left {left_at}, last out {all_out_at}")
+    # ④ the squad resumes its order: it marches on to the objective
+    def centre():
+        ps = [position(m) for m in men]
+        ps = [p for p in ps if p]
+        return (sum(p[0] for p in ps) / len(ps), sum(p[1] for p in ps) / len(ps)) if ps else None
+    arrived = wait_for(lambda: (x := centre()) and flat(x, objective) <= 15.0 and x, timeout * 3, every=1)
+    c.ok(arrived is not None, f"④ the squad marches on to its objective {objective} (centre within 15 m) — centre {centre()}")
+
+# ── CE-2173 slice 3c — the rescue round trip: in, SquadRecover (the medic takes a downed pilot and keeps him), SquadEmbark, out ──
+#   docs/designs/air-attack/DESIGN_Air_Operations.md §9j.
+
+def run_air_rescue(c, timeout):
+    ids = ids_by_name()
+    heli, sq, pilot = ids.get("UH-60 (doors off)"), ids.get("Rescue squad"), ids.get("Downed pilot")
+    men = [ids.get(n) for n in ("Leader", "Medic", "Rifleman 1", "Rifleman 2", "Rifleman 3")]
+    if not c.ok(None not in (heli, sq, pilot) and None not in men, "the UH-60, the squad, its five men and the downed pilot are loaded"):
+        return
+    lz = (190.0, 340.0)
+    call("POST", "/sim/play", {})
+    landed_at, out_at, taken_at, taker, loaded_at, back_at, left_at = None, None, None, None, None, None, None
+    timeline, next_sample = [], 0.0
+    end = time.time() + timeout * 6
+    while time.time() < end:
+        t = sim_time() or 0.0
+        ph = str((comps(heli).get("NavigationStatus") or {}).get("Phase"))
+        hp = position(heli)
+        on = _aboard(pilot)
+        if landed_at is None and hp and flat(hp, lz) <= 12.0 and ph in ("Unloading", "Landed", "Loading"):
+            landed_at = t
+        if out_at is None and landed_at is not None and not any(_aboard(m) for m in men):
+            out_at = t
+        if taken_at is None and on and on in men:
+            taken_at, taker = t, on
+        if loaded_at is None and on == heli:
+            loaded_at = t
+        if back_at is None and out_at is not None and all(_aboard(m) == heli for m in men):
+            back_at = t
+        if back_at is not None and left_at is None and hp and flat(hp, lz) > 30.0:
+            left_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 2.0
+            timeline.append((round(t, 1), ph, tuple(round(v) for v in hp) if hp else None,
+                             sum(1 for m in men if _aboard(m) == heli), ("heli" if on == heli else ("carried" if on else "ground")), health(pilot)))
+        if left_at is not None:
+            break
+        time.sleep(0.25)
+    for row in timeline[:80]:
+        print("      rescue @", row)
+    c.ok(landed_at is not None and out_at is not None, f"① it lands at the LZ and the squad dismounts — landed {landed_at}, out {out_at}")
+    c.ok(taken_at is not None, f"② a squad man takes the downed pilot (SquadRecover) — at {taken_at}, by {taker} (Medic {ids.get('Medic')})")
+    c.ok(loaded_at is not None, f"③ ★ the pilot is seated in the UH-60 (LoadCasualty) — at {loaded_at}")
+    c.ok(back_at is not None, f"④ all five men are back aboard — at {back_at}")
+    c.ok(left_at is not None and back_at is not None and left_at >= back_at, f"⑤ ★ it lifts off with them all aboard — left {left_at}")
+    c.ok((health(pilot) or 0) > 0, f"the pilot is alive ({health(pilot)} HP)")
+
 def run_airborne_drop(c, timeout):
     ids = ids_by_name()
     heli, men = ids.get("UH-60 (doors off)"), [ids.get(f"Paratrooper {i}") for i in range(1, 9)]
@@ -2399,7 +2502,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "ua-eject": run_eject, "ua-drone-shelter": run_drone_shelter}
+             "ua-eject": run_eject, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

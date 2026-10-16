@@ -959,6 +959,59 @@ mirrors every tick, which is what lets the motion side re-arm for the next stop.
 
 Still open in slice 3: `SquadRecover`, the rescue mission tree, and the two scenarios (`ua-air-assault`, `ua-air-rescue`).
 
+### 9j. Slice 3c (behaviors) — the round trip: `SquadRecover` and the rescue mission — build-state: DESIGN `2026-10-16`
+
+📐 INVENTORY (`2026-10-16`): `SquadCasualtyCarePlay` (`CasualtyCareBehavior.cs`) — the care play: coverers suppress, the medic
+`CarryCasualty`s a ROSTER member (`CasualtyCare.Uncared` walks the roster only) to a cover point and puts him down; Done = he lies there ·
+`CarryCasualtyBehavior` (`EmbarkBehaviors.cs`) = PickUp · MoveTo · PutDown · `SquadEmbarkPlay` gives a member CARRYING a man
+`LoadCasualty` (seat him, then board) · `MissionPlan` (scenario, `Hrot.Core/Mission/MissionTypes.cs`) — ⭐ tasks carry their own
+`behaviorParams` (the `ua-danger-crossing` Watcher runs Sentry ▸ MoveToLocation from one), so ⛔ the "mission tree (BTree asset)" of §9's
+row is not needed: B11's "no per-phase params" is the toolkit `MissionPhase`, not the scenario plan.
+
+```mermaid
+classDiagram
+    class SquadCasualtyCarePlay { <<existing ISquadPlay>> +Start() +PhaseComplete() +OrderFor() }
+    class CasualtyCareParams { <<existing>> +Casualty +Medic +CasualtySlot ★+Destination ★+HasDestination ★+Keep }
+    class SquadRecoverBehavior { <<NEW library, Commander>> +Resolve(SquadRecoverParamsJsonDto) +BuildTree() }
+    class SquadRecoverParamsJsonDto { <<NEW>> +Casualty EntityRef +To +Speed }
+    class MemberOrder { <<existing>> ★+Keep byte }
+    class CarryCasualtyParamsJsonDto { <<existing>> ★+Keep bool }
+    class CarryNodes_PutDown { <<existing node>> ★Skip when Keep }
+    class SquadEmbarkPlay { <<existing>> carrying ⇒ LoadCasualty }
+    SquadRecoverBehavior --> SquadCasualtyCarePlay : runs, external casualty, Destination = To, Keep
+    SquadCasualtyCarePlay --> MemberOrder : CarryCasualty + Keep
+    MemberOrder --> CarryCasualtyParamsJsonDto : SquadManeuverRunner.Carry
+    CarryCasualtyParamsJsonDto --> CarryNodes_PutDown : Keep ⇒ skip
+    SquadEmbarkPlay ..> CarryCasualtyParamsJsonDto : the man still carried ⇒ LoadCasualty
+```
+
+*What the picture shows that prose hid: no new play — ONE existing play gains a destination and a "keep him" end, and the hand-off to the
+helicopter is the EXISTING `SquadEmbark` rule (a carrying member loads his man); the casualty need not be a member.*
+
+```mermaid
+sequenceDiagram
+  participant H as UH-60 (FollowRoute)
+  participant S as squad (MissionPlan + BasicSquadSop)
+  participant M as medic
+  H->>S: LZ, Unloading ⇒ SOP SquadDismount
+  S->>S: task 1 SquadMarch(near the man)
+  S->>S: task 2 SquadRecover(man, To = LZ): coverers suppress (or hold)
+  S->>M: CarryCasualty(man, LZ, Keep)
+  M->>M: PickUp · walk to the LZ carrying (no PutDown)
+  S->>S: task 3 SquadMarch(LZ)
+  S->>S: task 4 SquadEmbark(UH-60): the medic ⇒ LoadCasualty, the rest ⇒ Embark
+  H->>H: LZ Pickup stop, HoldUnit = squad ⇒ release when all aboard
+```
+
+| rule | as designed |
+|---|---|
+| the casualty | `SquadRecover.Casualty` (any entity down — `Injury` incapacitated); a roster member works too (the slot is found); an outsider has slot 255 ⇒ no `MarkCaredFor`, no coverer mask bit |
+| the medic | as the play picks (`MedicFor`): the designated Medic, else the nearest live member who is not the leader |
+| where | `To` set ⇒ the carry goes THERE (no cover query); unset ⇒ the cover point as today |
+| the end | `Keep` ⇒ Done when the medic CARRIES the man within `AtCoverMetres` of `To`; else Done when he LIES at the point (today) |
+| the helicopter | route: LZ `Unload` ▸ LZ `Pickup` (`HoldUnit` = the squad) ▸ exit; `AirHolds.ShouldRelease` (built) releases the pickup when every live member is aboard — the loaded casualty is seated by `LoadCasualty` first |
+| demos | `ua-air-assault` (insert only: land, dismount, the squad marches on) · `ua-air-rescue` (the round trip above) |
+
 ### 9c. As-built `2026-10-14` — slice 5, the strike (behaviors): `AirAttack` LevelBomb and `AirPlatformStrike`
 
 ```mermaid

@@ -91,6 +91,8 @@ namespace Hrot.AI.Behaviors.Brains
         public Fdp.Toolkit.Motion.ExitKind Exit;
         /// <summary>⭐ H-1 — <see cref="MemberOrderKind.Disembark"/>: which rope or door.</summary>
         public byte AnchorIndex;
+        /// <summary>⭐ <c>CE-2173</c> slice 3c — <see cref="MemberOrderKind.CarryCasualty"/>: 1 ⇒ keep carrying him at the point.</summary>
+        public byte Keep;
     }
 
     /// <summary>
@@ -451,7 +453,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m, in order);
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
-                else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
+                else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed, order.Keep != 0);
                 else if (order.Kind == MemberOrderKind.FireAtPoint) Fire(ctx.World, ctx.Commander, m, in order, at);
                 else Move(ctx.World, ctx.Commander, m, point, order.Speed, order.ArrivalRadius);
             }
@@ -505,12 +507,13 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>CE-2152</c> C-c (R-c) — CARRY: the library <c>CarryCasualty</c> — go for <paramref name="casualty"/>, drag him to
         /// <paramref name="to"/>; a member that is a UNIT holds.</summary>
-        public static void Carry(EntityRepository world, Entity commander, Entity member, Entity casualty, Vector3 to, Vector3 at, float speed)
+        public static void Carry(EntityRepository world, Entity commander, Entity member, Entity casualty, Vector3 to, Vector3 at, float speed,
+                                 bool keep = false)
         {
             if (IsUnit(world, member)) { Hold(world, commander, member, at, speed); return; }
             Publish(world, commander, member, BehaviorNames.CarryCasualty, JsonSerializer.Serialize(new CarryCasualtyParamsJsonDto
             {
-                Casualty = Fdp.Toolkit.Replication.EntityRef.Of(world, casualty), X = to.X, Y = to.Y, Speed = speed,
+                Casualty = Fdp.Toolkit.Replication.EntityRef.Of(world, casualty), X = to.X, Y = to.Y, Speed = speed, Keep = keep,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
         }
 

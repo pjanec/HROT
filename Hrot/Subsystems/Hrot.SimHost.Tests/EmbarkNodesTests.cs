@@ -353,6 +353,12 @@ namespace Hrot.SimHost.Tests
             new EmbarkedStateSystem().Execute(_w, 0.016f);
             Assert.Equal(29f, _w.GetComponentRO<SimTransform>(down).Position.X, 3);
 
+            // ⭐ CE-2173 slice 3c — "keep him" (CarryCasualty keep / SquadRecover): Success, and he stays on his carrier
+            var keep = new PutDownNodeParams { Skip = 1 };
+            Assert.Equal(NodeStatus.Success, CarryNodes.PutDown(ref keep, carrier, _w));
+            Assert.Equal(carrier, _w.GetComponentRO<IsEmbarkedTag>(down).VehicleEntity);
+            Assert.NotEqual(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);
+
             var leave = new PutDownNodeParams();
             Assert.Equal(NodeStatus.Running, CarryNodes.PutDown(ref leave, carrier, _w));
             Assert.Equal(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);

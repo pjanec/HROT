@@ -364,6 +364,51 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, CasualtyCare.UncaredCount(s.Repo, s.Commander));      // cared for: not again
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2173</c> slice 3c (Air Operations §9j) — <c>SquadRecover</c>: a downed pilot who is NOT of the squad is brought to the
+        /// named point (the LZ — no cover query) and KEPT on his carrier: the medic's <c>CarryCasualty</c> says <c>keep</c>, and the drill
+        /// is done when the medic carries him there (not when he lies there). 🔴 Red-proof: the outsider branch off ⇒ the play fails at
+        /// start (no member is down); <c>Keep</c> off ⇒ carried there is not done.
+        /// </summary>
+        [Fact]
+        public void CE2173_SquadRecover_ADownedPilotNotOfTheSquad_IsCarriedToTheLz_AndKept()
+        {
+            var s = new Squad(members: 4);
+            foreach (var m in s.Members)
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 100, MaxAmmo = 100, MagazineSize = 30, MagazineRounds = 30 });
+            var medic = s.Members[2];
+            s.Repo.GetComponentRW<Fdp.Core.CommandHierarchy.UnitSubordinate>(medic).Designation = Fdp.Core.CommandHierarchy.TacticalDesignation.Medic;
+            var pilot = s.Repo.CreateEntity();
+            s.Repo.AddComponent(pilot, new SimTransform { Position = new Vector3(20, 20, 0), Rotation = Quaternion.Identity });
+            s.Repo.AddComponent(pilot, new Fdp.Toolkit.Combat.Components.Health { Current = 20f, Max = 100f });
+            s.Repo.AddComponent(pilot, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            s.Repo.AddComponent(pilot, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 777 });
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            map.Register(777, pilot);
+            s.Repo.SetSingletonManaged(map);
+            var lz = new Vector3(50, 0, 0);
+            s.Order("{\"casualty\":777,\"to\":[50,0,0]}", BehaviorNames.SquadRecover);
+            s.Tick(); s.Tick();
+            Assert.Equal(CasualtyCareManeuver.ManeuverKind, s.Kind);
+            Assert.True(CoverQuery(s).IsNull, "a named point: no cover query");
+            for (int i = 0; i < 250; i++) s.Tick();                               // nobody to suppress: the medic goes after CoveringSeconds
+            Assert.Equal(CasualtyCareManeuver.PhaseGo, s.Phase);
+            var carry = s.Orders.Last(o => o.Entity.Equals(medic));
+            Assert.Equal(BehaviorNames.CarryCasualty, carry.IntentId);
+            var dto = System.Text.Json.JsonSerializer.Deserialize<CarryCasualtyParamsJsonDto>(carry.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.True(dto.Keep, "he keeps him");
+            Assert.Equal((lz.X, lz.Y), (dto.X, dto.Y));
+            Assert.Equal(pilot, SquadDrillTrace.Of(s.Repo, s.Commander).Orders[2].Target);
+
+            s.Repo.AddComponent(pilot, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = medic });   // he has him
+            s.Tick(); s.Tick();
+            Assert.False(s.Finished(out _), "carried, but not there yet");
+            s.Teleport(medic, lz + new Vector3(1, 0, 0));
+            s.Tick(); s.Tick();
+            Assert.True(s.Finished(out var result));
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
         /// <summary>⭐ R-c — the covering never comes (nobody fires): after <c>CoveringSeconds</c> the medic goes anyway, and the trace says
         /// it was a Timeout, not the gate. 🔴 Red before: as above.</summary>
         [Fact]

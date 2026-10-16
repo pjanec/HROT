@@ -125,7 +125,7 @@ namespace Hrot.AI.Behaviors.Brains
             //   CarryLoad (C8) cuts the carrier's TOP speed by the mode, so the drag is slow without this node knowing.
             float speed = authored.Speed > 0f ? authored.Speed : CarryNodes.DefaultSpeed;
             block.Bring = new CgfNodes.MoveToLocationParams { X = authored.X, Y = authored.Y, ArrivalRadius = ArrivalRadius, Speed = speed };
-            block.Leave = default;
+            block.Leave = new PutDownNodeParams { Skip = authored.Keep ? (byte)1 : (byte)0 };   // ⭐ CE-2173 slice 3c
         }
 
         [Behavior(BehaviorNames.CarryCasualty, Params = typeof(CarryCasualtyParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent)]

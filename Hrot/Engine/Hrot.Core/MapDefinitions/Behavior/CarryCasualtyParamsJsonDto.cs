@@ -34,5 +34,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>Walking speed (m/s), to him and back; 0 ⇒ 3 m/s. The way back is further slowed by the load (C8).</summary>
         [JsonPropertyName("speed")]
         public float Speed;
+
+        /// <summary>⭐ <c>CE-2173</c> slice 3c (Air Operations §9j) — keep carrying him at the point (no put-down): the man stays on the
+        /// carrier for what comes next (<c>SquadEmbark</c> loads a carried man). False ⇒ put him down there (the default).</summary>
+        [JsonPropertyName("keep")]
+        public bool Keep;
     }
 }
