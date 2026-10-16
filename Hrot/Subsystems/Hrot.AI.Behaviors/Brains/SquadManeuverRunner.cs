@@ -59,6 +59,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="MemberOrder.Point"/> from mount <see cref="MemberOrder.Mount"/>, none before <see cref="MemberOrder.FireAt"/>
         /// (time on target): the library <c>FireAtPoint</c>. A unit member holds.</summary>
         FireAtPoint = 7,
+        /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6.5 D-19) — nothing is sent: the member keeps what he is doing (a man waiting aboard
+        /// for his turn at the rope or the door, a man coming down one).</summary>
+        Stay = 8,
     }
 
     /// <summary>⭐ <c>CE-2123</c> — one member's order, as a play computes it. The runner turns a hold into the library CombatPosture at
@@ -83,6 +86,11 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Mount;
         /// <summary>⭐ <c>CE-2176</c> IF-2 — <see cref="MemberOrderKind.FireAtPoint"/>: the arc preference (0 Auto, 1 Low, 2 High).</summary>
         public byte Arc;
+        /// <summary>⭐ CE-1118 H-1 (§6.5 D-18) — <see cref="MemberOrderKind.Disembark"/>: how he leaves (step out, rope, door); a jump's
+        /// landing point is <see cref="Point"/>.</summary>
+        public Fdp.Toolkit.Motion.ExitKind Exit;
+        /// <summary>⭐ H-1 — <see cref="MemberOrderKind.Disembark"/>: which rope or door.</summary>
+        public byte AnchorIndex;
     }
 
     /// <summary>
@@ -435,11 +443,12 @@ namespace Hrot.AI.Behaviors.Brains
                 var at = ctx.At(m);
                 var order = play.OrderFor(ref p, ref ws, in ctx, i, squad.Elements.MemberElements[i], at);
                 squad.Roles[i].RoleId = order.RoleId;
-                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress or MemberOrderKind.Embark ? at : order.Point;
+                var point = order.Kind is MemberOrderKind.Hold or MemberOrderKind.Disembark or MemberOrderKind.Suppress or MemberOrderKind.Embark or MemberOrderKind.Stay ? at : order.Point;
                 ws.TargetX[i] = point.X; ws.TargetY[i] = point.Y; ws.TargetZ[i] = point.Z;
                 traced[i] = new SquadDrillTrace.Order(m, (byte)order.Kind, point, order.Cover != 0, ctx.Now, order.Target);
+                if (order.Kind == MemberOrderKind.Stay) continue;   // ⭐ CE-1118 H-1 (D-19) — he keeps what he is doing
                 if (order.Kind is MemberOrderKind.Hold or MemberOrderKind.Watch) Hold(ctx.World, ctx.Commander, m, point, order.Speed);
-                else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m);
+                else if (order.Kind == MemberOrderKind.Disembark) Dismount(ctx.World, ctx.Commander, m, in order);
                 else if (order.Kind == MemberOrderKind.Embark) Board(ctx.World, ctx.Commander, m, order.Target, order.Speed);
                 else if (order.Kind == MemberOrderKind.Suppress) Suppress(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
                 else if (order.Kind == MemberOrderKind.CarryCasualty) Carry(ctx.World, ctx.Commander, m, order.Target, order.Point, at, order.Speed);
@@ -519,8 +528,21 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — DISMOUNT: a soldier gets the library <c>Disembark</c>; a member that is a UNIT gets the squad
         /// <c>SquadDismount</c> (a unit never boards — its soldiers do, R-272). From the commander, released when its run ends.</summary>
-        public static void Dismount(EntityRepository world, Entity commander, Entity member)
-            => Publish(world, commander, member, IsUnit(world, member) ? BehaviorNames.SquadDismount : BehaviorNames.Disembark, "{}");
+        /// <remarks>⭐ CE-1118 H-1 (Airborne Insertion §6.5 D-18) — a soldier's exit rides the order: the rope or door
+        /// (<see cref="MemberOrder.Exit"/>, <see cref="MemberOrder.AnchorIndex"/>) and a jump's landing point (<see cref="MemberOrder.Point"/>).</remarks>
+        public static void Dismount(EntityRepository world, Entity commander, Entity member, in MemberOrder order = default)
+        {
+            if (IsUnit(world, member) || order.Exit == Fdp.Toolkit.Motion.ExitKind.StepOut)
+            {
+                Publish(world, commander, member, IsUnit(world, member) ? BehaviorNames.SquadDismount : BehaviorNames.Disembark, "{}");
+                return;
+            }
+            Publish(world, commander, member, BehaviorNames.Disembark, JsonSerializer.Serialize(new DisembarkParamsJsonDto
+            {
+                Exit = (byte)order.Exit, AnchorIndex = order.AnchorIndex,
+                Landing = order.Exit == Fdp.Toolkit.Motion.ExitKind.JumpOut ? order.Point : Vector3.Zero,
+            }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));
+        }
 
         /// <summary>⭐ <c>CE-2173</c> slice 3 (B10) — BOARD <paramref name="vehicle"/>: a soldier gets the library <c>Embark</c>, or
         /// <c>LoadCasualty</c> while he carries somebody (he seats the man, then boards — never boards carrying him, which would nest the

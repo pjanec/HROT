@@ -20,6 +20,22 @@ public static class BasicSquadSop
             {
                 sel.Sequence(seq =>
                 {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierRoping",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000091"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadFastRope:Contact@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000092"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000090"));
+                sel.Sequence(seq =>
+                {
+                    seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierDropping",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000094"));
+                    seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadAirborneExit:Contact@-1",
+                        visualId: new Guid("c2123000-0000-0000-0000-000000000095"));
+                },
+                    visualId: new Guid("c2123000-0000-0000-0000-000000000093"));
+                sel.Sequence(seq =>
+                {
                     seq.Condition("Hrot.AI.Behaviors.Brains.SquadSopConditions.CarrierUnloading",
                         visualId: new Guid("c2123000-0000-0000-0000-000000000071"));
                     seq.Action("Fdp.Toolkit.Behavior.SopActions.React:SquadDismount:Contact@-1",

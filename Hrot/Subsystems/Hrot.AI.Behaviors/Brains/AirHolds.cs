@@ -38,13 +38,22 @@ namespace Hrot.AI.Behaviors.Brains
             return !unit.IsNull && SquadEmbarkBehavior.AllAboard(world, unit, aircraft);
         }
 
-        /// <summary>True when somebody alive sits in <paramref name="vehicle"/> (the dead stay aboard and do not hold it).</summary>
+        /// <summary>True when somebody alive RIDES in <paramref name="vehicle"/> (the dead stay aboard and do not hold it).</summary>
+        /// <remarks>⭐ CE-1118 (found building the airborne drills) — only a <see cref="SeatRole.Passenger"/> seat counts: the CREW stays
+        /// aboard by design. 🔴 Before, the doors-off UH-60's two door gunners (seats 8–11, <c>StartWith</c> a soldier) held every Unload,
+        /// Drop and Rope stop for ever — the helicopter never left its LZ.</remarks>
         public static bool AnyLiveAboard(EntityRepository world, Entity vehicle)
         {
             if (!world.HasComponent<PassengerBuffer>(vehicle)) return false;
             var buffer = world.GetComponentRO<PassengerBuffer>(vehicle);
+            bool declared = world.IsComponentTypeRegistered<CarrierSeats>() && world.HasComponent<CarrierSeats>(vehicle);
+            var seats = declared ? world.GetComponentRO<CarrierSeats>(vehicle) : default;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
-                if (!buffer.Passengers[i].IsNull && world.IsAlive(buffer.Passengers[i])) return true;
+            {
+                if (buffer.Passengers[i].IsNull || !world.IsAlive(buffer.Passengers[i])) continue;
+                if (declared && i < seats.SeatCount && seats.Roles[i] != SeatRole.Passenger) continue;   // crew
+                return true;
+            }
             return false;
         }
 

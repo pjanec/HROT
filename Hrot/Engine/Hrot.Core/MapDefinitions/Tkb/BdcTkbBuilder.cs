@@ -444,7 +444,9 @@ namespace Hrot.Map.Definitions.Tkb
         ///   <item><see cref="ActorCapabilityState"/> (CanMove | CanShoot) — capability bits.</item>
         /// </list>
         /// </summary>
-        public NedTkbBuilder WithBehavior(long tkbId)
+        /// <remarks>⭐ CE-1118 H-3 (Airborne Insertion §6.5 D-23) — <paramref name="defaultSop"/>: the type's own standing orders (a SPAWNED
+        /// unit — the ejected pilot — gets no scenario task, so its type must give it one).</remarks>
+        public NedTkbBuilder WithBehavior(long tkbId, string? defaultSop = null)
         {
             var template = _db.GetByType(tkbId);
             if (template == null)
@@ -458,6 +460,7 @@ namespace Hrot.Map.Definitions.Tkb
                 CanShoot   = true,
                 CanInteract = true,
                 Faction    = _factions.TryGetValue(tkbId, out var faction) ? faction : ForceId.Neutral,   // CE-3051
+                DefaultSop = defaultSop,
             });
 
             return this;

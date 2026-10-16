@@ -21,6 +21,8 @@ namespace Fdp.Toolkit.Behavior.Events
         public ExitKind Exit;
         /// <summary>Which rope or door (the carrier's <c>RopeAnchors</c> index).</summary>
         public byte AnchorIndex;
+        /// <summary>⭐ H-1 (D-18) — his landing point (<see cref="DisembarkEntityCommand.Target"/>; zero = none). APPENDED.</summary>
+        public System.Numerics.Vector3 Target;
         /// <summary>Set by the interaction ingress: this command came off the network.</summary>
         public bool IsRemote;
     }

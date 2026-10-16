@@ -186,10 +186,12 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in DisembarkEntityCommand e) => e.IsRemote,
             ownsTarget:  static (repo, vehicle) => Embarkation.OwnsVehicle(repo, vehicle),
             toPayload:   static (in DisembarkEntityCommand e) => new InteractionPayload
-                { Disembark = new DisembarkInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex } },   // ⭐ airborne insertion B-4
+                { Disembark = new DisembarkInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex,   // ⭐ airborne insertion B-4
+                                                                TargetX = e.Target.X, TargetY = e.Target.Y, TargetZ = e.Target.Z } },   // ⭐ H-1 (D-18)
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new DisembarkEntityCommand { Vehicle = target, Passenger = actor, IsRemote = true,
-                                                Exit = (Fdp.Toolkit.Motion.ExitKind)p.Disembark.Exit, AnchorIndex = p.Disembark.AnchorIndex });
+                                                Exit = (Fdp.Toolkit.Motion.ExitKind)p.Disembark.Exit, AnchorIndex = p.Disembark.AnchorIndex,
+                                                Target = new System.Numerics.Vector3(p.Disembark.TargetX, p.Disembark.TargetY, p.Disembark.TargetZ) });
 
         /// <summary>⭐ Airborne insertion B-4 — a man out of a carrier's rope or door starts his descent; the node owning his POSITION
         /// applies it (the carrier's owner decided it — CE-3059's split, closed for a descent).</summary>
@@ -200,9 +202,11 @@ namespace Hrot.Map.Common.Replication.Interactions
             isRemote:    static (in StartDescentCommand e) => e.IsRemote,
             ownsTarget:  static (repo, man) => Embarkation.OwnsPosition(repo, man),
             toPayload:   static (in StartDescentCommand e) => new InteractionPayload
-                { StartDescent = new StartDescentInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex } },
+                { StartDescent = new StartDescentInteractionPayload { Exit = (byte)e.Exit, AnchorIndex = e.AnchorIndex,
+                                                                      TargetX = e.Target.X, TargetY = e.Target.Y, TargetZ = e.Target.Z } },   // ⭐ H-1 (D-18)
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new StartDescentCommand
-                { Passenger = target, Anchor = actor, Exit = (Fdp.Toolkit.Motion.ExitKind)p.StartDescent.Exit, AnchorIndex = p.StartDescent.AnchorIndex, IsRemote = true });
+                { Passenger = target, Anchor = actor, Exit = (Fdp.Toolkit.Motion.ExitKind)p.StartDescent.Exit, AnchorIndex = p.StartDescent.AnchorIndex, IsRemote = true,
+                  Target = new System.Numerics.Vector3(p.StartDescent.TargetX, p.StartDescent.TargetY, p.StartDescent.TargetZ) });
 
         /// <summary>⭐ CE-3110 I-2a — everyone out of the vehicle.</summary>
         public static readonly IInteractionCodec EjectPassengers = new InteractionCodec<EjectPassengersCommand>(

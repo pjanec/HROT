@@ -154,5 +154,23 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-3172 (R-270, M-7) — what a POSSESSED unit runs: the station's controls drive its body
         /// (DESIGN_Entity_Control §8b). Assigned by <c>PossessionSystem</c> at origin Possession only.</summary>
         public const string OperatorControl = "OperatorControl";
+
+        /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6) — the squad goes down its hovering helicopter's ropes, one man per rope at a time,
+        /// and takes a 360° ring round the rope point (on a roof, inside its outline).</summary>
+        public const string SquadFastRope = "SquadFastRope";
+
+        /// <summary>⭐ CE-1118 H-1 (§6) — the jumpmaster: the stick leaves one per second at each man's release point along the Drop leg,
+        /// each with his landing point; then the squad assembles.</summary>
+        public const string SquadAirborneExit = "SquadAirborneExit";
+
+        /// <summary>⭐ CE-1118 H-1 (§6, D-22) — the squad rallies in a ring round a point once every man is down.</summary>
+        public const string AssembleAfterDrop = "AssembleAfterDrop";
+
+        /// <summary>⭐ CE-1118 H-3 (§6, D-24) — an aircraft's crew ejects (interaction action 11); Success once the aircraft is down.</summary>
+        public const string Eject = "Eject";
+
+        /// <summary>⭐ CE-1118 H-3 (§6, D-25) — a downed pilot, once out of his harness, gets away from the nearest known enemy into cover,
+        /// goes prone and stays down.</summary>
+        public const string EvadeAndSignal = "EvadeAndSignal";
     }
 }

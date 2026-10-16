@@ -1992,6 +1992,171 @@ def run_indirect_fire(c, timeout):
     c.ok(len(near) >= 3, f"① the fire for effect lands on the enemy squad (≤ 120 m) — {len(near)}/{len(effect)}")
 
 
+
+# ── CE-1118 H-2 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §8) — the airborne demos ─────────────────────────────────────────────
+#   ua-fast-rope-roof (test-town): an SF squad in a doors-off UH-60 ropes onto the flat roof [40..90]×[230..280], 12 m up, from a Rope
+#   hold 12 m above it — SquadFastRope, one man per rope at a time, then a ring ON the roof; the helicopter leaves only after the last
+#   man is down. ua-airborne-drop (basic-desert): a stick of 8 paratroopers from 400 m on the Drop leg along y = 300 — SquadAirborneExit
+#   at each man's release point, each with his landing point (Descent.Target), then the squad assembles. ua-eject: an A-10's mission
+#   ejects its pilot after 40 s; he comes down under a round canopy and evades into cover, away from a hostile patrol.
+
+def _descent(nid):
+    return (comps(nid) or {}).get("Descent")
+
+
+def _phase(d):
+    p = (d or {}).get("Phase")
+    return p if isinstance(p, str) else {0: "Exit", 1: "Grip", 2: "Slide", 3: "Brake", 4: "FreeFalling", 5: "Deploying", 6: "Canopy",
+                                         7: "Flare", 8: "Landing", 9: "Landed", 10: "Falling"}.get(p, str(p))
+
+
+def _aboard(nid):
+    return ((comps(nid) or {}).get("IsEmbarkedTag") or {}).get("Vehicle")
+
+
+def run_fast_rope_roof(c, timeout):
+    ids = ids_by_name()
+    heli, men = ids.get("UH-60 (doors off)"), [ids.get(f"SF operator {i}") for i in range(1, 9)]
+    if not c.ok(heli is not None and None not in men, "the UH-60 and its eight SF operators are loaded"):
+        return
+    c.ok(all(_aboard(m) for m in men), "all eight start aboard")
+    call("POST", "/sim/play", {})
+    first, landed, left_at, timeline, next_sample, hover = None, {}, None, [], 0.0, None
+    end = time.time() + timeout + 120
+    while time.time() < end:
+        t = sim_time() or 0.0
+        ph = (comps(heli).get("NavigationStatus") or {}).get("Phase")
+        hp = position(heli)
+        if str(ph) in ("Roping", "11") and hover is None and hp:
+            hover = hp
+        for m in men:
+            d = _descent(m)
+            if d and first is None:
+                first = t
+            pm = position(m)
+            if m not in landed and first is not None and not d and not _aboard(m) and pm:
+                landed[m] = (t, pm)
+        if hover and hp and left_at is None and flat(hp, hover) > 20:
+            left_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 1.0
+            timeline.append((round(t, 1), str(ph), tuple(round(v) for v in hp) if hp else None,
+                             [(_phase(_descent(m)) if _descent(m) else ("aboard" if _aboard(m) else "down")) for m in men]))
+        if len(landed) == 8 and left_at is not None and time.time() > end - timeout - 60:
+            break
+        if len(landed) == 8 and left_at is not None:
+            time.sleep(8)   # the ring
+            break
+        time.sleep(0.25)
+    for row in timeline[:60]:
+        print("      rope @", row)
+    c.ok(first is not None, "① the squad went down the ropes (a Descent seen)")
+    if first is None:
+        return
+    last = max((v[0] for v in landed.values()), default=None)
+    c.ok(len(landed) == 8, f"① all eight down — {len(landed)}")
+    c.ok(last is not None and last - first <= 15.0, f"① ★ eight down in ≤ 15 s of roping — {(last - first) if last else None} s")
+    at = [position(m) for m in men]
+    on_roof = [p for p in at if p and 40 <= p[0] <= 90 and 230 <= p[1] <= 280 and p[2] > 10]
+    c.ok(len(on_roof) == 8, f"② ★ all eight ON the roof, none on the ground — {len(on_roof)}; {[tuple(round(v, 1) for v in p) for p in at if p]}")
+    apart = all(flat(a, b) > 1.0 for i, a in enumerate(at) for b in at[i + 1:] if a and b)
+    c.ok(apart, "② in a ring (no two men within 1 m)")
+    c.ok(left_at is not None and last is not None and left_at >= last, f"③ ★ the helicopter left only after the last landing — left {left_at}, last down {last}")
+
+
+def run_airborne_drop(c, timeout):
+    ids = ids_by_name()
+    heli, men = ids.get("UH-60 (doors off)"), [ids.get(f"Paratrooper {i}") for i in range(1, 9)]
+    if not c.ok(heli is not None and None not in men, "the UH-60 and its eight paratroopers are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    jumped, targets, timeline, next_sample = {}, {}, [], 0.0
+    end = time.time() + timeout + 240
+    while time.time() < end:
+        t = sim_time() or 0.0
+        for m in men:
+            d = _descent(m)
+            if d and m not in jumped:
+                jumped[m] = (t, position(heli))
+                tg = d.get("Target")
+                if tg:
+                    targets[m] = tuple(tg) if isinstance(tg, list) else (tg.get("X"), tg.get("Y"), tg.get("Z"))
+        if time.time() >= next_sample:
+            next_sample = time.time() + 2.0
+            hp = position(heli)
+            timeline.append((round(t, 1), tuple(round(v) for v in hp) if hp else None,
+                             [(_phase(_descent(m)) if _descent(m) else ("aboard" if _aboard(m) else "down")) for m in men],
+                             (maneuver(ids.get("Airborne squad")) or {}).get("kind")))
+        if len(jumped) == 8 and all(not _descent(m) for m in men):
+            time.sleep(40)   # the walk to the rally
+            break
+        time.sleep(0.25)
+    for row in timeline[:80]:
+        print("      drop @", row)
+    c.ok(len(jumped) == 8, f"① the whole stick jumped — {len(jumped)}")
+    times = sorted(v[0] for v in jumped.values())
+    gaps = [round(b - a, 2) for a, b in zip(times, times[1:])]
+    c.ok(gaps and min(gaps) >= 0.7, f"① one man at a time — gaps {gaps}")
+    land = {m: position(m) for m in men}
+    miss = {m: round(flat(land[m], targets[m]), 1) for m in men if m in targets and land[m]}
+    print("    landing misses (m):", list(miss.values()))
+    c.ok(len(miss) == 8 and max(miss.values()) <= 150, f"② ★ all eight down within 150 m of their points — {list(miss.values())}")
+    pts = [p for p in land.values() if p]
+    mid = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)) if pts else (0, 0)
+    spread = max(flat(p, mid) for p in pts) if pts else 9e9
+    c.ok(spread <= 20, f"③ ★ the squad stands assembled — every man within 20 m of the middle ({spread:.1f} m)")
+    c.ok(not any(_aboard(m) for m in men) and (position(heli) or (0, 0, 0))[0] > 450,
+         f"④ the helicopter flies on, empty — at {position(heli)}")
+
+
+def run_eject(c, timeout):
+    ids = ids_by_name()
+    jet, patrol = ids.get("A-10"), [ids.get(f"Patrol {i}") for i in (1, 2, 3)]
+    if not c.ok(jet is not None and None not in patrol, "the A-10 and the patrol are loaded"):
+        return
+    before = {r.get("networkId") for r in data(call("GET", "/entities")) or []}
+    call("POST", "/sim/play", {})
+    pilot, spawned_at, canopy_at, timeline, next_sample = None, None, None, [], 0.0
+    end = time.time() + timeout + 180
+    while time.time() < end:
+        t = sim_time() or 0.0
+        if pilot is None:
+            for r in data(call("GET", "/entities")) or []:
+                if r.get("networkId") not in before and (comps(r["networkId"]).get("TkbIdentity") or {}).get("TkbType") == 206:
+                    pilot, spawned_at = r["networkId"], t
+                    break
+        else:
+            d = _descent(pilot)
+            if canopy_at is None and d and _phase(d) in ("Canopy", "Flare", "Landing", "Landed"):
+                canopy_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 2.0
+            jp = position(jet)
+            pp = position(pilot) if pilot else None
+            st = data(call("GET", f"/entities/{pilot}/state")) or {} if pilot else {}
+            timeline.append((round(t, 1), tuple(round(v) for v in jp) if jp else None, health(jet),
+                             tuple(round(v) for v in pp) if pp else None, _phase(_descent(pilot)) if pilot and _descent(pilot) else None,
+                             (st.get("behavior") or {}).get("name"), st.get("stance")))
+        if pilot and spawned_at is not None and t - spawned_at > 120:
+            break
+        time.sleep(0.25)
+    for row in timeline[:90]:
+        print("      eject @", row)
+    c.ok(pilot is not None, "① one Pilot (206) spawned")
+    if pilot is None:
+        return
+    c.ok(canopy_at is not None and canopy_at - spawned_at <= 3.5, f"② the canopy open by ~3 s — {None if canopy_at is None else round(canopy_at - spawned_at, 2)} s")
+    jp = position(jet)
+    c.ok((health(jet) or 0) <= 0 and jp is not None and jp[2] < 20, f"③ the jet is down — health {health(jet)}, at {jp}")
+    pp = position(pilot)
+    near = min(flat(pp, position(e)) for e in patrol if position(e)) if pp else 0
+    time.sleep(6)
+    pp2 = position(pilot)
+    st = data(call("GET", f"/entities/{pilot}/state")) or {}
+    c.ok(not _descent(pilot) and near >= 100, f"④ ★ the pilot is down, {near:.0f} m from the nearest of the patrol")
+    c.ok(pp2 is not None and flat(pp, pp2) < 2.0, f"④ ★ and stays down — moved {flat(pp, pp2) if pp2 else None} m in 6 s; behaviour {(st.get('behavior') or {}).get('name')}, stance {st.get('stance')}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -2027,7 +2192,11 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
-             "ua-indirect-fire": run_indirect_fire}
+             "ua-indirect-fire": run_indirect_fire,
+             # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
+             "ua-fast-rope-roof": run_fast_rope_roof,
+             "ua-airborne-drop": run_airborne_drop,
+             "ua-eject": run_eject}
 
 
 def main():

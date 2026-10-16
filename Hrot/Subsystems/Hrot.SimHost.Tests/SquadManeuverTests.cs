@@ -1510,6 +1510,244 @@ namespace Hrot.SimHost.Tests
             Assert.False(AirHolds.OnTheGround(s.Repo, heli));
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
             Assert.False(AirHolds.ShouldRelease(s.Repo, heli, 0));                                   // a jumper still aboard
+
+            // ⭐ CE-1118 — the CREW stays aboard and holds nothing: a door gunner in a Gunner seat (the doors-off UH-60's seats 8–11)
+            //   ✅ Red-proof: every live passenger counted ⇒ the gunner holds the Drop for ever ⇒ red.
+            Embarkation.Disembark(s.Repo, s.Members[0], heli);
+            var gunner = s.Repo.CreateEntity();
+            var crew = new CarrierSeats { SeatCount = 2 };
+            crew.Roles[0] = SeatRole.Passenger; crew.Roles[1] = SeatRole.Gunner;
+            s.Repo.AddComponent(heli, crew);
+            ref var buf = ref s.Repo.GetComponentRW<PassengerBuffer>(heli);
+            buf.Passengers[1] = gunner; buf.Count = 1;
+            Assert.True(AirHolds.ShouldRelease(s.Repo, heli, 0));                                    // only the crew: release
+        }
+
+        // ── CE-1118 H-1 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §6) — the airborne drills ────────────────────────────────
+
+        private static void Descents(Squad s)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            if (!s.Repo.IsComponentTypeRegistered<SimVelocity>()) s.Repo.RegisterComponent<SimVelocity>();
+        }
+
+        private static DisembarkParamsJsonDto ExitOf(AssignTacticalIntentEvent o)
+            => System.Text.Json.JsonSerializer.Deserialize<DisembarkParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        private static Vector3 ObjectiveOf(AssignTacticalIntentEvent o)
+            => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(o.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).Advance.Objective;
+
+        /// <summary>A flat 10 × 10 m roof 12 m up at [−5, 5]², the ground at 0 elsewhere.</summary>
+        private sealed class RoofWorld : Fdp.Toolkit.World.IWorldQuery
+        {
+            private static bool OnRoof(float x, float y) => x >= -5f && x <= 5f && y >= -5f && y <= 5f;
+            public float GroundHeightAt(float x, float y) => 0f;
+            public float SurfaceZ(float x, float y, float zHint) => OnRoof(x, y) && zHint >= 6f ? 12f : 0f;
+            public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) { groundIndex = 0; return OnRoof(x, y) ? new[] { 0f, 12f } : new[] { 0f }; }
+            public float ResolveLevel(float x, float y, int level) => level > 0 && OnRoof(x, y) ? 12f : 0f;
+            public bool TryStandAt(float x, float y, float zHint, out float z) { z = SurfaceZ(x, y, zHint); return true; }
+            public bool SightBlocked(Vector3 from, Vector3 to) => false;
+            public void Trace(Vector3 from, Vector3 to, Fdp.Toolkit.World.TracePurpose purpose, List<Fdp.Toolkit.World.TraceCrossing> into) { }
+        }
+
+        /// <summary>⭐ D-20 — the ring keeps every spot ON the roof it is centred on (shrunk to fit a 10 × 10 m roof), never over the ledge;
+        /// on open ground it is the full ring. ✅ Red-proof: without the surface test the 5 m ring's corners-free spots at 5 m on the axes sit
+        /// on the edge and the diagonal ones (3.5 m) fit, but the 3 m-offset centre's far spots fall off ⇒ red.</summary>
+        [Fact]
+        public void CE1118_TheRing_StaysOnTheRoof_AndIsWholeOnOpenGround()
+        {
+            var roof = new RoofWorld();
+            var centre = new Vector3(2f, 0f, 12f);   // the rope point, off the roof's middle
+            for (int k = 0; k < 8; k++)
+            {
+                var spot = AirborneDrill.RingSpot(roof, centre, k, 8, 5f);
+                Assert.InRange(spot.X, -5f, 5f);
+                Assert.InRange(spot.Y, -5f, 5f);
+                Assert.Equal(12f, spot.Z);
+            }
+            var open = AirborneDrill.RingSpot(roof, new Vector3(50f, 0f, 0f), 2, 8, 5f);
+            Assert.Equal(5f, Vector2.Distance(new Vector2(open.X, open.Y), new Vector2(50f, 0f)), 3);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1118 H-1 ★ — eight men down two ropes: never two men on one rope closer than 3 m (the next leaves when the one below is 3 m
+        /// down), the ropes alternate, all eight down within 15 s of the first, then each takes a DISTINCT spot in the ring round the rope
+        /// point, and the drill ends in Success. The test plays the carrier's owner and the rope: an exit applies 1.2 s after its order (the
+        /// interaction crossing nodes), a man slides at a slow 2 m/s, lands at the ground and is off the rope 1 s later. ⚠ The two are
+        /// chosen so the mutants SHOW: the one below slides on while the next man's exit is in flight, so a shorter gap is only caught while
+        /// 0.5 m + 2 m/s × 1.2 s stays under 3 m — and eight men still come down in ≈ 14 s.
+        /// ✅ Red-proofs (mutants, both red): <c>RopeClear</c> true while the last man is still aboard ⇒ two exits queued on one rope ⇒ red;
+        /// the 3 m gap cut to 0.5 m ⇒ the next man out with the one below 2 m down ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1118_SquadFastRope_OneManPerRopeAtATime_AllDownIn15s_ThenARing()
+        {
+            var s = new Squad(members: 8);
+            Descents(s);
+            var heli = AirCarrier(s, new Vector3(0f, 0f, 12f), NavigationPhase.Roping, 11180, 0, 1, 2, 3, 4, 5, 6, 7);
+            s.Order("{}", BehaviorNames.SquadFastRope);
+            var landedAt = new Dictionary<Entity, double>();
+            var pending = new Dictionary<Entity, (double At, byte Rope)>();   // exits ordered, not yet applied by the carrier's owner
+            var ropes = new List<byte>();
+            double t = 0, first = -1, lastLanded = 0;
+            int seen = 0;
+            Fbt.NodeStatus? result = null;
+            for (int tick = 0; tick < 2500 && result == null; tick++)
+            {
+                s.Tick(); t += 0.016;
+                for (; seen < s.Orders.Count; seen++)
+                {
+                    var o = s.Orders[seen];
+                    if (o.IntentId == BehaviorNames.Disembark)
+                    {
+                        var exit = ExitOf(o);
+                        Assert.Equal((byte)Fdp.Toolkit.Motion.ExitKind.RopeDown, exit.Exit);
+                        if (!pending.ContainsKey(o.Entity) && Embarkation.IsAboard(s.Repo, o.Entity, heli)) pending[o.Entity] = (t + 1.2, exit.AnchorIndex);
+                    }
+                    else if (o.IntentId == BehaviorNames.CombatPosture) s.Teleport(o.Entity, ObjectiveOf(o));   // he walks to his spot
+                }
+                foreach (var (man, (at, rope)) in pending.ToList())   // the carrier's owner applies the exit, 1.2 s on
+                {
+                    if (t < at) continue;
+                    pending.Remove(man);
+                    Assert.True(Fdp.Toolkit.Motion.DescentRules.DoorPoint(s.Repo, heli, rope, out var door));
+                    foreach (var m in s.Members)
+                        if (s.Repo.HasComponent<Fdp.Toolkit.Motion.Descent>(m) && s.Repo.GetComponentRO<Fdp.Toolkit.Motion.Descent>(m).AnchorIndex == rope
+                            && s.Repo.GetComponentRO<Fdp.Toolkit.Motion.Descent>(m).Phase != Fdp.Toolkit.Motion.DescentPhase.Landed)
+                            Assert.True(door.Z - s.At(m).Z >= 2.99f, $"a man left rope {rope} with the one below only {door.Z - s.At(m).Z:0.00} m down");
+                    Assert.True(Embarkation.Disembark(s.Repo, man, heli, Fdp.Toolkit.Motion.ExitKind.RopeDown, rope));
+                    ropes.Add(rope);
+                    if (first < 0) first = t;
+                }
+                foreach (var m in s.Members)   // the rope: a slow 2 m/s, landed on the ground, off it 1 s later
+                {
+                    if (!s.Repo.HasComponent<Fdp.Toolkit.Motion.Descent>(m)) continue;
+                    ref var d = ref s.Repo.GetComponentRW<Fdp.Toolkit.Motion.Descent>(m);
+                    ref var tf = ref s.Repo.GetComponentRW<SimTransform>(m);
+                    if (d.Phase != Fdp.Toolkit.Motion.DescentPhase.Landed)
+                    {
+                        tf.Position.Z -= 2f * 0.016f;
+                        if (tf.Position.Z <= 0f) { tf.Position.Z = 0f; d.Phase = Fdp.Toolkit.Motion.DescentPhase.Landed; landedAt[m] = t; lastLanded = t; }
+                    }
+                    else if (t - landedAt[m] >= 1.0) s.Repo.RemoveComponent<Fdp.Toolkit.Motion.Descent>(m);
+                }
+                if (s.Finished(out var r)) result = r;
+            }
+
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            Assert.Equal(8, ropes.Count);
+            Assert.Equal(4, ropes.Count(r => r == 0));                                                  // both ropes, four each
+            Assert.Equal(4, ropes.Count(r => r == 1));
+            Assert.InRange(lastLanded - first, 0.0, 15.0);                                             // ★ eight down in ≤ 15 s
+            Assert.Equal(0, s.Repo.GetComponentRO<PassengerBuffer>(heli).Count);
+            var spots = s.Members.Select(m => new Vector2(s.At(m).X, s.At(m).Y)).ToList();
+            for (int i = 0; i < 8; i++)
+                for (int j = i + 1; j < 8; j++) Assert.True(Vector2.Distance(spots[i], spots[j]) > 1f, "two men on one spot");   // ★ a ring
+            Assert.All(spots, p => Assert.InRange(p.Length(), 4f, 6f));                                // round the rope point
+        }
+
+        /// <summary>
+        /// ⭐ CE-1118 H-1 ★ — the jumpmaster: a stick of eight from a helicopter flying its Drop leg at 400 m, 35 m/s — one man a second,
+        /// alternating doors, each at his release point, each carrying his landing point into his Descent (D-18); the landing points lie
+        /// along the leg one second of flight apart; once down they assemble round the stick's middle and the drill ends in Success.
+        /// ✅ Red-proof: the jump not waiting for the release point ⇒ the first man out at the leg's start, 47 m short ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1118_SquadAirborneExit_TheStickJumpsAtItsReleasePoints_OneASecond_IntoItsLandingPoints_ThenAssembles()
+        {
+            var s = new Squad(members: 8);
+            Descents(s);
+            var heli = AirCarrier(s, new Vector3(0f, 0f, 400f), NavigationPhase.Dropping, 11181, 0, 1, 2, 3, 4, 5, 6, 7);
+            s.Repo.AddComponent(heli, new SimVelocity { Linear = new Vector3(35f, 0f, 0f) });
+            s.Order("{}", BehaviorNames.SquadAirborneExit);
+            var jumps = new List<(double T, byte Door, Vector3 Land, float HeliX)>();
+            var outAt = new Dictionary<Entity, (double T, Vector3 Land)>();
+            double t = 0;
+            int seen = 0;
+            Fbt.NodeStatus? result = null;
+            for (int tick = 0; tick < 4000 && result == null; tick++)
+            {
+                s.Repo.GetComponentRW<SimTransform>(heli).Position.X += 35f * 0.016f;
+                s.Tick(); t += 0.016;
+                for (; seen < s.Orders.Count; seen++)
+                {
+                    var o = s.Orders[seen];
+                    if (o.IntentId == BehaviorNames.Disembark)
+                    {
+                        if (!Embarkation.IsAboard(s.Repo, o.Entity, heli)) continue;
+                        var exit = ExitOf(o);
+                        Assert.Equal((byte)Fdp.Toolkit.Motion.ExitKind.JumpOut, exit.Exit);
+                        Assert.True(Embarkation.Disembark(s.Repo, o.Entity, heli, Fdp.Toolkit.Motion.ExitKind.JumpOut, exit.AnchorIndex, exit.Landing));
+                        Assert.Equal(exit.Landing, s.Repo.GetComponentRO<Fdp.Toolkit.Motion.Descent>(o.Entity).Target);   // D-18
+                        jumps.Add((t, exit.AnchorIndex, exit.Landing, s.At(heli).X));
+                        outAt[o.Entity] = (t, exit.Landing);
+                    }
+                    else if (o.IntentId == BehaviorNames.CombatPosture) s.Teleport(o.Entity, ObjectiveOf(o));
+                }
+                foreach (var (m, (when, land)) in outAt.ToList())   // under the canopy for 5 s, then down at his point
+                    if (s.Repo.HasComponent<Fdp.Toolkit.Motion.Descent>(m) && t - when >= 5.0)
+                    {
+                        s.Repo.RemoveComponent<Fdp.Toolkit.Motion.Descent>(m);
+                        s.Teleport(m, land);
+                    }
+                if (s.Finished(out var r)) result = r;
+            }
+
+            Assert.Equal(Fbt.NodeStatus.Success, result);
+            Assert.Equal(8, jumps.Count);
+            for (int i = 1; i < 8; i++)
+            {
+                Assert.True(jumps[i].T - jumps[i - 1].T >= 0.98, $"jump {i} only {jumps[i].T - jumps[i - 1].T:0.00} s after the last");
+                Assert.NotEqual(jumps[i].Door, jumps[i - 1].Door);                                     // alternating doors
+                Assert.Equal(35f, jumps[i].Land.X - jumps[i - 1].Land.X, 0);                          // one second of flight apart
+            }
+            float throw_ = 35f * 4f / 3f;                                                              // a round canopy's door throw (B-5)
+            Assert.All(jumps, j => Assert.InRange(j.HeliX - (j.Land.X - throw_), -0.01f, 1.2f));      // ★ each at his release point (the bus delivers an order a tick late: ≤ 2 ticks × 0.56 m)
+            Assert.All(jumps, j => Assert.Equal(0f, j.Land.Y, 1));                                     // along the leg
+            Assert.True(jumps[0].Land.X - throw_ >= 0f);                                               // the first release on the leg
+        }
+
+        /// <summary>⭐ CE-1118 H-1 (D-22) — AssembleAfterDrop: a man still coming down gets nothing; every man down takes his spot round the
+        /// rally point; Success when all hold them.</summary>
+        [Fact]
+        public void CE1118_AssembleAfterDrop_TheMenDownTakeTheirSpots_AManStillComingDownWaits()
+        {
+            var s = new Squad(members: 3);
+            Descents(s);
+            s.Repo.AddComponent(s.Members[2], new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.StaticLine, Phase = Fdp.Toolkit.Motion.DescentPhase.Canopy });
+            s.Order("{\"point\":[100,0,0]}", BehaviorNames.AssembleAfterDrop);
+            Ticks(s, 3);
+            Assert.DoesNotContain(s.Orders, o => o.Entity == s.Members[2]);
+            foreach (var o in s.Orders.Where(o => o.IntentId == BehaviorNames.CombatPosture).ToList()) s.Teleport(o.Entity, ObjectiveOf(o));
+            Assert.Null(RunUntilFinished(s, 5));                                                     // one still under his canopy
+            s.Repo.RemoveComponent<Fdp.Toolkit.Motion.Descent>(s.Members[2]);
+            Ticks(s, 2);
+            var his = s.Orders.Last(o => o.Entity == s.Members[2]);
+            Assert.Equal(BehaviorNames.CombatPosture, his.IntentId);
+            s.Teleport(s.Members[2], ObjectiveOf(his));
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 10));
+        }
+
+        /// <summary>⭐ CE-1118 H-1 — the squad's SOP: a helicopter holding at a Rope stop puts the squad down its ropes; one flying a Drop leg
+        /// starts the jumpmaster. ✅ Red-proof: either row missing ⇒ the squad rides on (SquadRide) ⇒ red.</summary>
+        [Fact]
+        public void CE1118_BasicSquadSop_ARopeHoldFastRopes_ADropLegJumps()
+        {
+            foreach (var (phase, drill) in new[] { (NavigationPhase.Roping, BehaviorNames.SquadFastRope), (NavigationPhase.Dropping, BehaviorNames.SquadAirborneExit) })
+            {
+                var s = new Squad(members: 3);
+                Descents(s);
+                s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+                s.StartSop("BasicSquadSop");
+                Ticks(s, 20);
+                var heli = AirCarrier(s, new Vector3(0f, 0f, 80f), NavigationPhase.Following, 11182, 0, 1, 2);
+                Ticks(s, 20);
+                Assert.Equal(BehaviorNames.SquadRide, s.TaskName);                                     // flying: it rides
+                SetPhase(s, heli, phase);
+                Ticks(s, 20);
+                Assert.Equal(drill, s.TaskName);
+                Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+            }
         }
 
         // ── CE-2158 F-c — bounding overwatch: suppress on contact, cover-point bounds ───────────────────────────────────────────────

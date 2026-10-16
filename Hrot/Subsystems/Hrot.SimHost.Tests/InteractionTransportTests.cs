@@ -335,7 +335,8 @@ namespace Hrot.SimHost.Tests
             var brainApplier = new Fdp.Toolkit.Behavior.Systems.EmbarkationSystem();
 
             brain.Bus.Publish(new Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand
-                { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, AnchorIndex = 1 });
+                { Passenger = man, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.RopeDown, AnchorIndex = 1,
+                  Target = new System.Numerics.Vector3(7, 8, 9) });   // ⭐ CE-1118 H-1 (D-18) — carried whatever the exit
             brain.Bus.SwapBuffers();
             egress.ScanAndPublish(brain);                                                              // the brain owns the heli: nothing sent
             Assert.Empty(writer.Written);
@@ -347,6 +348,7 @@ namespace Hrot.SimHost.Tests
             var start = Assert.Single(writer.Written);
             Assert.Equal((45L, 900L, EInteractionKind.StartDescent), (start.TargetId, start.ActorId, start.Payload.Kind));
             Assert.Equal(((byte)Fdp.Toolkit.Motion.ExitKind.RopeDown, (byte)1), (start.Payload.StartDescent.Exit, start.Payload.StartDescent.AnchorIndex));
+            Assert.Equal((7f, 8f, 9f), (start.Payload.StartDescent.TargetX, start.Payload.StartDescent.TargetY, start.Payload.StartDescent.TargetZ));   // ⭐ D-18
 
             using var muscle = Node();
             var muscleMap = new NetworkEntityMap();
@@ -370,7 +372,7 @@ namespace Hrot.SimHost.Tests
             // the disembark itself carries its exit and rope index when it crosses (a soldier's node asking a remote vehicle)
             var asked = InteractionCodecs.All;
             Assert.Contains(asked, c => c.Kind == EInteractionKind.StartDescent);
-            var payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { Exit = 2, AnchorIndex = 3 } };
+            var payload = new InteractionPayload { Kind = EInteractionKind.Disembark, Disembark = new DisembarkInteractionPayload { Exit = 2, AnchorIndex = 3, TargetX = 300f, TargetY = 20f, TargetZ = 1f } };
             using var other = Node();
             var otherMap = new NetworkEntityMap();
             otherMap.Register(900L, other.CreateEntity());
@@ -383,6 +385,7 @@ namespace Hrot.SimHost.Tests
             other.Bus.SwapBuffers();
             var cmdIn = Assert.Single(other.Bus.Read<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>().ToArray());
             Assert.Equal((Fdp.Toolkit.Motion.ExitKind.JumpOut, (byte)3), (cmdIn.Exit, cmdIn.AnchorIndex));
+            Assert.Equal(new System.Numerics.Vector3(300f, 20f, 1f), cmdIn.Target);                   // ⭐ CE-1118 H-1 (D-18) — the landing point
         }
 
         [Fact]

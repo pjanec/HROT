@@ -163,6 +163,81 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(soldier).ActiveAction);
         }
 
+        /// <summary>⭐ CE-1118 H-1 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §6.5 D-18) — the node carries HOW he leaves: a jump
+        /// from door 1 with a landing point ends, through the executor's command and the owner, as his Descent with that point as its Target.
+        /// ✅ Red-proof: the executor not copying the channel's params ⇒ a step-out beside the hull, no Descent ⇒ red.</summary>
+        [Fact]
+        public void CE1118_Disembark_CarriesTheExit_AndAJumpersLandingPoint_IntoHisDescent()
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) _w.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            var heli = Vehicle(new Vector3(0f, 0f, 400f));
+            var man = Soldier(new Vector3(0f, 0f, 400f));
+            Embarkation.TryEmbark(_w, man, heli);
+            var p = new DisembarkNodeParams { Exit = Fdp.Toolkit.Motion.ExitKind.JumpOut, AnchorIndex = 1, Landing = new Vector3(300f, 20f, 0f) };
+
+            Assert.Equal(NodeStatus.Running, EmbarkNodes.Disembark(ref p, man, _w));
+            Dispatch(man, new DisembarkExecutor());
+            Assert.Equal(NodeStatus.Success, EmbarkNodes.Disembark(ref p, man, _w));
+            var d = _w.GetComponentRO<Fdp.Toolkit.Motion.Descent>(man);
+            Assert.Equal((Fdp.Toolkit.Motion.DescentKind.StaticLine, (byte)1, new Vector3(300f, 20f, 0f)), (d.Kind, d.AnchorIndex, d.Target));
+        }
+
+        // ── CE-1118 H-3 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §6.5 D-24, D-25) — the ejection and the downed pilot ───────
+
+        /// <summary>⭐ D-24 — <c>Eject</c> starts the aircraft's interaction action 11 once and forwards the executor's answer: Running until
+        /// the aircraft is abandoned (its Health at 0), then Success, and the channel is handed back. ✅ Red-proof: the node not forwarding
+        /// the answer ⇒ Running for ever ⇒ red.</summary>
+        [Fact]
+        public void CE1118_Eject_StartsActionEleven_AndSucceedsWhenTheAircraftIsAbandoned()
+        {
+            var jet = Soldier(new Vector3(0f, 0f, 300f));
+            _w.AddComponent(jet, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var p = new EjectNodeParams();
+            Assert.Equal(NodeStatus.Running, AirborneIndividualNodes.Eject(ref p, jet, _w));
+            Assert.Equal(BehaviorConstants.ActionIdEject, _w.GetComponentRO<InteractionChannel>(jet).ActiveAction);
+            var exec = new EjectExecutor();
+            ref var ch = ref _w.GetComponentRW<InteractionChannel>(jet);
+            exec.OnEnter(jet, ref ch, _w);
+            exec.Execute(jet, ref ch, _w, 0f);
+            Assert.Equal(NodeStatus.Running, AirborneIndividualNodes.Eject(ref p, jet, _w));        // the ejection asked, the jet still alive
+            _w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(jet).Current = 0f;               // EjectionSystem: the pilot out, the jet ended
+            ref var ch2 = ref _w.GetComponentRW<InteractionChannel>(jet);
+            exec.Execute(jet, ref ch2, _w, 0f);
+            Assert.Equal(NodeStatus.Success, AirborneIndividualNodes.Eject(ref p, jet, _w));
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(jet).ActiveAction);                // handed back
+        }
+
+        /// <summary>⭐ D-25 ★ — the downed pilot waits while he is coming down, then gets AWAY: straight from the nearest remembered live
+        /// enemy to a point 120 m from it; already far, or knowing no enemy, he needs no move. ✅ Red-proof: the move toward the enemy
+        /// (the sign flipped) ⇒ the point 20 m from it ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE1118_EvadeAndSignal_WaitsForTheGround_ThenGetsAwayFromTheNearestKnownEnemy()
+        {
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) _w.RegisterComponent<Fdp.Toolkit.Motion.Descent>();
+            var pilot = Soldier(new Vector3(100f, 0f, 0f));
+            _w.AddComponent(pilot, new Fdp.Toolkit.Motion.Descent { Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = Fdp.Toolkit.Motion.DescentPhase.Landed });
+            Assert.Equal(NodeStatus.Running, AirborneIndividualNodes.WaitForTheGround(pilot, _w));     // still in his harness
+            _w.RemoveComponent<Fdp.Toolkit.Motion.Descent>(pilot);
+            Assert.Equal(NodeStatus.Success, AirborneIndividualNodes.WaitForTheGround(pilot, _w));
+
+            var p = new GetAwayParams { AwayMetres = 120f, Speed = 3f };
+            Assert.Equal(NodeStatus.Success, AirborneIndividualNodes.GetAway(ref p, pilot, _w));      // knows nobody: nothing to get away from
+
+            var enemy = _w.CreateEntity();
+            _w.AddComponent(enemy, new SimTransform { Position = new Vector3(60f, 0f, 0f), Rotation = Quaternion.Identity });
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory { Count = 1 };
+            mem.EntityIds[0] = (long)enemy.PackedValue;
+            mem.PositionsX[0] = 60f; mem.PositionsY[0] = 0f;
+            _w.AddComponent(pilot, mem);
+            Assert.Equal(NodeStatus.Running, AirborneIndividualNodes.GetAway(ref p, pilot, _w));
+            var move = _w.GetComponentRO<LocomotionChannel>(pilot);
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, move.ActiveAction);
+            Assert.Equal(new Vector3(180f, 0f, 0f), p.To);                                            // ★ 120 m from the enemy, away from him
+
+            var far = new GetAwayParams { AwayMetres = 30f };
+            Assert.Equal(NodeStatus.Success, AirborneIndividualNodes.GetAway(ref far, pilot, _w));     // already 40 m off: no move
+        }
+
         // ── CE-2152 C-b (C6, R-2011; docs/DESIGN_Entity_Interactions.md §7.4.10) — the CARRIER's pick-up and put-down ──────────────
 
         /// <summary>A soldier of a type declaring the person carrier and the injury band, through the real translators.</summary>

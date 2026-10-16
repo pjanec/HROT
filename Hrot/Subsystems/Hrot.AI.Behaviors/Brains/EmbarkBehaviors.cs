@@ -73,11 +73,15 @@ namespace Hrot.AI.Behaviors.Brains
             public DisembarkNodeParams Leave;
         }
 
+        /// <remarks>⭐ CE-1118 H-1 (Airborne Insertion §6.5 D-18) — the exit is authored (<c>{}</c> = step out, as before).</remarks>
         [BehaviorResolver(BehaviorNames.Disembark)]
-        public static void Resolve(in NoParams authored, ref DisembarkBlackboard block, EntityRepository world, Entity self)
-            => block.Leave = default;
+        public static void Resolve(in DisembarkParamsJsonDto authored, ref DisembarkBlackboard block, EntityRepository world, Entity self)
+            => block.Leave = new DisembarkNodeParams
+            {
+                Exit = (Fdp.Toolkit.Motion.ExitKind)authored.Exit, AnchorIndex = authored.AnchorIndex, Landing = authored.Landing,
+            };
 
-        [Behavior(BehaviorNames.Disembark, Params = typeof(NoParams), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]   // ⭐ CE-2134 — it takes nothing (P1: NoParams)
+        [Behavior(BehaviorNames.Disembark, Params = typeof(DisembarkParamsJsonDto), Categories = BehaviorCategory.Infantry | BehaviorCategory.Insurgent | BehaviorCategory.Civilian)]   // ⭐ CE-1118 — was NoParams (CE-2134)
         [BTreeDefinition(BehaviorNames.Disembark, Curated = true, Group = "Library/Basic", ParamsType = typeof(DisembarkBlackboard))]
         public static BTreeBuilder<DisembarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<DisembarkBlackboard, BTreeContext>()

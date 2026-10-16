@@ -341,12 +341,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.AddComponent(sf, new TkbIdentity { TkbType = 991L });
             foreach (var m in new[] { para, sf }) Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, m, heli));
 
-            foreach (var m in new[] { para, sf })
-                _world.Bus.Publish(new DisembarkEntityCommand { Passenger = m, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.JumpOut });
+            foreach (var m in new[] { para, sf })   // ⭐ CE-1118 H-1 (D-18) — each with his landing point
+                _world.Bus.Publish(new DisembarkEntityCommand { Passenger = m, Vehicle = heli, Exit = Fdp.Toolkit.Motion.ExitKind.JumpOut,
+                                                                Target = m == para ? new Vector3(300, 20, 0) : new Vector3(-50, 5, 0) });
             Frame();
 
             var a = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(para);
             var b = _world.GetComponent<Fdp.Toolkit.Motion.Descent>(sf);
+            Assert.Equal((new Vector3(300, 20, 0), new Vector3(-50, 5, 0)), (a.Target, b.Target));   // ⭐ D-18 — the jumpmaster's point
             Assert.Equal((Fdp.Toolkit.Motion.DescentKind.StaticLine, Fdp.Toolkit.Motion.CanopyKind.Round), (a.Kind, a.Canopy));
             Assert.Equal((Fdp.Toolkit.Motion.DescentKind.FreeFall, Fdp.Toolkit.Motion.CanopyKind.RamAir), (b.Kind, b.Canopy));
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.LocomotionClass.Parachute, Fdp.Toolkit.Motion.Locomotions.Of(_world, para));

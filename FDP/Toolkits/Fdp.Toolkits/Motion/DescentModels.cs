@@ -166,7 +166,9 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     public static class Descents
     {
-        public static bool Start(EntityRepository world, Entity man, Entity carrier, ExitKind exit, byte anchorIndex)
+        /// <remarks>⭐ H-1 (design §6.5 D-18) — <paramref name="target"/>: a jumper's landing point, his <see cref="Descent.Target"/>
+        /// (the jumpmaster's decision; a rope ignores it).</remarks>
+        public static bool Start(EntityRepository world, Entity man, Entity carrier, ExitKind exit, byte anchorIndex, Vector3 target = default)
         {
             if (exit == ExitKind.StepOut || !world.IsAlive(man) || !world.IsComponentTypeRegistered<Descent>()) return false;
             var d = new Descent { Anchor = carrier, AnchorIndex = anchorIndex, Phase = DescentPhase.Exit, PhaseSince = DescentRules.Now(world) };
@@ -175,6 +177,7 @@ namespace Fdp.Toolkit.Motion
             {
                 d.Canopy = ParachuteModel.Of(world, man, CanopyKind.NoCanopy).Canopy;
                 d.Kind = d.Canopy == CanopyKind.RamAir ? DescentKind.FreeFall : DescentKind.StaticLine;
+                d.Target = target;
             }
             if (world.HasComponent<Descent>(man)) world.GetComponentRW<Descent>(man) = d;
             else world.AddComponent(man, d);

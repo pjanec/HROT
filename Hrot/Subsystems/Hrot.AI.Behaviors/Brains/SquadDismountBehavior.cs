@@ -157,6 +157,16 @@ namespace Hrot.AI.Behaviors.Brains
         [Fbt.Kernel.SharedAiCondition]
         public static bool CarrierUnloading(Entity self, EntityRepository world) => AnyMemberAboard(world, self, AboardWhere.Unloading);
 
+        /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6) — the squad's helicopter holds at a <c>Rope</c> stop
+        /// (<see cref="Fdp.Toolkit.Navigation.NavigationPhase.Roping"/>) with a member aboard: the fast-rope row.</summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool CarrierRoping(Entity self, EntityRepository world) => AnyMemberAboard(world, self, AboardWhere.Roping);
+
+        /// <summary>⭐ CE-1118 H-1 (§6) — the squad's aircraft flies a Drop leg (<see cref="Fdp.Toolkit.Navigation.NavigationPhase.Dropping"/>)
+        /// with a member aboard: the jumpmaster's row.</summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool CarrierDropping(Entity self, EntityRepository world) => AnyMemberAboard(world, self, AboardWhere.Dropping);
+
         /// <summary>⭐ <c>CE-2173</c> slice 3 (B8) — the squad RIDES: it has a live member and every live one is aboard a vehicle (a unit
         /// member: all of its own). ⭐ ALL, not any — while the squad boards, the first man in must not pause the boarding.</summary>
         [Fbt.Kernel.SharedAiCondition]
@@ -185,7 +195,7 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
-        private enum AboardWhere : byte { OnTheGround, Unloading }
+        private enum AboardWhere : byte { OnTheGround, Unloading, Roping, Dropping }
 
         private static bool AnyMemberAboard(EntityRepository world, Entity commander, AboardWhere where)
         {
@@ -206,9 +216,13 @@ namespace Hrot.AI.Behaviors.Brains
                     ? world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(carrier).Phase
                     : Fdp.Toolkit.Navigation.NavigationPhase.Idle;
                 // OnTheGround: standing, and not the stop that is picking the squad UP — under fire there, the aircraft is the way out
-                return where == AboardWhere.OnTheGround
-                    ? phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier)
-                    : phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading;
+                return where switch
+                {
+                    AboardWhere.OnTheGround => phase != Fdp.Toolkit.Navigation.NavigationPhase.Loading && AirHolds.OnTheGround(world, carrier),
+                    AboardWhere.Roping      => phase == Fdp.Toolkit.Navigation.NavigationPhase.Roping,     // ⭐ CE-1118 H-1
+                    AboardWhere.Dropping    => phase == Fdp.Toolkit.Navigation.NavigationPhase.Dropping,   // ⭐ CE-1118 H-1
+                    _                       => phase == Fdp.Toolkit.Navigation.NavigationPhase.Unloading,
+                };
             }
             if (depth >= 4 || !SquadManeuverRunner.IsUnit(world, member) || !world.HasComponent<UnitRoster>(member)) return false;
             var roster = world.GetComponentRO<UnitRoster>(member);

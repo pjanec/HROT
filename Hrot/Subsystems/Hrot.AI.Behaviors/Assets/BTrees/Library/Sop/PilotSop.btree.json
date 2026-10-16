@@ -1,0 +1,111 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "a1118000-0000-0000-0000-000000000001",
+  "Name": "PilotSop",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "c1118000-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "c1118000-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Selector",
+      "VisualId": "c1118000-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "c1118000-0000-0000-0000-000000000010"
+      ],
+      "DisplayLabel": "Rows — first true wins",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 120,
+        "Comment": "CE-1118 H-3 (Airborne Insertion §6.5 D-23): the standing orders of a SPAWNED pilot — nothing in a scenario gives him a task, so his type's SOP does.",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "c1118000-0000-0000-0000-000000000010",
+      "ChildVisualIds": [
+        "c1118000-0000-0000-0000-000000000011",
+        "c1118000-0000-0000-0000-000000000012"
+      ],
+      "DisplayLabel": "Down on the ground → evade",
+      "EditorMetadata": {
+        "X": 600,
+        "Y": 260,
+        "Comment": "Out of his harness: away from the enemy, into cover, down, and wait for the rescue (Air Ops §4c / §9).",
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Condition",
+      "Condition": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.AirborneIndividualNodes.OnTheGround"
+      },
+      "VisualId": "c1118000-0000-0000-0000-000000000011",
+      "ChildVisualIds": [],
+      "DisplayLabel": "On the ground (no descent, not aboard)",
+      "EditorMetadata": {
+        "X": 520,
+        "Y": 400,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "SopOrder": {
+        "Kind": "React",
+        "BehaviorName": "EvadeAndSignal",
+        "Urgency": "Alert"
+      },
+      "VisualId": "c1118000-0000-0000-0000-000000000012",
+      "ChildVisualIds": [],
+      "DisplayLabel": "React: EvadeAndSignal",
+      "EditorMetadata": {
+        "X": 680,
+        "Y": 400,
+        "Comment": "Never ends on its own: he stays down.",
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "ParamsDtoTypeId": "Hrot.Map.Definitions.Behavior.NoParams",
+  "Pills": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": []
+  }
+}

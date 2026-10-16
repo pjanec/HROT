@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Behavior
         /// carrier's rope or DOOR (<paramref name="anchorIndex"/>) at its height, never beside the hull, and starts his descent
         /// (<see cref="ExitIntoDescent"/>).</remarks>
         public static bool Disembark(EntityRepository repo, Entity passenger, Entity vehicle = default,
-                                     ExitKind exit = ExitKind.StepOut, byte anchorIndex = 0)
+                                     ExitKind exit = ExitKind.StepOut, byte anchorIndex = 0, Vector3 target = default)
         {
             if (!repo.IsAlive(passenger)) return false;
             if (vehicle.IsNull && Has<IsEmbarkedTag>(repo, passenger)) vehicle = repo.GetComponentRO<IsEmbarkedTag>(passenger).VehicleEntity;
@@ -285,7 +285,7 @@ namespace Fdp.Toolkit.Behavior
             buffer.SetMode(slot, CarryMode.Seated);
             buffer.Count--;
             Leave(repo, passenger, at);
-            if (exit != ExitKind.StepOut) ExitIntoDescent(repo, passenger, vehicle, exit, anchorIndex);
+            if (exit != ExitKind.StepOut) ExitIntoDescent(repo, passenger, vehicle, exit, anchorIndex, target);
             if (IsPersonCarrier(repo, vehicle)) DropAssistant(repo, vehicle);   // ⭐ T-a — a person carries one load: the team ends with it
             ReleaseCarrier(repo, vehicle);
             return true;
@@ -298,11 +298,14 @@ namespace Fdp.Toolkit.Behavior
         /// <see cref="StartDescentCommand"/> carries it there (the interaction transport, target = the passenger) — the same split CE-3059
         /// measured for a dismount, closed for a descent by sending the decision to the node whose writes stick.
         /// </summary>
-        public static void ExitIntoDescent(EntityRepository repo, Entity passenger, Entity vehicle, ExitKind exit, byte anchorIndex)
+        /// <remarks>⭐ H-1 (design §6.5 D-18) — <paramref name="target"/> is a jumper's landing point (zero = none), his
+        /// <c>Descent.Target</c>.</remarks>
+        public static void ExitIntoDescent(EntityRepository repo, Entity passenger, Entity vehicle, ExitKind exit, byte anchorIndex,
+                                           Vector3 target = default)
         {
-            if (OwnsPosition(repo, passenger)) { Descents.Start(repo, passenger, vehicle, exit, anchorIndex); return; }
+            if (OwnsPosition(repo, passenger)) { Descents.Start(repo, passenger, vehicle, exit, anchorIndex, target); return; }
             if (repo.Bus.IsRegistered<StartDescentCommand>())
-                repo.Bus.Publish(new StartDescentCommand { Passenger = passenger, Anchor = vehicle, Exit = exit, AnchorIndex = anchorIndex });
+                repo.Bus.Publish(new StartDescentCommand { Passenger = passenger, Anchor = vehicle, Exit = exit, AnchorIndex = anchorIndex, Target = target });
         }
 
         /// <summary>Every live passenger leaves <paramref name="vehicle"/>, in a column beside the hull (CE-321); the dead stay where

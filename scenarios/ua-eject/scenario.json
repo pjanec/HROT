@@ -1,0 +1,190 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert"
+  },
+  "entities": {
+    "a1118300-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -4000,
+          0,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9000
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1500,
+        "Max": 1500
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "a1118300-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "a1118300-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": "{\"routeEntityId\": 9002, \"Speed\": 150}",
+              "Triggers": [
+                {
+                  "Type": "TimerElapsed",
+                  "Params": "40"
+                }
+              ]
+            },
+            {
+              "TaskId": "a1118300-0000-4000-8000-0000000000a2",
+              "ExecutingEngine": "",
+              "BehaviorName": "Eject",
+              "BehaviorParams": "{}",
+              "Triggers": [
+                {
+                  "Type": "BehaviorFinished",
+                  "Params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "a1118300-0000-4000-8000-000000000002": {
+      "NetworkIdentity": {
+        "Value": 9002
+      },
+      "EntityInfo": {
+        "Name": "A-10 route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 4000,
+            "Y": 0,
+            "Z": 0,
+            "TargetSpeed": 150,
+            "HeightAgl": 300
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "a1118300-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          2150,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9010
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1118300-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          2160,
+          262,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9011
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a1118300-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          2140,
+          270,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9012
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

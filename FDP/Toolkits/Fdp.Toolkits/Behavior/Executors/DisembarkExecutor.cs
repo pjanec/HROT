@@ -5,6 +5,19 @@ using Fdp.Toolkit.Behavior.Components;
 namespace Fdp.Toolkit.Behavior.Executors
 {
     /// <summary>
+    /// ⭐ Airborne insertion H-1 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §6.5 D-18) — written into
+    /// <see cref="InteractionChannel.Params"/> by the <c>Disembark</c> node: how the passenger leaves (zero = step out beside the hull),
+    /// by which rope or door, and a jumper's landing point (zero = none). <see cref="DisembarkExecutor"/> copies it into the command.
+    /// </summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct DisembarkParams
+    {
+        public Fdp.Toolkit.Motion.ExitKind Exit;
+        public byte AnchorIndex;
+        public System.Numerics.Vector3 Landing;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1056</c> I-2d — the PASSENGER's <c>Disembark</c> interaction action (<see cref="BehaviorConstants.ActionIdDisembark"/>):
     /// RAISES <see cref="Events.DisembarkEntityCommand"/> once (the vehicle its own <see cref="IsEmbarkedTag"/> names) and waits for the
     /// answer — the tag gone. The vehicle's owner (<c>EmbarkationSystem</c>, through <see cref="Embarkation.Disembark"/>) stands it beside
@@ -39,9 +52,12 @@ namespace Fdp.Toolkit.Behavior.Executors
             fixed (byte* p = channel.State) s = *(DisembarkState*)p;
             if (s.Sent == 0)
             {
+                DisembarkParams how;
+                fixed (byte* p = channel.Params) how = *(DisembarkParams*)p;
                 world.Bus.Publish(new Events.DisembarkEntityCommand
                 {
                     Passenger = entity, Vehicle = world.GetComponentRO<IsEmbarkedTag>(entity).VehicleEntity,
+                    Exit = how.Exit, AnchorIndex = how.AnchorIndex, Target = how.Landing,   // ⭐ H-1 (D-18)
                 });
                 s.Sent = 1;
                 channel.Status = NodeStatus.Running;

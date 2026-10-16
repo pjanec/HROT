@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c), B-7…B-9 BUILT (§7d) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+build-state: BUILDING — H-1/H-3 BUILT 2026-10-16 (as-built §6.7, live pending); B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c), B-7…B-9 BUILT (§7d) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
 current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §6.1–§6.6 the drills' design (H-1/H-3, behaviors), §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
@@ -438,6 +438,26 @@ sequenceDiagram
 | `CarrierRoping` / `CarrierDropping` true only for a member aboard a carrier in that phase | the SOP rows |
 | ★ `EvadeAndSignal`: the landed pilot ends ≥ 100 m from the nearest known enemy, prone, still Running | H-3 |
 | `Eject` starts action 11 once and answers Success when the executor does | H-3 |
+
+### 6.7 As-built — H-1, H-3 (`2026-10-16`, behaviors) — wins over §6.1–§6.6 where they differ
+
+| built | where | ★ rail (red-proved by a mutant) |
+|---|---|---|
+| the exit plumbing (D-18): `MemberOrder.Exit/AnchorIndex`, `DisembarkParamsJsonDto` (the library `Disembark` now takes it — `{}` still steps out), `DisembarkNodeParams` → `DisembarkParams` (channel) → `DisembarkEntityCommand.Target` → `StartDescentCommand.Target` → `Descents.Start` → `Descent.Target`; both interaction payloads APPEND `TargetX/Y/Z` | `EmbarkNodes`, `DisembarkExecutor`, `Embarkation`, `DescentModels`, `InteractionTransport` | `EmbarkNodesTests.CE1118_Disembark_*` (the executor dropping the exit ⇒ red) · `InteractionTransportTests.B4_*` · `EmbarkationTests.B4_AJumper_*` |
+| `MemberOrderKind.Stay = 8` — nothing published (D-19) | `SquadManeuverRunner` | through the drills' rails |
+| `SquadFastRopePlay` (kind 15), `SquadAirborneExitPlay` (16), `AssembleAfterDropPlay` (17) + `AirborneDrill` (`RopeClear`, `RingSpot`, `DropLeg`, `RopeCount`) | `AirborneDrillBehaviors.cs`, `Squad/Maneuvers/AirborneManeuvers.cs` | `SquadManeuverTests.CE1118_*` (5): the rope pace (the aboard check and the 3 m gap each ⇒ red), the stick at its release points (⇒ red), the roof ring, assembly, the two SOP rows (⇒ red) |
+| the SOP rows `CarrierRoping` ⇒ `SquadFastRope`, `CarrierDropping` ⇒ `SquadAirborneExit` (Contact, above the ride row) | `BasicSquadSop.btree.json`, `SquadSopConditions` | `CE1118_BasicSquadSop_ARopeHoldFastRopes_ADropLegJumps` |
+| `Eject` (one node, action 11) and `EvadeAndSignal` (wait for the ground → `GetAway` → the existing `FallBack` → the existing `HoldProne`) | `EjectAndEvadeBehaviors.cs` | `EmbarkNodesTests.CE1118_Eject_*`, `CE1118_EvadeAndSignal_*` (away toward the enemy ⇒ red) |
+| ⭐ **D-23 as measured**: the pilot type 206 gets `DefaultSop = "PilotSop"` (a new library SOP: on the ground ⇒ React `EvadeAndSignal`) — `BehaviorTkbTranslator` starts a type's `DefaultSop` by NAME; `DefaultBehaviorHash` needs a registry hash a TKB cannot know | `PilotSop.btree.json`, `BdcTkbBuilder.WithBehavior(defaultSop)`, `BdcTkbCatalog` (Pilot) | goldens: corpus 35 → 36, purely additive |
+| ⭐ **found and fixed (CE-2207)**: a stop's release counted the CREW — the doors-off UH-60's two door gunners (seats 8–11) held every Unload / Drop / Rope stop for ever; `AirHolds.AnyLiveAboard` now counts `SeatRole.Passenger` seats only | `AirHolds.cs` | `B3_TheHelicoptersBrain_*` (every passenger counted ⇒ red) |
+
+| deviation from §6.1–§6.6, and why | |
+|---|---|
+| `ParachuteDescent` is not a behaviour — D-18 left it nothing to do (the point is set at the exit) | §6 table row superseded |
+| the jumpmaster's 1 s gap is a FLOOR (0.8 × the interval), the release points set the pace — they are one interval of flight apart by construction; a strict 1 s gap drifted the stick one tick later per man | `SquadAirborneExitBehavior.MinGapShare` |
+| the plays keep ONE shell phase (+ Aborted); "jumping → assembling" is the per-member state in the play's params, not a shell phase | the phase table adds nothing the per-member state does not say |
+| `DisembarkParamsJsonDto.Exit` is a byte (0 / 1 / 2), not a named enum — ⚠ R-2005 asks for enums by name in JSON; a follow-up if it is authored by hand | — |
+| ⚠ not yet measured live: a man WALKING on a roof (the ring) — the navmesh may not hold roofs; `ua-fast-rope-roof` measures it | §8 |
 
 ## 7. Slices
 

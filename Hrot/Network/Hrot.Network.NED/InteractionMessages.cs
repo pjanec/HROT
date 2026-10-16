@@ -106,6 +106,11 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ Airborne insertion B-4 — <c>ExitKind</c> (0 = step out beside the hull) and the rope / door index. APPENDED (R-169).</summary>
         public byte Exit;
         public byte AnchorIndex;
+
+        /// <summary>⭐ H-1 (design §6.5 D-18) — a jumper's landing point (zero = none). APPENDED (R-169).</summary>
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
     }
 
     /// <summary>⭐ Airborne insertion B-4 — the <see cref="EInteractionKind.StartDescent"/> case (target = the man, actor = the carrier).</summary>
@@ -115,6 +120,11 @@ namespace Hrot.NED.Messages
     {
         public byte Exit;
         public byte AnchorIndex;
+
+        /// <summary>⭐ H-1 (D-18) — his landing point (zero = none). APPENDED (R-169).</summary>
+        public float TargetX;
+        public float TargetY;
+        public float TargetZ;
     }
 
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>

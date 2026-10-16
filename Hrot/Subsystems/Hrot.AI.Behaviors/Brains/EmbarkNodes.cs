@@ -30,12 +30,19 @@ namespace Hrot.AI.Behaviors.Brains
         public Fdp.Toolkit.Behavior.Components.SeatRole Role;
     }
 
-    /// <summary>The params of <see cref="EmbarkNodes.Disembark"/>: nothing authored — the vehicle is the one the unit is aboard.</summary>
+    /// <summary>The params of <see cref="EmbarkNodes.Disembark"/>: the vehicle is the one the unit is aboard; HOW he leaves is authored
+    /// (zero = step out beside the hull).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DisembarkNodeParams
     {
         /// <summary>Runtime: the interaction activation this node started (0 = none) — never authored.</summary>
         [JsonIgnore] public uint Started;
+        /// <summary>⭐ CE-1118 H-1 (Airborne Insertion §6.5 D-18) — step out, down the rope, or out of the door. Appended.</summary>
+        public Fdp.Toolkit.Motion.ExitKind Exit;
+        /// <summary>⭐ H-1 — which rope or door. Appended.</summary>
+        public byte AnchorIndex;
+        /// <summary>⭐ H-1 — a jumper's landing point (zero = none): his <c>Descent.Target</c>. Appended.</summary>
+        public Vector3 Landing;
     }
 
     /// <summary>Log category of the embark nodes.</summary>
@@ -127,7 +134,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [SharedAiAction]
-        public static NodeStatus Disembark(ref DisembarkNodeParams p, Entity self, EntityRepository world)
+        public static unsafe NodeStatus Disembark(ref DisembarkNodeParams p, Entity self, EntityRepository world)
         {
             if (p.Started != 0 && OwnsInteraction(world, self, p.Started, BehaviorConstants.ActionIdDisembark))
             {
@@ -147,6 +154,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
             Start(world, self, ref channel, BehaviorConstants.ActionIdDisembark);
+            Unsafe.As<byte, DisembarkParams>(ref channel.Params[0]) = new DisembarkParams { Exit = p.Exit, AnchorIndex = p.AnchorIndex, Landing = p.Landing };   // ⭐ H-1 (D-18)
             p.Started = channel.ActionInstanceId;
             return NodeStatus.Running;
         }

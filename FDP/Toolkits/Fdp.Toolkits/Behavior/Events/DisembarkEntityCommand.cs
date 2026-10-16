@@ -26,5 +26,9 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>⭐ B-4 — which rope or door (the carrier's <c>RopeAnchors</c> index; 0 = the first). APPENDED.</summary>
         public byte AnchorIndex;
+
+        /// <summary>⭐ Airborne insertion H-1 (design §6.5 D-18) — a jumper's landing point (zero = wherever he comes down): written into his
+        /// <c>Descent.Target</c> by the node owning his position. The jumpmaster's decision; ignored for a step-out or a rope. APPENDED.</summary>
+        public System.Numerics.Vector3 Target;
     }
 }

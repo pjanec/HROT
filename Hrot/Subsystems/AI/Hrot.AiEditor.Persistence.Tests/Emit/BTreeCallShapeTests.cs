@@ -147,6 +147,11 @@ public sealed class BTreeCallShapeTests
         // ⭐ CE-2173 slice 3 (Air Operations §9b) — SquadSopConditions.CarrierUnloading and .Riding are (Entity, EntityRepository) ⇒ NoParams.
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000071", BTreeDelegateShapeDto.NoParams),
         ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000081", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-1118 H-1 (Airborne Insertion §6) — SquadSopConditions.CarrierRoping / .CarrierDropping are (Entity, EntityRepository) ⇒ NoParams.
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000091", BTreeDelegateShapeDto.NoParams),
+        ("BasicSquadSop.btree.json", "c2123000-0000-0000-0000-000000000094", BTreeDelegateShapeDto.NoParams),
+        // ⭐ CE-1118 H-3 (D-23) — the pilot's SOP row: AirborneIndividualNodes.OnTheGround is (Entity, EntityRepository) ⇒ NoParams.
+        ("PilotSop.btree.json", "c1118000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.NoParams),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),

@@ -205,7 +205,8 @@ namespace Hrot.Map.Definitions.Tkb
         /// <c>Gen.Parachute</c> of <paramref name="canopy"/> — round ⇒ a static-line jump, ram-air ⇒ a free fall (<c>Descents.Start</c>). His
         /// DIS type is the rifleman's (3.1.225.1): SISO-REF-010 v37 enumerates US lifeforms by the WEAPON carried, not by a role.
         /// </summary>
-        private static void Jumper(NedTkbBuilder builder, long type, string name, Fdp.Toolkit.Motion.CanopyKind canopy, float openSeconds = 0f)
+        private static void Jumper(NedTkbBuilder builder, long type, string name, Fdp.Toolkit.Motion.CanopyKind canopy, float openSeconds = 0f,
+                                   string? defaultSop = null)
         {
             builder
                 .DefineVehicle(type, name)
@@ -227,7 +228,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
                 .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy, OpenSeconds = openSeconds })
-                .WithBehavior(type)
+                .WithBehavior(type, defaultSop)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
 
@@ -684,7 +685,8 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ Airborne insertion B-7 (§7d D-16) — the PILOT: a jumper whose round canopy opens fast off the seat (1.5 s ⇒ open by ~3 s
             //   after the ejection, §7 B-7); he carries the rifleman's carbine (USAF aircrew carry an M4-class survival rifle). Spawned by
             //   his aircraft's ejection seat, never placed by hand (still in the picker, like every lifeform).
-            Jumper(builder, TkbEntityTypes.Infantry_Pilot, "Pilot", Fdp.Toolkit.Motion.CanopyKind.Round, openSeconds: 1.5f);
+            Jumper(builder, TkbEntityTypes.Infantry_Pilot, "Pilot", Fdp.Toolkit.Motion.CanopyKind.Round, openSeconds: 1.5f,
+                   defaultSop: "PilotSop");   // ⭐ CE-1118 H-3 (D-23) — down on the ground he evades (EvadeAndSignal)
             
             // Tank Platoon (Composite)
             builder

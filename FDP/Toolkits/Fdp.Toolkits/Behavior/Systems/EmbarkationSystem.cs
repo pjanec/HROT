@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     ref readonly var c = ref leaves[i];
                     var vehicle = VehicleOf(repo, c.Passenger, c.Vehicle);
                     if (!Embarkation.OwnsVehicle(repo, vehicle)) continue;
-                    Count(Embarkation.Disembark(repo, c.Passenger, vehicle, c.Exit, c.AnchorIndex));
+                    Count(Embarkation.Disembark(repo, c.Passenger, vehicle, c.Exit, c.AnchorIndex, c.Target));
                 }
             }
             // ⭐ airborne insertion B-4 — a descent decided on the carrier's owner, applied where the man's position is owned
@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     ref readonly var c = ref starts[i];
                     if (!c.IsRemote || !repo.IsAlive(c.Passenger) || !Embarkation.OwnsPosition(repo, c.Passenger)) continue;
-                    Count(Fdp.Toolkit.Motion.Descents.Start(repo, c.Passenger, c.Anchor, c.Exit, c.AnchorIndex));
+                    Count(Fdp.Toolkit.Motion.Descents.Start(repo, c.Passenger, c.Anchor, c.Exit, c.AnchorIndex, c.Target));
                 }
             }
             if (repo.Bus.IsRegistered<EjectPassengersCommand>())
