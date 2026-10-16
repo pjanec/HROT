@@ -2293,7 +2293,7 @@ def run_air_rescue(c, timeout):
             landed_at = t
         if out_at is None and landed_at is not None and not any(_aboard(m) for m in men):
             out_at = t
-        if taken_at is None and on and on in men:
+        if taken_at is None and on and on != ref:   # carried by a man (an entity ref, like the helicopter's)
             taken_at, taker = t, on
         if loaded_at is None and on == ref:
             loaded_at = t
