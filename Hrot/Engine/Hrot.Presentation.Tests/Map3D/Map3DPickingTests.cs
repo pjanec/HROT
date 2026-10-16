@@ -152,6 +152,7 @@ public sealed class Map3DPickingTests
         var cam = new MapCamera3D { ViewportOverride = Viewport, LookAt = at + new Vector3(0f, 0f, 1.2f), Distance = 40f, Pitch = -0.05f, Yaw = 1.0f };
         cam.Pickers.Add(new TerrainPicker(() => WorldQuery.RenderGeometryOf(world)));
         cam.Pickers.Add(new EntityBoxPicker(() => world, () => tkb, bodies));
+        cam.Pickers.Add(new EntityPartPicker(() => world, () => tkb, bodies));   // ⭐ CE-1126 — the crosshair asks for the parts
         var own = Tank(world, cam.Eye - new Vector3(0f, 0f, 1.5f), 5);   // the operator's tank: the eye is inside its hull box
 
         bodies.FirstPerson = own;
@@ -163,6 +164,44 @@ public sealed class Map3DPickingTests
         bodies.FirstPerson = Entity.Null;                                   // what the skip prevents: the own hull wins the pick
         cam.Yaw += 1e-4f;                                                   // (a new pose: the pick is cached per pose)
         Assert.Equal(5L, FpsCameraDriver.Aim(cam).Target);
+    }
+
+    private static Entity Rifleman(EntityRepository world, Vector3 at, long netId)
+    {
+        var e = Tank(world, at, netId);
+        world.SetComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1126 (docs/DESIGN_Entity_Control.md §8g F-4) — the FPS crosshair meets a man by the PARTS a round meets (BodyPartRay, the
+    /// bullet solver's own test): a ray at his head answers a point ON his head (the round goes there), and a ray past his hip — inside
+    /// the selection box, between his parts — answers nothing, while RTS selection (<see cref="EntityBoxPicker"/>) still takes it.
+    /// 🔒 User, 2026-10-16: <i>"when i aim at character and fire i always hit the belly"</i> · <i>"yes, let's use the body part boxes for the crosshair"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1126_TheCrosshair_MeetsTheMansParts_TheHeadPointIsOnHisHead_AndTheGapPastHisHipIsEmpty()
+    {
+        var (_, world, q) = Town();
+        var tkb = Map3DTests.BuiltIn();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var at = new Vector3(10f, 20f, q.GroundHeightAt(10f, 20f));
+        Rifleman(world, at, 42);
+        var parts = new EntityPartPicker(() => world, () => tkb, bodies);
+        var boxes = new EntityBoxPicker(() => world, () => tkb, bodies);
+
+        // a level ray from 20 m west at his head (a standing figure of 1.8 m: the head is ~1.6-1.8 m)
+        var eye = new Vector3(at.X - 20f, at.Y, at.Z + 1.68f);
+        Assert.True(parts.TryPick(eye, Vector3.UnitX, 200f, out var head), "the crosshair at his head meets him");
+        Assert.Equal(PickKind.Entity, head.Kind);
+        Assert.Equal(42L, head.NetworkId);
+        Assert.InRange(head.Point.Z, at.Z + 1.55f, at.Z + 1.85f);   // the point is ON the head — not his position, not his belly
+        Assert.InRange(head.Point.X, at.X - 0.4f, at.X + 0.1f);      // and on the near side of him, where the ray enters
+
+        // a level ray 0.33 m beside him at knee height: the selection box (half ≥ 0.4 m) takes it, the parts do not
+        var beside = new Vector3(at.X - 20f, at.Y + 0.33f, at.Z + 0.45f);
+        Assert.True(boxes.TryPick(beside, Vector3.UnitX, 200f, out _), "RTS selection keeps its generous box");
+        Assert.False(parts.TryPick(beside, Vector3.UnitX, 200f, out _), "the crosshair between his parts is on nothing");
     }
 
     [Fact]

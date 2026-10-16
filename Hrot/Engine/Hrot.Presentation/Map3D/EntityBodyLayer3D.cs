@@ -118,6 +118,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
 
+            // ⭐ CE-1131 — the operator's OWN vehicle, aircraft or weapon is not drawn while he looks from inside it: its airframe filled the
+            //   view (only a person's head was hidden). 🔒 User, 2026-10-16: "my view is cluttered a lot by vehicle parts … difficult to fly"
+            if (e == FirstPerson && look.Family != VisualFamily.Person) { _drawn.Add(e); continue; }
             var size = SizeOf(world, e, look);
             var colour = ColourOf(world, e, look.Colour);
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint

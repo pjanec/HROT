@@ -338,7 +338,7 @@ namespace Fdp.Toolkit.Combat.Executors
             }
 
             // ⭐ CE-1078 (§8e D-1) — a locked shot aims at its unit (followed as it moves); else the station's point.
-            //   ⭐ CE-1125 — AT THE POINT THE CROSSHAIR PUT ON HIM (the brain carries it with him), the middle only when it is not on him.
+            //   ⭐ CE-1125 / CE-1126 — AT THE POINT THE CROSSHAIR PUT ON HIS PART (the brain carries it with him); the middle only with no point.
             var point = !p.Target.IsNull && world.IsAlive(p.Target) && world.HasComponent<SimTransform>(p.Target)
                 ? AimPoint.Operator(world, p.Target, p.Point) : p.Point;
             if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, point); return; }

@@ -243,7 +243,7 @@ stateDiagram-v2
   Engaging --> Engaging : Guiding (a command missile in flight) — stay
   Withdrawing --> Hidden : REVERSE back to the hide
   Withdrawing --> MoveToHide : SCOOT forward to the next hide
-  Hidden --> Choose : every firing point near this hide burned
+  Hidden --> Choose : used up, or no firing point for NoCoverSeconds - the hide is LEFT and burned (CE-2229)
   Choose --> StandAndFight : no hide for NoCoverSeconds (CE-2196)
   Hidden --> StandAndFight : mobility kill (CE-2197)
   StandAndFight --> MoveToHide : a hide answers and it can drive
@@ -340,6 +340,12 @@ target expiring from memory, which ends the designation, is how `TopThreat` (CE-
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
+✅ **Update, after backend's `CE-2222` (`2026-10-16`) — ① PASSES live:** with the Javelin's turn rate and climb as munition data
+(120 °/s, 45°), its top attack fits from its declared 150 m, so A at ~190 m dives on the roof and the cycling tank rates it dangerous.
+`ua-javelin-lock` 5/5: ② the tank left in the open locked and hit (2 launches, 2 hits); ① the cycling tank fights (it fires), A sees and
+aims at it in 4 sampled seconds with a best lock of **3.8 of 4 s**, and its short exposures deny the lock — 1 launch, 0 hits, health
+untouched (1500). ⛔ The park below is history.
+
 ⏸ **Update, after backend's CE-2217 (`2026-10-16`) — ① PARKED on `CE-2222` (backend):** backend measured ② live 2/2 on the
 HULL FRONT (the face the danger model predicts). ① still loses the lock race, and that is now RIGHT by the model: A, ~190 m off and ~19°
 off the nose, fires DIRECT (front armour, `ToMe` 0.11), so the tank has nothing to hide from. 📐 Why it is direct: `GuidedRoundSystem.TopAttackFits`
@@ -366,6 +372,25 @@ curving after the reversing tank, the tank turning, or the body-part face).
 
 ⇒ Next step, not taken: print the technicals' firing-point sensor answers (as `ua-javelin-lock` does) and place each hide one block-corner
 from a line of sight, beyond the Kornet's minimum.
+
+⏸ **Update `2026-10-16` (behaviors, after CE-2224…CE-2228) — the ATGM half works; the HMG half is open:**
+
+| run | what happened | where it went |
+|---|---|---|
+| 4 | the ATGM technical moved to **(185, 295)** — its line to the tank at (200, 120) runs down the street gap (x 170–230), ~176 m, past the Kornet's 100 m | ✅ it fires; the tank's first round goes at it (②); in one run it scooted, in the next the tank killed it (hull, gunner and Kornet at 0 HP) ~2 s after its first missile |
+| 4 | the check's ① required the ATGM technical to drive ≥ 5 m after its shot | ⭐ checker: a technical the tank kills after its shot has done its part — the row above names that ending |
+| 4–7 | ⛔ the HMG technical drives to (285, 230) by 30 s and stays there 100 s, its weapon `Aiming` with no sight (progress 0 / needed 0), never out to a firing point. It shot from (263, 226) when the ATGM technical was still hidden | ⛔ the `ToMe`-budget lean was WRONG — see runs 8–9 |
+| 8 | after **CE-2229** (a blind hide is left and burned): the HMG technical still ends at (285, 230) | 📐 geometry: from Block C's south face (y 230) the line to the tank at (200, 120) crosses the L-Block's west column (x 230–255, y 110–170); the nearest point that sees the tank is ~31 m away, outside the 25 m firing ring |
+| 9 | the HMG technical started at (305, 135): it took a hide in the **L-Block's inner corner** (275, 132) and stayed 200 s | ⚠ the L-Block is an L (south bar y 110–130, west column x 230–255), not its bounding box; from the inner corner every line to the tank crosses the L. Start reverted to (270, 215) |
+
+⏳ **Open design point (behaviors, `2026-10-16`) — a hide is chosen with no regard for whether it can be FOUGHT from.** `FindVehicleHide` scores
+"hidden from every threat, near self"; `FindVehicleFiringPoint` then searches only a ~25 m ring round that hide. In a town the nearest hide is often
+deep in a corner whose every line to the target crosses the same block (runs 3, 8, 9). CE-2229 makes the vehicle LEAVE such a hide, but the next
+nearest hide is usually as blind. ⭐ Lean: anchor the search the other way — find where the target can be SEEN first (a donut round self, wider than
+25 m), then the nearest hide within a short drive of that point; ⛔ SUPERSEDED `2026-10-16`: *"the hill attack's rework (`CE-2230`) needs the same query, so it is designed there once, for both."* ⭐ As built,
+`CE-2230` answered the OPEN-GROUND case without a query — the cycle's LANE mode (a given hide, a drive along the attack line that stops the
+first tick the target is SEEN, [hill-attack DESIGN §0](../hill-attack/DESIGN.md)); the URBAN hide choice stays open as `CE-2232`
+(lean: score the hide query by whether its firing-point ring reaches the threat).
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the
@@ -469,6 +494,7 @@ behaviour lane's.
 | LAW man | the same; the LAW is disposable (1 round each, 2 carried) | a light-vehicle killer |
 | Javelin / NLAW team (new type) | `CombatPosture` with `FiringPosition` (`FindOpenFiringPosition`) at range | the lock (aim time) needs continuous sight — the tank's short exposure denies it |
 | ATGM technical | `LandPlatformAttack` (this node, `Scoot`) | halts for the flight (FireOnMove no), Guiding |
+| ⭐ TOW-type gunner (infantry, command-guided) — **as built `2026-10-16`, `CE-2228`** | `CombatPosture` → PeekAndFire, as the RPG man | ⭐ he HOLDS SIGHT THROUGH THE FLIGHT: while the aimed-fire executor reports `Guiding` (a command round of his in the air), PeekAndFire's `Aimed` phase ignores the exposure cap and the lost-sight grace — he comes down when the round lands or when he is shot at. The one reader `PeekAndFireNodes.Guiding` is the vehicle node's own check, now shared (`VehicleFightFromCover` reads it too). Rail `PeekAndFireNodesTests.CE2228_AGuidedRoundInFlight_HoldsTheGunnerUp_UntilItLands` |
 
 ⭐ **Live `2026-10-16` — `ua-rpg-window` PASS 4 / 4** (bt-range; an RPG man at House A's upper window on `WindowDuel` shape A with
 `exposuresPerPosition` 1, two IFVs on `BasicVehicleSop` 50 m south). The composition holds with no new node: he hits an IFV's side, moves along

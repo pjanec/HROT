@@ -30,6 +30,67 @@ namespace Hrot.SimHost.Tests
             return (w, unit, map);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2231</c> (Q91 §4-F, F1; <c>HANDOFF_Coordinator_To_Behaviors_Possession_Release</c> PR1) — a Player node is disposable:
+        /// when the node holding a unit DEPARTS, the brain releases it by the same path as Esc and the task it paused RESUMES; a unit
+        /// held from another node is untouched. Drives the real <see cref="PossessionSystem"/> and the real
+        /// <see cref="Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem"/> (the pause and the resume are the ingress's).
+        /// </summary>
+        [Fact]
+        public void CE2231_TheHoldingNodeDeparts_ItsUnitIsReleased_AndItsTaskResumes_AnotherNodesUnitIsKept()
+        {
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+            w.Bus.Register<Fdp.Toolkit.Replication.Messages.NodeDeparted>();
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            var possession = new PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+
+            void Frame()
+            {
+                w.Bus.SwapBuffers(); possession.Execute(w, 0.016f);
+                w.Bus.SwapBuffers(); ingress.Execute(w, 0.016f);
+            }
+            Entity Unit()
+            {
+                var u = w.CreateEntity();
+                w.AddComponent(u, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+                w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(u, true);   // this node runs its brain
+                Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(w, u);
+                w.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+                {
+                    Entity = u, BehaviorName = Hrot.Map.Definitions.Behavior.BehaviorNames.Idle, JsonParams = "{}",
+                    Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
+                });
+                return u;
+            }
+            var mine = Unit();
+            var theirs = Unit();
+            w.Bus.SwapBuffers(); ingress.Execute(w, 0.016f);
+            int idle = Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.Idle);
+            Assert.Equal(idle, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(mine).ActiveBehaviorHash);
+
+            w.Bus.Publish(new PossessRequestEvent { Unit = mine, StationNodeId = 7, Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = theirs, StationNodeId = 9, Mode = PossessionMode.Fps });
+            Frame();
+            foreach (var u in new[] { mine, theirs })
+                Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(u).Origin);
+
+            w.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = 7 });
+            Frame();
+
+            Assert.False(w.HasComponent<PossessedBy>(mine));                     // released — Held = 0 replicates to every node
+            var resumed = w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(mine);
+            Assert.Equal(idle, resumed.ActiveBehaviorHash);                     // the paused task is back
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior, resumed.Origin);
+
+            Assert.Equal(9L, w.GetComponentRO<PossessedBy>(theirs).StationNodeId);   // node 9 is still here — untouched
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Possession, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(theirs).Origin);
+        }
+
         [Fact]
         public void CE3173_ManualDrive_TheAxesOfTheBrain_AreAppliedOnTheMuscle()
         {

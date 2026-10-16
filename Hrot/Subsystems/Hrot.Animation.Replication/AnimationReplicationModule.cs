@@ -90,6 +90,23 @@ public sealed class AnimationReplicationModule
         kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Systems.CycloneEgressSystem(egress.ToArray()));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1139</c> — a VIEWER's half of the stance wire (an IG: it draws people but neither asks for a stance nor performs
+    /// one): BOTH stance topics IN, nothing out. 🔴 Without it the viewer's world carried no <c>StanceIntent</c>, so
+    /// <c>LogicalStance.Of</c> answered Standing for everyone — a possessed soldier told to crouch stayed upright on the IG, and
+    /// the first-person eye (which rides the drawn head) never moved. 🔒 User, manual test <c>2026-10-16</c>: <i>"switching FPS
+    /// posture … does not seem to move the camera location"</i>. No participant ⇒ nothing (an offline host shares one world).
+    /// </summary>
+    public static void RegisterStanceViewerOn(Fdp.ModuleHost.ModuleHostKernel kernel, DdsParticipant? participant, NetworkEntityMap entityMap)
+    {
+        if (participant is null) return;
+        kernel.RegisterGlobalSystem(new Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem(StanceViewerTranslators(participant, entityMap).ToArray()));
+    }
+
+    /// <summary>⭐ <c>CE-1139</c> — the two stance ingress translators a viewer runs (<see cref="RegisterStanceViewerOn"/>).</summary>
+    public static List<INetworkTranslator> StanceViewerTranslators(DdsParticipant participant, NetworkEntityMap entityMap)
+        => new() { new StanceIntentIngressTranslator(participant, entityMap), new StanceStatusIngressTranslator(participant, entityMap) };
+
     private static IReadOnlyList<INetworkTranslator> BuildTranslators(
         DdsParticipant participant,
         NetworkEntityMap entityMap,

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
+updated: 2026-10-16
 current-answer: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" directly below this STATUS block (what is
   built, what is waiting on other lanes, what to do next). The programme is still the 3-D world and combat realism
   (../PLAN_3D_World_And_Realism.md); the live design is ../DESIGN_Map_3D_Mode.md §6n–§6u.
@@ -197,6 +197,14 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1039 | 🐞 the Presentation test-host aborts root-caused (core dump: a fresh Raylib window with an unusable GL context) — the frame harness keeps ONE window per process, GLX context handed between threads; 8/8 clean runs | [ui-probe README](../../tools/ui-probe/README.md) |
 | CE-1005 | ⭐ HSM kernel (cross-lane): a transition exits/enters by region slot — entering a parallel state starts every region; also fixed a non-initial nested target landing on the initial child and composite transitions skipping the child's exit | [Fhsm.Kernel.md](../projects/FDP/ExtDeps/FastHSM/Fhsm.Kernel.md) |
 | CE-1120 | ⭐ **FPS audio A0–A3 BUILT** (R-1004, autonomously): sound only while a unit is possessed, raylib output, generated sounds, doors / boarding / town / rumble, F6–F10 + per-operator `audio.json`. ⏳ **needs the user's ear on Windows** (F9 left then right; `HROT_AUDIO_PAN_FLIP=1` if reversed). Night insects not wired — no time of day exists | [DESIGN_FPS_Audio §8](../designs/audio/DESIGN_FPS_Audio.md) |
+| CE-1125 | 🐞 an FPS locked shot hit the belly — the brain now carries the crosshair point in the man's frame | [Entity Control §13.7a](../DESIGN_Entity_Control.md) |
+| CE-1126 | ⭐ the FPS crosshair meets the BODY PARTS a round meets (`BodyPartRay`, one function for both; `EntityPartPicker`); the 1.5 m fallback gone | [Entity Control §8g](../DESIGN_Entity_Control.md) |
+| CE-1127 | ⭐ SIGHT or LOCK — a rifle / pintle MG / unguided rocket fires where you look; a turret, a thrown / arc or a guided weapon locks | [Entity Control §8g](../DESIGN_Entity_Control.md) |
+| CE-1128 / CE-1129 | ⭐ every surface a round meets is marked — entry and exit of what it pierces, where it stops, the ground — a puff and a mark lying on the face (own `RoundImpact` topic, cross-lane) | [Visual Effects §10](../DESIGN_Visual_Effects.md) |
+| CE-1130 | OPEN — small-arms sight zero and bullet drop (direct rounds have no gravity yet) — for the combat lane | [tracker](Blueprint_Issues_Tracker.md) |
+| CE-1131…1145 | ✅ BUILT `2026-10-16`: 1131 (own vehicle hidden in FPS), 1132 (Ctrl+RMB attack, legend, reticle), 1136 (3-D screen marquee), 1137 (camera sound setting), 1138/1142 (wheel streak, WASD by eye height + accel + boosts), 1139 (root cause: IG had no stance — now ingests it), 1140 (HUD Roboto bottom-left, coloured), 1141 (footsteps −18 dB), 1143 (C/Z/Ctrl/Shift), 1145 (FPS counter + `GET /diagnostics/render`). ⏳ OPEN: 1133 (not reproduced by an end-to-end rail — needs the user's repro), ✅ 1134/1135 BUILT later the same day (the inspector's menu IS the map's entity menu on all four hosts; Properties… opens the inspector; Center View / Select now work on every map host and in 3-D — [canvas-context-menu-design §10](../designs/gizmos-1/canvas-context-menu-design.md)), 1144 (design §8h accepted, not ready to build) | [tracker](Blueprint_Issues_Tracker.md), [Map 3D §6z](../DESIGN_Map_3D_Mode.md), [Entity Control §13.8](../DESIGN_Entity_Control.md) |
+| CE-1146 | ⏳ the SIMPLE slice BUILT `2026-10-16` (FPS only: sun direction + disc, sky with sunrise/sunset glow, light never below twilight, cloud dims, fog from visibility; effects stay bright); OPEN for the discussion: cloud layers, moon, precipitation, smoke on the wind, lights that light the ground | [Map 3D §6aa](../DESIGN_Map_3D_Mode.md), [tracker](Blueprint_Issues_Tracker.md) |
+| CE-1144 → CE-1151…1158 | ⏳ use key READY TO BUILD `2026-10-16` (§8h; the brain's verdict to the HUD is §8h.6). DISPATCHED at `2dfec7a37`: backend 1151/1152/1153/1156, behaviors 1154/1155/1157; ui builds CE-1158 (station, HUD, hand-over) once both report their shas — [ui handoff](batches/HANDOFF_Use_Key_To_UI.md), dispatched at `a1a909bde` | [Entity Control §8h](../DESIGN_Entity_Control.md), [backend handoff](batches/HANDOFF_Use_Key_To_Backend.md), [behaviors handoff](batches/HANDOFF_Use_Key_To_Behaviors.md) |
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 

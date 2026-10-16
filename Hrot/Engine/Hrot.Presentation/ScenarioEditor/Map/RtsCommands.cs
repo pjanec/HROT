@@ -53,8 +53,11 @@ namespace Hrot.ScenarioEditor.Map
         }
 
         /// <summary>RMB: every selected unit attacks the HOSTILE under the cursor, or moves to the point (a friendly or neutral
-        /// there is a move to its position). Returns how many orders were accepted.</summary>
-        public int Command(Vector2 worldXY)
+        /// there is a move to its position). Returns how many orders were accepted.
+        /// ⭐ CE-1132 — <paramref name="forceAttack"/> (Ctrl held): the unit under the cursor is ATTACKED whatever its side; empty ground
+        /// is still a move. 🔒 User, 2026-10-16: <i>"how to switch to attack mode so i can click and entity and attack it? … would not
+        /// matter if something like ctrl or shift-click activated the attack"</i>.</summary>
+        public int Command(Vector2 worldXY, bool forceAttack = false)
         {
             var map = Map();
             if (map is null) return 0;
@@ -68,7 +71,7 @@ namespace Hrot.ScenarioEditor.Map
                 //   cursor is the EnemyClick order (Attack), anything else the GroundClick order (Move) to the point.
                 // ⭐ CE-2148 (F6) — the click is the gesture's CONTEXT: it fills the order's one missing [Required] field of its kind;
                 //   an order it cannot complete goes to the order form (MenuOrders.OpenForm), never half-filled.
-                OrderResult r = !hit.IsNull && IsHostile(unit, hit) && map.TryGetNetworkId(hit, out long target)
+                OrderResult r = !hit.IsNull && (forceAttack || IsHostile(unit, hit)) && map.TryGetNetworkId(hit, out long target)
                     ? Gesture(orders, id, OrderGesture.EnemyClick, new OrderContext(target, null))
                     : Gesture(orders, id, OrderGesture.GroundClick, new OrderContext(null, Point(worldXY)));
                 if (r.Accepted) accepted++;
@@ -136,7 +139,9 @@ namespace Hrot.ScenarioEditor.Map
     {
         private readonly RtsCommands _commands;
         private readonly Action _onRemove;
+        private readonly RtsModeState? _mode;
         private bool _shift;
+        private bool _ctrl;
         private bool _rightDown;
         private int _rightMoves;
         private Vector2 _rightAt;
@@ -144,10 +149,12 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>⭐ CE-1077 — mouse-moved frames a right click may have and still be a click (hand jitter), not a drag.</summary>
         public const int ClickMaxMoves = 3;
 
-        public RtsCommandGizmo(RtsCommands commands, Action onRemove)
+        public RtsCommandGizmo(RtsCommands commands, Action onRemove, RtsModeState? mode = null)
         {
             _commands = commands ?? throw new ArgumentNullException(nameof(commands));
             _onRemove = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
+            _mode = mode;
+            if (_mode != null) { _mode.Armed = true; _mode.ForceAttack = false; }
         }
 
         public bool RequiresExclusiveFocus => true;
@@ -162,6 +169,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1075 — the terminal packs the held modifiers into the button's high bits (MapMouseButton.ShiftMask …): a
             //   Shift-click arrived as Left|ShiftMask and matched neither branch, so "Shift adds" never added. The mask IS the Shift.
             bool shift = _shift || (button & MapMouseButton.ShiftMask) != 0;
+            bool ctrl = _ctrl || (button & MapMouseButton.CtrlMask) != 0;   // ⭐ CE-1132 — Ctrl = attack what is under the cursor
             button &= ~(MapMouseButton.ShiftMask | MapMouseButton.CtrlMask | MapMouseButton.AltMask);
             var xy = new Vector2(worldPos.X, worldPos.Y);
             if (button == MapMouseButton.Left && !isPressed) _commands.Select(xy, shift);
@@ -169,7 +177,7 @@ namespace Hrot.ScenarioEditor.Map
             else if (button == MapMouseButton.Right && _rightDown)
             {
                 _rightDown = false;
-                if (_rightMoves <= ClickMaxMoves) _commands.Command(_rightAt);   // ⭐ CE-1077 — a click, not a look
+                if (_rightMoves <= ClickMaxMoves) _commands.Command(_rightAt, ctrl);   // ⭐ CE-1077 — a click, not a look
             }
         }
 
@@ -177,6 +185,11 @@ namespace Hrot.ScenarioEditor.Map
         {
             key &= ~(MapKeyboardKey.ShiftMask | MapKeyboardKey.CtrlMask | MapKeyboardKey.AltMask);   // ⭐ CE-1075 — as for the mouse
             if (key is MapKeyboardKey.LeftShift or MapKeyboardKey.RightShift) _shift = isPressed;
+            else if (key is MapKeyboardKey.LeftControl or MapKeyboardKey.RightControl)
+            {
+                _ctrl = isPressed;
+                if (_mode != null) _mode.ForceAttack = isPressed;   // ⭐ CE-1132 — the overlay shows the attack reticle while held
+            }
             else if (key == MapKeyboardKey.Escape && isPressed) _onRemove();
         }
 
@@ -185,6 +198,24 @@ namespace Hrot.ScenarioEditor.Map
         public void OnCommit(Vector3 worldPos) { }
         public void OnCancel() { }
         public void OnMenuAction(int actionId) { }
-        public void Dispose() { }
+        public void Dispose() { if (_mode != null) { _mode.Armed = false; _mode.ForceAttack = false; } }
+    }
+
+    /// <summary>⭐ CE-1132 — what the RTS tool is doing, for the map's overlay (the controls legend, the attack reticle): armed while the
+    /// tool's gizmo lives, <see cref="ForceAttack"/> while Ctrl is held. One per world (<see cref="MapUiStates"/>).</summary>
+    public sealed class RtsModeState
+    {
+        public bool Armed;
+        public bool ForceAttack;
+
+        /// <summary>The controls, as the legend lists them.</summary>
+        public static readonly string[] Legend =
+        {
+            "RTS COMMAND MODE",
+            "LMB  select    Shift+LMB  add    drag  box select",
+            "RMB  move here / attack the enemy under the cursor",
+            "Ctrl+RMB  attack whatever is under the cursor",
+            "RMB drag  look    Esc  leave",
+        };
     }
 }

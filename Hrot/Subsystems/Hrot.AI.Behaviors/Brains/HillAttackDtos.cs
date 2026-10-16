@@ -171,7 +171,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// Prevents false completion detection during the one-frame ingress delay.
         /// </summary>
         public fixed byte HasStartedRun[8];           // 8, offset 112
-        // Total: 120 bytes (well within 1024-byte Blackboard1024.ByteSize)
+
+        /// <summary>
+        /// ⭐ CE-2230 H-6 — where the PREVIOUS wave came up: each attacker's firing point, in metres along the firing line from its start.
+        /// The next wave's points are chosen away from these, so the enemy cannot lay its gun on the spot and wait (user, 2026-10-16).
+        /// </summary>
+        public fixed float LastFireAlong[8];          // 32, offset 120
+        /// <summary>
+        /// ⭐ CE-2230 H-6 — and where the wave BEFORE that came up. 📐 Live: avoiding only the last wave, a pair came back to the exact
+        /// spot it had fired from two waves earlier (0.7 m) — the other pair's wave between had fired nothing.
+        /// </summary>
+        public fixed float PrevFireAlong[8];          // 32, offset 152
+        /// <summary>How many of <see cref="LastFireAlong"/> / <see cref="PrevFireAlong"/> are set (0 before the first waves).</summary>
+        public byte LastFireCount, PrevFireCount;     // 2, offset 184
+        // Total: 192 bytes (6 trailing padding; well within 1024-byte Blackboard1024.ByteSize)
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -188,10 +201,11 @@ namespace Hrot.AI.Behaviors.Brains
     ///   <item>Attack direction: <c>AttackDirX, AttackDirY</c> (8 bytes) at offset 16.</item>
     ///   <item>Kinematic limits: <c>ApproachSpeed, CreepSpeed</c> (8 bytes) at offset 24.</item>
     ///   <item>Assigned target: <c>TargetNetworkId</c> (long, 8 bytes) at offset 32.</item>
-    ///   <item>Shot quota: <c>MaxRounds</c> and <c>RoundsFired</c> (8 bytes) at offsets 40 and 44.</item>
-    ///   <item>Tracking: <c>LastObservedAmmo</c> (4 bytes) at offset 48.</item>
+    ///   <item>The wave's go time: <c>GoAt</c> (double, 8 bytes) at offset 40 (CE-2230 H-5).</item>
     /// </list>
-    /// Total = 52 bytes.
+    /// Total = 48 bytes. ⭐ CE-2230 — the run is the vehicle exposure cycle's lane (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>):
+    /// one round per run is the cycle's own count (R-2022). ⛔ HISTORY: <c>MaxRounds</c> / <c>RoundsFired</c> / <c>LastObservedAmmo</c> were
+    /// the retired fire node's ammo-diff counter.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
@@ -228,28 +242,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
 
-        /// <summary>Maximum rounds to fire before the node returns success. 0 means unlimited.</summary>
-        public int MaxRounds;            // 4, offset 40
-
-        /// <summary>Rounds fired so far during this behavior run.</summary>
-        public int RoundsFired;          // 4, offset 44
-
         /// <summary>
-        /// Last observed ammo value used to detect discrete shots via ammo drop.
-        /// Initialized to -1 on parse and set on first tick.
+        /// ⭐ CE-2230 H-5 — the WAVE's go time (simulation seconds; 0 = go when ready): every tank of a wave waits in its hide until
+        /// then, so the pair crests together (🔒 R-2022: "another pair comes up the hill"). The commander sets it to the slowest
+        /// member's estimated arrival at its hide.
         /// </summary>
-        public int LastObservedAmmo;     // 4, offset 48
-        // Total: 52 bytes
-    }
-
-    /// <summary>
-    /// Single-field blackboard wrapper used as <c>TBlackboard</c> in the HullDownAttackRun
-    /// <c>BTreeBuilder</c> expression-binding overloads.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct HullDownAttackBlackboard
-    {
-        /// <summary>Per-tank static configuration for the attack run.</summary>
-        public HullDownAttackParams Params;
+        public double GoAt;              // 8, offset 40
+        // Total: 48 bytes
     }
 }

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — S1 BUILT 2026-10-10 (§6a), every host by construction (§6b), air kits (§3.5), articulated kit parts (§3.11; the pose's SOURCE awaits M23–M26); S2 BUILT (§6d); S3 BUILT 2026-10-11 (§6e); S4 BUILT 2026-10-11 (§6f); S5b (the card) BUILT 2026-10-11 (§6g); S5c local part BUILT (§6h, network half CE-1047); S5 BUILT 2026-10-11 (§6i, R-260); CE-1064 the crouched figure (kneel / crouched run) BUILT 2026-10-13 (§6j); CE-1068 doors as hinged leaves BUILT 2026-10-14 (§6k); CE-1071…1073 smooth flying, no frame overflow, the eye in the head BUILT 2026-10-14 (§6l); CE-1081…1084 held figures BUILT (§6m); CE-1085…1094 weapon systems, launchers, guns, drone, attack plane DESIGN 2026-10-14 (§6n), building. ALL leans M1–M22 APPROVED (U21, U22, U23).
-updated: 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
+updated: 2026-10-16 (§6z the 3-D marquee, camera acceleration, FPS counter + render telemetry; §6aa the weather in first person, CE-1146 simple slice) · 2026-10-10 (rev 10 — U23: M17–M22 approved; terrain is NEVER assumed flat (R-248) — draping follows the surface
   (subdivided), "level 0" = the ground surface at each point, areas keep a LEVEL not a height, §3.10. Rev 9 — U22: M15 approved and reshaped on the affiliation pattern (§3.7); §3.9 height in gizmos and
   areas (M21, M22); M16 counts THREE palettes; §3.8's "no code" claims for measurement / area authoring corrected. Rev 8 — U21: leans APPROVED; §3.8 picking, handles and 3-D-aware tools (M17–M20); cards unclickable. Rev 7 — U20: the card is a small CANVAS any gizmo draws into, created on first use, no header/bar shapes —
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
@@ -63,6 +63,8 @@ related-designs:
   - DESIGN_Ownership_Groups_And_Grants.md — owns descriptor ownership and PARTS (F-6: mount parts never created); §3.11's
     turret part (M23) is a part of that model — one owner per descriptor instance.
   - DESIGN_Entity_Control.md — OWNS the FPS view: an ICameraDriver on MapCamera3D that never saves into the scenario camera (M-9, C-1)
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the CityLib-styled traffic road layer (R-4024) drapes through this mode's ground rule; bridges use the lane height.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-1: the new civilian family keeps §6q's outfits and child bodies.
 -->
 
 # DESIGN — a 3-D mode for the map
@@ -1198,7 +1200,7 @@ NO host wiring at all: the layer is added by the shared map attach, and it asks 
 
 ⛔ **Superseded the same day:** the first build had each host pass a `MapCameraOwnership` argument (Editor / CGF saved it). Measured wrong: every host, IG included, registers the SAME scenario save handler and saves what it OWNS (`IgNodeBootstrapper.cs:435-440`, CE-275), so "saves the scenario" is not a host property; and the user ruled out per-host wiring. ⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
 attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
-In a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there until that lands. · Moves during
+⛔ *Corrected `2026-10-16` (user):* ~~in a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there~~ — the Editor is networkless, and in a cluster the CGF IS the editor, so its moves are saved. The one open case is several CGF nodes ([CE-1149](blueprints/Blueprint_Issues_Tracker.md); lean: the smallest node id owns it). · Moves during
 Live/Preview are written too (the camera is the view, not simulation state). · Field of view stays a viewer setting (D7).
 **Gates:** `Map3DTests.S5_*` (6: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · the first move requests ONE
 unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
@@ -2510,6 +2512,149 @@ spot.
 
 *Three hit men and a dead one, facing the camera: a chest, upper-arm and shin hit; a fragment in the side and the face; a bullet in the chest of a man burned on his back; the dead man's marks where he fell.*
 
+### 6z. CE-1136 · CE-1138 · CE-1142 · CE-1145 — the 3-D marquee, a wheel and keys that accelerate, the FPS counter and render telemetry — AS-BUILT `2026-10-16` (ui)
+
+🔒 User, manual test `2026-10-16` ([tracker](blueprints/Blueprint_Issues_Tracker.md) CE-1136, CE-1138, CE-1142, CE-1145): *"the 3d map has no
+multi-selection marquee"* · *"mouse scroll zoom makes big jump, i would like acceleration"* · *"ASWD too fast at high zoom … slow start with
+acceleration … modifiers weak … need long-distance travel"* · *"small FPS indicator top-left of the 3D view … graphics telemetry including view
+location/direction/zoom via the AI debug HTTP"*.
+
+**INVENTORY** (graph `search_graph` Class `.*RubberBand.*`, `.*Telemetry.*`, `.*Overlay.*`; grep): the band state `RubberBandState` and the
+one selection writer `SelectionInteractionSystem` existed (2-D only, a ground rectangle); no render telemetry, no FPS counter, no per-world
+UI-state holder (world managed singletons need a `[ComponentId]`, so the pack could not use them — measured: 20 presentation rails red).
+
+```mermaid
+classDiagram
+    direction LR
+    class RubberBandState { <<existing, grows>> Start Current · + Projector: world→screen? · + InScreen ScreenStart ScreenCurrent }
+    class SelectionInteractionSystem { <<existing, grows>> ExecuteBoxSelection → + ExecuteScreenBoxSelection(band, projector) }
+    class RubberBandOverlay3D { <<NEW IMapLayer>> Update: lends the projector in 3-D, free camera only · DrawOverlay: the screen rectangle }
+    class MapUiStates { <<NEW>> per-world RubberBandState, RtsModeState (ConditionalWeakTable) }
+    class MapCamera3D { <<existing, grows>> WheelStepGrowth(streak) · FlySpeed(height, held, shift, ctrl) · EyeHeightAboveGround() }
+    class RenderTelemetry { <<NEW static>> Frame(dt) · Camera(mode, eye, forward, yaw, pitch, distance, height, viewport) · ToJson() }
+    class MapStatsOverlay { <<NEW IMapLayer>> feeds RenderTelemetry · draws FPS top-left of OpenMapArea · RTS legend }
+    class OpenMapArea { <<NEW static>> the dockspace's central node rect (the map's visible area) }
+    class DebugApiHost { <<existing, grows>> GET /diagnostics/render }
+    RubberBandOverlay3D ..> MapUiStates
+    RubberBandOverlay3D ..> RubberBandState : sets Projector
+    SelectionInteractionSystem ..> RubberBandState
+    MapStatsOverlay ..> RenderTelemetry
+    MapStatsOverlay ..> OpenMapArea
+    DebugApiHost ..> RenderTelemetry
+```
+
+*What the picture shows that prose hid: the marquee adds no second selection path — the 3-D view only LENDS the one system a projection, and
+`SelectionInteractionSystem` still writes the one `SelectionChangeRequest`.*
+
+| decision | rule |
+|---|---|
+| **MQ-1 the marquee** | in 3-D, free camera, a drag selects what PROJECTS inside the screen rectangle (a click — under 4 px — is a click); ⛔ not in first person (the driver owns the mouse) |
+| **CA-1 the wheel** | a lone click moves 4 % of the distance; clicks within 0.35 s of each other form a streak whose step grows by 0.6× per click up to 8× — a fast spin travels far, a single click nudges |
+| **CA-2 the keys** | speed = 0.4 m/s per metre of eye height above the ground (min 0.6 m/s) — close to the ground a tap moves centimetres whatever the look distance; it starts at 25 % and reaches full in 1 s, then up to 5× by 5 s held; Shift ×4, Ctrl ×20, both ×100 (long-distance travel) |
+| **TM-1 telemetry** | fps and frame ms over a 2 s window, the camera's mode / eye / forward / yaw / pitch / distance / height above ground / viewport — `GET /diagnostics/render` (`get_render_diagnostics`); the counter sits top-left of the map's visible area (`OpenMapArea`, so it never hides under a docked panel) |
+
+**Rejected — one line each:** *a 3-D ground-rectangle marquee* — tilted, a ground rectangle is a trapezoid on screen and selects what the user
+did not box; *world managed singletons for the band* — they need a `[ComponentId]`, so every world without one threw.
+
+Rails: `SelectionInteractionSystemTests.CE1136_*`, `Map3DTests.CE1138_*` / `CE1142_*` ×2, `EveryRouteIsDocumentedTests` (the new route).
+
+### 6aa. CE-1146 — the weather and the time of day in first person: sun, sky, light that never goes below twilight, fog — DESIGN + AS-BUILT `2026-10-16` (ui; the simple slice)
+
+📄 Owning design: [Weather and Time](designs/weather/DESIGN_Weather_And_Time.md) §5 **S3** (ui) — *"the 3D map: sun direction and sky colour, fog
+from the extinction, cloud layers; smoke drifts on the wind"* — and the backend → ui handoff's **U5** (`WeatherField.At(world, point)` is the
+one call). 🔒 User, `2026-10-16`: *"especially for the FPS mode; but not in the usual free camera 3d map mode … never full darkness, just
+twilight instead of night … weapon flashes and flares and explosions … should stay bright no matter the ambient light … what is simple and
+relatively cheap"*; `2026-10-16`: *"take the weather rendering where it is clear or simple"*.
+
+**INVENTORY** (graph `search_graph` `.*(Atmosphere|Sky|Fog|Lighting|Ambient).*` and Class `.*Weather.*`; grep `LitShader`):
+
+| the slice rests on | code — how it is | design basis |
+|---|---|---|
+| the world's lit look is ONE shader: ambient + sun·N, distance fog into the sky colour | ✅ `LitShader` (`Vis3D/LitShader.cs`), its sun fixed at creation, fog per frame from the camera distance | §3 |
+| the sky is a gradient behind the world | ✅ `MapCamera3D.BeginMode` | §3 |
+| one pure, allocation-free call gives the sun, light band, relative light, extinction/visibility, cloud cover above the point | ✅ `WeatherField.At` (`FDP/Toolkits/Fdp.Toolkits/Weather/WeatherField.cs:261`) | weather §4, §6.3 |
+| effects (flashes, explosions, flares, fire) draw WITHOUT the lit shader | ✅ only terrain and bodies use `LitShader.Shared` (grep) | Visual Effects |
+| nothing else models a sky or an atmosphere | ⛔ searched (graph above) — none | — |
+
+```mermaid
+classDiagram
+    direction LR
+    class WeatherField { <<existing, backend>> At(world, point): WeatherSample }
+    class WeatherSky { <<NEW, pure>> Of(sample): SceneAtmosphere · TwilightFloor 0.35 }
+    class WeatherSkyLayer { <<NEW IMapLayer>> Update: camera.Atmosphere = FPS ? Of(At(eye)) : null }
+    class SceneAtmosphere { <<NEW value>> SkyTop SkyHorizon ToSun Ambient SunLight VisibilityM SunDisc · Default · FogFor(V) }
+    class MapCamera3D { <<existing, grows>> + Atmosphere? · FogDensityFor(a) · BeginMode: sky, sun disc, shader }
+    class LitShader { <<existing, grows>> + sunLight uniform · ApplyAtmosphere(a) }
+    class FpsCameraDriver { <<existing>> }
+    WeatherSkyLayer ..> WeatherField
+    WeatherSkyLayer ..> WeatherSky
+    WeatherSkyLayer ..> FpsCameraDriver : only while it drives
+    WeatherSkyLayer --> MapCamera3D : sets Atmosphere
+    MapCamera3D ..> SceneAtmosphere
+    MapCamera3D ..> LitShader : ApplyFrame + ApplyAtmosphere
+```
+
+```mermaid
+sequenceDiagram
+    participant L as WeatherSkyLayer (every map host)
+    participant F as WeatherField
+    participant C as MapCamera3D
+    participant S as LitShader
+    L->>L: 3-D and the FPS driver drives?
+    alt first person
+        L->>F: At(world, eye)
+        F-->>L: sun el/az, relative light, cloud above, visibility
+        L->>C: Atmosphere = WeatherSky.Of(sample)
+    else free camera / 2-D
+        L->>C: Atmosphere = null (the clear day)
+    end
+    C->>C: BeginMode: sky gradient, sun disc + glow
+    C->>S: ApplyFrame(eye, fog for the visibility) · ApplyAtmosphere(sun, light, fog colour)
+    Note over S: terrain and bodies are lit by it - effects are not, so they stay bright
+```
+
+```mermaid
+graph TD
+    P[MapInteractionPack.AttachMapLayers - every map host] --> W[WeatherSkyLayer]
+    P --> R[RubberBandOverlay3D]
+    W -->|Update, each frame, before the draw| C[MapCamera3D.Atmosphere]
+    C -->|BeginMode| S[LitShader]
+    E[EffectLayer - unlit] -.->|never reads it| S
+    style E stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the weather enters through ONE nullable property, set by one layer that every host attaches, so the free
+camera is unchanged by construction (null = the old look); and the effects' independence from the light is not a rule to keep but a fact of
+the draw path — they never touch the shader.*
+
+| decision | rule |
+|---|---|
+| **WS-1 only in first person** | the layer sets `Atmosphere` while `FpsCameraDriver` drives the 3-D camera, else null; null is `SceneAtmosphere.Default`, the look the map always had |
+| **WS-2 the light** | shown light = 0.35 + 0.65 × `RelativeLight` (the field's, cloud-dimmed) ⇒ ambient 0.30 at the darkest night … 0.42 at day; the sun's share 0.58 × sin(el)/0.25 (capped) × the field's own cloud cut `1 − 0.75·(octas/8)^3.4`, 0 below the horizon — the darkest night is a dusk, never black |
+| **WS-3 the sky** | day blue → dusk blue with the light; greyed toward overcast with the cloud cover above; a warm glow on the horizon with the sun within ±8° of it (thinned by cloud); the sun disc and its glow where the field puts the sun (azimuth clockwise from north), hidden under ≥ 7 octas; in fog or mist (visibility under 2 km) the sky takes the fog's grey, fully by ~200 m, and the disc goes |
+| **WS-4 the fog** | `exp(−(d·k)²)` with `k = 1.73 / V` — 5 % contrast at the visibility (Koschmieder, the field's own σ = 3.912 / V); never thinner than a fog that has faded fully by 90 % of the far clip, so the world never ends at an edge |
+| **WS-5 the bright things** | effects stay unlit, so a muzzle flash, an explosion or a flare keeps its colour at night (the user's ⑤) |
+
+**Not in this slice — each needs the discussion the item asks for (CE-1146 stays open):** cloud LAYERS (flat, translucent, procedural — a
+noise texture per layer: the cost question), the MOON (the field has no lunar position), precipitation, smoke drifting on the wind, lights that
+light their surroundings at night (a flare lighting the ground).
+
+**Rejected — one line each:** *a skybox / dome mesh* — a screen gradient plus a disc costs nothing and shows the same at FPS scale; *darkening the
+effects with the scene and adding them back* — they never pass through the shader, so leaving them alone IS the rule; *weather in the free
+camera* — the user ruled it out (it would obstruct the view).
+
+**As-built `2026-10-16`** — matches the diagrams. Rails `WeatherSkyTests.CE1146_*` ×5 (noon, night floor, overcast, sunrise glow, fog) and
+`PossessionStationTests.CE1146_TheWeathersSky_OnlyInFirstPerson`; frame rail `Map3DFrameRail.CE1146_V` (Mesa under Xvfb: the shader
+compiles and lights; the night is darker than noon and brighter than a quarter of it). ⚠ Not yet seen on the Windows GL.
+
+| clear noon | sunset (south-west) |
+|---|---|
+| ![](assets/map-3d/weather-noon.png) | ![](assets/map-3d/weather-sunset.png) |
+| **the darkest night — still a dusk** | **fog, 150 m visibility** |
+| ![](assets/map-3d/weather-night.png) | ![](assets/map-3d/weather-fog.png) |
+
+*Eye height over the test town, looking south. In the fog the sky takes the fog's grey and the sun is gone (WS-3).*
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
@@ -2530,7 +2675,7 @@ spot.
 | ⛔ **MEASURED `2026-10-11`: `FilledTriangle` bytes 48-51 are NOT free** — `BoxAnchorId` is a `long` at 44 (44-51), and the hit-test treats ANY primitive with `BoxAnchorId != 0` as pickable (`DebugGizmoLayer.LogCanvasFallback` counts it; the terminal's pick skip keys on it). A fill height there would make every raised fill a phantom pick target ⇒ H2's flat fill height needs another route (an anchored fill, `EntityLocal`) | open |
 | ⚠ route waypoint axes: `RouteWaypoint.Position` is documented as ENU (`RoutePlan.cs:11-20`), yet every route gizmo reads **Z as north** (`RouteWaypointGizmo.cs:18-21,111-128`, `AuthoredRouteGizmo.cs:70`) — one of the two is wrong, and a route in 3-D needs to know which is up | before routes get height (H1) |
 | ⚠ until `TerrainWorld` gets terrain height (`:319`), S1's screenshot shows flat ground — 🔒 `R-248`: the 3-D map is built for relief regardless (§3.10), and a test fixture with relief proves it | S1–S2, a sloped test terrain |
-| ⚠ IG humans stand upright until IG ingests stance (`CE-2121` "IG ingress open") | the IG ingress work (`CE-2121`) |
+| ✅ **BUILT `2026-10-16` (CE-1139)**: the IG ingests stance — it registers `StanceIntent`/`StanceStatus` and runs both stance ingress translators (`AnimationReplicationModule.RegisterStanceViewerOn`), so IG humans crouch and lie down | `StanceWireTests.CE1139_*`, `IgRoleComponentRegistryTests.CE1139_*` |
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
 
 ## ⛔ HISTORY — superseded the same day, do NOT quote

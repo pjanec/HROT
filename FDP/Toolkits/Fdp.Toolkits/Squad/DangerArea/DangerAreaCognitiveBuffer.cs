@@ -63,5 +63,26 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public ReadOnlySpan<DangerAreaDescriptor> GetSpanRO()
             => MemoryMarshal.CreateReadOnlySpan(
                    ref Unsafe.As<DangerAreaDescriptorArray, DangerAreaDescriptor>(ref Slots), 8);
+
+        /// <summary>
+        /// ⭐ <c>CE-2224</c> — an area that is still there keeps its handles: for every entry of <paramref name="fresh"/> whose
+        /// <see cref="DangerAreaDescriptor.FeatureId"/> is also in <paramref name="previous"/>, the previous near / far handles are kept.
+        /// The classifier samples the route from the unit's CURRENT position in fixed steps, so a refresh moves an unchanged area's
+        /// handles by up to a step; a consumer that re-issues its move whenever the target changes (the blueprint
+        /// <c>DangerCrossingBp</c>) then restarts its path every refresh and crawls. The id is the area's stable identity (its
+        /// summary says so), so the handles are too. ⚠ A route change clears the answer (a new epoch), so a stale handle never
+        /// survives a new route. 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md (H7 ②).
+        /// </summary>
+        public static void KeepHandles(ReadOnlySpan<DangerAreaDescriptor> previous, Span<DangerAreaDescriptor> fresh)
+        {
+            for (int i = 0; i < fresh.Length; i++)
+                for (int j = 0; j < previous.Length; j++)
+                    if (previous[j].FeatureId == fresh[i].FeatureId && previous[j].Kind == fresh[i].Kind)
+                    {
+                        fresh[i].NearSideHandle = previous[j].NearSideHandle;
+                        fresh[i].FarSideHandle = previous[j].FarSideHandle;
+                        break;
+                    }
+        }
     }
 }

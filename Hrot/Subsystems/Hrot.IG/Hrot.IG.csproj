@@ -25,6 +25,8 @@
     <!-- CE-1017: the Add Entity picker (PickerRegistry). -->
     <ProjectReference Include="..\..\..\FDP\ExtDeps\NodeEdit\src\NodeEditor.UI\NodeEditor.UI.csproj" />
     <ProjectReference Include="..\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
+    <!-- CE-1139: the stance topics in (AnimationReplicationModule.RegisterStanceViewerOn). -->
+    <ProjectReference Include="..\Hrot.Animation.Replication\Hrot.Animation.Replication.csproj" />
     <!-- NED protocol references required for DebugPrimitivesIngressTranslator and related types. -->
     <!-- NOTE: GZ045 gizmo interaction translators are now routed through INetworkFactory. -->
     <ProjectReference Include="..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />

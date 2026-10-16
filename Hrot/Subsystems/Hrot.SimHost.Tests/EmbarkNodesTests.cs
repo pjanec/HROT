@@ -431,11 +431,16 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);
 
             _w.GetComponentRW<SimTransform>(carrier).Position = Embarkation.BoardingPoint(_w, vehicle);       // the walk arrives
-            _w.GetComponentRW<SimTransform>(down).Position = Embarkation.BoardingPoint(_w, vehicle);
             Assert.Equal(NodeStatus.Running, CarryNodes.LoadCasualty(ref p, carrier, _w));
             Assert.Equal(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);   // first: down
             Dispatch(carrier, new PutDownExecutor());
             Assert.True(Embarkation.LoadOf(_w, carrier).IsNull);
+            // ⭐ CE-2225 — he lies a body-length from his carrier, on the far side from the vehicle: OUTSIDE the boarding range himself
+            //   (live ua-air-rescue). The loader is in range, so the loading goes on.
+            var away = Vector3.Normalize(Embarkation.BoardingPoint(_w, vehicle) - _w.GetComponentRO<SimTransform>(vehicle).Position);
+            _w.GetComponentRW<SimTransform>(down).Position = Embarkation.BoardingPoint(_w, vehicle) + away * 2.5f;
+            Assert.True(Vector3.Distance(_w.GetComponentRO<SimTransform>(down).Position, _w.GetComponentRO<SimTransform>(vehicle).Position)
+                        > Embarkation.BoardingRange(_w, vehicle));
 
             Assert.Equal(NodeStatus.Running, CarryNodes.LoadCasualty(ref p, carrier, _w));
             Assert.Equal(BehaviorConstants.ActionIdEmbark, _w.GetComponentRO<InteractionChannel>(carrier).ActiveAction);    // then: seat him

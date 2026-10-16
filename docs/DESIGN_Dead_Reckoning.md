@@ -20,6 +20,7 @@ related-designs:
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — a canopy's bank rides the replicated roll (D-5); a descending man is an air body whose position moves on its owner only
   - docs/designs/air-attack/DESIGN_Air_Operations.md — §9c: the live miss that produced R6 (a brain read a plane's SimVelocity)
   - DESIGN_Weapon_Layers.md — W-10 applies this model to TurretPose (azimuth, elevation, rates, sim stamp).
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — SUMO cars are NOT NED entities: they use SumoSharp's own lane-based dead reckoning on cluster sim time (R-4020, R-4022).
 -->
 
 # DESIGN — dead reckoning: every node, both stacks, from the sample and its stamp

@@ -1741,6 +1741,8 @@ def run_technical_scoot(c, timeout):
             md = data(call("GET", f"/entities/{atgm}/memory")) or {}
             tst = ((data(call("GET", f"/entities/{tank}/weapons")) or {}).get("status") or {})
             tmd = data(call("GET", f"/entities/{tank}/memory")) or {}
+            hst = ((data(call("GET", f"/entities/{hmg}/weapons")) or {}).get("status") or {})
+            print(f"      HMG @{tick}s at {track[hmg][-1] if track[hmg] else None} weapon {hst.get('reason')} {hst.get('progress')}/{hst.get('needed')} health {health(hmg)}")
             print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (tmd.get('slots') or [])][:3]} · health {health(tank)}")
             print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
                   f" knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}")
@@ -1784,7 +1786,12 @@ def run_technical_scoot(c, timeout):
         away = [(round(px), round(py)) for (tk, px, py) in timed[tech] if tk > t0 and ((px - m[0]) ** 2 + (py - m[1]) ** 2) ** 0.5 >= 5]
         return away[:1]
     a_sc, h_sc = scooted(atgm, ("ATGM", "Kornet")), scooted(hmg, ("HMG", "M2"))
-    c.ok(len(a_pts) >= 2 or bool(a_sc), f"① the ATGM technical shoots and scoots — fired from {a_pts}, then drove to {a_sc}")
+    # ⭐ the design's ending (Urban Armour Tactics row ua-technical-scoot): the tank ranks the ATGM technical first and KILLS it — so a
+    #   technical that fired and was then destroyed before it could drive away has done its part (measured 2026-10-16: killed ~2 s after its
+    #   first Kornet in one run, scooted to a new point in the next)
+    a_killed = bool(a_pts) and _dead(atgm)
+    c.ok(len(a_pts) >= 2 or bool(a_sc) or a_killed,
+         f"① the ATGM technical shoots and scoots (or is killed by the tank after its shot) — fired from {a_pts}, then drove to {a_sc}, dead {_dead(atgm)}")
     c.ok(len(h_pts) >= 2 or bool(h_sc), f"① the HMG technical shoots and scoots — fired from {h_pts}, then drove to {h_sc}")
     tank_shots = by.get("Tank", [])
 
@@ -1962,6 +1969,125 @@ def run_tank_ammo(c, timeout):
     soft = max(pen("Technical"), pen("Rifleman 1"), pen("Rifleman 2"))
     c.ok(pen("Enemy Tank") > 0 and pen("Enemy Tank") > soft, f"② a different round for the tank — penetration {pen('Enemy Tank'):.0f} vs {soft:.0f} at the soft targets")
     print(f"    health: tank {health(tank)} · T-72 {health(t72)} · technical {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
+
+
+# ── ua-hill-attack (CE-2230 H-3; hill-attack DESIGN §0, R-2022) — the platoon's hull-down attack over the basic-desert ridge ─────────
+#   basic-desert: a platoon of four M1s south of the ridge (crest y 210, 10 m, x 230..320), baseline y 140, firing line y 180, against two
+#   idle T-72s north of it (y 380..395) inside the target area. The commander (PlatoonHillAttack) sends a wave (a pair, by index parity) to
+#   its firing slots; each tank creeps up its lane, STOPS the first tick it sees its target (hull-down: R-246), fires ONE round, reverses
+#   into its baseline slot; the other pair goes; they alternate until both T-72s are dead.
+#   ① every shot is fired from south of the crest (hull-down, never over the top) · ② one round per exposure · ③ never more than a pair
+#   up at once (③b and a pair comes up TOGETHER — H-5) · ⑥ a pair never comes up where the last one fired (H-6) · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
+HILL_CREST_Y, HILL_UP_Y, HILL_HOME_Y = 210.0, 170.0, 160.0
+
+
+def run_hill_attack(c, timeout):
+    ids = ids_by_name()
+    tanks = [ids.get(f"Tank {i}") for i in range(1, 5)]
+    enemies = [ids.get("Enemy Tank 1"), ids.get("Enemy Tank 2")]
+    if not c.ok(None not in (*tanks, *enemies), "the four tanks and both T-72s are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, track, tick = {}, {t: [] for t in tanks}, 0
+    end = time.time() + timeout + 400
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots.setdefault(x.get("seq"), (x, tick))
+        for t in tanks:
+            comps = (data(call("GET", f"/entities/{t}")) or {}).get("Components") or {}
+            tr = comps.get("SimTransform") or {}
+            p, q = tr.get("Position"), tr.get("Rotation")
+            if p and q:
+                # heading of the hull's +X axis from the quaternion (z-up yaw)
+                yaw = math.atan2(2 * (q[3] * q[2] + q[0] * q[1]), 1 - 2 * (q[1] ** 2 + q[2] ** 2))
+                track[t].append((tick, p[0], p[1], yaw))
+        tick += 1
+        if tick % 15 == 0:
+            print(f"      @{tick}s y {[round(track[t][-1][2]) if track[t] else None for t in tanks]} · shots {len(shots)} · T-72 health {[health(e) for e in enemies]}")
+        if all(_dead(e) for e in enemies):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    mine = sorted((x for x, _ in shots.values() if x.get("shooter") in tanks), key=lambda x: x.get("seq") or 0)
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter")) for x in mine)))
+    for x in mine[:12]:
+        print("      shot", name.get(x.get("shooter")), "at", name.get(x.get("target"), x.get("target")), "from", [round(v, 1) for v in (x.get("muzzle") or [])],
+              "outcome", x.get("outcome"))
+    # ① hull-down: every friendly round leaves from south of the crest
+    over = [(name.get(x.get("shooter")), round(x["muzzle"][1], 1)) for x in mine if x.get("muzzle") and x["muzzle"][1] >= HILL_CREST_Y]
+    c.ok(bool(mine) and not over, f"① every round is fired from below the crest (y < {HILL_CREST_Y:.0f}) — {len(mine)} rounds, over the top {over}")
+
+    # exposures: a run of samples at y >= HILL_UP_Y
+    def exposures(t):
+        out, cur = [], None
+        for (tk, x, y, yaw) in track[t]:
+            if y >= HILL_UP_Y and cur is None:
+                cur = [tk, tk]
+            elif y >= HILL_UP_Y:
+                cur[1] = tk
+            elif cur is not None:
+                out.append(tuple(cur)); cur = None
+        if cur is not None:
+            out.append(tuple(cur))
+        return out
+    exp = {t: exposures(t) for t in tanks}
+    print("    exposures (tick spans):", {name.get(t): v for t, v in exp.items()})
+    # ② one round per exposure — shots attributed by the tick they were first seen (±1 for the poll)
+    per = []
+    for t in tanks:
+        for (a, b) in exp[t]:
+            n = sum(1 for x, tk in shots.values() if x.get("shooter") == t and a - 1 <= tk <= b + 1)
+            per.append((name.get(t), a, n))
+    c.ok(bool(per) and all(n <= 1 for (_, _, n) in per), f"② one round per exposure — {per}")
+    # ③ never more than a pair up at once
+    up_at = {}
+    for t in tanks:
+        for (tk, x, y, yaw) in track[t]:
+            if y >= HILL_UP_Y:
+                up_at.setdefault(tk, set()).add(name.get(t))
+    crowd = max((len(v) for v in up_at.values()), default=0)
+    c.ok(crowd <= 2, f"③ at most a pair on the slope at once — most at once {crowd}")
+    # ③b (CE-2230 H-5, R-2022 "another pair comes up the hill") — the pair crests TOGETHER: an exposure's start has a partner's
+    #    within 6 s (a wave whose partner is dead or had no slot goes alone)
+    starts = sorted((a, name.get(t)) for t in tanks for (a, _) in exp[t])
+    paired = [(a, n) for (a, n) in starts if any(n2 != n and abs(a2 - a) <= 6 for (a2, n2) in starts)]
+    print("    exposure starts:", starts)
+    c.ok(crowd == 2 and len(paired) * 2 >= len(starts), f"③b the pairs crest together — {len(paired)} of {len(starts)} exposures with a partner within 6 s")
+    # ④ every exposure ends back home, reversing: while falling back the nose still points north-ish (within 90 deg of +Y: the rear never faces the enemy)
+    backs = []
+    for t in tanks:
+        rows = track[t]
+        for (a, b) in exp[t]:
+            after = [r for r in rows if r[0] > b]
+            home = next((r for r in after if r[2] <= HILL_HOME_Y), None)
+            down = [r for r in after if home is None or r[0] <= home[0]]
+            nose_north = all(abs(math.remainder(r[3] - math.pi / 2, 2 * math.pi)) < math.radians(90) for r in down) if down else None   # never the rear to the enemy (a diagonal reverse home turns the nose off north)
+            backs.append((name.get(t), a, home is not None, nose_north))
+    finished = [b for b in backs if b[1] < tick - 30]   # an exposure in the last 30 s may still be backing down
+    c.ok(bool(finished) and all(h and n for (_, _, h, n) in finished), f"④ every tank backs into its slot, nose north — {backs}")
+    # ⑥ (CE-2230 H-6, R-2023 — user 2026-10-16: "the new tank pair appears at a different location than the previous one") — where
+    #    each exposure CRESTED (x at its highest point, fired or not), grouped into waves by start (within 6 s), each wave against the
+    #    TWO waves before it (📐 a pair once came back to its own spot two waves later, the wave between having fired nothing)
+    crests = []
+    for t in tanks:
+        for (a, b) in exp[t]:
+            span = [r for r in track[t] if a <= r[0] <= b]
+            if span:
+                crests.append((a, round(max(span, key=lambda r: r[2])[1], 1)))
+    crests.sort()
+    waves_x = []
+    for a, x in crests:
+        if not waves_x or a - waves_x[-1][0] > 6:
+            waves_x.append([a, []])
+        waves_x[-1][1].append(x)
+    near = lambda k, j: min(abs(a - b) for a in waves_x[k][1] for b in waves_x[j][1])
+    last = [near(k, k - 1) for k in range(1, len(waves_x))]
+    before = [near(k, k - 2) for k in range(2, len(waves_x))]
+    print("    crest points by wave (x):", [w[1] for w in waves_x], "· nearest to the last pair:", [round(g, 1) for g in last],
+          "· to the pair before:", [round(g, 1) for g in before])
+    c.ok(len(waves_x) >= 2 and all(g >= 8 for g in last) and all(g >= 5 for g in before),
+         f"⑥ each pair comes up away from where the last pair did (≥ 8 m; the one before ≥ 5 m) — {[round(g, 1) for g in last]} / {[round(g, 1) for g in before]}")
+    c.ok(all(_dead(e) for e in enemies), f"⑤ both T-72s are dead — health {[health(e) for e in enemies]} · tanks {[health(t) for t in tanks]}")
 
 
 def _turn(bearings, start, stop):
@@ -2276,6 +2402,10 @@ def run_air_rescue(c, timeout):
     if not c.ok(None not in (heli, sq, pilot) and None not in men, "the UH-60, the squad, its five men and the downed pilot are loaded"):
         return
     lz = (190.0, 340.0)
+    # ⭐ IsEmbarkedTag.Vehicle reads as an ENTITY ref ("[0, v1]"), not a network id — take the helicopter's from a man aboard at start
+    ref = next((_aboard(m) for m in men if _aboard(m)), None)
+    if not c.ok(ref is not None and all(_aboard(m) == ref for m in men), f"all five start aboard the UH-60 ({ref})"):
+        return
     call("POST", "/sim/play", {})
     landed_at, out_at, taken_at, taker, loaded_at, back_at, left_at = None, None, None, None, None, None, None
     timeline, next_sample = [], 0.0
@@ -2289,18 +2419,18 @@ def run_air_rescue(c, timeout):
             landed_at = t
         if out_at is None and landed_at is not None and not any(_aboard(m) for m in men):
             out_at = t
-        if taken_at is None and on and on in men:
+        if taken_at is None and on and on != ref:   # carried by a man (an entity ref, like the helicopter's)
             taken_at, taker = t, on
-        if loaded_at is None and on == heli:
+        if loaded_at is None and on == ref:
             loaded_at = t
-        if back_at is None and out_at is not None and all(_aboard(m) == heli for m in men):
+        if back_at is None and out_at is not None and all(_aboard(m) == ref for m in men):
             back_at = t
         if back_at is not None and left_at is None and hp and flat(hp, lz) > 30.0:
             left_at = t
         if time.time() >= next_sample:
             next_sample = time.time() + 2.0
             timeline.append((round(t, 1), ph, tuple(round(v) for v in hp) if hp else None,
-                             sum(1 for m in men if _aboard(m) == heli), ("heli" if on == heli else ("carried" if on else "ground")), health(pilot)))
+                             sum(1 for m in men if _aboard(m) == ref), ("heli" if on == ref else ("carried" if on else "ground")), health(pilot)))
         if left_at is not None:
             break
         time.sleep(0.25)
@@ -2497,6 +2627,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-weapon-systems": run_weapon_systems,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
+             # ⭐ CE-2230 H-3 — the hull-down hill attack on the ridge (hill-attack DESIGN §0, R-2022)
+             "ua-hill-attack": run_hill_attack,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)

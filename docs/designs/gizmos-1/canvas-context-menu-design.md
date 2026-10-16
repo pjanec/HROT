@@ -1,14 +1,18 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-10-16
 current-answer: §1-§3 — the hit-test → interned JSON → popup path, which is what SimHost and the Editor
-  run today for both canvas and entity right-click.
+  run today for both canvas and entity right-click. ⭐ §10 (CE-1134 / CE-1135, 2026-10-16) — the ENTITY INSPECTOR's
+  menu as built: the map's entity menu heads it on every host; Center View / Select / Properties… on every map host.
+stale-below: §5.4 "the Inspector keeps JsonEntityContextMenuHandler, reading ContextMenuState" — SUPERSEDED by §10.
 known-rot: ⚠ The ENTITY menu projects items nothing handles. 📐 Measured 2026-09-12 (CE-259bi):
   ContextMenuProjectorGizmo.cs:46 offers "Move Here" (GlobalActionIds.MoveHere), "Engage" and "Stop" on a
   healthy unit, and NO host registers a handler for any of the three — so they are inert. ⚠ Note :60
   disables "Move Here" with a tooltip for a DEGRADED unit, which is what a deliberately unavailable item
   looks like ⇒ the healthy one is meant to work.
 related-designs:
+  - ../../DESIGN_Subsystem_Composition_Unification.md — §5c.7 DiagnosticsWindowsBundle: registers the inspector window and, since §10 here, the map menu on it
+  - ../../DESIGN_Map_3D_Mode.md — the 3-D camera Center View moves (§10: MapCamera3D.FocusOn)
   - ../../DESIGN_Add_Entity_Picker.md — adds the "Add Entity" item to the empty-map menu and the clicked point (CanvasContextMenuState.AnchorWorld) that §5.6 lacks
   - ../brain-death/BD1-DESIGN.md — owns the ROUTING RULE behind "Move Here" (brain-active ⇒ mission,
     brain-dead ⇒ direct muscle command). Its §2 put that rule on the raw right-click gesture THIS design
@@ -148,6 +152,11 @@ public sealed class CanvasContextMenuGizmo : IGlobalStatelessGizmo
 
 ### 5.4 Entity Inspector Adapter
 
+> ⛔ **SUPERSEDED `2026-10-16` by §10.** 📐 Measured: `ContextMenuState` is written on the IG alone (its `ContextMenuSystem`, from the
+> received bindings), and only the Editor registered `JsonEntityContextMenuHandler` — so on every host the inspector's map items were
+> missing, and each host hand-rolled its own "Center on entity" / "Select entity". The text below is the original intent; §10 is how it
+> is met.
+
 The Entity Inspector keeps its existing `JsonEntityContextMenuHandler`, which reads `ContextMenuState.MenuJson` directly off the entity and walks the JSON to build the ImGui tree. It does **not** read from the gizmo buffer. This is deliberate — the gizmo buffer is a transient, write-only projection surface; using it as a read source for application UI panels would couple domain state to the graphics pipeline and reverse the unidirectional flow.
 
 Both surfaces consume the same `ContextMenuState.MenuJson`, so the menus are identical by construction.
@@ -228,3 +237,107 @@ Subsystem-specific menu content (e.g. editor-only items) is achieved by giving e
 - **Subsystem-specific canvas menu content.** Initial cut is Measurement Tool only. When IG, Editor, and CGF need divergent menus, each provides its own `CanvasMenuUpdateSystem` variant; the architecture does not change.
 - **Dynamic canvas menu states.** When `CanvasMenuUpdateSystem` needs to react to runtime state (e.g. disable Measurement Tool while a rubber-band is active), it adds a state-hash check around the JSON rebuild — same caching pattern as entity menu generation. No new components required.
 - **Multi-entity selection menus.** Out of scope here; the Inspector's `PopulateMenu(IReadOnlyCollection<Entity>, ...)` overload remains unimplemented for the binding-based path until requirements are pinned down.
+
+## 10. AS-BUILT — the inspector's menu IS the map's entity menu; Center View, Select and Properties… on every map host (`CE-1134`, `CE-1135`, `2026-10-16`, ui)
+
+🔒 User, `2026-10-16`: *"whenever the entity component inspector window is and can show the right click menu on the entity, then it should
+get the menu that is usually drawn on 2D map and on 3D map as well, and just extend it with the items that the component inspector itself
+needs. This is especially useful if we want to center the map, either 2D or 3D, on a selected entity without looking for it on the map."*
+⭐ That is §3's goal (*"both the 2D map and the Entity Inspector consume the same per-entity menu definition"*) — the code had drifted from it.
+
+**INVENTORY** (grep; ⚠ the codebase-memory server was disconnected this session, so no `search_graph` inventory — the five map hosts and
+the four inspector hosts were enumerated by grep on `AttachMapLayers(` / `MapInteractionPack.Build(` / `new DiagnosticsHostServices(` /
+`RegisterContextMenuHandler(`):
+
+| measured `2026-10-16` | where |
+|---|---|
+| the map's entity menu is computed, not stored: `ContextMenuProjectorGizmo.MenuJsonFor(view, entity)` | `Hrot.Common/Diagnostics/Gizmos/ContextMenuProjectorGizmo.cs` |
+| `ContextMenuState` is written only on the IG (`ContextMenuSystem`) | `Hrot.IG/Systems/ContextMenuSystem.cs` |
+| only the Editor registered `JsonEntityContextMenuHandler` (reads `ContextMenuState`) ⇒ it added nothing there | `EditorSubsystem.cs` |
+| IG, CGF, SimHost each hand-rolled "Center on entity" + "Select entity"; the Editor its own Center / Rotate / Edit / AI trace | the four hosts |
+| 🔴 the map menu's **Center View** had a handler only on the Editor and the ReplayBrowser, **Select** only on the Editor — dead on CGF, SimHost, IG | `actionRegistry.Register(...)` grep |
+| 🔴 **Center View did nothing in 3-D**: `MapCamera.FocusOn` sets the 2-D target, which `MapCamera3D` never reads | `MapCamera.cs:302` |
+| `GlobalActionIds.Properties = 12` existed (ExCon offers it) with no handler anywhere | `GlobalActionIds.cs` |
+
+```mermaid
+classDiagram
+    direction LR
+    class ContextMenuProjectorGizmo { <<existing, grows>> MenuJsonFor(view, entity) · + Properties… item }
+    class MapEntityMenuHandler { <<NEW, replaces JsonEntityContextMenuHandler>> PopulateMenu: the map's JSON, only actions this node runs }
+    class InspectorMapLink { <<NEW static>> RegisterMap(map) · RegisterWindow(wm, id, state) · MapFor(state) · ShowWindowFor(state) }
+    class MapInteraction { <<existing, grows>> Actions · InteractionBus · + World · + Inspector }
+    class MapInteractionPack { <<existing, grows>> Build: + RegisterViewActions(Center View, Select, Properties) · AttachMapLayers: + MapCanvasLink }
+    class MapCanvasLink { <<NEW IMapLayer>> MapUiStates: world -> the canvas showing it }
+    class CenterOnEntitySystem { <<existing>> + static CenterOn(camera, world, entity) }
+    class MapCamera { <<existing>> FocusOn -> virtual }
+    class MapCamera3D { <<existing, grows>> override FocusOn: glide LookAt }
+    class DiagnosticsWindowsBundle { <<existing, grows>> registers MapEntityMenuHandler FIRST + the window link }
+    DiagnosticsWindowsBundle --> MapEntityMenuHandler
+    DiagnosticsWindowsBundle ..> InspectorMapLink : RegisterWindow
+    MapInteractionPack ..> InspectorMapLink : RegisterMap
+    MapEntityMenuHandler ..> InspectorMapLink : MapFor(inspector state)
+    MapEntityMenuHandler ..> ContextMenuProjectorGizmo
+    MapInteractionPack ..> CenterOnEntitySystem : CenterOn
+    MapCamera3D --|> MapCamera
+```
+
+```mermaid
+sequenceDiagram
+    participant O as Operator
+    participant I as Entity Inspector (ImGui)
+    participant H as MapEntityMenuHandler
+    participant B as map interaction bus
+    participant D as GlobalActionDispatchSystem
+    participant A as the map's action (RegisterViewActions)
+    participant C as canvas camera (2-D or 3-D)
+    O->>I: right-click an entity row
+    I->>H: PopulateMenu(entity)
+    H->>H: the map's JSON for it, items this node runs
+    I->>I: then Inspect…, Rename…, Delete (the inspector's own)
+    O->>I: Center View
+    I->>B: GlobalActionRequestedEvent(CenterOnEntity, entity)
+    D->>A: handler(world, entity)
+    A->>C: FocusOn(its position) - 3-D glides the look-at
+    Note over A: Properties… - select it, then InspectorMapLink shows the inspector window
+```
+
+```mermaid
+graph TD
+    E[Editor] --> P[MapInteractionPack.Build]
+    G[CGF] --> P
+    S[SimHost] --> P
+    IG[IG] --> P
+    R[ReplayBrowser] --> P
+    E --> W[DiagnosticsWindowsBundle]
+    G --> W
+    S --> W
+    IG --> W
+    P -->|RegisterMap| L[InspectorMapLink]
+    W -->|RegisterWindow| L
+    W --> H[MapEntityMenuHandler on the inspector]
+    R -.->|own inspector type, not in the bundle| X[no inspector menu change]
+    style X stroke-dasharray: 4 4
+```
+
+*What the pictures show that prose hid: the inspector menu adds no second action path — a click is the same `GlobalActionRequestedEvent` the
+map's terminal path ends in, run by the same registry; and the ReplayBrowser gets the map actions (it builds the pack) but not the inspector
+menu, because its inspector is a different type outside the bundle.*
+
+| decision | rule |
+|---|---|
+| **IM-1 the source** | `MenuJsonFor(world, entity)` — what THIS node's map binds for it. No network id / dead ⇒ no menu. ⛔ Not `ContextMenuState`: it lives in `Hrot.IG`, which the shared assembly cannot reference, and it is written on the IG alone |
+| **IM-2 only what runs here** | an item whose action id has no handler in the map's registry is left out (a submenu with none, too); separators never lead or double |
+| **IM-3 order** | the map's items first, then the inspector's own (Inspect…, and per host: Rename… · Delete · Mark Target · Edit overlay · Rotate on CGF) |
+| **IM-4 the join** ⚠ *to be superseded by [CE-1150](../../blueprints/Blueprint_Issues_Tracker.md) (user, 2026-10-16): host actions independent of the map; Properties… handled where the window manager is* | ⭐ by the inspector STATE both the pack (`MapInteractionContext.Inspector`) and the bundle (`InspectorState`) are given — the same object on all four hosts. ⛔ Not a constructor argument: CGF, SimHost and the IG do not keep their window manager, and the pack and the bundle are built at different moments |
+| **IM-5 view actions** | Center View (`RegisterLocal` — a relayed click never moves this node's camera), Select (`Register`, the one selection request), Properties… (`RegisterLocal`: select, then focus the inspector window) — once, in the pack, for every map host |
+| **IM-6 3-D** | `MapCamera.FocusOn` is virtual; `MapCamera3D` glides its look-at to the point (ground height from the terrain), yaw / pitch / distance kept; ignored while a first-person driver owns the camera |
+
+**Rejected — one line each:** *a constructor argument on `DiagnosticsHostServices`* — three hosts hold no window manager and build the map
+after the windows; *keeping `JsonEntityContextMenuHandler`* — it read a component only the IG writes; *showing dead items in the
+inspector* — the map's menu shows some (Rotate on CGF, known-rot above), the inspector need not copy that.
+
+**As-built** — matches the diagrams. Deleted as duplicates: the Editor's `JsonEntityContextMenuHandler` and its Center / Rotate / Edit /
+AI-trace items, IG / CGF / SimHost "Center on entity" + "Select entity", CGF `PublishForEntity`, SimHost `CenterCameraOnEntity`, the Editor's
+and the ReplayBrowser's own Center View / Select handlers. Rails `MapEntityMenuHandlerTests` (re-homing the deleted handler's rails).
+⚠ Not yet seen in the GUI.
+

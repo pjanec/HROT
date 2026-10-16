@@ -434,6 +434,12 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "check whether the diagnostic dump finished"),
 
+        [("GET", "/diagnostics/render")] = new RouteDoc(
+            Tool:    "get_render_diagnostics",
+            Group:   "Y — node diagnostics",
+            Summary: "⭐ CE-1145 — the map view's frame rate (fps, frame-time mean / p95 / max over ~2 s) and its camera (mode 2D / 3D / FPS, eye, forward, yaw / pitch, distance, height above the ground, viewport).",
+            Returns: "{ fps, frameMsMean, frameMsP95, frameMsMax, frames, windowSeconds, mode, camera{ eye[3], forward[3], yawDeg, pitchDeg, distance, heightAboveGround, viewport[2] } }",
+            Hint:    "Zeros until the window has drawn a frame (a headless host never draws). Example: get_render_diagnostics({})"),
         [("GET", "/diagnostics/architecture")] = new RouteDoc(
             Tool:    "get_architecture_diagnostics",
             Group:   "Y — node diagnostics",

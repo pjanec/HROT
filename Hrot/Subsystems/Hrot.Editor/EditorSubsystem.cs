@@ -276,7 +276,6 @@ namespace Hrot.Editor
         private ScenarioMapConfigAdapter?         _mapConfigAdapter;
         private CanvasMapPickAdapter?           _mapPickAdapter;
         private EditorZoneAdapter?              _zoneAdapter;
-        private JsonEntityContextMenuHandler? _contextMenuHandler;
         private EditorPreviewController?        _previewController;
         private MapViewConfig?                  _mapViewConfig;
 
@@ -2078,15 +2077,7 @@ namespace Hrot.Editor
                 var intent = Hrot.Map.Common.Services.TerrainLoadService.LoadZoneIntentFor(repo, target);
                 if (intent is { } i) _orchestrationBus?.PublishManaged(i);
             });
-            actionRegistry.Register(GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (target == Entity.Null) return;
-                long netId = view.HasComponent<NetworkIdentity>(target)
-                    ? view.GetComponentRO<NetworkIdentity>(target).Value
-                    : 0L;
-                if (netId != 0)
-                    _world!.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = netId });
-            });
+            // ⭐ CE-1134 — Center View, Select and Properties… are MapInteractionPack.RegisterViewActions (every map host).
             actionRegistry.Register(GlobalActionIds.Delete, (view, target) =>
             {
                 if (target == Entity.Null) return;
@@ -2097,22 +2088,6 @@ namespace Hrot.Editor
                     _world!.Bus.PublishManaged(new DestroyEntityCommand { NetworkId = netId, Reason = "ContextMenu" });
                 else
                     _world!.DestroyEntity(target);
-            });
-            actionRegistry.Register(GlobalActionIds.Select, (_, target) =>
-            {
-                if (target == Entity.Null) return;
-
-                // ⭐⭐⭐ UXI-11 S-2 — an action handler REQUESTS; it does not write the selection.
-                //    📄 UX_Feature_Selection.md §2.7.3 rule 1. ⛔ This used to hand-roll the clear-loop,
-                //    set the component, AND assign through the view — three ways to say one thing.
-                //    ⚠ One frame later than before, which §2.5 already rules structural. 📌 §2.5 also
-                //    calls a menu item that changes selection "an action handler", which is exactly
-                //    the deferred path ruling 15 gives every action.
-                _world!.Bus.PublishManaged(
-                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
-                // ⚠ Panel view state, not the selection store. S-3 turns this into a notification
-                //   consumer; until then the handler still points the inspector at its own choice.
-                _fdpInspectorState.SelectedEntity = target;
             });
             // ⭐ CE-3123 — ToggleAiTrace / ToggleAiTraceLog are registered by MapInteractionPack (AiTraceActions) on every map
             //   host; the inspector menu below still publishes the same action ids.
@@ -2428,13 +2403,14 @@ namespace Hrot.Editor
                 _entityRenameModal = new Hrot.Editor.AiShared.Browser.EntityRenameModal(
                     (netId, components) => _editorLogic?.CommitPropertyEdit(netId, components));
                 _orbatAdapter     = new ScenarioOrbatAdapter(_world, _world.Bus, _spawnAdapter);
-                _contextMenuHandler = new JsonEntityContextMenuHandler(_world, interactionBus);
                 _fdpRepoAdapter = new FdpRepositoryAdapter(_world);
 
                 // Register context menu handlers with the FDP entity inspector.
-                // 1) JSON-driven domain actions (populated by ExCon via ContextMenuState.MenuJson).
-                _fdpEntityInspector.RegisterContextMenuHandler(_contextMenuHandler);
-                // 2) Local editor authoring actions (centre, rename, edit, delete).
+                // ⭐ CE-1134 — the MAP's entity menu heads it (MapEntityMenuHandler, registered for every host by
+                //   DiagnosticsWindowsBundle): Center View (2-D and 3-D), Select, Properties…, Rotate, Edit Shape / Route, the orders,
+                //   the AI trace. ⛔ The JsonEntityContextMenuHandler that was item 1 read only ContextMenuState (written on the IG),
+                //   so it added nothing here; item 2's Center / Rotate / Edit Shape / Edit Route copied the map's items.
+                // 2) What the inspector adds: rename, and delete for a unit (an area or a route has Delete in the map's menu).
                 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
                 {
                     if (!_world.IsAlive(entity)) return;
@@ -2447,17 +2423,12 @@ namespace Hrot.Editor
                     bool hasPolyline = _world.HasManagedComponent<EditablePolyline>(entity);
                     bool hasRoute    = _world.HasManagedComponent<RoutePlan>(entity);
 
-                    builder.AddItem("Center on Entity", () => _editorLogic?.CenterOnEntity(networkId));
+                    builder.AddSeparator();
                     if (networkId != 0)
                         builder.AddItem("Rename...", () => _editorLogic?.OpenRenameDialog(networkId));
-                    if (hasPolyline)
-                        builder.AddItem("Edit Shape", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Edit); });
-                    if (hasRoute)
-                        builder.AddItem("Edit Route", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Route); });
-                    builder.AddItem("Rotate", () => { _editorLogic?.SelectEntity(networkId); _editorLogic?.ActivateTool(EditorTool.Rotate); });
-                    builder.AddSeparator();
-                    builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
-                        new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
+                    if (!hasPolyline && !hasRoute)
+                        builder.AddItem("Delete", () => _world?.Bus.PublishManaged(
+                            new DestroyEntityCommand { NetworkId = networkId, Reason = "EditorContextMenu" }));
                 }));
                 // 3) Perception seeding actions (mark target memory entries for selected perceivers).
                 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -2531,26 +2502,8 @@ namespace Hrot.Editor
                         });
                 }));
 
-                // 4) AI tracing toggles (behav-diag-1). Only shown on entities with a brain.
-                _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
-                {
-                    if (!_world.IsAlive(entity)) return;
-                    if (!_world.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)) return;
-
-                    builder.AddSeparator();
-                    builder.AddItem("Toggle AI Trace Buffer", () =>
-                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
-                        {
-                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTrace,
-                            Target   = entity,
-                        }));
-                    builder.AddItem("Toggle AI Trace Log", () =>
-                        interactionBus.Publish(new Hrot.Common.Events.GlobalActionRequestedEvent
-                        {
-                            ActionId = Hrot.Common.Constants.GlobalActionIds.ToggleAiTraceLog,
-                            Target   = entity,
-                        }));
-                }));
+                // ⭐ CE-1134 — 4) the AI-trace toggles were here: the map menu's "AI trace" submenu (the same two action ids) now
+                //   heads the inspector's menu (MapEntityMenuHandler, DiagnosticsWindowsBundle).
 
                 // Entity query ? all networked simulation entities with a location.
                 var entityQuery = _world.Query()
@@ -5229,7 +5182,6 @@ namespace Hrot.Editor
             _mapConfigAdapter = null;
             _mapPickAdapter   = null;
             _zoneAdapter      = null;
-            _contextMenuHandler = null;
             _debugApiHost?.Dispose();
             _debugApiHost     = null;
             _previewController  = null;

@@ -299,7 +299,9 @@ namespace Fdp.Toolkit.Vis2D.Components
             return interacted;
         }
 
-        public void FocusOn(Vector2 position, float zoom = -1f)
+        /// <summary>Centre the view on a ground point (and optionally zoom). ⭐ CE-1134 — virtual: the 3-D camera glides its look-at
+        /// point there instead (<c>MapCamera3D.FocusOn</c>), so every "centre on" caller works in both views.</summary>
+        public virtual void FocusOn(Vector2 position, float zoom = -1f)
         {
             // ⭐⭐⭐ THE THIRD DOOR, and the one most likely to be handed a bad value: callers focus on an
             //    ENTITY POSITION, and a component can hold NaN. ⛔ `_targetTarget` is copied into

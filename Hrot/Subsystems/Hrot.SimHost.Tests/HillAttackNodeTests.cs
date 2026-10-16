@@ -29,7 +29,7 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for HillAttack commander and tank nodes — Corrective-1 + TASK-HA010–016.
+    /// Unit tests for HillAttack commander nodes and the tank run's contract — Corrective-1 + TASK-HA010–016 (+ CE-2230).
     ///
     /// <para>Corrective-1 section covers the previously unwritten SC-HA007/HA008/HA009 tests.
     /// TASK-HA010–HA016 sections add commander node, EQS integration, wave dispatch,
@@ -108,430 +108,46 @@ namespace Hrot.SimHost.Tests
             return ref cell[0];
         }
 
-        // ── Corrective-1: SC-HA007 — Condition_HasTarget ─────────────────────────
-
-        /// <summary>SC-HA007-1: Condition_HasTarget returns Success when target is in
-        /// TargetMemory with positive ThreatScore.</summary>
-        [Fact]
-        public void SC_HA007_1_Condition_HasTarget_ReturnsSuccess_WhenTargetInMemoryWithScore()
-        {
-            using var repo = CreateWorld();
-
-            var tank      = repo.CreateEntity();
-            var target    = repo.CreateEntity();
-
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(42L, target);
-
-            unsafe
-            {
-                var mem = new TargetMemory { Count = 1 };
-                mem.EntityIds[0]    = (long)target.PackedValue;
-                mem.Freshness[0] = 1.5f;
-                repo.AddComponent(tank, mem);
-            }
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 42L };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Success, result);
-        }
-
-        /// <summary>SC-HA007-2: Condition_HasTarget returns Failure when NetworkEntityMap
-        /// cannot resolve TargetNetworkId.</summary>
-        [Fact]
-        public void SC_HA007_2_Condition_HasTarget_ReturnsFailure_WhenNetworkIdUnresolvable()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            unsafe
-            {
-                var mem = new TargetMemory { Count = 0 };
-                repo.AddComponent(tank, mem);
-            }
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 99999L };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Failure, result);
-        }
-
-        // ── Corrective-1: SC-HA007 — Action_CreepToAndBeyondSlot ─────────────────
-
-        /// <summary>SC-HA007-3: Action_CreepToAndBeyondSlot returns Running while within
-        /// the tactical overshoot limit.</summary>
-        [Fact]
-        public void SC_HA007_3_CreepToAndBeyondSlot_ReturnsRunning_WhenWithinOvershootLimit()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            // Tank is at the slot position (no overshoot yet).
-            repo.AddComponent(tank, new SimTransform { Position = new System.Numerics.Vector3(50f, 50f, 0f) });
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams
-            {
-                SlotX         = 50f, SlotY = 50f,
-                AttackDirX    = 0f,  AttackDirY = 1f,  // northward attack
-                ApproachSpeed = 15f,
-                CreepSpeed    = 5f,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Running, result);
-        }
-
-        /// <summary>SC-HA007-3b: Action_CreepToAndBeyondSlot returns Failure when overshoot
-        /// exceeds HillAttackConstants.MaxOvershootMeters along the attack direction.</summary>
-        [Fact]
-        public void SC_HA007_3b_CreepToAndBeyondSlot_ReturnsFailure_WhenOvershootExceeds50m()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            // Tank is 60m past the slot in the attack direction.
-            repo.AddComponent(tank, new SimTransform { Position = new System.Numerics.Vector3(50f, 110f, 0f) });
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams
-            {
-                SlotX      = 50f, SlotY = 50f,
-                AttackDirX = 0f,  AttackDirY = 1f,  // northward = positive Y
-                CreepSpeed = 5f, ApproachSpeed = 15f,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            // Overshoot = dot((110-50), (0,1)) = 60 > 50 => Failure
-            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Failure, result);
-        }
-
-        /// <summary>SC-HA007-4: When tank is far from slot, Speed in LocomotionChannel
-        /// matches ApproachSpeed.</summary>
-        [Fact]
-        public unsafe void SC_HA007_4_CreepToAndBeyondSlot_UsesApproachSpeed_WhenFarFromSlot()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            // 100m away from slot (far phase).
-            repo.AddComponent(tank, new SimTransform { Position = new System.Numerics.Vector3(0f, 0f, 0f) });
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams
-            {
-                SlotX = 100f, SlotY = 0f,  // 100m east
-                AttackDirX = 1f, AttackDirY = 0f,
-                ApproachSpeed = 20f, CreepSpeed = 3f,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-
-            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
-            MoveToParams written;
-            fixed (byte* p2 = loco.Params)
-                written = *(MoveToParams*)p2;
-            Assert.Equal(20f, written.Speed, 0.001f);
-        }
-
-        /// <summary>SC-HA007-5: When tank is within SlotArrivalThreshold, Speed matches
-        /// CreepSpeed and destination is far along attack direction.</summary>
-        [Fact]
-        public unsafe void SC_HA007_5_CreepToAndBeyondSlot_UsesCreepSpeed_WhenNearSlot()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            // 5m from slot (< 15m threshold).
-            repo.AddComponent(tank, new SimTransform { Position = new System.Numerics.Vector3(0f, 0f, 0f) });
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams
-            {
-                SlotX = 5f, SlotY = 0f,
-                AttackDirX = 1f, AttackDirY = 0f,
-                ApproachSpeed = 20f, CreepSpeed = 3f,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-
-            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
-            MoveToParams written;
-            fixed (byte* p2 = loco.Params)
-                written = *(MoveToParams*)p2;
-            Assert.Equal(3f, written.Speed, 0.001f);
-            // Destination must be far along attack dir (east, positive X) from current position.
-            Assert.True(written.Destination.X > 100f,
-                $"Expected destination X >> 100 (got {written.Destination.X})");
-        }
-
-        /// <summary>SC-HA007-6: Calling CreepToAndBeyondSlot twice with identical state
-        /// does NOT increment ActionInstanceId on the second call.</summary>
-        [Fact]
-        public void SC_HA007_6_CreepToAndBeyondSlot_NoRedundantWrite_OnSecondIdenticalCall()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            repo.AddComponent(tank, new SimTransform { Position = new System.Numerics.Vector3(0f, 0f, 0f) });
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams
-            {
-                SlotX = 100f, SlotY = 0f,
-                AttackDirX = 1f, AttackDirY = 0f,
-                ApproachSpeed = 15f, CreepSpeed = 5f,
-            };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-            uint idAfterFirst = repo.GetComponentRO<LocomotionChannel>(tank).ActionInstanceId;
-
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
-            uint idAfterSecond = repo.GetComponentRO<LocomotionChannel>(tank).ActionInstanceId;
-
-            Assert.Equal(idAfterFirst, idAfterSecond);
-        }
-
-        // ── Corrective-1: SC-HA008 — Action_AimAndFireSpecific ────────────────────
-
-        /// <summary>SC-HA008-1: AimAndFireSpecific writes WeaponChannel; ActionInstanceId
-        /// incremented exactly once per engagement.</summary>
-        [Fact]
-        public void SC_HA008_1_AimAndFireSpecific_WritesWeaponChannel_AndIncrementsId()
-        {
-            using var repo = CreateWorld();
-
-            var tank   = repo.CreateEntity();
-            var target = repo.CreateEntity();
-
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(77L, target);
-
-            repo.AddComponent(tank, new WeaponChannel());
-            // Action_AimAndFireSpecific requires WeaponState to track rounds; without it the method
-            // returns Failure early without writing to WeaponChannel.
-            repo.AddComponent(tank, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10 });
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 77L, MaxRounds = 1, LastObservedAmmo = -1 };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
-
-            var weapon = repo.GetComponent<WeaponChannel>(tank);
-            Assert.Equal(1u, weapon.ActionInstanceId);
-        }
-
-        /// <summary>SC-HA008-2: Second call with Running status does NOT increment
-        /// ActionInstanceId again.</summary>
-        [Fact]
-        public void SC_HA008_2_AimAndFireSpecific_NoRedundantWrite_WhenAlreadyRunning()
-        {
-            using var repo = CreateWorld();
-
-            var tank   = repo.CreateEntity();
-            var target = repo.CreateEntity();
-
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(55L, target);
-
-            repo.AddComponent(tank, new WeaponChannel());
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 55L };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            // First call — activates.
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
-
-            // Simulate running status.
-            ref var weapon = ref repo.GetComponentRW<WeaponChannel>(tank);
-            weapon.Status = NodeStatus.Running;
-
-            uint idAfterFirst = weapon.ActionInstanceId;
-
-            // Second call — should NOT write again.
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
-
-            uint idAfterSecond = repo.GetComponent<WeaponChannel>(tank).ActionInstanceId;
-            Assert.Equal(idAfterFirst, idAfterSecond);
-        }
-
-        /// <summary>SC-HA008-3b: Target dead -> AimAndFireSpecific returns Success immediately.</summary>
-        [Fact]
-        public void SC_HA008_3b_AimAndFireSpecific_ReturnsSuccess_WhenTargetDead()
-        {
-            using var repo = CreateWorld();
-
-            var tank   = repo.CreateEntity();
-            var target = repo.CreateEntity();
-
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(11L, target);
-
-            // Destroy the target so IsAlive returns false.
-            repo.DestroyEntity(target);
-
-            repo.AddComponent(tank, new WeaponChannel());
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 11L };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Success, result);
-        }
+        // ── CE-2230 H-2: the tank run is the vehicle exposure cycle ──────────────
+        //
+        // ⛔ HISTORY: SC-HA007 (Condition_HasTarget, Action_CreepToAndBeyondSlot), SC-HA008 (Action_AimAndFireSpecific,
+        //   Action_ReverseToBaseline), CE-466/CE-2119 (the fire node's stop rails) are retired with the five bespoke tank nodes
+        //   (docs/designs/hill-attack/DESIGN.md §0 HA-1). Their behaviour — stop when seen, one round, reverse home — is railed
+        //   on the cycle itself in VehicleFightFromCoverNodesTests (CE2230_*).
 
         /// <summary>
-        /// ⭐ CE-466: a KNOCKED-OUT target (<c>Health.Current == 0</c>, body still in the world) ends the engagement —
-        /// the sibling of SC-HA008-3b, which covers a destroyed one. ⛔ Before CE-466 the tank kept firing at a wreck.
+        /// 🔴🔴🔴 <b><c>CE-304</c>, re-homed by <c>CE-2230</c> — the ADDRESSING rail: what the commander SENDS lands in the root slot the
+        /// tank's run reads.</b> <c>P3-C</c> once shipped a ZERO baseline through four green suites because every tank rail built its
+        /// params by hand. ⭐⭐ This drives the REAL chain: <c>AssignBehaviorEvent</c> with the commander's JSON → the real
+        /// <c>BehaviorIngressSystem</c> → the curated resolver <see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/> → the root
+        /// params slot, then asserts the run the asset's ONE node will tick, and that the asset registers that node.
+        /// ⛔ Nothing here constructs a <see cref="HullDownRunConfig"/>.
         /// </summary>
         [Fact]
-        public void CE466_AimAndFireSpecific_ReturnsSuccess_WhenTargetKnockedOut()
+        public unsafe void CE304_TheCommandersPayload_LandsInTheRootSlot_AsTheLaneRun()
         {
             using var repo = CreateWorld();
-            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
-                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
-
-            var tank   = repo.CreateEntity();
-            var target = repo.CreateEntity();
-            repo.AddComponent(target, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
-
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(11L, target);
-            repo.AddComponent(tank, new WeaponChannel());
-
-            var p     = new HullDownAttackParams { TargetNetworkId = 11L };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Success, result);
-        }
-
-        /// <summary>
-        /// ⭐ CE-2119 — a target that dies DURING the engagement ends it AND stops the weapon. ⛔ Before: the node returned
-        /// Success but left <c>AimAndFire</c> in the channel, so (measured live, <c>hill-attack-close</c>) both shooters kept
-        /// <c>WeaponChannel.Status = Running</c> at a wreck for the rest of the scenario. The MaxRounds exit already cleared it.
-        /// <para>✅ Red before the fix: <c>ActiveAction</c> stayed <c>AimAndFire</c>.</para>
-        /// </summary>
-        [Fact]
-        public void CE2119_ATargetKilledMidEngagement_StopsTheWeapon()
-        {
-            using var repo = CreateWorld();
-            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
-                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
-            var tank   = repo.CreateEntity();
-            var target = repo.CreateEntity();
-            repo.AddComponent(target, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-            var netMap = new NetworkEntityMap();
-            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
-            netMap.Register(12L, target);
-            repo.AddComponent(tank, new WeaponChannel());
-            repo.AddComponent(tank, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10 });
-            var p   = new HullDownAttackParams { TargetNetworkId = 12L, LastObservedAmmo = -1 };
-            var ctx = new BTreeContext { Self = tank, World = repo };
-
-            Assert.Equal(NodeStatus.Running, HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World));
-            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, repo.GetComponent<WeaponChannel>(tank).ActiveAction);
-            repo.GetComponentRW<WeaponChannel>(tank).Status = NodeStatus.Running;
-
-            repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(target).Current = 0f;   // killed
-            Assert.Equal(NodeStatus.Success, HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World));
-            Assert.Equal((ushort)0, repo.GetComponent<WeaponChannel>(tank).ActiveAction);
-        }
-
-        // ── Corrective-1: SC-HA008 — Action_ReverseToBaseline ────────────────────
-
-        /// <summary>SC-HA008-4: Action_ReverseToBaseline writes destination matching
-        /// (BaselineX, BaselineY).</summary>
-        [Fact]
-        public unsafe void SC_HA008_4_ReverseToBaseline_WritesBaselineDestination()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            repo.AddComponent(tank, new LocomotionChannel());
-
-            var p = new HullDownAttackParams { BaselineX = 10f, BaselineY = 20f };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            HillAttackTankNodes.Action_ReverseToBaseline(ref p, ctx.Self, ctx.World);
-
-            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
-            MoveToParams written;
-            fixed (byte* p2 = loco.Params)
-                written = *(MoveToParams*)p2;
-            Assert.Equal(10f, written.Destination.X, 0.001f);
-            Assert.Equal(20f, written.Destination.Y, 0.001f);
-        }
-
-        /// <summary>
-        /// 🔴🔴🔴 <b><c>CE-304</c> — the ADDRESSING twin of <c>SC-HA008-4</c> above, and the rail whose
-        /// absence let <c>P3-C</c> ship a live regression through four green suites.</b>
-        ///
-        /// <para>⛔⛔ <b>What every other tank rail does NOT test.</b> They call
-        /// <c>Action_ReverseToBaseline(ref p, …)</c> with a HAND-BUILT <c>p</c>, so they exercise the
-        /// node BODY and say nothing about where the runtime FINDS those bytes. ⇒ when <c>P3-C</c>
-        /// moved the params home out of <c>BrainBlackboard</c> and left
-        /// <c>BTreeActionGenerator</c>'s 3-param bridge arm reading the (now never-written) component,
-        /// 2303 + 4017 + 420 + 299 tests stayed green while the product wrote a ZERO destination into
-        /// <c>LocomotionChannel</c> and no tank ever returned to its baseline.</para>
-        ///
-        /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
-        /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
-        /// out of the HullDownAttackRun asset bridge (CE-504: formerly <c>FbtActionRegistrar</c>), dispatched with the same <c>ref byte</c> the
-        /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
-        /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
-        ///
-        /// <para>📐 Red-proof: restore <c>BTreeActionGenerator.cs:655</c> to
-        /// <c>Unsafe.As&lt;TBlackboard, TValue&gt;(ref bb)</c> ⇒ <c>Destination</c> is <c>(0, 0)</c>.</para>
-        /// </summary>
-        [Fact]
-        public unsafe void CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot()
-        {
-            using var repo = CreateWorld();
-            repo.SetSingletonManaged<NetworkEntityMap>(new NetworkEntityMap());
+            var map = new NetworkEntityMap();
+            repo.SetSingletonManaged<NetworkEntityMap>(map);
 
             var registry = new BehaviorRegistry();
             CgfBehaviorSetup.LoadFromAiAssembly(registry);
             var ingress = new BehaviorIngressSystem(registry);
 
+            var enemy = repo.CreateEntity();
+            map.Register(4242, enemy);
+
             var tank = repo.CreateEntity();
             repo.AddComponent(tank, new BehaviorState());
-            RootStateAccess.EnsureRootState(repo, tank);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
-            repo.AddComponent(tank, new LocomotionChannel());
+            RootStateAccess.EnsureRootState(repo, tank);
 
             // The exact shape Action_DispatchWaveWithTargets publishes.
             string json = JsonSerializer.Serialize(
-                new HullDownAttackParams { BaselineX = 523f, BaselineY = 401f },
+                new HullDownAttackParams
+                {
+                    BaselineX = 523f, BaselineY = 401f, SlotX = 530f, SlotY = 450f,
+                    AttackDirX = 0f, AttackDirY = 2f, TargetNetworkId = 4242, ApproachSpeed = 15f, CreepSpeed = 5f,
+                },
                 Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
             repo.Bus.PublishManaged(new AssignBehaviorEvent
@@ -543,55 +159,28 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             ingress.Execute(repo, 0.016f);
 
-            // The thunk exactly as the Interpreter resolves it — key, delegate and all.
-            // ⭐ CE-504 slice 3: Action_ReverseToBaseline is a shared C# node now; the call the runtime makes is the
-            //   HullDownAttackRun asset bridge's per-binding thunk (the analyzer's per-method FbtActionRegistrar adapter is
-            //   gone with the [BTreeAction] attribute). Same key, same projection, same root slot.
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(repo, tank);
+            var f = Unsafe.As<byte, HullDownRunConfig>(ref bb).fight;
+
+            Assert.Equal(1, f.UseGivenHide);
+            Assert.Equal(new Vector2(523f, 401f), f.GivenHide);                  // the baseline slot is the hide
+            Assert.Equal(new Vector2(530f, 450f), f.LaneStart);                  // the firing slot starts the lane
+            Assert.Equal(new Vector2(0f, 1f), f.LaneDir);                        // normalised attack direction
+            Assert.Equal(1, f.RoundsPerExposure);                                // 🔒 R-2022 — one round
+            Assert.Equal(1, f.MaxExposures);                                     // one run per wave
+            Assert.Equal(WithdrawMode.Reverse, f.WithdrawMode);
+            Assert.Equal((long)enemy.PackedValue, f.DesignatePacked);            // the assigned target, by network id
+            Assert.Equal(15f, f.ApproachSpeed);
+            Assert.Equal(5f, f.CreepSpeed);
+
+            // ⭐ and the asset's one node is the cycle, bound to that block.
             var actions = new ActionRegistry<byte, BTreeContext>();
             Hrot.AI.Behaviors.Trees.HullDownAttackRunRegistrar.Register(
                 new BehaviorRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging(), actions);
-            Assert.True(actions.TryGetAction(
-                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
-                out var thunk));
-
-            // BTreeTickSystem:123 — the kernel is handed the entity's live BrainBlackboard component.
-            ref byte bb    = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(repo, tank);
-            var     state = new BehaviorTreeState();
-            var     ctx   = new BTreeContext { Self = tank, World = repo };
-
-            thunk(ref bb, ref state, ref ctx, 0);
-
-            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
-            MoveToParams written;
-            fixed (byte* raw = loco.Params)
-                written = *(MoveToParams*)raw;
-
-            Assert.Equal(523f, written.Destination.X, 0.001f);
-            Assert.Equal(401f, written.Destination.Y, 0.001f);
-        }
-
-        /// <summary>SC-HA008-5: Action_ReverseToBaseline returns Success when
-        /// LocomotionChannel.Status == Success.</summary>
-        [Fact]
-        public void SC_HA008_5_ReverseToBaseline_ReturnsSuccess_WhenChannelSuccess()
-        {
-            using var repo = CreateWorld();
-
-            var tank = repo.CreateEntity();
-            var loco = new LocomotionChannel
-            {
-                ActiveAction = NavigationConstants.ActionIdMoveTo,
-                Status       = NodeStatus.Success,
-            };
-            repo.AddComponent(tank, loco);
-
-            var p     = new HullDownAttackParams { BaselineX = 0f, BaselineY = 0f };
-            var state = new BehaviorTreeState();
-            var ctx   = new BTreeContext { Self = tank, World = repo };
-
-            var result = HillAttackTankNodes.Action_ReverseToBaseline(ref p, ctx.Self, ctx.World);
-
-            Assert.Equal(NodeStatus.Success, result);
+            //   (the key's tail is the binding's slot key — the generator's, stable for the asset's node b1)
+            const string key = "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@230311729";
+            Assert.True(actions.TryGetAction(key, out _));
+            Assert.True(actions.TryGetDeactivator(key, out _));                 // it owns the channels it drives
         }
 
         // ── Corrective-1: SC-HA009 — HullDownAttackMapper ────────────────────────
@@ -1074,6 +663,157 @@ namespace Hrot.SimHost.Tests
                     if (sub.Index % 2 == 0) expectedEven++;
 
                 Assert.Equal(expectedEven, s.ActiveAttackerCount);
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2230</c> H-5 — a wave's members share ONE go time, set past the slowest one's drive to its hide, so the pair crests
+        /// together (🔒 R-2022: <i>"another pair comes up the hill"</i>). 📐 Live without it: 12–20 s apart. And the hide is the tank's
+        /// own spot on the baseline — 📐 live, the drive along the baseline to a far slot cost a 10–15 s turn-around.
+        /// </summary>
+        [Fact]
+        public void CE2230_H5_AWavesOrders_ShareOneGoTime_PastTheSlowestDriveToItsHide()
+        {
+            using var repo = CreateWorld();
+            repo.SetSingleton(new GlobalTime { TotalTime = 100.0 });
+            var commander = repo.CreateEntity();
+            var near = repo.CreateEntity();
+            var far = repo.CreateEntity();
+            repo.AddComponent(near, new SimTransform { Position = new Vector3(12f, 53f, 0f), Rotation = Quaternion.Identity });   // on the baseline
+            repo.AddComponent(far, new SimTransform { Position = new Vector3(-150f, 50f, 0f), Rotation = Quaternion.Identity });  // far off it
+            AddRoster(repo, commander, new[] { near, far });   // two ⇒ one wave, both go
+
+            ref var s = ref GetHeavyState(repo, commander);
+            s.TotalSlots = 4; s.CurrentWave = 0; s.CachedEqsRequestId = -1;
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 90f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = 50f, BaselineEndX = 90f, BaselineEndY = 50f,
+            };
+            try
+            {
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                repo.Bus.SwapBuffers();
+                var orders = new System.Collections.Generic.List<(Entity Who, HullDownAttackParams Run)>();
+                foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                    if (ev.IntentId == "HullDownAttack")
+                        orders.Add((ev.Entity, JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                            Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)));
+
+                Assert.Equal(2, orders.Count);
+                Assert.Equal(orders[0].Run.GoAt, orders[1].Run.GoAt);           // one go time for the wave
+                double slowest = 0;
+                foreach (var (who, run) in orders)
+                    slowest = Math.Max(slowest, HillAttackCommanderNodes.HideDriveSeconds(repo, who, run.BaselineX, run.BaselineY));
+                Assert.True(slowest > 10.0, $"the far tank's drive to its hide is long ({slowest:F1} s)");
+                Assert.True(orders[0].Run.GoAt >= 100.0 + slowest, $"go at {orders[0].Run.GoAt:F1} — after the slowest arrival ({100.0 + slowest:F1})");
+                // ⭐ the hide is the tank's OWN spot on the baseline (no drive along it first); off the baseline it is the slot
+                var mine = orders.Find(o => o.Who == near).Run;
+                Assert.Equal((12f, 53f), (mine.BaselineX, mine.BaselineY));
+                var theirs = orders.Find(o => o.Who == far).Run;
+                Assert.Equal(50f, theirs.BaselineY);
+                Assert.InRange(theirs.BaselineX, 0f, 90f);
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2230</c> H-6 — 🔒 user, 2026-10-16: <i>"the new tank pair appears at a different location than the previous one, so the
+        /// enemy cannot aim and wait for the tank to reappear at the same place."</i> Forty waves of a pair on the demo's 86 m line (four
+        /// slots): every firing point is at least 10 m along the line from every point of the wave before (the rule), and 6 m from the wave
+        /// before that (the preference). The cramped 3-slot case is <c>CE2230_H6_AfterAPairAtBothEnds…</c>. 🔴 Red-proof: forget the previous wave and points repeat.
+        /// </summary>
+        /// <summary>⭐ CE-2230 H-6 — the case that went wrong live: the last pair fired at BOTH ends of a 3-slot line. Through the real
+        /// dispatcher, over 40 sim times, the new pair still finds two points ≥ 10 m from those and from each other. 🔴 Red-proof: block the
+        /// mate's SLOT again (a pair needs distinct points, not slots) and the second point lands beside an end.</summary>
+        [Fact]
+        public unsafe void CE2230_H6_AfterAPairAtBothEnds_TheNextPairStillFindsNewGround()
+        {
+            using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var subs = new Entity[2];
+            for (int i = 0; i < 2; i++) subs[i] = repo.CreateEntity();
+            AddRoster(repo, commander, subs);   // two ⇒ both go every wave
+            ref var s = ref GetHeavyState(repo, commander);
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 70f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = -40f, BaselineEndX = 70f, BaselineEndY = -40f,
+            };
+            try
+            {
+                for (int run = 0; run < 40; run++)
+                {
+                    s.TotalSlots = 3; s.CurrentWave = 0; s.CachedEqsRequestId = -1; s.ActiveAttackerCount = 0; s.BurnedSlotsMask = 0;
+                    s.LastFireCount = 2; s.LastFireAlong[0] = 6.4f; s.LastFireAlong[1] = 63f; s.PrevFireCount = 0;
+                    repo.SetSimulationTime(5f + run * 3.1f);
+                    HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                    repo.Bus.SwapBuffers();
+                    var xs = new System.Collections.Generic.List<float>();
+                    foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                        if (ev.IntentId == "HullDownAttack")
+                            xs.Add(JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).SlotX);
+                    Assert.Equal(2, xs.Count);
+                    foreach (var x in xs)
+                        foreach (var last in new[] { 6.4f, 63f })
+                            Assert.True(Math.Abs(x - last) >= 10f, $"run {run}: {x:F1} m is {Math.Abs(x - last):F1} m from the last pair's {last} m");
+                    Assert.True(Math.Abs(xs[0] - xs[1]) >= 10f, $"run {run}: the pair's own points {xs[0]:F1} / {xs[1]:F1}");
+                }
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
+        [Fact]
+        public void CE2230_H6_ANewPair_NeverComesUpWhereTheLastPairDid()
+        {
+            using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var subs = new Entity[4];
+            for (int i = 0; i < 4; i++) subs[i] = repo.CreateEntity();
+            AddRoster(repo, commander, subs);
+            ref var s = ref GetHeavyState(repo, commander);
+            s.TotalSlots = 4; s.CurrentWave = 0; s.CachedEqsRequestId = -1;   // the demo's line: 86 m at 20 m spacing
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 86f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = -40f, BaselineEndX = 86f, BaselineEndY = -40f,
+            };
+            try
+            {
+                float[]? previous = null, before = null;
+                for (int wave = 0; wave < 40; wave++)
+                {
+                    repo.SetSimulationTime(10f + wave * 23.7f);
+                    HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                    repo.Bus.SwapBuffers();
+                    var xs = new System.Collections.Generic.List<float>();
+                    foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                        if (ev.IntentId == "HullDownAttack")
+                            xs.Add(JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).SlotX);
+                    Assert.Equal(2, xs.Count);
+                    Assert.True(Math.Abs(xs[0] - xs[1]) >= 10f, $"wave {wave}: the pair's own points {xs[0]:F1} / {xs[1]:F1}");
+                    // the last pair: the hard rule (≥ 10 m) · the pair before it: weighted, still never on top of it (≥ 6 m)
+                    foreach (var (earlier, min) in new[] { (previous, 10f), (before, 6f) })
+                        if (earlier != null)
+                            foreach (var x in xs)
+                                foreach (var px in earlier)
+                                    Assert.True(Math.Abs(x - px) >= min, $"wave {wave}: {x:F1} m is {Math.Abs(x - px):F1} m from an earlier pair's {px:F1} m (min {min})");
+                    before = previous;
+                    previous = xs.ToArray();
+                    s.ActiveAttackerCount = 0;   // the wave ran
+                }
             }
             finally
             {
@@ -1607,12 +1347,11 @@ namespace Hrot.SimHost.Tests
             AssertNodeResourceOwning(commanderDef.BTreeInterpreter!.Blob,
                 $"Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@{slotKey}");
 
-            // Tank subordinate (non-stateful): CreepToAndBeyondSlot / AimAndFireSpecific deactivators.
+            // Tank subordinate (CE-2230): the run's ONE node is the vehicle exposure cycle (stateful) — it drives the hull, the
+            //   weapon and the posture, so an aborted run (the commander's halt, a new order) must release them.
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName(BehaviorNames.HullDownAttackRun), out var tankDef));
             AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
-                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0");
-            AssertNodeResourceOwning(tankDef.BTreeInterpreter!.Blob,
-                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0");
+                "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@230311729");
         }
 
         private static void AssertNodeResourceOwning(BehaviorTreeBlob blob, string methodKey)

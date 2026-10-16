@@ -37,6 +37,10 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<WeaponState>();
         world.RegisterComponent<Health>();
         world.RegisterComponent<PhysicsCollider>();
+        // ⭐ CE-1139 — the body stance the brain asked for and the muscle performs, replicated in (RegisterStanceViewerOn), so the
+        //   IG draws a crouched or prone soldier and the first-person eye follows the drawn head (LogicalStance.Of: none ⇒ Standing).
+        world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+        world.RegisterComponent<Hrot.MuscleCharacter.Animation.Components.StanceStatus>();
 
         MissionComponentRegistry.RegisterAll(world);
 
@@ -45,6 +49,7 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<TracerTarget>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();   // ⭐ CE-1128 — the marks rounds leave
         world.RegisterEvent<Hrot.IG.IgWeaponFireEvent>();
         world.RegisterManagedComponent<ContextMenuState>();
 

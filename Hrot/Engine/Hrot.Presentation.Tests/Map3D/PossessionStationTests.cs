@@ -131,6 +131,37 @@ public sealed class PossessionStationTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky is drawn ONLY in first person: the free 3-D camera keeps the clear
+    /// day it always had (no atmosphere); in a unit the camera gets the weather's at the eye; released, it is taken away again.
+    /// 🔒 User, 2026-10-16: "especially for the FPS mode; but not in the usual free camera 3d map mode where it would be obstructing the view".
+    /// </summary>
+    [Fact]
+    public void CE1146_TheWeathersSky_OnlyInFirstPerson()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var (_, sw, _) = Map();
+            var sky = new WeatherSkyLayer(sw, () => w);
+            var station = new PossessionStation(sw, () => w);
+            sw.Set(true, animate: false);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);                              // the free camera: the clear day
+
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            sky.Update(0.016f);
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // in the unit: the weather's
+
+            w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
+            station.Update(0.016f);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);
+        }
+    }
+
     [Fact]
     public void CE3174_TheControls_BecomeControlFrames_TheCursorLocks_AndEscReleases()
     {
@@ -211,12 +242,13 @@ public sealed class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐⭐ CE-1074 (docs/DESIGN_Entity_Control.md §13.5) — C cycles the held person's stance, standing → crouched → prone → standing, from
-    /// the stance he has when first driven; every frame carries the wanted stance (StanceId + 1) and the HUD shows it. 🔒 User,
-    /// 2026-10-14: "I will need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".
+    /// ⭐⭐ CE-1143 (supersedes CE-1074's C cycle) — a shooter's stance keys: C toggles crouched, Z toggles prone, HOLDING Ctrl crouches
+    /// and letting go stands him back up; every frame carries the stance (StanceId + 1) and the HUD says it (with RUN while Shift is held).
+    /// 🔒 User, 2026-10-16: "CTRL when pressed should make him crouch (and releasing ctrl should make him stand again), special key toggle
+    /// for prone mode would be better then the cycling today".
     /// </summary>
     [Fact]
-    public void CE1074_C_CyclesTheStance_StandCrouchProneStand_InEveryFrame_AndTheHudSaysIt()
+    public void CE1143_CTogglesCrouch_ZTogglesProne_HoldingCtrlCrouches_InEveryFrame_AndTheHudSaysIt()
     {
         var (w, unit, _) = World();
         using (w)
@@ -227,23 +259,30 @@ public sealed class PossessionStationTests
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
 
-            byte Frame(bool pressC)
+            byte Frame(Raylib_cs.KeyboardKey? press = null, bool ctrl = false, bool shift = false)
             {
                 var input = new Input();
-                if (pressC) input.Pressed.Add((int)Raylib_cs.KeyboardKey.C);
+                if (press is { } k) input.Pressed.Add((int)k);
+                if (ctrl) input.Keys.Add((int)MapKeyboardKey.LeftControl);
+                if (shift) input.Keys.Add((int)MapKeyboardKey.LeftShift);
                 sw.Camera3D.HandleInput(input);
                 w.Bus.SwapBuffers();
                 return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()).Stance;
             }
 
-            Assert.Equal(1, Frame(false));     // standing (no intent ⇒ standing), held every frame
-            Assert.Equal(2, Frame(true));      // crouched
-            Assert.Equal(2, Frame(false));     // a frame without the key keeps it
-            Assert.Equal(3, Frame(true));      // prone
-            Assert.Equal(1, Frame(true));      // standing again
+            Assert.Equal(1, Frame());                                   // standing (no intent ⇒ standing), held every frame
+            Assert.Equal(2, Frame(Raylib_cs.KeyboardKey.C));            // C: crouched
+            Assert.Equal(2, Frame());                                   // a frame without the key keeps it
+            Assert.Equal(1, Frame(Raylib_cs.KeyboardKey.C));            // C again: standing
+            Assert.Equal(2, Frame(ctrl: true));                         // holding Ctrl: crouched…
+            Assert.Equal(1, Frame());                                   // …letting go: standing again
+            Assert.Equal(3, Frame(Raylib_cs.KeyboardKey.Z));            // Z: prone
+            Assert.Equal(3, Frame(ctrl: true));                         // Ctrl does not lift him out of prone
+            Assert.Equal(1, Frame(Raylib_cs.KeyboardKey.Z));            // Z again: standing
+            Frame(shift: true);
             var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
-            Assert.Contains("STANCE STANDING", PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance));
-            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance), l => l.Contains("C stance"));
+            Assert.Contains("STANCE STANDING  RUN", PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance, running: driver.Running));
+            Assert.Contains(PossessionStation.Hud.Lines(w, unit, 0, false, false, driver.Stance), l => l.Contains("Z prone"));
         }
     }
 
@@ -268,7 +307,7 @@ public sealed class PossessionStationTests
     /// <summary>A picker that answers a unit 30 m ahead (network id 77) — the crosshair resting on it.</summary>
     private sealed class UnitAhead : IPicker3D
     {
-        public PickFilter Kind => PickFilter.Entities;
+        public PickFilter Kind => PickFilter.EntityParts;   // ⭐ CE-1126 — the crosshair asks for the parts
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
             hit = new PickResult(origin + direction * 30f + new Vector3(0f, 0f, -1f), PickKind.Entity, 30f, 77);
@@ -293,6 +332,18 @@ public sealed class PossessionStationTests
             ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
             ammo.Set(1, new WeaponState { Ammo = 200, MaxAmmo = 200 });
             w.AddComponent(unit, ammo);
+            // ⭐ CE-1127 — weapon 1 a grenade launcher (LOCK), weapon 2 a rifle (SIGHT)
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Grenadier", 4711);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, TurretIndex = -1 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4711 });
             var (_, sw, _) = Map();
             sw.Camera3D.Pickers.Add(new UnitAhead());
             var station = new PossessionStation(sw, () => w);
@@ -337,6 +388,15 @@ public sealed class PossessionStationTests
             var one = new Input();
             one.Pressed.Add((int)Raylib_cs.KeyboardKey.One);
             Assert.Equal(0, Frame(one).Mount);
+
+            // ⭐ CE-1127 (§8g F-2) — the rifle fires by SIGHT: a press still counts (the brain fires it at once), but nothing is held
+            var two = new Input();
+            two.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
+            Frame(two);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Sight, driver.FireMode);
+            f = Frame(new Input { LeftPressed = true, LeftDown = true });
+            Assert.Equal(3, f.ShotSeq);
+            Assert.False(driver.ShotPending);
         }
     }
 
@@ -378,17 +438,46 @@ public sealed class PossessionStationTests
         }
     }
 
-    /// <summary>⭐ CE-1079 — the HUD sits UNDER the crosshair, not in a window corner: the editor draws the map beneath its docked
-    /// panels, whose left column and bottom log cover the corners (a corner HUD was invisible, measured live in a 2200×1200 window); in a
-    /// short view every line still fits.</summary>
+    /// <summary>
+    /// ⭐ CE-1140 (supersedes CE-1079's "under the crosshair") — the HUD sits in the BOTTOM-LEFT corner of the VISIBLE map (the dockspace's
+    /// open hole, so no docked panel covers it), out of the forward view; with no dockspace, the view's own corner. Each kind of line has
+    /// its colour. 🔒 User, 2026-10-16: "the HUD could rather be in the left bottom side of the screen, not obstructing the forward view.
+    /// And colored texts".
+    /// </summary>
     [Fact]
-    public void CE1079_TheHud_SitsUnderTheCrosshair_AndFitsAShortView()
+    public void CE1140_TheHud_SitsBottomLeftOfTheVisibleMap_AndColoursEachKindOfLine()
     {
-        var (x, y) = PossessionStation.HudOrigin(new Vector2(2200f, 1200f), lineCount: 6, width: 600);
-        Assert.Equal((1100 + 110 - 600, 600 + 84), (x, y));          // just under the crosshair, ending a little right of it
-        Assert.Equal(8, PossessionStation.HudOrigin(new Vector2(400f, 300f), 6, 600).X);   // never off the left edge
-        var (_, ys) = PossessionStation.HudOrigin(new Vector2(800f, 300f), lineCount: 6, width: 600);
-        Assert.True(ys + 6 * PossessionStation.HudLineHeight <= 300, $"the last line ends at {ys + 6 * PossessionStation.HudLineHeight}");
+        var saved = Fdp.Presentation.WindowManager.OpenMapArea.Current;
+        try
+        {
+            Fdp.Presentation.WindowManager.OpenMapArea.Current = (400f, 60f, 1400f, 800f);   // panels left and below
+            var (x, y) = PossessionStation.HudOrigin(new Vector2(2200f, 1200f), lineCount: 6, width: 600);
+            Assert.Equal((416, 60 + 800 - 16 - 6 * PossessionStation.HudLineHeight), (x, y));
+            Fdp.Presentation.WindowManager.OpenMapArea.Current = null;                         // no dockspace: the view's corner
+            (x, y) = PossessionStation.HudOrigin(new Vector2(800f, 600f), lineCount: 6, width: 300);
+            Assert.Equal((16, 600 - 16 - 6 * PossessionStation.HudLineHeight), (x, y));
+        }
+        finally { Fdp.Presentation.WindowManager.OpenMapArea.Current = saved; }
+
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var hurt = PossessionStation.Hud.ColourOf(w, unit, "HEALTH 80/100", false);
+            Assert.True(hurt.G > hurt.R, "80 % health is green");
+            Assert.NotEqual(PossessionStation.Hud.ColourOf(w, unit, "> 1 RIFLE  30/30", false), PossessionStation.Hud.ColourOf(w, unit, "  2 GRENADE  2/2", false));
+            Assert.NotEqual(PossessionStation.Hud.ColourOf(w, unit, "STANCE PRONE", false), PossessionStation.Hud.ColourOf(w, unit, "LOCKED - fires", false));
+        }
+    }
+
+    /// <summary>⭐ CE-1140 — the open map area is read from the dockspace only when it is a sane rectangle inside the window; anything
+    /// else falls back to "unknown" (the whole view), never to a mis-placed corner.</summary>
+    [Fact]
+    public void CE1140_TheOpenMapArea_RejectsAnInsaneRectangle()
+    {
+        Assert.True(Fdp.Presentation.WindowManager.OpenMapArea.IsSane(400f, 60f, 1400f, 800f, new Vector2(2200f, 1200f)));
+        Assert.False(Fdp.Presentation.WindowManager.OpenMapArea.IsSane(0f, 0f, 0f, 0f, new Vector2(2200f, 1200f)));
+        Assert.False(Fdp.Presentation.WindowManager.OpenMapArea.IsSane(100f, 100f, 3000f, 800f, new Vector2(2200f, 1200f)));
+        Assert.False(Fdp.Presentation.WindowManager.OpenMapArea.IsSane(float.NaN, 0f, 500f, 500f, new Vector2(2200f, 1200f)));
     }
 
     /// <summary>

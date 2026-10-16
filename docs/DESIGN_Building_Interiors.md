@@ -10,6 +10,7 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key starts the door executors (§3j) from a possessed unit
   - docs/designs/structure-damage/DESIGN_Structure_Damage.md — OWNS structure damage (collapse, breach from a heavy charge); its geometry change is §14's
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: who calls fire (§3k hands it on), the fire solution (charge, low / high arc) and the battery's fire mission
   - DESIGN_Map_3D_Mode.md §6k — CE-1068: how a door entity is DRAWN (a hinged leaf in 3-D, no symbol in 2-D, gone when destroyed)
@@ -35,6 +36,7 @@ related-designs:
     diagnostics (routes, gizmo layers) for everything in this doc.
   - designs/eqs-2/EQS_Design_v1.3_final.md §19 — OWNS the EQS pipeline, its tests and the starter templates (§19.6 lists FindWindowFiringPosition); TerrainCoverProvider reads building panels by face since §3l.
   - DESIGN_Terrain_Zones_And_Assets.md §2.1c — buildings are static/bakeable terrain content.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-7: panicking civilians shelter through openable doors (FindEnterableShelter, a new InsideTest) and are deleted after a hide time (R-4035).
 -->
 
 # Enterable buildings — walls, doors, windows, floors *(target state, CE-1031)*

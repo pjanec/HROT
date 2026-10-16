@@ -2083,13 +2083,13 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>⭐ CE-1078 — per shot too: in operator mode <c>Rounds</c> CAPS the rounds (a press = one) and never ends the action;
-        /// a locked unit is aimed at (its middle), not the point the press was made at.</summary>
+        /// a locked unit with NO point is aimed at his middle (⭐ CE-1126 — with a point, the point: the crosshair is on one of his parts).</summary>
         [Fact]
         public void CE1078_PerShot_ALockedShot_IsOneRoundAtTheUnit_AndTheActionRunsOn()
         {
             var target = SpawnTarget(new Vector3(30f, 0f, 0f));
             var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
-            AskOperatorShot(ref channel, target, new Vector3(5f, 40f, 0f), cap: 1);
+            AskOperatorShot(ref channel, target, Vector3.Zero, cap: 1);
             _executor.OnEnter(shooter, ref channel, _world);
             int shots = 0;
             for (int f = 0; f < 60; f++)
@@ -2098,7 +2098,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 _world.Bus.SwapBuffers();
                 foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>())
                 {
-                    Assert.InRange(shot.TargetPoint.X, 29f, 31f);   // at the unit, not at (5, 40)
+                    Assert.InRange(shot.TargetPoint.X, 29f, 31f);   // at the unit
                     shots++;
                 }
             }
@@ -2150,6 +2150,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(1.7f, carried.Z, 3);
             Assert.Equal(35f - 0.1f, carried.X, 3);   // (0.2, 0.1) turned 90°: (-0.1, 0.2)
             Assert.Equal(4f + 0.2f, carried.Y, 3);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-1127 (docs/DESIGN_Entity_Control.md §8g F-1) — the ONE rule for how an operator's trigger works: a weapon on a turret the
+        /// unit has, a thrown / arc weapon and a guided one LOCK; a rifle, a mount with no turret (a pintle MG) and an unguided rocket fire
+        /// by SIGHT. 🔒 User, 2026-10-16: <i>"The locking mode is good for grenade throwing and grenade launcher and mortar and howitzer"</i> ·
+        /// <i>"locking mode for slow turrets as well"</i> · <i>"Mounted fast weapons: OK"</i> · <i>"RPG-type unguided rockets: SIGHT"</i>.
+        /// </summary>
+        [Fact]
+        public void CE1127_TurretThrownArcAndGuidedWeapons_Lock_RiflesPintleGunsAndRockets_FireBySight()
+        {
+            var (tank, _, _, _) = TurretedTank(rounds: 0, cooldown: 0.2f);
+            var turretGun = CombatTkb.MountOf(_world, tank, 0);
+            Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, turretGun));
+            Fdp.Toolkit.Tkb.Domain.WeaponMountDto Mount(Fdp.Toolkit.Tkb.Domain.WeaponCategory c, int turret = -1)
+                => new() { Category = c, TurretIndex = turret };
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, Mount(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms)));
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, Mount(Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun)));   // a pintle MG
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, Mount(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket)));
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, Mount(Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, turret: 3)));   // names a turret he has not
+            foreach (var c in new[] { Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar,
+                                      Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer, Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm,
+                                      Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam, Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb })
+                Assert.Equal(OperatorFireMode.Lock, OperatorFireModes.Of(_world, tank, Mount(c)));
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_world, tank, null));
         }
 
         /// <summary>⭐ CE-1079 (D-3) — the operator's round switch holds the trigger like a reload; once it is done the round that

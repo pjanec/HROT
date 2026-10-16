@@ -216,6 +216,44 @@ namespace Fdp.Toolkit.Tests.Squad
         }
 
         [Fact]
+        public void CE2224_ARefreshOfTheSameArea_KeepsItsHandles_WhileTheUnitWalks()
+        {
+            // ⭐ the classifier samples the route from the unit's CURRENT position, so a step forward moves the raw handles; the answer
+            //   must not (a consumer that re-issues its move on a changed target — DangerCrossingBp — would restart its path each refresh)
+            var unit = Unit(new Vector3(100, 100, 0));
+            var child = DangerAreaChildSensor.Ensure(_repo, unit, 1, DangerAreaSettings.ToPoint(new Vector3(100, 300, 0)));
+            var system = new DangerAreaSensorSystem();
+            var first = SolveAndTick(child, system).GetSpanRO()[0];
+
+            _repo.GetComponentRW<SimTransform>(unit).Position = new Vector3(100, 101.3f, 0);
+            var sensor = _repo.GetComponentRO<EqsSensor>(child);
+            var raw = new DangerAreaDescriptor[8];
+            DangerAlongRouteSolve.Solve(_repo, child, in sensor, raw, _planner, _roads);
+            Assert.Equal(first.FeatureId, raw[0].FeatureId);
+            Assert.NotEqual(first.FarSideHandle, raw[0].FarSideHandle);   // the premise: the raw answer DOES move
+
+            var second = SolveAndTick(child, system).GetSpanRO()[0];
+            Assert.Equal(first.FeatureId, second.FeatureId);
+            Assert.Equal(first.NearSideHandle, second.NearSideHandle);
+            Assert.Equal(first.FarSideHandle, second.FarSideHandle);
+            Assert.NotEqual(first.DistanceAlongRoute, second.DistanceAlongRoute);   // the rest of the answer is fresh
+        }
+
+        [Fact]
+        public void CE2224_KeepHandles_KeepsOnlyAnAreaThatIsStillListed()
+        {
+            var previous = new[] { new DangerAreaDescriptor { FeatureId = 7, Kind = DangerAreaKind.StreetCrossing, FarSideHandle = new Vector3(1, 2, 0) } };
+            var fresh = new[]
+            {
+                new DangerAreaDescriptor { FeatureId = 7, Kind = DangerAreaKind.StreetCrossing, FarSideHandle = new Vector3(1, 3, 0) },
+                new DangerAreaDescriptor { FeatureId = 8, Kind = DangerAreaKind.StreetCrossing, FarSideHandle = new Vector3(9, 9, 0) },
+            };
+            DangerAreaCognitiveBuffer.KeepHandles(previous, fresh);
+            Assert.Equal(new Vector3(1, 2, 0), fresh[0].FarSideHandle);
+            Assert.Equal(new Vector3(9, 9, 0), fresh[1].FarSideHandle);
+        }
+
+        [Fact]
         public void CE3072_B3_AStaleAnswer_IsDropped()
         {
             var unit = Unit(new Vector3(150, 300, 0));

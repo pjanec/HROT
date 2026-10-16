@@ -662,6 +662,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                     translators.OfType<IDescriptorTranslator>()));
         }
 
+        // ⭐ CE-1139 — the stance topics IN (a viewer neither asks for a stance nor performs one), so people are drawn in their posture.
+        Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceViewerOn(
+            context.Kernel, context.Participant, context.EntityMap);
+
         NetworkEnabled = true;
     }
 

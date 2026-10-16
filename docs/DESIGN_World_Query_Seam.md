@@ -12,6 +12,7 @@ known-rot: none.
 known-conflict: DESIGN_Terrain_Height.md §7 rev 1 called TerrainWorld's own methods "the seam" and leaned Jolt — both
   corrected there in rev 3 by this file (a real interface; Bepu inside the stand-in).
 related-designs:
+  - docs/DESIGN_Visual_Effects.md — §10 IM-4: TraceCrossing gains EntryNormal / ExitNormal (init, zero = unknown) so an impact mark lies on the face it struck (CE-1128)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — the motion-model interface (IMotionModel) — the motion counterpart of this seam (§4a)
   - DESIGN_Peek_And_Fire.md — §10.8 lists the behaviour-library slices (CE-3158) checked against this seam; G3's friendly-line test moves behind Trace(Fire) with WQ-F
   - DESIGN_Terrain_World.md — owns TerrainWorld, the stand-in this seam's first implementation wraps.

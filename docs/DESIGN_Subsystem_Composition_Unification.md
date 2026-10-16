@@ -4167,6 +4167,13 @@ over these would be false:
 | `Hrot.SimHost.Tests` | 1 failed / 768 / 3 skip | ⭐ **1 / 768 / 3 — identical** | ⛔ pre-existing *(replay/recording)* |
 | `Hrot.Presentation.Tests` | 149/149 green, ⚠ **but FLAKY** | — | ⛔ **pre-existing flake, reproduced 3-of-6 with the new class EXCLUDED**; ⭐ **the identity ROTATES** *(`EntityDragGizmoTests`, `RouteWaypointGizmoTests`, `TheDragCommitsThroughTheWriteRouterTests` ×2 — all gizmo/ECS-write)*. 📌 The `DEBT-AIB-030` shape; filed as **`CE-084`** |
 
+#### 5c.7.7 ⭐ `2026-10-16` (`CE-1134`, ui) — the bundle also puts the MAP's entity menu on the inspector
+
+⭐ `RegisterInto` now registers `MapEntityMenuHandler` FIRST on `h.Inspector` (the map's entity menu, only the actions this node runs) and
+links the inspector window to the host's map through the inspector state both are given (`InspectorMapLink`). ⛔ No new
+`DiagnosticsHostServices` field — the join key was already there. 📄 Owning design and UML:
+[canvas-context-menu-design §10](designs/gizmos-1/canvas-context-menu-design.md).
+
 ### 5c.8 🔴🔴 SLICE ③ — **MOSTLY ALREADY DONE. The measurement, and the little that remains.** `build-state: READY-TO-BUILD` *(`2026-08-27`)*
 
 > ⛔⛔ **The plan's slice ③ said *"the editor/CGF-only shell surfaces (menus, toolbar, perspectives)"* as if

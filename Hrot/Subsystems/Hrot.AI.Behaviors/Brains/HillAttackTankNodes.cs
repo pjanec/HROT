@@ -1,606 +1,76 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using Fbt;
-using Fbt.Compiler;
-using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
-using Fdp.Toolkit.Behavior.Components;
-using Fdp.Toolkit.Behavior.Events;
-using Fdp.Toolkit.Combat;
-using Fdp.Toolkit.Combat.Components;
-using Fdp.Toolkit.Combat.Executors;
-using Fdp.Toolkit.Navigation;
-using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.AI.Behaviors.Logging;
-using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
-    /// Constants for the HullDownAttackRun subordinate tank behavior.
+    /// ⭐⭐ <c>CE-2230</c> (hill attack §0, HA-1) — what <c>HullDownAttackRun.btree.json</c> binds: the ONE node of the run, the vehicle
+    /// exposure cycle in its LANE mode (<see cref="VehicleFightFromCoverNodes.VehicleFightFromCover"/>). The asset owns the tree, this
+    /// C# owns the contract (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>), as for <c>DangerCrossing</c>.
     /// </summary>
-    public static class HillAttackConstants
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HullDownRunConfig
     {
-        /// <summary>
-        /// Maximum distance (metres) a tank may overshoot its assigned firing-line slot
-        /// along the attack direction before <c>Action_CreepToAndBeyondSlot</c> returns
-        /// <see cref="NodeStatus.Failure"/> and the engagement is aborted.
-        /// </summary>
-        public const float MaxOvershootMeters = 50f;
-
-        /// <summary>
-        /// Distance threshold (metres) from the assigned slot that triggers the phase
-        /// transition from approach speed to creep speed in
-        /// <c>Action_CreepToAndBeyondSlot</c>.
-        /// </summary>
-        public const float SlotArrivalThresholdMeters = 15f;
-
-        /// <summary>
-        /// "Infinity" look-ahead distance (metres) written as the creep destination
-        /// so the tank continues along the attack direction past the slot indefinitely
-        /// until the overshoot limit is reached or the target becomes visible.
-        /// </summary>
-        public const float CreepLookAheadMeters = 10000f;
+        public VehicleFightFromCoverParams fight;
     }
 
     /// <summary>
-    /// FastBTree action and condition nodes for the HullDownAttackRun subordinate
-    /// tank behavior, plus the <see cref="BuildHullDownAttackRunTree"/> BTree definition.
-    ///
-    /// <para>All delegates use the three-parameter <c>ReusableActionDelegate&lt;TValue, BTreeContext&gt;</c>
-    /// signature compatible with <c>BTreeBuilder.Action&lt;TValue&gt;(fieldSelector, method)</c>.
-    /// Channel cleanup on Failure is performed explicitly inside the relevant action methods
-    /// because the source generator only emits <c>[WritesChannel]</c> cleanup for 4-param
-    /// delegates, not for 3-param bridge delegates.
-    /// </para>
+    /// ⭐⭐ <c>CE-2230</c> — one tank's hill-attack run, rebuilt on the vehicle exposure cycle (docs/designs/hill-attack/DESIGN.md §0):
+    /// from its baseline slot (the HIDE) out along its lane — the firing slot, then the attack direction — stopping the first tick it
+    /// SEES its target (hull-down: only the turret clears the crest, R-246), ONE round chosen by the weapon brain, then a REVERSE back
+    /// into the baseline slot, and the run ends (🔒 R-2022: <i>"firing just one round and then moving back to cover"</i>); the next
+    /// pair goes. ⛔ HISTORY: its five bespoke nodes (<c>Condition_HasTarget</c>, <c>Action_CreepToAndBeyondSlot</c>,
+    /// <c>Action_AimAndFireSpecific</c>, <c>Action_ReverseToBaseline</c>, <c>Action_AbortEngagement</c>) are retired — the creep looked
+    /// for the assigned target only near the slot, and the fire node bypassed the weapon brain.
     /// </summary>
     public static class HillAttackTankNodes
     {
-        // ── Channel write helpers ─────────────────────────────────────────────────
+        /// <summary>The run's reverse speed back into the baseline slot (m/s) — the old retreat's 12, under the tank's reverse limit.</summary>
+        public const float ReverseSpeed = 12f;
 
-        private static unsafe void WriteToLocomotionParams<T>(ref LocomotionChannel ch, T value)
-            where T : unmanaged
-        {
-            System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]) = value;
-        }
-
-        private static unsafe T ReadLocomotionParams<T>(ref LocomotionChannel ch)
-            where T : unmanaged
-        {
-            return System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]);
-        }
-
-        private static unsafe void WriteToWeaponParams<T>(ref WeaponChannel ch, T value)
-            where T : unmanaged
-        {
-            System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]) = value;
-        }
-
-        private static void ClearWeaponActionIfActive(Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<WeaponChannel>(self))
-                return;
-
-            ref var wc = ref world.GetComponentRW<WeaponChannel>(self);
-            if (wc.ActiveAction != 0)
-            {
-                wc.ActiveAction = 0;
-                unchecked { wc.ActionInstanceId++; }
-            }
-        }
-
-        // ── Conditions ────────────────────────────────────────────────────────────
+        /// <summary>The wait in the baseline slot before the drive out (s) — the commander staged it already.</summary>
+        public const float WaitSeconds = 0.5f;
 
         /// <summary>
-        /// Returns <see cref="NodeStatus.Success"/> when the assigned target (identified by
-        /// <see cref="HullDownAttackParams.TargetNetworkId"/>) is currently tracked in
-        /// this entity's <see cref="TargetMemory"/> with a positive threat score.
-        ///
-        /// <list type="bullet">
-        ///   <item>Failure when <c>TargetNetworkId</c> cannot be resolved via
-        ///     <c>NetworkEntityMap</c> (entity not yet materialized on this node).</item>
-        ///   <item>Failure when the target is absent from <c>TargetMemory</c> or its
-        ///     threat score is zero.</item>
-        /// </list>
+        /// ⭐ <c>CE-2230</c> — the commander's payload (<see cref="HullDownAttackParams"/>, sent as the <c>HullDownAttack</c> intent) into
+        /// the lane run: the baseline slot is the given hide, the firing slot and the attack direction the lane, the assigned target the
+        /// cycle's named one (resolved from its network id; 0 when it has not replicated yet — the cycle then fights the top threat),
+        /// one round, one exposure, reverse. An empty payload keeps the asset's bake.
         /// </summary>
-        [SharedAiCondition]
-        public static NodeStatus Condition_HasTarget(ref HullDownAttackParams p, Entity self, EntityRepository world)
+        [Hrot.Map.Definitions.Behavior.Behavior("HullDownAttackRun", Params = typeof(HullDownAttackParams),
+            Categories = Hrot.Map.Definitions.Behavior.BehaviorCategory.MilitaryApc)]
+        [BehaviorResolver("HullDownAttackRun")]
+        public static void ResolveHullDownAttackRun(in HullDownAttackParams authored, ref HullDownRunConfig block, EntityRepository world, Entity self)
         {
-            // Resolve the network-stable target ID to a local entity.
-            if (!world.HasSingletonManaged<NetworkEntityMap>())
+            var dir = new Vector2(authored.AttackDirX, authored.AttackDirY);
+            if (dir.LengthSquared() > 1e-6f) dir = Vector2.Normalize(dir);
+            long target = 0;
+            if (authored.TargetNetworkId != 0)
             {
-                BehaviorLog.Warn(self, world, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
-                return NodeStatus.Failure;
+                var map = world.HasSingletonManaged<NetworkEntityMap>() ? world.GetSingletonManaged<NetworkEntityMap>() : null;
+                if (map != null && map.TryGetEntity(authored.TargetNetworkId, out var e)) target = (long)e.PackedValue;
+                else BehaviorLog.Warn(self, world, "TargetNetworkId=" + authored.TargetNetworkId + " not in the entity map; the run fights its top threat.");
             }
-
-            var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
-            if (entityMap == null || !entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
+            block.fight = new VehicleFightFromCoverParams
             {
-                BehaviorLog.Warn(self, world, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet.");
-                return NodeStatus.Failure;
-            }
-
-            if (!world.HasComponent<TargetMemory>(self))
-            {
-                BehaviorLog.Warn(self, world, "Entity is missing TargetMemory component; cannot evaluate target tracking.");
-                return NodeStatus.Failure;
-            }
-
-            long targetPacked = (long)targetEntity.PackedValue;
-            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-
-            // Scan TargetMemory for the resolved entity with a positive threat score.
-            // Loop is bounded by MaxTrackedTargets (4) — no heap allocation.
-            unsafe
-            {
-                for (int i = 0; i < mem.Count; i++)
-                {
-                    if (mem.EntityIds[i] == targetPacked && mem.Freshness[i] > 0f)
-                    {
-                        if (BehaviorLog.IsTraceEnabled)
-                            BehaviorLog.Trace(self, world, "Target acquired in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
-                        return NodeStatus.Success;
-                    }
-                }
-            }
-            if (BehaviorLog.IsTraceEnabled)
-                BehaviorLog.Trace(self, world, "Target not found in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
-            return NodeStatus.Failure;
-        }
-
-        // ── Actions ───────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Drives the tank toward and then past its assigned firing-line slot along
-        /// the attack direction vector.
-        ///
-        /// <para><b>Phase 1 (far):</b> when the tank is more than
-        /// <see cref="HillAttackConstants.SlotArrivalThresholdMeters"/> from the slot,
-        /// issues a <c>MoveTo</c> command to the slot position at <c>ApproachSpeed</c>.</para>
-        ///
-        /// <para><b>Phase 2 (near):</b> when within the threshold, issues a <c>MoveTo</c>
-        /// command to a far point along the attack direction at <c>CreepSpeed</c>.</para>
-        ///
-        /// <para><b>Returns:</b>
-        ///   <see cref="NodeStatus.Running"/> in both phases.
-        ///   <see cref="NodeStatus.Failure"/> when the tank has overshot the slot by more
-        ///   than <see cref="HillAttackConstants.MaxOvershootMeters"/> along the attack
-        ///   direction.  Never returns <see cref="NodeStatus.Success"/>.</para>
-        ///
-        /// <para>Channel cleanup on Failure is done explicitly here because
-        /// <c>[WritesChannel]</c> cleanup is only generated for 4-param delegates.</para>
-        /// </summary>
-        [SharedAiAction]
-        public static NodeStatus Action_CreepToAndBeyondSlot(ref HullDownAttackParams p, Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<LocomotionChannel>(self)
-                || !world.HasComponent<SimTransform>(self))
-            {
-                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel or SimTransform; blueprint may be misconfigured.");
-                return NodeStatus.Failure;
-            }
-
-            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-            ref readonly var tf = ref world.GetComponentRO<SimTransform>(self);
-
-            var slotPos = new Vector2(p.SlotX, p.SlotY);
-            var attackDir = new Vector2(p.AttackDirX, p.AttackDirY);
-            var currentPos = new Vector2(tf.Position.X, tf.Position.Y);
-
-            // ⭐ CE-1035 Q0b (WQ-H) — HORIZONTAL distance on purpose: a slot is a place on the map; over a hill the tank's height
-            //   differs from the slot's authored (x, y) and must not count as "not there yet".
-            float distToSlot = Vector2.Distance(currentPos, slotPos);
-
-            // Overshoot check: positive dot-product of (currentPos - slot) along attackDir
-            // means the tank has moved past the slot.
-            Vector2 delta = currentPos - slotPos;
-            float overshootMeters = Vector2.Dot(delta, attackDir);
-            if (BehaviorLog.IsTraceEnabled)
-            {
-                BehaviorLog.Trace(self, world,
-                    "Creep progress: distToSlot=" + distToSlot.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                    + "m overshoot=" + overshootMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                    + "m limit=" + HillAttackConstants.MaxOvershootMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "m.");
-            }
-
-            if (overshootMeters > HillAttackConstants.MaxOvershootMeters)
-            {
-                // Clear the locomotion channel explicitly before returning Failure.
-                loco.ActiveAction = 0;
-                loco.Status = NodeStatus.Failure;
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(self, world, "Creep failed due to overshoot. Overshoot=" + overshootMeters.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + "m.");
-                return NodeStatus.Failure;
-            }
-
-            // Determine which phase we are in.
-            bool isFarPhase = distToSlot > HillAttackConstants.SlotArrivalThresholdMeters && overshootMeters <= 0f;
-
-            if (!isFarPhase && world.HasComponent<TargetMemory>(self) && world.HasSingletonManaged<NetworkEntityMap>())
-            {
-                var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
-                if (entityMap != null && entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
-                {
-                    ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
-                    unsafe
-                    {
-                        for (int i = 0; i < mem.Count; i++)
-                        {
-                            if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.Freshness[i] > 0f)
-                            {
-                                ref var locoChannel = ref world.GetComponentRW<LocomotionChannel>(self);
-                                locoChannel.ActiveAction = 0;
-                                unchecked { locoChannel.ActionInstanceId++; }
-                                return NodeStatus.Success;
-                            }
-                        }
-                    }
-                }
-            }
-
-            ushort desiredAction = NavigationConstants.ActionIdMoveTo;
-            Vector2 destination;
-            float speed;
-
-            if (isFarPhase)
-            {
-                destination = slotPos;
-                speed = p.ApproachSpeed;
-            }
-            else
-            {
-                // Creep: send to a point far along the attack direction from the current position.
-                destination = currentPos + attackDir * HillAttackConstants.CreepLookAheadMeters;
-                speed = p.CreepSpeed;
-            }
-
-            // Sync BehaviorInstanceId so ChannelArbitrationSystem does not clear the channel.
-            if (world.HasComponent<BehaviorState>(self))
-            {
-                var behav = world.GetComponent<BehaviorState>(self);
-                loco.BehaviorInstanceId = behav.InstanceId;
-            }
-
-            // Only re-issue the command when the action changes, status is Failure, or
-            // the speed changes (approach->creep phase transition).  Read back the last
-            // written speed from the channel's param buffer to detect the transition.
-            bool needsWrite = loco.ActiveAction != desiredAction
-                || loco.Status == NodeStatus.Failure;
-
-            if (!needsWrite && loco.ActiveAction == desiredAction)
-            {
-                // Detect approach-to-creep phase change: if the speed in the channel
-                // differs from the intended speed the muscle tier is still running the
-                // old command.  Incrementing ActionInstanceId signals a new intent so
-                // LocomotionDispatcherSystem picks up the updated CreepSpeed.
-                unsafe
-                {
-                    var lastParams = ReadLocomotionParams<MoveToParams>(ref loco);
-                    if (MathF.Abs(lastParams.Speed - speed) > 0.001f)
-                    {
-                        needsWrite = true;
-                        if (BehaviorLog.IsDebugEnabled)
-                            BehaviorLog.Debug(self, world, "Creep phase transition speed update. Previous=" + lastParams.Speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " New=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + ".");
-                    }
-                }
-            }
-
-            if (needsWrite)
-            {
-                unchecked { loco.ActionInstanceId++; }
-                loco.ActiveAction = desiredAction;
-                loco.Status = NodeStatus.Running;
-                WriteToLocomotionParams(ref loco, new MoveToParams
-                {
-                    Destination   = new Vector3(destination.X, destination.Y, 0f), // 2-D slot: its height is not given —
-                    Flags         = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252)
-                    ArrivalRadius = 1f,
-                    Speed         = speed,
-                });
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(self, world, "Issued MoveTo action. Speed=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " destination=(" + destination.X.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," + destination.Y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ").");
-            }
-
-            return NodeStatus.Running;
-        }
-
-        /// <summary>
-        /// Aims and fires at the specific target assigned to this tank.
-        ///
-        /// <list type="bullet">
-        ///   <item>Returns <see cref="NodeStatus.Failure"/> when <c>TargetNetworkId</c>
-        ///     cannot be resolved (target not yet materialized).</item>
-        ///   <item>Returns <see cref="NodeStatus.Success"/> immediately when the target
-        ///     entity is no longer alive (destroyed; standard executors do not natively
-        ///     detect this and would otherwise leave the node stuck in Running).</item>
-        ///   <item>Writes <c>ActionIdAimAndFire</c> to <c>WeaponChannel</c> with the
-        ///     resolved target entity on the first activation only.</item>
-        ///   <item>Returns <see cref="NodeStatus.Running"/> while the weapon channel
-        ///     reports the engagement in progress.</item>
-        ///   <item>Returns <see cref="NodeStatus.Success"/> when the weapon channel
-        ///     status transitions to <see cref="NodeStatus.Success"/>.</item>
-        /// </list>
-        /// </summary>
-        [SharedAiAction]
-        public static NodeStatus Action_AimAndFireSpecific(ref HullDownAttackParams p, Entity self, EntityRepository world)
-        {
-            if (!world.HasSingletonManaged<NetworkEntityMap>())
-            {
-                BehaviorLog.Warn(self, world, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
-                return NodeStatus.Failure;
-            }
-
-            var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
-            if (entityMap == null || !entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
-            {
-                BehaviorLog.Warn(self, world, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet or was destroyed.");
-                return NodeStatus.Failure;
-            }
-            if (!CombatLife.IsAlive(world, targetEntity))   // CE-466: knocked out (Health <= 0) or gone
-            {
-                ClearWeaponActionIfActive(self, world);       // ⭐ CE-2119: and stop firing at the wreck (was left Running)
-                return NodeStatus.Success;
-            }
-
-            if (world.HasComponent<LocomotionChannel>(self))
-            {
-                ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-                if (loco.ActiveAction != 0)
-                {
-                    loco.ActiveAction = 0;
-                    unchecked { loco.ActionInstanceId++; }
-                }
-            }
-
-            if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
-            {
-                ClearWeaponActionIfActive(self, world);
-                return NodeStatus.Success;
-            }
-
-            if (!world.HasComponent<WeaponChannel>(self))
-            {
-                BehaviorLog.Error(self, world, "Entity is missing WeaponChannel; blueprint may be misconfigured.");
-                return NodeStatus.Failure;
-            }
-
-            var gun = Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(world, self);   // ⭐ WS-4 — own gun or the controlled station weapon
-            if (gun.IsNull)
-            {
-                BehaviorLog.Error(self, world, "Entity is missing WeaponState; cannot track rounds fired.");
-                return NodeStatus.Failure;
-            }
-
-            ref var weapon = ref world.GetComponentRW<WeaponChannel>(self);
-            var ws = world.GetComponent<WeaponState>(gun);
-
-            if (p.LastObservedAmmo < 0)
-            {
-                p.LastObservedAmmo = ws.Ammo;
-            }
-            else if (ws.Ammo < p.LastObservedAmmo)
-            {
-                p.RoundsFired += (p.LastObservedAmmo - ws.Ammo);
-                p.LastObservedAmmo = ws.Ammo;
-                if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
-                {
-                    ClearWeaponActionIfActive(self, world);
-                    return NodeStatus.Success;
-                }
-            }
-            else if (ws.Ammo > p.LastObservedAmmo)
-            {
-                p.LastObservedAmmo = ws.Ammo;
-            }
-
-            // Sync BehaviorInstanceId to prevent ChannelArbitrationSystem clearing the channel.
-            if (world.HasComponent<BehaviorState>(self))
-            {
-                var behav = world.GetComponent<BehaviorState>(self);
-                weapon.BehaviorInstanceId = behav.InstanceId;
-            }
-
-            // Forward executor terminal status.
-            if (weapon.ActiveAction == CombatConstants.ActionIdAimAndFire)
-            {
-                if (BehaviorLog.IsTraceEnabled)
-                    BehaviorLog.Trace(self, world, "Weapon channel active. Status=" + weapon.Status + ".");
-                if (weapon.Status == NodeStatus.Success) return NodeStatus.Success;
-                if (weapon.Status == NodeStatus.Failure) return NodeStatus.Failure;
-            }
-
-            // Only issue the command when not already active (avoid re-issuing each frame).
-            bool needsActivation = weapon.ActiveAction != CombatConstants.ActionIdAimAndFire
-                || weapon.Status == NodeStatus.Failure;
-
-            if (needsActivation)
-            {
-                WriteToWeaponParams(ref weapon, new AimAndFireParams
-                {
-                    Target          = targetEntity,
-                    CooldownSeconds = 10f,
-                });
-                unchecked { weapon.ActionInstanceId++; }
-                weapon.ActiveAction = CombatConstants.ActionIdAimAndFire;
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(self, world, "Engaging target. TargetEntity=" + targetEntity.Index + " TargetNetworkId=" + p.TargetNetworkId + ".");
-            }
-
-            return NodeStatus.Running;
-        }
-
-        /// <summary>
-        /// Commands the tank to reverse to its assigned baseline slot.
-        ///
-        /// <para>Writes <c>ActionIdMoveTo</c> to <c>LocomotionChannel</c> with
-        /// <c>Destination = (BaselineX, BaselineY)</c> and
-        /// <c>ReverseAllowed = 1</c> so the muscle tier resolves a reverse-velocity
-        /// trajectory back to the baseline slot.</para>
-        ///
-        /// <list type="bullet">
-        ///   <item>Returns <see cref="NodeStatus.Running"/> while locomotion is active.</item>
-        ///   <item>Returns <see cref="NodeStatus.Success"/> when the locomotion channel
-        ///     reports arrival.</item>
-        ///   <item>Returns <see cref="NodeStatus.Failure"/> on locomotion failure.</item>
-        /// </list>
-        /// </summary>
-        [SharedAiAction]
-        public static NodeStatus Action_ReverseToBaseline(ref HullDownAttackParams p, Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<LocomotionChannel>(self))
-                return NodeStatus.Failure;
-
-            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-
-            // Sync BehaviorInstanceId.
-            if (world.HasComponent<BehaviorState>(self))
-            {
-                var behav = world.GetComponent<BehaviorState>(self);
-                loco.BehaviorInstanceId = behav.InstanceId;
-            }
-
-            // Forward executor terminal status.
-            if (loco.ActiveAction == NavigationConstants.ActionIdMoveTo)
-            {
-                if (loco.Status == NodeStatus.Success)
-                {
-                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self });   // ⭐ CE-3034 — ending itself
-                    return NodeStatus.Success;
-                }
-                if (loco.Status == NodeStatus.Failure)
-                {
-                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Self });   // ⭐ CE-3034 — ending itself
-                    return NodeStatus.Failure;
-                }
-            }
-
-            // Issue the retreat command once.
-            bool needsActivation = loco.ActiveAction != NavigationConstants.ActionIdMoveTo
-                || loco.Status == NodeStatus.Failure;
-
-            if (needsActivation)
-            {
-                unchecked { loco.ActionInstanceId++; }
-                loco.ActiveAction = NavigationConstants.ActionIdMoveTo;
-                WriteToLocomotionParams(ref loco, new MoveToParams
-                {
-                    Destination    = new Vector3(p.BaselineX, p.BaselineY, 0f), // 2-D baseline: its height is not given —
-                    Flags          = NavigationConstants.FlagDestinationOnSurface,   //   ⭐ CE-1035 Q0b (R-252)
-                    ArrivalRadius  = 5f,
-                    Speed          = 12f,
-                    ReverseAllowed = 1,
-                });
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(self, world, "Retreating to baseline. Destination=(" + p.BaselineX + "," + p.BaselineY + ").");
-            }
-
-            return NodeStatus.Running;
-        }
-
-        /// <summary>
-        /// Trivial fallback node that always succeeds immediately.
-        /// Ensures the outer <c>Selector</c> always succeeds so
-        /// <c>Action_ReverseToBaseline</c> is guaranteed to run regardless of whether
-        /// the engagement path succeeded or overshot.
-        /// </summary>
-        [SharedAiAction]
-        public static NodeStatus Action_AbortEngagement(ref HullDownAttackParams p, Entity self, EntityRepository world)
-        {
-            return NodeStatus.Success;
-        }
-
-        [Fdp.Toolkit.Behavior.BehaviorResolver("HullDownAttackRun",
-            ParamsType = typeof(Hrot.AI.Behaviors.Brains.HullDownAttackParams))]
-        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr, int capacity)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                System.Runtime.CompilerServices.Unsafe.Write(ptr, default(HullDownAttackParams));
-                return;
-            }
-
-            try
-            {
-                var p = JsonSerializer.Deserialize<HullDownAttackParams>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
-                p.RoundsFired = 0;
-                p.LastObservedAmmo = -1;
-
-                System.Runtime.CompilerServices.Unsafe.Write(ptr, p);
-                return;
-            }
-            catch (System.Exception ex)
-            {
-                BehaviorLog.ParseError("Failed to parse HullDownAttackParams JSON: " + ex.Message);
-            }
-
-            System.Runtime.CompilerServices.Unsafe.Write(ptr, default(HullDownAttackParams));
-        }
-
-        // ── Deactivators ──────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Deactivator for <see cref="Action_CreepToAndBeyondSlot"/>. Clears
-        /// <see cref="LocomotionChannel.ActiveAction"/> when the BTree execution pointer
-        /// leaves the node via an abort or branch switch (the Failure path already clears
-        /// the channel explicitly; this covers the abort path).
-        /// </summary>
-        // ⭐ CE-504 slice 4 — the shared param-less deactivator form (was the whole-block kernel form; it read nothing of it).
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot")]
-        public static void Deactivate_CreepToAndBeyondSlot(Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<LocomotionChannel>(self)) return;
-            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
-            if (loco.ActiveAction != NavigationConstants.ActionIdMoveTo) return;
-            loco.ActiveAction = 0;
-            unchecked { loco.ActionInstanceId++; }
-        }
-
-        /// <summary>
-        /// Deactivator for <see cref="Action_AimAndFireSpecific"/>. Clears
-        /// <see cref="WeaponChannel.ActiveAction"/> when the BTree execution pointer leaves
-        /// the node via a branch abort (the MaxRounds path calls
-        /// <c>ClearWeaponActionIfActive</c> explicitly; this covers the abort path only).
-        /// </summary>
-        // ⭐ CE-504 slice 4 — the shared param-less deactivator form.
-        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific")]
-        public static void Deactivate_AimAndFireSpecific(Entity self, EntityRepository world)
-        {
-            if (!world.HasComponent<WeaponChannel>(self)) return;
-            ref var weapon = ref world.GetComponentRW<WeaponChannel>(self);
-            if (weapon.ActiveAction != CombatConstants.ActionIdAimAndFire) return;
-            weapon.ActiveAction = 0;
-            unchecked { weapon.ActionInstanceId++; }
-        }
-
-        // ── BTree definition ──────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Exposes the HullDownAttackRun BTree structure for Fbt.SourceGen static analysis.
-        ///
-        /// <code>
-        /// Sequence
-        ///   Selector
-        ///     Sequence                              // Engagement path
-        ///       Action_CreepToAndBeyondSlot         // Running; Failure on overshoot
-        ///       Action_AimAndFireSpecific            // fire at assigned target
-        ///     Action_AbortEngagement                // overshoot fallback; always Success
-        ///   Action_ReverseToBaseline                // guaranteed retreat
-        /// </code>
-        /// </summary>
-        [BTreeDefinition("HullDownAttackRun")]
-        public static BTreeBuilder<HullDownAttackBlackboard, BTreeContext> BuildHullDownAttackRunTree()
-        {
-            return new BTreeBuilder<HullDownAttackBlackboard, BTreeContext>()
-                .Sequence(root => root
-                    .Selector(outerSel => outerSel
-                        .Sequence(engagementSeq => engagementSeq
-                            .Action(bb => bb.Params, Action_CreepToAndBeyondSlot)
-                            .Action(bb => bb.Params, Action_AimAndFireSpecific))
-                        .Action(bb => bb.Params, Action_AbortEngagement))
-                    .Action(bb => bb.Params, Action_ReverseToBaseline));
+                WithdrawMode = WithdrawMode.Reverse,
+                RoundsPerExposure = 1,                                    // 🔒 R-2022 — one round, then back
+                MaxExposures = 1,                                         // one run per wave (the commander alternates the pairs)
+                HideSecondsMin = WaitSeconds, HideSecondsMax = WaitSeconds,
+                Speed = ReverseSpeed,
+                UseGivenHide = 1,
+                GivenHide = new Vector2(authored.BaselineX, authored.BaselineY),
+                LaneStart = new Vector2(authored.SlotX, authored.SlotY),
+                LaneDir = dir,
+                ApproachSpeed = authored.ApproachSpeed,
+                CreepSpeed = authored.CreepSpeed,
+                DesignatePacked = target,
+                HoldUntil = authored.GoAt,                                // ⭐ H-5 — the wave leaves its hides together
+            };
         }
     }
 }

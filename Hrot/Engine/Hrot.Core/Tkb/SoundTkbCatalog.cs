@@ -44,7 +44,7 @@ namespace Hrot.Core.Tkb
                 [BulletPass]      = ("Sound: bullet pass",      S(SoundSynth.BulletPass,       3f, SoundCategory.Impacts,    PriorityBulletPass, -2f, range: 30f)),
                 [ImpactSoft]      = ("Sound: impact soft",      S(SoundSynth.ImpactSoft,       5f, SoundCategory.Impacts,    PriorityImpact, -6f, range: 120f)),
                 [ImpactHard]      = ("Sound: impact hard",      S(SoundSynth.ImpactHard,       5f, SoundCategory.Impacts,    PriorityImpact, -4f, range: 200f)),
-                [Footsteps]       = ("Sound: footsteps",        S(SoundSynth.Footsteps,        4f, SoundCategory.Vehicles,   PriorityMoving, -6f, loop: true)),
+                [Footsteps]       = ("Sound: footsteps",        S(SoundSynth.Footsteps,        4f, SoundCategory.Vehicles,   PriorityMoving, -18f, loop: true)),   // ⭐ CE-1141 — was -6 dB: "way less loud … too close to the rifle shot"
                 [WheeledEngine]   = ("Sound: wheeled engine",   S(SoundSynth.WheeledEngine,   10f, SoundCategory.Vehicles,   PriorityMoving, -2f, loop: true)),
                 [TrackedEngine]   = ("Sound: tracked engine",   S(SoundSynth.TrackedEngine,   15f, SoundCategory.Vehicles,   PriorityMoving, 0f, loop: true)),
                 [Rotor]           = ("Sound: rotor",            S(SoundSynth.Rotor,           25f, SoundCategory.Vehicles,   PriorityMoving, 2f, loop: true)),

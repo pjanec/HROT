@@ -204,13 +204,8 @@ namespace Hrot.SimHost
             // Task 47: register context menu handlers for the FDP entity inspector.
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
-                builder.AddItem("Center on entity", () => CenterCameraOnEntity(entity));
-                builder.AddItem("Select entity", () =>
-                    // ⭐ A REQUEST, like every other surface. The inspector follows from the
-                    //   notification, so this no longer sets it by hand (§2.7.3 rules 1 and 4).
-                    _repo!.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest
-                        .ReplaceWith(entity, "SimHost.ContextMenu.Select")));
-
+                // ⭐ CE-1134 — "Center on entity" / "Select entity" moved into the map's entity menu, which now heads this menu on
+                //   every host (MapEntityMenuHandler, DiagnosticsWindowsBundle): Center View works in 3-D too, and Properties… joins.
                 builder.AddSeparator();
                 builder.AddItem("Delete entity", () =>
                 {
@@ -520,13 +515,5 @@ namespace Hrot.SimHost
             _initialized = false;
         }
 
-        /// <summary>Centres the map camera on the entity's SimTransform position.</summary>
-        private void CenterCameraOnEntity(Fdp.Core.Entity entity)
-        {
-            if (_repo == null || !_repo.IsAlive(entity)) return;
-            if (!_repo.HasComponent<SimTransform>(entity)) return;
-            ref readonly var tf = ref _repo.GetComponentRO<SimTransform>(entity);
-            _map?.Camera.FocusOn(new Vector2(tf.Position.X, tf.Position.Y));
-        }
     }
 }

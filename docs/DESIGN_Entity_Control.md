@@ -1,12 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station DESIGN 2026-10-14 (§8f), building
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station)
+updated: 2026-10-16
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key DESIGN, preliminary — not ready to build (§8h)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144, PRELIMINARY DESIGN, not ready to build)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
+  - docs/DESIGN_Building_Interiors.md — OWNS the door verbs and DoorActionExecutor that §8h's use key starts (§3j)
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS PersonBody / VehicleBody, the parts a round meets; §8g's crosshair meets the same parts through one function (BodyPartRay)
+  - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
   - docs/designs/audio/DESIGN_FPS_Audio.md — sound exists only while PossessionStation holds a unit; the ear is the FPS camera (AU-3)
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-F: PossessionSystem also releases a unit when its station's node DEPARTS (today only Esc or death).
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016)
@@ -28,6 +31,7 @@ related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the Brain / MuscleGround groups the new components join
   - docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2d — OWNS the raw-input route to backend gizmos (the key queue's one reader, CE-3175)
   - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — R-4023 hands a vehicle to SUMO by a follow mode (KinematicsMode.Traffic), following M-6's rejection of an ownership move and M-1's Manual-mode shape.
 -->
 
 # DESIGN — **entity control** *(orders over HTTP, RTS clicks, the menu, and FPS possession — one path)*
@@ -274,6 +278,8 @@ sequenceDiagram
         S->>B: ReleasePossessionEvent
     else unit killed (Health ≤ 0)
         B->>B: PossessionSystem releases on its own
+    else the station's node departs (Q91 §4-F, CE-2231)
+        B->>B: NodeDeparted{S} ⇒ PossessionSystem releases every unit S holds (no timer, R-4001)
     end
     B->>B: clear OperatorControl ⇒ the paused task resumes (R-203)
     B-->>S: PossessedBy cleared ⇒ station leaves FPS, camera stays where it was
@@ -818,6 +824,339 @@ for pitch* — `Vertical` already means it to the model; *the camera locked to t
 📐 **Rail** `PossessionStationTests.CE1095_*` (the scheme, the frame's axes, the camera's roll, the HUD line) — red-proved twice (the view does
 not bank; the plane is a Person).
 
+## 8g. S8 DETAIL — SIGHT or LOCK, the crosshair on the body parts (`CE-1126` · `CE-1127`, designed `2026-10-16`, ui)
+
+🔒 **User, `2026-10-16`:** *"yes, let's use the body part boxes for the crosshair"* · *"for FPS shooter with hand weapons like rifle … it is
+natural to shoot in the direction of aim … and letting the ballistics fly the bullet. The locking mode is good for grenade throwing and grenade
+launcher and mortar and howitzer and similar. the locking mode should work for buildings and terrain points as well"* · *"locking mode for slow
+turrets as well"* · *"Mounted fast weapons: OK"* (a pintle / tripod MG with no turret is SIGHT) · *"RPG-type unguided rockets: SIGHT for
+simplicity of the FPS mode"*. The impacts the user asked for in the same exchange are `DESIGN_Visual_Effects.md` §10.
+
+📐 **INVENTORY** *(graph `search_graph` Class `.*BodyPart.*` → `BodyPartHit`, `BodyPartHitResult`; `.*BodyRay.*`, `.*FireMode.*`, `.*AimMode.*` → 0;
+`.*Picker.*` → one 3-D entity picker, `EntityBoxPicker`; `IPicker3D` implementations by grep → `TerrainPicker`, `EntityBoxPicker`)*:
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the crosshair meets ONE coarse box per entity (`MinPickHalf` 0.4 m), not the parts a round meets | `EntityBoxPicker.cs:47` → `EntityBodyLayer3D.TryGetBox` | §8e D-4 *"where the ray meets the unit's box"*; Map 3D §3.8 (M17) — the box for SELECTION |
+| a round meets a person by `PersonBody` boxes and a vehicle by `VehicleBody` boxes, both generated from the drawing with parity rails | `RaycastSolverSystem.cs:219-262` | hit location HL-1, HL-9, §9 S2 (`CE-3209`, `CE-3211`) |
+| that per-entity part test is inline in the solver's parallel loop — no function another caller can use | `RaycastSolverSystem.cs:187-263` | ⛔ searched `docs/` + `.dev/`, none found |
+| the 1.5 m `AimPoint.Operator` fallback exists only because the coarse box and the parts disagree | `AimPoint.cs` (`CE-1125`) | §13.7a |
+| a press ALWAYS latches (locks the point or unit, waits for the round) | `OperatorControlBehavior.cs:142-150` | §8e D-1 |
+| direct-fire rounds fly straight; arc rounds fall and get an arc solve | `BallisticAim.cs:15`, `BallisticsSystem.cs:138`, `FireProcessingSystem.ArcLaunch` | Indirect Fire IF-1 |
+| the turret path already slews to a unit or a ground point | `AimAndFireExecutor.TurretPath` | §8e |
+
+```mermaid
+classDiagram
+    direction LR
+    class BodyPartRay { <<new, Fdp.Toolkits Physics>> +TryHit(world, entity, a, b, turretPart, out BodyPartHitResult) bool +HasParts(world, entity) bool }
+    class RaycastSolverSystem { <<existing, routed>> narrow phase calls BodyPartRay for persons and vehicles }
+    class BodyPartHit { <<existing>> Segment · SegmentTouchesSphere }
+    class PersonBody { <<existing>> Boxes(pose) · PoseOf · ScaleOf }
+    class VehicleBody { <<existing>> Of · Pose · PartOf }
+    class EntityPartPicker { <<new, ui Map3D>> Kind = EntityParts · parts first, the coarse box for a body with no parts · hit point = where the ray meets the part }
+    class EntityBoxPicker { <<existing>> Kind = Entities · RTS selection, unchanged }
+    class PickFilter { <<existing, grows>> + EntityParts · + Aim = Terrain or EntityParts }
+    class MapCamera3D { <<existing>> Pick(pixel, filter) · the cache keys on the filter }
+    class FpsCameraDriver { <<existing>> Aim picks PickFilter.Aim · HUD LOCKED ring only in LOCK }
+    class OperatorFireModes { <<new, Fdp.Toolkits Combat>> +Of(world, unit, mount, loadedAmmo) Sight or Lock }
+    class OperatorControlBehavior { <<existing, grows>> Pending 1 = LOCK (held point or unit) · 2 = SIGHT (the crosshair of each tick) }
+    class AimPoint { <<existing, shrinks>> ToUnitFrame · FromUnitFrame · Middle · ⛔ Operator and OnUnitMetres removed }
+    RaycastSolverSystem ..> BodyPartRay
+    EntityPartPicker ..> BodyPartRay
+    BodyPartRay ..> BodyPartHit
+    BodyPartRay ..> PersonBody
+    BodyPartRay ..> VehicleBody
+    MapCamera3D o-- EntityPartPicker
+    MapCamera3D o-- EntityBoxPicker
+    FpsCameraDriver ..> MapCamera3D : Pick(Aim)
+    FpsCameraDriver ..> OperatorFireModes : HUD
+    OperatorControlBehavior ..> OperatorFireModes
+    OperatorControlBehavior ..> AimPoint
+```
+
+*What the picture shows that prose hid:* the crosshair and the bullets reach the SAME parts through ONE function (`BodyPartRay`), so "the
+crosshair is on his head" and "the round strikes his head" cannot drift — and the selection box is a separate picker, so RTS clicks keep their
+generous box.
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant C as MapCamera3D
+    participant K as EntityPartPicker
+    participant O as OperatorControl (brain)
+    participant X as AimAndFireExecutor (brain)
+    D->>C: Pick(centre, Aim)
+    C->>K: TryPick(eye, look)
+    K->>K: BodyPartRay per entity, nearest part entered
+    K-->>D: the point on the part + network id
+    D->>O: frame ShotSeq+1, ShotTarget, AimPoint
+    alt LOCK (turret, arc or thrown, guided)
+        O->>O: Pending 1, point held in the unit's frame (CE-1125)
+        O->>X: Target, Point = FromUnitFrame each tick, Rounds = Cap
+    else SIGHT (hand weapon, mount with no turret, unguided rocket)
+        O->>O: Pending 2, no target
+        O->>X: Point = this tick's AimPoint, Rounds = Cap
+    end
+    X-->>O: RoundsFired reaches Cap, Pending 0
+```
+
+```mermaid
+graph TD
+    PACK[MapInteractionPack.AttachMapLayers, every map host] -->|Pickers.Add| EBP[EntityBoxPicker, selection]
+    PACK -->|Pickers.Add, NEW| EPP[EntityPartPicker, the crosshair]
+    CAN[MapCanvas each frame] -->|Camera.HandleInput| FPS[FpsCameraDriver]
+    FPS -->|Pick Aim| EPP
+    CAN -->|Pick All| EBP
+    FPS --> BUS[frame to PossessionSystem, brain]
+    BUS --> OC[OperatorControl]
+    OC -->|WeaponChannel params| X[AimAndFireExecutor]
+    MOD[Physics module, muscle] --> RS[RaycastSolverSystem]
+    RS --> BPR[BodyPartRay]
+    EPP --> BPR
+```
+
+*Caption:* the new picker is added by the SAME attach that adds `EntityBoxPicker`, so no map host can have one without the other; the only
+caller that asks `PickFilter.Aim` is the FPS station — every other click still asks `All` and gets the selection box.
+
+| # | decision (✅ user, `2026-10-16`) | rule |
+|---|---|---|
+| **F-1** | which mode | ⭐ **LOCK** when the weapon is fought through a turret (`UsesTurretTask`'s test: a mount naming a turret the unit has), or is a thrown / arc weapon (category Grenade, Mortar, Howitzer, Bomb, or an `Indirect` warhead), or guided (Atgm, Sam, or `NeedsLock`). **SIGHT** for everything else: hand weapons, a mount with no turret (pintle, tripod MG), an unguided rocket |
+| **F-2** | SIGHT | each round goes to the point under the crosshair WHEN IT LEAVES (the frame's `AimPoint`): a press fires one round at once (cooldown permitting), a held trigger on an automatic weapon follows the look. No target, no LOCKED ring |
+| **F-3** | LOCK | unchanged from §8e D-1 / `CE-1125`: the press holds the point on a unit (in his frame), a building or the ground, and fires when the weapon bears; RMB drops it |
+| **F-4** | the crosshair | the nearest of the terrain and every entity's PARTS (`BodyPartRay` — the round's own test); a body with no parts (an icon unit, an unknown type) keeps its coarse box. The point is where the ray meets the part |
+| **F-5** | the fallback | ⛔ `AimPoint.Operator` / `OnUnitMetres` go: the point IS on a part. The middle is used only when a shot names a unit and no point |
+| **F-6** | the sight zero | ⏭ not now — direct rounds have no gravity, so a round flown muzzle → crosshair point is a sight zeroed at that range. Filed `CE-1130` |
+
+**Rejected — one line each:**
+- *The part test inside `EntityBoxPicker` behind a flag* — one picker would then answer two questions and RTS selection would lose its generous box.
+- *A copy of the solver's part test in the ui* — two answers that drift (the reason `PersonBody` is generated from the drawing).
+- *SIGHT as "lock with a point only"* — a latched point fires late at where the crosshair WAS; a rifleman expects the round where he looks now.
+- *The mode in the station* — the brain owns the latch (§8e); the station only mirrors the mode for its HUD.
+
+**AS-BUILT (`CE-1126`, `CE-1127`, `2026-10-16`, ui)** — the three diagrams hold; the details they do not carry, and one deviation:
+
+| as-built | why |
+|---|---|
+| ⚠ DEVIATION from F-5: `AimPoint.Operator` STAYS, as *"the point, else the middle"*; only the 1.5 m test and `OnUnitMetres` went | the executor and the station's ring both call it — one rule, now trivial, instead of two inline copies |
+| `BodyPartRay.Person` / `.Vehicle` (the solver's narrow phase, its counters kept) and `.TryHit` (one entity, its main turret found by `TurretParts.Find`) | the solver keeps its per-tick turret map; a picker asks per entity |
+| `EntityPartPicker`: a body the node does not mark a pedestrian (no `VehicleParams` replicated) but DRAWS as a person is still met by `PersonBody` | what you aim at is what is drawn; the sim's pedestrian test needs a component a viewer may lack |
+| `MapCamera3D.Pick`'s cache keys on the FILTER (was "is it a drag") | `Aim` and `All` asked for the same pixel in one frame would have shared an answer |
+| SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
+| the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
+
+## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — ✅ READY TO BUILD (`CE-1151`…`CE-1158`)
+
+🔒 **User, `2026-10-16`:** *"There should be a key (or keys) that allows acting on stuff aimed at - opening/closing doors, dragging a body,
+possessing a vehicle (becoming a driver there) or weapon operator if the standalone or vehicle mounted weapon is clicked - this needs bigger
+discussion."* → on the leans U-1…U-7 below: *"approved, but just preliminarily so you write the design where you suggest how to wire it all,
+then i will need to think about that , i.e. not ready to built"*. → on the explanation, `2026-10-16`: *"sound good! … pls records into items
+and write handoff to the backend node and behavior node to implement"*. ⇒ **build-state of this section: READY-TO-BUILD.** The items and lanes
+are §8h.4; the brain → HUD verdict the user asked about is §8h.6.
+
+### 8h.1 INVENTORY — what already exists (measured `2026-10-16`; graph `search_graph` Class `.*Interaction.*`, `.*Executor.*`; grep)
+
+| the design rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| every action the user named is BUILT, as an interaction-channel executor with its own reach, time and networked command | `DoorActionExecutor` (ids 4–8, reach 2 m / 1.5 m, `DoorCommands.cs:82-85`), `PickUpExecutor` / `PutDownExecutor` (9 / 10, 1.5 m), `EmbarkExecutor` / `DisembarkExecutor` (1 / 2) — `BehaviorConstants.cs:111-141`, run by `ActionDispatchModule` (`:50`) | Entity Interactions §1–§7 (R-221, R-224, R-274); Building Interiors §3j |
+| the possessed unit's behaviour drives ONLY the weapon channel; nothing writes its `InteractionChannel` | `OperatorControlBehavior.OperateWeapon`; `InteractionChannel` (`ChannelComponents.cs:41`) | §8e — the latch lives in the operator behaviour (brain) |
+| the frame has no "use" field; `E` is unused; the crosshair's target id is computed every frame but sent only with a shot | `OperatorControlFrameEvent` (`Possession.cs:60-89`), `ControlFrameInteractionPayload` (`InteractionMessages.cs:57-79`); `FpsCameraDriver.AimTarget` | §8e D-1: presses travel as COUNTERS (a coalesced frame never loses one) |
+| a casualty can be picked up only when incapacitated; the carrier cannot shoot while carrying; a stretcher needs a named assistant | `Embarkation.TryEmbark` (`Embarkation.cs:111-134`) | §7.4.8–§7.4.10 C3, C7; §7.5 T4 (R-2017) |
+| a driver seat means nothing — the vehicle's brain drives | nothing reads `SeatRole.Driver` | §7.4.4 B5: *"the vehicle's brain drives (crew stay abstract)"* |
+| possessing a VEHICLE already works (drive scheme by locomotion; its station gun fires as the vehicle's) | `FpsCameraDriver.Scheme`; `WeaponSystems.ControllerOf` (`WeaponSystems.cs:41-56`) | §8f; Weapon Systems W-H |
+| a man in a standalone weapon's Gunner seat controls it; the operator's fire path already accepts its mount index (32+k) — but the station counts only the man's own weapons | `ManWeapon` behaviour; `AimAndFireExecutor.OperatorFire`; `FpsCameraDriver.MountCount` (`PossessionStation.cs:565`) | Weapon Systems §6, §9 WS-6; *"possession of the gunner seat — a later item"* |
+| possession is never handed over: one station holds one unit, `Possess` does not release the held one, the station takes the FIRST unit it holds | `PossessionSystem` (`Possession.cs:138-256`) never reads `IsEmbarkedTag`; `EntityOrders.Possess` (`:180`); `PossessionStation.HeldHere` (`:68-81`) | ⛔ searched `docs/` + `.dev/`, no design of a hand-over |
+
+### 8h.2 Diagrams
+
+```mermaid
+classDiagram
+    direction LR
+    class FpsCameraDriver { <<existing, grows>> E press: UseSeq++ · UseTarget = AimTarget · UseVerb (0 = the primary) · hold E: the verb list }
+    class OperatorUseActions { <<new, Fdp.Toolkits Behavior>> +For(world, actor, target) UseAction[] · the ONE rule for the HUD prompt and the brain }
+    class UseAction { <<new record>> Verb · Label · ActionId · Available · Reason }
+    class OperatorControlFrameEvent { <<existing, appended>> + UseSeq · UseVerb · UseTarget }
+    class ControlFrameInteractionPayload { <<wire, appended>> + the same three }
+    class OperatorInput { <<existing, appended>> + the same three }
+    class OperatorControlBehavior { <<existing, grows>> + OperateUse: a new UseSeq starts the chosen action on the InteractionChannel }
+    class InteractionChannel { <<existing>> ActiveAction · Params · Status }
+    class ActionDispatchModule { <<existing>> runs the interaction executors }
+    class DoorActionExecutor { <<existing>> }
+    class PickUpExecutor { <<existing>> PutDownExecutor beside it }
+    class EmbarkExecutor { <<existing>> DisembarkExecutor beside it }
+    class PossessionStation { <<existing, grows>> + the hand-over: Drive / Get out switch the held unit · HUD prompt line · verdict line }
+    class EntityOrders { <<existing, grows>> Possess(unit, mode) · a new Fps possession releases this station's other Fps unit }
+    class PossessionMode { <<existing enum, grows>> Fps · + Riding: held, task paused, frames ignored }
+    class OperatorUseStatus { <<new component, Brain group, dtOperatorUseStatus 141>> UseSeq · ActionId · Outcome · Reason }
+    class Embarkation { <<existing, grows>> + CanEmbark: TryEmbark's checks without seating, one rule for both }
+    FpsCameraDriver ..> OperatorUseActions : HUD prompt
+    FpsCameraDriver --> OperatorControlFrameEvent
+    OperatorControlFrameEvent ..> ControlFrameInteractionPayload : off-node
+    OperatorControlFrameEvent --> OperatorInput : PossessionSystem
+    OperatorControlBehavior ..> OperatorInput : reads
+    OperatorControlBehavior ..> OperatorUseActions : decides
+    OperatorControlBehavior --> InteractionChannel : writes the action
+    ActionDispatchModule ..> InteractionChannel
+    ActionDispatchModule --> DoorActionExecutor
+    ActionDispatchModule --> PickUpExecutor
+    ActionDispatchModule --> EmbarkExecutor
+    PossessionStation ..> EntityOrders : Riding then Possess
+    OperatorControlBehavior --> OperatorUseStatus : writes the verdict
+    PossessionStation ..> OperatorUseStatus : reads, replicated
+    OperatorUseActions ..> Embarkation : CanEmbark
+    EntityOrders ..> PossessionMode
+```
+
+*What the picture shows that prose hid:* nothing new acts on the world — the use key only CHOOSES one of five executors that already have reach,
+time and a networked command; the new code is a rule (`OperatorUseActions`), three appended frame fields, and the hand-over in the station.
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant O as OperatorControl (soldier's brain)
+    participant X as interaction executor (brain)
+    participant T as target's owner (door / casualty / vehicle)
+    D->>D: crosshair on a door, HUD "E Open door"
+    D->>O: frame UseSeq+1, UseVerb 0, UseTarget = the door
+    O->>O: OperatorUseActions.For(soldier, door), primary = Open
+    O->>X: InteractionChannel = Open door, new instance
+    O-->>D: OperatorUseStatus UseSeq, Running (replicated, §8h.6)
+    X->>X: in reach? (2 m) else Failure
+    X->>T: DoorCommandEvent (routed by the interaction topic)
+    T-->>D: replicated DoorState, the leaf swings
+    O-->>D: OperatorUseStatus UseSeq, Success or Refused + Reason
+```
+
+```mermaid
+sequenceDiagram
+    participant D as PossessionStation (station)
+    participant S as soldier's brain
+    participant V as vehicle's brain
+    D->>S: frame UseSeq+1, target = the BMP, primary = Drive
+    S->>V: EmbarkEntityCommand, Role Driver (EmbarkExecutor)
+    V-->>D: replicated passenger list, the soldier aboard
+    D->>S: Possess mode Riding (his task stays paused - O-2)
+    D->>V: Possess mode Fps, remember Rider = the soldier
+    Note over D,V: the human now drives and shoots the BMP (crew abstract, B5)
+    D->>V: E pressed: Get out
+    D->>S: Possess mode Fps (a take-over, the operator behaviour keeps running)
+    D->>V: Release (the vehicle's own task resumes)
+    D->>S: frame UseSeq+1, verb Get out
+    S->>V: DisembarkEntityCommand
+```
+
+*Caption:* the hand-over is ORCHESTRATED BY THE STATION, after the boarding shows in replicated state, because the soldier and the vehicle can
+be owned by different brain nodes — no single brain could move possession between them atomically.
+
+```mermaid
+graph TD
+    CAN[MapCanvas each frame] -->|Camera.HandleInput| FPS[FpsCameraDriver]
+    FPS -->|EntityOrders.Control| BUS[interaction topic off-node]
+    BUS --> PS[PossessionSystem, brain host]
+    PS --> OC[OperatorControl, the possessed unit's root behaviour]
+    OC -->|weapon channel, today| WD[weapon dispatch]
+    OC -.->|NEW: interaction channel| AD[ActionDispatchModule, brain host]
+    AD --> EX[door / pick-up / embark executors]
+    EX --> IT[interaction topic to the target's owner]
+    ST[PossessionStation] -.->|NEW: Riding then Possess| EO[EntityOrders]
+    OC -.->|NEW: OperatorUseStatus, Brain group| ST
+    classDef dead fill:#fdd,stroke:#c00
+    GAP1[station weapon list counts only the man's own mounts]:::dead
+    GAP2[EntityOrders.Possess does not release the held unit]:::dead
+```
+
+*Caption:* the dashed edges are the new wiring; ⚠ the red boxes are measured gaps the slices must close — today a manned ZU-23 never
+reaches the operator's weapon keys, and a second `Possess` leaves the station holding two units.
+
+### 8h.3 Decisions — ✅ PRELIMINARY (user, `2026-10-16`), each open to change
+
+| # | decision | lean |
+|---|---|---|
+| **U-1** | keys | ⭐ ONE key, `E`, acts on what the crosshair rests on; the HUD names it (*E Open door · E Drag · E Drive BMP · E Man ZU-23*). Holding `E` lists the other verbs (lock / unlock / breach; carry instead of drag). `E` again undoes: put the body down, get out |
+| **U-2** | wire | ⭐ three fields appended to the frame / `OperatorInput` / payload: `UseSeq` (a counter, §8e), `UseVerb` (0 = the primary), `UseTarget` (network id). The BRAIN decides with `OperatorUseActions` and writes the action into the `InteractionChannel` — exactly how `OperateWeapon` writes the weapon channel. The station calls the same rule only for its HUD |
+| **U-3** | reach | ⭐ out of reach ⇒ the executor refuses; no walk-to. The prompt is greyed past reach — the STATION predicts it from replicated state; the brain's own refusal comes back as `OperatorUseStatus` (§8h.6) |
+| **U-4** | driving | ⭐ `E` on a vehicle boards the soldier in its Driver seat; the STATION then releases the soldier and possesses the vehicle, remembering him as the rider; `E` in the vehicle reverses it (possess him, he disembarks). Flyers alike (*Pilot*) |
+| **U-5** | weapons | ⭐ a STANDALONE weapon: `E` = take its Gunner seat; possession stays on the soldier and the weapon joins his keys 1–4 (`WeaponSystems.Controlled`, index 32+k — the fire path already takes it). A VEHICLE's weapon: as U-4 (the vehicle fires its station gun; one human drives and shoots, crew abstract) |
+| **U-6** | bodies | ⭐ `E` on an incapacitated man = drag (`PickUp`, Dragged); hold-`E` = carry; `E` again = put down; the HUD says the rifle is slung (C7). Stretchers (two men, T4) not in v1 |
+| **U-7** | doors | ⭐ `E` toggles open / closed by the door's replicated state; lock, unlock, breach on hold-`E` |
+
+**Rejected — one line each:** *a key per action* — five keys to remember when the target already says what is possible · *the station
+raising the door / embark commands itself* — it would skip the executors' reach and time and the counters' loss-proofing · *walk to the
+target* — takes the body away from the operator · *a driver / gunner split now* — crew is abstract by design (B5) · *the brain moving
+possession on boarding* — the soldier and the vehicle may live on two brain nodes.
+
+### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs [backend](blueprints/batches/HANDOFF_Use_Key_To_Backend.md) · [behaviors](blueprints/batches/HANDOFF_Use_Key_To_Behaviors.md) · [ui](blueprints/batches/HANDOFF_Use_Key_To_UI.md))
+
+| id | slice | builds | lane | needs |
+|---|---|---|---|---|
+| `CE-1151` | S9a | the three frame fields end to end: `OperatorControlFrameEvent`, `OperatorInput`, `ControlFrameInteractionPayload`, `InteractionTransport` both ways, `PossessionSystem`'s copy, the Debug API body | backend | — |
+| `CE-1152` | S9a | `OperatorUseActions.For` + `UseAction` + `UseReason`; `Embarkation.CanEmbark` (TryEmbark's checks without seating — `TryEmbark` calls it); reads ONLY replicated components | backend | — |
+| `CE-1153` | S9a | `OperatorUseStatus` (Brain group) + `dtOperatorUseStatus` = 141 + both translators + ownership mapping + registration on every host | backend | — |
+| `CE-1154` | S9a | `OperatorControlBehavior.OperateUse`: a new `UseSeq` ⇒ the rule ⇒ the action on the `InteractionChannel` (doors 4–8, pick up 9 / put down 10); writes `OperatorUseStatus` | behaviors | 1151–1153 |
+| `CE-1155` | S9b | standalone weapon: `E` = embark into its Gunner seat; the possessed man fires it through the controlled index (32+k) | behaviors | 1154 |
+| `CE-1156` | S9c | `PossessionMode.Riding`: `PossessionSystem` holds the unit, keeps its task paused, ignores frames; a mode change is a take-over | backend | — |
+| `CE-1157` | S9c | the operator brain while Riding holds still and stays aboard; `E` on a vehicle = embark Driver / Pilot; Get out = disembark | behaviors | 1154, 1156 |
+| `CE-1158` | S9a–c | the station: `E` counter + verb + target, hold-`E` list (O-1), the HUD prompt (local prediction) and the verdict line; the weapon list counts controlled mounts; the hand-over (`EntityOrders.Possess(unit, mode)`, `HeldHere` skips Riding) | ui | 1151–1153, 1156 |
+
+### 8h.5 Open points — ✅ ALL SIX ACCEPTED as leaned (user, `2026-10-16`: *"O-1,2,3,4,5,6 accepted."*)
+
+✅ `2026-10-16`: the user asked for items and handoffs — the section is **READY-TO-BUILD** (§8h.4).
+
+| | the question | lean, if asked |
+|---|---|---|
+| **O-1** | hold-`E`: a small list near the crosshair, or a radial? | a short list — fewer pixels over the view |
+| **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | ✅ pause it — the mark is `PossessionMode.Riding` (`CE-1156`): the station keeps holding the soldier, so his task stays paused by the possession that already pauses it (origin Possession), and frames are not sent to him |
+| **O-3** | the vehicle already has an AI driving it: does the human simply take over (its task pauses, as for any possession)? | yes — possession outranks it (origin rank, Q83) |
+| **O-4** | two humans board the same vehicle | one station per unit (C-3): the second becomes a passenger, not its driver |
+| **O-5** | a gunner and a driver as different humans | waits for crew to stop being abstract |
+| **O-6** | stretchers / two-man weapons for a human | later: naming the assistant is its own design (T4) |
+
+### 8h.6 The verdict back to the station — the brain runs on CGF, the HUD on the player's node
+
+🔒 User, `2026-10-16`: *"brain is on CGF, HUD is on whatever player node. How can brain action communication with its player node to show
+anything on HUD?"*
+
+| the answer rests on | code — how it IS | design basis |
+|---|---|---|
+| everything the rule reads is already on every node: positions, doors, health, seats, passengers, weapon systems | `HrotSharedComponentRegistry.cs:51` `SimTransform`, `:94` `DoorState`, `:116-129` `PassengerBuffer` / `CarrierSeats` / `CarrierStations` / `WeaponSystemParams` / `IsEmbarkedTag`, `:159` `Health`; the IG calls the same `RegisterAll` (`IgNodeBootstrapper.cs:206`) | Entity Interactions §7.4 (state replicated, commands routed) |
+| the reach test is a pure function of two replicated transforms | `OpenDoorExecutor.InReach` (`OpenDoorExecutor.cs:102-108`), static | Building Interiors §3j |
+| the executor's verdict stays on the brain: `InteractionChannel` is brain-local and says only `Failure`, never why | `ChannelComponents.cs:41-50` (`Status` only), registered by the cognitive registry, not the shared one; `OpenDoorExecutor.cs:66,76,83,85` | ⛔ searched `docs/` + `.dev/`, no design returns an interaction verdict to a station |
+| the precedent for "brain state the HUD needs" is a mirrored Brain-group descriptor | `WeaponAmmoMirrorSystem` → `dtWeaponAmmo` 130 (`WeaponAmmo.cs:10`, `NedOwnershipGroupBinding.cs:116`); `dtPossessedBy` 129 | §8e module diagram (`WAM -->|dtWeaponAmmo| HUD`) |
+
+**Decision — two layers, no new channel:**
+
+1. **Before the press, the station predicts.** It calls the same `OperatorUseActions.For` on its own replicated copy: the prompt, the
+   greyed *too far*, *locked*, *seat taken*, *he is not down* are all drawn without asking the brain. The rule may read only replicated
+   components; that is the condition that makes the prediction match the brain (`CE-1152`).
+2. **After the press, the brain answers in state, not in a message.** The operator behaviour writes `OperatorUseStatus { UseSeq, ActionId,
+   Outcome (Running / Done / Refused), Reason }` on the possessed unit (Brain group, `dtOperatorUseStatus` = 141, `CE-1153`), exactly as the
+   ammo reaches the HUD. The station shows it when `UseSeq` is its own last press. The effect itself (the leaf swings, the man is aboard)
+   arrives through the state that is already replicated.
+
+```mermaid
+sequenceDiagram
+    participant P as player node (station + HUD)
+    participant C as CGF (the soldier's brain)
+    P->>P: OperatorUseActions.For on replicated state, prompt "E Open door" or greyed "too far"
+    P->>C: control frame UseSeq 7, verb 0, target door (interaction topic)
+    C->>C: same rule, then InteractionChannel = Open door
+    C-->>P: OperatorUseStatus 7 Running (dtOperatorUseStatus)
+    C->>C: executor ends Success or Failure
+    C-->>P: OperatorUseStatus 7 Done, or Refused + Reason
+    P->>P: HUD line "door opened" / "too far" for 2 s
+```
+
+*What the picture shows that prose hid:* the HUD never waits on the brain to draw the prompt — only the verdict line waits, and it waits on
+replicated state the station already receives for the ammo.
+
+**Rejected — one line each:** *a reply event from brain to station* — a lost or late event leaves the HUD stale, a counter in state does not ·
+*replicate the `InteractionChannel`* — its params and state blobs for every unit, to say one word to one station · *station-only
+verdict* — it cannot see the brain's refusals (a door locked a tick earlier, a seat just taken) · *reasons from the executors* — they return
+only `Failure`; the rule already knows why an action is unavailable, so `Reason` comes from it (an executor failure after a start is
+`Reason = Failed`).
+
+⚠ **Every map host must receive it** — the IG included. 📌 CE-1139 (`2026-10-16`) measured a shared component that never reached the IG;
+`CE-1153` checks the new descriptor live on the IG the same way, and CE-1147 / CE-1148 (stance unification, retire "pure IG") remove the cause.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
@@ -1190,6 +1529,21 @@ is his belly. The rail `CE1078_PerShot…` even pinned "at the unit, not at the 
 | a bullet then strikes the part its ray meets | `HitResolutionSystem` (CE-3209) — so the head point is a head hit |
 
 Rails: `AimAndFireExecutorTests.CE1125_ALockedShot_GoesToTheCrosshairPointOnTheUnit_NotHisMiddle`, `CE1125_APointOnAUnit_FollowsHim_AsHeMovesAndTurns`.
+
+### 13.8 AS-BUILT — the manual test's fixes: the HUD, stance keys, the attack modifier, the cockpit (`CE-1131`, `CE-1132`, `CE-1139`, `CE-1140`, `CE-1143`, `2026-10-16`, ui)
+
+🔒 User, manual test `2026-10-16` ([tracker](blueprints/Blueprint_Issues_Tracker.md) CE-1131 … CE-1145). No box in §8a/§8e moved; the details:
+
+| as-built | why |
+|---|---|
+| ⛔ **§13.7's HUD placement SUPERSEDED:** the HUD sits at the **bottom-left of the map's visible area** (`OpenMapArea` — the dockspace's central node, so a docked panel never covers it), 16 px in; Roboto (`HudText`, the entity cards' font) at 20 px, 24 px lines; each kind of line its own colour (`Hud.ColourOf`: the unit, the weapon, the stance, the keys) | 🔒 *"HUD font ugly, use the entity labels/card font, bottom-left, coloured texts"* |
+| stance keys: **C** toggles crouch, **Z** toggles prone, **Ctrl held** crouches (not from prone), **Shift** runs (`Gait` 0 = full speed — unchanged); the frame sends the EFFECTIVE stance; the HUD's stance line says `RUN` | 🔒 *"Shift+W run, Ctrl hold crouch, prone toggle key"* — supersedes §13.5's one cycle key |
+| 🔴 **CE-1139 root cause:** the IG world carried no `StanceIntent`, so `LogicalStance.Of` answered Standing — the brain's crouch reached the brain and the muscle but never the IG's figure, and the eye rides the drawn head. ⭐ The IG now takes both stance topics in (`AnimationReplicationModule.RegisterStanceViewerOn`; [Decision Layer §3.3g](DESIGN_Decision_Layer.md)) | 🔒 *"switching FPS posture does not seem to move the camera"* |
+| the RTS tool: **Ctrl + RMB attacks whatever is under the cursor** (any side); a legend (`RtsModeState.Legend`) top-left while armed, a red reticle at the cursor while Ctrl is held | 🔒 *"how to switch to attack mode … would not matter if ctrl or shift-click activated the attack"* |
+| in first person in a vehicle the own vehicle's body is not drawn (`EntityBodyLayer3D` skips the FirstPerson entity unless a person) | 🔒 *"flyer cockpit view cluttered"* — ⚠ a cockpit / crew-eye position from the TKB is a follow-up |
+| ⚠ **CE-1133 not reproduced:** select A+B, click C, right-click the ground orders only C through the real pack (`RtsCommandToolTests.CE1133_*`) | the order loop reads the selection the map shows; the reported case needs a repro (which view, how the units were deselected) |
+
+Rails: `PossessionStationTests.CE1143_*`, `CE1140_*` ×2, `RtsCommandToolTests.CE1133_*`, `StanceWireTests.CE1139_*`, `IgRoleComponentRegistryTests.CE1139_*`.
 
 ## 8. Known limits and defects found while designing
 

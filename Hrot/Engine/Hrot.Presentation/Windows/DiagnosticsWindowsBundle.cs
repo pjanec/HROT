@@ -56,6 +56,12 @@ public sealed class DiagnosticsWindowsBundle : IUiBundle
             h.InspectorState,
             h.TitleBarColor));
 
+        // ⭐⭐ CE-1134 (canvas-context-menu-design §9) — the inspector's right-click menu STARTS with the map's entity menu (the same
+        //    items, run by the same map actions); the inspector's own items (Inspect…, and each host's) follow. And the map's
+        //    Properties… shows THIS window. Both find each other through the inspector state the host gives the map and this bundle.
+        h.Inspector.RegisterContextMenuHandler(new Hrot.UI.Common.Menus.MapEntityMenuHandler(() => h.InspectorState()));
+        Hrot.UI.Common.Menus.InspectorMapLink.RegisterWindow(ctx.Windows, InspectorId(h.IdPrefix), () => h.InspectorState());
+
         // ⭐ The component-editor reflector + the "Inspect…" context menu.
         // ⚠ This registers NOTHING eagerly — the helper's own RegisterWindow sits inside the
         //   "Inspect…" click handler — so its position relative to the window above cannot change the

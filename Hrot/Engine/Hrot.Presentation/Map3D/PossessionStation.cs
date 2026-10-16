@@ -134,43 +134,34 @@ namespace Hrot.UI.Common.Map3D
                 Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
             if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
                 Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
-            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending, _driver.Scheme);
-            var (x, y) = HudOrigin(size, lines.Length, MaxWidth(lines));
-            Raylib.DrawRectangle(x - 8, y - 6, MaxWidth(lines) + 16, lines.Length * HudLineHeight + 8, new Color(0, 0, 0, 140));
-            foreach (var line in lines) { Raylib.DrawText(line, x, y, HudFontSize, Color.RayWhite); y += HudLineHeight; }
+            var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
+                                  _driver.Scheme, _driver.Running);
+            // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
+            var font = HudText.Font();
+            int width = 0;
+            foreach (var line in lines) width = Math.Max(width, (int)HudText.Measure(font, line));
+            var (x, y) = HudOrigin(size, lines.Length, width);
+            Raylib.DrawRectangle(x - 8, y - 6, width + 16, lines.Length * HudLineHeight + 8, new Color(0, 0, 0, 150));
+            for (int i = 0; i < lines.Length; i++)
+            {
+                HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
+                y += HudLineHeight;
+            }
         }
 
         /// <summary>The HUD's text size and line pitch (px).</summary>
-        public const int HudFontSize = 18, HudLineHeight = 20;
-
-        /// <summary>⭐ CE-1079 — the HUD's top, as a share of the view's height below the crosshair: close enough that the editor's bottom
-        /// log panel (measured live, the open map ends ~0.22 of the height below the centre in a 2200×1200 window) does not cover it.</summary>
-        public const float HudBelowCrosshair = 0.07f;
-
-        /// <summary>⭐ CE-1079 — how far right of the crosshair the HUD block ends, as a share of the view's width.</summary>
-        public const float HudPastCrosshair = 0.05f;
+        public const int HudFontSize = 20, HudLineHeight = 24;
 
         /// <summary>
-        /// ⭐ CE-1079 — where the HUD block starts: just under the crosshair (<see cref="HudBelowCrosshair"/> of the view below it), ENDING
-        /// a little right of it (<see cref="HudPastCrosshair"/> of the width) — in the editor the crosshair sits right of the open map's
-        /// centre (its left panel column is wider than its right one), so a block centred on it was cut by the right panels. ⚠ Not a screen corner: the
-        /// editor draws the map UNDER its docked panels (the map first, ImGui after — <c>Program.cs</c>), and its left column and bottom
-        /// log cover the window's corners, so a corner HUD was hidden (measured live, a 2200×1200 window). The crosshair is where the view
-        /// is open by construction.
+        /// ⭐ CE-1140 — where the HUD block starts: the BOTTOM-LEFT corner of the visible map (<see cref="Fdp.Presentation.WindowManager.OpenMapArea"/>
+        /// — the dockspace's open hole, so no docked panel covers it), out of the forward view. 🔒 User, 2026-10-16: <i>"the HUD could rather
+        /// be in the left bottom side of the screen, not obstructing the forward view"</i>. ⛔ SUPERSEDED: CE-1079 put it under the crosshair
+        /// because the window's corners were hidden by the panels — the open area answers that now.
         /// </summary>
         public static (int X, int Y) HudOrigin(Vector2 viewport, int lineCount, int width)
         {
-            int cx = (int)(viewport.X / 2f), cy = (int)(viewport.Y / 2f);
-            int y = cy + (int)(viewport.Y * HudBelowCrosshair);
-            y = Math.Min(y, (int)viewport.Y - lineCount * HudLineHeight - 8);   // a short view still shows every line
-            return (Math.Max(8, cx + (int)(viewport.X * HudPastCrosshair) - width), y);
-        }
-
-        private static int MaxWidth(string[] lines)
-        {
-            int width = 0;
-            foreach (var line in lines) width = Math.Max(width, Raylib.MeasureText(line, HudFontSize));
-            return width;
+            var at = Fdp.Presentation.WindowManager.OpenMapArea.Corner(viewport, left: true, top: false, width, lineCount * HudLineHeight, margin: 16f);
+            return ((int)Math.Max(8f, at.X), (int)Math.Max(8f, at.Y));
         }
 
         /// <summary>⭐ CE-1078 — where the locked shot is: on its unit while it stands, else the locked point. ⭐ CE-1125 — the point the
@@ -211,9 +202,30 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The HUD's text, apart from drawing (the rails read it).</summary>
         public static class Hud
         {
+            /// <summary>⭐ CE-1140 — each kind of line its colour, so the eye finds it: health green → yellow → red by how hurt; the
+            /// selected weapon yellow, the others grey-white; LOCKED orange; the stance cyan; the flight line light blue; the keys grey.
+            /// 🔒 User, 2026-10-16: <i>"colored texts (different kind of info in different color) to easily find the one the player is interested in"</i>.</summary>
+            public static Color ColourOf(EntityRepository w, Entity unit, string line, bool keys)
+            {
+                if (keys || line.StartsWith("LMB", StringComparison.Ordinal) || line.Contains("Esc release", StringComparison.Ordinal))
+                    return new Color(175, 175, 175, 255);
+                if (line.StartsWith("HEALTH", StringComparison.Ordinal))
+                {
+                    float f = w.IsComponentTypeRegistered<Health>() && w.HasComponent<Health>(unit) && w.GetComponentRO<Health>(unit).Max > 0f
+                        ? w.GetComponentRO<Health>(unit).Current / w.GetComponentRO<Health>(unit).Max : 1f;
+                    return f > 0.6f ? new Color(120, 235, 120, 255) : f > 0.3f ? new Color(250, 210, 80, 255) : new Color(255, 90, 80, 255);
+                }
+                if (line.StartsWith("> ", StringComparison.Ordinal)) return new Color(255, 220, 90, 255);
+                if (line.StartsWith("  ", StringComparison.Ordinal)) return new Color(215, 215, 215, 255);
+                if (line.StartsWith("LOCKED", StringComparison.Ordinal)) return new Color(255, 150, 50, 255);
+                if (line.StartsWith("STANCE", StringComparison.Ordinal)) return new Color(120, 220, 255, 255);
+                if (line.StartsWith("SPD", StringComparison.Ordinal)) return new Color(150, 200, 255, 255);
+                return Color.RayWhite;
+            }
+
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
-                                         ControlScheme scheme = ControlScheme.Person)
+                                         ControlScheme scheme = ControlScheme.Person, bool running = false)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -229,14 +241,15 @@ namespace Hrot.UI.Common.Map3D
                     for (int m = 0; m < Math.Max((int)a.Count, 1); m++) lines.Add(WeaponLine(w, unit, a, m, m == mount));
                 }
                 if (shotPending) lines.Add("LOCKED - fires when the weapon bears (RMB cancels)");   // ⭐ CE-1078
-                if (!vehicle && !flyer && stance is { } st) lines.Add($"STANCE {st.ToString().ToUpperInvariant()}");   // ⭐ CE-1074
+                if (!vehicle && !flyer && stance is { } st)
+                    lines.Add($"STANCE {st.ToString().ToUpperInvariant()}{(running ? "  RUN" : "")}");   // ⭐ CE-1074 / CE-1143
                 lines.Add(scheme switch
                 {
                     ControlScheme.FixedWing => "mouse: fly where you look  W/S throttle  Esc release",          // ⭐ CE-1095
                     ControlScheme.Rotorcraft => "W/S/A/D fly  mouse turn  Space/C climb  Esc release",
                     _ => vehicle
                         ? $"W/S throttle  A/D steer  V {(hullLocked ? "free look" : "hull view")}  Esc release"
-                        : "W/A/S/D move  mouse look  Shift run  C stance  Esc release",
+                        : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  Esc release",
                 });
                 lines.Add("LMB fire  RMB cancel  1-4 / wheel weapon  F ammo");   // ⭐ CE-1078 / CE-1079
                 return lines.ToArray();
@@ -352,6 +365,7 @@ namespace Hrot.UI.Common.Map3D
         private bool _lookInitialised;
         private uint _seq;
         private Fdp.Toolkit.Tkb.Domain.StanceId? _stance;   // ⭐ CE-1074 — the stance the operator asked for (null: not yet)
+        private bool _crouchHeld;                          // ⭐ CE-1143 — Ctrl held: crouched while held
         private Vector3 _eye;                              // ⭐ CE-1073 — where the eye was placed this frame
         private bool _eyeKnown;
         private byte _shotSeq, _cancelSeq, _ammoSeq;       // ⭐ CE-1078 / CE-1079 — presses, counted (DESIGN_Entity_Control §8e)
@@ -372,6 +386,12 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1078 — a shot locked by the last press has not left yet, as this station sees it (the mount's count has not
         /// dropped since the press; RMB clears it). The HUD's LOCKED.</summary>
         public bool ShotPending { get; private set; }
+
+        /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
+        public Fdp.Toolkit.Combat.OperatorFireMode FireMode
+            => _world() is { } w && w.IsAlive(Unit)
+                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, Unit, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, Unit, Mount))
+                : Fdp.Toolkit.Combat.OperatorFireMode.Sight;
 
         /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
         public long LockedTarget => _shotTarget;
@@ -406,7 +426,11 @@ namespace Hrot.UI.Common.Map3D
         public float Pitch => _pitch;
 
         /// <summary>⭐ CE-1074 — the stance the operator has asked for (a person; null for a vehicle or before the first frame).</summary>
-        public Fdp.Toolkit.Tkb.Domain.StanceId? Stance => _stance;
+        public Fdp.Toolkit.Tkb.Domain.StanceId? Stance
+            => _crouchHeld && _stance is { } st && st != Fdp.Toolkit.Tkb.Domain.StanceId.Prone ? Fdp.Toolkit.Tkb.Domain.StanceId.Crouched : _stance;
+
+        /// <summary>⭐ CE-1143 — Shift is held: the person runs (the frame's gait 0).</summary>
+        public bool Running { get; private set; }
 
         /// <summary>⭐ CE-1073 — where the eye is this frame (world metres).</summary>
         public Vector3 Eye => _eye;
@@ -478,6 +502,7 @@ namespace Hrot.UI.Common.Map3D
             };
             if (scheme == ControlScheme.FixedWing) side = 0f;
             bool run = input.IsKeyDown(MapKeyboardKey.LeftShift) || input.IsKeyDown(MapKeyboardKey.RightShift);
+            Running = run;
             float wheel = input.MouseWheelMove;
             if (wheel != 0f) Mount = NextMount(Mount, wheel > 0f ? -1 : 1);
             // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; F moves the selected weapon to its next round
@@ -488,7 +513,12 @@ namespace Hrot.UI.Common.Map3D
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
                 _stance ??= Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(sw, Unit);
-                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.C)) _stance = NextStance(_stance.Value);
+                // ⭐ CE-1143 — a shooter's keys: hold Ctrl to crouch (letting go stands him back up), C toggles crouched, Z toggles prone.
+                //   🔒 User, 2026-10-16: "CTRL when pressed should make him crouch (and releasing ctrl should make him stand again),
+                //   special key toggle for prone mode would be better then the cycling today".
+                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.C)) _stance = ToggleCrouch(_stance.Value);
+                if (input.IsKeyPressed((MapKeyboardKey)KeyboardKey.Z)) _stance = ToggleProne(_stance.Value);
+                _crouchHeld = input.IsKeyDown(MapKeyboardKey.LeftControl) || input.IsKeyDown(MapKeyboardKey.RightControl);
             }
             Place(camera);   // ⭐ CE-1073 — this frame's look shows this frame (Update ran before the input)
 
@@ -505,7 +535,7 @@ namespace Hrot.UI.Common.Map3D
                               && lw.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var lockedUnit)
                     ? Fdp.Toolkit.Combat.AimPoint.ToUnitFrame(lw, lockedUnit, aimAt) : aimAt;
                 _ammoAtPress = AmmoOf(Mount);
-                ShotPending = true;
+                ShotPending = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock;   // ⭐ CE-1127 — a SIGHT shot holds nothing to show
             }
             if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
@@ -522,7 +552,7 @@ namespace Hrot.UI.Common.Map3D
                 Trigger = input.IsMouseButtonDown(MapMouseButton.Left) ? (byte)1 : (byte)0,
                 Mount = (byte)Mount,
                 AimPoint = aimAt,
-                Stance = !vehicle && _stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074
+                Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
             };
             _station.Send(_netId, frame);
@@ -537,13 +567,14 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>
-        /// Where the crosshair rests: ⭐ CE-1080 (§8e D-4) — the nearest of the terrain and the units' boxes under the screen centre (never
-        /// the operator's own body — <see cref="EntityBoxPicker"/> skips it); a unit gives the point where the ray meets its box and its
-        /// network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
+        /// Where the crosshair rests: ⭐ CE-1080 (§8e D-4) — the nearest of the terrain and the units under the screen centre (never
+        /// the operator's own body — <see cref="EntityPartPicker"/> skips it); ⭐ CE-1126 (§8g F-4) a unit by the PART the ray enters (the
+        /// round's own boxes), giving that point and its network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
         /// </summary>
         public static (Vector3 Point, long Target) Aim(MapCamera3D camera)
         {
-            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.All);
+            // ⭐ CE-1126 (§8g F-4) — the terrain and the entities' PARTS (the round's own boxes): the point is on his head, arm or hull
+            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.Aim);
             if (hit.Kind == PickKind.None || !float.IsFinite(hit.Distance) || hit.Distance > AimReach)
                 return (camera.Eye + camera.Forward * AimReach, 0L);
             return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);
@@ -562,6 +593,14 @@ namespace Hrot.UI.Common.Map3D
         private int AmmoOf(int mount)
             => _world() is { } w && w.IsComponentTypeRegistered<WeaponAmmo>() && w.HasComponent<WeaponAmmo>(Unit)
                 ? w.GetComponentRO<WeaponAmmo>(Unit).AmmoOf(mount) : 0;
+
+        /// <summary>⭐ CE-1143 — C: crouched ↔ standing (from prone it crouches).</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId ToggleCrouch(Fdp.Toolkit.Tkb.Domain.StanceId s)
+            => s == Fdp.Toolkit.Tkb.Domain.StanceId.Crouched ? Fdp.Toolkit.Tkb.Domain.StanceId.Standing : Fdp.Toolkit.Tkb.Domain.StanceId.Crouched;
+
+        /// <summary>⭐ CE-1143 — Z: prone ↔ standing.</summary>
+        public static Fdp.Toolkit.Tkb.Domain.StanceId ToggleProne(Fdp.Toolkit.Tkb.Domain.StanceId s)
+            => s == Fdp.Toolkit.Tkb.Domain.StanceId.Prone ? Fdp.Toolkit.Tkb.Domain.StanceId.Standing : Fdp.Toolkit.Tkb.Domain.StanceId.Prone;
 
         /// <summary>⭐ CE-1074 — the stance after <paramref name="s"/> in the cycle standing → crouched → prone → standing.</summary>
         public static Fdp.Toolkit.Tkb.Domain.StanceId NextStance(Fdp.Toolkit.Tkb.Domain.StanceId s) => s switch

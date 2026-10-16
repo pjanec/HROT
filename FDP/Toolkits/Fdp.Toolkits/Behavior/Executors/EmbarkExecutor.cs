@@ -92,7 +92,10 @@ namespace Fdp.Toolkit.Behavior.Executors
             else
             {
                 float range = p.MaxBoardingRange > 0f ? p.MaxBoardingRange : 3f;
-                var soldierPos = world.GetComponent<SimTransform>(who).Position;
+                // ⭐ CE-2225 — the range is the LOADER's: a casualty being loaded (who ≠ entity) cannot walk, and PutDown lays him a
+                //   body-length from his carrier — measured from him, a man put down just outside the range waited here for ever
+                //   (live ua-air-rescue: the pilot on the ground 5 m from the UH-60, his medic standing by). Self-embark: who == entity.
+                var soldierPos = world.GetComponent<SimTransform>(entity).Position;
                 var vehiclePos = world.GetComponent<SimTransform>(p.VehicleEntity).Position;
                 if (Vector3.Distance(soldierPos, vehiclePos) > range) { channel.Status = NodeStatus.Running; return; }
                 if (Embarkation.FreeSeat(world, p.VehicleEntity, p.Role) < 0)   // ⭐ CE-2151 — no free seat of the type's (CE-2176: of the role)

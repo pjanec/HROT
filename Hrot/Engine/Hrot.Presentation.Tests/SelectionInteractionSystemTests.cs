@@ -396,6 +396,44 @@ public class SelectionInteractionSystemTests
         Assert.True(_world.GetComponent<SelectionState>(b).IsSelected);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1136 (docs/DESIGN_Map_3D_Mode.md §6z) — in 3-D the marquee is a SCREEN rectangle: with the view's projection lent to the band,
+    /// what PROJECTS inside it is selected — here a unit 100 m away along the view (far outside the ground rectangle of the two picked
+    /// points) but on screen inside the box — and what projects outside is not. 🔒 User, 2026-10-16: <i>"the 3d map has no multi-selection
+    /// marquee, one would be very useful."</i>
+    /// </summary>
+    [Fact]
+    public void CE1136_In3D_TheMarqueeSelectsWhatProjectsInsideTheScreenRectangle()
+    {
+        var band = new Hrot.ScenarioEditor.Gizmos.RubberBandState
+        {
+            Projector = p => new System.Numerics.Vector2(p.Y, p.Z),   // a view looking along +X: screen x = world Y, screen y = world Z
+        };
+        var system = new SelectionInteractionSystem(_world, _world.Bus, band);
+        var near = CreateSelectableEntity();
+        var far = CreateSelectableEntity();
+        var outside = CreateSelectableEntity();
+        _world.SetComponent(near, new SimTransform { Position = new System.Numerics.Vector3(0f, 5f, 1f) });
+        _world.SetComponent(far, new SimTransform { Position = new System.Numerics.Vector3(100f, 5f, 1f) });
+        _world.SetComponent(outside, new SimTransform { Position = new System.Numerics.Vector3(0f, 50f, 1f) });
+
+        PublishStartedEvent(Entity.Null, new System.Numerics.Vector3(0f, 0f, 0f));
+        system.Tick(0f);
+        Assert.True(band.InScreen);
+        _world.Bus.Publish(new GizmoDragUpdateEvent { Token = default, WorldPos = new System.Numerics.Vector3(0f, 10f, 10f) });
+        _world.Bus.SwapBuffers();
+        system.Tick(0f);
+        Assert.Equal(new System.Numerics.Vector2(10f, 10f), band.ScreenCurrent);
+        _world.Bus.Publish(new GizmoInteractionCommitEvent { Token = default });
+        _world.Bus.SwapBuffers();
+        system.Tick(0f);
+        ServeRequests();
+
+        Assert.True(_world.GetComponent<SelectionState>(near).IsSelected);
+        Assert.True(_world.GetComponent<SelectionState>(far).IsSelected, "on screen inside the box, though far off the ground rectangle");
+        Assert.False(_world.GetComponent<SelectionState>(outside).IsSelected);
+    }
+
     // SIS-004: GizmoKeyEvent(Delete, isPressed=false) on selected entity publishes DestroyEntityCommand.
     [Fact]
     public void GizmoKeyEvent_Delete_Released_OnSelectedEntity_PublishesDestroyCommand()

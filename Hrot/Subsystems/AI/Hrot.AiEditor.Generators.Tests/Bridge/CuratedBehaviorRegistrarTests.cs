@@ -231,9 +231,11 @@ public sealed class CuratedBehaviorRegistrarTests
 
     /// <summary>
     /// ⭐⭐ <b>The overlay's params TYPE reaches a topology this registrar does NOT own.</b>
-    /// <c>HullDownAttackRun</c>'s topology belongs to its generated JSON registrar and expresses the
+    /// <c>PlatoonHillAttack</c>'s topology belongs to its generated JSON registrar and expresses the
     /// layout only via <c>ManagedBlackboardVariables</c>, so <c>RegisterResolver</c>'s third argument
-    /// is the only carrier.
+    /// is the only carrier. ⭐ <c>CE-2230</c>: this rail used to stand on <c>HullDownAttackRun</c>; its resolver is a TYPED block
+    /// resolver now (<c>Resolve(in TAuthored, ref TBlock, …)</c>), whose block layout the generated registrar declares itself, so
+    /// it no longer carries a params type — <c>PlatoonHillAttack</c> is the remaining raw-shape resolver with a <c>ParamsType</c>.
     ///
     /// <para>⚠ <b>An overlay for a name with no topology is NOT observable</b> — it waits in a
     /// pending map. ⛔ My first draft of this rail asserted <c>TryGetId</c> would succeed and it
@@ -246,7 +248,7 @@ public sealed class CuratedBehaviorRegistrarTests
         var beh = new BehaviorRegistry();
         CuratedBehaviorRegistrar.Register(beh, NodeLogic());
 
-        const string name = "HullDownAttackRun";
+        const string name = "PlatoonHillAttack";
         beh.TryGetId(name, out _).Should().BeFalse(
             "this registrar supplies only the RESOLVER for it — registering a topology would " +
             "hard-error against the generated JSON registrar's");
@@ -263,7 +265,7 @@ public sealed class CuratedBehaviorRegistrarTests
 
         def!.ParseParams.Should().NotBeNull("the pending overlay must bind when the topology arrives");
         def.BlackboardLayoutType.Should()
-            .Be(typeof(Hrot.AI.Behaviors.Brains.HullDownAttackParams));
+            .Be(typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams));
     }
 
     // ── SR_R6 / SR_R7 ─────────────────────────────────────────────────────────

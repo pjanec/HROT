@@ -247,6 +247,13 @@ internal sealed class LocalWindowController
 
         wm.GlobalMenu.RegisterSeparator("Settings/Layout/sep_save_default");
 
+        // ⭐ CE-1137 — the scene heard from the 3-D camera outside FPS (off by default, saved in the operator's audio.json). 🔒 User,
+        //   2026-10-16: "a menu settings for enabling sounds in 3d map non-FPS mode heard from the camera position".
+        wm.GlobalMenu.RegisterCheckableItem(
+            "Settings/Sound in the 3-D view (from the camera)",
+            () => Hrot.UI.Common.Audio.AudioPreferences.CameraSound,
+            v => Hrot.UI.Common.Audio.AudioPreferences.CameraSound = v);
+
         wm.GlobalMenu.RegisterItem("Settings/Layout/Save current as default", () =>
         {
             // ⭐⭐ Flush BOTH halves first — 📌 "the layout" is the pair, and saving one of them is the

@@ -121,6 +121,17 @@ public sealed class AudioTests
 
     // ── which sound (AU-5) ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ CE-1141 — footsteps sit well under a rifle shot: at least 15 dB below it in the catalogue, and the operator's own
+    /// movement at half. 🔒 User, 2026-10-16: <i>"the footstep sound should be way less loud now too close to the rifle shot."</i></summary>
+    [Fact]
+    public void CE1141_FootstepsAreWellUnderARifleShot()
+    {
+        var steps = SoundTkbCatalog.SoundOf(null, SoundTkbCatalog.Footsteps)!;
+        var shot = SoundTkbCatalog.SoundOf(null, SoundTkbCatalog.ShotSmall)!;
+        Assert.True(shot.VolumeDb - steps.VolumeDb >= 15f, $"footsteps {steps.VolumeDb} dB vs the shot {shot.VolumeDb} dB");
+        Assert.True(SoundSources.OwnMoverShare <= 0.5f);
+    }
+
     [Fact]
     public void CE1120_AShotsSoundFollowsItsFlash_ABurstsItsFireball_AMoversItsClass()
     {
@@ -171,6 +182,26 @@ public sealed class AudioTests
         var mute = new AudioLayer(() => world, () => tkb, () => me, () => North, () => new NullAudioOutput { Opens = false });
         mute.Update(0.016f);
         Assert.Equal(AudioState.Silent, mute.State);
+    }
+
+    /// <summary>⭐ CE-1137 — with no unit held the scene is silent (AU-3) unless the operator turned on the camera sound: then the layer
+    /// listens from the camera, with no "own" unit. 🔒 User, 2026-10-16: <i>"a menu settings for enabling sounds in 3d map non-FPS mode
+    /// heard from the camera position"</i>.</summary>
+    [Fact]
+    public void CE1137_WithNoUnitHeld_TheCameraListens_OnlyWhenTheOperatorAsks()
+    {
+        var (world, tkb) = World();
+        bool camera = false;
+        var layer = new AudioLayer(() => world, () => tkb, () => Entity.Null, () => North, () => new NullAudioOutput(), cameraSound: () => camera);
+        layer.Update(0.016f);
+        Assert.Equal(AudioState.Idle, layer.State);
+        camera = true;
+        layer.Update(0.016f);
+        Assert.Equal(AudioState.Active, layer.State);
+        Assert.NotNull(SoundEvents.Of(world));
+        camera = false;
+        layer.Update(0.016f);
+        Assert.Equal(AudioState.Idle, layer.State);
     }
 
     [Fact]

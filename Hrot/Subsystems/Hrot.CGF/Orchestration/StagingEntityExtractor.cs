@@ -437,11 +437,35 @@ namespace Hrot.CGF.Orchestration
                 }
             }
 
+            static void RemapHoldUnits(Hrot.Map.Common.Components.RoutePlan route, Dictionary<long, long> map)
+            {
+                bool any = false;
+                foreach (var w in route.Waypoints) any |= w.HoldUnit != 0 && map.ContainsKey(w.HoldUnit);
+                if (!any) return;
+                route.Mutate(list =>
+                {
+                    for (int i = 0; i < list.Count; i++)
+                        if (list[i].HoldUnit != 0 && map.TryGetValue(list[i].HoldUnit, out var renamed))
+                        {
+                            var w = list[i];
+                            w.HoldUnit = renamed;
+                            list[i] = w;
+                        }
+                });
+            }
+
             void RemapSlot(SavedBrainSlot? slot)
             {
                 if (slot == null) return;
                 slot.Params = behaviorRemapper!.RemapJson(slot.Name, slot.Params, oldToNewMap) ?? slot.Params;
             }
+
+            // ⭐ CE-2226 — a route's Pickup waypoint names the unit it waits for (RouteWaypoint.HoldUnit, a network id). The type plan
+            //   below cannot reach it (RoutePlan.Waypoints is a read-only view over a private list), so it is rewritten here, like the
+            //   brain params above. 🔴 Measured live on ua-air-rescue: the hold kept the saved id, named nothing, and the UH-60 waited
+            //   at the LZ with every man aboard until the casualty it had picked up died.
+            foreach (var comp in comps)
+                if (comp is Hrot.Map.Common.Components.RoutePlan route) RemapHoldUnits(route, oldToNewMap);
 
             // ⭐⭐ DESIGN_Entity_Reference.md D4 — every EntityRef inside every component (the Initial*Intent DTOs the
             // scenario translators write, and any other component holding one) is rewritten by the ONE type plan, in place

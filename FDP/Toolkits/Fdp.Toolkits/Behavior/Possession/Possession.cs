@@ -130,7 +130,8 @@ namespace Fdp.Toolkit.Behavior.Possession
     /// <see cref="PossessedBy"/>: a request starts the operator behaviour at origin <see cref="BehaviorOrigin.Possession"/> (which pauses
     /// the unit's task); a later station takes the unit over (C-3); frames from the holding station become <see cref="OperatorInput"/>
     /// (newest seq wins); a release — or the unit's death — clears the behaviour at origin Possession, which RESUMES the paused task
-    /// (C-4), and a body left in Manual with no possession running is let go (<see cref="LetGoOfManual"/>). Events about units this
+    /// (C-4), and a body left in Manual with no possession running is let go (<see cref="LetGoOfManual"/>). ⭐ Q91 §4-F: the holding
+    /// station's node leaving (<c>NodeDeparted</c>) releases its units the same way. Events about units this
     /// node does not own are left to the translators.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
@@ -181,6 +182,14 @@ namespace Fdp.Toolkit.Behavior.Possession
             // C-3 / §4.3 — a killed unit is released on its own.
             foreach (var unit in repo.Query().With<PossessedBy>().Build())
                 if (OwnsBrain(repo, unit) && !Alive(repo, unit)) Release(repo, unit);
+
+            // ⭐ Q91 §4-F (F1) — the station's NODE left (a Player node is disposable: it may crash or disconnect at any time): every
+            //   unit it holds is released by the SAME path as Esc, so its paused task resumes. ⛔ No timer (R-4001) — the release keys on
+            //   the departure itself (NodeDeparted, raised on every node when a node's capability descriptor goes not-alive).
+            if (repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
+                foreach (ref readonly var gone in repo.Bus.Read<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
+                    foreach (var unit in repo.Query().With<PossessedBy>().Build())
+                        if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
 
             LetGoOfManual(repo);
         }
