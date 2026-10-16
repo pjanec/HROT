@@ -1741,6 +1741,8 @@ def run_technical_scoot(c, timeout):
             md = data(call("GET", f"/entities/{atgm}/memory")) or {}
             tst = ((data(call("GET", f"/entities/{tank}/weapons")) or {}).get("status") or {})
             tmd = data(call("GET", f"/entities/{tank}/memory")) or {}
+            hst = ((data(call("GET", f"/entities/{hmg}/weapons")) or {}).get("status") or {})
+            print(f"      HMG @{tick}s at {track[hmg][-1] if track[hmg] else None} weapon {hst.get('reason')} {hst.get('progress')}/{hst.get('needed')} health {health(hmg)}")
             print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (tmd.get('slots') or [])][:3]} · health {health(tank)}")
             print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
                   f" knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}")
@@ -1784,7 +1786,12 @@ def run_technical_scoot(c, timeout):
         away = [(round(px), round(py)) for (tk, px, py) in timed[tech] if tk > t0 and ((px - m[0]) ** 2 + (py - m[1]) ** 2) ** 0.5 >= 5]
         return away[:1]
     a_sc, h_sc = scooted(atgm, ("ATGM", "Kornet")), scooted(hmg, ("HMG", "M2"))
-    c.ok(len(a_pts) >= 2 or bool(a_sc), f"① the ATGM technical shoots and scoots — fired from {a_pts}, then drove to {a_sc}")
+    # ⭐ the design's ending (Urban Armour Tactics row ua-technical-scoot): the tank ranks the ATGM technical first and KILLS it — so a
+    #   technical that fired and was then destroyed before it could drive away has done its part (measured 2026-10-16: killed ~2 s after its
+    #   first Kornet in one run, scooted to a new point in the next)
+    a_killed = bool(a_pts) and _dead(atgm)
+    c.ok(len(a_pts) >= 2 or bool(a_sc) or a_killed,
+         f"① the ATGM technical shoots and scoots (or is killed by the tank after its shot) — fired from {a_pts}, then drove to {a_sc}, dead {_dead(atgm)}")
     c.ok(len(h_pts) >= 2 or bool(h_sc), f"① the HMG technical shoots and scoots — fired from {h_pts}, then drove to {h_sc}")
     tank_shots = by.get("Tank", [])
 
