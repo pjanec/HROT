@@ -129,6 +129,13 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 2 / 2 red: the Catastrophic rule off (the tail rail), the wreck rule off (the ejection rail); the solver rail's own parts-off row |
 | ⚠ wire | `BodyPlan` gains `FixedWing` (appended; the `PartDamage` header — IDL regenerated) |
 
+## 3i. Live verification on the cluster (`2026-10-16`, `utility-demo-check.py --launch`, at `8e70971a3` + behaviors `186e3d6ca`)
+
+| demo | result | what it shows |
+|---|---|---|
+| `ua-tank-ammo` | ✅ **PASS 2 / 2** | ⭐ CE-2203 live: the M1's HE round **hit the technical** (Engine, Side — S2's parts) and killed it; the riflemen died. ⭐ CE-2204 live: the M1 ended at **3000 / 3000** — no self-hit; the rifle hits on it arrive at 5 mm and do nothing |
+| `ua-javelin-lock` | ② ✅ · ① 2 / 4 ✗ (behaviors' WIP) | ⭐ CE-2201: Javelin B's 230 m launches flew DIRECT and hit (Side), 2 / 2, the open tank killed. ⭐ CE-2200: Javelin A launched **0** rounds (it fired a blind round before). ⛔ "the cycling tank fights" / "Javelin A aimed" fail on behaviors' newest WIP vignette (`186e3d6ca`: the tank sat in its hide at (250, 101), Javelin A "not seen" throughout) — their scenario geometry, in progress; not a backend finding |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
 The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b) and CE-3215 (S2c) are built — the hit-location programme's slices are all in.
