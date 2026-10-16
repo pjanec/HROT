@@ -392,6 +392,33 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2215</c> — a dangerous threat I do NOT see still bounds my exposure when it can see me: the RPG man on my side, not in
+        /// my tracks, with a clear line from where I remember him ⇒ 1.4 s; a wall between us ⇒ the full exposure. 📐 Live <c>ua-javelin-lock</c>:
+        /// the tank did not see the Javelin gunner it knew of, exposed for 8 s, and gave him his 4 s lock.
+        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot()
+        {
+            var d = new Duel(Tank());
+            d.UseTkb();
+            d.EnemyTo(new Vector3(0f, 80f, 0f));
+            d.See(false);
+            var p = VehicleFightFromCoverNodes.Effective(d.P, scoot: false);
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
+            Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
+
+            var wall = new[] { new Vector2(-10f, 40f), new Vector2(10f, 40f), new Vector2(10f, 41f), new Vector2(-10f, 41f) };
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism { Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0f, TopZ = 6f,
+                                                                       Min = new Vector2(-10f, 40f), Max = new Vector2(10f, 41f) } },
+            });
+            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+        }
+
         /// <summary>⭐⭐ <c>V4_R5</c> — a NEAR MISS while exposed cuts the exposure at once: back in reverse, rounds left unfired.</summary>
         [Fact]
         public void V4_ANearMiss_CutsTheExposure()

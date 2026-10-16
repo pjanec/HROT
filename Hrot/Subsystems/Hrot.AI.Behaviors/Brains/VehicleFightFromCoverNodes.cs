@@ -487,13 +487,35 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (!world.IsAlive(e) || ThreatDanger.Of(world, self, e) < p.AtDangerMin || !SightNow.Sees(world, self, e)) continue;
+                if (!world.IsAlive(e) || ThreatDanger.Of(world, self, e) < p.AtDangerMin || !CanSeeMe(world, self, in mem, i, e)) continue;
                 budget = MathF.Min(budget, p.AimBudgetFactor * AimAndFireExecutor.AimSecondsFor(world, e, 0));
             }
             return budget;
         }
 
-        /// <summary>A threat dangerous to me (<c>AtDangerMin</c>) is in sight now.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-2215</c> — the remembered threat in slot <paramref name="i"/> CAN SEE ME now: I see him (R-246: if I see him, he sees
+        /// me) — or, when I do not, the line from where I remember him (his eye, 1.6 m up) to my hull's top is clear of the terrain. Sight is
+        /// not symmetric: a Javelin gunner at a window with a thermal sight sees a hull it does not show itself to. 📐 Live
+        /// <c>ua-javelin-lock</c>: the tank, not seeing the gunner it knew of, exposed for its full 8 s and gave him his 4 s lock.
+        /// No terrain ⇒ only the R-246 half (as before).
+        /// </summary>
+        internal static unsafe bool CanSeeMe(EntityRepository world, Entity self, in TargetMemory mem, int i, Entity threat)
+        {
+            if (SightNow.Sees(world, self, threat)) return true;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (terrain == null || !world.HasComponent<SimTransform>(self)) return false;
+            var me = world.GetComponentRO<SimTransform>(self).Position;
+            float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, self);
+            var top = me + new Vector3(0f, 0f, hull > 0f ? hull : 2f);
+            var him = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + ThreatEyeHeightM);
+            return !terrain.SightBlocked(him, top);
+        }
+
+        /// <summary>The eye height of a remembered threat for <see cref="CanSeeMe"/> (m) — a standing man's.</summary>
+        public const float ThreatEyeHeightM = 1.6f;
+
+        /// <summary>A threat dangerous to me (<c>AtDangerMin</c>) can see me now (<see cref="CanSeeMe"/>).</summary>
         private static unsafe bool SeenByADangerousThreat(EntityRepository world, Entity self, in VehicleFightFromCoverParams p)
         {
             if (!world.HasComponent<TargetMemory>(self)) return false;
@@ -502,7 +524,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (world.IsAlive(e) && ThreatDanger.Of(world, self, e) >= p.AtDangerMin && SightNow.Sees(world, self, e)) return true;
+                if (world.IsAlive(e) && ThreatDanger.Of(world, self, e) >= p.AtDangerMin && CanSeeMe(world, self, in mem, i, e)) return true;
             }
             return false;
         }
