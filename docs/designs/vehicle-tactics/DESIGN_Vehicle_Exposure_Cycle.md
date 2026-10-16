@@ -299,6 +299,16 @@ kills it, taking one hit (3000 → 2550). 📐 **What the run taught — five ro
 
 Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).
 
+⭐ **Live `2026-10-16` — `ua-ifv-standoff`, `ua-javelin-lock`, `ua-tank-ammo`: what the runs taught** (`scripts/utility-demo-check.py`):
+
+| demo | what happened | the cause, and where it went |
+|---|---|---|
+| `ua-ifv-standoff` | the IFV never fired at the two RPG men walking in from 340 m; they reached 18 m and hit it | ① **scenario**: the IFV sat on the 2.5 m compound wall (x 380–440, y 100–160) and the men walked in along it — never seen, no memory slot at 120 m ⇒ the vignette moved to y 40 |
+| | … and it stood with its gun `done` on a man 420 m off for 100 s | ② **CE-2202 (fixed here)**: it had killed that man; `TopThreat` kept the dead current (nothing else scored above zero) and the ranking's top can be a body ⇒ `VehicleFightFromCover` guarded a corpse. Now a kept current and the top must be `CombatLife.IsAlive`, else the first live remembered entity. Rail `CE2202_ADeadThreat_IsNotFought_ALiveOneRemembered_Is`. ⚠ `TopThreat` is shared by every posture behaviour |
+| `ua-javelin-lock` | both Javelin hits were SIDE hits, one on the cycling tank | **CE-2200 (backend)**: `AimAndFireExecutor.FireBlind` fires the Javelin at a hidden tank's last-known point with no lock — flown direct; the lock denial is bypassed |
+| | the locked top attack at 230 m landed 580 m beyond its tank | **CE-2201 (backend)**: the profile (30° climb to +150 m, 30°/s turn) cannot come back down on a target that close — [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Lock.md) |
+| `ua-tank-ammo` | the M1 fired nothing in 260 s | **scenario**: at y 80 the ridge (crest y 210) hid every target ⇒ the tank moved north of it |
+
 ⭐ **Found live `2026-10-15` (`ua-tank-corner`), fixed — CE-2195:** the `Parallel(1)` above is RequireOne, which FAILS only when every
 child failed — and `UntilTargetDown` with no target named was Running for ever, so a cycle that failed (no hide for `NoCoverSeconds`)
 left the behaviour running dead and the SOP could not react again. ⇒ with no target it now ABSTAINS (Failure) and the cycle's result is
