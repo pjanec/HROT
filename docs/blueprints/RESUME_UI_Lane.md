@@ -203,6 +203,7 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1128 / CE-1129 | ⭐ every surface a round meets is marked — entry and exit of what it pierces, where it stops, the ground — a puff and a mark lying on the face (own `RoundImpact` topic, cross-lane) | [Visual Effects §10](../DESIGN_Visual_Effects.md) |
 | CE-1130 | OPEN — small-arms sight zero and bullet drop (direct rounds have no gravity yet) — for the combat lane | [tracker](Blueprint_Issues_Tracker.md) |
 | CE-1131…1145 | OPEN — the user's manual-test list (`2026-10-16`): flyer view cluttered by its own airframe (1131), RTS attack modifier + cheat sheet (1132), RMB moves deselected units (1133), inspector list menu + "Properties…" (1134/1135), 3-D marquee (1136), camera sound setting (1137), wheel zoom + WASD acceleration (1138/1142), posture not moving the camera (1139), HUD font/place/colour (1140), footsteps too loud (1141), shooter controls (1143), FPS "use" key — needs a design talk (1144), FPS counter + render telemetry over HTTP (1145) | [tracker](Blueprint_Issues_Tracker.md) |
+| CE-1146 | OPEN, to discuss first — weather and time of day drawn in the 3-D map for FPS only (fog, flat procedural cloud layers, sun/moon, horizon glow, never darker than twilight, emissive effects stay bright); it is backend's weather design slice S3 / hand-off U5 | [tracker](Blueprint_Issues_Tracker.md) |
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 
