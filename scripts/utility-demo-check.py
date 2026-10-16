@@ -2077,7 +2077,11 @@ def run_airborne_drop(c, timeout):
         for m in men:
             d = _descent(m)
             if d and m not in jumped:
-                jumped[m] = (t, position(heli))
+                # ⭐ the exit time is the descent's own: its first phase began at the door (PhaseSince). The poll loop takes ~2 s
+                #   for eight reads, so the sample time alone cannot resolve a 1 s stick interval (live 2026-10-16: gaps read 0.0)
+                since = d.get("PhaseSince")
+                exit_t = since if since is not None and _phase(d) not in ("Canopy", "Landed") else t
+                jumped[m] = (exit_t, position(heli))
                 tg = d.get("Target")
                 if tg:
                     targets[m] = tuple(tg) if isinstance(tg, list) else (tg.get("X"), tg.get("Y"), tg.get("Z"))
@@ -2088,7 +2092,15 @@ def run_airborne_drop(c, timeout):
                              [(_phase(_descent(m)) if _descent(m) else ("aboard" if _aboard(m) else "down")) for m in men],
                              (maneuver(ids.get("Airborne squad")) or {}).get("kind")))
         if len(jumped) == 8 and all(not _descent(m) for m in men):
-            time.sleep(40)   # the walk to the rally
+            # ⭐ the walk to the rally: a round canopy holds a man 40 s on the ground (LandingSeconds — out of the harness), then the
+            #   stick's ends walk ~140 m at 3 m/s. Wait for the squad to stand together, up to 150 s, rather than a fixed sleep.
+            walk_from = sim_time() or t
+            def _spread():
+                pts = [p for p in (position(m) for m in men) if p]
+                mid = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+                return max(flat(p, mid) for p in pts)
+            wait_for(lambda: _spread() <= 20, 150, every=2)
+            print(f"      assembled after {round((sim_time() or 0) - walk_from, 1)} s of walking (spread {_spread():.1f} m)")
             break
         time.sleep(0.25)
     for row in timeline[:80]:
