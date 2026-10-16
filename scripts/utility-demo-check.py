@@ -1708,6 +1708,13 @@ def run_tank_ammo(c, timeout):
         print("      outcomes", dict(__import__("collections").Counter(x.get("outcome") for x in xs)))
         for x in xs[:3]:
             print("      e.g.", {k: x.get(k) for k in ("muzzle", "aim", "end", "hit", "outcome", "penetration", "crossings")})
+    at_tank = [x for x in shots.values() if x.get("target") == tank or x.get("hit") == tank]
+    print("    rounds at the tank:", dict(__import__("collections").Counter((name.get(x.get("shooter")), x.get("outcome"), x.get("hitPart"), x.get("hitFace")) for x in at_tank)))
+    for x in [x for x in at_tank if x.get("hit") == tank][:3]:
+        print("      hit on tank", {k: x.get(k) for k in ("shooter", "penetration", "damage", "arrivingDamage", "arrivingPenetration", "hitPart", "hitFace", "crossings")})
+    soft = [x for x in mine if x.get("target") != t72]
+    if soft:
+        print("      a soft-target round (all keys):", {k: v for k, v in soft[0].items() if k not in ("crossings",)})
     md = data(call("GET", f"/entities/{tank}/memory")) or {}
     print("    tank memory:", [(name.get(x.get("networkId"), x.get("networkId")), round(x.get("freshness") or 0, 1), x.get("modalities"), x.get("alive")) for x in md.get("slots") or []])
     hit = [n for n in ("Enemy Tank", "Technical", "Rifleman 1", "Rifleman 2") if n in by_target]
