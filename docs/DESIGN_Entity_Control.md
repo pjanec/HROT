@@ -1204,7 +1204,7 @@ Built against §8h.2's diagrams; the class names are the diagram's. Where it dif
 Rails: `InteractionTransportTests.CE3172_PossessControlRelease…` (the three fields cross unchanged), `PossessionReplicationTests.CE1156_…`
 and `.CE1153_…`, `OperatorUseActionsTests` (door, body, vehicle, weapon, params, `CanEmbark` ≡ `TryEmbark`).
 
-### 8h.8 AS-BUILT — the behaviors half, S9a (`CE-1154`, `2026-10-16`, behaviors)
+### 8h.8 AS-BUILT — the behaviors half, S9a–c (`CE-1154`, `CE-1155`, `CE-1157`, `2026-10-16`, behaviors)
 
 Built against §8h.2's class diagram and the door sequence: `OperatorControlBehavior.OperateUse` runs inside the one `ManualControl` node,
 after `OperateWeapon`, in the same shape — a new `UseSeq` ⇒ `OperatorUseActions.For(world, soldier, target)` ⇒ the verb `UseVerb` names ⇒
@@ -1218,9 +1218,13 @@ the action on the `InteractionChannel` with `OperatorUseActions.WriteParams` ⇒
 | repeat press | a press while an earlier use action runs REPLACES it (a new action instance ⇒ the executor starts over) | ⭐ not in §8h.2; the alternative (ignore the press) would swallow the human's intent with no verdict |
 | new station | a frame whose `Seq` goes back resets the use counter to 0, as the trigger's does | — |
 | buffer | the rule's answer goes to a `[ThreadStatic]` `UseAction[MaxActions]` | `UseAction` carries its label (a string), so it cannot be `stackalloc`ed; a press must not allocate |
+| `CE-1155` man a weapon | `E` on a standalone weapon = the rule's *Man* (embark, Role Gunner) through the same `OperateUse`; he is its `ControllerOf`, possession stays on him | 📐 **measured gap, fixed**: the station's controlled index (32+k) reached `AimAndFireExecutor`, which already fires the weapon through it (WS-3), but `OperateWeapon` read the index ON THE MAN (`CombatTkb.MountOf`, `WeaponMountQuery.MountEntity`) ⇒ the weapon's type was lost — an ATGM fired by SIGHT with a held trigger REPEATING, `F` cycled the man's rifle. ⭐ `OperatedMount` resolves a controlled index to the weapon and its mount 0, the executor's own rule |
+| `CE-1157` drive, ride, get out | `E` on a vehicle = the rule's *Drive* / *Pilot* (embark, Role Driver); while `Riding` the possession takes his frames, and the operator brain then holds him still, starts nothing, he stays aboard; back in Fps `E` is *Get out* | ⭐ **found writing the rail**: frameless ticks zeroed the last frame number, so a station RESTARTING its frames after the ride (Seq 1, counters from 0) was not seen as new and its first press — `UseSeq` 1, equal to the Drive press — was swallowed. ⭐ `ManualControl` keeps the last frame number when no frame arrives |
 
-Rails (red-proved): `EmbarkNodesTests.CE1154_OneUseOpensAClosedDoor_ASecondClosesIt_…`, `.CE1154_OutOfReach_IsRefusedWithItsReason_…`,
-`.CE1154_UseOnAManDown_DragsHim_AndUseAgain_PutsHimDown`, `.CE1154_ANewStationsFirstPress_IsActedOn_…`; across nodes
+Rails (each red-proved by a compiling mutant): `EmbarkNodesTests.CE1154_OneUseOpensAClosedDoor_ASecondClosesIt_…`, `.CE1154_OutOfReach_IsRefusedWithItsReason_…`,
+`.CE1154_UseOnAManDown_DragsHim_AndUseAgain_PutsHimDown`, `.CE1154_ANewStationsFirstPress_IsActedOn_…`,
+`.CE1155_UseOnAStandaloneWeapon_MansItsGunnerSeat_AndItsControlledMountFiresAsThatWeapon`,
+`.CE1157_UseOnAVehicle_DrivesIt_ARiderHoldsStillAboard_AndUseAgain_GetsOut`, `.CE1157_AStationThatRestartsItsFramesAfterTheRide_IsStillHeard`; across nodes
 `EntityOrdersAcrossNodesTests.CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_…` (SimHost station → CGF brain → the door's
 owner; the verdict on SimHost and on the pure IG — the live IG check `CE-1153` left owed).
 
