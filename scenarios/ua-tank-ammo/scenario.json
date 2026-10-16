@@ -96,10 +96,10 @@
         "Value": 8512
       },
       "TkbIdentity": {
-        "TkbType": 106
+        "TkbType": 104
       },
       "EntityInfo": {
-        "Name": "Pickup",
+        "Name": "Technical",
         "ForceId": "Hostile"
       },
       "Health": {
@@ -143,7 +143,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [470, 440, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"target\": 8501, \"assault\": true}",
         "Origin": "Superior"
       }
     },
@@ -180,7 +180,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"advance\": {\"Objective\": [478, 446, 0], \"Speed\": 1, \"ArrivalRadius\": 3, \"CooldownSeconds\": 1}}",
+        "Params": "{\"target\": 8501, \"assault\": true}",
         "Origin": "Superior"
       }
     }
