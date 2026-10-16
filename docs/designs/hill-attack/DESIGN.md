@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13 (R-2006)
-current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
+current-answer: ⭐ §0 (CE-2230, DESIGN 2026-10-16 — the tank run rebuilt on the vehicle exposure cycle; leans HA-1..HA-6 awaiting the user). Until it is built, §1–§6 describe the running build; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
 stale-below: nothing.
 known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) (the `PlatoonHillAttackBpAuthoring` mention near §4 is history) · ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
   destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
@@ -32,6 +32,139 @@ engaging enemies in a designated target area, and cycling until the area is clea
 
 The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented Design
 (DOD) constraints, occurrence-scoped storage, and the 256 component-type limit.
+
+---
+
+## §0 — CE-2230: the tank run rebuilt on the vehicle exposure cycle *(DESIGN, `2026-10-16`, leans awaiting the user)*
+
+> 🔒 **User, `2026-10-16`:** *"Hill attack needs Complete ground-up rework … the tanks that are creeping forward, they should stop as
+> soon as they see the targets that are supposed to be under the hill, so the tanks are not exposed in full to enemy fire. They go just
+> as far as they can start firing at the targets. They could also use the full reverse capability now. And they should use the usual
+> behaviors when seeing enemy entities, so picking the targets and picking the correct weapon and firing until the enemy is
+> eliminated. using standard behaviors."*
+
+`build-state: DESIGN` — the phases below (§3–§4) are the build being replaced; this section is the replacement.
+
+### §0.1 INVENTORY *(codebase-memory, `2026-10-16`)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph .*(HullDown\|HillAttack\|HillCrest\|Crest).*` (Class) | 21 | `HillAttackCommanderNodes`, `HillAttackTankNodes`, `HillAttackMutableState`, `HullDownAttackParams/Blackboard/IntentDto/Mapper`, `PlatoonHillAttackParams(+JsonDto)`, `HillAttackGizmo`, `HillCrestHullDownManeuver` (+ tests) |
+| `search_graph .*(HullDown\|HillCrest\|SightHeight\|TurretHeight\|FirstSight\|Crest).*` (Method) | 7 | the tank tree, its params parser, two terrain rails — ⛔ **no "first sight" query exists anywhere** |
+| `grep HillCrestHullDownManeuver\.` (non-test) | 1 | `SquadDrillNames` only — a config stub with **no runner** (`DESIGN_Squad_Tactics`: "nothing runs them") |
+| the engagement path the rework reuses | — | `VehicleFightFromCoverNodes` (hide / expose / engage / reverse, exposure budget, near-miss cut) · `PostureNodes.Fire` (the ONE aimed step, `MountAuto` ⇒ the weapon brain picks weapon and round, M8) · `PostureNodes.UntilTargetDown` + `DesignatedTarget` (a named target ranked first and entered in memory) · `SightNow.Sees` (seen THIS frame) · `LocomotionMoveTo.Issue(reverseAllowed)` (V5 reverse) |
+
+### §0.2 What the build does today — measured
+
+| claim | code — how it IS | design basis — how it was MEANT |
+|---|---|---|
+| the creep stops only for the ONE assigned target, and never looks during the approach | ✅ `HillAttackTankNodes.cs:220-222` (`!isFarPhase && …TargetNetworkId`) | ✅ §3.1 "until the assigned target enters line of sight"; `.dev/_DONE/hill-attack/initial-idea.md`: *"until it sees the target well"* |
+| fire is a bespoke node at a fixed target, ONE round per run | ✅ `:328` `Action_AimAndFireSpecific`; `HillAttackCommanderNodes.cs:476` `MaxRounds = 1` | ⛔ R-261 *"the behaviour names the target; the weapon brain picks weapon and ammo"* — the bespoke node predates it |
+| the reverse works now | ✅ V5 (`DESIGN_Vehicle_Exposure_Cycle` §5): `hill-attack-close` tank 1002 backed 115 m at −10 m/s | ✅ §3.1 phase 4 |
+| the scenarios have NO hill | ✅ `berlin` has no height grid; live `2026-10-16`: `/perception/los` 1001→1006 clear from t = 0; memory stays empty until a tank is ~100 m off (t ≈ 24 s) | ✅ CE-174 ruling: `VisionRange` 100 stands in for the hill; ⛔ the user's `scenarios/hill-attack/` is not to be changed |
+| a real crest exists | ✅ `basic-desert` ridge: x 220–330, crest y = 210 at 10 m, foot y ≈ 160 / 260 (`basic-desert.height.asc`) | ✅ `DESIGN_Terrain_Height` H2 (a hill blocks sight and fire), H4 |
+| stopping at first sight IS hull-down | ✅ sight runs from the TKB eye (`SensorMount`, tank 2.5 m — `/perception/los` `eyeHeight`) and is one segment both ways | ✅ R-246 *"if your eye sees out, your head shows"* — at the first sight only the turret top clears the crest |
+
+### §0.3 The design — **one cycle, a second way to expose**
+
+The hill run IS the exposure cycle (`R-256` L1(d): one implementation per concept), with the commander supplying what the cycle
+otherwise searches for: the **hide** is the tank's baseline slot, and the **exposure** is a drive along a LANE (from the firing slot,
+along the attack direction) that ends the moment the tank SEES a target — instead of a drive to an EQS firing point.
+
+```mermaid
+classDiagram
+  class PlatoonHillAttack { <<existing BTree, commander>> waves · area query · slots }
+  class HullDownAttackRun { <<existing BTree name, REBUILT>> Sequence: Parallel1(UntilTargetDown ‖ VehicleFightFromCover) · ReverseHome }
+  class VehicleFightFromCoverParams { <<existing, +4 fields>> +GivenHide xy · +LaneStart xy · +LaneDir xy · +MaxExposures }
+  class VehicleFightFromCoverNodes { <<existing>> Choose · MoveToHide · Hidden · Exposing · Engaging · Withdrawing }
+  class LaneExposure { <<new private step>> approach → creep → stop on SightNow.Sees }
+  class PostureNodes { <<existing>> Fire(target, MountAuto) · UntilTargetDown }
+  class DesignatedTarget { <<existing>> the commander's pick ranked first }
+  class HullDownAttackParams { <<existing DTO, trimmed>> Slot · Baseline · AttackDir · Target · Speeds }
+  class HillAttackTankNodes { <<existing — 5 nodes RETIRED>> CreepToAndBeyondSlot · AimAndFireSpecific · ReverseToBaseline · HasTarget · AbortEngagement }
+  PlatoonHillAttack ..> HullDownAttackParams : dispatches (intent HullDownAttack)
+  HullDownAttackRun --> PostureNodes : UntilTargetDown
+  HullDownAttackRun --> VehicleFightFromCoverNodes : lane mode
+  VehicleFightFromCoverNodes --> LaneExposure : when LaneDir ≠ 0
+  VehicleFightFromCoverNodes --> PostureNodes : Fire
+  PostureNodes --> DesignatedTarget
+  HullDownAttackParams ..> VehicleFightFromCoverParams : resolved into
+```
+*What the picture shows that prose hid: nothing new beside one private step — the commander, the cycle, the fire step and the
+designation all exist; the tank's five bespoke nodes go.*
+
+```mermaid
+sequenceDiagram
+  participant C as PlatoonHillAttack
+  participant T as HullDownAttackRun (tank)
+  participant N as VehicleFightFromCover (lane)
+  participant L as LocomotionMoveTo
+  participant F as PostureNodes.Fire / weapon brain
+  C->>T: HullDownAttack {slot, baseline, dir, target}
+  T->>T: UntilTargetDown: designate target (ranked first, entered in memory)
+  N->>N: Choose: hide = the given baseline slot (no hide query)
+  N->>L: drive to the hide · Hidden (gun tracking the reported target)
+  N->>L: Exposing: approach the lane start, then creep along dir
+  loop every tick of the creep
+    N->>N: SightNow.Sees(locked target)? (any body point clear)
+  end
+  N->>L: seen → Stop (hull-down: only the turret clears the crest)
+  N->>F: Fire(target, MountAuto) — the weapon brain picks gun and round (M8)
+  F-->>N: target down → next SEEN threat, until none is seen (HA-3)
+  N->>L: Withdraw: REVERSE to the hide (V5) — on a hit / near miss at once
+  N-->>T: MaxExposures reached → Success
+  T-->>C: run ended (BehaviorFinished) · wave completion as today (§4.5)
+```
+*What the picture shows: the stop is a sight test on EVERY creep tick (today: none during the approach), and the run ends through the
+cycle's own withdraw — no separate retreat node.*
+
+```mermaid
+graph TD
+  REG["curated registrar (Hrot.AI.Behaviors)"] -->|registers| HDA["HullDownAttackRun tree"]
+  REG -->|registers| VFC["VehicleFightFromCover node (shared)"]
+  BTS["BrainTickSystem — CGF brain, every frame"] -->|ticks| PHA["PlatoonHillAttack (commander)"]
+  BTS -->|ticks| HDA
+  PHA -->|AssignTacticalIntentEvent| TIR["TacticalIntentResolutionSystem (CGF)"]
+  TIR -->|HullDownAttackMapper| HDA
+  HDA --> VFC
+  VFC -->|LocomotionChannel| LOC["locomotion executor (SimHost)"]
+  VFC -->|WeaponChannel| AAF["AimAndFireExecutor + AmmoChoice (SimHost)"]
+  SNS["perception → ActiveSensorTracks (brain)"] -->|SightNow.Sees| VFC
+```
+*Who calls it each frame: `BrainTickSystem` on the CGF brain ticks both trees; the SimHost executors act on the channels. No new
+system, no new registration — the only edge that changes is HullDownAttackRun → VehicleFightFromCover.*
+
+### §0.4 Decisions — lean per item *(the user approves or names the one to change)*
+
+| # | question | ⭐ lean | blast radius | what would change it |
+|---|---|---|---|---|
+| **HA-1** | where the tank run lives | ⭐ **inside the exposure cycle**: `VehicleFightFromCover` gains a LANE exposure (given hide + lane start + direction) and `MaxExposures`; `HullDownAttackRun` becomes `Sequence{ Parallel(1){UntilTargetDown ‖ cycle(lane, 1 exposure)}, reverse home }` | the shared cycle gains 4 params, all zero = today's behaviour (every existing vehicle demo unchanged); the 5 tank nodes and their 2 deactivator test classes are deleted | if the cycle's urban rules (hide heat, scoot, relocate) fight the lane — then a sibling node reusing the cycle's steps |
+| **HA-2** | when the creep stops | ⭐ **the first tick the tank SEES its locked target** (`SightNow.Sees` — any body point clear), checked through the WHOLE drive, approach included; the 50 m overshoot cap stays (CE-174) | lane mode only | if "first sight" proves too early (one pixel of the target) — then require ≥ 2 body points, a one-line change |
+| **HA-3** | how long it stays up | ⭐ **until nothing it SEES is alive**: after its target dies the next seen threat is fired at (standard ranking, designated first); a HIT or NEAR MISS still sends it back at once (the cycle's rule); the time budget is OFF for the lane (hull-down shows only the turret, and the waves alternate) | lane mode only | if you want shoot-and-duck: keep the cycle's exposure budget (0.7 × the quickest enemy gunner's aim time) |
+| **HA-4** | target and weapon | ⭐ **the commander's pick is a DESIGNATION** (ranked first, entered in memory so the tank tracks it from behind the crest); the weapon brain picks the gun and the round (`MountAuto`, M8); `MaxRounds = 1` goes | the commander's dispatch DTO drops `MaxRounds`/`RoundsFired`/`LastObservedAmmo` | none expected — R-261 |
+| **HA-5** | the commander | ⭐ **kept as it is** (waves, area query, slots, burned slots, return to baseline) — only its dispatch payload changes | `HillAttackCommanderNodes` dispatch only | if you want the squad-manoeuvre runner instead — it does not exist (`HillCrestHullDownManeuver` is a stub); that is its own programme |
+| **HA-6** | the demo | ⭐ **a new `ua-hill-attack` on `basic-desert`'s ridge** (platoon south of it, two enemy tanks north, beyond the crest), with a live check: no tank's hull above the crest when it fires, every tank reverses, both enemies die; `hill-attack` / `hill-attack-close` stay untouched (CE-174) and keep running | a new scenario + checker entry | if you would rather the existing scenarios move to the ridge |
+
+**Rejected:** a new hill-only fire node — duplicates `PostureNodes.Fire` (R-256 L1(d)) · the squad-manoeuvre `HillCrestHullDown` —
+no runner exists · an EQS "hull-down point" query — the lane already gives the line, and the sight test is exact where a sampled
+query is not · moving `hill-attack` to a real hill — CE-174 keeps the user's scenario as it is.
+
+**Design docs checked:** `DESIGN_Vehicle_Exposure_Cycle` — applies: owns the cycle, already says the hill attack is re-pointed at it,
+and asks for "the nearest point that sees the target" to be designed once (§6 open point) — the LANE is that answer on open ground,
+the town keeps its EQS ring · `DESIGN_Urban_Armour_Tactics` — applies: D-I (the behaviour never names a round), D-J (a tank reverses) ·
+`DESIGN_Missiles_And_Ammo` §2a — applies: M8 round choice inside the executor · `DESIGN_Peek_And_Fire` G8 — does not: infantry only,
+"hull-down is its own manoeuvre" · `Squad_Coordination_Design_v1_1` §8.4 — does not: a manoeuvre table with no runner ·
+`REVIEW_Behaviour_Library_Genericity` L5/§6 — superseded in part: it kept the hill fire and reverse demo-local; this retires them into
+the library cycle.
+
+### §0.5 Slices *(after approval)*
+
+| slice | what | rails |
+|---|---|---|
+| **H-1** | the cycle's lane mode: `GivenHide`, `LaneStart`/`LaneDir`, `MaxExposures`; the lane exposure step; HA-3's stay-while-seen | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · stays and re-targets while a target is seen · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
+| **H-2** | `HullDownAttackRun` rebuilt on it; the dispatch payload trimmed; the 5 tank nodes retired | `HillAttackIntegrationTests` (the feature's own suite) + `HillAttackNodeTests` re-homed to the new run |
+| **H-3** | `ua-hill-attack` on the ridge + its checker; the runbook | live: hull-down at the shot, reverse home, both enemies dead |
+| **H-4** | fold the as-built here; this section's §3–§4 to HISTORY | — |
 
 ---
 
