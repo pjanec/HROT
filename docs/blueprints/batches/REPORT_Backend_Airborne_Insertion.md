@@ -136,6 +136,16 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | `ua-tank-ammo` | ✅ **PASS 2 / 2** | ⭐ CE-2203 live: the M1's HE round **hit the technical** (Engine, Side — S2's parts) and killed it; the riflemen died. ⭐ CE-2204 live: the M1 ended at **3000 / 3000** — no self-hit; the rifle hits on it arrive at 5 mm and do nothing |
 | `ua-javelin-lock` | ② ✅ · ① 2 / 4 ✗ (behaviors' WIP) | ⭐ CE-2201: Javelin B's 230 m launches flew DIRECT and hit (Side), 2 / 2, the open tank killed. ⭐ CE-2200: Javelin A launched **0** rounds (it fired a blind round before). ⛔ "the cycling tank fights" / "Javelin A aimed" fail on behaviors' newest WIP vignette (`186e3d6ca`: the tank sat in its hide at (250, 101), Javelin A "not seen" throughout) — their scenario geometry, in progress; not a backend finding |
 
+## 3j. CE-2206 (`2026-10-16`, behaviors' [orbit handoff](HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)) — folded into [Motion Domains §5c](../../designs/motion-models/DESIGN_Motion_Domains.md)
+
+| | |
+|---|---|
+| root cause | pure pursuit at full lock traces the hull's smallest turning circle; a point INSIDE it is never on that circle — the follower orbits for ever (live: 60 s round a ~5 m circle) |
+| fix | `InsideTurningCircle` ⇒ drive on straight at `TurnClearanceSpeed` (2 m/s) until the point is outside both circles; then one arc reaches it. Direct mode and a path's end-homing |
+| rejected | reversing (the circles mirror); "success as close as the circle allows" (a 2.3 m move could end ~7 m off); a loop detector (state, one orbit anyway) |
+| gates | `Fdp.Toolkits.Tests` 3 646 / 0 / 1; `Hrot.SimHost.Tests` 1 444 / 0 / 6; red-proof 2 / 2 red (the rule off ⇒ both modes orbit) |
+| ⚠ for behaviors | CE-2205's 4 m arrival in `VehicleFightFromCover` can stay or go back to the move's own radius — your call |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
 The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b) and CE-3215 (S2c) are built — the hit-location programme's slices are all in.

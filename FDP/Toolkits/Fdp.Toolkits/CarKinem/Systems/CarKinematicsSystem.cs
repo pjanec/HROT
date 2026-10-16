@@ -297,6 +297,13 @@ namespace CarKinem.Systems
                          targetSpeed = nav.TargetSpeed;
                          // ⭐ CE-2198 — the envelope less the controller's lag (StoppingSpeed)
                          targetSpeed = MathF.Min(targetSpeed, StoppingSpeed(in @params, toDest.Length() - nav.ArrivalRadius, state.Speed));
+                         // ⭐ CE-2206 — a point inside the hull's turning circle: drive on straight until it is not, then turn to it
+                         if (@params.Class != VehicleClass.Pedestrian && InsideTurningCircle(in @params, pos2D, fwd2D, navDestXY))
+                         {
+                             targetHeading = fwd2D;
+                             targetPos = pos2D + fwd2D;
+                             targetSpeed = MathF.Min(nav.TargetSpeed, TurnClearanceSpeed);
+                         }
                     }
                     else
                     {
@@ -549,6 +556,9 @@ namespace CarKinem.Systems
                         homing = MathF.Min(homing, MathF.Max(StoppingSpeed(in @params, toEnd - tol, speedNow), TrajectoryEndCrawlSpeed));
                         // ⭐ CE-2198 — the end BEHIND the hull: creep while it turns, never speed away from it
                         if (Vector2.Dot(dir, fwd2D) < 0f) homing = MathF.Min(homing, TrajectoryEndCrawlSpeed);
+                        // ⭐ CE-2206 — the end inside the hull's turning circle: drive on straight until it is not, then turn to it
+                        if (@params.Class != VehicleClass.Pedestrian && InsideTurningCircle(in @params, pos2D, fwd2D, endXY))
+                            return (pos2D + fwd2D, fwd2D, MathF.Min(nav.TargetSpeed > 0f ? nav.TargetSpeed : TurnClearanceSpeed, TurnClearanceSpeed));
                         return (pos2D + dir, dir, homing);
                     }
 
@@ -650,6 +660,23 @@ namespace CarKinem.Systems
         /// <summary>⭐ CE-2059 — the slowest a vehicle approaches a trajectory's end, so the braking envelope (which tends to
         /// 0 at the end) still lets it get there.</summary>
         private const float TrajectoryEndCrawlSpeed = 0.5f;
+
+        /// <summary>⭐ <c>CE-2206</c> — how fast a hull drives straight on to bring a point out of its turning circle (m/s).</summary>
+        internal const float TurnClearanceSpeed = 2f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2206</c> (docs/designs/motion-models/DESIGN_Motion_Domains.md §5c) — is <paramref name="point"/> inside either of the hull's
+        /// smallest turning circles (radius WheelBase / sin MaxSteerAngle, the bicycle model's)? No forward arc reaches such a point: pure
+        /// pursuit at full lock circles it for ever (📐 live ua-javelin-lock: an M1 sent 2.3 m to a cover point orbited it 60 s). Driving on
+        /// straight moves the circles off it; once it is outside both, one arc of radius ≥ the smallest reaches it.
+        /// </summary>
+        internal static bool InsideTurningCircle(in VehicleParams p, Vector2 pos, Vector2 fwd, Vector2 point)
+        {
+            if (p.WheelBase <= 0f || p.MaxSteerAngle <= 0f) return false;
+            float r = p.WheelBase / MathF.Sin(MathF.Min(p.MaxSteerAngle, 1.5f));
+            var left = new Vector2(-fwd.Y, fwd.X) * r;
+            return Vector2.DistanceSquared(point, pos + left) < r * r || Vector2.DistanceSquared(point, pos - left) < r * r;
+        }
 
         /// <summary>
         /// ⭐ <c>CE-2198</c> — the speed that still stops <paramref name="distance"/> ahead: the braking envelope sqrt(2·MaxDecel·d), with
