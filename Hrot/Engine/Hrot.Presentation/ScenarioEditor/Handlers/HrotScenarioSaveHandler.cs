@@ -43,18 +43,15 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
     private const string ScenarioDocType = "Hrot.Scenario";
 
     private readonly ScenarioSerializer   _serializer;
-    private readonly ITkbDatabase?        _tkbDb;
     private readonly EntityRepository     _world;
     private readonly int                  _nodeId;
 
     public HrotScenarioSaveHandler(
         ScenarioSerializer   serializer,
-        ITkbDatabase?        tkbDb,
         EntityRepository     world,
         int                  nodeId)
     {
         _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
-        _tkbDb         = tkbDb;
         _world         = world          ?? throw new ArgumentNullException(nameof(world));
         _nodeId        = nodeId;
     }
@@ -97,8 +94,8 @@ public sealed class HrotScenarioSaveHandler : IClusterStateHandler
         var localFile = Path.Combine(dir, ScenarioFileName);
 
         // The ONE host-neutral save implementation — gated ScenarioSerializer + this host's zones.
-        // ⭐ CE-3015 — the terrain is stamped from what this node has RESIDENT, exactly as the TKB name is.
-        var header = new ScenarioHeader(ScenarioDocType, TkbName: _tkbDb?.ActiveTkbName,
+        // ⭐ CE-3015 — the terrain is stamped from what this node has RESIDENT. ⛔ R-4018: never a TKB name.
+        var header = new ScenarioHeader(ScenarioDocType,
             TerrainName: Fdp.Toolkit.Terrain.TerrainDefinition.ResidentName(_world));
         ScenarioSaveCore.Write(_serializer, _world, localFile, header);
 

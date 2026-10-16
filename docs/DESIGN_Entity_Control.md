@@ -11,6 +11,7 @@ related-designs:
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS PersonBody / VehicleBody, the parts a round meets; §8g's crosshair meets the same parts through one function (BodyPartRay)
   - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
   - docs/designs/audio/DESIGN_FPS_Audio.md — sound exists only while PossessionStation holds a unit; the ear is the FPS camera (AU-3)
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — §4-F: PossessionSystem also releases a unit when its station's node DEPARTS (today only Esc or death).
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the simple pilot models that answer M-4 (mouse-aim plane, helicopter hover hold) and ControlScheme.FixedWing (R-2015)
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — makes manual drive per locomotion class (a Vertical axis, a control scheme per class at the station) so every motion model is possessable (MD-D)

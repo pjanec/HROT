@@ -80,6 +80,8 @@ namespace Fdp.Toolkit.Orchestration
         public int    LocalStateId;
         public long   WallTicksUtc;
         public string SubsystemName;
+        /// <summary>⭐ C2 (R-4006 I5) — the cluster session this node follows; empty until it has seen one.</summary>
+        public Guid   SessionId;
         // CE-286 (C-roles): the `NodeRole Roles` field was REMOVED. Roles are static and now travel as
         // fdp.role.* tokens on the durable NodeCapabilities descriptor (NodeCapabilitiesEvent), from which the
         // orchestrator/cache DERIVE the mask at ingest (AQ-70 §Q70-C). The heartbeat is telemetry-only again.
@@ -115,6 +117,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
         public Guid ExerciseId;
+        /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session.</summary>
+        public Guid SessionId;
+        /// <summary>⭐ C4 (R-4006 I4) — telemetry: completed rounds so far.</summary>
+        public int TransactionEpoch;
     }
 
     /// <summary>
@@ -132,6 +138,42 @@ namespace Fdp.Toolkit.Orchestration
     }
 
     /// <summary>
+    /// ⭐⭐ <c>C6</c> (Q91 §4-N, <c>R-4014</c> K6) — the master's <c>InSync</c> set changed. The cluster's network adapter writes
+    /// it to <c>OrchestratorContextTopic.RequiredNodeIdsJson</c> (durable, one producer); every node's cluster cache uses it so a
+    /// creator's reliable-init barrier waits only for in-sync peers.
+    /// </summary>
+    [EventId(9064)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct InSyncSetChangedEvent
+    {
+        public int[] NodeIds;
+    }
+
+    /// <summary>⭐⭐ <c>C1</c> (Q91 §4-O, <c>R-4009</c>) — a process asks the master for a node id (computer name + process id).</summary>
+    [EventId(9065)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeIdRequestEvent
+    {
+        public string ComputerName;
+        public int ProcessId;
+        public int ForcedId;
+        public int PreferredId;
+    }
+
+    /// <summary>⭐⭐ <c>C1</c> — the master's answer to a <see cref="NodeIdRequestEvent"/>.</summary>
+    [EventId(9066)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct NodeIdGrantEvent
+    {
+        public string ComputerName;
+        public int ProcessId;
+        public int NodeId;
+        public System.Guid SessionId;
+        public bool Refused;
+        public string Reason;
+    }
+
+    /// <summary>
     /// Published by <c>OrchestrationObserverTranslator</c> (DDS→bus) and by
     /// <c>ClusterMaster</c> (bus-mode) when the global cluster state transitions.
     /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.
@@ -143,6 +185,10 @@ namespace Fdp.Toolkit.Orchestration
         /// <summary>New cluster state.</summary>
         public ClusterState CurrentState;
         public Guid ExerciseId;
+        /// <summary>⭐ C2 (R-4006 I5) — the master's cluster session (empty from a sender that does not set it).</summary>
+        public Guid SessionId;
+        /// <summary>⭐ C2 — the master's cluster-state writer is GONE (its instance went not-alive): the session has ended.</summary>
+        public bool MasterGone;
     }
 
     /// <summary>

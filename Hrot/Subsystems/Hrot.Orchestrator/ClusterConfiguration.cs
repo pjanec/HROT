@@ -34,6 +34,18 @@ public sealed class ClusterConfiguration
     /// </remarks>
     public string NasBasePath { get; init; } = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetSharedRoot();
 
+    /// <summary>⭐ The TKB name every deployment uses unless configured otherwise — the one name in use today.</summary>
+    public const string DefaultTkbName = "HrotDefault";
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> — the deployment's ONE TKB, synced from <c>{NasBasePath}/tkb/&lt;TkbName&gt;.zip</c> to every node
+    /// before every scenario load. ⛔ Never read from a scenario. ⭐ Works as is: the code default needs no configuration
+    /// file, and a missing master copy leaves every node on its built-in catalogue (🔒 user, <c>2026-10-15</c>: <i>"The
+    /// TKB name in the configuration must default to the single tkb file that we are having now … It must work with
+    /// default settings as is."</i>). 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.
+    /// </summary>
+    public string TkbName { get; init; } = DefaultTkbName;
+
     /// <summary>Default configuration: empty mandatory list, 5 s timeout, 50-entry history.</summary>
     public static ClusterConfiguration Default { get; } = new();
 
@@ -55,6 +67,7 @@ public sealed class ClusterConfiguration
         HeartbeatTimeoutSeconds    = HeartbeatTimeoutSeconds,
         TransactionHistoryCapacity = TransactionHistoryCapacity,
         NasBasePath                = NasBasePath,
+        TkbName                    = TkbName,   // ⭐ R-4018 — the one-node cluster syncs the same TKB
     };
 
     private static readonly JsonSerializerOptions _jsonOptions = FdpJsonOptionsRegistry.DefaultRelaxed;

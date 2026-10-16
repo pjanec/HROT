@@ -349,7 +349,7 @@ public sealed class StorageGatewayTests
 }
 
 /// <summary>
-/// TKB-018 -- Tests for <see cref="StorageGatewayModule"/> TkbName consensus check.
+/// TKB-018 -- the scenario files' header consensus. ⛔ <c>R-4018</c>: a legacy <c>TkbName</c> in them is ignored.
 /// </summary>
 [Collection("OrchestratorTests")]
 public sealed class StorageGatewayTkbConsensusTests
@@ -404,8 +404,12 @@ public sealed class StorageGatewayTkbConsensusTests
 
     // ── Test 2 ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⛔⛔ <c>R-4018</c> — FLIPPED: a scenario never names a TKB, so two slices carrying DIFFERENT legacy
+    /// <c>TkbName</c> values are not a conflict any more — the field is never read. Was: throws.
+    /// </summary>
     [Fact]
-    public async Task PrefetchScenario_ConflictingTkbNames_ThrowsInvalidOperationException()
+    public async Task PrefetchScenario_ConflictingLegacyTkbNames_AreIgnored()
     {
         var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var scenarioId = "conflict_tkb";
@@ -427,8 +431,9 @@ public sealed class StorageGatewayTkbConsensusTests
                 new NodeDistributionTarget { NodeId = 1, DestinationPath = destDir },
             };
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir));
+            var result = await gateway.PrefetchScenarioAsync(scenarioId, targets, nasDir);
+
+            Assert.True(result.IsFullSuccess);
         }
         finally
         {
@@ -643,25 +648,59 @@ public sealed class StorageGatewayTkbConsensusTests
     };
 
     /// <summary>
-    /// ⭐⭐⭐ <c>S2b</c> — a scenario whose header names a TKB leaves that zip on EVERY target node.
-    /// 🔴 This is the literal content of <c>BP-550</c>: before this batch, nothing wrote it anywhere.
+    /// ⭐⭐⭐ <c>R-4018</c> — the deployment's ONE TKB (the configured name) reaches EVERY target node on every prefetch,
+    /// with the <see cref="StagedTkb"/> record naming it — whatever the scenario says. ⚠ The scenario here names a
+    /// DIFFERENT legacy TKB, which must be ignored. (Was <c>S2b</c>: the scenario's own TKB, <c>BP-550</c>.)
     /// </summary>
     [Fact]
-    public async Task PrefetchScenario_StagesTheNamedTkbZip_OnEveryNode()
+    public async Task PrefetchScenario_SyncsTheConfiguredTkb_OnEveryNode_WhateverTheScenarioSays()
     {
         const string scenarioId = "s1";
-        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var nas  = MakeNas(scenarioId, "Legacy_v0", null, out _);
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         PublishTkb(nas, "Alpha_v1", "zip-bytes");
+        PublishTkb(nas, "Legacy_v0", "other-bytes");
 
         try
         {
             var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId), TargetIn(root, 2, scenarioId) };
-            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+            var result  = await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas, tkbName: "Alpha_v1");
 
+            Assert.Equal(0, result.FailureCount);
             foreach (var t in targets)
+            {
                 Assert.True(File.Exists(Path.Combine(t.TkbDestinationPath, "Alpha_v1.zip")),
-                    $"node {t.NodeId} did not receive the named TKB artifact");
+                    $"node {t.NodeId} did not receive the configured TKB");
+                Assert.Equal("Alpha_v1", StagedTkb.Read(t.TkbDestinationPath));
+                Assert.False(File.Exists(Path.Combine(t.TkbDestinationPath, "Legacy_v0.zip")),
+                    "the scenario's legacy TkbName must never be read");
+            }
+        }
+        finally { Cleanup(nas, root); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> — the DEFAULT deployment today: a configured name with NO master copy on the NAS is legal. Nothing
+    /// fails, nothing is staged, and a record left by an earlier sync is REMOVED, so every node falls back to its built-in
+    /// catalogue together.
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenario_WithNoTkbMasterCopy_SucceedsAndClearsAStaleRecord()
+    {
+        const string scenarioId = "s1b";
+        var nas  = MakeNas(scenarioId, null, null, out _);
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
+        try
+        {
+            var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
+            StagedTkb.Write(targets[0].TkbDestinationPath, "HrotDefault");   // an earlier sync's record
+
+            var result = await new StorageGatewayModule().PrefetchScenarioAsync(
+                scenarioId, targets, nas, tkbName: "HrotDefault");
+
+            Assert.Equal(0, result.FailureCount);
+            Assert.Null(StagedTkb.Read(targets[0].TkbDestinationPath));
         }
         finally { Cleanup(nas, root); }
     }
@@ -707,7 +746,7 @@ public sealed class StorageGatewayTkbConsensusTests
     ///
     /// <para>⚠ Asserting the SHAPE, not just existence, is what makes this non-vacuous: the scenario's own
     /// header block is nested under <c>header</c> and camelCase, and copying it verbatim would produce a
-    /// file <c>TkbLoadClusterStateHandler</c> and <c>ScenarioTerrainName</c> both fail to read.</para>
+    /// file <c>ScenarioTerrainName</c> fails to read.</para>
     /// </summary>
     [Fact]
     public async Task PrefetchScenario_WritesTheStagedHeader_InTheShapeTheNodeReads()
@@ -720,21 +759,21 @@ public sealed class StorageGatewayTkbConsensusTests
         try
         {
             var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
-            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas, tkbName: "Alpha_v1");
 
             var headerPath = Path.Combine(targets[0].TkbDestinationPath, StorageGatewayModule.StagedScenarioHeaderFileName);
             Assert.True(File.Exists(headerPath), "the staged ScenarioHeader.json was not written");
 
             using var doc = JsonDocument.Parse(File.ReadAllText(headerPath));
-            Assert.Equal("Alpha_v1",     doc.RootElement.GetProperty("TkbName").GetString());
             Assert.Equal("basic-desert", doc.RootElement.GetProperty("TerrainName").GetString());
+            // ⛔ R-4018 — the SCENARIO header carries no TKB name; the TKB's name lives in its own sync record.
+            Assert.False(doc.RootElement.TryGetProperty("TkbName", out _));
         }
         finally { Cleanup(nas, root); }
     }
 
     /// <summary>
-    /// ⭐⭐ A scenario naming NO TKB stages nothing and is NOT a failure — the <c>NedTkbCatalog</c>
-    /// fallback is a legal path. ⛔ One of the dispatch's three named traps.
+    /// ⭐⭐ A scenario naming NO terrain, with no TKB sync asked for, stages nothing and is NOT a failure.
     /// </summary>
     [Fact]
     public async Task PrefetchScenario_WithNoNamedArtifacts_StagesNothingAndSucceeds()
@@ -757,7 +796,7 @@ public sealed class StorageGatewayTkbConsensusTests
 
     /// <summary>
     /// ⭐⭐ <c>CE-3075</c> — a scenario naming NO artifacts, staged after one that named some, must not leave the
-    /// previous header behind: the node's terrain and TKB steps fall back to it when the load message is silent.
+    /// previous header behind: the node's terrain step falls back to it when the load message is silent.
     /// 📐 Measured live <c>2026-10-05</c>: <c>hill-attack-close</c> after <c>ua-posture</c> kept test-town on CGF.
     /// </summary>
     [Fact]
@@ -793,7 +832,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public async Task PrefetchScenario_Twice_WithNoNasChange_DoesNotRewriteTheArtifact()
     {
         const string scenarioId = "s4";
-        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var nas  = MakeNas(scenarioId, null, null, out _);
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         PublishTkb(nas, "Alpha_v1", "zip-bytes");
 
@@ -802,7 +841,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
             var gateway = new StorageGatewayModule();
 
-            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas);
+            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas, tkbName: "Alpha_v1");
             var dest  = Path.Combine(targets[0].TkbDestinationPath, "Alpha_v1.zip");
             var first = File.GetLastWriteTimeUtc(dest);
 
@@ -811,7 +850,7 @@ public sealed class StorageGatewayTkbConsensusTests
             var sentinel = new DateTime(2001, 2, 3, 4, 5, 6, DateTimeKind.Utc);
             File.SetLastWriteTimeUtc(dest, sentinel);
 
-            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas);
+            await gateway.PrefetchScenarioAsync(scenarioId, targets, nas, tkbName: "Alpha_v1");
 
             // ⚠ The stamp CHANGED the mtime, so IsAlreadyCurrent now differs and a copy is CORRECT.
             //   That is the point: the skip keys on the bytes' identity, not on "we did it once".
@@ -830,7 +869,7 @@ public sealed class StorageGatewayTkbConsensusTests
     public async Task TheStagedArtifactInheritsTheNasArtifactsTimestamp()
     {
         const string scenarioId = "s5";
-        var nas  = MakeNas(scenarioId, "Alpha_v1", null, out _);
+        var nas  = MakeNas(scenarioId, null, null, out _);
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var src  = PublishTkb(nas, "Alpha_v1", "zip-bytes");
         var srcStamp = new DateTime(1999, 12, 31, 23, 59, 58, DateTimeKind.Utc);
@@ -839,7 +878,7 @@ public sealed class StorageGatewayTkbConsensusTests
         try
         {
             var targets = new List<NodeDistributionTarget> { TargetIn(root, 1, scenarioId) };
-            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas);
+            await new StorageGatewayModule().PrefetchScenarioAsync(scenarioId, targets, nas, tkbName: "Alpha_v1");
 
             var dest = Path.Combine(targets[0].TkbDestinationPath, "Alpha_v1.zip");
             Assert.Equal(srcStamp, File.GetLastWriteTimeUtc(dest));
@@ -877,17 +916,17 @@ public sealed class StorageGatewayTkbConsensusTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>S2a</c>'s existing behaviour is UNCHANGED — disagreeing slices still fail loud. ⛔ The task
-    /// was "return the value it already computes", so this rail must stay green untouched.
+    /// ⭐⭐ <c>S2a</c> — disagreeing slices still fail loud, now on the TERRAIN name (the only name a scenario
+    /// carries). ⛔ <c>R-4018</c>: was the TKB name, which is no longer read.
     /// </summary>
     [Fact]
-    public async Task PrefetchScenario_WithDisagreeingTkbNames_StillFailsLoud()
+    public async Task PrefetchScenario_WithDisagreeingTerrainNames_StillFailsLoud()
     {
         const string scenarioId = "s6";
-        var nas = MakeNas(scenarioId, "Alpha_v1", null, out var scenarioDir);
+        var nas = MakeNas(scenarioId, null, "test-town", out var scenarioDir);
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         File.WriteAllText(Path.Combine(scenarioDir, "Hrot.CGF.json"),
-            "{\"header\":{\"tkbName\":\"Beta_v2\"},\"entities\":[]}");
+            "{\"header\":{\"terrainName\":\"basic-desert\"},\"entities\":[]}");
 
         try
         {

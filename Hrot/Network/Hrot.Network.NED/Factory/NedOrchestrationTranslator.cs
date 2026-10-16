@@ -32,7 +32,12 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
     private readonly Dictionary<int, DdsWriter<NodeOpCommand>>         _commandWriters = new();
     // ⭐ Q86 §4-B — the Context Plane (mgmt-1 §1.2): written from the bus event, never by the handler itself.
     private readonly DdsWriter<OrchestratorContextTopic>               _contextWriter;
+    // ⭐ C1 (Q91 §4-O) — node-id requests in, grants out.
+    private readonly DdsReader<NodeIdRequest>                           _nodeIdRequestReader;
+    private readonly DdsWriter<NodeIdGrant>                             _nodeIdGrantWriter;
     private readonly DdsParticipant                                    _participant;
+    private string _lastContextScenarioId = string.Empty;
+    private string _lastInSyncJson = string.Empty;   // ⭐ C6 — empty = not published yet ⇒ nodes filter nothing
     private bool _disposed;
 
     public NedOrchestrationTranslator(DdsParticipant participant, FdpEventBus bus)
@@ -47,6 +52,8 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(_participant);
         _stateWriter         = new DdsWriter<ClusterStateTopic>(_participant);
         _contextWriter       = new DdsWriter<OrchestratorContextTopic>(_participant);
+        _nodeIdRequestReader = new DdsReader<NodeIdRequest>(_participant);
+        _nodeIdGrantWriter   = new DdsWriter<NodeIdGrant>(_participant);
         _clusterOpTranslator = new Hrot.Network.Orchestration.ClusterOpMasterTranslator(
             _sysOpRequestReader, _sysOpStatusWriter, _bus, null, _inventoryWriter, _stateWriter);
         _nodeOpTranslator    = new Hrot.Network.Orchestration.NodeOpMasterTranslator(
@@ -67,6 +74,7 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 LocalStateId  = (int)sample.Data.LocalClusterState,
                 WallTicksUtc  = sample.Data.WallTicksUtc,
                 SubsystemName = sample.Data.SubsystemName ?? string.Empty,
+                SessionId     = sample.Data.SessionId,   // ⭐ C2 — the session the node follows
                 // CE-286 (C-roles): roles are derived from the NodeCapabilities tokens, not the heartbeat.
             });
         }
@@ -83,12 +91,53 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
                 });
             }
 
+        // ⭐ C1 — node-id requests: DDS → bus (the master answers on the bus, below).
+        using (var idScope = _nodeIdRequestReader.Take())
+            foreach (var sample in idScope)
+            {
+                if (!sample.IsValid) continue;
+                _bus.PublishManaged(new NodeIdRequestEvent
+                {
+                    ComputerName = sample.Data.ComputerName ?? string.Empty,
+                    ProcessId    = sample.Data.ProcessId,
+                    ForcedId     = sample.Data.ForcedId,
+                    PreferredId  = sample.Data.PreferredId,
+                });
+            }
+        foreach (var grant in _bus.ReadManaged<NodeIdGrantEvent>())
+            _nodeIdGrantWriter.Write(new NodeIdGrant
+            {
+                ComputerHash = NodeIdKeys.ComputerHash(grant.ComputerName),
+                ProcessId    = grant.ProcessId,
+                NodeId       = grant.NodeId,
+                SessionId    = grant.SessionId,
+                Refused      = grant.Refused,
+                Reason       = grant.Reason ?? string.Empty,
+            });
+
         _clusterOpTranslator.Tick();
         _nodeOpTranslator.Tick();
 
         // Context bridge: bus OrchestratorContextChangedEvent -> DDS OrchestratorContextTopic (Q86 §4-B).
+        // ⭐ C6 (Q91 §4-N) — the topic is keyless and carries BOTH the scenario and the master's InSync set, so each write
+        //   repeats the last value of the other field.
+        bool contextChanged = false;
         foreach (var ctx in _bus.ReadManaged<OrchestratorContextChangedEvent>())
-            _contextWriter.Write(new OrchestratorContextTopic { ScenarioId = ctx.ScenarioId ?? string.Empty });
+        {
+            _lastContextScenarioId = ctx.ScenarioId ?? string.Empty;
+            contextChanged = true;
+        }
+        foreach (var set in _bus.ReadManaged<InSyncSetChangedEvent>())
+        {
+            _lastInSyncJson = System.Text.Json.JsonSerializer.Serialize(set.NodeIds ?? Array.Empty<int>(), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            contextChanged = true;
+        }
+        if (contextChanged)
+            _contextWriter.Write(new OrchestratorContextTopic
+            {
+                ScenarioId          = _lastContextScenarioId,
+                RequiredNodeIdsJson = _lastInSyncJson,
+            });
     }
 
     private static string[] DeserializeTokens(string? json)
@@ -112,6 +161,8 @@ internal sealed class NedOrchestrationTranslator : Hrot.Core.Network.IOrchestrat
         _inventoryWriter.Dispose();
         _stateWriter.Dispose();
         _contextWriter.Dispose();
+        _nodeIdRequestReader.Dispose();
+        _nodeIdGrantWriter.Dispose();
         foreach (var w in _commandWriters.Values)
             w.Dispose();
         _commandWriters.Clear();

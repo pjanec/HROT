@@ -6,6 +6,7 @@ using System.Threading;
 using Fdp.Core;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Transfer;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
@@ -505,5 +506,332 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(),
             e => e.RequestId == nextId && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(SawPrepare(bus), "After a cancel the next transition must be admitted, not rejected.");
+    }
+
+    // ── R-4018 — the deployment's ONE TKB rides every prefetch ─────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> end to end through the SAGA, not the gateway alone: a scenario load's prefetch leaves the
+    /// CONFIGURED TKB and its <see cref="StagedTkb"/> record on the node before <c>PrefetchFiles</c> is fanned out — the
+    /// scenario names no TKB at all. ⛔ This is what fails if the saga forgets to pass its name to the gateway.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void TheConfiguredTkb_ReachesTheNode_ThroughThePrefetchSaga()
+    {
+        var scenarioDir = Path.Combine(_nasDir, OrchestrationConstants.ScenariosDirectoryName, _scenarioId);
+        Directory.CreateDirectory(scenarioDir);
+        File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
+        var tkbDir = OrchestrationConstants.GetNasTkbRoot(_nasDir);
+        Directory.CreateDirectory(tkbDir);
+        File.WriteAllText(Path.Combine(tkbDir, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension), "zip-bytes");
+
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+        try
+        {
+            var bus = new FdpEventBus();
+            using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+            var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), _nasDir, stagingDir, tkbName: "Alpha_v1");
+            Assert.Equal("Alpha_v1", saga.TkbName);
+
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 1, SubsystemName = "TestNode",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+            bus.SwapBuffers();
+            master.Tick();
+            bus.SwapBuffers();
+
+            master.HandleClusterOpRequest(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = $"{{\"TargetState\":\"{ClusterState.LoadingEdit}\",\"ScenarioId\":\"{_scenarioId}\"}}",
+            });
+
+            bool prefetchFiles = false;
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while (!prefetchFiles && DateTime.UtcNow < deadline)
+            {
+                saga.Tick();
+                master.Tick();
+                bus.SwapBuffers();
+                prefetchFiles = bus.ReadManaged<ExecuteNodeOpIntent>().Any(i => i.Operation == FdpNodeOpType.PrefetchFiles);
+                Thread.Sleep(10);
+            }
+
+            Assert.True(prefetchFiles, "the prefetch never completed");
+            var nodeTkb = OrchestrationConstants.GetNodeTkbStagingRoot(stagingDir, 1);
+            Assert.Equal("Alpha_v1", StagedTkb.Read(nodeTkb));
+            Assert.True(File.Exists(Path.Combine(nodeTkb, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension)));
+        }
+        finally
+        {
+            try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> — the TKB name works with default settings (no configuration file), and the editor's one-node
+    /// cluster keeps a configured one. ⛔ <c>ForOneNodeCluster</c> copies every field by hand, so a forgotten copy would
+    /// silently fall back to the default — the silent-default pattern.
+    /// </summary>
+    [Fact]
+    public void TheTkbName_DefaultsToTheOneInUse_AndTheOneNodeClusterKeepsAConfiguredOne()
+    {
+        Assert.Equal("HrotDefault", ClusterConfiguration.Default.TkbName);
+        Assert.Equal("Custom_v2", new ClusterConfiguration { TkbName = "Custom_v2" }.ForOneNodeCluster().TkbName);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — a node ENTERING the roster gets the deployment's TKB synced, with NO
+    /// scenario load and NO command sent to it (its first world build loads the file). 📄 tkb-1 DESIGN §0a.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void AJoiningNode_GetsTheTkbSynced_WithNoScenarioLoadAndNoCommand()
+    {
+        var tkbDir = OrchestrationConstants.GetNasTkbRoot(_nasDir);
+        Directory.CreateDirectory(tkbDir);
+        File.WriteAllText(Path.Combine(tkbDir, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension), "zip-bytes");
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stagingDir);
+        try
+        {
+            var bus = new FdpEventBus();
+            using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+            var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(), _nasDir, stagingDir, tkbName: "Alpha_v1");
+
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 7, SubsystemName = "Player",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+
+            var nodeTkb = OrchestrationConstants.GetNodeTkbStagingRoot(stagingDir, 7);
+            bool commandSent = false;
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while (StagedTkb.Read(nodeTkb) == null && DateTime.UtcNow < deadline)
+            {
+                bus.SwapBuffers();
+                saga.Tick();
+                master.Tick();
+                commandSent |= bus.ReadManaged<ExecuteNodeOpIntent>().Any();
+                Thread.Sleep(10);
+            }
+
+            Assert.Equal("Alpha_v1", StagedTkb.Read(nodeTkb));
+            Assert.True(File.Exists(Path.Combine(nodeTkb, "Alpha_v1" + OrchestrationConstants.TkbArtifactExtension)));
+            Assert.False(commandSent, "the join sync sends the node nothing — its first world build loads the file");
+        }
+        finally
+        {
+            try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ The join is ENTERING the roster, once — a node's every later heartbeat is not a join. ⛔ Otherwise every node
+    /// would be re-synced once a second.
+    /// </summary>
+    [Fact]
+    public void ANodesLaterHeartbeats_AreNotAJoin()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, new ClusterConfiguration { HeartbeatTimeoutSeconds = 60f });
+        int joins = 0;
+        for (int frame = 0; frame < 4; frame++)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = 7, SubsystemName = "Player",
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+                WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+            });
+            bus.SwapBuffers();
+            master.Tick();
+            bus.SwapBuffers();
+            joins += bus.ReadManaged<NodeJoinedRosterEvent>().Count(e => e.NodeId == 7);
+        }
+
+        Assert.Equal(1, joins);
+    }
+
+    // ── P8 (Q91 §4-H, R-4004) — the operator cancels a load in flight; the cluster returns to Idle ────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> — cancel a transition that was FANNED OUT and is still waiting for its node: the master sends every
+    /// node an <c>AbortTransaction</c> naming the transition's own transaction, reports the request <c>Cancelled</c>,
+    /// then runs a round to <c>Idle</c>; when the node answers it, the cluster is <c>Idle</c> — and the same load is
+    /// admitted again. ⛔ Before: only a PARKED transition could be cancelled; this one would sit in <c>Loading*</c>.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P8_Cancelling_a_load_in_flight_aborts_it_on_every_node_then_returns_the_cluster_to_Idle()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master);
+
+        var load = Guid.NewGuid();
+        RequestTransition(master, load, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        var loadTx = bus.ReadManaged<ExecuteNodeOpIntent>().First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
+        // ⭐ the node never answers — the load is stuck
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = load });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var sent = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var abort = Assert.Single(sent, i => i.Operation == FdpNodeOpType.AbortTransaction);
+        Assert.Equal(loadTx, Assert.IsType<AbortTransactionPayload>(abort.DomainPayload).TargetTransactionId);
+        Assert.Contains(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == load && e.StatusCode == OrchestrationStatusCode.Cancelled);
+        var toIdle = Assert.Single(sent, i => i.Operation == FdpNodeOpType.PrepareState);
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
+
+        // the node answers the abort and the Idle round
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = abort.TransactionId, Operation = abort.Operation, NodeId = 1 });
+        bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = toIdle.TransactionId, Operation = toIdle.Operation, NodeId = 1 });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.Contains(bus.ReadManaged<ClusterStateUpdateEvent>(),
+            e => e.CurrentState == Fdp.Toolkit.Orchestration.ClusterState.Idle);
+
+        // ⭐ "the whole procedure can be repeated" (R-4004): the same load is admitted, not rejected as busy
+        var again = Guid.NewGuid();
+        RequestTransition(master, again, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        Assert.DoesNotContain(bus.ReadManaged<ClusterOpCompletedEvent>(),
+            e => e.RequestId == again && e.StatusCode == OrchestrationStatusCode.Rejected);
+        Assert.True(SawPrepare(bus), "after the cancel the same load must be issued again");
+    }
+
+    /// <summary>
+    /// ⭐ A cancel naming a transition that already COMPLETED does not undo it: no abort of the load's transaction, no
+    /// round to <c>Idle</c>, the cluster stays where it is. ⚠ The pre-existing cancel path still broadcasts an abort naming
+    /// the REQUEST (the archive cancels rely on it) — no node holds a load under that id, so it is a no-op.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P8_Cancelling_a_completed_transition_sends_nothing()
+    {
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        RegisterNode(bus, master);
+
+        var load = Guid.NewGuid();
+        RequestTransition(master, load, ClusterState.OperatingLive, scenarioId: null);
+        master.Tick();
+        bus.SwapBuffers();
+        var loadOps = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        var loadTx  = loadOps.First(i => i.Operation == FdpNodeOpType.PrepareLive).TransactionId;
+        foreach (var op in loadOps.Where(i => i.Operation != FdpNodeOpType.CommitState))
+            bus.PublishManaged(new NodeOpCompletedEvent { TransactionId = op.TransactionId, Operation = op.Operation, NodeId = 1 });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = load });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+
+        var sent = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.DoesNotContain(sent, i => i.Operation == FdpNodeOpType.PrepareState);
+        Assert.DoesNotContain(sent, i => i.DomainPayload is AbortTransactionPayload a && a.TargetTransactionId == loadTx);
+        Assert.Equal(ClusterState.OperatingLive, master.CurrentClusterState);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> <c>H5</c> (Q91 §4-H) — cancelling a PARKED load STOPS the staging copy its prefetch started: the
+    /// transfer is cancelled, the saga forgets it, and nothing more is reported for the request (the master already
+    /// answered <c>Cancelled</c>). ⛔ Before P6 the copy was abandoned and the bytes finished landing.
+    /// </summary>
+    [Fact(Timeout = 20_000)]
+    public void P8_H5_Cancelling_a_parked_load_stops_its_staging_copy()
+    {
+        var scenarioDir = Path.Combine(
+            _nasDir, Fdp.Toolkit.Orchestration.OrchestrationConstants.ScenariosDirectoryName, _scenarioId);
+        Directory.CreateDirectory(scenarioDir);
+        File.WriteAllText(Path.Combine(scenarioDir, "Hrot.SimHost.json"), "{}");
+        var stagingDir = Path.Combine(Path.GetTempPath(), "fdp_pf_" + Guid.NewGuid().ToString("N"));
+
+        var stuck = new StuckProvider();
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoMandatoryConfig());
+        var saga = new AssetPrefetchProcessManager(bus, new StorageGatewayModule(stuck), _nasDir, stagingDir);
+        RegisterNode(bus, master);
+
+        var reqId = Guid.NewGuid();
+        RequestTransition(master, reqId, ClusterState.LoadingEdit, _scenarioId);
+        saga.Tick();
+        master.Tick();
+        bus.SwapBuffers();
+        saga.Tick();                                         // the intent is readable now: the copy starts
+        Assert.Equal(reqId, master.ParkedRequestId);
+        Assert.True(stuck.Started.Wait(10_000), "the staging copy never started");
+        Assert.Equal(1, saga.CopiesInFlight);
+
+        bus.PublishManaged(new CancelOperationIntent { TargetRequestId = reqId });
+        bus.SwapBuffers();
+        var seen = new List<ClusterOpCompletedEvent>();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((saga.CopiesInFlight > 0 || !stuck.Cancelled) && DateTime.UtcNow < deadline)
+        {
+            master.Tick();
+            saga.Tick();
+            bus.SwapBuffers();
+            seen.AddRange(bus.ReadManaged<ClusterOpCompletedEvent>());
+            Thread.Sleep(10);
+        }
+        for (int i = 0; i < 3; i++) { master.Tick(); saga.Tick(); bus.SwapBuffers(); seen.AddRange(bus.ReadManaged<ClusterOpCompletedEvent>()); }
+
+        try { Directory.Delete(stagingDir, recursive: true); } catch { }
+        Assert.True(stuck.Cancelled, "the in-flight transfer must be CANCELLED, not left to finish");
+        Assert.Equal(0, saga.CopiesInFlight);
+        Assert.Null(master.ParkedRequestId);
+        Assert.Contains(seen, e => e.RequestId == reqId && e.StatusCode == OrchestrationStatusCode.Cancelled);
+        Assert.DoesNotContain(seen, e => e.RequestId == reqId && e.StatusCode != OrchestrationStatusCode.Cancelled);
+    }
+
+    /// <summary>A transport whose transfer never finishes on its own — only a cancel ends it.</summary>
+    private sealed class StuckProvider : IFileTransferProvider
+    {
+        public ManualResetEventSlim Started { get; } = new();
+        public volatile bool Cancelled;
+        public string Transport => "stuck";
+        public bool CanReach(TransferTarget target) => true;
+
+        public IFileTransfer Start(TransferRequest request)
+        {
+            Started.Set();
+            return new Transfer(this);
+        }
+
+        private sealed class Transfer : IFileTransfer
+        {
+            private readonly StuckProvider _owner;
+            private readonly System.Threading.Tasks.TaskCompletionSource _done =
+                new(System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+            private volatile TransferStatus _status = new(OrchestrationStatusCode.InProgress, "stuck", 0, 1, 0, 0, 0, 1, Array.Empty<int>());
+
+            public Transfer(StuckProvider owner) => _owner = owner;
+            public Guid Id { get; } = Guid.NewGuid();
+            public TransferStatus Status => _status;
+            public System.Threading.Tasks.Task Completion => _done.Task;
+
+            public void Cancel()
+            {
+                _owner.Cancelled = true;
+                _status = _status with { Code = OrchestrationStatusCode.Cancelled, Message = "cancelled" };
+                _done.TrySetResult();
+            }
+        }
     }
 }

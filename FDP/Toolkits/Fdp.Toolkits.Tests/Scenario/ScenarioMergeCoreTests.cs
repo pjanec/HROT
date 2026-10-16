@@ -54,9 +54,10 @@ namespace Fdp.Toolkit.Scenario.Tests
             var ents = (JsonObject)result.CanonicalDom!["Entities"]!;
             Assert.Equal(3, ents.Count);
             Assert.True(ents.ContainsKey("g-a") && ents.ContainsKey("g-b") && ents.ContainsKey("g-c"));
-            // $meta preserved, Header carried from the slice that had it.
+            // $meta preserved. ⛔ R-4018 — the brain slice's legacy TkbName is NOT carried: with no terrain name the
+            //   canonical file has no Header at all.
             Assert.Equal(OurType, JsonEnvelope.Read((JsonObject)result.CanonicalDom!).DocType);
-            Assert.Equal("tkb-1", (string)((JsonObject)result.CanonicalDom!["Header"]!)["TkbName"]!);
+            Assert.Null(result.CanonicalDom!["Header"]);
         }
 
         /// <summary>
@@ -154,14 +155,19 @@ namespace Fdp.Toolkit.Scenario.Tests
                 ScenarioMergeCore.Merge(new[] { a, b }, OurType));
         }
 
+        /// <summary>⛔⛔ <c>R-4018</c> — FLIPPED: legacy slices disagreeing on <c>TkbName</c> are not a conflict any more
+        /// (the field is never read) and the merged file carries none. Was: <c>TkbNameMismatch_FailsLoud</c>.</summary>
         [Fact]
-        public void TkbNameMismatch_FailsLoud()
+        public void ALegacyTkbNameMismatch_IsIgnored_AndNotWritten()
         {
-            var a = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1"));
+            var a = Compatible(400, Dom(new[] { "g-a" }, tkbName: "tkb-1", terrainName: "kandahar"));
             var b = Compatible(1,   Dom(new[] { "g-b" }, tkbName: "tkb-2"));
 
-            Assert.Throws<System.InvalidOperationException>(() =>
-                ScenarioMergeCore.Merge(new[] { a, b }, OurType));
+            var result = ScenarioMergeCore.Merge(new[] { a, b }, OurType);
+
+            var header = (JsonObject)result.CanonicalDom!["Header"]!;
+            Assert.Equal("kandahar", (string)header["TerrainName"]!);
+            Assert.False(header.ContainsKey("TkbName"));
         }
 
         // ⛔ DELETED (F2/F3): `TwoZonesSources_FailLoud` — the I4 guard it drove no longer exists.
@@ -195,7 +201,7 @@ namespace Fdp.Toolkit.Scenario.Tests
         // ── B5: the TERRAIN NAME is a global and must survive the merge ───────────────────────────
 
         [Fact]
-        public void TerrainName_SurvivesTheMerge_AlongsideTkbName()
+        public void TerrainName_SurvivesTheMerge_AndALegacyTkbNameDoesNot()
         {
             // ⛔ THE REGRESSION THIS PINS: the canonical Header used to be rebuilt as
             //    `new JsonObject { ["TkbName"] = ... }`, which would DROP the terrain name from every
@@ -206,7 +212,7 @@ namespace Fdp.Toolkit.Scenario.Tests
             var result = ScenarioMergeCore.Merge(new[] { brain, muscle }, OurType);
 
             var header = (JsonObject)result.CanonicalDom!["Header"]!;
-            Assert.Equal("tkb-1",    (string)header["TkbName"]!);
+            Assert.False(header.ContainsKey("TkbName"));   // ⛔ R-4018
             Assert.Equal("kandahar", (string)header["TerrainName"]!);
         }
 

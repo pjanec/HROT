@@ -157,6 +157,10 @@ namespace Fdp.Toolkit.Time.Controllers
             HashSet<int>? updatedSlaves = null;
             foreach (var ev in _eventBus.ReadManaged<SlaveNodeSetUpdatedEvent>())
                 updatedSlaves = new HashSet<int>(ev.SlaveNodeIds);
+            // ⭐⭐ P3 (Q91 §4-D′) — the set APPLIES when it arrives, not only at the next pause: a node that left the
+            //   participating set stops gating the step in flight (its pending ACK is dropped), and the next step waits
+            //   for the new set. ⛔ Before, only a pause read it, so a departed node froze stepping for good.
+            if (updatedSlaves != null) ApplySlaveSet(updatedSlaves);
 
             // ⭐ Q86 §4-C — the snap first, so a same-frame resume (a load that runs) applies after it.
             foreach (var ev in _eventBus.ReadManaged<SnapTimeIntent>())
@@ -389,6 +393,19 @@ namespace Fdp.Toolkit.Time.Controllers
         /// <param name="slaveNodeIds">
         /// The roster of slave node IDs that must ACK every step during lockstep. Replaces any prior slave set.
         /// </param>
+        /// <summary>⭐ P3 — replace the participating set now; drop the pending ACKs of nodes no longer in it.</summary>
+        private void ApplySlaveSet(HashSet<int> slaveNodeIds)
+        {
+            _expectedSlaves.Clear();
+            _expectedSlaves.UnionWith(slaveNodeIds);
+            int before = _pendingAcks.Count;
+            _pendingAcks.IntersectWith(slaveNodeIds);
+            if (_pendingAcks.Count != before)
+                Fdp.Core.Logging.FdpLog<MasterSyncController>.Info(
+                    "[TimeSync] slave set changed — the step in flight no longer waits for {0} node(s); remaining [{1}].",
+                    before - _pendingAcks.Count, string.Join(", ", _pendingAcks));
+        }
+
         public void SwitchToDeterministic(HashSet<int> slaveNodeIds)
         {
             _expectedSlaves.Clear();

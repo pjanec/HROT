@@ -21,7 +21,7 @@ namespace Hrot.Network.NED.SimHost
     /// If unknown, the sample is silently skipped.
     /// </para>
     /// </summary>
-    public sealed class EntityHitDamageIngressTranslator : IDescriptorTranslator
+    public sealed class EntityHitDamageIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "EntityHitDamage";
 
@@ -53,6 +53,22 @@ namespace Hrot.Network.NED.SimHost
         /// publishes each valid sample as a <see cref="DamageAssessedEvent"/> on the local
         /// event bus via the command buffer.
         /// </summary>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress()
+        {
+            if (_reader is null) return 0;
+            int discarded = 0;
+            while (true)
+            {
+                using var loan = _reader.Take();
+                if (loan.Count == 0) return discarded;
+                discarded += loan.Count;
+            }
+        }
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;

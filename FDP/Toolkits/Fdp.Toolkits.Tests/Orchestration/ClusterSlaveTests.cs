@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Core;
@@ -95,6 +96,246 @@ public sealed class ClusterSlaveTests
         handler.PrepareGate.SetResult(null); // complete the task
         slave.Tick(); // Commit should now fire
         Assert.Equal(1, handler.CommitCallCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>P4</c> (Q91 §4-B2, R-4001) — a deferred prepare is reported ONCE as <c>InProgress</c> (progress for the
+    /// master, never the answer), and the answer follows when the prepare completes.
+    /// </summary>
+    [Fact]
+    public void P4_ADeferredPrepare_ReportsInProgressOnce_ThenItsAnswer()
+    {
+        const int opId = 5;
+        var handler = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(handler);
+        var txId = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = txId, TargetNodeId = 3, Operation = (NodeOpType)opId });
+
+        var seen = new List<OrchestrationStatusCode>();
+        for (int frame = 0; frame < 3; frame++)   // ⭐ several frames while pending: still ONE report
+        {
+            bus.SwapBuffers();
+            slave.Tick();
+            bus.SwapBuffers();
+            foreach (var ev in bus.ReadManaged<NodeOpCompletedEvent>())
+                if (ev.TransactionId == txId) seen.Add(ev.StatusCode);
+        }
+        Assert.Equal(new[] { OrchestrationStatusCode.InProgress }, seen);
+
+        handler.PrepareGate!.SetResult(null);
+        bus.SwapBuffers();
+        slave.Tick();
+        bus.SwapBuffers();
+        foreach (var ev in bus.ReadManaged<NodeOpCompletedEvent>())
+            if (ev.TransactionId == txId) seen.Add(ev.StatusCode);
+
+        Assert.Equal(new[] { OrchestrationStatusCode.InProgress, OrchestrationStatusCode.Success }, seen);
+    }
+
+    /// <summary>A handler that claims every abort and counts them — the shape <c>TerrainAssetHandler</c> has.</summary>
+    private sealed class AbortCounter : IClusterStateHandler
+    {
+        public int Aborts;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.AbortTransaction;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) => Aborts++;
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>P8</c> (Q91 §4-H.3a, H7 + H8) — an abort naming the transaction of a STUCK prepare does not wait behind it:
+    /// it preempts it (the stuck op is answered <c>Cancelled</c>, its queued <c>CommitState</c> is dropped), and it reaches
+    /// EVERY handler that claims aborts. ⛔ Before: the abort queued behind the prepare forever, and only the first claimant
+    /// would ever have seen one.
+    /// </summary>
+    [Fact]
+    public void P8_AnAbort_PreemptsTheStuckPrepareOfItsTransaction_AndReachesEveryClaimant()
+    {
+        const int opId = 5;
+        var stuck = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };   // never completes
+        var first = new AbortCounter();
+        var second = new AbortCounter();
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(stuck);
+        slave.RegisterHandler(first);
+        slave.RegisterHandler(second);
+
+        var loadTx = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = loadTx, TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = loadTx, TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();                    // the prepare is now stuck; CommitState is queued behind it
+        bus.SwapBuffers();
+        _ = bus.ReadManaged<NodeOpCompletedEvent>().ToList();
+
+        var abortTx = Guid.NewGuid();
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = abortTx, TargetNodeId = 0, Operation = NodeOpType.AbortTransaction,
+            DomainPayload = new AbortTransactionPayload(loadTx),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        bus.SwapBuffers();
+        var answers = bus.ReadManaged<NodeOpCompletedEvent>().ToList();
+
+        Assert.Equal(1, first.Aborts);
+        Assert.Equal(1, second.Aborts);   // ⭐ H7 — every claimant, not the first only
+        Assert.Contains(answers, a => a.TransactionId == loadTx && a.StatusCode == OrchestrationStatusCode.Cancelled);
+        Assert.Contains(answers, a => a.TransactionId == abortTx && a.StatusCode == OrchestrationStatusCode.Success && a.IsParticipating);
+
+        slave.Tick();   // ⭐ the queued CommitState of the aborted load was dropped — the node never reaches OperatingLive
+        Assert.NotEqual((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);
+        Assert.Equal(0, stuck.CommitCallCount);
+    }
+
+    /// <summary>
+    /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — a node follows ONE cluster session: the first one it sees is adopted (no reset), a
+    /// DIFFERENT one drops it to <c>Idle</c> and forgets the old master's queued work, and the master's writer gone does the
+    /// same. The heartbeat carries the session it follows.
+    /// </summary>
+    [Fact]
+    public void C2_ANodeFollowsOneSession_AndANewSessionOrAGoneMasterDropsItToIdle()
+    {
+        const int opId = 5;
+        var stuck = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<object?>() };
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        slave.RegisterHandler(stuck);
+
+        var first = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = first });
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal(first, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);   // ⭐ adopting the first session resets nothing
+
+        bus.PublishManaged(new ExecuteNodeOpIntent { TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = (NodeOpType)opId });
+        bus.SwapBuffers();
+        slave.Tick();                                              // a prepare of the old session is now stuck
+        var second = Guid.NewGuid();
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = second });
+        bus.SwapBuffers();
+        slave.Tick();
+
+        Assert.Equal(second, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);   // ⭐ a new session ⇒ Idle
+
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.OperatingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal((int)ClusterState.OperatingLive, slave.LocalStateIdForTest);   // ⭐ the old stuck prepare no longer blocks it
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal(Guid.Empty, slave.FollowingSessionId);
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);   // ⭐ the master gone ⇒ Idle
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the node ENTERING <c>Idle</c> tells every world-owning handler, once, on BOTH
+    /// routes: a committed transition and a drop to <c>Idle</c> (here: the master gone). ⛔ Not on a commit to another state, and
+    /// not again while it stays in <c>Idle</c>.
+    /// </summary>
+    [Fact]
+    public void CE4000_EnteringIdle_TellsTheWorldOwner_OnceOnEachRoute()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        var owner = new IdleCounter();
+        slave.RegisterHandler(owner);
+
+        void Commit(ClusterState to)
+        {
+            bus.PublishManaged(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+                DomainPayload = new CommitStatePayload(to),
+            });
+            bus.SwapBuffers();
+            slave.Tick();
+        }
+
+        Commit(ClusterState.OperatingLive);
+        Assert.Equal(0, owner.Entered);
+        Commit(ClusterState.Idle);
+        Assert.Equal(1, owner.Entered);          // ⭐ the committed route
+        Commit(ClusterState.Idle);
+        Assert.Equal(1, owner.Entered);          // ⛔ staying in Idle is not entering it
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = ClusterState.Idle, SessionId = Guid.NewGuid() });   // follow a session
+        Commit(ClusterState.OperatingLive);
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
+        Assert.Equal(2, owner.Entered);          // ⭐ the drop route
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4007</c> (Q91 §4-M) — the join freeze: a node is frozen only when it is BEHIND the cluster it follows (it is
+    /// <c>Idle</c>, the cluster is not). ⛔ A node with no master, and a cluster at rest in <c>Idle</c>, are never frozen — 📐
+    /// dozens of integration suites spawn and replicate exactly there.
+    /// </summary>
+    [Fact]
+    public void R4007_ANodeIsJoinFrozen_OnlyWhileItIsBehindTheClusterItFollows()
+    {
+        var bus = new FdpEventBus();
+        using var slave = new ClusterSlave(bus, nodeId: 3);
+        void Cluster(ClusterState state, Guid session)
+        {
+            bus.PublishManaged(new ClusterStateUpdateEvent { CurrentState = state, SessionId = session });
+            bus.SwapBuffers();
+            slave.Tick();
+        }
+
+        Assert.False(slave.IsJoinFrozen);                         // no master
+        var session = Guid.NewGuid();
+        Cluster(ClusterState.Idle, session);
+        Assert.False(slave.IsJoinFrozen);                         // a cluster at rest
+        Cluster(ClusterState.OperatingLive, session);
+        Assert.True(slave.IsJoinFrozen);                          // ⭐ a late joiner: Idle while the cluster runs
+
+        bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(), TargetNodeId = 3, Operation = NodeOpType.CommitState,
+            DomainPayload = new CommitStatePayload(ClusterState.LoadingLive),
+        });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.False(slave.IsJoinFrozen);                         // ⭐ it committed a load: the gate opens
+
+        bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+        bus.SwapBuffers();
+        slave.Tick();
+        Assert.False(slave.IsJoinFrozen);                         // dropped to Idle with no master to be behind
+    }
+
+    private sealed class IdleCounter : IIdleResetHandler
+    {
+        public int Entered { get; private set; }
+        public void OnEnteredIdle() => Entered++;
+        public bool CanHandle(NodeOpType operation) => false;
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct) => Task.FromResult<object?>(null);
+        public void Commit(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, Fdp.Core.EntityRepository? repo) { }
     }
 
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────

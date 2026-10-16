@@ -16,7 +16,14 @@ namespace Fdp.ModuleHost.Tests
             public string Name { get; set; } = "TestModule";
             public ModuleTier Tier { get; set; } = ModuleTier.Slow;
             public int UpdateFrequency { get; set; } = 1;
-            // Uses default Policy implementation
+            /// <summary>Null = the legacy Tier mapping (Slow ⇒ SlowBackground, Asynchronous); a convoy test sets FrameSynced.</summary>
+            public RunMode? Mode { get; set; }
+
+            public ExecutionPolicy Policy => Tier == ModuleTier.Fast
+                ? ExecutionPolicy.FastReplica()
+                : Mode is { } m
+                    ? ExecutionPolicy.SlowBackground(60 / Math.Max(1, UpdateFrequency)).WithMode(m)
+                    : ExecutionPolicy.SlowBackground(60 / Math.Max(1, UpdateFrequency));
             
             public void Tick(ISimulationView view, float deltaTime) { }
             public void RegisterSystems(ISystemRegistry registry) { }
@@ -57,9 +64,10 @@ namespace Fdp.ModuleHost.Tests
         {
             using var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
             
-            var module1 = new TestModule { Name = "M1", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
-            var module2 = new TestModule { Name = "M2", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
-            var module3 = new TestModule { Name = "M3", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
+            // ⭐ TM-023 — a convoy forms only for modules the main thread waits for (FrameSynced); see AutoGrouping_AsyncSameFreq_StaysExclusive.
+            var module1 = new TestModule { Name = "M1", Tier = ModuleTier.Slow, UpdateFrequency = 6, Mode = RunMode.FrameSynced };
+            var module2 = new TestModule { Name = "M2", Tier = ModuleTier.Slow, UpdateFrequency = 6, Mode = RunMode.FrameSynced };
+            var module3 = new TestModule { Name = "M3", Tier = ModuleTier.Slow, UpdateFrequency = 6, Mode = RunMode.FrameSynced };
             
             kernel.RegisterModule(module1);
             kernel.RegisterModule(module2);
@@ -75,6 +83,31 @@ namespace Fdp.ModuleHost.Tests
             Assert.Same(provider1, provider2);
             Assert.Same(provider2, provider3);
             Assert.IsType<SharedSnapshotProvider>(provider1);
+        }
+
+        /// <summary>
+        /// ⭐ TM-023 — Asynchronous SoD modules never share a snapshot, even at one frequency: an async module that finishes early
+        /// would re-acquire the snapshot a slower member still holds — frames stale, its events read twice. Each gets its own
+        /// OnDemandProvider (a fresh snapshot at dispatch). The kernel's guard: <c>Mode != RunMode.Asynchronous</c> in the convoy query.
+        /// </summary>
+        [Fact]
+        public void AutoGrouping_AsyncSameFreq_StaysExclusive()
+        {
+            using var kernel = new ModuleHostKernel(_liveWorld, _eventAccum);
+
+            var module1 = new TestModule { Name = "A1", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
+            var module2 = new TestModule { Name = "A2", Tier = ModuleTier.Slow, UpdateFrequency = 6 };
+
+            kernel.RegisterModule(module1);
+            kernel.RegisterModule(module2);
+            kernel.InitializeForTest();
+
+            var provider1 = GetProvider(kernel, module1);
+            var provider2 = GetProvider(kernel, module2);
+
+            Assert.IsType<OnDemandProvider>(provider1);
+            Assert.IsType<OnDemandProvider>(provider2);
+            Assert.NotSame(provider1, provider2);
         }
 
         [Fact]

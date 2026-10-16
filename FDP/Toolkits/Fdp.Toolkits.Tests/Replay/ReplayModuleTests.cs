@@ -193,6 +193,99 @@ namespace Fdp.Toolkit.Replay.Tests
             module.Dispose();
         }
 
+        // ── R-4012 (Q91 §4-P) — restore inside the span, listen outside it ───────
+
+        [Fact]
+        public void R4012_A_recording_covers_its_span_plus_a_grace_at_both_ends_and_the_end_sentinel()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var playback = new PlaybackController(filePath);
+            long first = playback.FirstFrameWallTicks, last = playback.LastFrameWallTicks;
+
+            long grace = PlaybackController.CoverageGraceTicks;
+            Assert.False(playback.Covers(first - grace - 1));
+            Assert.True(playback.Covers(first - grace));   // 📐 a node present all along starts recording up to ~0.7 s late
+            Assert.True(playback.Covers(first));
+            Assert.True(playback.Covers(last + grace));
+            Assert.False(playback.Covers(last + grace + 1));
+            Assert.True(playback.Covers(long.MaxValue));
+        }
+
+        /// <summary>
+        /// 🔴 Before R-4012 a moment before the first frame restored frame 0 (<c>PlaybackController.SeekToWallClockTicks</c>
+        /// floors to it) — a late joiner showed its FIRST recorded world for earlier moments.
+        /// </summary>
+        [Fact]
+        public void R4012_A_playhead_before_the_first_frame_clears_the_world_and_listens_never_restoring_frame_zero()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            world.CreateEntity();   // the world this node held before the replay
+
+            var stub = new StubTimeController(0L);   // TotalTime 0 = the replay's zero
+            var sys  = new PlaybackTickSystem(playback, stub)
+            {
+                AnchorWallTicks = playback.FirstFrameWallTicks - 5 * TimeSpan.TicksPerSecond,   // the cluster started 5 s earlier
+            };
+            sys.Execute(world, 0.016f);
+
+            Assert.Equal(ReplaySpanState.Listening, sys.State);
+            Assert.True(playback.IsAtStart);
+            Assert.Equal(0, world.EntityCount);
+        }
+
+        [Fact]
+        public void R4012_The_playhead_crossing_into_the_span_restores_by_a_seek()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long anchor = playback.FirstFrameWallTicks - 5 * TimeSpan.TicksPerSecond;
+
+            var stub = new StubTimeController(0L);
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = anchor };
+            sys.Execute(world, 0.016f);
+            Assert.Equal(ReplaySpanState.Listening, sys.State);
+
+            // halfway to frame 7, so double rounding cannot floor the target to frame 5
+            long target = (playback.GetFrameMetadata(6).WallClockTicks + playback.GetFrameMetadata(7).WallClockTicks) / 2;
+            stub.SeedState(new GlobalTime { TotalTime = (target - anchor) / (double)TimeSpan.TicksPerSecond });
+            sys.Execute(world, 0.016f);
+
+            Assert.Equal(ReplaySpanState.Restoring, sys.State);
+            Assert.Equal(6, playback.CurrentFrame);
+        }
+
+        [Fact]
+        public async Task R4012_A_seek_reports_whether_this_node_restored()
+        {
+            var filePath = CreateSmallRecording(frameCount: 5);
+            using var world = new EntityRepository();
+            var module = new ReplayModule(filePath, world, new StubTimeController(0L));
+            module.RegisterSystems(new CapturingSystemRegistry());
+
+            Assert.False(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks - PlaybackController.CoverageGraceTicks - 1));
+            Assert.Equal(ReplaySpanState.Listening, module.State);
+            Assert.True(await module.SeekToWallClockTicksAsync(module.RecordingStartWallTicks));
+            Assert.True(module.IsRestoring);
+            module.Dispose();
+        }
+
+        /// <summary>🔴 Before R-4012 a node with no recording of the exercise failed the whole replay transition.</summary>
+        [Fact]
+        public async Task R4012_A_node_with_no_recording_is_a_listener_not_a_failed_replay()
+        {
+            using var world = new EntityRepository();
+            var module = new ReplayModule(Path.Combine(_tempDir, "absent.fdp"), world, new StubTimeController(0L));
+            module.RegisterSystems(new CapturingSystemRegistry());
+
+            Assert.False(module.HasRecording);
+            Assert.False(await module.SeekToWallClockTicksAsync(123));
+            Assert.Equal(ReplaySpanState.Listening, module.State);
+            module.Dispose();
+        }
+
         // ── Helper ────────────────────────────────────────────────────────────────
 
         /// <summary>Creates a small valid .fdp file with <paramref name="frameCount"/> frames.</summary>

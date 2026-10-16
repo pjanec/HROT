@@ -543,9 +543,15 @@ namespace Hrot.Editor.DebugApi
             Fdp.Toolkit.Blueprints.BlueprintRegistry?     blueprintRegistry = null,
             Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? requestTransition = null,
             // ⭐ CE-515 — the editor's pack, the same seam every cluster node exposes (cgf==editor).
-            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null)
+            Func<EntityRepository, Hrot.Common.EntityCreation.EntityCreation?>? entityCreation = null,
+            // ⭐⭐ CE-4002 — the editor's in-process master's roster and the cancel onto its bus. ⚠ Optional for the
+            //    same reason as requestTransition; ⛔ the production caller HAS both and must pass them.
+            Func<IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry>?>? clusterRoster = null,
+            Action<Fdp.Toolkit.Orchestration.CancelOperationIntent>? requestCancel = null)
         {
             _entityCreationGetter = entityCreation;
+            _editorClusterRoster  = clusterRoster;
+            _editorRequestCancel  = requestCancel;
             // ⭐ The EDITOR shape still requires all nine — ⛔ this ctor has not become permissive. The
             //   cluster shape is a SEPARATE ctor below, so an editor wiring bug still fails loudly at boot.
             _editorWorld        = world            ?? throw new ArgumentNullException(nameof(world));

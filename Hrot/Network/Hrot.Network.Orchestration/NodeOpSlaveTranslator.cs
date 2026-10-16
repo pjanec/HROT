@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Text.Json;
 using CycloneDDS.Runtime;
@@ -30,6 +31,10 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     private readonly DdsWriter<NodeOpStatus>    _statusWriter;
     private readonly DdsWriter<NodeHeartbeat>   _heartbeatWriter;
     private readonly DdsWriter<NodeCapabilitiesTopic>? _capabilitiesWriter;   // CE-285 (C-cap): null in tests / offline.
+
+    /// <summary>⭐ P6 N5 — tokens describing how this node can be REACHED (the share it advertises); added to whatever the host advertises.</summary>
+    private readonly string[] _transportCapabilities;
+    private readonly DdsReader<ClusterStateTopic>?     _clusterStateReader;   // ⭐ C2: null in tests / offline.
     private readonly FdpEventBus                _bus;
     private readonly int                        _nodeId;
     private readonly JsonSerializerOptions      _jsonOptions;
@@ -45,8 +50,12 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
         FdpEventBus                bus,
         int                        nodeId,
         JsonSerializerOptions?     jsonOptions = null,
-        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null)
+        DdsWriter<NodeCapabilitiesTopic>? capabilitiesWriter = null,
+        DdsReader<ClusterStateTopic>?     clusterStateReader = null,
+        string[]?                         transportCapabilities = null)
     {
+        _clusterStateReader = clusterStateReader;
+        _transportCapabilities = transportCapabilities ?? Array.Empty<string>();
         _commandReader   = commandReader   ?? throw new ArgumentNullException(nameof(commandReader));
         _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
         _heartbeatWriter = heartbeatWriter ?? throw new ArgumentNullException(nameof(heartbeatWriter));
@@ -61,6 +70,25 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
     /// </summary>
     public void Tick()
     {
+        // ── ⭐⭐ C2 (Q91 §4-I I5, R-4006) — Cluster-state ingress: DDS ClusterStateTopic → bus ClusterStateUpdateEvent, so the
+        //   node's ClusterSlave knows which SESSION it follows. A not-alive instance means the master's writer is gone.
+        if (_clusterStateReader != null)
+        {
+            using var stateScope = _clusterStateReader.Take();
+            foreach (var s in stateScope)
+            {
+                if (s.IsValid)
+                    _bus.PublishManaged(new ClusterStateUpdateEvent
+                    {
+                        CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)s.Data.CurrentState,
+                        ExerciseId   = s.Data.ExerciseId,
+                        SessionId    = s.Data.SessionId,
+                    });
+                else if (s.Info.InstanceState != DdsInstanceState.Alive)
+                    _bus.PublishManaged(new ClusterStateUpdateEvent { MasterGone = true });
+            }
+        }
+
         // ── Ingress: DDS NodeOpCommand → Bus ExecuteNodeOpIntent ─────────────
         using var scope = _commandReader.Take();
         foreach (var sample in scope)
@@ -87,6 +115,7 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
             _heartbeatWriter.Write(new NodeHeartbeat
             {
                 NodeId            = hb.NodeId,
+                SessionId         = hb.SessionId,   // ⭐ C2
                 SubsystemName     = hb.SubsystemName ?? string.Empty,
                 LocalClusterState = (NedClusterState)hb.LocalStateId,
                 WallTicksUtc      = hb.WallTicksUtc,
@@ -108,7 +137,9 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                 _capabilitiesWriter.Write(new NodeCapabilitiesTopic
                 {
                     NodeId           = caps.NodeId,
-                    CapabilitiesJson = JsonSerializer.Serialize(caps.Capabilities ?? Array.Empty<string>(), FdpJsonOptionsRegistry.DefaultRelaxed),
+                    CapabilitiesJson = JsonSerializer.Serialize(
+                        (caps.Capabilities ?? Array.Empty<string>()).Concat(_transportCapabilities).Distinct().ToArray(),
+                        FdpJsonOptionsRegistry.DefaultRelaxed),
                 });
             }
         }
@@ -167,11 +198,11 @@ public sealed class NodeOpSlaveTranslator : IOrchestrationTranslator
                     IsNewScenario: false,
                     TargetState:   dto?.TargetState.HasValue == true ? (FdpClusterState)(int)dto.TargetState.Value : default,
                     ExerciseId:    dto?.ExerciseId ?? Guid.Empty,
-                    // ⭐ L1 — null when the sender omitted them (an older peer, or a scenario naming none).
+                    // ⭐ L1 — null when the sender omitted it (an older peer, or a scenario naming none).
                     //   The load steps treat a null name as "this scenario names none", which is legal.
-                    TkbName:       dto?.TkbName,
                     TerrainName:   dto?.TerrainName,
-                    IsWorldBoundary: dto?.IsWorldBoundary ?? false);   // CE-2101
+                    IsWorldBoundary: dto?.IsWorldBoundary ?? false,    // CE-2101
+                    IsCatchUp:       dto?.IsCatchUp ?? false);         // C7
             }
 
             case NedNodeOpType.StartEpisode:

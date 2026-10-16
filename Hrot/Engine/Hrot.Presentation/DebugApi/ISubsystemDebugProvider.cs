@@ -48,6 +48,16 @@ namespace Hrot.Presentation.DebugApi;
 /// </param>
 public sealed record DiagnosticDumpStatus(bool InFlight, IReadOnlyList<string> ManifestPaths);
 
+/// <summary>
+/// ⭐⭐ <c>CE-4002</c> — one node as the MASTER sees it (its <c>NodeRoster</c>), for <c>GET /cluster/roster</c>.
+/// 📄 <c>docs/DESIGN_Cluster_Membership_Use_Cases.md</c> §3.1. ⛔ A read of what exists, no new state.
+/// </summary>
+/// <param name="ReportedState">the state the node's own heartbeat reports — ⚠ the NODE's claim, not the cluster's</param>
+/// <param name="Roles">the role mask derived from the node's capability advert (<c>None</c> until it lands)</param>
+/// <param name="SecondsSinceHeartbeat">wall-clock age of its last heartbeat, as the master measures it</param>
+public sealed record ClusterRosterEntry(
+    int NodeId, string Subsystem, string ReportedState, string Roles, double SecondsSinceHeartbeat);
+
 public interface ISubsystemDebugProvider
 {
     /// <summary>⭐ The subsystem's own name — <c>ISubsystem.Name</c>, e.g. <c>"CGF"</c>. For diagnostics and the manifest.</summary>
@@ -280,6 +290,19 @@ public interface ISubsystemDebugProvider
     Fdp.ModuleHost.Diagnostics.IArchitectureDiagnosticsService? Architecture { get; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the cluster roster as the MASTER holds it, or <see langword="null"/> when no master runs in
+    /// this subsystem. ⚠ Only a subsystem that hosts the <c>ClusterMaster</c> (the orchestrator; the editor's in-process
+    /// core) can answer — every other node knows only what the wire told it.
+    /// </summary>
+    IReadOnlyList<ClusterRosterEntry>? ClusterRoster { get; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the operator's cancel (<c>R-4004</c>), published onto this subsystem's orchestration bus — the
+    /// path the panel's own button takes. <see langword="null"/> when there is no bus.
+    /// </summary>
+    Action<CancelOperationIntent>? RequestCancel { get; }
+
+    /// <summary>
     /// ⭐⭐ <b>What this subsystem CAN do, measured from wired dependencies — never a hand-authored table.</b>
     /// 📄 Q54 § Manifest scope: <i>"each provider DERIVES its own cells from ground truth"</i>; a
     /// hand-written *"works here / not there"* table is `CLAUDE.md` §M's green-and-false rot.
@@ -322,6 +345,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     private readonly Func<Action<string>?>? _requestSaveScenarioJson;   // CE-277(c0, HTTP)
     private readonly Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? _requestOwnershipTransfer;   // CE-276
     private readonly Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? _descriptorMap;   // CE-276
+    private readonly Func<IReadOnlyList<ClusterRosterEntry>?>? _clusterRoster;   // CE-4002
+    private readonly Func<Action<CancelOperationIntent>?>? _requestCancel;      // CE-4002
 
     /// <summary>
     /// ⭐⭐⭐ <b>THE ACCESSORS ARE LAZY, AND THAT IS MEASURED — NOT DEFENSIVE STYLE.</b>
@@ -363,7 +388,11 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         Func<DiagnosticDumpStatus?>? dumpStatus = null,
         Func<Action<string>?>? requestSaveScenarioJson = null,
         Func<Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>?>? requestOwnershipTransfer = null,
-        Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? descriptorMap = null)
+        Func<Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap?>? descriptorMap = null,
+        // ⭐⭐ CE-4002 — the master's roster and the operator's cancel. ⚠ Funcs, for the same measured reason as the
+        //    rest: the orchestration core and its bus are built in Initialize, after this provider.
+        Func<IReadOnlyList<ClusterRosterEntry>?>? clusterRoster = null,
+        Func<Action<CancelOperationIntent>?>? requestCancel = null)
     {
         SubsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
         Perspective   = perspective   ?? throw new ArgumentNullException(nameof(perspective));
@@ -383,6 +412,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         _requestSaveScenarioJson = requestSaveScenarioJson;
         _requestOwnershipTransfer = requestOwnershipTransfer;
         _descriptorMap = descriptorMap;
+        _clusterRoster = clusterRoster;
+        _requestCancel = requestCancel;
     }
 
     /// <summary>
@@ -400,6 +431,21 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     /// accessors below, and as <c>HN-028</c>'s master read.</para>
     /// </summary>
     public static Func<Action<TransitionStateIntent>?> TransitionsVia(Func<FdpEventBus?> orchestrationBus)
+    {
+        if (orchestrationBus is null) throw new ArgumentNullException(nameof(orchestrationBus));
+        return () =>
+        {
+            var bus = orchestrationBus();
+            return bus is null ? null : intent => bus.PublishManaged(intent);
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the cancel analog of <see cref="TransitionsVia"/>: publish onto the subsystem's own
+    /// orchestration bus, which every host's bus carries to the <c>ClusterMaster</c>. ⛔ One implementation, not one
+    /// lambda per host. ⚠ The bus is re-read on every access — buses are created in Initialize and nulled in Shutdown.
+    /// </summary>
+    public static Func<Action<CancelOperationIntent>?> CancelsVia(Func<FdpEventBus?> orchestrationBus)
     {
         if (orchestrationBus is null) throw new ArgumentNullException(nameof(orchestrationBus));
         return () =>
@@ -576,6 +622,8 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
     public Action<string>? RequestSaveScenarioJson => _requestSaveScenarioJson?.Invoke();
     public Action<Fdp.Toolkit.Replication.Messages.TransferEntityOwnershipRequest>? RequestOwnershipTransfer => _requestOwnershipTransfer?.Invoke();
     public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorMap => _descriptorMap?.Invoke();
+    public IReadOnlyList<ClusterRosterEntry>? ClusterRoster => _clusterRoster?.Invoke();
+    public Action<CancelOperationIntent>? RequestCancel => _requestCancel?.Invoke();
 
     /// <summary>
     /// ⭐⭐⭐ <b>MEASURED from what is wired</b> — ⛔ never declared. 📌 Q54's one real risk: a hand-authored
@@ -595,6 +643,9 @@ public sealed class SubsystemDebugProvider : ISubsystemDebugProvider
         [DebugCapabilities.ClusterDiagnosticsDump] = RequestDiagnosticDump is not null,
         // ⭐ CE-277(c0, HTTP) — measured from the orchestration bus being reachable, like ClusterDiagnosticsDump.
         [DebugCapabilities.SaveScenarioJson] = RequestSaveScenarioJson is not null,
+        // ⭐ CE-4002 — measured: a roster exists only where a ClusterMaster runs; a cancel needs only a bus.
+        [DebugCapabilities.ClusterRoster] = _clusterRoster?.Invoke() is not null,
+        [DebugCapabilities.ClusterCancel] = RequestCancel is not null,
 
         // ⭐⭐⭐ BP-487 — the gizmo frame IS per-provider, and saying otherwise was a MANIFEST LIE.
         // ⚠⚠ THIS COMMENT USED TO READ: *"Panels and the gizmo frame are PROCESS-WIDE statics
@@ -653,6 +704,11 @@ public static class DebugCapabilities
     public const string ClusterDiagnosticsDump = "diagnostics.clusterDump";
     /// <summary>CE-277(c0, HTTP): a node that can publish a distributed JSON scenario save intent.</summary>
     public const string SaveScenarioJson = "scenario.saveJson";
+
+    /// <summary>⭐ <c>CE-4002</c> — this subsystem hosts the <c>ClusterMaster</c>, so it can report the master's roster.</summary>
+    public const string ClusterRoster = "cluster.roster";
+    /// <summary>⭐ <c>CE-4002</c> — this subsystem can publish the operator's cancel onto its orchestration bus.</summary>
+    public const string ClusterCancel = "cluster.cancel";
 
     /// <summary>
     /// ⭐⭐ <b>Requesting a cluster-wide scenario load</b> — <c>scenario/load/live</c> · <c>scenario/load/edit</c>.

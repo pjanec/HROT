@@ -32,7 +32,7 @@ namespace Hrot.Network.NED.SimHost
     /// all handled by <c>MissionControlExecutionSystem</c>.
     /// </para>
     /// </summary>
-    public sealed class MissionControlIngressTranslator : IDescriptorTranslator
+    public sealed class MissionControlIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "MissionControlRequest";
 
@@ -60,6 +60,22 @@ namespace Hrot.Network.NED.SimHost
         }
 
         /// <inheritdoc/>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress()
+        {
+            if (_reader is null) return 0;
+            int discarded = 0;
+            while (true)
+            {
+                using var loan = _reader.Take();
+                if (loan.Count == 0) return discarded;
+                discarded += loan.Count;
+            }
+        }
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;

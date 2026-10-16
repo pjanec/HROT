@@ -17,5 +17,9 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// Do NOT add a custom <c>ToString()</c> override — use the serializer directly.
     /// </para>
     /// </summary>
-    public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds);
+    /// <param name="FirstFrameWallTicks">⭐ R-4012 (Q91 §4-P) — this node's first recorded frame; 0 when it holds no recording.
+    /// Aggregated: the earliest across the cluster — the replay's zero.</param>
+    /// <param name="LastFrameWallTicks">⭐ R-4012 — this node's last recorded frame; 0 when it holds none. Aggregated: the latest.</param>
+    public record struct ReplayPrepareResult(long MaxNetworkId, float DurationSeconds,
+                                             long FirstFrameWallTicks = 0, long LastFrameWallTicks = 0);
 }

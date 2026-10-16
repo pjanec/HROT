@@ -60,6 +60,11 @@ done
 
 ⭐ `--no-wait` skips the waiting-room handshake; without it a node blocks for peers that may never come.
 
+⭐⭐ **`scripts/cluster-node.sh`** does exactly this per node and handles the traps below — `start <mode> <port> [base-id]
+[domain]` waits for the API instead of sleeping, plus `status` / `get` / `post` / `kill <port>` (a crash) / `stop-all`.
+⭐ `-n <base>` moves a node's id (IG = base + 100), so several Players can run side by side. 📄 The membership use cases
+and their recipes: [`DESIGN_Cluster_Membership_Use_Cases.md`](DESIGN_Cluster_Membership_Use_Cases.md) §3.
+
 ### 1.3 ⛔⛔ Four launch traps, all measured
 
 | trap | symptom | fix |

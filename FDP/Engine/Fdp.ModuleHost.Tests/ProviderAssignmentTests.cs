@@ -84,12 +84,13 @@ namespace Fdp.ModuleHost.Tests
         }
 
         [Fact]
-        public void ProviderAssignment_AsyncSoD_MultipleModules_Convoy()
+        public void ProviderAssignment_FrameSyncedSoD_MultipleModules_Convoy()
         {
+            // ⭐ TM-023 — the convoy is for modules the main thread waits for; ProviderAssignment_AsyncSoD_MultipleModules_EachOwnSnapshot is the async half.
             using var kernel = CreateKernel();
-            var module1 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10) };
-            var module2 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10) };
-            var module3 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10) };
+            var module1 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10).WithMode(RunMode.FrameSynced) };
+            var module2 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10).WithMode(RunMode.FrameSynced) };
+            var module3 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10).WithMode(RunMode.FrameSynced) };
             
             kernel.RegisterModule(module1);
             kernel.RegisterModule(module2);
@@ -101,6 +102,26 @@ namespace Fdp.ModuleHost.Tests
             Assert.IsType<SharedSnapshotProvider>(provider);
             Assert.Same(provider, GetModuleEntry(kernel, module2).Provider);
             Assert.Same(provider, GetModuleEntry(kernel, module3).Provider);
+        }
+
+        [Fact]
+        public void ProviderAssignment_AsyncSoD_MultipleModules_EachOwnSnapshot()
+        {
+            // ⭐ TM-023 — Asynchronous SoD modules never convoy: an early finisher would re-acquire a snapshot a slower member still
+            //   holds (stale, its events read twice). Each keeps an OnDemandProvider — a fresh snapshot at dispatch.
+            using var kernel = CreateKernel();
+            var module1 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10) };
+            var module2 = new TestModule { Policy = ExecutionPolicy.SlowBackground(10) };
+
+            kernel.RegisterModule(module1);
+            kernel.RegisterModule(module2);
+            kernel.InitializeForTest();
+
+            var p1 = GetModuleEntry(kernel, module1).Provider;
+            var p2 = GetModuleEntry(kernel, module2).Provider;
+            Assert.IsType<OnDemandProvider>(p1);
+            Assert.IsType<OnDemandProvider>(p2);
+            Assert.NotSame(p1, p2);
         }
         
         [Fact]

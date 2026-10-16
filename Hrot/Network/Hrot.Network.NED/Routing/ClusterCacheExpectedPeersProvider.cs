@@ -28,12 +28,20 @@ namespace Hrot.Network.Routing
             _cache = cache;
         }
 
+        /// <summary>⭐ §4-A′ — a node holding a simulation role is authoritative (a node in the cache holds a seen advert).</summary>
+        private bool IsAuthoritative(int nodeId)
+            => _cache.HasRole(nodeId, Fdp.Core.NodeRole.Brain) || _cache.HasRole(nodeId, Fdp.Core.NodeRole.MuscleGround)
+            || _cache.HasRole(nodeId, Fdp.Core.NodeRole.Perception) || _cache.HasRole(nodeId, Fdp.Core.NodeRole.NavigationSolver);
+
         public IReadOnlyList<int> GetExpectedPeers(long blueprintId, int localNodeId)
         {
             var all = _cache.AllNodeIds();
             var peers = new List<int>(all.Count);
             foreach (var id in all)
-                if (id != localNodeId && _cache.Supports(id, CapabilityTokens.ReliableInit))
+                if (id != localNodeId
+                    && _cache.Supports(id, CapabilityTokens.ReliableInit)
+                    && _cache.IsInSync(id)              // ⭐ C6 (K6) — a node not in sync never participates
+                    && IsAuthoritative(id))             // ⭐ C6 (K6) — an observer never gates
                     peers.Add(id);
             return peers;
         }

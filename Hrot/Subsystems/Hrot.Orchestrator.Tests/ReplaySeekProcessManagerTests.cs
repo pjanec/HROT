@@ -71,7 +71,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 
@@ -116,7 +116,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 
@@ -179,7 +179,7 @@ public sealed class ReplaySeekProcessManagerTests
         using var master = new ClusterMaster(bus, NoMandatoryConfig());
         master.RegisterAggregator(new ReplaySeekAggregator());
 
-        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus));
+        var mgr = new ReplaySeekProcessManager(bus, new Fdp.Toolkit.Time.IntentTimeCommands(masterSyncBus), master.StepRoster);
 
         RegisterNode(bus, master, mgr, nodeId: 1, subsystem: "SimHost");
 

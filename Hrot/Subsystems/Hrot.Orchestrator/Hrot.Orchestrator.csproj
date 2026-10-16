@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <!-- CE-4002: the orchestrator offers a debug surface (the master's roster, cancel) like every other subsystem. -->
+    <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />

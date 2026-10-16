@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Fdp.Core.FlightRecorder.Metadata;
 using Fdp.Core.Logging;
 using Fdp.Toolkit.Orchestration;
+using Fdp.Toolkit.Orchestration.Transfer;
 using Hrot.Network.Orchestration;
 using Fdp.Core.Serialization;
 
@@ -57,14 +58,18 @@ public sealed record AssetSyncTarget(string Kind, string DestinationRoot, Fdp.To
 /// <summary>
 /// ⭐⭐ <c>S2a</c> — the artifact names the staged scenario slices AGREE on.
 ///
-/// <para>🔴 Both are <see langword="null"/>-legal and mean different things when absent: no TKB name means
-/// the node uses <c>NedTkbCatalog.RegisterAll()</c> (a supported path), and no terrain name means the
-/// scenario simply has no terrain. ⛔ Neither is a failure — only DISAGREEMENT between slices is.</para>
+/// <para>🔴 <see langword="null"/>-legal: no terrain name means the scenario simply has no terrain. ⛔ Not a
+/// failure — only DISAGREEMENT between slices is.</para>
+///
+/// <para>⛔⛔ <b>No TKB name — <c>R-4018</c>.</b> A scenario never names a TKB: there is one TKB per deployment,
+/// named by <c>ClusterConfiguration.TkbName</c> and staged by <see cref="StorageGatewayModule"/>'s TKB sync
+/// whatever the scenario says. An older file's <c>Header.TkbName</c> is never read.
+/// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
 /// </summary>
-public readonly record struct StagedArtifactNames(string? TkbName, string? TerrainName)
+public readonly record struct StagedArtifactNames(string? TerrainName)
 {
     /// <summary>True when the scenario names at least one artifact worth staging.</summary>
-    public bool Any => !string.IsNullOrEmpty(TkbName) || !string.IsNullOrEmpty(TerrainName);
+    public bool Any => !string.IsNullOrEmpty(TerrainName);
 }
 
 /// <summary>
@@ -110,6 +115,49 @@ public sealed class StorageGatewayModule
     /// <see cref="PullToNasAsync"/> and <see cref="PushToNodesAsync"/>.
     /// </summary>
     public const int MaxParallelCopies = 8;
+
+    private readonly IFileTransferProvider _provider;
+
+    /// <param name="provider">⭐ <c>P6</c> (Q91 §4-E2) — the transport every PUSH site (NAS → node) goes through.
+    /// <see langword="null"/> = the share transport (<see cref="NodeShareProvider"/>), today's copy. ⛔ The PULL sites
+    /// (node → NAS) do not use it.</param>
+    public StorageGatewayModule(IFileTransferProvider? provider = null)
+        => _provider = provider ?? DefaultProvider;
+
+    /// <summary>The transport a push uses when none is given — the share (co-located: the staging root itself).</summary>
+    public static readonly IFileTransferProvider DefaultProvider = new NodeShareProvider();
+
+    /// <summary>The transport this gateway's pushes go through.</summary>
+    public IFileTransferProvider Provider => _provider;
+
+    /// <summary>
+    /// ⭐ <c>P6</c> — one push through the provider, awaited on the caller's worker. The target's root is the directory
+    /// the file lands in and the item is its name, so one item means the same file on every target of the request.
+    /// ⛔ Cancellation propagates as <see cref="OperationCanceledException"/> (the gateway's contract); the provider has
+    /// already removed any partial file.
+    /// </summary>
+    private static async Task<TransferStatus> DeliverAsync(
+        IFileTransferProvider provider, IReadOnlyList<TransferTarget> targets, IReadOnlyList<TransferItem> items,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var transfer = provider.Start(new TransferRequest(targets, items));
+        using (ct.Register(transfer.Cancel))
+            await transfer.Completion.ConfigureAwait(false);
+        var status = transfer.Status;
+        if (status.Code == OrchestrationStatusCode.Cancelled) throw new OperationCanceledException(ct);
+        if (status.FilesFailed > 0)
+            FdpLog<StorageGatewayModule>.Error("[Gateway] {0} transfer: {1}", provider.Transport, status.Message);
+        return status;
+    }
+
+    /// <summary>⭐ The push of ONE file into one directory per target (<c>{dir}/{fileName}</c>).</summary>
+    private static Task<TransferStatus> DeliverFileAsync(
+        IFileTransferProvider provider, string sourcePath, string fileName,
+        IEnumerable<(int NodeId, string Directory)> targets, CancellationToken ct = default)
+        => DeliverAsync(provider,
+            targets.Select(t => new TransferTarget(t.NodeId, t.Directory)).ToList(),
+            new[] { new TransferItem(sourcePath, fileName) }, ct);
 
     /// <summary>
     /// Comparison to use for filesystem path equality: case-insensitive on Windows
@@ -223,44 +271,18 @@ public sealed class StorageGatewayModule
         if (string.IsNullOrWhiteSpace(nasSourcePath)) throw new ArgumentNullException(nameof(nasSourcePath));
         if (targets == null) throw new ArgumentNullException(nameof(targets));
 
-        int successCount = 0;
-        int failureCount = 0;
-
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: one request per destination file name (a target may rename the file).
+        int successCount = 0, failureCount = 0;
+        var pushes = targets
+            .GroupBy(t => Path.GetFileName(t.DestinationPath))
+            .Select(g => DeliverFileAsync(_provider, nasSourcePath, g.Key,
+                g.Select(t => (t.NodeId, Path.GetDirectoryName(t.DestinationPath) ?? string.Empty)), ct))
+            .ToList();
+        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
         {
-            await Task.Run(() =>
-            {
-                Parallel.ForEach(targets, opts, target =>
-                {
-                    try
-                    {
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-
-                        partial.Add(target.DestinationPath);
-                        File.Copy(nasSourcePath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
+            successCount += status.FilesDone + status.FilesSkipped;
+            failureCount += status.FilesFailed;
         }
-        catch (OperationCanceledException)
-        {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
-        }
-
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
     }
 
@@ -277,10 +299,26 @@ public sealed class StorageGatewayModule
     /// <param name="targets">Target nodes; each entry's <see cref="NodeDistributionTarget.DestinationPath"/>
     /// should be the fully-qualified destination <em>directory</em> on the target node.</param>
     /// <param name="nasBasePath">NAS root under which <c>scenarios\&lt;scenarioId&gt;</c> is resolved.</param>
-    public async Task<GatewayResult> PrefetchScenarioAsync(
+    /// <param name="tkbName">⭐ <c>R-4018</c> — the deployment's ONE TKB (<c>ClusterConfiguration.TkbName</c>), synced from
+    /// <c>{nas}/tkb/&lt;name&gt;.zip</c> whatever the scenario says. ⚠ <see langword="null"/> skips the TKB sync — tests only;
+    /// the production saga always passes the configured name.</param>
+    /// <param name="ct">⭐ P8 H5 — the operator's cancel STOPS the copy (the transfer removes its partial files).</param>
+    public Task<GatewayResult> PrefetchScenarioAsync(
         string scenarioId,
         IReadOnlyList<NodeDistributionTarget> targets,
-        string nasBasePath)
+        string nasBasePath,
+        string? tkbName = null,
+        CancellationToken ct = default)
+        // ⭐ R-4001 — ALL of it on a worker, the NAS directory scan included: the saga calls this from the frame thread,
+        //   and a transfer that finishes at once would otherwise resume the rest of the chain there.
+        => Task.Run(() => PrefetchScenarioCoreAsync(scenarioId, targets, nasBasePath, tkbName, ct), ct);
+
+    private async Task<GatewayResult> PrefetchScenarioCoreAsync(
+        string scenarioId,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        string? tkbName,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
         if (targets == null)                        throw new ArgumentNullException(nameof(targets));
@@ -302,55 +340,24 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' is empty. " +
                 $"Ensure scenario '{scenarioId}' contains at least one file before prefetching.");
 
-        // NEW: sanity gate -- TkbName must agree across all scenario files.
-        // ⭐ S2a — it now RETURNS what it already computed, instead of discarding it.
-        var artifactNames = CheckTkbNameConsensus(files);
+        // Sanity gate -- TerrainName must agree across all scenario files. ⛔ R-4018: no TKB name is read from them.
+        // ⭐ S2a — it RETURNS what it computed, instead of discarding it.
+        var artifactNames = CheckTerrainNameConsensus(files);
 
         int success = 0, failure = 0;
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 
 		// eliminate duplicate destination paths (if multiple nodes share the same staging directory) to avoid redundant copies
 		var distinctTargets = targets.DistinctBy(t => t.DestinationPath).ToList();
 
-        // For each (file, target) pair: push the file to the target node's staging dir.
-        var pairs = new List<(string sourceFile, NodeDistributionTarget target)>(files.Length * targets.Count);
-        foreach (var file in files)
-            foreach (var target in distinctTargets)
-                pairs.Add((file, target));
-
-        await Task.Run(() =>
+        // ⭐ P6 — every slice to every target through the provider, ONE request per file (bundled: every target in it).
+        //   A target already holding the file (same length + mtime — including the NAS file itself) is skipped.
+        foreach (var srcFile in files)
         {
-            Parallel.ForEach(pairs, options, pair =>
-            {
-                var (srcFile, tgt) = pair;
-                try
-                {
-                    var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
-
-                    // Skip if source and destination are the exact same file. Path equality
-                    // is case-insensitive only on Windows; on Linux, case-differing paths
-                    // are distinct files.
-                    if (string.Equals(srcFile, destPath, PlatformPathComparison))
-                    {
-                        Interlocked.Increment(ref success);
-                        return;
-                    }
-
-                    var destDir  = Path.GetDirectoryName(destPath);
-                    if (!string.IsNullOrEmpty(destDir))
-                        Directory.CreateDirectory(destDir);
-                    File.Copy(srcFile, destPath, overwrite: true);
-                    Interlocked.Increment(ref success);
-                }
-                catch (Exception ex)
-                {
-                    FdpLog<StorageGatewayModule>.Error(
-                        "[Gateway] PrefetchScenario: failed to copy '{0}' → '{1}': {2}",
-                        Path.GetFileName(srcFile), tgt.DestinationPath, ex.Message);
-                    Interlocked.Increment(ref failure);
-                }
-            });
-        }).ConfigureAwait(false);
+            var status = await DeliverFileAsync(_provider, srcFile, Path.GetFileName(srcFile),
+                distinctTargets.Select(t => (t.NodeId, t.DestinationPath)), ct).ConfigureAwait(false);
+            success += status.FilesDone + status.FilesSkipped;
+            failure += status.FilesFailed;
+        }
 
         // ⭐⭐⭐ CE-280 — route the format-incompatible foreign slices back to THEIR origin nodes only.
         //   A distributed save keeps each foreign slice under <name>/foreign/node_<id>.json (§4c). On load
@@ -365,64 +372,44 @@ public sealed class StorageGatewayModule
             {
                 if (!TryParseForeignNodeId(Path.GetFileName(foreignFile), out var originNodeId))
                     continue;
-                foreach (var tgt in distinctTargets)
-                {
-                    if (tgt.NodeId != originNodeId) continue;
-                    try
-                    {
-                        var destPath = Path.Combine(tgt.DestinationPath, "foreign", Path.GetFileName(foreignFile));
-                        if (string.Equals(foreignFile, destPath, PlatformPathComparison))
-                        {
-                            Interlocked.Increment(ref success);
-                            continue;
-                        }
-                        var destDir = Path.GetDirectoryName(destPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
-                        File.Copy(foreignFile, destPath, overwrite: true);
-                        Interlocked.Increment(ref success);
-                    }
-                    catch (Exception ex)
-                    {
-                        FdpLog<StorageGatewayModule>.Error(
-                            "[Gateway] PrefetchScenario: failed to route foreign '{0}' → node {1}: {2}",
-                            Path.GetFileName(foreignFile), originNodeId, ex.Message);
-                        Interlocked.Increment(ref failure);
-                    }
-                }
+                var owners = distinctTargets.Where(t => t.NodeId == originNodeId).ToList();
+                if (owners.Count == 0) continue;
+                var status = await DeliverFileAsync(_provider, foreignFile, Path.GetFileName(foreignFile),
+                    owners.Select(t => (t.NodeId, Path.Combine(t.DestinationPath, "foreign"))), ct).ConfigureAwait(false);
+                success += status.FilesDone + status.FilesSkipped;
+                failure += status.FilesFailed;
             }
         }
 
-        // ⭐⭐⭐ S2b + S2c — stage the named ARTIFACTS beside the scenario slices.
+        // ⭐⭐⭐ S2c — stage the scenario's named terrain beside the scenario slices.
+        ct.ThrowIfCancellationRequested();
         StageNamedArtifacts(artifactNames, distinctTargets, nasBasePath, ref success, ref failure);
+
+        // ⭐⭐⭐ R-4018 — the deployment's ONE TKB, before every scenario load: a freshness check that copies only what changed.
+        if (!string.IsNullOrWhiteSpace(tkbName))
+            SyncTkb(tkbName!, distinctTargets, nasBasePath, ref success, ref failure, _provider, ct);
 
         // ⭐⭐ CE-3020 — the behaviour-asset trees each node needs or authors, INSIDE the prefetch saga (B4a): this task
         //   is what the parked transition waits on, so a sync failure fails the request the same way (B6).
+        ct.ThrowIfCancellationRequested();
         SyncBehaviourAssets(targets, nasBasePath, ref success, ref failure);
 
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>S2b</c> + <c>S2c</c> — copy the named TKB zip, and write the header that names it, into
-    /// every target's TKB directory.
-    ///
-    /// <para>🔴 <b>Why <c>S2c</c> is the half that matters.</b> 📐 Measured <c>2026-09-18</c>:
-    /// <c>ScenarioHeader.json</c> had <b>zero production writers</b>, so
-    /// <c>TkbLoadClusterStateHandler.ExtractTkbNameFromLocalScenario</c> returned <c>null</c> on every
-    /// real load and the handler fell through to <c>NedTkbCatalog.RegisterAll()</c>. ⇒ the TKB loader had
-    /// <b>never resolved a name in production</b> — which is why the missing zip (<c>BP-550</c>) went
-    /// unnoticed: <b>the name was never read, so the zip was never wanted.</b></para>
+    /// ⭐⭐⭐ <c>S2c</c> — stage the scenario's named terrain folder, and write the header that names it into
+    /// every target's staging directory.
     ///
     /// <para>⚠⚠ <b>The header written here is a DIFFERENT SHAPE from the scenario's own header block,
-    /// and that is deliberate.</b> 📐 Both node-side readers take a FLAT object with PascalCase keys —
-    /// <c>TkbLoadClusterStateHandler.cs:152</c> and <c>ScenarioTerrainName.cs:42</c> both use
-    /// <c>ValueTextEquals("TkbName")</c>/<c>("TerrainName")</c> with no nesting — whereas a scenario file
-    /// carries <c>header: {{ tkbName, terrainName }}</c>, nested and camelCase. ⛔ Copying the scenario's
-    /// block verbatim would produce a file neither reader can parse.</para>
+    /// and that is deliberate.</b> 📐 The node-side reader takes a FLAT object with PascalCase keys —
+    /// <c>ScenarioTerrainName.cs</c> uses <c>ValueTextEquals("TerrainName")</c> with no nesting — whereas a
+    /// scenario file carries <c>header: {{ terrainName }}</c>, nested and camelCase.</para>
     ///
-    /// <para>⚠ A scenario naming NO artifacts stages nothing and is <b>not</b> a failure — the
-    /// <c>NedTkbCatalog</c> fallback is a legal path.</para>
+    /// <para>⛔⛔ <b><c>R-4018</c> — the TKB is NOT staged here any more</b>: a scenario no longer names one.
+    /// <see cref="SyncTkb"/> stages the deployment's one TKB on every prefetch, whatever the scenario says.</para>
+    ///
+    /// <para>⚠ A scenario naming NO terrain stages nothing and is <b>not</b> a failure.</para>
     ///
     /// 📄 docs/DESIGN_Artifact_Staging.md §2, §4.
     /// </summary>
@@ -436,7 +423,7 @@ public sealed class StorageGatewayModule
         if (!names.Any)
         {
             // ⭐⭐ CE-3075 — staging nothing must not leave the PREVIOUS scenario's header behind: both node-side
-            //   readers fall back to it when the load message is silent, so a scenario naming no terrain (or no TKB)
+            //   readers fall back to it when the load message is silent, so a scenario naming no terrain
             //   loaded after one that named some INHERITED those names on CGF (measured live 2026-10-05:
             //   hill-attack-close after ua-posture kept test-town resident on CGF only). Remove it; stage nothing.
             foreach (var target in targets)
@@ -456,43 +443,8 @@ public sealed class StorageGatewayModule
 
         var headerJson = BuildStagedHeaderJson(names);
 
-        string? tkbSource = null;
-        if (!string.IsNullOrEmpty(names.TkbName))
-        {
-            tkbSource = Path.Combine(
-                nasBasePath,
-                OrchestrationConstants.NasTkbDirectoryName,
-                names.TkbName + OrchestrationConstants.TkbArtifactExtension);
-
-            if (!File.Exists(tkbSource))
-            {
-                // 🔴🔴 A NAMED-but-UNPUBLISHED artifact is LOGGED LOUDLY and deliberately NOT counted as a
-                //    gateway failure. ⚠ This was a real decision, not an oversight — the first draft
-                //    counted it, and three PRE-EXISTING rails went red
-                //    (PrefetchScenario_SameTkbName_AllFiles_Succeeds and two siblings), which is what
-                //    surfaced the question.
-                //
-                //    📐 Those rails encode the EXISTING contract: a scenario may name a TKB that is not
-                //    published, and prefetch still reports IsFullSuccess. ⛔ Changing that would change
-                //    the orchestrator's TRANSITION OUTCOME for a condition this design never said should
-                //    block a transition — far beyond "copy the zip".
-                //
-                //    ⭐⭐ And the loud failure already has a designed home: the node's own
-                //    TkbLoadClusterStateHandler throws FileNotFoundException naming the exact path when
-                //    it cannot find the zip its header told it to load. ⇒ IsFullSuccess keeps meaning
-                //    "every transfer I attempted succeeded", and nothing is swallowed — the error names
-                //    the missing NAS path, which is the actionable half.
-                //    📄 docs/DESIGN_Artifact_Staging.md §4a (folded back by this batch).
-                FdpLog<StorageGatewayModule>.Error(
-                    "[Gateway] PrefetchScenario: scenario names TKB '{0}' but '{1}' does not exist on the "
-                  + "NAS. Nodes will fail to load it. Publish the artifact to {2}.",
-                    names.TkbName, tkbSource, OrchestrationConstants.GetNasTkbRoot(nasBasePath));
-                tkbSource = null;
-            }
-        }
-
         // ⭐⭐ BP-557 (2026-10-03) — the named TERRAIN, a FOLDER {nas}/terrain/<name>/ (definition + world +
-        //   roads), staged beside the TKB to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
+        //   roads), staged to {node}/Terrain/<name>/. 📄 docs/DESIGN_Terrain_World.md §7.3 W12.
         //   ⚠ Not on the NAS is NOT an error here: every node's TerrainCatalog also searches the shared root
         //   and the terrains shipped with the build, and the node fails loudly itself if none has it.
         string? terrainSource = null;
@@ -531,23 +483,6 @@ public sealed class StorageGatewayModule
                 File.WriteAllText(
                     Path.Combine(target.TkbDestinationPath, StagedScenarioHeaderFileName), headerJson);
                 Interlocked.Increment(ref success);
-
-                // S2b — the artifact itself.
-                if (tkbSource != null)
-                {
-                    var dest = Path.Combine(target.TkbDestinationPath, Path.GetFileName(tkbSource));
-                    if (IsAlreadyCurrent(tkbSource, dest))
-                    {
-                        // ⭐ S2d — the node already holds these bytes; leaving the file UNTOUCHED is what
-                        //   makes the node's own (name, length, mtime) cache fire too. §6.
-                        Interlocked.Increment(ref success);
-                    }
-                    else
-                    {
-                        File.Copy(tkbSource, dest, overwrite: true);
-                        Interlocked.Increment(ref success);
-                    }
-                }
             }
             catch (Exception ex)
             {
@@ -555,6 +490,75 @@ public sealed class StorageGatewayModule
                     "[Gateway] PrefetchScenario: failed to stage artifacts → '{0}': {1}",
                     target.TkbDestinationPath, ex.Message);
                 Interlocked.Increment(ref failure);
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4018</c> — sync the deployment's ONE TKB from its NAS master copy (<c>{nas}/tkb/&lt;name&gt;.zip</c>) into
+    /// every target's TKB staging directory, and leave the <see cref="StagedTkb"/> record naming it. Runs before every
+    /// scenario load as a FRESHNESS CHECK: a node already holding the same bytes is left untouched (<c>S2d</c>), which is
+    /// what lets the node's own (name, length, mtime) cache skip the reload too.
+    ///
+    /// <para>⭐ <b>No master copy is legal</b> — the default deployment today. The stale record is removed so the node
+    /// keeps its built-in catalogue, and nothing counts as a failure. 🔒 User, <c>2026-10-15</c>: <i>"go ahead with
+    /// the fallback"</i>. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
+    /// </summary>
+    public static void SyncTkb(
+        string tkbName,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        ref int success,
+        ref int failure,
+        IFileTransferProvider? provider = null,
+        CancellationToken ct = default)
+    {
+        var source = Path.Combine(nasBasePath, OrchestrationConstants.NasTkbDirectoryName,
+            tkbName + OrchestrationConstants.TkbArtifactExtension);
+        var staged = targets.Where(t => !string.IsNullOrEmpty(t.TkbDestinationPath)).ToList();
+
+        if (!File.Exists(source))
+        {
+            FdpLog<StorageGatewayModule>.Info(
+                "[Gateway] TKB '{0}' has no master copy at '{1}' — nodes keep their built-in catalogue.", tkbName, source);
+            foreach (var target in staged)
+            {
+                try { StagedTkb.Clear(target.TkbDestinationPath); }
+                catch (Exception ex)
+                {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] TKB record of '{0}' could not be cleared: {1}", target.TkbDestinationPath, ex.Message);
+                    failure++;
+                }
+            }
+            return;
+        }
+        if (staged.Count == 0) return;
+
+        // ⭐ P6 — ONE request to every target through the provider; a node already holding the same bytes is skipped
+        //   (S2d: an unchanged archive is never rewritten — the provider's freshness rule is IsAlreadyCurrent's).
+        var status = DeliverFileAsync(provider ?? DefaultProvider, source, Path.GetFileName(source),
+            staged.Select(t => (t.NodeId, t.TkbDestinationPath)), ct).GetAwaiter().GetResult();
+
+        foreach (var target in staged)
+        {
+            if (status.FailedNodeIds.Contains(target.NodeId))
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] TKB sync of '{0}' → '{1}' failed: {2}", tkbName, target.TkbDestinationPath, status.Message);
+                failure++;
+                continue;
+            }
+            try
+            {
+                StagedTkb.Write(target.TkbDestinationPath, tkbName);
+                success++;
+            }
+            catch (Exception ex)
+            {
+                FdpLog<StorageGatewayModule>.Error(
+                    "[Gateway] TKB record → '{0}' failed: {1}", target.TkbDestinationPath, ex.Message);
+                failure++;
             }
         }
     }
@@ -602,7 +606,7 @@ public sealed class StorageGatewayModule
         }
     }
 
-    /// <summary>The header file both node-side readers open. ⛔ One definition of the name.</summary>
+    /// <summary>The header file the node-side terrain reader opens. ⛔ One definition of the name.</summary>
     public const string StagedScenarioHeaderFileName = "ScenarioHeader.json";
 
     /// <summary>
@@ -612,9 +616,7 @@ public sealed class StorageGatewayModule
     /// </summary>
     public static string BuildStagedHeaderJson(StagedArtifactNames names)
     {
-        var fields = new List<string>(2);
-        if (!string.IsNullOrEmpty(names.TkbName))
-            fields.Add($"\"TkbName\":{JsonSerializer.Serialize(names.TkbName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
+        var fields = new List<string>(1);
         if (!string.IsNullOrEmpty(names.TerrainName))
             fields.Add($"\"TerrainName\":{JsonSerializer.Serialize(names.TerrainName, FdpJsonOptionsRegistry.DefaultRelaxed)}");
         return "{" + string.Join(",", fields) + "}";
@@ -677,55 +679,24 @@ public sealed class StorageGatewayModule
                 $"[Gateway] PrefetchArchive: NAS source directory '{sourceDir}' does not exist. " +
                 $"Ensure exercise '{exerciseId}' is archived to the NAS before issuing a replay prefetch.");
 
-        int successCount = 0;
-        int failureCount = 0;
-
-        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
-        var partial = new ConcurrentBag<string>();
-
-        try
+        // ⭐ P6 — through the provider: each node gets ITS OWN recording (and the schema manifest beside it, so replay
+        //   validation succeeds), one request per node.
+        var pushes = targets.Select(target =>
         {
-            await Task.Run(() =>
-            {
-                Parallel.ForEach(targets, opts, target =>
-                {
-                    try
-                    {
-                        var fileName = OrchestrationConstants.GetNodeRecordingFileName(target.NodeId);
-                        var srcPath = Path.Combine(sourceDir, fileName);
-                        var destDir = Path.GetDirectoryName(target.DestinationPath);
-                        if (!string.IsNullOrEmpty(destDir))
-                            Directory.CreateDirectory(destDir);
+            var srcPath  = Path.Combine(sourceDir, OrchestrationConstants.GetNodeRecordingFileName(target.NodeId));
+            var destName = Path.GetFileName(target.DestinationPath);
+            var items = new List<TransferItem> { new(srcPath, destName) };
+            if (File.Exists(srcPath + ".meta.json")) items.Add(new TransferItem(srcPath + ".meta.json", destName + ".meta.json"));
+            return DeliverAsync(_provider,
+                new[] { new TransferTarget(target.NodeId, Path.GetDirectoryName(target.DestinationPath) ?? string.Empty) },
+                items, ct);
+        }).ToList();
 
-                        partial.Add(target.DestinationPath);
-                        File.Copy(srcPath, target.DestinationPath, overwrite: true);
-                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
-
-                        // Pull the companion schema manifest file so replay validation succeeds.
-                        var metaSrcPath = srcPath + ".meta.json";
-                        var metaDestPath = target.DestinationPath + ".meta.json";
-                        if (File.Exists(metaSrcPath))
-                        {
-                            partial.Add(metaDestPath);
-                            File.Copy(metaSrcPath, metaDestPath, overwrite: true);
-                            partial.TryTake(out _);   // remove on success — only tracked while in-flight
-                        }
-
-                        Interlocked.Increment(ref successCount);
-                    }
-                    catch (Exception)
-                    {
-                        Interlocked.Increment(ref failureCount);
-                    }
-                });
-            }, ct).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
+        int successCount = 0, failureCount = 0;
+        foreach (var status in await Task.WhenAll(pushes).ConfigureAwait(false))
         {
-            // Delete partially-written destination files to keep storage consistent.
-            foreach (var f in partial)
-                try { File.Delete(f); } catch { /* best-effort */ }
-            throw;
+            if (status.FilesFailed > 0) failureCount++;
+            else successCount++;
         }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
@@ -847,21 +818,15 @@ public sealed class StorageGatewayModule
     // CE-278: WriteScenarioManifestAsync (scenario_manifest.json) retired — it was written only by the
     // SaveScenario=2 pull path and had zero readers (in-repo or external NAS tools, confirmed).
 
-    // ── TkbName consensus helpers ──────────────────────────────────────────────
+    // ── TerrainName consensus helpers ──────────────────────────────────────────
 
-    /// <summary>
-    /// Reads the <c>TkbName</c> field from the <c>Header</c> section of each JSON file
-    /// using a forward-only <see cref="System.Text.Json.Utf8JsonReader"/> (no DOM allocation).
-    /// Throws <see cref="InvalidOperationException"/> if any two non-empty TkbName values disagree.
-    /// </summary>
     /// <summary>
     /// ⭐⭐⭐ <c>L1</c> — <b>the shared content names of a scenario as it sits on the NAS</b>, for the
     /// orchestrator to put on the message that opens the <c>Loading*</c> phase.
     ///
     /// <para>⭐⭐ Deliberately the SAME consensus reader the staging path uses
-    /// (<see cref="CheckTkbNameConsensus"/>), not a second peek: the names the nodes are TOLD and the names
-    /// the gateway STAGES must be one answer, or a node loads one knowledge base and passes an identity
-    /// check against another. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2.</para>
+    /// (<see cref="CheckTerrainNameConsensus"/>), not a second peek: the names the nodes are TOLD and the names
+    /// the gateway STAGES must be one answer. 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2.</para>
     ///
     /// <para>⚠ A missing directory, an unreadable file or a scenario naming nothing all return an EMPTY
     /// result — that is legal and silent (§4.2). ⛔ A disagreement between two slices still THROWS, exactly
@@ -876,7 +841,7 @@ public sealed class StorageGatewayModule
         if (string.IsNullOrWhiteSpace(scenarioDirectory) || !Directory.Exists(scenarioDirectory))
             return default;
 
-        return CheckTkbNameConsensus(Directory.GetFiles(scenarioDirectory, "*.json"));
+        return CheckTerrainNameConsensus(Directory.GetFiles(scenarioDirectory, "*.json"));
     }
 
     /// <summary>
@@ -900,10 +865,13 @@ public sealed class StorageGatewayModule
         return files.Length;
     }
 
-    private static StagedArtifactNames CheckTkbNameConsensus(string[] files)
+    /// <summary>
+    /// Reads <c>Header.TerrainName</c> from each JSON file (forward-only, no DOM) and throws
+    /// <see cref="InvalidOperationException"/> if two non-empty values disagree. ⛔ <c>R-4018</c>: a file's
+    /// <c>Header.TkbName</c> is never read — a scenario does not name a TKB.
+    /// </summary>
+    private static StagedArtifactNames CheckTerrainNameConsensus(string[] files)
     {
-        string? agreedTkbName     = null;
-        string? agreedSourceFile  = null;
         string? agreedTerrainName = null;
         string? terrainSourceFile = null;
 
@@ -912,27 +880,6 @@ public sealed class StorageGatewayModule
             if (!file.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            string? tkbName = PeekHeaderStringFromFile(file, "TkbName", "tkbName");
-            if (!string.IsNullOrEmpty(tkbName))
-            {
-                if (agreedTkbName == null)
-                {
-                    agreedTkbName    = tkbName;
-                    agreedSourceFile = file;
-                }
-                else if (!string.Equals(agreedTkbName, tkbName, StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        $"[Gateway] TkbName consensus check failed: " +
-                        $"'{agreedTkbName}' (from '{Path.GetFileName(agreedSourceFile)}') " +
-                        $"conflicts with '{tkbName}' (from '{Path.GetFileName(file)}').");
-                }
-            }
-
-            // ⭐⭐ S2c/S4 — the TERRAIN name rides the SAME staged header file, so it must reach the same
-            //    consensus and be written beside TkbName. 🔴 The plan named only the TKB name; measured,
-            //    ScenarioTerrainName.Read reads `TerrainName` out of that very file, so writing only
-            //    TkbName would leave S4 ("terrain inherits it with no new code") IMPOSSIBLE.
             string? terrainName = PeekHeaderStringFromFile(file, "TerrainName", "terrainName");
             if (!string.IsNullOrEmpty(terrainName))
             {
@@ -951,11 +898,11 @@ public sealed class StorageGatewayModule
             }
         }
 
-        return new StagedArtifactNames(agreedTkbName, agreedTerrainName);
+        return new StagedArtifactNames(agreedTerrainName);
     }
 
     /// <summary>
-    /// Reads <c>Header.TkbName</c> from a JSON file using a forward-only
+    /// Reads one string field of <c>Header</c> from a JSON file using a forward-only
     /// <see cref="System.Text.Json.Utf8JsonReader"/>. Returns null when the field
     /// is absent or the file cannot be read.
     /// </summary>

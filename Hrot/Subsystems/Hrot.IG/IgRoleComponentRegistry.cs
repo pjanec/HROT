@@ -54,6 +54,11 @@ public static class IgRoleComponentRegistry
         // UXI-23 S1: MapDisplayComponent moved to the shared map list.
         Hrot.Presentation.Map.MapPresentationRegistry.RegisterAll(world);
         world.RegisterComponent<EntityInfo>();
+        // ⭐ CE-4008 — IG runs the shared EntityInfo ingress (it PUBLISHES the hierarchy events when a sample names a
+        //   commander) AND UnitHierarchySystem (cross-role infrastructure, it ADDS UnitRoster/UnitSubordinate). 📐 Measured
+        //   live, a Player entering a replay: first the event, then the component, was unregistered and killed the node.
+        //   ⭐ The one shared registry, not a copy of it.
+        Hrot.SimHost.HierarchyComponentRegistry.RegisterAll(world);
         world.RegisterEvent<Fdp.Toolkit.Diagnostics.Gizmos.Events.GizmoComponentActivatedEvent>();
 
         RouteComponentRegistry.RegisterAll(world);

@@ -359,7 +359,8 @@ public sealed class NedReplicationModule : INedReplicationModule
             {
                 var hbReader  = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant);
                 var capReader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeCapabilitiesTopic>(participant);
-                _capabilityIngest = new Hrot.Network.Routing.ClusterCapabilityIngestSystem(hbReader, capReader, _clusterCache);
+                var ctxReader = new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.OrchestratorContextTopic>(participant);   // ⭐ C6
+                _capabilityIngest = new Hrot.Network.Routing.ClusterCapabilityIngestSystem(hbReader, capReader, _clusterCache, ctxReader);
             }
         }
 

@@ -13,7 +13,7 @@ using Xunit;
 namespace Hrot.ScenarioEditor.Tests;
 
 /// <summary>
-/// TKB-021 -- Unit tests for TkbName stamping in ScenarioFileService.SaveScenario.
+/// TKB-021 -- what <c>ScenarioFileService.SaveScenario</c> stamps into the header: the terrain, never a TKB (<c>R-4018</c>).
 /// </summary>
 // ⭐⭐⭐ QA-008 (second assembly, 2026-09-18) — this class calls ComponentTypeRegistry.Clear(),
 //    a PROCESS-GLOBAL mutation. Without this attribute it runs in parallel with every other
@@ -40,66 +40,28 @@ public sealed class ScenarioFileServiceTkbTests : IDisposable
     private static ScenarioSerializer BuildSerializer() =>
         new ScenarioSerializerBuilder("Hrot.Scenario").Build();
 
-    // ── Test 1 ────────────────────────────────────────────────────────────────
+    // ── R-4018 ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⛔⛔ <c>R-4018</c> — a save never writes a TKB name: a scenario does not name a TKB. ⚠ Asserted on the RAW file,
+    /// so neither casing can slip through. (Was: three rails that the active TKB name was stamped into the header.)
+    /// </summary>
     [Fact]
-    public void SaveScenario_WithActiveTkbName_StampsTkbNameInHeader()
-    {
-        var db = new TkbDatabase();
-        db.ActiveTkbName = "Sample_v1";
-
-        using var repo = new EntityRepository();
-        var svc = new ScenarioFileService(BuildSerializer(), tkbDb: db);
-        svc.SaveScenario(repo, _tempFile);
-
-        var json     = File.ReadAllText(_tempFile);
-        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
-
-        Assert.NotNull(envelope);
-        Assert.Equal("Sample_v1", envelope!.Header!.TkbName);
-    }
-
-    // ── Test 2 ────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void SaveScenario_WithNullActiveTkbName_OmitsOrNullsTkbName()
-    {
-        var db = new TkbDatabase();
-        // ActiveTkbName is null by default
-
-        using var repo = new EntityRepository();
-        var svc = new ScenarioFileService(BuildSerializer(), tkbDb: db);
-        svc.SaveScenario(repo, _tempFile);
-
-        var json     = File.ReadAllText(_tempFile);
-        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
-
-        Assert.NotNull(envelope);
-        // Phase 2: Header node is omitted entirely when TkbName is null.
-        Assert.True(envelope!.Header == null || envelope.Header.TkbName == null);
-    }
-
-    // ── Test 3 ────────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void SaveScenario_WithoutTkbDatabase_OmitsOrNullsTkbName()
+    public void SaveScenario_NeverWritesATkbName()
     {
         using var repo = new EntityRepository();
-        var svc = new ScenarioFileService(BuildSerializer());
-        svc.SaveScenario(repo, _tempFile);
+        repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainDefinition>();
+        repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { Name = "test-town", ResolvedName = "test-town" });
 
-        var json     = File.ReadAllText(_tempFile);
-        var envelope = JsonSerializer.Deserialize<HrotScenarioEnvelopeDto>(json, HrotSerializerOptions.HrotJsonOptions);
+        new ScenarioFileService(BuildSerializer()).SaveScenario(repo, _tempFile);
 
-        Assert.NotNull(envelope);
-        // Phase 2: Header node is omitted entirely when TkbName is null.
-        Assert.True(envelope!.Header == null || envelope.Header.TkbName == null);
+        Assert.DoesNotContain("tkbname", File.ReadAllText(_tempFile), StringComparison.OrdinalIgnoreCase);
     }
+
     // ── CE-3015 ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// CE-3015: a save stamps the RESIDENT terrain beside the TKB name, so a load→save round-trip keeps
-    /// the scenario's terrain. Before the fix the header carried TkbName only and the terrain was lost.
+    /// CE-3015: a save stamps the RESIDENT terrain, so a load→save round-trip keeps the scenario's terrain.
     /// </summary>
     [Fact]
     public void SaveScenario_WithResidentTerrain_StampsTerrainNameInHeader_CE3015()

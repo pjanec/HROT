@@ -91,9 +91,17 @@ isolation strategies are provided:
 | `GDB` (Global Double Buffer) | `DoubleBufferProvider` | Frame-synced background — replica synced at the sync point |
 | `SoD` (Snapshot-on-Demand) | `OnDemandProvider` | Async background — fresh snapshot taken at dispatch time |
 
-When multiple background modules share the same strategy and frequency, their providers are
+When multiple background modules share the same strategy, mode and frequency, their providers are
 promoted to a **convoy** (`SharedSnapshotProvider` for SoD, shared `DoubleBufferProvider`
 for GDB) so a single sync operation serves multiple modules.
+
+⭐ **Only modules the main thread waits for (`FrameSynced`) convoy — `Asynchronous` modules never do** *(the guard is
+`Mode != RunMode.Asynchronous` in the kernel's convoy query; pinned by `AutoGrouping_AsyncSameFreq_StaysExclusive` and
+`ProviderAssignment_AsyncSoD_MultipleModules_EachOwnSnapshot`, `TM-023`)*. A shared snapshot lives until its LAST reader
+releases it, so an async module that finishes early would re-acquire the snapshot a slower member still holds — frames
+stale, with its events read a second time. Each async SoD module keeps its own `OnDemandProvider` (a fresh snapshot at
+dispatch). ⚠ `FDP/Docs/projects/core/ModuleHost.Core.md`'s example (two `SlowBackground` modules in one convoy) predates
+this guard.
 
 **3. Deterministic system scheduling**
 
@@ -291,7 +299,7 @@ or stepped controllers without modifying the kernel.
        |
        +-- Direct -----> live EntityRepository (main thread only)
        |
-       +-- GDB ----------> Same mode/freq convoy members exist?
+       +-- GDB ----------> Same mode/freq convoy members exist? (never for Asynchronous)
        |                         |
        |                    Yes: share DoubleBufferProvider
        |                    No:  new DoubleBufferProvider (exclusive)
@@ -299,7 +307,7 @@ or stepped controllers without modifying the kernel.
        |                    UnionMask expanded?
        |                         Yes: replace provider for whole convoy
        |
-       +-- SoD ----------> Same mode/freq convoy members exist?
+       +-- SoD ----------> Same mode/freq convoy members exist? (never for Asynchronous)
                                  |
                             No:  new OnDemandProvider (exclusive)
                             Yes: SharedSnapshotProvider already in convoy?

@@ -222,6 +222,158 @@ public sealed class ClusterMasterZoneRoundTests
             e => e.RequestId == requestId && e.StatusCode.IsError());
     }
 
+    // ── P2 (Q91 §4-A′, R-4014) — who may fail a round: an OBSERVER never does ───────────────────────────────────
+    // ⭐ An observer = its capability advert HAS landed ∧ its roles hold no simulation role ∧ the roster holds at least
+    //   one authoritative node. ⛔ Otherwise AUTHORITATIVE: unknown ⇒ authoritative, alone ⇒ authoritative.
+
+    private static (ClusterMaster master, FdpEventBus bus) BootstrapWithRoles(params (int Id, string? RoleToken)[] nodes)
+    {
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus);
+        foreach (var (id, role) in nodes)
+        {
+            bus.PublishManaged(new NodeHeartbeatEvent
+            {
+                NodeId = id, SubsystemName = "Node", WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
+                LocalStateId = (int)Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            });
+            if (role != null)   // ⭐ null = the advert has NOT landed (clause ①)
+                bus.PublishManaged(new NodeCapabilitiesEvent { NodeId = id, Capabilities = new[] { role } });
+        }
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        return (master, bus);
+    }
+
+    /// <summary>Runs one zone round where <paramref name="failing"/> answers Failure and everyone else Success.</summary>
+    private static (bool Committed, OrchestrationStatusCode Outcome) ZoneRoundWithOneFailure(
+        ClusterMaster master, FdpEventBus bus, int failing)
+    {
+        var requestId = Guid.NewGuid();
+        PublishLoadZone(bus, requestId, "zone-alpha");
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var prepares = ReadOps(bus, FdpNodeOpType.PrepareZone);
+        AckAll(bus, prepares.Where(p => p.TargetNodeId != failing));
+        AckAll(bus, prepares.Where(p => p.TargetNodeId == failing), OrchestrationStatusCode.Failure);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+
+        var commits = ReadOps(bus, FdpNodeOpType.CommitZone);
+        if (commits.Count > 0)
+        {
+            AckAll(bus, commits);
+            bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        }
+        var outcome = bus.ReadManaged<ClusterOpCompletedEvent>().Single(e => e.RequestId == requestId).StatusCode;
+        return (commits.Count > 0, outcome);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>P4</c> (Q91 §4-B2, R-4001) — a node still preparing reports <c>InProgress</c>; that is PROGRESS, never its
+    /// answer. ⛔ Before, every status was counted, so the round would have committed on progress reports alone.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void P4_An_InProgress_report_is_not_the_nodes_answer()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround), (NodeB, NodeRoleTokens.MuscleGround));
+        using var _ = master;
+
+        var requestId = Guid.NewGuid();
+        PublishLoadZone(bus, requestId, "zone-alpha");
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var prepares = ReadOps(bus, FdpNodeOpType.PrepareZone);
+        Assert.Equal(2, prepares.Count);
+
+        AckAll(bus, prepares, OrchestrationStatusCode.InProgress);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Empty(ReadOps(bus, FdpNodeOpType.CommitZone));   // ⭐ progress alone commits nothing
+
+        AckAll(bus, prepares);
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        Assert.Equal(2, ReadOps(bus, FdpNodeOpType.CommitZone).Count);
+    }
+
+    /// <summary>
+    /// ⭐⭐ C2 + C4 (Q91 §4-I I4/I5, R-4006) — every cluster-state publication carries the master's SESSION (fixed for its
+    /// life, distinct per master) and the TRANSACTION EPOCH, which a completed round increments (telemetry only).
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void C2_C4_The_cluster_state_carries_the_session_and_a_completed_round_moves_the_epoch()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround));
+        using var _ = master;
+        using var other = new ClusterMaster(new FdpEventBus());
+        Assert.NotEqual(Guid.Empty, master.SessionId);
+        Assert.NotEqual(master.SessionId, other.SessionId);   // ⭐ one master = one session
+
+        int before = master.TransactionEpoch;
+        var (committed, outcome) = ZoneRoundWithOneFailure(master, bus, failing: -1);   // nobody fails
+        Assert.True(committed);
+        Assert.Equal(OrchestrationStatusCode.Success, outcome);
+        Assert.True(master.TransactionEpoch > before);
+
+        var requestId = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent { TransactionId = requestId, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingLive });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        foreach (var op in ReadOps(bus, FdpNodeOpType.PrepareLive).Concat(ReadOps(bus, FdpNodeOpType.PrepareState)).ToList())
+            AckAll(bus, new[] { op });
+        bus.SwapBuffers(); master.Tick(); bus.SwapBuffers();
+        var published = bus.ReadManaged<ClusterStateTransitionedEvent>();
+        Assert.NotEmpty(published);
+        Assert.All(published, e => Assert.Equal(master.SessionId, e.SessionId));
+    }
+
+    [Fact(Timeout = 5_000)]
+    public void P2_An_observers_failure_is_recorded_but_does_not_fail_the_round()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround), (NodeB, NodeRoleTokens.Map2D));
+        using var _ = master;
+
+        Assert.True(master.IsObserver(NodeB));
+        var (committed, outcome) = ZoneRoundWithOneFailure(master, bus, failing: NodeB);
+
+        Assert.True(committed, "a Player that cannot load the zone must not stop the zone for everyone (user C)");
+        Assert.Equal(OrchestrationStatusCode.Success, outcome);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public void P2_An_authoritative_nodes_failure_still_fails_the_round()
+    {
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround), (NodeB, NodeRoleTokens.Map2D));
+        using var _ = master;
+
+        var (committed, outcome) = ZoneRoundWithOneFailure(master, bus, failing: NodeA);
+
+        Assert.False(committed);
+        Assert.True(outcome.IsError());
+    }
+
+    [Fact(Timeout = 5_000)]
+    public void P2_A_node_whose_advert_has_not_landed_is_authoritative()
+    {
+        // ⭐ Clause ①: "None until the capabilities advert lands" must not make a real SimHost an observer.
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.MuscleGround), (NodeB, null));
+        using var _ = master;
+
+        Assert.False(master.IsObserver(NodeB));
+        Assert.False(ZoneRoundWithOneFailure(master, bus, failing: NodeB).Committed);
+    }
+
+    [Fact(Timeout = 5_000)]
+    public void P2_AntiVacuity_a_cluster_with_no_authoritative_node_has_no_observers()
+    {
+        // ⭐⭐ Clause ③: were every node classed as an observer, NOTHING could ever fail a round — a one-node editor
+        //   cluster, or a cluster of Players, would report every broken load as a success.
+        var (master, bus) = BootstrapWithRoles((NodeA, NodeRoleTokens.Map2D), (NodeB, NodeRoleTokens.Map2D));
+        using var _ = master;
+
+        Assert.False(master.IsObserver(NodeA));
+        Assert.False(master.IsObserver(NodeB));
+        var (committed, outcome) = ZoneRoundWithOneFailure(master, bus, failing: NodeB);
+        Assert.False(committed);
+        Assert.True(outcome.IsError());
+    }
+
     // ── Degenerate inputs ─────────────────────────────────────────────────────
 
     /// <summary>An empty roster has nothing to ask, so the postcondition already holds.</summary>

@@ -19,19 +19,16 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// ECS node composes the full genesis pipeline and a node that can be asked to create an entity must be
 /// able to resolve its template (<c>Q65-A′</c>). 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.1.
 ///
-/// <para>🔴 <b>Before the chain, only SimHost had one.</b> CGF and IG built a catalogue locally and would
-/// have ignored a scenario's <c>TkbName</c> entirely — an entity created there from a scenario-supplied
-/// template would have resolved against the wrong knowledge base, silently.</para>
+/// <para>⛔⛔ <b><c>R-4018</c> — the name comes from the FILE SYNC, never from the scenario or the load command.</b>
+/// There is one TKB per deployment; the orchestrator syncs it from its NAS master copy before every scenario load and
+/// leaves a <see cref="StagedTkb"/> record naming the archive it copied. This step loads that archive — once: an
+/// unchanged archive (same name, length, mtime) is a no-op, so in practice the TKB is loaded on the first load and
+/// kept. 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0.</para>
 ///
-/// <para>⭐⭐ <b>The name now comes from the load MESSAGE</b>, with the staged header kept as a fallback for
-/// one release (an older orchestrator that does not send it). ⛔ The header alone was a channel that RACED
-/// this step: measured, the step was dispatched 6 ms after the file copy started and 49 ms before the
-/// files were fanned out, and this loader does not retry — so it silently concluded <i>"this scenario
-/// names no TKB"</i>, which is indistinguishable from the truth.</para>
-///
-/// <para>⚠ <b>Absent NAME versus absent ARTIFACT.</b> No name anywhere is legal and silent: the hard-coded
-/// catalogue is registered when the database is empty, which is the supported path while no scenario ships
-/// a TKB. A name whose artifact is missing is LOUD — that is a broken deployment, not a TKB-less scenario.</para>
+/// <para>⭐ <b>No record = no master copy</b> — legal and silent, the default deployment today: the node runs on the
+/// built-in catalogue (<see cref="HrotEnvironment.RegisterBuiltInTkb"/>). A file TKB that was resident goes back to
+/// the built-in one, so a fresh node and an old one can never hold different TKBs. ⚠ A record whose archive is
+/// missing is LOUD — the sync wrote the record after the copy, so that is a broken staging directory.</para>
 /// </summary>
 public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
 {
@@ -62,20 +59,27 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
     /// <inheritdoc/>
     public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
     {
-        // ⭐⭐ The message first, the staged header only as a fallback.
-        string? requested = !string.IsNullOrWhiteSpace(context.TkbName)
-            ? context.TkbName
-            : PeekStagedHeader("TkbName");
+        string? requested = StagedTkb.Read(_localTkbStagingRoot);
 
         if (string.IsNullOrWhiteSpace(requested))
         {
-            // ⭐ Legal and silent. The hard-coded catalogue is registered only when the database is empty,
-            //   so a TKB loaded by a previous round is not thrown away.
-            if (!_tkbDb.GetAll().Any())
-                NedTkbCatalog.RegisterAll((TkbDatabase)_tkbDb);
+            if (_lastLoadedTkbName != null)
+            {
+                // ⭐ The master copy is gone: the file TKB this node holds goes back to the built-in one, so every node
+                //   agrees — a node started now would get the built-in catalogue.
+                _tkbDb.Clear();
+                HrotEnvironment.RegisterBuiltInTkb((TkbDatabase)_tkbDb);
+                FdpLog<KnowledgeBaseLoadStep>.Info(
+                    "[LoadPhase/KnowledgeBase] TKB '{0}' is no longer staged — back to the built-in catalogue.",
+                    _lastLoadedTkbName);
+            }
+            else if (!_tkbDb.GetAll().Any())
+            {
+                HrotEnvironment.RegisterBuiltInTkb((TkbDatabase)_tkbDb);
+            }
 
-            _lastLoadedTkbName = null;
-            _lastLoadedLength  = -1;
+            _lastLoadedTkbName   = null;
+            _lastLoadedLength    = -1;
             _tkbDb.ActiveTkbName = null;
             return Task.CompletedTask;
         }
@@ -83,11 +87,8 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
         string localPath = Path.Combine(
             _localTkbStagingRoot, requested + OrchestrationConstants.TkbArtifactExtension);
 
-        // ⭐⭐⭐ L8 — THERE IS NO WAIT HERE ANY MORE, and that is the point. The load step is not dispatched
-        //    until ClusterMaster has been told that every node acknowledged its files, so a file that is
-        //    missing at this instant is genuinely missing and the loud failure below is correct in fact as
-        //    well as in form. 🔒 User: "it cannot depend on timeouts where can easily wait deterministically."
-        //    📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
+        // ⭐⭐⭐ L8 — no wait: the load step is dispatched only after every node acknowledged its files, so an archive
+        //    missing at this instant is genuinely missing. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
         var info = new FileInfo(localPath);
         DateTime currentFileTime = info.Exists ? info.LastWriteTimeUtc : DateTime.MinValue;
         long     currentLength   = info.Exists ? info.Length           : -1;
@@ -99,9 +100,8 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
 
         if (!info.Exists)
             throw new FileNotFoundException(
-                $"[LoadPhase/KnowledgeBase] TKB artifact not found at '{localPath}'. The scenario names "
-              + $"TKB '{requested}', so this is a broken deployment rather than a TKB-less scenario — "
-              + "ensure the artifact is staged before the load transition.",
+                $"[LoadPhase/KnowledgeBase] TKB archive not found at '{localPath}', although the TKB sync recorded "
+              + $"'{requested}' as staged ({StagedTkb.FileName}) — the staging directory is broken.",
                 localPath);
 
         _tkbDb.Clear();
@@ -132,35 +132,4 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
     /// back would invalidate the differential cache for a round that may simply be retried.
     /// </remarks>
     public void Abort(LoadPhaseContext context) { }
-
-    /// <summary>
-    /// ⚠ Fallback only — the staged sidecar header the orchestrator writes during the file copy. ⛔ It
-    /// races this step (see the class remarks), which is why the message is preferred.
-    /// </summary>
-    private string? PeekStagedHeader(string pascalName)
-    {
-        string headerPath = Path.Combine(_localTkbStagingRoot, "ScenarioHeader.json");
-        if (!File.Exists(headerPath)) return null;
-
-        try
-        {
-            var reader = new Utf8JsonReader(File.ReadAllBytes(headerPath));
-            while (reader.Read())
-            {
-                if (reader.TokenType == JsonTokenType.PropertyName &&
-                    reader.ValueTextEquals(pascalName))
-                {
-                    reader.Read();
-                    return reader.TokenType == JsonTokenType.String ? reader.GetString() : null;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            FdpLog<KnowledgeBaseLoadStep>.Error(
-                "[LoadPhase/KnowledgeBase] Could not read the staged header at '{0}' ({1}).",
-                headerPath, ex.Message);
-        }
-        return null;
-    }
 }
