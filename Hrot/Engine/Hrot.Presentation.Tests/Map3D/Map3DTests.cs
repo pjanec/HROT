@@ -2861,6 +2861,59 @@ public sealed class Map3DTests
         Assert.InRange(Vector3.Distance(tip, new Vector3(0, 0, -2f)), 0f, 1e-4f);
     }
 
+    // ── ⭐ CE-1122 (docs/DESIGN_Map_3D_Mode.md §6y) — blood where he was hit ────────────────────────────────────────────────────────
+
+    /// <summary>⭐ CE-1122 (§6y HM-1, HM-2) — a mark lies flat on the face its point is on, just proud of it, and is sized in METRES: a
+    /// bullet's 9 cm spot on the torso's front, a fragment's smaller, a burn's larger and charred; on a forearm it is round, not stretched.</summary>
+    [Fact]
+    public void CE1122_AMark_LiesFlatOnTheFaceItEntered_SizedInMetres()
+    {
+        var torso = new Vector3(0.24f, 0.40f, 0.56f);
+        var front = BlockFigure.MarkStain(BlockFigure.TorsoIndex, new Vector3(0.5f, 0.1f, -0.2f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet, true, torso);
+        Assert.Equal((BlockFigure.TorsoIndex, 0.51f, 0.1f, -0.2f), (front.Part, front.Centre.X, front.Centre.Y, front.Centre.Z));
+        Assert.Equal(0.03f, front.Extent.X);
+        Assert.Equal(BlockFigure.BulletMarkM / torso.Y, front.Extent.Y, 4);
+        Assert.Equal(BlockFigure.BulletMarkM / torso.Z, front.Extent.Z, 4);
+        Assert.False(front.Char);
+
+        var side = BlockFigure.MarkStain(BlockFigure.TorsoIndex, new Vector3(0.1f, -0.5f, 0.3f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment, false, torso);
+        Assert.Equal(-0.51f, side.Centre.Y);
+        Assert.True(side.Extent.Z < front.Extent.Z, "a fragment's spot is smaller than a bullet's");
+        var burn = BlockFigure.MarkStain(BlockFigure.TorsoIndex, new Vector3(0f, 0f, 0.5f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Burn, false, torso);
+        Assert.True(burn.Char && burn.Extent.X > front.Extent.Y);
+        Assert.Equal(0.51f, burn.Centre.Z);
+
+        var forearm = new Vector3(0.30f, 0.10f, 0.10f);   // a limb runs along its own x
+        var arm = BlockFigure.MarkStain(7, new Vector3(0.1f, 0.5f, 0f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet, true, forearm);
+        Assert.Equal(BlockFigure.BulletMarkM, arm.Extent.X * forearm.X, 4);   // 9 cm along the arm…
+        Assert.Equal(BlockFigure.BulletMarkM, arm.Extent.Z * forearm.Z, 4);   // …and 9 cm across it
+    }
+
+    /// <summary>⭐ CE-1122 (§6y HM-1, HM-3) — a man's replicated marks are his stains, each on the part of its id, the three newest fresh; past
+    /// the ring's 24 the oldest are gone; a man with no marks gives none (the seeded spots by health are the layer's fallback).</summary>
+    [Fact]
+    public void CE1122_TheMarks_AreTheStains_OnTheirParts_TheNewestFresh()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();
+        var man = world.CreateEntity();
+        var parts = BlockFigure.Parts(StanceId.Standing, true);
+        var size = new Vector3(0.35f, 0.55f, 1.8f);
+        var stains = new List<Stain>();
+        Assert.Equal(0, EntityBodyLayer3D.MarkStains(world, man, parts, size, stains));
+
+        world.AddComponent(man, new Fdp.Toolkit.Physics.BodyParts.HitMarks());
+        byte[] hit = { 4, 6, 1, 4, 5 };
+        foreach (var p in hit) world.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man).Add(p, new Vector3(0.5f, 0f, 0f), 0, Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet);
+        Assert.Equal(5, EntityBodyLayer3D.MarkStains(world, man, parts, size, stains));
+        Assert.Equal(hit.Select(p => (int)p), stains.Select(s => s.Part));
+        Assert.Equal(new[] { false, false, true, true, true }, stains.Select(s => s.Fresh));
+
+        for (int i = 0; i < 30; i++) world.GetComponentRW<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man).Add(2, new Vector3(0f, 0.5f, 0f), 0, Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment);
+        Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarks.Capacity, EntityBodyLayer3D.MarkStains(world, man, parts, size, stains));
+        Assert.All(stains, s => Assert.Equal(2, s.Part));   // the five first are gone
+    }
+
     // ── ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne drawn ─────────────────────────────────────────────────────────────────
 
     private static Fdp.Toolkit.Motion.Descent Descending(Fdp.Toolkit.Motion.DescentKind kind, Fdp.Toolkit.Motion.DescentPhase phase, double since,

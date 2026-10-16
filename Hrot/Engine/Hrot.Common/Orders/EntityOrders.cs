@@ -63,6 +63,11 @@ namespace Hrot.Common.Orders
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _map = map ?? throw new ArgumentNullException(nameof(map));
             _geo = geo;
+            // ⭐ An order may be issued on ANY node (CE-3167: the intent egress runs on every node), but only a Brain's registry
+            //   (CognitiveComponentRegistry) registers the intent event — so on a SimHost or IG node, with production's explicit
+            //   event registration on, the first order threw "published without being explicitly registered" (📐 live, a POST
+            //   /entities/{id}/order on the SimHost perspective answered 500). The node that can order registers what it publishes.
+            if (!_world.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) _world.Bus.RegisterManaged<AssignTacticalIntentEvent>();
         }
 
         /// <summary>⭐ C-10 — when set, orders to units of any other side are refused (the AI player plays one side).</summary>

@@ -99,6 +99,12 @@ Not run: the ClusterRunner E2E suites (T3). P3 is the one cross-node change; its
 level-sample case of the P3 rail and the IG dead-reckoning suite. A live banking-aircraft check on a cluster is the ui lane's after it
 switches its drawings to the replicated values.
 
+✅ **LIVE-VERIFIED `2026-10-16` (ui lane, CE-1123):** `ua-air-strike`, one process (`--mode all`), the A-10 ordered into a left turn over
+HTTP: SimHost banks it to **−60°** with **11° nose-down** as it descends to 120 m; the **IG node reads the same roll and pitch** within a
+frame, and both level the wings together after the turn. The drawing reads `SimTransform.Rotation`, so an IG map draws the bank.
+🔴 Found on the way: the order itself answered 500 from the SimHost perspective — `AssignTacticalIntentEvent` registered only on the
+Brain; fixed in `EntityOrders` (CE-1123, [Entity Control §S2 as built](../../DESIGN_Entity_Control.md)).
+
 ## The sha of each item
 
 P1 · P2 · P3 · P4 — all **`b6ad14c83`** on `backend`.
