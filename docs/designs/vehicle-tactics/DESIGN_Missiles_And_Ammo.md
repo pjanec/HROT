@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§3c air defence: IR seeker, proximity fuze, flares / chaff, missile warning — CE-2187…CE-2189, designed)
+updated: 2026-10-16 (§3a the top-attack profile fits the range, the dive branch and pitch-aware trigger, a locking mount never fires blind — CE-2201, CE-2200)
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (D-D, D-I, D-L)
 current-answer: §2 ammo loadout (M8), §3 missiles (M4), §4 fire on the move (D-L), §5 data (M5), §6 who runs it, §7 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -312,6 +312,38 @@ sequenceDiagram
   HR-->>HR: DetonationNotification { Travel = descending ⇒ Top }
 ```
 
+### 3a. The profile FITS the range, and a locking mount never fires blind (`CE-2201`, `CE-2200`; backend `2026-10-16`, [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Lock.md))
+
+⛔ SUPERSEDES two lines above: the `FireAndForget` row's *"with `TopAttack` (range ≥ `TopAttackMinRangeM`)"* and the rule *"between
+`MinRangeM` and `TopAttackMinRangeM` a top-attack weapon fires direct"*. `TopAttackMinRangeM` is still a floor, but no longer enough on its own.
+
+```mermaid
+graph LR
+  L["launch<br/>(level)"] -->|"arc onto 30°<br/>R·sin30 = 134 m"| C["straight climb<br/>(apex − 36 m) / tan30"]
+  C -->|"CruiseZ reached:<br/>pitch-over arc 134 m<br/>peaks +36 m"| K["cruise"]
+  K -->|"dive lead<br/>R·sin60 + (h − R·(1−cos60)) / tan60"| T["roof, ≥ 60° down"]
+```
+
+*What the picture shows that the prose hid: at the 30°/s turn limit (R = 140 / 0.52 ≈ 267 m) every arc costs ground. The Javelin's
+150 m profile needs ≈ 727 m, and even its lowest apex that still dives at 60° needs ≈ 607 m. At 230 m the round was still climbing when it
+passed the tank.*
+
+| question | as built | why |
+|---|---|---|
+| ⭐⭐ does the climb-and-dive fit? | `GuidedRoundSystem.TopAttackFits(missile, speed, groundRange, launchAboveGoal, out apex)`: the system's own flight in closed form, as in the picture; it fits when the ground needed ≤ the range AND the peak ≥ R·(1 − cos dive), so the dive arc completes and the round arrives at the dive angle. It takes the HIGHEST apex ≤ `CruiseAltitudeM` that fits (bisection: the ground grows with the apex); none fits ⇒ false | 📐 the handoff's lean ("an apex capped by range, a direct fallback below the geometric minimum"); ⛔ raising `TopAttackMinRangeM` to ~730 m would have thrown away the capped band (607–727 m) |
+| who asks it | ⭐ **one function, two readers**: `FireProcessingSystem` at launch (Climb with `CruiseZ` = muzzle + apex, or direct) and `ThreatDanger` (my top, or the face it meets) | the danger a tank reads must be the flight it will actually get |
+| below the minimum | **direct**: the seeker homes on the middle and meets the face it meets (front/side) | D-D's ≤ 30°/s is a ruling; a tighter turn just for short range would be a second flight model |
+| a missile with no `SpeedMps` or no `CruiseAltitudeM` | declares no geometry ⇒ the declared `TopAttackMinRangeM` alone (as before) | test fixtures and partial TKB data keep their behaviour |
+| ⭐ the dive itself | ⛔ **found dead and fixed**: `Steer` returned pure pursuit for `Phase == Dive` BEFORE the dive branch, so §4a's *"holds at least the dive angle, then homes once the line is steeper"* never ran, and the arrival angle was down to timing. 📐 At 900 m the full profile arrived 40° down, on the side; the 1200 m rail passed by luck. Now the dive branch runs | §4a's row states the intent; the code had fallen behind it |
+| ⭐ the dive TRIGGER reads the round's pitch | ⛔ SUPERSEDES §4a's lead `R·sin θ + (h − R(1−cos θ)) / tan θ`, which is the LEVEL-entry case. The cruise's altitude hold swings the pitch after the pitch-over (a +36 m overshoot), so the dive now starts at `R·(sin γ + sin θ) + (h − R(cos γ − cos θ)) / tan θ`, with γ = the current pitch (the same arc, from γ to −θ) | 📐 once the dive branch was live, the level lead fell 23–73 m short entering pitched down (750, 800, 900 m) and overflew entering pitched up (1000 m). A 2D replica of `Steer` that reproduced those misses to the decimetre then swept 600–2590 m in 10 m steps: every fitting range hits, ≥ 45° down |
+| ⭐ `CE-2200`: blind fire | `AimAndFireExecutor.NeedsLock(world, mount, loadedAmmo)`: a guided round (any `Guidance` but `Unguided`) from a mount that declares `AimSeconds` ⇒ `FireBlind` holds (`HoldNotSeen`), as an indirect mount already does. An RPG / LAW keeps its blind round | M4 D-D *"the lock IS the aim time"*: a blind round has nothing to lock on. 📐 Live: both `ua-javelin-lock` hits were blind rounds on a hidden tank's side |
+
+⭐ Rails (the features' own suites): `GuidedRoundSystemTests.CE2201_TheTopAttack_ArrivesOnTheRoof_AtEveryRangeItIsChosenFor_ElseFliesDirect`
+(230…2000 m: every range hits, and every top attack arrives ≥ 45° down on the Top face) and
+`AimAndFireExecutorTests.CE2200_ALockingMount_NeverFiresBlind_AnRpgDoes`. Both are red-proofed.
+⚠ **Consequence for the `ua-javelin-lock` demo** (behaviors): Javelin B's 230 m shot is now a DIRECT hit, not "from above". Check ② must
+place the open tank ≥ ~610 m away to see a top attack, or accept a direct hit at 230 m.
+
 ### 3b. The OVERFLY top attack — the NLAW (`CE-3198`, backend `2026-10-15`; gate lifted by the user)
 
 📐 **Why §3's climb–cruise–dive cannot fly it** (§5a): at 200 m/s and 30°/s the turn onto any dive is a ~380 m arc — longer than the NLAW's
@@ -529,7 +561,7 @@ The design carries **8 classes** and **1 sequence** for M4 + D-L; all are built.
 |---|---|---|
 | `GuidedRound { Guidance, Target, Gunner, Phase Climb/Cruise/Dive/Lost, TopAttack }` | ✅ + `SpeedMps`, `LifetimeTicks`, `CruiseZ`, `DiveAngleDeg`, `LastSeen` (component **374**, `NoScenario`, Muscle) | the system needs them per round; the TKB is read once, at spawn |
 | Command: steer onto the LAUNCHER's sight line (a turret launcher's `TurretPose`) | ⚠ the GUNNER's eye → the target's middle, on both paths; blocked (`IWorldQuery.SightBlocked`) or a dead gunner ⇒ `Lost` | the turret pose is kept on the target by the Track hold anyway, and it is not on the brain-less muscle path the rails run; the eye line is the same line within the turret's offset. A turret-pose line is a later refinement if a scenario needs it |
-| top attack: dive once horizontal ≤ altitude / tan(dive) | ⚠ the dive starts a TURN LEAD earlier (`R·sin θ + (h − R(1−cos θ)) / tan θ`, R = speed / turn rate) and holds at least the dive angle, then homes once the line to the target is steeper | 📐 at 140 m/s and 30°/s the turn is a 267 m arc: the design's trigger overshoots the target before the nose is down (red-proved: `M4_AJavelin_…` fails with it) |
+| top attack: dive once horizontal ≤ altitude / tan(dive) | ⛔ the lead below is the level-entry case and the dive branch it names was dead code until `CE-2201`; see [§3a](#3a-the-profile-fits-the-range-and-a-locking-mount-never-fires-blind-ce-2201-ce-2200-backend-2026-10-16-handoff). ⚠ the dive starts a TURN LEAD earlier (`R·sin θ + (h − R(1−cos θ)) / tan θ`, R = speed / turn rate) and holds at least the dive angle, then homes once the line to the target is steeper | 📐 at 140 m/s and 30°/s the turn is a 267 m arc: the design's trigger overshoots the target before the nose is down (red-proved: `M4_AJavelin_…` fails with it) |
 | `ActionReason.TooClose`; the D-L hold as `ActionReason.Moving` | `TooClose` and a NEW `HoldMoving` | `Moving` is the LOCOMOTION row's word ("moving toward the destination"); a weapon hold must read as a hold (both are in `IsHold`, posture Ready) |
 | `FireOnMove` per mount | ✅ `WeaponMountDto.FireOnMove : bool?` + `CombatTkb.FiresOnTheMove` (null ⇒ Atgm / Mortar stand, the rest fire) and `HitModel.IsMoving` — the ONE moving test the spread already used | — |
 | the turret path gains the aim-time lock | ✅ only for a mount that DECLARES `AimSeconds`; the lock rides the aim clock (`Ready` = locked), which after the lock carries the guided-flight hold as before | the 32-byte channel state is full; every turret mount without an aim time is unchanged |

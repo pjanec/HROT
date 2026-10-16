@@ -193,6 +193,7 @@ namespace Hrot.CGF
                         (BehaviorConstants.ActionIdDisembark,       new DisembarkExecutor()),   // ⭐ CE-1056 I-2d — one passenger leaves
                         (BehaviorConstants.ActionIdPickUp,          new PickUpExecutor()),    // ⭐ CE-2152 C-b — a carrier picks a casualty up
                         (BehaviorConstants.ActionIdPutDown,         new PutDownExecutor()),   // ⭐ CE-2152 C-b — and puts him down
+                        (BehaviorConstants.ActionIdEject,           new EjectExecutor()),     // ⭐ airborne insertion B-9 — the aircraft's crew ejects
                     },
                     // ⭐ Buildings 5d — Open/Close/Lock/Unlock/Breach door, one list so no host forgets a verb
                     System.Linq.Enumerable.Select(BehaviorConstants.DoorActionExecutors(),

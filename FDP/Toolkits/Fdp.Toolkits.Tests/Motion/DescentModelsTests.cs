@@ -147,6 +147,41 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(damage, hurt, 3);
         }
 
+        /// <summary>
+        /// ⭐ B-7 (§7 slice 2) — the EJECTION: a pilot leaving a level A-10 at 300 m / 150 m/s (spawned with its velocity + the rocket's
+        /// climb) rides the seat 1.5 s, then his round canopy (his type's 1.5 s opening) is open by ~3 s — at least 50 m above the ejection
+        /// height — and he comes down under it. ✅ Red-proof: Exit without the seat's arc ⇒ the static line's Deploying at once, never above
+        /// 300 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void B7_AnEjectedPilot_HasHisCanopyOpenBy3s_AtLeast50mAboveTheEjection()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var pilot = new Fdp.Interfaces.TkbTemplate("Pilot", 206);
+            pilot.AddDescriptor(new ParachuteDto { Canopy = CanopyKind.Round, OpenSeconds = 1.5f });
+            db.Register(pilot);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = Body(new Vector3(0, 0, 300), new Descent { Kind = DescentKind.Ejection, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round },
+                           velocity: new Vector3(150f, 0f, ParachuteModel.EjectUpMps));
+            _w.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 206 });
+            const float dt = 1f / 60f;
+            double openAt = -1;
+            float zOpen = 0f, apex = 0f;
+            for (int i = 0; i < 60 * 30; i++)
+            {
+                Step(dt);
+                var d = _w.GetComponent<Descent>(man);
+                float z = _w.GetComponent<SimTransform>(man).Position.Z;
+                apex = MathF.Max(apex, z);
+                if (openAt < 0 && d.Phase == DescentPhase.Canopy) { openAt = _t; zOpen = z; }
+            }
+            Assert.InRange(openAt, 2.9, 3.2);
+            Assert.True(zOpen >= 350f, $"canopy open at {zOpen:F0} m");
+            Assert.InRange(apex - 300f, 50f, 100f);                                           // the seat's apex (§7 B-7)
+            Assert.True(_w.GetComponent<SimTransform>(man).Position.Z < zOpen, "he comes down under it");
+        }
+
         /// <summary>Flies a ram-air jumper from <paramref name="height"/> above <paramref name="start"/> to the ground; returns where he landed.</summary>
         private Vector3 FlyRamAir(Vector3 start, Vector3 target, float height)
         {

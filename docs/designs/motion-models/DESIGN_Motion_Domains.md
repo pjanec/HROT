@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-16
 build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: §3 (the proposal), §4 (decisions), §5 (as-built) and §5a (the ownership decision, R-3005) — §1 measured ground, §2 the requirement.
+current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement.
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -207,3 +207,34 @@ as now."* · *"keep MuscleGround so we do not need to rename"*
 ⚠ What (A) gives up, stated so nobody rebuilds it by accident: a split deployment can no longer put the air module on a node of its own —
 the earlier *"different nodes … aircraft flight model Sim, ground vehicle Sim"* requirement (§2) is withdrawn for ownership. The
 module-per-domain structure (MD-B's first half, MD-C's table) stands.
+
+## 5b. The ground model: a short move ARRIVES, a hull never enters a building — `CE-2198` (`2026-10-16`, backend)
+
+📐 Measured live (`ua-tank-corner`, behaviors' handoff): an M1 sent 37 m at its top speed ran 9 m, then 26 m past its point, into a 4-storey
+block, and was lifted onto its 15 m roof. Reproduced in `CarKinematicsSystemTests.CE2198_*`: the path mode drove **440 m** on a 37 m path.
+
+```mermaid
+sequenceDiagram
+    participant K as CarKinematicsSystem (the ground model)
+    participant C as SpeedController (proportional, AccelGain)
+    participant W as IWorldQuery
+    K->>K: target speed ≤ StoppingSpeed(d) = sqrt(2 · MaxDecel · (d − v / AccelGain)) — the envelope LESS the controller's lag
+    K->>C: the target speed
+    C-->>K: the acceleration (it follows a braking ramp late — hence the lag term)
+    K->>K: arrived (inside ArrivalRadius) ⇒ LATCHED: the end-homing never re-engages
+    K->>K: homing on an end BEHIND the hull (progress ran ahead) ⇒ the crawl speed while it turns
+    K->>W: the step's hull-height line (0.5 m up): Trace(Fire) — any ClosedBarrier? / a rise steeper than 1 and taller than 0.5 m?
+    W-->>K: a wall ⇒ the step is not taken (speed 0)
+```
+
+*Caption:* what the picture shows that the code comments hid — the overshoot was a FEEDBACK loop, not a braking constant: the controller's lag
+carried the hull past the radius, the CE-2059 end-homing re-targeted a point now behind it at a speed capped only by DISTANCE, the hull could not
+turn at speed, so the distance grew and the cap rose. Three cuts, one each; and the building is a wall to the MOVER (a ground vehicle), while
+the surface sampler keeps its "a unit spawned inside a footprint stands on the roof" rule for spawns.
+
+| decision (built) | where | rejected — one line each |
+|---|---|---|
+| one `StoppingSpeed(params, d, v)` for the three envelopes (direct, path end, end-homing), less the lag `v / AccelGain` | `CarKinematicsSystem` | a stronger gain — changes every vehicle's feel; a fixed margin — wrong at every speed but one |
+| the arrival LATCHES the end-homing (`HasArrived == 0` to home) | `SampleCustomTrajectory` | re-homing after arrival — the runaway |
+| a ground vehicle never takes a step through a `ClosedBarrier` or up a wall | the write-back (beside CE-3145's "a person never steps off a ledge") | the sampler refusing the roof — it would break a unit spawned inside a footprint; static colliders for buildings — a second geometry of the same walls |
+

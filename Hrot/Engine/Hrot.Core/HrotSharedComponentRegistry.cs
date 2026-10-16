@@ -107,7 +107,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.DisembarkEntityCommand>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectPassengersCommand>();
-        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();   // ⭐ airborne insertion B-4 — applied by the passenger's position owner
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.StartDescentCommand>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EjectRequestEvent>();   // ⭐ airborne insertion B-8 — read by EjectionSystem (the Health owner)   // ⭐ airborne insertion B-4 — applied by the passenger's position owner
         // ⭐⭐ CE-3110 I-2c — the embarkation STATE too, on every host: any node that can own a live entity can own a vehicle or a
         //   passenger, and every node receives the passenger list (I-2b's ingress) and derives the passenger side. 🔴 They were
         //   registered only by the CGF and SimHost registries, so IG — which runs I-2b's ingress — would have applied an

@@ -74,6 +74,27 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 3 / 3 red: the descent branch of `InDomain`, the fall's impact (2 rows); the CE-2199 turret path (same run) |
 | ⚠ not railed | `AirContacts.IsAir` → `IsAircraft` (a one-line swap; its suite has no TargetMemory fixture — the B-1 `IsAircraft` rail covers the predicate) |
 
+## 3d. B-7…B-9 (`2026-10-16`) — the ejecting pilot, as drawn in [design §7d](../../designs/airborne/DESIGN_Airborne_Insertion.md)
+
+| | |
+|---|---|
+| for the behaviors lane (H-3) | order an ejection with the interaction action **`ActionIdEject` (11)** on the AIRCRAFT (`EjectExecutor`: raises `EjectRequestEvent`, succeeds once the aircraft is down). The pilot is a new entity of type **206**, coming down under a round canopy; give him `EvadeAndSignal` once his `Descent` is gone. ⚠ The A-10 also ejects ON ITS OWN at 20 % health |
+| built | `Gen.Ejection`, `EjectRequestEvent` (3205), `EjectExecutor`, `EjectionSystem` (Interactions capability), the seat's arc, Pilot 206, the A-10's seat |
+| ⚠ estimated | the rocket's climb (40 m/s), the seat's time (1.5 s) and drag, the A-10's seat place and 20 % threshold |
+| ⛔ not done | F-16 / C-130 (no brain, no combat block); the drawing (U-2, ui) |
+| ⚠ cross-lane | `CgfLogicPack` (the executor list), `EditorCapabilitiesTests` (+`EjectionSystem` in both lists), `EntityTypeCatalogTests` (+206) |
+
+## 3e. CE-2200 / CE-2201 (`2026-10-16`, behaviors' [Javelin handoff](HANDOFF_Behaviors_To_Backend_Javelin_Lock.md)) — folded into [Missiles & Ammo §3a](../../designs/vehicle-tactics/DESIGN_Missiles_And_Ammo.md)
+
+| | |
+|---|---|
+| CE-2200 | `AimAndFireExecutor.NeedsLock`: a guided round from a mount with `AimSeconds` never fires blind (`HoldNotSeen`); an RPG / LAW still does |
+| CE-2201 | `GuidedRoundSystem.TopAttackFits`: one launch-time answer for `FireProcessingSystem` and `ThreatDanger`. It takes the highest apex that fits the range, otherwise the round flies direct. Javelin: full profile from ~727 m, capped from ~607 m, direct below |
+| ⭐ found on the way (both pre-existing, same file) | ① the DIVE branch was dead code (pure pursuit returned first), so the arrival angle was luck: 40° down, on the side, at 900 m. ② the dive trigger assumed a LEVEL entry; with ① fixed it fell 23–73 m short or overflew at 750–1000 m. Both fixed; a 2D replica swept 600–2590 m: every range that fits hits |
+| ⚠ for behaviors | `ua-javelin-lock` ②'s 230 m shot is now a DIRECT hit. To show a top attack, put the open tank ≥ ~610 m away |
+| gates | `Fdp.Toolkits.Tests` 3 632 / 2 / 1 — both reds are `SquadCoordinationSystemTests` allocation counts (the known flaky family, not touched: alone 1 red then 2 green); `Hrot.SimHost.Tests` 1 441 / 0 / 6; `tracker-counts --check` OK; `design-digest --check` OK; `rulings-check` 215 / 215; Mermaid 13 / 13 parse |
+| red-proofs | CE-2200: 2 / 2 locking rows red with the gate bypassed. CE-2201: 6 / 14 rows red with the old range-only rule. The dive fixes: 900 m red with ①, then 750 / 800 / 900 / 1000 red with ② |
+
 ## 4. Next (this lane)
-B-5 (TKB: `Gen.Parachute`, rope anchors on UH-60 400 / 404, Paratrooper + SF operator, the scenario's `Wind`, the release-point helper) ·
-B-6 (`IsAircraft` in `AmmoChoice` / `AirContacts`, fall damage) · B-7…B-9 (the ejecting pilot).
+⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
+The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. Later: CE-3214 (S2b: weapon systems by part), CE-3215 (S2c: aircraft by part).

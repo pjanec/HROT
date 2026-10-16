@@ -135,13 +135,14 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Terrain.DoorCommandSystem            _doors         = new();
         private readonly Fdp.Toolkit.Behavior.Systems.EmbarkationSystem   _embarkation   = new();
         private readonly Fdp.Toolkit.Combat.WeaponDeploySystem            _deploy        = new();   // ⭐ Weapon systems WS-1 (W-C)
+        private readonly Hrot.Common.EntityCreation.EjectionSystem        _ejection      = new();   // ⭐ Airborne insertion B-8 (§7d D-14)
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -155,6 +156,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_doors);
             simulation.Add(_embarkation);
             simulation.Add(_deploy);
+            simulation.Add(_ejection);
         }
     }
 }

@@ -1699,7 +1699,8 @@ namespace Fdp.Toolkit.Combat.Tests
         /// <summary>A grenadier (mount 0 rifle, mount 1 an M67 thrown at 15 m/s, range 25 m — the shipped Grenadier's suite), a
         /// target his memory places at <paramref name="remembered"/>, not seen now, on Auto.</summary>
         private unsafe (Entity Unit, Entity Grenade, WeaponChannel Channel, Entity Target) Grenadier(
-            Vector3 remembered, float freshness = 500f)
+            Vector3 remembered, float freshness = 500f, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? primary = null,
+            Fdp.Toolkit.Tkb.Domain.GuidanceKind? missile = null)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -1709,10 +1710,16 @@ namespace Fdp.Toolkit.Combat.Tests
             RegisterSight();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             db.Register(new Fdp.Interfaces.TkbTemplate("M67 grenade", M67) { DisType = new Fdp.Core.DISEntityType { Kind = 2 } });
+            if (missile is { } guidance)   // ⭐ CE-2200 — the primary mount's round is a missile (AmmoGuid 9311)
+            {
+                var round = new Fdp.Interfaces.TkbTemplate("Launcher round", 9311);
+                round.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MissileDto { Guidance = guidance, SpeedMps = 140f, MaxFlightSeconds = 15f });
+                db.Register(round);
+            }
             var type = new Fdp.Interfaces.TkbTemplate("Grenadier", 77);
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
             {
-                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f },
+                primary ?? new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f },
                 new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { MuzzleVelocity = 15f, Range = 25f, AmmoGuid = unchecked((ulong)M67) },
             } });
             db.Register(type);
@@ -1838,6 +1845,38 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0, Step(unit, ref channel, 0.1f));
             Assert.Equal(30, _world.GetComponent<WeaponState>(unit).Ammo);
             Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2200</c> (DESIGN_Missiles_And_Ammo §3, M4 D-D "the lock IS the aim time") — a mount that LOCKS (a guided round, an
+        /// aim time) never fires a blind round: hidden, BlindFire asked, the Javelin holds (<c>HoldNotSeen</c>, no round, no ammo spent).
+        /// An unguided RPG with the same aim time, and a guided round from a mount with no aim time (it never locks), keep the blind round.
+        /// 🔴 Red before (live <c>ua-javelin-lock</c>, 2026-10-16): the blind path skipped the lock clock and hit a hidden tank's side.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget, 4f, false)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.GuidanceKind.Command, 4f, false)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided, 4f, true)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.GuidanceKind.FireAndForget, 0f, true)]
+        public void CE2200_ALockingMount_NeverFiresBlind_AnRpgDoes(Fdp.Toolkit.Tkb.Domain.GuidanceKind guidance, float aimSeconds, bool fires)
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var launcher = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 300f, AimSeconds = aimSeconds, AmmoGuid = 9311 };
+            var (unit, _, channel, target) = Grenadier(new Vector3(0f, 30f, 0f), primary: launcher, missile: guidance);
+            _world.AddComponent(unit, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            AskBlind(ref channel);
+            _executor.OnEnter(unit, ref channel, _world);
+            Assert.Equal(fires ? 1 : 0, Step(unit, ref channel, 0.1f));
+            Assert.Equal(fires ? 29 : 30, _world.GetComponent<WeaponState>(unit).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            if (!fires)
+            {
+                var row = _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon;
+                Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, row.Reason);
+                Assert.Equal(target, row.Target);
+            }
+            Assert.Equal(guidance != Fdp.Toolkit.Tkb.Domain.GuidanceKind.Unguided && aimSeconds > 0f,
+                         AimAndFireExecutor.NeedsLock(_world, launcher, 0));
         }
 
         // ── CE-3172 S4d (docs/DESIGN_Entity_Control.md §8b M-8, C-2) — operator fire ─────────────────────────────────────────

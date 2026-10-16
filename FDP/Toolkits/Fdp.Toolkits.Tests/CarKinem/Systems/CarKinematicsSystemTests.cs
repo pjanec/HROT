@@ -675,6 +675,81 @@ namespace CarKinem.Tests.Systems
         }
     
         /// <summary>
+        /// ⭐ <c>CE-2198</c> (behaviors handoff ①, live <c>ua-tank-corner</c>) — a TANK sent 37 m at its top speed (20 m/s, braking 4 m/s²) with
+        /// a 2 m arrival radius stops within it, on a path (the move a <c>LocomotionMoveTo</c> issues) and driven direct — never its ~26 m
+        /// braking distance past the point (measured live: 9 m, then 26 m past, inside a building).
+        /// </summary>
+        [Theory]
+        [InlineData(KinematicsMode.CustomTrajectory)]
+        [InlineData(KinematicsMode.Direct)]
+        public void CE2198_ATankSentAShortWayAtItsTopSpeed_StopsWithinItsArrivalRadius(KinematicsMode mode)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 20f, startSpeed: 0f);
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(37f, 0f, 0f) }, 8);
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.Mode = mode;
+            nav0.TrajectoryId = 8;
+            nav0.ArrivalRadius = 2f;
+            nav0.FinalDestination = new Vector3(37f, 0f, 0f);
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float farthest = 0f, top = 0f;
+            for (int i = 0; i < 30 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                farthest = MathF.Max(farthest, repo.GetComponent<SimTransform>(e).Position.X);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.Equal(1, repo.GetComponent<NavState>(e).HasArrived);
+            Assert.True(farthest <= 37f + 2f, $"{mode}: overshot x=37 to x={farthest:F1} (top {top:F1} m/s; arrival radius 2 m)");
+            var end = repo.GetComponent<SimTransform>(e).Position.X;
+            Assert.True(MathF.Abs(end - 37f) <= 2f, $"{mode}: came to rest at x={end:F1}");   // 🔴 measured: arrived, then drove off to x=440
+            Assert.True(repo.GetComponent<VehicleState>(e).Speed < 0.5f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2198</c> (behaviors handoff ②, live <c>ua-tank-corner</c>) — a ground vehicle driven at a building's wall STOPS at it: inside
+        /// the solid footprint the surface sampler offers only the roof, and the hull was lifted onto the 15 m roof. ✅ Red-proof: the mover
+        /// without the wall rule ⇒ z = 12 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2198_AVehicleDrivenAtABuilding_StopsAtItsWall_NeverOnItsRoof()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 10f, startSpeed: 0f);
+            const string wall = "\"walls\":[{\"from\":[0,0],\"to\":[20,0]},{\"from\":[20,0],\"to\":[20,20]},{\"from\":[20,20],\"to\":[0,20]},{\"from\":[0,20],\"to\":[0,0]}]";
+            string storey = "{\"height\":3," + wall + "}";
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"R\",\"building\":{\"footprint\":[[0,0],[20,0],[20,20],[0,20]]," +
+                "\"storeys\":[" + storey + "," + storey + "," + storey + "," + storey + "]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[30,-10]}}]}"));
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.Mode = KinematicsMode.Direct;
+            nav0.ArrivalRadius = 2f;
+            nav0.FinalDestination = new Vector3(45f, 0f, 0f);   // inside the building
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float topZ = 0f, farthest = 0f;
+            for (int i = 0; i < 20 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                topZ = MathF.Max(topZ, p.Z);
+                farthest = MathF.Max(farthest, p.X);
+            }
+            Assert.True(topZ < 0.5f, $"lifted to z={topZ:F1}");
+            Assert.True(farthest <= 30.5f, $"inside the building at x={farthest:F1}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3128</c> — a path of two COINCIDENT points (a move to where the unit already stands) arrives, and the unit's
         /// position stays finite. 🔴 Measured in the ua-danger-crossing-bp twin: the end-of-path heading normalised the zero last
         /// segment and the rifleman's position became NaN.

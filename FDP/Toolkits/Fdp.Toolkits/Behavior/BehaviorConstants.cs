@@ -110,6 +110,9 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
 
+        /// <summary>⭐ Airborne insertion B-9 — the aircraft's <see cref="Executors.EjectExecutor"/> (11 is free on every lane, 2026-10-16).</summary>
+        public const ushort ActionIdEject = 11;
+
         /// <summary>⭐ <c>CE-3110</c> I-2a — the interaction action of <see cref="Executors.EmbarkExecutor"/> (action ids are per channel;
         /// 2 is the per-passenger disembark, <see cref="ActionIdDisembark"/>).</summary>
         public const ushort ActionIdEmbark = 1;
@@ -178,5 +181,8 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>⭐ Airborne insertion B-4 — <see cref="Events.StartDescentCommand"/>. 3204 is free by a census of every literal and constant event id, 2026-10-15.</summary>
         public const int EventId_StartDescent = 3204;
+
+        /// <summary>⭐ Airborne insertion B-8 — <see cref="Events.EjectRequestEvent"/>. 3205 is free by the same census, 2026-10-16.</summary>
+        public const int EventId_EjectRequest = 3205;
     }
 }

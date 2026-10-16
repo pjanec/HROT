@@ -268,6 +268,10 @@ namespace Fdp.Toolkit.Motion
         /// <summary>A round canopy's slip toward the point (m/s); the height it starts its landing roll (m).</summary>
         public const float RoundSlipMps = 1.5f, RoundLandingM = 1f;
         public const float BankLagSeconds = 0.5f, FlareSeconds = 1f;
+        /// <summary>⭐ B-7 (§7 slice 2) — the ejection seat: the rocket's climb added to the aircraft's velocity (m/s; `EjectionSystem` gives
+        /// it at the spawn), how long he rides the seat before the canopy deploys (s), and how fast the air takes the aircraft's speed off
+        /// him meanwhile (1/s). ⚠ Estimated so the apex is 50–100 m up and the canopy opens by ~3 s (design §7 B-7), not published figures.</summary>
+        public const float EjectUpMps = 40f, SeatSeconds = 1.5f, SeatDragPerSecond = 1.5f;
 
         public LocomotionClass Class => LocomotionClass.Parachute;
 
@@ -317,6 +321,17 @@ namespace Fdp.Toolkit.Motion
                 case DescentPhase.Falling:
                     if (DescentRules.Fall(ref f, surface, dt)) DescentRules.SetPhase(ref d, DescentPhase.Landed, now);
                     return;
+                case DescentPhase.Exit when d.Kind == DescentKind.Ejection:
+                {
+                    // ⭐ B-7 — on the seat: the rocket's arc (the spawn gave him the aircraft's velocity + the climb), the air braking the
+                    //   aircraft's speed off him; then the canopy deploys
+                    var v = f.Velocity.Linear;
+                    float k = MathF.Max(0f, 1f - SeatDragPerSecond * dt);
+                    var h = (new Vector2(v.X, v.Y) - wind) * k + wind;
+                    Step(ref f, new Vector3(h, v.Z - DescentRules.Gravity * dt), dt, surface, ref d, now);
+                    if (now - d.PhaseSince >= SeatSeconds && d.Phase == DescentPhase.Exit) DescentRules.SetPhase(ref d, DescentPhase.Deploying, now);
+                    return;
+                }
                 case DescentPhase.Exit:
                 {
                     // out of the door at the carrier's speed; the free faller falls, the static line opens at once

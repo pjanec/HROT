@@ -205,7 +205,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <c>Gen.Parachute</c> of <paramref name="canopy"/> — round ⇒ a static-line jump, ram-air ⇒ a free fall (<c>Descents.Start</c>). His
         /// DIS type is the rifleman's (3.1.225.1): SISO-REF-010 v37 enumerates US lifeforms by the WEAPON carried, not by a role.
         /// </summary>
-        private static void Jumper(NedTkbBuilder builder, long type, string name, Fdp.Toolkit.Motion.CanopyKind canopy)
+        private static void Jumper(NedTkbBuilder builder, long type, string name, Fdp.Toolkit.Motion.CanopyKind canopy, float openSeconds = 0f)
         {
             builder
                 .DefineVehicle(type, name)
@@ -226,7 +226,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithFaction(type, 1)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
-                .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy })
+                .WithParachute(type, new Fdp.Toolkit.Tkb.Domain.ParachuteDto { Canopy = canopy, OpenSeconds = openSeconds })
                 .WithBehavior(type)
                 .WithDisType(type, new DISEntityType { Kind = 3, Domain = 1, Country = UnitedStates, Category = 1 });
         }
@@ -681,6 +681,10 @@ namespace Hrot.Map.Definitions.Tkb
             //   default (ParachuteModel.Defaults, design §2: T-11 class round, MC-4 class ram-air) — nothing invented per type.
             Jumper(builder, TkbEntityTypes.Infantry_Paratrooper, "Paratrooper", Fdp.Toolkit.Motion.CanopyKind.Round);
             Jumper(builder, TkbEntityTypes.Infantry_SfOperator, "SF operator", Fdp.Toolkit.Motion.CanopyKind.RamAir);
+            // ⭐ Airborne insertion B-7 (§7d D-16) — the PILOT: a jumper whose round canopy opens fast off the seat (1.5 s ⇒ open by ~3 s
+            //   after the ejection, §7 B-7); he carries the rifleman's carbine (USAF aircrew carry an M4-class survival rifle). Spawned by
+            //   his aircraft's ejection seat, never placed by hand (still in the picker, like every lifeform).
+            Jumper(builder, TkbEntityTypes.Infantry_Pilot, "Pilot", Fdp.Toolkit.Motion.CanopyKind.Round, openSeconds: 1.5f);
             
             // Tank Platoon (Composite)
             builder
@@ -961,7 +965,12 @@ namespace Hrot.Map.Definitions.Tkb
                     });
                     c.Weapons.Add(Dispenser(flares: 120, chaff: 240));   // ⭐ CE-2188 (BS-1 §5.4c) — the LAST mount
                 })
-                .WithBehavior(type);
+                .WithBehavior(type)
+                // ⭐ Airborne insertion B-7…B-9 (§7d D-16) — an ejection seat: the pilot (206) leaves from the cockpit (4.5 m ahead of the CG,
+                //   1.2 m up — ⚠ estimated from the drawn airframe, the GAU-8 muzzle is at 7.5 m) and ejects on his own at 20 % health
+                //   (⚠ a chosen threshold, not a published figure; a behaviour may order it any time).
+                .WithEjection(type, new Fdp.Toolkit.Tkb.Domain.EjectionDto
+                    { PilotType = TkbEntityTypes.Infantry_Pilot, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
         }
 
         /// <summary>

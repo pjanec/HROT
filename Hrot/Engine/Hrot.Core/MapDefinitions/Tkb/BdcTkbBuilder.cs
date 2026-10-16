@@ -213,6 +213,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ Airborne insertion B-7 (§7d) — the type's crew can EJECT (<c>Gen.Ejection</c>): the pilot's type, the seat, the
+        /// auto-eject health share.</summary>
+        public NedTkbBuilder WithEjection(long tkbId, Fdp.Toolkit.Tkb.Domain.EjectionDto ejection)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(ejection);
+            return this;
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2155</c> (R-263 D1 / R-2011) — the type's people get HURT before they die (<c>Gen.Injury</c>): wounded, then incapacitated
         /// and bleeding out. A type without this is ok until dead.

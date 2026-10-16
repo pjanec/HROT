@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c); B-7…B-9 READY-TO-BUILD — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
+build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c), B-7…B-9 BUILT (§7d) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
 current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
@@ -283,7 +283,7 @@ incapacitates (the existing injury path).
 | **B-6** | backend | `Locomotions.IsAircraft` used by `AmmoChoice` / `AirContacts` (D-4); fall damage (§5.3) | ★ a Stinger never selects a parachutist; a rifle does |
 | **H-1** | behaviors | SOP rows + `SquadFastRope`, `SquadAirborneExit` (jumpmaster), `ParachuteDescent`, `AssembleAfterDrop`, the release point | ★ 8 men down two ropes in ≤ 15 s and in a 360° ring; ★ a stick of 8 from 400 m lands along the DZ and assembles |
 | **H-2** | behaviors | demo `ua-airborne`: ① SF fast-rope onto a rooftop, the helicopter then orbits ② a static-line stick onto a DZ ③ a free-fall team spirals down onto a point | live, PASS per vignette |
-| **U-1** | ui | the 3-D drawing: the rope from the anchor to the surface (dropped after the hold); round and ram-air canopies with lines, banked with the body; poses per phase (exit tuck, free-fall arch, under canopy hands on toggles, flare, PLF roll, rope slide); amend §6m C-4 (D-8) | frame rails + screenshots per phase |
+| **U-1** | ui | the 3-D drawing: the rope from the anchor to the surface (dropped after the hold); round and ram-air canopies with lines, banked with the body; poses per phase (exit tuck, free-fall arch, under canopy hands on toggles, flare, PLF roll, rope slide); amend §6m C-4 (D-8) | frame rails + screenshots per phase ✅ **BUILT `2026-10-16` (ui)** — [Map 3D §6w](../../DESIGN_Map_3D_Mode.md): `DescentDraw` + seven `BlockFigure` descent poses, canopies in the body frame, ropes from `DescentRules.TryAnchor`, cut ropes; C-4 amended |
 
 ### 7a. As-built — B-1…B-4 (`2026-10-16`, backend)
 
@@ -373,7 +373,7 @@ index, so there is one rule for where the door is (`DescentRules.DoorPoint`) and
 | ⭐ the lead aim stays on `InAir` — leading a falling man is right | `FireProcessingSystem` (`TargetLead`) | — |
 | a FALL hurts (§5.3): ≤ 6 m/s nothing (a canopy lands at ≤ 5.5), 6–10 m/s 75 % of his health (from full ⇒ under the injury's 0.3 ⇒ incapacitated), > 10 m/s all of it — a whole-body `DamageAssessedEvent` (no part: a zone multiplier would bend the thresholds), applied by his Health owner | `DescentRules.Fall` → `Impact` | `DescentModelsTests.B6_AFall_*` (1.5 m / 3.5 m / 20 m) |
 
-### 7d. Design for build — B-7…B-9, the ejecting pilot (`2026-10-16`, backend)
+### 7d. B-7…B-9, the ejecting pilot — BUILT `2026-10-16` as drawn (backend)
 
 ```mermaid
 classDiagram
@@ -424,6 +424,15 @@ sequenceDiagram
 | **D-15** the pilot's start | spawned with the jet's velocity PLUS the rocket (40 m/s up) as its `SimVelocity`; `Descent{Ejection}` in its initial components, no anchor | an anchor on the jet — the jet is being abandoned, and `Descent.Anchor` is a node-local handle |
 | **D-16** the type's figures | `Gen.Ejection` on the jet (pilot type, seat place, auto-eject fraction); the pilot type **206** carries `Gen.Parachute` round with `OpenSeconds` 1.5 (canopy by ~3 s, §7 B-7) | figures in code — every aircraft differs |
 | **D-17** once | a latch in `EjectionSystem` plus "only while alive" (the abandoned jet is at Health 0) | a replicated flag — only the Health owner ever ejects, so a local latch is enough |
+
+| as built | where | ★ rail |
+|---|---|---|
+| `Gen.Ejection` (`EjectionDto`), `EjectRequestEvent` (3205), `EjectExecutor` (interaction action **11**, on the Brain in `CgfLogicPack`) | Fdp.Toolkits | `EjectionSystemTests.B9_TheEjectAction_*` |
+| `EjectionSystem` in the Interactions capability (every node; gated on `OwnsHealth`), the per-type `Gen.Ejection` cached | `Hrot.Common/EntityCreation/EjectionSystem.cs` | `B8_AnOrderedEjection_*` (the seat's world point, the velocity + 40 m/s, `Descent{Ejection}`, all the jet's health as damage, once) · `B9_TheCrewEjectsOnItsOwn_*` · `B8_ANodeNotOwning…` |
+| the seat's arc in `ParachuteModel` (`Exit` when `Ejection`): gravity, the air braking the aircraft's speed off him (1.5 / s), 1.5 s, then the canopy | `DescentModels.cs` | `DescentModelsTests.B7_*` — canopy open at ~3 s, ≥ 50 m above, the apex 50–100 m (★ §7 B-7) |
+| the **Pilot (206)** — a `Jumper` with a round canopy opening in 1.5 s; the **A-10 (405)** ejects him from 4.5 m ahead of the CG, 1.2 m up, on its own at 20 % health | `BdcTkbCatalog` | `NedTkbBuilderCombatTests.B7_*` |
+| ⚠ figures estimated, not published | the rocket's 40 m/s, the seat's 1.5 s and 1.5 / s drag; the A-10's seat place; its 20 % threshold | — |
+| ⛔ not done | the F-16 (401) and C-130 (402) — no combat block and no brain (nothing could order or apply an ejection); the drawing (U-2) is ui's | — |
 
 #### D-13 — how the scenario's wind reaches every node *(open — lean ③, user to approve)*
 

@@ -476,6 +476,96 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Empty(form.Entries);                                                    // every unit accepted: the form closes
     }
 
+    /// <summary>
+    /// ⭐ §6n's last blocked item, measured after behaviors' IF-2 (docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.7) — the FIRE-MISSION
+    /// form: a battery (unit 304, DIS 11.1.225.4) and an SP howitzer (107, 1.1.225.4) are offered Strike in the unit menu and in "Order with
+    /// options", and the Strike form carries every fire-mission field (method, rounds, sheaf and its width, control, time on target, danger
+    /// close) — the same reflected form every order uses, no Strike-specific screen.
+    /// </summary>
+    [Fact]
+    public void IF2_ABatteryAndAnSpGun_AreOfferedStrike_AndItsFormCarriesTheFireMission()
+    {
+        Assert.True(OrderMenu.TryGetByName("Strike", out var strike));
+        var fields = strike.Fields.Select(f => f.Name).ToArray();
+        foreach (var name in new[] { "Location", "Method", "Rounds", "Sheaf", "SheafWidthM", "Control", "ImpactInS", "DangerClose" })
+            Assert.Contains(name, fields);
+
+        var (mi, _) = Live();
+        mi.OrderForm!.Register();   // "Order with options" is offered where a form is drawn
+        foreach (ulong dis in new[] { (11UL << 56) | (1UL << 48) | (225UL << 32) | (4UL << 24), (1UL << 56) | (1UL << 48) | (225UL << 32) | (4UL << 24) })
+        {
+            _w.SetDisType(_unit, new DISEntityType { Value = dis });
+            var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+            Assert.Contains($"\"id\":{strike.ActionId},", menu);
+            Assert.Contains($"\"id\":{GlobalActionIds.OrderWithOptionsBase + (strike.ActionId - OrderMenu.ActionBase)},", menu);
+        }
+
+        mi.MenuOrders.Selected = () => new[] { _unit };
+        Click(mi, GlobalActionIds.OrderWithOptionsBase + (strike.ActionId - OrderMenu.ActionBase));
+        var entry = Assert.Single(mi.OrderForm.Entries);
+        Assert.Equal("Location", Assert.Single(entry.Missing).Name);   // the point is the one required field; the mission has defaults
+        DrawFrame(mi.OrderForm);                                        // the reflected form draws the fire-mission fields
+    }
+
+    /// <summary>
+    /// ⭐ §6x FX-1 / FX-2 (docs/DESIGN_Map_3D_Mode.md) — the fire mission's aim points: three M109s laid on a parallel sheaf (their replicated
+    /// posture AIMED at their own points, as <c>FireAtPoint</c> reports while they wait for the fire time) draw three rings of their round's burst
+    /// with a cross each; only the SELECTED gun draws its dashed line; a rifleman aimed at a point (no indirect weapon) and a gun that is only
+    /// READY draw nothing; every map host registers the overlay, a replay included.
+    /// </summary>
+    [Fact]
+    public void FX1_EachGunLaidOnAPoint_MarksItsAimPoint_AndOnlyTheSelectedOneDrawsItsLine()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        _w.RegisterComponent<TkbIdentity>();
+        _w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        Entity Unit(long type, Vector3 at, Fdp.Toolkit.Combat.Components.WeaponPostureKind kind, Vector3 aim)
+        {
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = at });
+            _w.AddComponent(e, new TkbIdentity { TkbType = type });
+            _w.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = kind, Point = aim });
+            return e;
+        }
+        var guns = new List<Entity>();
+        for (int i = 0; i < 3; i++)   // a parallel sheaf: each gun on its own point, 40 m apart across the line of fire
+            guns.Add(Unit(Hrot.Map.Common.TkbEntityTypes.Sph_M109, new Vector3(0f, 40f * i, 0f), Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, new Vector3(6000f, 40f * i, 0f)));
+        Unit(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, new Vector3(50f, 0f, 0f), Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, new Vector3(300f, 0f, 0f));
+        Unit(Hrot.Map.Common.TkbEntityTypes.Sph_M109, new Vector3(0f, 200f, 0f), Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready, new Vector3(6000f, 200f, 0f));
+
+        var aims = new List<(Entity Gun, Vector3 Aim, float Radius)>();
+        Hrot.Presentation.Orders.FireMissionOverlayGizmo.AimsOf(_w, aims);
+        Assert.Equal(guns, aims.Select(a => a.Gun));
+        Assert.Equal(new[] { 0f, 40f, 80f }, aims.Select(a => a.Aim.Y));
+        Assert.All(aims, a => Assert.True(a.Radius > 5f, "a ring the size of the round's burst"));
+
+        var overlay = new Hrot.Presentation.Orders.FireMissionOverlayGizmo(() => new[] { guns[1] });
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(capacity: 64);
+        overlay.UpdateAndDraw(_w, 0f, buffer);
+        Assert.Equal((3, 1), (overlay.MarksDrawn, overlay.LinesDrawn));
+        int rings = 0, lines = 0;
+        foreach (var p in buffer.GetFrame())
+        {
+            if (p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Sphere) rings++;
+            if (p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Line) lines++;
+        }
+        Assert.Equal(3, rings);
+        Assert.Equal(3 * 2 + 1, lines);   // a cross per mark, one line to the selected gun's point
+
+        string pack = System.IO.File.ReadAllText(System.IO.Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Presentation/ScenarioEditor/Map/MapInteractionPack.cs"));
+        int registered = pack.IndexOf("new Hrot.Presentation.Orders.FireMissionOverlayGizmo(", StringComparison.Ordinal);
+        Assert.True(registered > 0 && registered < pack.IndexOf("if (ctx.IsReplayActive?.Invoke() != true)", StringComparison.Ordinal),
+            "registered on every map host, before the live-only orders (a replay draws the marks too)");
+    }
+
+    private static string RepoRoot()
+    {
+        var d = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (d != null && !System.IO.File.Exists(System.IO.Path.Combine(d.FullName, "HROT.sln"))) d = d.Parent;
+        return d!.FullName;
+    }
+
     /// <summary>⭐ O5 / O6 / O7 — "Order with options › Move" opens the form for the SELECTION the clicked unit is in; Send publishes
     /// the order once per selected unit through EntityOrders, and the remember tick stores the point as both units' designation.</summary>
     [Fact]

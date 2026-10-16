@@ -1533,7 +1533,7 @@ scaled, on the node that moves the man.
 | **C-1 carried / dragged** | DRAWING only. Carried: limp across the carrier's shoulders, crosswise, head to his left; the carrier leans forward, both hands on the load, rifle slung. Dragged: on his back ~1 m behind (the sim's place), head to the carrier, arms up to the carrier's hand; the carrier reaches back with his right arm. Neither casualty plays a gait |
 | **C-2 wounded** | WOUNDED: a limp (right leg stiff, steps shorter, upper body bent ~15°, also standing still). INCAPACITATED: lying on his back, one knee up, a hand on his chest, fallen into it over 0.6 s. ⭐ **+ slice I-b**: a wounded man moves at `WoundedSpeedFactor` (TKB `Gen.Injury`, default **0.6**) |
 | **C-3 seats** | `SeatDto` gains a place (`X, Y, Z` from the reference point), `FacingDegrees` and a `Pose`; a rider in an EXPOSED seat with a place is drawn sitting there. New type **UH-60A (doors off)** (`Heli_UH60_DoorsOff`, 404): 8 seats, 4 in each door, legs out over the sill |
-| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched |
+| **C-4 the jump** | DRAWING only: a rider who leaves a seat more than 0.5 m above the ground drops over 0.5 s from it and lands crouched. ⚠ **Amended `2026-10-16` (§6w AB-V6, Airborne D-8):** only for a hop ≤ 3 m — a rope or parachute descent is SIMULATED and drawn from its `Descent`, never as a jump |
 
 **Rejected — one line each:**
 - *A `Carrying` / `CarriedBy` component* — rejected before (Entity_Interactions §7.4.8): embarkation already says it, on every node.
@@ -1741,8 +1741,8 @@ salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun ty
 a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
 to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
-the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
-fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). ~~STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
 
 ⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
 rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
@@ -2271,6 +2271,186 @@ embarked in a vehicle's station draws without its ground carriage (the ZU-23's j
 
 | ![](assets/map-3d/ad-1-zu23-stinger.png) | ![](assets/map-3d/ad-2-manpads-gunners.png) | ![](assets/map-3d/ad-3-technical.png) |
 |---|---|---|
+
+### 6w. CE-1119 — airborne drawn: the fast rope, the round and ram-air canopies, a pose for every descent phase — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+📄 Owning design: [Airborne Insertion](designs/airborne/DESIGN_Airborne_Insertion.md) item **U-1** (approved with it, R-1003); this section is
+the drawing's own design. 🔒 User, `2026-10-16`: *"Approved, go autonomously"*. Backend built the engine half (B-1…B-5, §7a / §7b there).
+
+**INVENTORY** (`search_graph` Map3D classes — 40, `BlockFigure`, `Carriage`, `DismountDrop`; `scripts/find.sh Descent` — no reader outside the
+engine and the NED translators):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| a body coming down carries a replicated `Descent` (Kind, Phase, Canopy, PhaseSince, Anchor, AnchorIndex) | ✅ `Fdp.Toolkits/Motion/Descent.cs`; egress / ingress `EntityDescentTranslators.cs` | Airborne D-1, §7a |
+| the canopy's bank IS the body's roll in `SimTransform.Rotation` | ✅ `ParachuteModel` writes it; P3 put pitch / roll on the wire (CE-1102) | Airborne D-5 |
+| the rope's top is a world point the slide snaps to | ✅ `DescentRules.TryAnchor` / `DoorPoint` (`DescentModels.cs:46-87`), `CarrierDefDto.RopeAnchors` (404: one over each door) | Airborne §7a, §7b |
+| the helicopter says it is roping, on every node | ✅ `NavigationStatus.Phase == Roping` — `NavigationStatus` is a replicated descriptor | Airborne B-3 |
+| a figure in a held state skips the gait and the jump | ✅ `EntityBodyLayer3D.HeldFigure` (`:439`) → parts with `MotionPose.Still` | §6m |
+| a man who leaves a raised seat is drawn JUMPING from its height | ✅ `DismountDrop.Riding` / `Free` (`Carriage.cs:203-252`) | §6m C-4 |
+| every figure is the shared part order (legs, torso, head, arms, weapon), so poses blend | ✅ `BlockFigure` (`TorsoIndex`, `HeadIndex`, `WeaponIndex`) | §6j |
+| the 11 hit-location poses must not change | ✅ `PersonBodyParityTests` pin `BlockFigure.Parts(stance…)`; descent poses are NEW functions | Airborne §9 |
+
+```mermaid
+classDiagram
+    direction LR
+    class EntityBodyLayer3D { <<existing>> HeldFigure · + DescentFigure · + DrawRopes · + DrawCanopy }
+    class DescentDraw { <<NEW pure>> Pose(phase, t, soldier) · Canopy(kind, phase, t, chute) · RopeTop · RopeBottom · Open(t) }
+    class BlockFigure { <<existing, grows>> + RopeSlide · + Tuck · + FreeFall · + UnderCanopy · + Flare · + Rolled · + SittingOut }
+    class Descent { <<existing, backend>> Kind Phase Canopy PhaseSince Anchor AnchorIndex }
+    class DescentRules { <<existing, backend>> TryAnchor · DoorPoint · RopeLength }
+    class ParachuteModel { <<existing, backend>> Of(world, jumper, canopy): OpenSeconds, FlareHeightM }
+    class NavigationStatus { <<existing, replicated>> Phase Roping }
+    class DismountDrop { <<existing>> Riding · Free }
+    EntityBodyLayer3D ..> Descent : reads
+    EntityBodyLayer3D ..> DescentDraw
+    DescentDraw ..> BlockFigure : the poses
+    DescentDraw ..> ParachuteModel : how long it opens
+    EntityBodyLayer3D ..> DescentRules : the rope's top
+    EntityBodyLayer3D ..> NavigationStatus : ropes out
+    EntityBodyLayer3D ..> DismountDrop : riding while he comes down
+```
+
+*Caption:* everything the drawing needs is already on the wire (`Descent`, the banked transform, `NavigationStatus`) — no new component. The
+rope's top is the SAME rule the slide snaps him to (`DescentRules.TryAnchor`), so the man is drawn on his rope by construction, not by a second
+copy of the anchor arithmetic.
+
+```mermaid
+sequenceDiagram
+    participant L as EntityBodyLayer3D
+    participant D as DescentDraw
+    participant R as DescentRules
+    L->>L: a person with a Descent (not Landed long ago)
+    L->>D: Pose(phase, time in phase)
+    D-->>L: the figure's parts (shared order), MotionPose.Still
+    L->>L: DismountDrop.Riding(his hips now): no jump drawn when he lands
+    alt a parachute phase with a canopy
+      L->>D: Canopy(kind, phase, opening, chute)
+      D-->>L: canopy parts + line ends, in his BODY frame (banks with his roll)
+    end
+    L->>L: pass 3: each carrier roping, or with a man on its rope
+    L->>R: TryAnchor(carrier, index) per rope
+    R-->>L: the rope's top (world)
+    L->>L: a rope from it down to the surface (its length at most), cut ropes lie where they fell
+```
+
+```mermaid
+graph TD
+    subgraph every map host - MapInteractionPack.AttachMapLayers
+      BL[EntityBodyLayer3D] --> DF[DescentFigure NEW]
+      BL --> RP[DrawRopes NEW, pass 3]
+    end
+    subgraph replicated - nothing new
+      DS[Descent · EntityDescent] --> DF
+      TF[SimTransform with roll] --> DF
+      NS[NavigationStatus Roping] --> RP
+      DS --> RP
+    end
+```
+
+*Caption:* who calls it each frame — the canvas draws `EntityBodyLayer3D` on every map host; the descent branch runs before the held-figure
+branch, the ropes after every body (they hang from the helicopter's drawn frame). A host without the `EntityDescent` translator (none today)
+would draw a jumper as a standing man falling.
+
+| decision | rule |
+|---|---|
+| **AB-V1 one pure helper** | `DescentDraw` (Hrot.Presentation/Map3D) turns a `Descent` into a pose, canopy parts and rope ends; the layer only places them — the rails test the helper without a window |
+| **AB-V2 a pose per phase** | `Exit` / `Deploying` (first half) — the TUCK (knees up, chin down, hands on the reserve); `Grip` / `Slide` / `Brake` — the ROPE SLIDE (hands above the head on the rope, legs wrapped, feet together; rifle slung); `FreeFalling` and `Falling` — the ARCH (belly down, arms forward and out, lower legs up); `Canopy` — UNDER CANOPY (hanging, hands up on the toggles, legs together a little forward); `Flare` — toggles pulled to the hips, legs forward, knees bent; `Landing` — the PLF, rolled onto his side (blended from the flare over the phase's first 0.6 s); `Landed` — sitting up on the ground out of the harness. Each a NEW `BlockFigure` pose in the shared order, so phases blend (0.3 s) |
+| **AB-V3 the canopies** | ROUND (T-11 class): a dome 10 m across (a flat cone) with a skirt, 6 m above his shoulders, eight lines to his shoulders; RAM-AIR (MC-4 class): a wing 8.5 m span × 3.4 m chord in three cells arched down at the tips, 4.5 m above him, four line groups. Drawn in his BODY frame ⇒ it banks with him (D-5). Olive drab (round), dark grey (ram-air) |
+| **AB-V4 opening and collapse** | `Deploying`: the canopy grows from a 0.6 m streamer to full over `OpenSeconds` (the type's `Gen.Parachute`, `ParachuteModel.Of`); `Landing` / `Landed`: it collapses and lies flat on the ground behind him (downwind of his heading) |
+| **AB-V5 the rope** | for each rope anchor of a carrier whose `NavigationStatus.Phase` is `Roping`, or that a man's `Descent` names: a rope 5 cm thick from `DescentRules.TryAnchor` straight down to the highest surface under it, at most `RopeLength`; the spare length lies coiled at its foot. When the carrier stops roping the ropes are CUT: they lie on the surface where they hung for 30 s |
+| **AB-V6 C-4 amended** | a body with a `Descent` is never drawn as a jump: while he comes down the drop tracker is told he is RIDING at his hips' height, so when the descent ends no fall from the seat is drawn. A step-out from a low hover (≤ 3 m, Airborne D-8) still jumps as §6m C-4 |
+
+**Rejected — one line each:** *drawing the canopy as its own entity* — no such entity exists and it would need a spawn on every node for a
+purely visual part; *a rope component* — the anchors and the roping phase already say where every rope is; *posing from the motion model's
+inputs (toggle u, brake b)* — they are not replicated; the bank (on the wire) and the phase carry what a viewer sees.
+
+**As-built `2026-10-16`** — matches the diagrams. `DescentDraw` (`Map3D/DescentDraw.cs`: `PoseOf`, `Before`, `Figure`, `Opening`, `Collapse`,
+`Canopy`, `Rope`, `Stick`), the seven poses in `Map3D/BlockFigureDescent.cs` (`BlockFigure.Descending`, `BlendDescent`), and in
+`EntityBodyLayer3D` `DescentFigure` (before `HeldFigure`), `DrawCanopy` and pass 3 `DrawRopes`. Where it went further than the table:
+
+| as built | why |
+|---|---|
+| ⚠ the poses live in a NESTED class (`BlockFigure.DescentPoses`) | C# does not order static initialisers across the files of a partial class: built as plain fields they read `S` and the shoulders as zeros (found by the rope rail — the hands drew at his feet) |
+| a canopy coming down SHRINKS and drops `CollapsedBehind` (6 m) behind him over the landing, then lies as a low heap at the end of a strip of fabric — never a full-size dome on the ground | the first frame drew a 10 m flat disc (a pond) and a dome hovering over the rolled man |
+| a cut rope lies in a loose S from where it hung, with a small heap at its end | a heap under the rope read as a pedestal under the men who had just come down it |
+| the jump tracker is fed whenever he has a `Descent`, even in a rope's `Landed` (no figure then) | the hold's last frame has him on the surface, so its end is a step of nothing |
+| `Falling` (anchor lost) draws the arch; a man killed under his canopy keeps the descent figure and canopy until he is down | no slumped-under-canopy pose yet — noted, not built |
+
+Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the canopy's size / lines / collapse, the rope) and the frame rail
+`Map3DFrameRail.CE1119_V` (2 ropes hanging while roping, every phase drawn, canopies counted, the ropes cut when the hold ends, no jump):
+
+| ![](assets/map-3d/airborne-1-ropes.png) | ![](assets/map-3d/airborne-2-the-stick.png) |
+|---|---|
+| ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
+
+### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built
+([Indirect Fire §3.7](designs/indirect-fire/DESIGN_Indirect_Fire.md)).
+
+**INVENTORY** (grep + graph: `BatteryFireMissionPlay`, `FireAtPointExecutor`, `WeaponPostureOf`, the order form):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| each gun of a battery mission runs `FireAtPoint` on ITS OWN aim point (the sheaf), and holds laid until its fire time | ✅ `IndirectFireBehaviors.cs:100` `AimPoint`; `FireAtPointExecutor` holds with `AwaitingFireTime` | Indirect Fire §3.4, FM-3 |
+| while it holds or fires, the gun's replicated `WeaponPosture` is AIMED at that POINT | ✅ `WeaponPostureOf.For` (`AwaitingFireTime`, `Firing` ⇒ Aimed) and `Report` (`Point` when no target), called from `FireAtPointExecutor.Say` (`:277`) | Weapon Layers W-13b, R-272 |
+| an indirect weapon is a mount with an `IndirectArc` | ✅ `WeaponMountDto.Arc` (`CombatTkb.MountOf`); a controlled weapon by its index 32 + k (`WeaponSystems.ControlledAt`) | IF-1 I2 |
+| the order form is the ONE reflected form over the order struct | ✅ `OrderForm` + `OrderMenu.FieldsOf`; `StrikeOrder` carries Method · Rounds · Sheaf · SheafWidthM · Control · ImpactInS · DangerClose | §13.12 (Orders design), IF-2 |
+| a passive overlay on every map host has a home | ✅ `DesignationOverlayGizmo` registered by `MapInteractionPack` | §13.12 O8 |
+
+```mermaid
+classDiagram
+    direction LR
+    class FireMissionOverlayGizmo { <<NEW passive global gizmo>> AimsOf(world) · UpdateAndDraw }
+    class WeaponPosture { <<existing, replicated>> Kind Point Target ActiveMount }
+    class CombatTkb { <<existing>> MountOf · WarheadOf }
+    class WeaponSystems { <<existing>> ControlledAt }
+    class SidePalette { <<existing>> Of(force) }
+    class DesignationOverlayGizmo { <<existing, the pattern>> }
+    class MapInteractionPack { <<existing>> registers both }
+    FireMissionOverlayGizmo ..> WeaponPosture : aimed at a point
+    FireMissionOverlayGizmo ..> CombatTkb : an indirect arc? the burst radius
+    FireMissionOverlayGizmo ..> WeaponSystems : a manned tube
+    FireMissionOverlayGizmo ..> SidePalette
+    MapInteractionPack ..> FireMissionOverlayGizmo
+    MapInteractionPack ..> DesignationOverlayGizmo
+```
+
+```mermaid
+sequenceDiagram
+    participant B as battery (Brain)
+    participant G as gun (FireAtPoint)
+    participant W as WeaponPosture (replicated)
+    participant O as FireMissionOverlayGizmo (every map host)
+    B->>G: FireAtPoint(aim i, fireAt)
+    G->>W: Aimed, Point = aim i (laid, waiting)
+    O->>W: every gun Aimed at a POINT with an indirect mount
+    O->>O: a ring of the round's burst radius + a cross at each aim point, in the gun's side colour
+    O->>O: a selected gun: a dashed line from it to its aim point
+    G->>W: rounds gone: Ready, then AtEase - its mark goes
+```
+
+*Caption:* nothing new on the wire or in the Brain — the sheaf is drawn from what each gun already publishes about its own aim, so a CGF, IG or
+editor map shows the same pattern, and a gun that has fired its rounds drops its mark by itself.
+
+| decision | rule |
+|---|---|
+| **FX-1 what** | at each aim point of a gun laid or firing on a POINT with an INDIRECT mount: a ring the size of its round's blast injury radius (20 m when the round names none) and a small cross, in the gun's side colour — the parallel / open / converged sheaf reads from the rings' pattern |
+| **FX-2 the line** | only for a SELECTED gun (or a selected battery's members): a dashed line from the gun to its aim point — a battery 10 km away drawing a line per gun all the time would cross the whole map |
+| **FX-3 layer** | the Entities layer (on by default): a mark exists only during a mission, so it adds nothing to a quiet map (CE-1065's complaint was standing clutter) |
+| **FX-4 the form** | no fire-mission screen: the reflected order form already carries every Strike field, and a battery and an SP gun are offered Strike and "Order with options › Strike…" — measured by a rail, built by construction |
+
+**Rejected — one line each:** *drawing the battery's plan from the Brain's play params* — they are not replicated, so only the Brain node
+could draw it; *a new layer bit* — the layer panel, its persistence and its rails for a mark that only exists during a mission;
+*a Strike-specific form* — a second form for one order is what §13.12 retired.
+
+**As-built `2026-10-16`** — matches the diagrams: `Hrot.Presentation/Orders/FireMissionOverlayGizmo.cs` (`AimsOf`, `IndirectMount` — its own
+mount or the controlled weapon's at 32 + k; the ring from `CombatTkb.WarheadOf`'s blast injury radius, else its fragment radius, else 20 m),
+registered in `MapInteractionPack` BEFORE the live-only order block so a replay draws the marks too. Measured on the way: every tactical-brain
+unit carries a `WeaponPosture` (`BehaviorTkbTranslator.cs:144-146`), so an M109 or a mortar's gunner publishes its aim with no new component.
+Rails `MenuOrdersTests.FX1_*` and `IF2_ABatteryAndAnSpGun_*` (the form, measured); red-proved by five breaks. ⚠ Not screenshotted: the marks
+are ordinary gizmo spheres and lines, drawn in 2-D and draped in 3-D by the existing renderers (§6e).
 
 ## 7. NOT VERIFIED — say so before it is built on
 

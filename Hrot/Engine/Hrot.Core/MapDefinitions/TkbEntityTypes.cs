@@ -59,6 +59,8 @@ namespace Hrot.Map.Common
         /// <summary>⭐ Airborne insertion B-5 (§4) — a special-forces operator: fast-rope trained, and a military free fall under a steerable
         /// RAM-AIR canopy (Gen.Parachute).</summary>
         public const long Infantry_SfOperator = 205;
+        /// <summary>⭐ Airborne insertion B-7 (§7d) — a PILOT: spawned by his aircraft's ejection seat (Gen.Ejection), down under a round canopy.</summary>
+        public const long Infantry_Pilot = 206;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;
