@@ -9,6 +9,7 @@ known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are
   same slot mid-run (CE-460 — WON'T FIX 2026-09-30; SUPERSEDED 2026-10-07: the user reopened it and CE-2118 fixed the
   C# commander — staging reserves nothing, see §2.3. The blueprint twin keeps the old behaviour by user ruling).
 known-conflict: none.
+queued: ⭐ CE-2230 (user, 2026-10-16) — a ground-up rework on the current sensors and standard behaviours: the creep stops where the tank first sees its targets, full AI reverse, standard target / weapon choice and fire to the kill, the exposure cycle reused. This document describes the build being replaced.
 related-designs:
   - docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md — BUILD design of the repeatable vehicle exposure (the hill attack is re-pointed at it later); ⚠ measured: AI reverse is clamped to ≥ 0 (BicycleModel.cs:34), so ReverseToBaseline is assumed not to reverse — V5
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — generalises HullDownAttackRun's one exposure into a repeatable urban hide / expose / reverse cycle (V4)
