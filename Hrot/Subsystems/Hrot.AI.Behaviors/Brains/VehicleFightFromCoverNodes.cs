@@ -201,7 +201,9 @@ namespace Hrot.AI.Behaviors.Brains
             switch (ws.Phase)
             {
                 case VehiclePhase.Choose:
-                    if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now, relocating: ws.Exposures > 0))
+                    // ⭐ CE-2229 — a hide given up (used up, or no firing point near it) is LEFT for another, before the first exposure too
+                    if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now,
+                                      relocating: ws.Exposures > 0 || ws.ExposuresHere >= p.ExposuresPerPosition))
                     {
                         if (disarmed)
                         {
@@ -309,7 +311,13 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // no firing point from this hide for NoCoverSeconds: it cannot be fought from — to the next hide
                 if (ws.Waiting != 1) { ws.Waiting = 1; ws.WaitingSince = now; }
-                else if (now - ws.WaitingSince >= p.NoCoverSeconds) { ws.Waiting = 0; ws.ExposuresHere = p.ExposuresPerPosition; }
+                else if (now - ws.WaitingSince >= p.NoCoverSeconds)
+                {
+                    ws.Waiting = 0;
+                    ws.ExposuresHere = p.ExposuresPerPosition;
+                    // ⭐ CE-2229 — and burned, so two blind hides are not taken in turn (it cools: the threat may move)
+                    PositionHeat.Add(ref mem, ws.HidePoint, Rules(in p).BurnHeat, now, Rules(in p), exposure: false);
+                }
                 return;
             }
             ws.Waiting = 0;

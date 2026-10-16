@@ -337,6 +337,47 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2229</c> — a hide that no firing point near it can fight from is given up (§3 state diagram: <i>Hidden → Choose: every
+        /// firing point near this hide burned</i>) — for ANOTHER hide, even before the first exposure. 📌 Live <c>ua-technical-scoot</c>: the
+        /// HMG technical's hide at (285, 230) saw no line to the tank; it gave the hide up, re-picked the SAME hide (the relocation rule only
+        /// fired after an exposure), arrived at once and sat there 100 s. 🔴 Red-proof: <c>relocating: ws.Exposures &gt; 0</c> alone and
+        /// the last move is <c>(HideA, false)</c> again.
+        /// </summary>
+        [Fact]
+        public void CE2229_AHideWithNoFiringPoint_IsLeft_ForAnotherHide_BeforeAnyExposure()
+        {
+            var p = Technical();
+            var d = new Duel(p);
+            var nearA = new Vector3(-10f, 5f, 0f);   // outside the burn's 3 m match, inside the 15 m relocation
+            d.ToHide(HideA, nearA, HideB);
+            // the firing-point sensor never answers: nothing near HideA sees the threat
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, GiveUpSeconds(p)));
+            Assert.Equal((HideB, false), d.Moves[^1]);
+            Assert.Equal(0, d.Ws.Exposures);
+        }
+
+        private static double GiveUpSeconds(VehicleFightFromCoverParams p) => 2 + VehicleFightFromCoverNodes.Effective(p, true).NoCoverSeconds + 2;
+
+        /// <summary>
+        /// ⭐ <c>CE-2229</c> — the blind hide given up is also BURNED, so two blind hides are not taken in turn: A, then B, then C — never
+        /// back to A. 🔴 Red-proof: drop the <c>PositionHeat.Add</c> on the hide and the third move is <c>(HideA, false)</c>.
+        /// </summary>
+        [Fact]
+        public void CE2229_TwoBlindHides_AreNotTakenInTurn()
+        {
+            var p = Technical();
+            var d = new Duel(p);
+            var hideC = new Vector3(-10f, 60f, 0f);
+            d.ToHide(HideA, HideB, hideC);
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, GiveUpSeconds(p)));
+            Assert.Equal((HideB, false), d.Moves[^1]);
+            Assert.Equal(VehiclePhase.Hidden, d.RunUntil(VehiclePhase.Hidden));
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 9, HideA, HideB, hideC);   // the hide sensor still ranks A first
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, GiveUpSeconds(p)));
+            Assert.Equal((hideC, false), d.Moves[^1]);
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>V4_R3</c> — A LIGHT VEHICLE SCOOTS (D-J): after its one exposure it drives FORWARD on to a NEW hide — never the old one,
         /// never in reverse — with the fire LEFT RUNNING for the drive (the weapon brain fires a <c>FireOnMove</c> mount and holds the others,
         /// D-L); the fire stops once hidden. 🔴 Red-proof: route Scoot through the reverse branch and the move is <c>(HideA, reverse)</c>.

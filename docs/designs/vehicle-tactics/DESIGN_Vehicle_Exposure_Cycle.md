@@ -243,7 +243,7 @@ stateDiagram-v2
   Engaging --> Engaging : Guiding (a command missile in flight) — stay
   Withdrawing --> Hidden : REVERSE back to the hide
   Withdrawing --> MoveToHide : SCOOT forward to the next hide
-  Hidden --> Choose : every firing point near this hide burned
+  Hidden --> Choose : used up, or no firing point for NoCoverSeconds - the hide is LEFT and burned (CE-2229)
   Choose --> StandAndFight : no hide for NoCoverSeconds (CE-2196)
   Hidden --> StandAndFight : mobility kill (CE-2197)
   StandAndFight --> MoveToHide : a hide answers and it can drive
