@@ -122,6 +122,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ Weapon systems WS-1 (W-C) — a weapon system's deploy state (its owner → every node).
             yield return new EntityWeaponSystemStateEgressTranslator(participant);
             yield return new EntityWeaponSystemStateIngressTranslator(participant, entityMap);
+            // ⭐ CE-3216 S1-0 (R-3012) — the scenario clock on the World Environment, owner → every node.
+            yield return new EntityScenarioClockEgressTranslator(participant);
+            yield return new EntityScenarioClockIngressTranslator(participant, entityMap);
             // ⭐ R-221 — every interaction kind (doors first) travels to the target's owner on ONE topic; the kind's handler applies it there.
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionEgressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Interactions.InteractionIngressTranslator(participant, entityMap);

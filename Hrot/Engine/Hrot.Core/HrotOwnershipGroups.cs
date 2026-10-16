@@ -77,6 +77,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.PassengerBuffer);
         // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state: its brain's WeaponDeploySystem writes it (dtWeaponSystemState).
         brain.SetBit(GlobalComponentIds.WeaponSystemState);
+        // ⭐ CE-3216 S1-0 (R-3012, W-6) — the scenario clock: the Brain that loads the scenario creates and owns it, applies an edit (dtScenarioClock).
+        brain.SetBit(GlobalComponentIds.ScenarioClock);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

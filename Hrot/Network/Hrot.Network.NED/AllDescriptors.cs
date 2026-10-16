@@ -103,6 +103,8 @@ namespace Hrot.NED.Descriptors
         // ⭐ Airborne insertion B-1 — a body coming down a rope or under a canopy (the position's owner, Muscle → every node). D-1.
         //   ⚠ 137 measured free on backend, ui and behaviors 2026-10-16.
         dtDescent                     = 137,
+        // ⭐ CE-3216 S1-0 (R-3012, W-8) — the scenario clock (start time) on the World Environment, Brain group (its creator owns it).
+        dtScenarioClock               = 138,
         // etc., all known descriptor types here
     }
 

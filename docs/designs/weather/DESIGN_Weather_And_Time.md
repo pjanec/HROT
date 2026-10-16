@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
-current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails. §0 is the measured ground.
+build-state: BUILDING — S1-0 BUILT 2026-10-16 (§6.1). READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
@@ -196,3 +196,26 @@ singleton is drawn dead: S1 moves its two readers onto `WeatherField`.
 | **S2** | backend | perception: vision range by visibility and light level (night), thermal contrast from the temperature model (crossover), hearing by wind | rails in the sensors' suites |
 | **S3** | ui | the 3D map: sun direction and sky colour, fog from the extinction, cloud layers; smoke drifts on the wind | frame rails + screenshots |
 | **S4** | backend + ui | air density for aircraft and long-range ballistics; wind drift on rounds; ambient audio from wind and time of day | — |
+
+## 6. As built
+
+### 6.1 S1-0 — the positionless World Environment and its clock ✅ BUILT `2026-10-16` (CE-3216)
+
+| piece | where | note |
+|---|---|---|
+| `ScenarioClock` (394) `{ StartUtcTicks, DisplayUtcOffsetMinutes }` · `ScenarioClock.DefaultStartUtc` = **2025-06-21 06:00 UTC** (C-3, fixed) · `ScenarioTime.TryClock / Utc` | `FDP/Toolkits/Fdp.Toolkits/Weather/ScenarioClock.cs` | default data policy ⇒ the scenario serializer saves it as authored (W-8) with no new code; `Utc(world)` falls back to the C-3 default when no World Environment has arrived |
+| TKB type **`WorldEnvironment` = 8810**, a bare template (no `SimTransform`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs` | the door's pattern: its state arrives with the request on the creator and on its descriptor elsewhere |
+| `dtScenarioClock` = 138, `EntityScenarioClock` (Reliable, TransientLocal, KeepLast 1) | `AllDescriptors.cs`, `SimDescriptors.cs` | Brain group (`HrotOwnershipGroups`, `NedOwnershipGroupBinding`) — the creating Brain owns it (W-6) |
+| `EntityScenarioClockEgressTranslator` / `…IngressTranslator` | `Hrot.Network.NED/Replication/Map/EntityScenarioClockTranslators.cs` | the `WeaponSystemState` shape (send on change; hold a sample until its entity is known; the recorded owner drops its own); in `SharedTranslatorPack` and `EntityStatesIngressPack` (a pure IG sees the time too) |
+| the runtime edit: attributes **`ScenarioStartUtcTicks`** (20, Int64) and **`ScenarioUtcOffsetMinutes`** (21, Int32) | `AttributeVocabulary`, `AttributeCompilerFactory.Build`, `ScenarioClockAttributeInstaller` | ⭐ no new message: `UpdateEntityAttributeCommand` → the owner's `UpdateEntityAttributeRequestSystem` applies it AS SENT (W-8); the egress declares `TargetComponentIds = {ScenarioClock}` |
+| C-3 / W-8 in `ScenarioLoadStep.Commit` | `Hrot.Core/Services/LoadPhase/ScenarioLoadStep.cs` | a scenario with none ⇒ `WorldEnvironmentRequest` (after the doors, so their ids are unchanged); a second in the file is ignored with a warning; also for a NEW scenario; only after a `PrepareAsync` (an aborted round enqueues nothing) |
+
+**Rails:** `SplitAuthoritySpawnTests.CE3216_ThePositionlessWorldEnvironment_CarriesItsClock_AndAnEditFromANonOwnerReachesEveryNode`
+(IT-SA-5, domain 35: created on CGF through the request path, no `SimTransform` on either node, UTC = start + sim time on both, an edit
+SENT BY SimHost applied by CGF and replicated back — red-proved by dropping the clock egress and by a no-op JSON route) ·
+`ScenarioLoadStepTests.CE3216_C3_*` / `CE3216_W8_*` (the default at the fixed start; a saved start loads as authored; a second ignored) ·
+`TheFourRoutingTablesAgreeTests` / `TheDescriptorMapIsWiredTests` (the two attributes in every routing table, `dtScenarioClock` in the
+Brain group).
+
+⚠ **Measured on the way:** the positionless entity needed **nothing** special in the creation, ghost and promotion paths — the request
+path, `EntityMaster` and the TKB derivation all work without a `SimTransform` (confirms docs/designs/tkb-1/DESIGN.md 2026-09-13).

@@ -65,6 +65,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.TerrainDoorState>? _pendingDoorStates;   // ⭐ 5e — the scenario's TerrainObjects
     private Guid? _pendingTransactionId;
+    private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
     /// 🔴 <b>Required, and it must be the CLUSTER'S authority</b> — not a locally constructed sequence.
@@ -105,6 +106,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingRequests      = null;
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
+        _prepared             = true;
 
         // ⭐ A NEW scenario has no file to read — the world starts empty and the operator authors into it.
         if (context.IsNewScenario || string.IsNullOrWhiteSpace(context.ScenarioId))
@@ -149,9 +151,23 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
 
         try
         {
+            bool hasEnvironment = world != null && Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _);
             if (_pendingRequests != null)
                 foreach (var request in _pendingRequests)
+                {
+                    // ⭐ CE-3216 C-3 — exactly ONE World Environment: a second is ignored with a warning, the first kept.
+                    if (request.TkbType == TkbEntityTypes.WorldEnvironment)
+                    {
+                        if (hasEnvironment)
+                        {
+                            FdpLog<ScenarioLoadStep>.Warn(
+                                "[LoadPhase/Scenario] '{0}' holds a second World Environment — ignored, the first is kept (C-3).", context.ScenarioId ?? "(new scenario)");
+                            continue;
+                        }
+                        hasEnvironment = true;
+                    }
                     _source.Enqueue(request);
+                }
 
             // ⭐ Buildings Stage 5b — the TERRAIN's entities (its doors), right after the scenario's own, in key order, ids from the
             //   same allocator (§3b K1/K3). ⭐ Also for a NEW scenario: the terrain has doors whether or not the scenario has units.
@@ -164,14 +180,31 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                                  terrain, Fdp.Toolkit.Terrain.TerrainObjects.ExistingKeys(world), _idAllocator, _pendingDoorStates))
                         _source.Enqueue(request);
             }
+
+            // ⭐ CE-3216 C-3 (R-3012) — a scenario with no World Environment gets a DEFAULT one, so the clock is always there to change
+            //   (and is saved next time). ⭐ W-8: the FIXED built-in start time, ⛔ never the wall clock. After the doors, so their ids
+            //   are what they were before the clock existed. Also for a NEW scenario. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md.
+            if (!hasEnvironment && _prepared)
+                _source.Enqueue(WorldEnvironmentRequest(_idAllocator));
         }
         finally
         {
             _pendingRequests      = null;
             _pendingDoorStates    = null;
             _pendingTransactionId = null;
+            _prepared             = false;
         }
     }
+
+    /// <summary>⭐ CE-3216 C-3 — the creation request for a DEFAULT World Environment: the built-in start time, an id from the cluster's
+    /// allocator. Positionless: no <c>SimTransform</c> rides with it.</summary>
+    public static EntityCreationRequest WorldEnvironmentRequest(INetworkIdAllocator idAllocator) => new()
+    {
+        RequestId             = Guid.NewGuid(),
+        TkbType               = TkbEntityTypes.WorldEnvironment,
+        PreAllocatedNetworkId = idAllocator.AllocateId(),
+        InitialComponents     = new List<object> { Fdp.Toolkit.Weather.ScenarioClock.Default },
+    };
 
     /// <inheritdoc/>
     public void Abort(LoadPhaseContext context)
@@ -179,6 +212,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingRequests      = null;
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
+        _prepared             = false;
     }
 
     /// <summary>

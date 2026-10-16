@@ -100,6 +100,25 @@ namespace Hrot.NED.Descriptors
         public double Until;
     }
 
+    // ⭐ CE-3216 S1-0 (R-3012; docs/designs/weather/DESIGN_Weather_And_Time.md W-4, W-8) — the scenario clock (the authored START TIME)
+    //   on the World Environment entity, published by its owner (the creating Brain) on change and applied on every other node. Every
+    //   node then derives UTC = start + its own synced sim time (ScenarioTime.Utc) — nothing is sent per frame. Reliable +
+    //   TransientLocal + KeepLast(1) keyed by entity, like the door: a late joiner gets the current start time.
+    [DdsTopic("EntityScenarioClock")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityScenarioClock
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>UTC ticks at sim time 0 (<c>ScenarioClock.StartUtcTicks</c>).</summary>
+        public long StartUtcTicks;
+
+        /// <summary>The display offset from UTC, minutes (<c>ScenarioClock.DisplayUtcOffsetMinutes</c>).</summary>
+        public short DisplayUtcOffsetMinutes;
+    }
+
     // ⭐ WL-1b (CE-1049) — a turret's pose (its part child's TurretPose), published by the node owning dtTurretPose (the Muscle) and
     //   applied on every other node's turret part, so a viewer — IG included — sees the turret turn. 📄 docs/DESIGN_Weapon_Layers.md
     //   §5b, W-9, W-10. Keyed (hull network id, part id = 2000 + turret index) — the EQS sensor key shape (EqsSensorConfigTopic).

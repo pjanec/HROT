@@ -854,6 +854,10 @@ namespace Hrot.Map.Definitions.Tkb
             //   EntityDoorState descriptor everywhere else — nothing for a TKB translator to inject.
             tkbDb.Register(new TkbTemplate("Door", TkbEntityTypes.Door));
 
+            // ⭐ CE-3216 (W-0) — the scenario's World Environment: a bare template like the door's — its ScenarioClock arrives with the
+            //   creation request on the creator and through dtScenarioClock everywhere else. No SimTransform: it is nowhere.
+            tkbDb.Register(new TkbTemplate("World Environment", TkbEntityTypes.WorldEnvironment));
+
             RegisterObstacles(tkbDb);
         }
 

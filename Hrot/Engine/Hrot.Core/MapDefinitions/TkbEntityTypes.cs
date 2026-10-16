@@ -92,6 +92,12 @@ namespace Hrot.Map.Common
         /// <summary>The four starter obstacle types (O4).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate };
 
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 (R-3012, W-0) — the WORLD ENVIRONMENT: one per scenario, the FIRST entity with
+        //   no SimTransform (presence of SimTransform is the engine's "is this spatial?" predicate, docs/designs/tkb-1/DESIGN.md
+        //   2026-09-13 — so it is never a perception, EQS or ballistics candidate). Carries the ScenarioClock (and, S1, the global
+        //   weather). Never in the palette; the load creates it (C-3). 📄 docs/designs/weather/DESIGN_Weather_And_Time.md.
+        public const long WorldEnvironment = 8810;
+
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
         public const long Heli_UH60  = 400;
