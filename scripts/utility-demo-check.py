@@ -1703,6 +1703,11 @@ def run_tank_ammo(c, timeout):
         by_target.setdefault(name.get(x.get("target"), x.get("target")), []).append(x)
     for t, xs in by_target.items():
         print(f"    at {t}: {len(xs)} rounds, penetration {sorted({round(x.get('penetration') or 0) for x in xs})}, weapon {sorted({x.get('weaponIndex') for x in xs})}")
+        print("      outcomes", dict(__import__("collections").Counter(x.get("outcome") for x in xs)))
+        for x in xs[:3]:
+            print("      e.g.", {k: x.get(k) for k in ("muzzle", "aim", "end", "hit", "outcome", "penetration", "crossings")})
+    md = data(call("GET", f"/entities/{tank}/memory")) or {}
+    print("    tank memory:", [(name.get(x.get("networkId"), x.get("networkId")), round(x.get("freshness") or 0, 1), x.get("modalities"), x.get("alive")) for x in md.get("slots") or []])
     hit = [n for n in ("Enemy Tank", "Pickup", "Rifleman 1", "Rifleman 2") if n in by_target]
     c.ok(len(hit) >= 3, f"① it fires at the tank, the pickup and the men — {hit}")
     pen = lambda n: max((x.get("penetration") or 0 for x in by_target.get(n, [])), default=0)

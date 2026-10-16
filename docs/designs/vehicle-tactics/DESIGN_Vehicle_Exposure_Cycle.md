@@ -309,6 +309,10 @@ Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).
 | | the locked top attack at 230 m landed 580 m beyond its tank | **CE-2201 (backend)**: the profile (30° climb to +150 m, 30°/s turn) cannot come back down on a target that close — [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Javelin_Lock.md) |
 | `ua-tank-ammo` | the M1 fired nothing in 260 s | **scenario**: at y 80 the ridge (crest y 210) hid every target ⇒ the tank moved north of it |
 
+⭐ **`ua-ifv-standoff` PASS 4 / 4** after both fixes (`2026-10-16`): no hide answers in the open, so the IFV fights from where it stands
+(CE-2196). Its 25 mm kills both advancing RPG men at **326 m**, outside their 300 m reach; their 4 rockets miss and it is untouched
+(health 500). Up close the second IFV takes an RPG hit (500 → 91).
+
 ⭐ **Found live `2026-10-15` (`ua-tank-corner`), fixed — CE-2195:** the `Parallel(1)` above is RequireOne, which FAILS only when every
 child failed — and `UntilTargetDown` with no target named was Running for ever, so a cycle that failed (no hide for `NoCoverSeconds`)
 left the behaviour running dead and the SOP could not react again. ⇒ with no target it now ABSTAINS (Failure) and the cycle's result is
