@@ -96,11 +96,16 @@ namespace Fdp.Toolkit.Motion
             //   into its speed and brakes for the point at the type's acceleration (√(2·a·d)), climbing and descending likewise
             float a = Accel(in p), step = a * dt, inv = 1f / MathF.Max(dt, 1e-4f);
             var now = f.Velocity.Linear;
-            float alongWant = strike ? MathF.Min(speed, flat.Length() * inv)
+            // ⭐ CE-2213 — the strike flies the STRAIGHT LINE to the point at its speed: horizontal and vertical are that speed split by the
+            //   line's direction, so over a target the horizontal eases to nothing and the drone comes down on it. ⛔ CE-2211 first wanted
+            //   FULL horizontal speed: a drone diving on an evading tank (rail S6e_…EvadingTank, live ua-drone-shelter) overshot it by
+            //   10 m at 30 m/s, looped back on its 120°/s nose and met the ground 16 m off
+            float dist = MathF.Max(to.Length(), 1e-3f);
+            float alongWant = strike ? MathF.Min(speed * flat.Length() / dist, flat.Length() * inv)
                                      : MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * a * flat.Length())), flat.Length() * inv);
             float hNow = new Vector2(now.X, now.Y).Length();
             float along = MathF.Min(hNow + Math.Clamp(alongWant - hNow, -step, step), flat.Length() * inv);
-            float vzWant = Math.Clamp(to.Z * inv, strike ? -speed : -p.ClimbMps, p.ClimbMps);
+            float vzWant = strike ? Math.Clamp(speed * to.Z / dist, -speed, p.ClimbMps) : Math.Clamp(to.Z * inv, -p.ClimbMps, p.ClimbMps);
             if (!strike) vzWant = MathF.Sign(vzWant) * MathF.Min(MathF.Abs(vzWant), MathF.Sqrt(2f * a * MathF.Abs(to.Z)));
             float vz = now.Z + Math.Clamp(vzWant - now.Z, -step, step);
             if (MathF.Abs(vz) > MathF.Abs(to.Z) * inv) vz = to.Z * inv;

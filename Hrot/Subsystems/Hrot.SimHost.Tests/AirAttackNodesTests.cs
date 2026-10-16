@@ -1009,11 +1009,18 @@ namespace Hrot.SimHost.Tests
                 db.Register(t);
             }
             var e = SpawnPlane(at, Drone, 1, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
-            _w.SetComponent(e, new Fdp.Toolkit.Motion.FlightParams
+            // ⭐ the FPV drone's own catalogue data (BdcTkbCatalog.DefineFpvDrone: 30 m/s, climb 8, 120°/s, 15 m/s², its warhead), flown by the
+            //   REAL RotorcraftModel (FlyDrone) — 📐 a stand-in that changed velocity instantly hit an evading tank to 0.1 m while the live
+            //   drone, flying along its nose at 15 m/s², overshot it by 10 m and looped into the ground (CE-2213)
+            _w.SetComponent(e, Fdp.Toolkit.Motion.FlightParams.From(new Fdp.Toolkit.Tkb.Domain.FlightParamsDto
             {
-                MaxSpeedMps = DroneSpeed, ClimbMps = DroneClimb, AccelMps2 = DroneAccel, TurnRadiusM = 10f,
-                DetonatesOnImpact = 1, EnduranceSeconds = enduranceSeconds,
-            });
+                MaxSpeedMps = DroneSpeed, ClimbMps = DroneClimb, AccelMps2 = DroneAccel, DetonatesOnImpact = true, EnduranceSeconds = enduranceSeconds,
+            }));
+            _w.AddComponent(e, new Fdp.Toolkit.Motion.FlightState { Airborne = 1 });
+            _w.AddComponent(e, new NavigationIntent());
+            _w.AddComponent(e, new NavigationStatus());
+            _w.AddComponent(e, new Health { Current = 10, Max = 10 });
+            _w.SetAuthority<SimTransform>(e, true);   // the air system moves only owned bodies
             _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
             return e;
         }
@@ -1046,22 +1053,26 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>The stand-in for <c>RotorcraftModel</c>'s point move: horizontal toward the point at up to its speed, braking √(2·a·d);
         /// vertical capped at ±ClimbMps — as the model flies it; ⭐ CE-2211 a strike (arrival radius 0) neither brakes nor caps the dive.</summary>
+        private readonly Fdp.Toolkit.Motion.AirMotionSystem _air = new();
+        private uint _droneIntent;
+
+        /// <summary>The drone's MoveTo, flown by the real air motion system: the order becomes its NavigationIntent (a new id when it
+        /// changes, as MoveToExecutor stamps one), the model moves it, and its status answers the channel.</summary>
         private void FlyDrone(Entity e)
         {
             var move = MoveOf(e);
-            ref var tr = ref _w.GetComponentRW<SimTransform>(e);
-            var to = move.Destination - tr.Position;
-            var flat = new Vector2(to.X, to.Y);
-            // ⭐ CE-2211 — a flyer that IS its warhead, sent with arrival radius 0, strikes its point: no braking, the dive at its full speed
-            float speed = move.Speed > 0f ? move.Speed : DroneSpeed;
-            bool strike = move.ArrivalRadius <= 0f;
-            float along = strike ? MathF.Min(speed, flat.Length() / Dt) : MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * DroneAccel * flat.Length())), flat.Length() / Dt);
-            var h = flat.LengthSquared() > 1e-6f ? Vector2.Normalize(flat) * along : Vector2.Zero;
-            float vz = Math.Clamp(to.Z / Dt, strike ? -speed : -DroneClimb, DroneClimb);
-            var v = new Vector3(h, vz);
-            _w.GetComponentRW<SimVelocity>(e).Linear = v;
-            tr.Position += v * Dt;
-            _w.GetComponentRW<LocomotionChannel>(e).Status = to.Length() <= MathF.Max(move.ArrivalRadius, 0.5f) ? NodeStatus.Success : NodeStatus.Running;
+            ref var intent = ref _w.GetComponentRW<NavigationIntent>(e);
+            if (intent.Mode != NavigationMode.DirectPoint || intent.FinalDestination != move.Destination
+                || intent.TargetSpeed != move.Speed || intent.ArrivalRadius != move.ArrivalRadius)
+                intent = new NavigationIntent
+                {
+                    Mode = NavigationMode.DirectPoint, FinalDestination = move.Destination, TargetSpeed = move.Speed,
+                    ArrivalRadius = move.ArrivalRadius, IntentId = ++_droneIntent,
+                };
+            _air.Execute(_w, Dt);
+            var status = _w.GetComponentRO<NavigationStatus>(e);
+            _w.GetComponentRW<LocomotionChannel>(e).Status = status.Result == NavigationResult.Arrived && status.IntentId == intent.IntentId
+                ? NodeStatus.Success : NodeStatus.Running;
         }
 
         private NodeStatus DroneStep(ref AirAttackParams p, ref AirAttackState ws, Entity drone, int frame)

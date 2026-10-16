@@ -79,7 +79,7 @@ namespace Fdp.Toolkit.Tests.Motion
 
         /// <summary>⭐ CE-2211 (Air Operations §9i) — a flyer that IS its warhead (<c>DetonatesOnImpact</c>), sent to a point with arrival radius
         /// 0, STRIKES it: it does not brake for the point and dives faster than its 8 m/s climb, so it is at the point 60 m below and 40 m
-        /// ahead in under 3 s, never reporting Arrived; the same body with an arrival radius brakes and hovers there as before.
+        /// ahead in under 4 s (⭐ CE-2213: the straight 72 m line at its 30 m/s, from rest at 15 m/s² ≈ 3.4 s), never reporting Arrived; the same body with an arrival radius brakes and hovers there as before.
         /// ✅ Red-proof (mutant): strike off ⇒ the 8 m/s descent takes 7.5 s ⇒ red.</summary>
         [Fact]
         public void CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive()
@@ -88,8 +88,8 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.SetComponent(d, FlightParams.From(new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = true }));
             _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 3, FinalDestination = new Vector3(40, 0, 0), TargetSpeed = 30, ArrivalRadius = 0f });
             int frames = 0;
-            while (frames < 60 * 3 && Vector3.Distance(_w.GetComponent<SimTransform>(d).Position, new Vector3(40, 0, 0)) > 1f) { Run(1); frames++; }
-            Assert.True(frames < 60 * 3, $"at the point in {frames / 60f:F2} s — at {_w.GetComponent<SimTransform>(d).Position}");
+            while (frames < 60 * 4 && Vector3.Distance(_w.GetComponent<SimTransform>(d).Position, new Vector3(40, 0, 0)) > 1f) { Run(1); frames++; }
+            Assert.True(frames < 60 * 4, $"at the point in {frames / 60f:F2} s — at {_w.GetComponent<SimTransform>(d).Position}");
             Assert.NotEqual(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(d).Result);
 
             var h = Drone(new Vector3(0, 50, 60), accel: 15f);
@@ -97,6 +97,32 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.SetComponent(h, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 4, FinalDestination = new Vector3(40, 50, 0), TargetSpeed = 30, ArrivalRadius = 2f });
             Run(60 * 3);
             Assert.True(_w.GetComponent<SimTransform>(h).Position.Z > 30f, "with an arrival radius it still descends at its climb rate");
+        }
+
+        /// <summary>⭐ CE-2213 — the strike flies the STRAIGHT LINE to its point at its speed: a drone at full speed 60 m up, sent at a point
+        /// 30 m ahead on the ground, comes DOWN the line — by the time it is over the point it has already lost most of its height —
+        /// instead of flying level to above it and dropping from there. 📐 Measured: over the point at 38.5 m (CE-2211's rule: 52.9 m).
+        /// ✅ Red-proof (mutant): CE-2211's full horizontal speed in a strike ⇒ over the point at 52.9 m ⇒ red.</summary>
+        [Fact]
+        public void CE2213_AStrike_FliesTheLineToItsPoint_NotLevelThenDown()
+        {
+            var d = Drone(new Vector3(0, 0, 60), accel: 15f);
+            _w.SetComponent(d, FlightParams.From(new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = true }));
+            _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 5, FinalDestination = new Vector3(2000, 0, 60), TargetSpeed = 30, ArrivalRadius = 0f });
+            Run(60 * 3);   // up to its full speed, flying east at 60 m
+            var at = _w.GetComponent<SimTransform>(d).Position;
+            Assert.True(_w.GetComponent<SimVelocity>(d).Linear.X > 29f, $"at full speed first ({_w.GetComponent<SimVelocity>(d).Linear})");
+            var point = new Vector3(at.X + 30f, 0f, 0f);
+            _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 6, FinalDestination = point, TargetSpeed = 30, ArrivalRadius = 0f });
+            float heightOver = float.NaN; int frames = 0;
+            while (frames < 60 * 8 && float.IsNaN(heightOver))
+            {
+                Run(1); frames++;
+                var pos = _w.GetComponent<SimTransform>(d).Position;
+                if (point.X - pos.X <= 1f) heightOver = pos.Z;
+            }
+            Assert.True(!float.IsNaN(heightOver), "it got over the point");
+            Assert.True(heightOver < 45f, $"down the line: over the point at {heightOver:F1} m, not still near its 60 m (frames {frames})");
         }
 
         /// <summary>⭐ M7 / MD-D — manual: Vertical climbs, Forward flies along the nose, Yaw turns it (≤ 120°/s), nothing ⇒ it brakes to a

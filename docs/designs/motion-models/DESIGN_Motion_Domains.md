@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211 the rotorcraft strike mode)
+updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
 current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
@@ -281,8 +281,8 @@ speed but whether the move is allowed to END. A radius of 0 already says "there 
 
 | decision (built) | where | rejected — one line each |
 |---|---|---|
-| strike = `DetonatesOnImpact != 0 && ArrivalRadius <= 0` ⇒ no arrival test, no √(2ad) braking (horizontal or vertical), vertical clamp `−MaxSpeed … +ClimbMps` | `RotorcraftModel.Autonomous`, the point move | a dive-speed field on the intent — the braking was the defect, not the speed; a separate drone model — R-3005's one rotorcraft model; strike on the flag alone — a drone sent to a waypoint (radius > 0) must still arrive |
+| strike = `DetonatesOnImpact != 0 && ArrivalRadius <= 0` ⇒ no arrival test, no √(2ad) braking; ⭐ **CE-2213: it flies the STRAIGHT LINE to the point at its speed** — horizontal = speed × flat / distance, vertical = speed × dz / distance (clamped `−MaxSpeed … +ClimbMps`), each eased at the type's acceleration. ⛔ SUPERSEDED (CE-2211 as first built): *"full horizontal speed, vertical up to −MaxSpeed independently"* — measured live and on the real model in the rails: over an evading tank the drone could not shed its horizontal speed, overshot by 10 m and looped into the ground | `RotorcraftModel.Autonomous`, the point move | a dive-speed field on the intent — the braking was the defect, not the speed; a separate drone model — R-3005's one rotorcraft model; strike on the flag alone — a drone sent to a waypoint (radius > 0) must still arrive |
 
-⭐ Rail: `RotorcraftModelTests.CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive` (a drone at 60 m sent to a ground point
-40 m off reaches it within 3 s and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off). The
+⭐ Rails: `RotorcraftModelTests.CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive` (a drone at 60 m sent to a ground point
+40 m off reaches it within 4 s — the 72 m line from rest — and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off) · ⭐ `CE2213_AStrike_FliesTheLineToItsPoint_NotLevelThenDown` (at 30 m/s and 60 m, a ground point 30 m ahead: over it at 38.5 m — down the line — where CE-2211's rule is still at 52.9 m) — red-proofed (CE-2211's full horizontal). ⚠ Against a FIXED point neither rule overshoots (the one-frame cap stops the horizontal); the overshoot needs a MOVING point, which `AirAttackNodesTests`' evading and fleeing rails (on this model) red-prove. The
 behaviour half: [Air Ops §9i](../air-attack/DESIGN_Air_Operations.md) D-3.
