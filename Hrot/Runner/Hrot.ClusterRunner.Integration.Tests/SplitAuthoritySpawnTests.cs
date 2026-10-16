@@ -312,6 +312,8 @@ namespace Hrot.ClusterRunner.Integration.Tests;
                 InitialComponents  = new System.Collections.Generic.List<object>
                 {
                     new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = 180 },
+                    // ⭐ CE-3216 S1 — and the global weather on dtWeather: a steady 7 m/s wind toward the north-east
+                    Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new System.Numerics.Vector2(5f, 5f)),
                 },
             });
 
@@ -325,6 +327,12 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             Assert.False(simWorld.HasComponent<SimTransform>(simEnv), "the World Environment must stay positionless on SimHost");
             Assert.False(cgfWorld.HasComponent<SimTransform>(cgfEnv), "the World Environment must stay positionless on CGF");
             Assert.Equal((short)180, simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).DisplayUtcOffsetMinutes);
+
+            // ⭐ CE-3216 S1 — the global weather crossed too (dtWeather): SimHost's weather field blows the CGF's wind
+            Assert.True(PumpBothUntil(simHost, cgf, () => simWorld.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(simEnv), PropagationTimeoutMs),
+                "the World Environment's weather never reached SimHost (dtWeather)");
+            var simWind = Fdp.Toolkit.Weather.WeatherField.WindAt(simWorld, new System.Numerics.Vector3(0, 0, 300));
+            Assert.True(System.Numerics.Vector2.Distance(simWind, new System.Numerics.Vector2(5f, 5f)) < 0.01f, $"SimHost's wind {simWind}");
 
             // ② both nodes derive UTC = start + their own sim time, from the SAME start (the cluster syncs the sim time)
             foreach (var w in new[] { cgfWorld, simWorld })

@@ -32,7 +32,9 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
         D(EDescriptorType.dtPassengerBuffer),   // ⭐ CE-3110 I-2b — a vehicle's passenger list (the brain arbitrates boarding, R-224)
         D(EDescriptorType.dtWeaponSystemState),   // ⭐ WS-1 (R-136) — a weapon system's deploy state (pinned at IF-1: WS-1 missed this rail)
-        D(EDescriptorType.dtPartDamage) };   // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
+        D(EDescriptorType.dtPartDamage),   // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
+        D(EDescriptorType.dtScenarioClock),   // ⭐ CE-3216 S1-0 — the World Environment's clock (its creating Brain)
+        D(EDescriptorType.dtWeather) };       // ⭐ CE-3216 S1 — authored weather (global and regional)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned

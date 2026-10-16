@@ -403,8 +403,12 @@ namespace Hrot.AI.Behaviors.Brains
             var v = new Vector2(v3.X, v3.Y);
             float speed = MathF.Max(v.Length(), 1f);
             if (v.LengthSquared() < 1f) v = along * speed;
-            var wind = Wind.Of(world);
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            // ⭐ CE-3216 W-5 — the wind the stick drifts in: at the carrier's place, half way down to the ground (the canopy's mean height),
+            //   from the weather field (the regional blend and the profile), not one constant for the scenario
+            float groundBelow = AirborneDrill.SurfaceAt(terrain, carrierAt.X, carrierAt.Y, 0f);
+            var wind = Fdp.Toolkit.Weather.WeatherField.WindAt(world,
+                new Vector3(carrierAt.X, carrierAt.Y, groundBelow + 0.5f * MathF.Max(carrierAt.Z - groundBelow, 0f)));
             int n = Math.Min(ctx.Roster.Count, UnitRoster.Capacity);
             int count = 0;
             for (int i = 0; i < n; i++)

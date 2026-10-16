@@ -68,6 +68,7 @@ public class EntityStatesIngressPack : IEcsModule
             new EntityDescentIngressTranslator(participant, entityMap),       // ⭐ airborne B-1 — a man coming down
             new EntityPassengersIngressTranslator(participant, entityMap),    // ⭐ CE-3110 I-2b — who rides in what (I-2c hides them)
             new EntityScenarioClockIngressTranslator(participant, entityMap),   // ⭐ CE-3216 S1-0 — the scenario clock (a map host shows the time)
+            new EntityWeatherIngressTranslator(participant, entityMap),         // ⭐ CE-3216 S1 — the weather (S3: the renderer's sky, fog, cloud)
             new EntityWeaponSystemStateIngressTranslator(participant, entityMap),   // ⭐ Weapon systems WS-1 — stowed / deployed is drawn
         };
     }

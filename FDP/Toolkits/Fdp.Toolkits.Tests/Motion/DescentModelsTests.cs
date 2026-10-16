@@ -5,6 +5,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Weather;
 using Xunit;
 
 namespace Fdp.Toolkit.Tests.Motion
@@ -201,7 +202,7 @@ namespace Fdp.Toolkit.Tests.Motion
         [InlineData(-3f, 4f)]
         public void B2_ARamAirJumper_From1000m_LandsWithin10mOfHisPoint(float windX, float windY)
         {
-            if (windX != 0f || windY != 0f) _w.SetSingleton(new Wind { Velocity = new Vector2(windX, windY) });
+            if (windX != 0f || windY != 0f) Weather(WeatherConditions.SteadyWind(new Vector2(windX, windY)));   // ⭐ CE-3216 W-5
             var target = new Vector3(400, -250, 0);
             var at = FlyRamAir(Vector3.Zero, target, 1000f);
             Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(target.X, target.Y)) <= 10f, $"landed at {at}, wind ({windX},{windY})");
@@ -212,7 +213,7 @@ namespace Fdp.Toolkit.Tests.Motion
         [Fact]
         public void B2_ARoundCanopy_LandsWithinItsDrift()
         {
-            _w.SetSingleton(new Wind { Velocity = new Vector2(3f, 0f) });
+            Weather(WeatherConditions.SteadyWind(new Vector2(3f, 0f)));   // ⭐ CE-3216 W-5
             var man = Body(new Vector3(0, 0, 400), new Descent { Kind = DescentKind.StaticLine, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round });
             const float dt = 1f / 30f;
             for (int i = 0; i < 30 * 300 && _w.GetComponent<Descent>(man).Phase != DescentPhase.Landed; i++) Step(dt);
@@ -222,6 +223,40 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.InRange(at.X, 0.85f * expected, 1.05f * expected);
             Assert.InRange(at.Y, -1f, 1f);
             Assert.InRange(_t, 400 / 5.5 - 5, 400 / 5.5 + 10);                               // the round canopy's sink
+        }
+
+        /// <summary>
+        /// ⭐ CE-3216 W-5 (DESIGN_Weather_And_Time.md §4, §5 S1) — a round canopy drifts on the wind AT ITS HEIGHT: calm at 10 m, 6 m/s from the
+        /// west at 400 m, linear between. From 400 m he lands about HALF the high wind × his time under the canopy downwind — not the full
+        /// high wind (one constant) and not nothing (the ground wind). 🔴 Red-proof: read the wind at the ground (or at a fixed 400 m) ⇒ ~0
+        /// (or ~1.0) of it.
+        /// </summary>
+        [Fact]
+        public void CE3216_ARoundCanopy_DriftsOnTheWindAtItsHeight()
+        {
+            var profile = WeatherConditions.Standard;
+            profile.SetWind(0, 10f, 270f, 0f, 0f);
+            profile.SetWind(1, 400f, 270f, 6f, 0f);
+            profile.WindCount = 2;
+            Weather(profile);
+            var man = Body(new Vector3(0, 0, 400), new Descent { Kind = DescentKind.StaticLine, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round });
+            const float dt = 1f / 30f;
+            for (int i = 0; i < 30 * 300 && _w.GetComponent<Descent>(man).Phase != DescentPhase.Landed; i++) Step(dt);
+            Assert.Equal(DescentPhase.Landed, _w.GetComponent<Descent>(man).Phase);
+            var at = _w.GetComponent<SimTransform>(man).Position;
+            float fullHigh = 6f * (float)_t;
+            Assert.InRange(at.X / fullHigh, 0.35f, 0.65f);
+            Assert.InRange(at.Y, -1f, 1f);
+        }
+
+        /// <summary>⭐ CE-3216 — the scenario's weather as the World Environment carries it (positionless, with its clock), for <see cref="WeatherField"/>.</summary>
+        private void Weather(WeatherConditions weather)
+        {
+            if (!_w.IsComponentTypeRegistered<ScenarioClock>()) _w.RegisterComponent<ScenarioClock>();
+            if (!_w.IsComponentTypeRegistered<WeatherConditions>()) _w.RegisterComponent<WeatherConditions>();
+            var env = _w.CreateEntity();
+            _w.AddComponent(env, ScenarioClock.Default);
+            _w.AddComponent(env, weather);
         }
 
         /// <summary>
@@ -239,7 +274,7 @@ namespace Fdp.Toolkit.Tests.Motion
 
             var wind = new Vector2(1f, 4f);
             var carrier = new Vector2(35f, 0f);
-            _w.SetSingleton(new Wind { Velocity = wind });
+            Weather(WeatherConditions.SteadyWind(wind));   // ⭐ CE-3216 W-5
             var at = ReleasePoint.For(dz, 400f, chute, wind, carrier);
             var man = Body(new Vector3(at, 400f), new Descent { Kind = DescentKind.StaticLine, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round },
                            velocity: new Vector3(carrier, 0f));

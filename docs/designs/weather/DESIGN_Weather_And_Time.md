@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1-0 BUILT 2026-10-16 (§6.1). READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). S2–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
 current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
@@ -219,3 +219,29 @@ Brain group).
 
 ⚠ **Measured on the way:** the positionless entity needed **nothing** special in the creation, ghost and promotion paths — the request
 path, `EntityMaster` and the TKB derivation all work without a `SimTransform` (confirms docs/designs/tkb-1/DESIGN.md 2026-09-13).
+
+### 6.2 S1 — the weather, the regions, `WeatherField`; `Wind` retired ✅ BUILT `2026-10-16` (CE-3216)
+
+| piece | where | note |
+|---|---|---|
+| `WeatherConditions` (395): daily-mean ground temperature, lapse rate, sea-level pressure, humidity; **8 wind levels** (MSL m, from °, speed, gust) and **4 cloud layers** (base MSL, thickness, octas, kind) as fixed buffers; visibility, fog top + fog visibility, precipitation kind + rate, `FeatherM` | `FDP/Toolkits/Fdp.Toolkits/Weather/WeatherConditions.cs` | fixed buffers save as JSON arrays (the auto-serializer's fixed-buffer support) ⇒ saved as authored; `Standard` (the C-3 built-in) and `SteadyWind(v)` |
+| ⚠ **the built-in weather is CALM** | same | deviation from "the built-in weather" left open in C-3: the retired `Wind` singleton's contract was *absent ⇒ calm*, so every scenario that states no weather (and every test world) behaves exactly as before. 📌 Found by `DescentModelsTests.B2_TheBank_*`, which reddened when the default had a breeze |
+| TKB **`WeatherRegion` = 8811**, a bare area template; the default World Environment request now carries `WeatherConditions.Standard` too | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `ScenarioLoadStep` | |
+| `dtWeather` = 139, `EntityWeather` (flat fields, the `dtPartDamage` shape), egress/ingress like the clock's, Brain group | `SimDescriptors.cs`, `EntityWeatherTranslators.cs`, `HrotOwnershipGroups`, `NedOwnershipGroupBinding` | |
+| ⭐ **`IAreaOutline`** (Fdp.Toolkits) implemented by `EditablePolyline` (Hrot.Core) | `Fdp.Toolkits/Terrain/IAreaOutline.cs` | the seam that lets toolkit code read a region's outline without referencing Hrot: `WeatherField` reads the managed component under `GlobalComponentIds.EditablePolyline` as `IAreaOutline` (`EntityRepository.GetManagedComponentByTypeId`). ⛔ Rejected: moving `EditablePolyline` down (a Hrot namespace in FDP) and a host-registered delegate (a silent default on any host that forgets it) |
+| `WeatherField` — `RegionWeight` (W-1: the ray from the centroid to the boundary, `smoothstep(1 − t)`, the feather extends the boundary), `Contributors` (W-2: regions add, the global fills `max(0, 1 − Σw)`, past 1 normalised; ≤ 16), `WindAt`, `At` (§4) | `Fdp.Toolkits/Weather/WeatherField.cs` | ⚠ the region's CENTROID is the polygon's area centroid, not its `SimTransform` (the authoring tools put the origin where the operator clicked first); allocation-free per call apart from the query |
+| `SolarPosition.Of` (NOAA spreadsheet formulas, no refraction) | `Fdp.Toolkits/Weather/SolarPosition.cs` | |
+| ⚠ **the wind's surface fall-off applies BELOW the lowest level only**; a lowest level at or below the ground means the author's wind reaches the ground | `WeatherField.WindOf` | ⇒ a 10 m level over a 500 m hill does not slow a man 2 m above the hill; author a level above the ground where the surface matters |
+| **W-5**: `ParachuteModel.Autonomous` reads `WeatherField.WindAt(world, his position)`; the airborne release point reads it at the carrier's place, half way to the ground; `struct Wind` deleted, id 393 RESERVED | `DescentModels.cs`, `AirborneDrillBehaviors.cs` (behaviors' file — cross-lane), `Descent.cs`, `GlobalComponentIds.cs` | |
+
+**Moved to the ui lane** (deviation from §5's S1 row — editor UI is theirs): the area tool's "Weather Region" kind, the inspectors and the
+Scenario Details view → [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md)
+(with CE-3217). ⚠ **Not built:** a runtime WEATHER edit from a non-owning node has no attribute path yet (only the clock has one) — the
+editor owns the World Environment in edit mode and writes the component directly; a runtime weather change from another host is a
+follow-up (the attribute vocabulary or `UpdateEntityDescriptorRequestSystem`).
+
+**Rails:** `WeatherFieldTests` (Fdp.Toolkits — W-1 weights and smoothness, feather, W-2 wind across north, W-3 profile, the NOAA sun
+against the almanac, light bands, §4 temperature / pressure / density / irradiance / fog, W-4 UTC) · `WeatherRegionBlendTests`
+(Hrot.Core — regions add, the global fills, an overlap normalises, the wind across two regions, an area without weather is no region) ·
+`DescentModelsTests.CE3216_ARoundCanopy_DriftsOnTheWindAtItsHeight` (+ the three wind rails ported off the singleton) · IT-SA-5 now also
+carries the global weather to SimHost on `dtWeather`.

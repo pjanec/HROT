@@ -857,6 +857,9 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-3216 (W-0) — the scenario's World Environment: a bare template like the door's — its ScenarioClock arrives with the
             //   creation request on the creator and through dtScenarioClock everywhere else. No SimTransform: it is nowhere.
             tkbDb.Register(new TkbTemplate("World Environment", TkbEntityTypes.WorldEnvironment));
+            // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
+            //   the request on the creator and on their descriptors everywhere else.
+            tkbDb.Register(new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion));
 
             RegisterObstacles(tkbDb);
         }

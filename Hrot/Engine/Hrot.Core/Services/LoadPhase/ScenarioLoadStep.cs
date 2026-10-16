@@ -203,7 +203,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         RequestId             = Guid.NewGuid(),
         TkbType               = TkbEntityTypes.WorldEnvironment,
         PreAllocatedNetworkId = idAllocator.AllocateId(),
-        InitialComponents     = new List<object> { Fdp.Toolkit.Weather.ScenarioClock.Default },
+        InitialComponents     = new List<object> { Fdp.Toolkit.Weather.ScenarioClock.Default, Fdp.Toolkit.Weather.WeatherConditions.Standard },
     };
 
     /// <inheritdoc/>

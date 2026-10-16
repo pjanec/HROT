@@ -73,8 +73,9 @@ namespace Fdp.Toolkit.Weather
         public float FeatherM;
 
         /// <summary>
-        /// The built-in weather (C-3, the default World Environment): an ISA day — 15 °C, 6.5 K/km, 1013.25 hPa, 60 % humidity, a light
-        /// 3 m/s westerly at 10 m rising to 8 m/s at 1000 m, a few cumulus at 1500 m, 20 km visibility, no fog, no precipitation.
+        /// The built-in weather (C-3, the default World Environment, and what a world without one reads): an ISA day — 15 °C, 6.5 K/km,
+        /// 1013.25 hPa, 60 % humidity, CALM, a few cumulus at 1500 m, 20 km visibility, no fog, no precipitation. ⭐ Calm on purpose: the
+        /// retired <c>Wind</c> singleton's contract was "absent ⇒ calm", so a scenario that states no weather behaves exactly as before.
         /// </summary>
         public static WeatherConditions Standard
         {
@@ -85,13 +86,25 @@ namespace Fdp.Toolkit.Weather
                     GroundTemperatureC = 15f, LapseRateKPerKm = 6.5f, SeaLevelPressureHpa = 1013.25f, RelativeHumidity = 0.6f,
                     VisibilityM = 20_000f, FogVisibilityM = 200f,
                 };
-                w.SetWind(0, 10f, 270f, 3f, 0f);
-                w.SetWind(1, 1000f, 270f, 8f, 0f);
-                w.WindCount = 2;
                 w.SetCloud(0, 1500f, 600f, 2, Weather.CloudKind.Cumulus);
                 w.CloudCount = 1;
                 return w;
             }
+        }
+
+        /// <summary>
+        /// The built-in weather with ONE steady wind at every height, blowing TOWARD <paramref name="toward"/> (m/s, X east, Y north) — the
+        /// single-velocity wind the retired <c>Wind</c> singleton was (one level at −1000 m MSL: below any ground, so no surface fall-off).
+        /// </summary>
+        public static WeatherConditions SteadyWind(Vector2 toward)
+        {
+            var w = Standard;
+            float speed = toward.Length();
+            float fromDeg = speed > 0f ? MathF.Atan2(-toward.X, -toward.Y) * 180f / MathF.PI : 0f;
+            if (fromDeg < 0f) fromDeg += 360f;
+            w.SetWind(0, -1000f, fromDeg, speed, 0f);
+            w.WindCount = 1;
+            return w;
         }
 
         /// <summary>Writes wind level <paramref name="i"/> (does not change <see cref="WindCount"/>).</summary>

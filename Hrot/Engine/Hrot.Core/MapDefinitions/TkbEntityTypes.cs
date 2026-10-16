@@ -98,6 +98,11 @@ namespace Hrot.Map.Common
         //   weather). Never in the palette; the load creates it (C-3). 📄 docs/designs/weather/DESIGN_Weather_And_Time.md.
         public const long WorldEnvironment = 8810;
 
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 S1 (R-3012, W-1) — a WEATHER REGION: an area (EditablePolyline + a SimTransform)
+        //   carrying WeatherConditions, blended into the global weather by WeatherField. Its OWN type, like TerrainZone (8804) — consumers of
+        //   the tactical area never have to branch to exclude it. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md §1.
+        public const long WeatherRegion = 8811;
+
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
         public const long Heli_UH60  = 400;

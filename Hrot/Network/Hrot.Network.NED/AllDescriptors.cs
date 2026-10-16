@@ -105,6 +105,8 @@ namespace Hrot.NED.Descriptors
         dtDescent                     = 137,
         // ⭐ CE-3216 S1-0 (R-3012, W-8) — the scenario clock (start time) on the World Environment, Brain group (its creator owns it).
         dtScenarioClock               = 138,
+        // ⭐ CE-3216 S1 (R-3012) — AUTHORED weather (the global on the World Environment, a region's on a Weather Region), Brain group.
+        dtWeather                     = 139,
         // etc., all known descriptor types here
     }
 
