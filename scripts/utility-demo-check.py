@@ -1640,8 +1640,8 @@ def run_ifv_standoff(c, timeout):
 # ── ua-javelin-lock (Urban Armour V7; Exposure Cycle §4 budget, Missiles & Ammo M4 "the lock IS the aim time") ────────────────────────
 #   test-town, two vignettes. A Javelin locks in 4 s of continuous sight (the clock restarts on lost sight). ① "Tank Cycling" on
 #   BasicVehicleSop: its exposure budget is AimBudgetFactor × the quickest dangerous threat's aim time, so it is back in cover before
-#   "Javelin A" (attack order on it) completes a lock. ② "Tank Open", idle in the open 230 m from "Javelin B": locked, and hit from above
-#   (top attack beyond 150 m — the hit's face is the roof).
+#   "Javelin A" (attack order on it) completes a lock. ② "Tank Open", idle in the open 230 m from "Javelin B": locked and hit — DIRECT at
+#   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across).
 def run_javelin_lock(c, timeout):
     ids = ids_by_name()
     cyc, opn, ja, jb = ids.get("Tank Cycling"), ids.get("Tank Open"), ids.get("Javelin A"), ids.get("Javelin B")
@@ -1666,7 +1666,9 @@ def run_javelin_lock(c, timeout):
     b_hits = [x for x in by.get(jb, []) if x.get("hit") == opn]
     top = [x for x in b_hits if str(x.get("hitFace") or "").lower().startswith("top")]
     c.ok(b_hits and _hurt(opn, 3000), f"② the tank left in the open is locked and hit — {len(by.get(jb, []))} launch(es), {len(b_hits)} hit(s), health {health(opn)}")
-    c.ok(top, f"② from above — faces {[x.get('hitFace') for x in b_hits]}")
+    # ⭐ CE-2201 (backend, as built): the top attack flies only where it fits — the full profile ≥ ~727 m, a capped apex 607–727 m, DIRECT
+    #   below. test-town is 400 m across, so here the Javelin flies direct (a side / front hit); the roof needs basic-desert's ranges.
+    print(f"    ② the face it met — {[x.get('hitFace') for x in b_hits]} (direct inside ~607 m, CE-2201)")
     a_hits = [x for x in by.get(ja, []) if x.get("hit") == cyc]
     c.ok(len(by.get(cyc, [])) >= 1, f"① the cycling tank fights — {len(by.get(cyc, []))} round(s)")
     c.ok(not a_hits and not _hurt(cyc, 3000), f"① its short exposures deny Javelin A a lock — {len(by.get(ja, []))} launch(es), {len(a_hits)} hit(s), health {health(cyc)}")
