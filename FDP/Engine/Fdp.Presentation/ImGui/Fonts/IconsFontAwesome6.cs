@@ -12,6 +12,9 @@ namespace Fdp.Presentation.Fonts;
 /// <para>Curated subset for the editor toolbar / menus. FA6 Free Solid has ~1400 glyphs;
 /// the whole PUA range (<see cref="IconMin"/>..<see cref="IconMax"/>) is baked, so any solid
 /// glyph is already available — only the friendly name is missing. Add more as needed.</para>
+///
+/// <para>⭐ CE-1063: the NAMED icons (every constant below) are also merged into the node canvas faces, so a node badge may use
+/// one; an unnamed PUA glyph exists on the UI face only.</para>
 /// </summary>
 public static class IconsFontAwesome6
 {
@@ -55,6 +58,9 @@ public static class IconsFontAwesome6
     public const string CircleInfo          = "\uf05a";
     public const string Eye                 = "\uf06e";
     public const string Bolt                = "\uf0e7"; // action / event
+    public const string SatelliteDish       = "\uf7c0"; // sensor / query (EQS)
+    public const string Link                = "\uf0c1"; // cross-asset dependency
+    public const string ChartBar            = "\uf080"; // result / read-out
 
     // Structure / navigation
     public const string Gear                = "\uf013"; // settings

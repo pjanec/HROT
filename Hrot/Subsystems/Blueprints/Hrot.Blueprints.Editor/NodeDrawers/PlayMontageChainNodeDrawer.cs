@@ -273,7 +273,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
         if (slots.Count > 1)
         {
             var slotList = string.Join(", ", slots);
-            return $"❌ ANIM005 Violation: Chain entries must use the same animation slot. Found slots: [{slotList}]";
+            return $"✗ ANIM005 Violation: Chain entries must use the same animation slot. Found slots: [{slotList}]";
         }
 
         return null;
@@ -287,7 +287,7 @@ internal sealed class PlayMontageChainNodeSession : INodeEditSession
     {
         if (_chainCount > 8)
         {
-            return $"⚠️ ANIM012 Warning: Chain length ({_chainCount}) exceeds maximum of 8. Loaded asset may have been edited externally.";
+            return $"⚠ ANIM012 Warning: Chain length ({_chainCount}) exceeds maximum of 8. Loaded asset may have been edited externally.";
         }
         return null;
     }

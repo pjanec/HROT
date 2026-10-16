@@ -173,8 +173,9 @@ public sealed class MissionPanel
         {
             eTaskState.TASK_DONE    => "✓",
             eTaskState.TASK_FAILED  => "✗",
-            eTaskState.TASK_SKIPPED => "⏭",
-            _                       => "⏹"
+            // CE-1063: no font carries ⏭ / ⏹ (not Roboto, not the DejaVu symbol fallback) — Font Awesome's, merged into the UI face.
+            eTaskState.TASK_SKIPPED => Fdp.Presentation.Fonts.IconsFontAwesome6.ForwardStep,
+            _                       => Fdp.Presentation.Fonts.IconsFontAwesome6.Stop
         };
     }
 

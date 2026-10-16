@@ -12,6 +12,7 @@ public static class EmbeddedFontResources
 {
     private const string RobotoRegularResourceName = "FDP.Toolkit_ImGui.Fonts.Roboto-Regular.ttf";
     private const string FontAwesomeSolidResourceName = "FDP.Toolkit_ImGui.Fonts.fa-solid-900.ttf";
+    private const string SymbolFallbackResourceName = "FDP.Toolkit_ImGui.Fonts.DejaVuSans-Symbols.ttf";
 
     /// <summary>
     /// Returns the raw TTF bytes of the <em>Roboto Regular</em> font (<c>Roboto-Regular.ttf</c>).
@@ -62,6 +63,25 @@ public static class EmbeddedFontResources
             ?? throw new InvalidOperationException(
                 $"Embedded resource '{FontAwesomeSolidResourceName}' not found. " +
                 "Ensure 'fa-solid-900.ttf' is included as an EmbeddedResource in Fdp.Presentation.csproj.");
+
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// Returns the raw TTF bytes of the symbol fallback (<c>DejaVuSans-Symbols.ttf</c>): a DejaVu Sans subset holding
+    /// the arrows, maths operators, technical symbols, geometric shapes, miscellaneous symbols, dingbats, super/subscripts
+    /// and number forms that Roboto does not carry (CE-1063 — without it "→", "●", "⚠", "✓" draw as "?").
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The <c>EmbeddedResource</c> item in <c>Fdp.Presentation.csproj</c> is missing.</exception>
+    public static byte[] GetSymbolFallbackTtfBytes()
+    {
+        var asm = typeof(EmbeddedFontResources).Assembly;
+        using var stream = asm.GetManifestResourceStream(SymbolFallbackResourceName)
+            ?? throw new InvalidOperationException(
+                $"Embedded resource '{SymbolFallbackResourceName}' not found. " +
+                "Ensure 'DejaVuSans-Symbols.ttf' is included as an EmbeddedResource in Fdp.Presentation.csproj.");
 
         using var ms = new MemoryStream();
         stream.CopyTo(ms);
