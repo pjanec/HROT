@@ -1639,20 +1639,34 @@ def run_ifv_standoff(c, timeout):
 
 # ── ua-javelin-lock (Urban Armour V7; Exposure Cycle §4 budget, Missiles & Ammo M4 "the lock IS the aim time") ────────────────────────
 #   test-town, two vignettes. A Javelin locks in 4 s of continuous sight (the clock restarts on lost sight). ① "Tank Cycling" on
-#   BasicVehicleSop: its exposure budget is AimBudgetFactor × the quickest dangerous threat's aim time, so it is back in cover before
+#   the exposure cycle (LandPlatformAttack): its exposure budget is AimBudgetFactor × the quickest dangerous threat's aim time, so it is back in cover before
 #   "Javelin A" (attack order on it) completes a lock. ② "Tank Open", idle in the open 230 m from "Javelin B": locked and hit — DIRECT at
-#   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across).
+#   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across). ⚠ The cycling tank starts IN its hide
+#   (251, 110): started at (250, 70) in Javelin A's view, it was locked and hit while driving to the hide (40 m at 5 m/s, ~8 s) — the
+#   budget then held its first real exposure to ~2 s (lock 1.6 / 4 s). Javelin A holds (no assault): on an assault order it walked
+#   inside its 65 m minimum range. ⇒ Javelin A at (200, 200) holds (an advance objective on its own spot): the 4-storey block hides the
+#   tank's hide (251, 110) from him, its corner firing points ~100 m off are in his view; the tank starts knowing where he is (a seeded
+#   memory slot) and an ATTACK order on him (LandPlatformAttack — the SOP reacts to a fresh sense, not to a seeded memory, so on its SOP
+#   it idled). ① is refused as "not exercised" unless Javelin A was seen aiming at least once.
 def run_javelin_lock(c, timeout):
     ids = ids_by_name()
     cyc, opn, ja, jb = ids.get("Tank Cycling"), ids.get("Tank Open"), ids.get("Javelin A"), ids.get("Javelin B")
     if not c.ok(None not in (cyc, opn, ja, jb), "both tanks and both Javelin teams are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots = {}
+    shots, trace, next_sample = {}, [], 0.0
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
+        if time.time() >= next_sample and not _dead(cyc):   # the cycle against the lock, every second
+            next_sample = time.time() + 1.0
+            pc = position(cyc)
+            md = data(call("GET", f"/entities/{cyc}/memory")) or {}
+            knows = [round(x.get("freshness") or 0) for x in md.get("slots") or [] if x.get("networkId") == ja]
+            st = ((data(call("GET", f"/entities/{ja}/weapons")) or {}).get("status") or {})
+            trace.append((len(trace),
+                          tuple(round(v) for v in pc[:2]) if pc else None, knows, st.get("reason"), st.get("progress"), st.get("needed")))
         if _hurt(opn, 3000) and _dead(ja):
             break
         time.sleep(0.5)
@@ -1671,8 +1685,13 @@ def run_javelin_lock(c, timeout):
     print(f"    ② the face it met — {[x.get('hitFace') for x in b_hits]} (direct inside ~607 m, CE-2201)")
     a_hits = [x for x in by.get(ja, []) if x.get("hit") == cyc]
     c.ok(len(by.get(cyc, [])) >= 1, f"① the cycling tank fights — {len(by.get(cyc, []))} round(s)")
+    aimed = [row for row in trace if row[3] == "aiming"]
+    best = max((row[4] or 0 for row in aimed), default=0)
+    c.ok(aimed, f"① exercised — Javelin A saw and aimed at the cycling tank in {len(aimed)} sampled second(s), best lock {best:.1f} / 4 s")
     c.ok(not a_hits and not _hurt(cyc, 3000), f"① its short exposures deny Javelin A a lock — {len(by.get(ja, []))} launch(es), {len(a_hits)} hit(s), health {health(cyc)}")
     print(f"    health: Tank Cycling {health(cyc)} · Tank Open {health(opn)} · Javelin A {health(ja)} · Javelin B {health(jb)}")
+    for row in trace[:60]:
+        print("      cycle s", row)
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────

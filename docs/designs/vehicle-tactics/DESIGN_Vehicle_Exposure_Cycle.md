@@ -313,6 +313,12 @@ Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).
 (CE-2196). Its 25 mm kills both advancing RPG men at **326 m**, outside their 300 m reach; their 4 rockets miss and it is untouched
 (health 500). Up close the second IFV takes an RPG hit (500 → 91).
 
+⭐ **After backend's CE-2198 / CE-2200 / CE-2201 (`2026-10-16`):** `ua-tank-corner` **PASS 4 / 4** again (no building overshoot; first
+rounds at the Javelin gunner, two firing points, gunner killed). `ua-javelin-lock`: both Javelins now LOCK before they fire and fly
+DIRECT at test-town ranges (the top attack only fits beyond ~607 m). The open tank dies, but ⛔ **so does the cycling tank — the
+exposure budget did not deny Javelin A its 4 s lock**: being measured. `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
+does (backend aligned it in CE-2201).
+
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the
 technical and the men. ⛔ Those rounds fly through a soft body and burst 230 m beyond it — **CE-2203** (backend). One of the M1's own rounds hit
