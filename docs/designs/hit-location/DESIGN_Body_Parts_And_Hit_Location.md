@@ -240,7 +240,7 @@ leg and arm wounds, the ring, the bullet and fragment marks) · `BodyPartReplica
 wrapped) · `DamageAssessedEgressTranslatorTests` / `EntityHitDamageIngressTranslatorTests` (the part on the wire, an unset field = no
 part). ⚠ §6 named `DamageCalculationSystemTests` / `HealthApplicationSystemTests` / `InjuryTests`; the rails need a TKB with body
 profiles those fixtures do not build, so they live in the one body-part suite.
-⏭ **S1c (ui):** draw `HitMarks` (part-local points on the posed part) and switch `BlockFigure` to read `PersonBody`.
+⏭ **S1c (ui):** draw `HitMarks` (part-local points on the posed part) and switch `BlockFigure` to read `PersonBody`. ✅ **`HitMarks` DRAWN `2026-10-16` (ui, CE-1122)** — [Map 3D §6y](../../DESIGN_Map_3D_Mode.md): each mark a stain on its part, flat on the face it entered, sized in metres by kind; the seeded spots stay the fallback. ⛔ **`BlockFigure` NOT switched to read `PersonBody` (§6y HM-4):** the figure has ~20 more poses than the sim's 11, so the generated table + `PersonBodyParityTests` stays the one description.
 
 ## 9. S2 — ground vehicles by part, `CE-3211` *(backend, designed `2026-10-16`; decisions taken autonomously under the user's overnight mandate)*
 
