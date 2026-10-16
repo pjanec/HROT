@@ -1076,12 +1076,14 @@ possession on boarding* — the soldier and the vehicle may live on two brain no
 | S9b | standalone weapons: `E` = Gunner seat; the station's weapon list and HUD include the controlled weapons | ui · behaviors |
 | S9c | driving: `EntityOrders.Possess` releases the held unit, `HeldHere` takes the newest; the station's hand-over and rider memory | ui |
 
-### 8h.5 Open points — for the user to think about before building
+### 8h.5 Open points — ✅ ALL SIX ACCEPTED as leaned (user, `2026-10-16`: *"O-1,2,3,4,5,6 accepted."*)
+
+⚠ The section stays **DESIGN**: U-1…U-7 were approved preliminarily and the user has not said *ready to build*.
 
 | | the question | lean, if asked |
 |---|---|---|
 | **O-1** | hold-`E`: a small list near the crosshair, or a radial? | a short list — fewer pixels over the view |
-| **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | pause it: the station keeps a "riding" mark the soldier's brain honours |
+| **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | ✅ pause it: the station keeps a "riding" mark the soldier's brain honours |
 | **O-3** | the vehicle already has an AI driving it: does the human simply take over (its task pauses, as for any possession)? | yes — possession outranks it (origin rank, Q83) |
 | **O-4** | two humans board the same vehicle | one station per unit (C-3): the second becomes a passenger, not its driver |
 | **O-5** | a gunner and a driver as different humans | waits for crew to stop being abstract |
