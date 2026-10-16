@@ -317,7 +317,17 @@ Rails `VehicleFightFromCoverNodesTests.CE2196_*` / `CE2197_*` (mutants red).
 ⭐ **After backend's CE-2198 / CE-2200 / CE-2201 (`2026-10-16`):** `ua-tank-corner` **PASS 4 / 4** again (no building overshoot; first
 rounds at the Javelin gunner, two firing points, gunner killed). `ua-javelin-lock`: both Javelins now LOCK before they fire and fly
 DIRECT at test-town ranges (the top attack only fits beyond ~607 m). The open tank dies, but ⛔ **so does the cycling tank — the
-exposure budget did not deny Javelin A its 4 s lock**: being measured. `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
+exposure budget did not deny Javelin A its 4 s lock**. 📐 Measured with a per-second trace (Javelin A's lock progress, the
+tank's memory, the cycle's EQS answers), four scenario faults and one cycle defect:
+
+| run | what the trace showed | fix |
+|---|---|---|
+| 1 | the tank started in A's view and was locked while driving 40 m to its hide (lock 0.4 → 3.9 s) | the tank starts in its hide |
+| 2 | then A, on an assault order, walked inside his 65 m minimum range | A holds (an `advance` objective on his own spot) |
+| 3 | on its SOP the tank idled: a SEEDED memory never fires the `FirstThreat` sense the SOP reacts to | the tank gets an attack order (`LandPlatformAttack`) |
+| 4 | with A at (200, 200) the block hid every firing point from him | A on `ua-tank-corner`'s measured geometry, (100, 225) |
+| 5 | ⛔ the tank ORBITED a cover point 2.3 m off for 60 s and never left MoveToHide | **CE-2205** (above) — the cycle's own arrival test |
+| 6 | ✅ **the lock is denied**: one exposure, A's lock reached 1.5 / 4 s, the tank back in cover, no launch | ⚠ but the tank fired 0 rounds in that exposure — being measured | `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
