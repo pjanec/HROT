@@ -12,7 +12,9 @@ current-answer: §2 is the model, §3 the two invocation paths, §4 what is regi
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
 stale-below: §3.2's sequence diagram and §9.5's "zone name" column are corrected in place by the
   AS-BUILT block in §10 — read §10 before quoting either.
-known-rot: FOUR things the BUILD measured false — three folded into §10 plus §6's test-surface list,
+known-rot: ⛔⛔ R-4018 (2026-10-15): §2.1e ⑤'s acquisition of Header.TkbName is moot — a scenario no longer
+  names a TKB; the TKB name comes from the orchestrator's configuration (docs/designs/tkb-1/DESIGN.md §0, CE-4003).
+  ALSO: FOUR things the BUILD measured false — three folded into §10 plus §6's test-surface list,
   which named the wrong suites and the wrong count and is SUPERSEDED by §10.6. The three in §10 (obligation ⑤, batch terrain-2b,
   2026-09-17): §3.2's sequence draws EnsureAllLoaded inside the load handler's commit, where the zone
   entities do not exist yet; §9.5 sources a "zone name" from the Area entity, and no name component

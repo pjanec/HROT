@@ -32,12 +32,13 @@ public sealed record ScenarioMergeResult(JsonObject? CanonicalDom, IReadOnlyList
 ///   <item><b>I1</b> one entity → one slice (the save gate keys on the single primary owner);</item>
 ///   <item><b>I2</b> entity keys never collide — the DOM key is a fresh <c>Guid.NewGuid()</c> per save;</item>
 ///   <item><b>I3</b> references stay intra-slice (parts ride the parent's owner) ⇒ no renumbering;</item>
-///   <item><b>I4</b> globals have one source — <c>TkbName</c> and <c>TerrainName</c> cluster-wide identical.
+///   <item><b>I4</b> globals have one source — <c>TerrainName</c> cluster-wide identical. ⛔ <c>R-4018</c>: a
+///     slice's legacy <c>Header.TkbName</c> is IGNORED — a scenario never names a TKB — and is never written.
 ///     ⚠ I4 also covered a brain-only <c>Zones</c> SECTION; that section is retired (F2) — a zone is an
 ///     ordinary authored entity and merges through the <c>Entities</c> union like any other.</item>
 /// </list>
 /// ⇒ the merge is <c>{ $meta, Header, ⋃ Entities, ⋃ TerrainObjects }</c> (5e: a door's state is saved by its owner only). It NEVER remaps ids or fixes references, and it
-/// <b>fails loud</b> rather than silently corrupt — a schema/TkbName/TerrainName mismatch and a key collision
+/// <b>fails loud</b> rather than silently corrupt — a schema/TerrainName mismatch and a key collision
 /// (I2 impossible) each throw.</para>
 ///
 /// <para>⛔ Foreign slices (<c>$meta.docType</c> ≠ ours) are identified by their MANIFEST-reported tag and are
@@ -53,7 +54,7 @@ public static class ScenarioMergeCore
     ///   <paramref name="canonicalDocType"/> MUST carry a non-null <see cref="ScenarioSlice.Dom"/>.</param>
     /// <param name="canonicalDocType">Our scenario format tag, e.g. <c>"Hrot.Scenario"</c>.</param>
     /// <exception cref="ArgumentException">a compatible slice has a null Dom.</exception>
-    /// <exception cref="InvalidOperationException">a fail-loud guard tripped (schema, TkbName or TerrainName
+    /// <exception cref="InvalidOperationException">a fail-loud guard tripped (schema or TerrainName
     ///   mismatch, or a GUID key collision).</exception>
     public static ScenarioMergeResult Merge(IReadOnlyList<ScenarioSlice> slices, string canonicalDocType)
     {
@@ -85,8 +86,6 @@ public static class ScenarioMergeCore
 
         // ── Globals (I4): one authoritative source, asserted ────────────────────────────
         int?     schemaVersion = null;
-        string?  tkbName       = null;
-        bool     tkbSeen       = false;
         string?  terrainName   = null;
         bool     terrainSeen   = false;
 
@@ -106,18 +105,8 @@ public static class ScenarioMergeCore
                 throw new InvalidOperationException(
                     $"schemaVersion mismatch across slices ({schemaVersion} vs {meta.SchemaVersion}, node {s.OriginNodeId}) — a version skew needs migration, not a blind union.");
 
-            // TkbName must agree across compatible slices.
-            if (dom["Header"] is JsonObject header && header["TkbName"] is JsonNode tkbNode)
-            {
-                var v = tkbNode.GetValue<string>();
-                if (!tkbSeen) { tkbName = v; tkbSeen = true; }
-                else if (!string.Equals(tkbName, v, StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        $"Header.TkbName mismatch across slices ('{tkbName}' vs '{v}', node {s.OriginNodeId}) — a cluster runs ONE TKB.");
-            }
-
-            // ⭐ TerrainName must agree too, for the same reason and by the same rule: terrain is a
-            //   GLOBAL fact about the exercise, in the same class as $meta and Header.TkbName. Two nodes
+            // ⭐ TerrainName must agree across compatible slices: terrain is a
+            //   GLOBAL fact about the exercise, in the same class as $meta. Two nodes
             //   disagreeing about which terrain they are on is not a merge to reconcile — it is a
             //   misconfiguration, and it must fail loudly rather than silently pick one.
             if (dom["Header"] is JsonObject th && th["TerrainName"] is JsonNode terrainNode)
@@ -168,15 +157,9 @@ public static class ScenarioMergeCore
 
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
         var canonical = new JsonObject { ["Entities"] = mergedEntities };
-        // ⚠ Each header field is independently optional — rebuilding the node from TkbName alone would
-        //   silently DROP the terrain name from every merged save.
-        if (tkbName is not null || terrainName is not null)
-        {
-            var headerNode = new JsonObject();
-            if (tkbName is not null)     headerNode["TkbName"]     = JsonValue.Create(tkbName);
-            if (terrainName is not null) headerNode["TerrainName"] = JsonValue.Create(terrainName);
-            canonical["Header"] = headerNode;
-        }
+        // ⛔⛔ R-4018 — the header carries the terrain name only; a legacy slice's TkbName is not carried over.
+        if (terrainName is not null)
+            canonical["Header"] = new JsonObject { ["TerrainName"] = JsonValue.Create(terrainName) };
         if (mergedTerrainObjects.Count > 0) canonical[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = mergedTerrainObjects;
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
 

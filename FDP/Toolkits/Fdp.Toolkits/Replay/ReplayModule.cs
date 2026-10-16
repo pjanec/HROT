@@ -75,10 +75,41 @@ namespace Fdp.Toolkit.Replay
         /// </exception>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // PlaybackController ctor validates magic bytes and schema via SchemaValidator.
-            _playback   = new PlaybackController(_filePath);
+            // ⭐⭐ R-4012 (Q91 §4-P P5) — a node with NO recording of this exercise (absent while it ran) is a LISTENER, not
+            //   a failed replay: it restores nothing and takes the world from the owners' flood.
+            //   ⛔ Was: the metadata open threw and the node failed the whole replay transition.
+            if (!System.IO.File.Exists(_filePath))   // ⛔ absent only — a file that exists but is corrupt still fails loudly
+            {
+                Fdp.Core.Logging.FdpLog<ReplayModule>.Info(
+                    "[Replay] No recording at {0} — this node listens for the whole replay (R-4012).", _filePath);
+                _playback = null;
+            }
+            else
+            {
+                // PlaybackController ctor validates magic bytes and schema via SchemaValidator.
+                _playback = new PlaybackController(_filePath);
+            }
             _tickSystem = new PlaybackTickSystem(_playback, _timeController, _afterSeek);
             registry.RegisterSystem(_tickSystem);
+        }
+
+        /// <summary>⭐ R-4012 — whether this node holds a recording of the replayed exercise.</summary>
+        public bool HasRecording => _playback != null;
+
+        /// <summary>⭐ R-4012 — restoring its own recording, listening, or not yet decided.</summary>
+        public ReplaySpanState State => _tickSystem?.State ?? ReplaySpanState.Unsettled;
+
+        /// <summary>⭐ R-4012 — true while this node restores the current moment from its own recording.</summary>
+        public bool IsRestoring => State == ReplaySpanState.Restoring;
+
+        /// <summary>
+        /// ⭐⭐ R-4012 (Q91 §4-P P1) — the replay timeline's zero: the CLUSTER's anchor (the earliest first frame across
+        /// every node), set from each seek. 0 until set — the node's own first frame is used.
+        /// </summary>
+        public long AnchorWallTicks
+        {
+            get => _tickSystem?.EffectiveAnchorWallTicks ?? 0;
+            set { if (_tickSystem != null) _tickSystem.AnchorWallTicks = value; }
         }
 
         /// <inheritdoc/>
@@ -95,17 +126,15 @@ namespace Fdp.Toolkit.Replay
         /// <param name="targetFrameIndex">Zero-based frame index within the recording.</param>
         public Task SeekToFrameAsync(int targetFrameIndex)
         {
-            if (_playback == null)
+            if (_tickSystem == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToFrameAsync.");
+            if (_playback == null) return Task.CompletedTask;   // R-4012 — no recording: a listener
 
             // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
-            _playback.SeekToFrame(_repo, targetFrameIndex);
-            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-            _afterSeek?.Invoke();
-
+            _tickSystem.SeekToFrame(_repo, targetFrameIndex);
             return Task.CompletedTask;
         }
 
@@ -120,20 +149,21 @@ namespace Fdp.Toolkit.Replay
         /// UTC wall-clock ticks (<see cref="System.DateTime.UtcNow"/>.Ticks scale).
         /// The controller floor-seeks to the frame whose wall timestamp is ≤ this value.
         /// </param>
-        public Task SeekToWallClockTicksAsync(long targetWallTicks)
+        /// <returns>
+        /// ⭐⭐ R-4012 — <c>true</c> when this node's recording covers the moment and it restored it; <c>false</c> when it does
+        /// not (or the node has no recording): the world was cleared and the node listens.
+        /// </returns>
+        public Task<bool> SeekToWallClockTicksAsync(long targetWallTicks)
         {
-            if (_playback == null)
+            if (_tickSystem == null)
                 throw new InvalidOperationException(
                     "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
 
             // Execute strictly on the calling (main) thread to prevent ECS memory corruption.
             // The ECS repository is single-threaded for structural changes; seeking must not
             // race with UI rendering or other main-thread operations.
-            _playback.SeekToWallClockTicks(_repo, targetWallTicks);
-            Fdp.Toolkit.Replication.Utilities.SmartEgressUtil.ForceMarkAllDirty(_repo);
-            _afterSeek?.Invoke();
-
-            return Task.CompletedTask;
+            // ⭐ R-4012 — the play loop's own rule: restore inside the span, clear and listen outside it.
+            return Task.FromResult(_tickSystem.SeekTo(_repo, targetWallTicks));
         }
 
         /// <summary>
@@ -173,6 +203,9 @@ namespace Fdp.Toolkit.Replay
             _playback.TotalFrames > 0
                 ? _playback.GetFrameMetadata(0).WallClockTicks
                 : _playback.RecordingTimestamp;
+
+        /// <summary>⭐ R-4012 — wall-clock ticks of this recording's last frame; 0 when it has none.</summary>
+        public long RecordingEndWallTicks => _playback?.LastFrameWallTicks ?? 0;
 
         /// <summary>ACID-safe dispose: closes the <c>PlaybackController</c> file handles.</summary>
         public void Dispose()

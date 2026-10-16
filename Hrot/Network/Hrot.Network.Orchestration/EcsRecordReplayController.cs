@@ -40,8 +40,41 @@ namespace Hrot.SimHost.Modules.Orchestration
     /// class (CGF1-S0304 / S0305).
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <c>P5a</c> (Q91 §4-G, <c>R-4003</c>/<c>R-4011</c>) — lives in <c>Hrot.Network.Orchestration</c> so EVERY ECS host can
+    /// compose it: IG references this assembly and not <c>Hrot.SimHost</c>. ⭐ It is the ONE record/replay controller —
+    /// C10 deleted the CGF skeleton and the listen-only one (ExCon, the only non-ECS host, holds none).
+    /// ⚠ The namespace is still <c>Hrot.SimHost.Modules.Orchestration</c> so no caller changed in the move; renaming it is a
+    /// Roslyn job for later. Build one through <see cref="ForNode"/>.
+    /// </remarks>
     public sealed class EcsRecordReplayController : IClusterOpHandler, IRecordReplayController
     {
+        /// <summary>
+        /// ⭐⭐ <c>P5a</c> — THE one composition of a node's recording controller, used by every ECS host (ruling 9: it was
+        /// written out by hand on CGF and SimHost, and IG would have been the third copy). A seek is a world
+        /// replacement: the lifecycle module's in-flight bookkeeping is cleared (resuming to live is NOT armed — a seek
+        /// stays inside the replay), then the transport's own post-seek hook runs; and the lifecycle module is gated
+        /// while a replay is active (DESIGN.md §2.1m step 1).
+        /// </summary>
+        /// <param name="transportAfterSeek">The replication module's post-seek hook (<c>INedReplicationModule.AfterSeekCallback</c>), or null.</param>
+        /// <param name="lifecycle">The node's <c>EntityLifecycleModule</c>, or null when it has none.</param>
+        public static EcsRecordReplayController ForNode(
+            ModuleHostKernel kernel, int nodeId, EntityRepository world,
+            Action? transportAfterSeek, Fdp.Toolkit.Lifecycle.EntityLifecycleModule? lifecycle)
+        {
+            Action? afterSeek = transportAfterSeek;
+            if (lifecycle != null)
+            {
+                var chained = afterSeek;
+                afterSeek = () => { lifecycle.OnWorldReplaced(resumingToLive: false); chained?.Invoke(); };
+            }
+
+            var controller = new EcsRecordReplayController(kernel, nodeId, world, afterSeek);
+            if (lifecycle != null)
+                lifecycle.IsReplayActive = () => controller.IsReplayActive;
+            return controller;
+        }
+
         private readonly ModuleHostKernel _kernel;
         private readonly int              _nodeId;
         private readonly EntityRepository _repo;
@@ -65,6 +98,19 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         /// <inheritdoc />
         public long ActiveRecordingStartWallTicks => _activeReplayModule?.RecordingStartWallTicks ?? 0;
+
+        /// <inheritdoc />
+        public long ActiveRecordingEndWallTicks => _activeReplayModule?.RecordingEndWallTicks ?? 0;
+
+        /// <inheritdoc />
+        public long ReplayAnchorWallTicks
+        {
+            get => _activeReplayModule?.AnchorWallTicks ?? 0;
+            set { if (_activeReplayModule != null) _activeReplayModule.AnchorWallTicks = value; }
+        }
+
+        /// <inheritdoc />
+        public bool IsRestoringReplay => _activeReplayModule?.IsRestoring ?? false;
 
         /// <inheritdoc />
         public float ActiveReplayDurationSeconds
@@ -207,6 +253,20 @@ namespace Hrot.SimHost.Modules.Orchestration
             var filePath = GetRecordingFilePath(exerciseId, storageDirectory);
             _activeReplayModule = new ReplayModule(filePath, _repo, _kernel.GetTimeController(), _afterSeek);
             await _kernel.InstallModuleAsync(_activeReplayModule);
+
+            // ⭐⭐ R-4012 (Q91 §4-P P6) — while this node restores its own recording it takes in no world state (the
+            //   recording holds everything). Wired HERE, by the controller every ECS host builds, so no host can miss it;
+            //   idempotent per replay. ⛔ Outside the span the predicate is false and ingress builds the flooded world.
+            int gated = 0;
+            foreach (var system in _kernel.SystemScheduler.GetAllSystems())
+            {
+                if (system is not Fdp.Interfaces.IReplayRestoreGated g) continue;
+                g.IsReplayRestoring = () => IsRestoringReplay;
+                gated++;
+            }
+            FdpLog<EcsRecordReplayController>.Info(
+                "[Node-{0}] Replay prepared ({1}); {2} ingress system(s) gated while restoring (R-4012).",
+                _nodeId, _activeReplayModule.HasRecording ? "own recording" : "NO recording — listener", gated);
         }
 
         /// <summary>
@@ -256,8 +316,10 @@ namespace Hrot.SimHost.Modules.Orchestration
                     "[EcsRecordReplayController] SeekToTimeAsync called with no active replay module.");
                 return default;
             }
-            await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
+            bool restored = await _activeReplayModule.SeekToWallClockTicksAsync(targetWallClockTicks)
                 .ConfigureAwait(false);
+            // ⭐ R-4012 — outside this node's recording: nothing restored, no landed time.
+            if (!restored) return default;
             // Return the seek target time expressed as the indexing time that
             // ClusterMaster will pass to SnapAndPause.  TotalTime is the inverse
             // conversion (ticks -> seconds) so the master's MasterSyncController

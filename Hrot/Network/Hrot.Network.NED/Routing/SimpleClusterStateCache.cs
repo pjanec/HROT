@@ -25,6 +25,31 @@ namespace Hrot.Network.Routing
         private readonly HashSet<(int NodeId, string Token)> _unsupportedOverrides = new();
         private readonly object _lock = new();
 
+        /// <summary>⭐ C6 — the master's InSync set; <see langword="null"/> until one is received (then nothing is filtered).</summary>
+        private HashSet<int>? _inSync;
+
+        /// <inheritdoc/>
+        public bool IsInSync(int nodeId)
+        {
+            lock (_lock) return _inSync == null || _inSync.Contains(nodeId);
+        }
+
+        /// <summary>
+        /// ⭐⭐ C6 (Q91 §4-N) — the master's InSync set arrived. ⭐ J4 (R-4013): a node ENTERING it loses every "unsupported"
+        /// mark — a node reset by a catch-up never departs, yet may have missed a probe while it reloaded.
+        /// </summary>
+        public void SetInSync(IEnumerable<int> nodeIds)
+        {
+            lock (_lock)
+            {
+                var next = new HashSet<int>(nodeIds);
+                foreach (var id in next)
+                    if (_inSync == null || !_inSync.Contains(id))
+                        _unsupportedOverrides.RemoveWhere(o => o.NodeId == id);
+                _inSync = next;
+            }
+        }
+
         /// <inheritdoc/>
         public int? GetLeastLoadedNode(NodeRole requiredRole)
         {
@@ -98,7 +123,11 @@ namespace Hrot.Network.Routing
         /// </summary>
         public bool RemoveNode(int nodeId)
         {
-            lock (_lock) return _nodes.Remove(nodeId);
+            lock (_lock)
+            {
+                _unsupportedOverrides.RemoveWhere(o => o.NodeId == nodeId);   // ⭐ J4 — a departure clears the mark too
+                return _nodes.Remove(nodeId);
+            }
         }
 
         public void PruneStale(double nowUtcSeconds, double maxSilenceSeconds = 10.0)

@@ -162,14 +162,82 @@ public sealed class ReferenceHandlerTests
         Assert.Equal(1_005_000L, controller.LastSeekTarget);
     }
 
+    // ── R-4012 (Q91 §4-P) — one replay timeline; a node outside its recording listens ──────────
+
+    /// <summary>
+    /// 🔴 Before C9 every node added its OWN recording start to the relative target, so a node that began recording late
+    /// (a late Player) restored a moment shifted by its join delay.
+    /// </summary>
+    [Fact]
+    public async Task R4012_A_seek_carrying_the_cluster_anchor_is_measured_from_it_not_from_this_nodes_start()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 10_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(7_000_000L, AnchorWallTicks: 4_000_000L),
+        }, CancellationToken.None);
+
+        Assert.Equal(11_000_000L, controller.LastSeekTarget);
+        Assert.Equal(0.7, Assert.IsType<ReplaySeekResult>(result).RestoredTime.TotalTime, 6);
+    }
+
+    [Fact]
+    public async Task R4012_A_seek_outside_this_nodes_recording_reports_no_landed_time()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 10_000_000L, Covers = false };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(0L, AnchorWallTicks: 4_000_000L),
+        }, CancellationToken.None);
+
+        Assert.Equal(0L, Assert.IsType<ReplaySeekResult>(result).RestoredTime.TotalWallTicks);
+    }
+
+    [Fact]
+    public async Task R4012_PrepareReplay_reports_this_nodes_recorded_span()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 10_000_000L, ActiveRecordingEndWallTicks = 90_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        var result = await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.PrepareReplay,
+            DomainPayload = Guid.NewGuid(),
+        }, CancellationToken.None);
+
+        var span = Assert.IsType<ReplayPrepareResult>(result);
+        Assert.Equal(10_000_000L, span.FirstFrameWallTicks);
+        Assert.Equal(90_000_000L, span.LastFrameWallTicks);
+    }
+
     private sealed class SeekCapturingController : IRecordReplayController
     {
         public long LastSeekTarget { get; private set; }
         public long ActiveRecordingStartWallTicks { get; set; }
+        public long ActiveRecordingEndWallTicks { get; set; }
+        private long _anchor;
+        /// <summary>Like the real controller: the cluster's anchor once set, else this recording's start.</summary>
+        public long ReplayAnchorWallTicks { get => _anchor != 0 ? _anchor : ActiveRecordingStartWallTicks; set => _anchor = value; }
+        public bool IsRestoringReplay { get; private set; }
+        /// <summary>R-4012 — when false the fake's recording does not cover the moment: it restores nothing.</summary>
+        public bool Covers { get; set; } = true;
         public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)
         {
             LastSeekTarget = targetWallClockTicks;
-            return Task.FromResult(new GlobalTime { TotalWallTicks = ActiveRecordingStartWallTicks });
+            IsRestoringReplay = Covers;
+            return Task.FromResult(Covers ? new GlobalTime { TotalWallTicks = targetWallClockTicks } : default);
         }
         public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
         public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;

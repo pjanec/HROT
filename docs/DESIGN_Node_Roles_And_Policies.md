@@ -1,9 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-13
+updated: 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
-  capability), ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
+  capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
+  handler), ⭐ §3.4 is A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT (R-4005 — an all-in-one host declares
+  the union of its roles; NodeRole.None means "plays no role", not "is not networked"),
+  ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
   merely CONVENTION.
@@ -32,6 +35,11 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/blueprints/Architect_Question_91_Player_Nodes.md — the multiplayer Player node (an IG node, no new role): which
+    nodes may fail or hang a 2PC round is derived from the ROLE (§4-A there), the open item at the end of §3.3 here.
+  - docs/DESIGN_Unified_Cluster_Handler_Registration.md — owns WHICH cluster handlers each host registers and in
+    what ORDER (CE-279); §3.3 here owns the rule that the set is the same everywhere and a ROLE, not a missing
+    handler, makes a node behave differently.
   - docs/DESIGN_Terrain_World.md — the LOS-against-terrain reader §3.2 named as its reopen trigger now exists (Q81 T4): Perception and Map2D load the terrain world.
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT terrain and zones ARE (the definition file, the
     ECS singleton, the zone ops, the asset build). ⚠ CORRECTED 2026-09-18: an earlier version of this
@@ -243,7 +251,88 @@ the requirement is a **default with a named home**, in the same sense as everyth
 the load message — is owned by [`DESIGN_Cluster_Load_Phase.md`](DESIGN_Cluster_Load_Phase.md). ⛔ This
 section states only **which role needs what**, and is not restated there.
 
+### 3.3 ⭐⭐⭐ ONE CODE PATH ON EVERY NODE — **a difference in behaviour comes from the ROLE, never from a missing handler** *(user, `2026-10-15`, `R-4000`)*
+
+> 🔒 **User, verbatim:** *"I forced the design of the nodes to be unified, so all the nodes support handlers for
+> recording, replay and so on. So if we want to disable it, we need to do it via roles so the code stays unified."*
+> · and on the multiplayer Player node: *"if we make stuff more robust, we could stay largely unified"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every node registers the same cluster handlers** | ⛔ a host bootstrap never OMITS a handler to switch a behaviour off — that is the per-host drift `DESIGN_Unified_Cluster_Handler_Registration.md` §3 measured |
+| ⭐⭐ **when a node must behave differently, its ROLE decides** | ⭐ the §3.2 shape: the role declares the WHAT, the host supplies the HOW. ⛔ It is still not a permission gate (§3.1) |
+| ⭐⭐ **prefer a more robust SHARED path to a per-role exception** | ⭐ a role-driven exception is the fallback, ⛔ not the first move |
+| ⛔ **the role → behaviour map is APPLICATION code** | 🔒 `NodeRole.cs` header (user, `2026-09-12`): the engine *"may never map one to a set of components, a system, or a behaviour"* ⇒ the map lives in Hrot, never in FDP |
+
+📐 **Measured `2026-10-15` — the two places IG still differs by a missing piece:**
+
+| | IG today | every other ECS host |
+|---|---|---|
+| record / replay controller | `ListenerRecordReplayController` — ACKs, records nothing (`IgNodeBootstrapper.cs:374`) | `EcsRecordReplayController` — SimHost `NodeBootstrapper.cs:272`, CGF `CgfApplication.cs:163`, Editor `EditorSubsystem.cs:1512`, Stride `EditorStrideSubsystem.cs:851` |
+| `.fdp` archive handler | none (`archiveHandler: null`, `IgNodeBootstrapper.cs:455-459`) | `ReferenceArchiveHandler` |
+
+⛔ **Both are SUPERSEDED by R-4003** (§7.1's banner): IG records like every ECS host. ⚠ The real controller lives in
+`Hrot.SimHost`, which IG does not reference (CGF, the Editor and Stride do) — moving it down is `CE-279`'s deferred A2.
+⚠ `CgfRecordReplayController` (a "Phase 3 skeleton") has ZERO constructions — CGF already uses the real one. Unreferenced
+is not unintentional: its own comment says it was a placeholder until CGF had a recordable kernel, which it now has.
+
+⭐ **OPEN, not ruled — the multiplayer Player node.** Measured: a Player that is an IG node already takes part in
+recording and replay as a listener, so it needs NO role-driven exception there. What it needs is a 2PC that a
+volatile node can neither veto nor hang (`EjectNode` returns early for a non-mandatory node and the round keeps
+waiting — `ClusterMaster.cs:700`, `:1828`) and a step barrier that drops a node that has gone
+(`MasterSyncController.cs:566-580`). ⭐ Owned by [`Architect_Question_91_Player_Nodes.md`](blueprints/Architect_Question_91_Player_Nodes.md) — no Player role; authority derived from the simulation roles.
+
 ---
+
+### 3.4 ⭐⭐⭐ A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT — **a single-process host is an ordinary node** *(user, `2026-10-15`, `R-4005`)*
+
+> 🔒 **User, verbatim:** *"The concepts must stay unified, no exceptions, and editor is just a special case of shared
+> unified generic rules."*
+> · *"Roles are never network oriented, all needs to work using internal bus events even without any network."*
+
+⭐⭐ **The rule.** A host declares the **union of the roles it actually plays**, derived from the capabilities it
+composes — ⛔ never from whether it has a DDS participant. An all-in-one host declares all of them. Every mechanism
+keyed on a role must work over the **internal bus** with no network present.
+
+⛔⛔ **`NodeRole.None` means "plays no role". It does NOT mean "is not networked."** Reading it the second way is what
+produced the defect below.
+
+#### 📐 The measured case — the editor said two different things about itself
+
+| where | what it declares | what reads it |
+|---|---|---|
+| ⭐ `EditorCapabilities.cs:60-62` | `Brain \| MuscleGround \| Perception \| NavigationSolver` — *"CGF ∪ SimHost, and deliberately not Map2D"*, per the user's `2026-09-07` ruling quoted in that file | the capability plan (`:97`) and the load chain (`EditorSubsystem.cs:1546`) |
+| 🔴 `EditorSubsystem.cs:1153` | `.WithRole("Editor", Fdp.Core.NodeRole.None)` | ⭐⭐ **the `ClusterSlave`, hence the ROSTER** — and therefore the authority split, the `hrot.asset.needs.*` tokens and the step barrier |
+
+⇒ **Two producers for one slot (`R-132`), and the roster gets the wrong one.** ⚠ The editor is *offline* — no participant,
+no DDS — but it is **not outside the cluster**: `HrotNodeBuilder` builds it a `ClusterSlave` like every host (`:232`), the
+editor registers `OrchestrationLogicPack(clusterSlave)` so that slave is ticked every frame (`EditorSubsystem.cs:1699` →
+`OrchestrationLogicPack.cs:68`), and its heartbeat lands on `_node.EventBus` — **the same bus its own `OrchestratorCore`
+reads** (`EditorSubsystem.cs:1170`, `:2185-2197`). ⇒ ⭐⭐ **the editor is a one-node cluster containing itself.**
+
+🔴 **The consequence that makes this load-bearing, not cosmetic:** with `ForOneNodeCluster()` setting `Mandatory` empty
+(`ClusterConfiguration.cs:51-53`), a role-derived authority split (§4-A of `Q91`) would make **the only node in the
+editor's cluster best-effort** ⇒ **no load could ever fail its round** in the primary authoring host.
+
+#### ⭐ The fix, and its measured blast radius
+
+⭐⭐⭐ **One line:** `.WithRole("Editor", EditorCapabilities.DefaultRole)`.
+
+📐 `HrotNodeBuilder._role` has **exactly two consumers**, both on one statement (`:232-233`): the `ClusterSlave`'s
+`fdp.role.*` tokens, and `AssetNeeds.HostCapabilities(_role)`. ⛔ `ClusterSlave` does nothing else with the mask
+(`:83-84`, `:125-128`) — no ownership, no scheduling, no handler selection; ownership groups reach the editor through
+`EditorCapabilities.DefaultRole` already (`R-172`). ⇒ the only behaviour that changes is **what the editor advertises**.
+
+⚠ **`NodeRole.AllInOne` does NOT exist** in the enum (`None, Brain, MuscleGround, Map2D, Perception, NavigationSolver`);
+the name survives only in a `.dev` batch review as a deviation. ⭐ `EditorCapabilities.DefaultRole` is the honest mask —
+⛔ do not add an `AllInOne` member to express it.
+
+---
+
+✅ **BUILT `2026-10-15` (P2a)** — `EditorSubsystem` now declares `EditorCapabilities.DefaultRole` to the roster. 📐 Measured live:
+`GET /cluster/roster` on a headless editor reads `"roles":"Brain, MuscleGround, Perception, NavigationSolver"` (was `None`); a
+`hill-attack` live load still succeeds (32 entities) — the new `needs:scenario` advert only stages a COPY into the editor's own
+staging folder (`/tmp/FDP_Temp/nodes/node-0/scenarios/…`), nothing is overwritten.
 
 ## 4. ⭐⭐ OWNERSHIP — **a role is an EXPECTATION, the mask is the fact**
 
@@ -465,6 +554,18 @@ which is what keeps the next reader honest.
 > `NodeRolePersistenceRails` was rewritten to match: IG must not hold a CHECKPOINT save handler (ungated), but
 > DOES hold the gated scenario handler. 📄 [`DESIGN_Distributed_Scenario_Persistence.md`](DESIGN_Distributed_Scenario_Persistence.md) §4.
 > The `2026-09-02` reasoning below is retained as HISTORY.
+>
+> ⛔⛔ **SUPERSEDED `2026-10-15` (R-4003) — the surviving invariant below, AND its premise.** 🔒 **User, verbatim:**
+> *"that premise is old and not valid anymore, it must be a pre-unification one. pls mark it superseded. IG can create its
+> own entities if it wants to. So it might need to run its own recording. I prefer the unification over optimization at
+> this stage, still the disabling would be controlled by the role or by some optimization settings later."*
+> ⇒ ⛔ *"IG carries no ECS frame data, so it must not hold a checkpoint save handler / must not record"* is a
+> PRE-UNIFICATION premise and is no longer true: IG can own entities, so it records like every ECS host — the same
+> `EcsRecordReplayController` and the same `ReferenceArchiveHandler`. ⭐ If recording on some node is ever switched off, it
+> is by ROLE or an optimisation setting (R-4000), never by a missing handler. The rail `NodeRolePersistenceRails.
+> IgCompositionRoot_RegistersNoCheckpointSaveHandler` is superseded with it. ⚠ **R-140 is NOT touched**: it is about
+> SCENARIO persistence (IG owns no persistable entity), and the gated scenario save still enforces it.
+> 📄 Build: [`HANDOFF_Coordinator_Player_Nodes.md`](blueprints/batches/HANDOFF_Coordinator_Player_Nodes.md) P5a–P5d; decision: [Q91](blueprints/Architect_Question_91_Player_Nodes.md) §4-G.
 
 > 🔒 **User, verbatim (`2026-09-02`, now superseded):** *"IG not saving to scenario is as simple as not letting
 > the IG subsystem handle the clusterwide scenario save operation."*

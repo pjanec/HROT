@@ -25,7 +25,7 @@ namespace Hrot.Orchestrator;
 /// Orchestrator control-plane host: system state, node heartbeats, DDS network ID allocation server,
 /// bootstrap latch, heartbeat-timeout eviction, and 2PC transaction history ring buffer.
 /// </summary>
-public sealed class ClusterMaster : IDisposable
+public sealed partial class ClusterMaster : IDisposable
 {
     private readonly ClusterConfiguration _config;
 
@@ -92,6 +92,9 @@ public sealed class ClusterMaster : IDisposable
         /// <see cref="OnPhaseSuccess"/> round; a terminal tracker leaves it null.
         /// </summary>
         public List<int>? Targets;
+
+        /// <summary>⭐ C3 (Q91 §4-M) — a trajectory through Idle: on success its <see cref="Targets"/> become the in-sync set.</summary>
+        public bool ResyncsOnSuccess;
         /// <summary>Per-node response JSON strings fed into the aggregator pipeline.</summary>
         public readonly Dictionary<int, Dictionary<Fdp.Toolkit.Orchestration.NodeOpType, string>> NodeResponses = new();
     }
@@ -102,6 +105,14 @@ public sealed class ClusterMaster : IDisposable
     /// <c>_pendingManageEpisodeTasks</c>, and <c>_pendingBusTransitionAcks</c> dictionaries.
     /// </summary>
     private readonly Dictionary<Guid, GenericTransactionTracker> _pendingTransactions = new();
+
+    /// <summary>
+    /// ⭐⭐ P1 (Q91 §4-B, B1) — per round, the ACKs each target node still OWES. Recorded at fan-out (every op but
+    /// <c>CommitState</c>, which the slave applies without an ACK — <c>ClusterSlave.cs:411-422</c>), paid off by each ACK,
+    /// and subtracted from the round when the node is EJECTED, so a round never waits for a node that is gone.
+    /// ⭐ Per node and per round, not "minus one": a multi-step transition owes one ACK per prepare step.
+    /// </summary>
+    private readonly Dictionary<Guid, Dictionary<int, int>> _owedAcks = new();
 
     // ── L8: the PARKED transition ─────────────────────────────────────────
     /// <summary>
@@ -327,8 +338,10 @@ public sealed class ClusterMaster : IDisposable
     {
         IngestCapabilities();   // CE-285: gather static capability tokens BEFORE heartbeats derive roles from them.
         IngestHeartbeats();
+        ProcessNodeIdRequests();   // ⭐ C1 — master-assigned node ids
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
+        PublishStepRosterIfChanged();   // ⭐ P3
         DrainInjectedRequests();
 
         // ⭐⭐⭐ L8 — resume or expire a PARKED transition BEFORE new intents are admitted, so a transition
@@ -348,6 +361,8 @@ public sealed class ClusterMaster : IDisposable
         ProcessAssetOpIntents();   // ⭐ CE-3021 — publish / refresh arriving on the bus (remote panel)
 
         ConsumeNodeOpStatuses();
+        TickCatchUps();    // ⭐ C7 — late joiners caught up by per-node ops (Q91 §4-M)
+        PruneOwedAcks();   // ⭐ P1
     }
 
     // ── UI / test injection path ──────────────────────────────────────────
@@ -482,7 +497,7 @@ public sealed class ClusterMaster : IDisposable
 
             case ClusterOpType.TakeCheckpoint:
             {
-                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 if (nodeIds.Count == 0)
                 {
                     PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
@@ -541,16 +556,26 @@ public sealed class ClusterMaster : IDisposable
             // capability tokens (gathered by IngestCapabilities), so a heartbeat re-applies the latest known
             // capabilities + mask. Unknown-so-far ⇒ empty set / None until the capabilities advert lands.
             var tokens = _nodeCapabilities.TryGetValue(hb.NodeId, out var t) ? t : System.Array.Empty<string>();
+            bool joined = !_roster.ActiveNodes.ContainsKey(hb.NodeId);
             var profile = new NodeHealthProfile
             {
                 NodeId                  = hb.NodeId,
                 SubsystemName           = hb.SubsystemName ?? string.Empty,
                 LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
                 LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                SessionId               = hb.SessionId,   // ⭐ C2 — the session the node follows (telemetry)
                 Capabilities            = new System.Collections.Generic.HashSet<string>(tokens),
                 Roles                   = NodeRoleTokens.MaskFromTokens(tokens),
             };
             _roster.Upsert(profile);
+
+            // ⭐⭐ R-4018 / CE-4003 step 2 — a node ENTERING the roster gets the deployment's TKB synced (the saga does
+            //   the copy). ⭐ Nothing is sent to the node: its first world build loads the file. 📄 tkb-1 DESIGN §0a.
+            if (joined)
+            {
+                _eventBus.PublishManaged(new NodeJoinedRosterEvent { NodeId = hb.NodeId });
+                AdmitJoinedNode(hb.NodeId);   // ⭐ C3 — in sync at once only while the cluster is at rest in Idle
+            }
         }
     }
 
@@ -693,8 +718,12 @@ public sealed class ClusterMaster : IDisposable
             return;
 
         _roster.Remove(nodeId);
+        ForgetSync(nodeId);   // ⭐ C3 — I1: a node that left is no longer in sync
         FdpLog<ClusterMaster>.Warn("[Orchestrator] Node {0} ({1}) ejected (heartbeat timeout).",
             nodeId, profile.SubsystemName);
+
+        // ⭐⭐ P1 — for EVERY node, mandatory or not: a round never waits for a node that is gone.
+        DropFromInFlightRounds(nodeId);
 
         bool isMandatory = Array.IndexOf(_config.Mandatory, profile.SubsystemName) >= 0;
         if (!isMandatory) return;
@@ -760,7 +789,7 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var intent in _eventBus.ReadManaged<TakeCheckpointIntent>())
         {
-            var ckNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+            var ckNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
             if (ckNodeIds.Count == 0)
             {
                 PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -847,7 +876,7 @@ public sealed class ClusterMaster : IDisposable
     /// <summary>Shared by the bus drain and the injected-request path, so the editor cannot drift.</summary>
     private void ProcessBuildTerrainAssetIntent(BuildTerrainAssetIntent intent)
     {
-        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        var targets = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (targets.Count == 0)
         {
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
@@ -911,7 +940,7 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void StartZoneLoadRound(Guid requestId, string zoneId)
     {
-        var targets = new List<int>(_roster.ActiveNodes.Keys);
+        var targets = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (targets.Count == 0)
         {
             // Nothing to ask ⇒ the postcondition already holds. Reporting Success is honest here in a
@@ -1222,8 +1251,17 @@ public sealed class ClusterMaster : IDisposable
         // ⭐ BEFORE the fan-out, because PrepareLive is what makes CGF allocate the authored ids.
         ResetIdAuthorityIfWorldBoundary(trajectory, capturedSourceState);
 
-        // S0502: Fan out PrepareXxx + CommitState to all active nodes.
-        var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        // S0502: Fan out PrepareXxx + CommitState.
+        // ⭐⭐ C3 (Q91 §4-M, J1) — to the IN-SYNC nodes; a trajectory that passes through Idle goes to the whole roster and
+        //   leaves every node that answers it in sync (Idle is the universal re-sync point, R-4019).
+        bool throughIdle = trajectory.OfType<TransitionStep>().Any(t => t.TargetState == ClusterState.Idle);
+        var activeNodeIds = throughIdle ? new List<int>(_roster.ActiveNodes.Keys) : Participants();
+        if (intent.ScenarioId != null && trajectory.OfType<TransitionStep>().Any(t =>
+                t.TargetState is ClusterState.LoadingLive or ClusterState.LoadingEdit))
+        {
+            _currentScenarioId = intent.ScenarioId;   // ⭐ C7 — what a late joiner's catch-up stages
+            _currentExerciseId = intent.ExerciseId;
+        }
         if (activeNodeIds.Count > 0)
         {
                 var enteredFrom = capturedSourceState;   // CE-2101 — the state each step is entered FROM
@@ -1270,7 +1308,6 @@ public sealed class ClusterMaster : IDisposable
                             false,
                             (FdpClusterState)(int)tStep.TargetState,
                             ExerciseId:  intent.ExerciseId,
-                            TkbName:     contentNames.TkbName,
                             TerrainName: contentNames.TerrainName,
                             // ⭐ CE-2101 — every node clears its world before this load (the world boundary).
                             IsWorldBoundary: worldBoundary);
@@ -1279,11 +1316,12 @@ public sealed class ClusterMaster : IDisposable
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
                             new CommitStatePayload((FdpClusterState)(int)tStep.TargetState), activeNodeIds);
                     }
-                    else if (step is OperationStep opStep && opStep.Operation == ClusterOpType.ReplaySeek)
-                    {
-                        FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(), opStep.DomainPayload, activeNodeIds);
-                    }
+                    // ⭐⭐ C9 (Q91 §4-P P2) — a ReplaySeek step is NOT fanned out here: its payload would be built before any
+                    //   node answered the prepare round (no replay zero yet), and with a throw-away transaction it never ran
+                    //   as a round, so nothing snapped the clock (measured live). NoteReplayEntry carries the moment to the
+                    //   seek round that starts when this transition completes.
                 }
+                NoteReplayEntry(tx.TransactionId, trajectory);
 
                 FdpLog<ClusterMaster>.Info(
                     "[Orchestrator] S0502: TransitionState fan-out complete (transaction={0}, nodes={1}).",
@@ -1304,6 +1342,8 @@ public sealed class ClusterMaster : IDisposable
                     RequestId                    = requestId,
                     Expected                     = expectedAcks,
                     BroadcastClusterStateOnComplete = true,
+                    Targets                      = activeNodeIds,
+                    ResyncsOnSuccess             = throughIdle,   // ⭐ C3
                 };
             }
             else
@@ -1464,7 +1504,7 @@ public sealed class ClusterMaster : IDisposable
             {
                 var nodeOp  = intent.IsStart ? NodeOpType.StartEpisode : NodeOpType.StopEpisode;
                 var txId    = Guid.NewGuid();
-                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var nodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
 
                 var episodePayload = new EpisodeHandlerPayload(intent.EpisodeId, intent.ScenarioId, intent.IsStart);
                 FanOutNodeOp(nodeOp, txId, episodePayload, nodeIds);
@@ -1517,7 +1557,7 @@ public sealed class ClusterMaster : IDisposable
                     return;
                 }
 
-                var scnNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var scnNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 var scnTxId    = Guid.NewGuid();
 
                 // CE-277(c2): map this fan-out's tx → scenario name so StorageProcessManager can merge the
@@ -1548,7 +1588,7 @@ public sealed class ClusterMaster : IDisposable
                 var exportCts = new CancellationTokenSource();
                 _activeCancellations[intent.RequestId] = exportCts;
 
-                var exportNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var exportNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
                 if (exportNodeIds.Count == 0)
                 {
                     _activeCancellations.Remove(intent.RequestId);
@@ -1603,21 +1643,64 @@ public sealed class ClusterMaster : IDisposable
     {
         // RT-008: fan-out with ACK tracker; immediate Success when roster is empty.
         // SlaveNodeSetUpdatedEvent and PauseTimeIntent are published by ReplaySeekProcessManager (TASK-T002).
-        var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        var seekNodeIds = Participants();   // ⭐ C3 — operator rounds: in-sync nodes only
         if (seekNodeIds.Count == 0)
         {
             PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
             return;
         }
         var txId = Guid.NewGuid();
+        // ⭐ C9 (R-4012) — every node measures the target from the SAME zero.
         FanOutNodeOp(NodeOpType.NodeReplaySeek, txId,
-            new ReplaySeekPayload(intent.TargetWallTicks), seekNodeIds);
+            new ReplaySeekPayload(intent.TargetWallTicks, _replayAnchorWallTicks), seekNodeIds);
         _pendingTransactions[txId] = new GenericTransactionTracker
         {
             RequestId                       = intent.RequestId,
             Expected                        = seekNodeIds.Count,
             BroadcastClusterStateOnComplete = true,
         };
+    }
+
+    /// <summary>
+    /// ⭐⭐ P8 (Q91 §4-H.2) — cancel is TWO rounds: an <c>AbortTransaction</c> naming the transition's own transaction
+    /// to every roster node (each node's load chain undoes its load — it may even preempt a stuck prepare, H8), then a
+    /// round to <c>Idle</c> through the ordinary transition path, which reports the cluster in <c>Idle</c> when every
+    /// node has answered. ⛔ A cancel that sent only the abort would leave every node reporting <c>Loading*</c> with
+    /// nothing loading. Returns <c>false</c> when <paramref name="targetId"/> names no transition still in flight.
+    /// </summary>
+    private bool TryCancelInFlightTransition(Guid targetId)
+    {
+        var tx = _inflightTransitionTx;
+        if (tx == null || tx.IsAborted) return false;
+        if (tx.OriginRequestId != targetId && tx.TransactionId != targetId) return false;
+        if (!_pendingTransactions.TryGetValue(tx.TransactionId, out var tracker)) return false;   // already complete
+
+        _pendingTransactions.Remove(tx.TransactionId);
+        _owedAcks.Remove(tx.TransactionId);
+        tx.IsAborted = true;
+
+        var nodes = new List<int>(_roster.ActiveNodes.Keys);
+        if (nodes.Count > 0)
+            FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), new AbortTransactionPayload(tx.TransactionId), nodes);
+        PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Cancelled);
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] P8: transition {0} (transaction {1}) CANCELLED — aborted on {2} node(s); returning to Idle.",
+            targetId, tx.TransactionId, nodes.Count);
+
+        // ── round 2: back to Idle, the state every load starts from (R-4004, H2).
+        var idleRequest = Guid.NewGuid();
+        var toIdle = new Queue<ISysOpStep>();
+        toIdle.Enqueue(new TransitionStep(ClusterState.Idle));
+        _activeExerciseId = Guid.Empty;
+        ExecuteTransitionTrajectory(new ParkedTransition(
+            idleRequest,
+            new TransitionStateIntent
+            {
+                TransactionId = idleRequest,
+                TargetState   = Fdp.Toolkit.Orchestration.ClusterState.Idle,
+            },
+            toIdle, _currentDsmState, ClusterState.Idle, toIdle.Count, UtcNowSeconds()));
+        return true;
     }
 
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)
@@ -1628,20 +1711,24 @@ public sealed class ClusterMaster : IDisposable
         //   ⛔ Cancel was an ARCHIVE-only facility (`_activeCancellations` is written only by the Export and
         //   Import branches, CGF-1-BATCH-28 §C.4) and a transition was never a target — before parking there
         //   was simply no window: the trajectory was fanned out in the pass that admitted it.
-        // ⚠ It abandons the TRANSITION, not the copy: the gateway's PrefetchScenarioAsync registers no
-        //   cancellation source, so the bytes finish landing in the node staging roots. That is harmless —
-        //   nothing loads them — but it is why this says "abandoned", not "stopped".
+        // ⭐ P8 H5 (Q91 §4-H) — and the staging copy its prefetch started is STOPPED: the saga cancels the transfer
+        //   (P6's IFileTransfer.Cancel). ⛔ Before P6 it was abandoned and the bytes finished landing.
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §7.7 ④.
         if (targetId != Guid.Empty && _parked?.RequestId == targetId)
         {
             _parked = null;
+            _eventBus?.PublishManaged(new PrefetchCancelRequestedEvent { RequestId = targetId });
             FdpLog<ClusterMaster>.Info(
-                "[Orchestrator] L8: parked transition {0} CANCELLED — nothing was fanned out. "
-              + "The staging copy already in flight is left to finish.",
+                "[Orchestrator] L8: parked transition {0} CANCELLED — nothing was fanned out; its staging copy is stopped.",
                 targetId);
             PublishOpStatus(targetId, OrchestrationStatusCode.Cancelled);
             return;
         }
+
+        // ⭐⭐ P8 (Q91 §4-H, R-4004) — a transition already fanned out and not yet complete: abort it on every node, then
+        //   return the cluster to Idle so the same load can simply be issued again. ⛔ Still no timer (R-4001, H4).
+        if (targetId != Guid.Empty && TryCancelInFlightTransition(targetId))
+            return;
 
         if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
         {
@@ -1713,16 +1800,30 @@ public sealed class ClusterMaster : IDisposable
     {
         _eventBus.PublishManaged(new ClusterStateTransitionedEvent
         {
-            NewStateId    = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
-            SubsystemName = "Cluster",
-            ExerciseId    = _activeExerciseId,
+            NewStateId       = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
+            SubsystemName    = "Cluster",
+            ExerciseId       = _activeExerciseId,
+            SessionId        = SessionId,          // ⭐ C2
+            TransactionEpoch = _transactionEpoch,  // ⭐ C4 — telemetry
         });
         _eventBus.PublishManaged(new ClusterStateUpdateEvent
         {
             CurrentState = (Fdp.Toolkit.Orchestration.ClusterState)(int)state,
             ExerciseId   = _activeExerciseId,
+            SessionId    = SessionId,
         });
     }
+
+    /// <summary>
+    /// ⭐⭐ C2 (Q91 §4-I I5, R-4006) — THE CLUSTER SESSION: minted once, when this master is created. One master = one session
+    /// (the master is not restartable), so it needs no counter. It rides every cluster-state publication; a node that sees
+    /// a different one — or this master's writer gone — drops to <c>Idle</c>.
+    /// </summary>
+    public Guid SessionId { get; } = Guid.NewGuid();
+
+    /// <summary>⭐ C4 (Q91 §4-I I4) — telemetry only: rounds completed successfully so far. ⛔ Never decides membership.</summary>
+    public int TransactionEpoch => _transactionEpoch;
+    private int _transactionEpoch;
 
     /// <summary>
     /// Publishes a node-level operation to each target node via the event bus (bus path)
@@ -1732,6 +1833,7 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var nodeId in targetNodeIds)
         {
+            if (operation != NodeOpType.CommitState) OweAck(transactionId, nodeId);   // ⭐ P1
             _eventBus.PublishManaged(new ExecuteNodeOpIntent
             {
                 TransactionId = transactionId,
@@ -1778,6 +1880,12 @@ public sealed class ClusterMaster : IDisposable
     {
         foreach (var ev in _eventBus.ReadManaged<NodeOpCompletedEvent>())
         {
+            // ⭐⭐ P4 (Q91 §4-B2, R-4001) — a node still PREPARING reports progress, not an answer: never counted as the
+            //   node's ACK, never paid against what it owes. ⛔ Before, every status was counted, so an InProgress report
+            //   would have completed a round the node had not finished.
+            if (ev.StatusCode is OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
+                continue;
+
             // S0501: Mirror ACKs into _inflightTransitionTx.NodeResponses for history.
             if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == ev.TransactionId)
             {
@@ -1796,9 +1904,17 @@ public sealed class ClusterMaster : IDisposable
                 continue;
 
             // AbortOnFirstFailure: reject immediately on the first node error (ManageEpisode policy).
-            if (ev.StatusCode.IsError() && tracker.AbortOnFirstFailure)
+            // ⭐⭐ P2 / C1 (Q91 §4-C, R-4014) — an OBSERVER's error is recorded in the round's responses but never fails it.
+            bool authoritativeError = ev.StatusCode.IsError() && !IsObserver(ev.NodeId);
+            if (ev.StatusCode.IsError() && !authoritativeError)
+                FdpLog<ClusterMaster>.Warn(
+                    "[Orchestrator] P2: observer node {0} answered {1} for round {2} — recorded, the round goes on.",
+                    ev.NodeId, ev.StatusCode, ev.TransactionId);
+
+            if (authoritativeError && tracker.AbortOnFirstFailure)
             {
                 _pendingTransactions.Remove(ev.TransactionId);
+                _owedAcks.Remove(ev.TransactionId);
                 FdpLog<ClusterMaster>.Warn(
                     "[Orchestrator] 2PC transaction {0} aborted: node {1} returned error {2}.",
                     ev.TransactionId, ev.NodeId, ev.StatusCode);
@@ -1806,7 +1922,7 @@ public sealed class ClusterMaster : IDisposable
                 continue;
             }
 
-            if (ev.StatusCode.IsError())
+            if (authoritativeError)
             {
                 tracker.HasFailure  = true;
                 tracker.FailureCode = ev.StatusCode;
@@ -1825,42 +1941,102 @@ public sealed class ClusterMaster : IDisposable
             }
             opDict[ev.Operation] = responseJson;
 
+            PayAck(ev.TransactionId, ev.NodeId);   // ⭐ P1
             tracker.Received++;
             if (tracker.Received >= tracker.Expected)
-            {
-                _pendingTransactions.Remove(ev.TransactionId);
-
-                if (tracker.HasFailure)
-                {
-                    FdpLog<ClusterMaster>.Error(
-                        "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
-                        ev.TransactionId, tracker.FailureCode);
-
-                    // ⭐ A failed NON-TERMINAL phase must tell the nodes that ACKed to drop what they
-                    //   staged — otherwise a prepared-but-never-committed buffer leaks until process
-                    //   exit. 📄 docs/designs/mgmt-1/DESIGN.md §11.1 (ABORT).
-                    if (tracker.OnPhaseSuccess != null && tracker.Targets is { Count: > 0 })
-                        FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
-                            new AbortTransactionPayload(ev.TransactionId), tracker.Targets);
-
-                    PublishOpStatus(tracker.RequestId, tracker.FailureCode);
-                }
-                else if (tracker.OnPhaseSuccess != null)
-                {
-                    // ⛔ Deliberately NO PublishOpStatus here: the requester learns the outcome when the
-                    //   LAST phase completes, not when the first one does.
-                    tracker.OnPhaseSuccess();
-                }
-                else
-                {
-                    var aggregated = TryAggregate(ev.TransactionId, tracker.NodeResponses);
-                    PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
-                }
-
-                if (tracker.BroadcastClusterStateOnComplete)
-                    PublishClusterState(_currentDsmState);
-            }
+                CompleteRound(ev.TransactionId, tracker);
         }
+    }
+
+    /// <summary>
+    /// ⭐ P1 — the ONE place a round completes: from its last ACK, or from the ejection of the last node that still
+    /// owed one. ⛔ Two copies of this block would be two places for the outcome rules to drift.
+    /// </summary>
+    private void CompleteRound(Guid txId, GenericTransactionTracker tracker)
+    {
+        _pendingTransactions.Remove(txId);
+        // ⚠ BEFORE the outcome: a phased round (zone, terrain asset) re-uses this id for its commit phase, and
+        //   OnPhaseSuccess below records that phase's owed ACKs under the SAME id.
+        _owedAcks.Remove(txId);
+
+        if (tracker.HasFailure)
+        {
+            FdpLog<ClusterMaster>.Error(
+                "[Orchestrator] 2PC transaction {0} completed with failures (code={1}).",
+                txId, tracker.FailureCode);
+
+            // ⭐ A failed NON-TERMINAL phase must tell the nodes that ACKed to drop what they
+            //   staged — otherwise a prepared-but-never-committed buffer leaks until process
+            //   exit. 📄 docs/designs/mgmt-1/DESIGN.md §11.1 (ABORT).
+            if (tracker.OnPhaseSuccess != null && tracker.Targets is { Count: > 0 })
+                FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
+                    new AbortTransactionPayload(txId), tracker.Targets);
+
+            PublishOpStatus(tracker.RequestId, tracker.FailureCode);
+        }
+        else if (tracker.OnPhaseSuccess != null)
+        {
+            // ⛔ Deliberately NO PublishOpStatus here: the requester learns the outcome when the
+            //   LAST phase completes, not when the first one does.
+            tracker.OnPhaseSuccess();
+        }
+        else
+        {
+            _transactionEpoch++;   // ⭐ C4 — telemetry: one more round completed successfully
+            if (tracker.ResyncsOnSuccess && tracker.Targets != null)
+            {
+                // ⭐ C3 — everyone who answered a trajectory through Idle is in sync with what it reached.
+                _inSync.Clear();
+                foreach (var id in tracker.Targets)
+                    if (_roster.ActiveNodes.ContainsKey(id)) _inSync.Add(id);
+            }
+            var aggregated = TryAggregate(txId, tracker.NodeResponses);
+            PublishOpStatus(tracker.RequestId, OrchestrationStatusCode.Success, aggregated);
+            OnRoundSucceededForReplay(txId, aggregated);   // ⭐ C9 — the replay zero, and the seek that enters a replay
+        }
+
+        if (tracker.BroadcastClusterStateOnComplete)
+            PublishClusterState(_currentDsmState);
+    }
+
+    private void OweAck(Guid txId, int nodeId)
+    {
+        if (!_owedAcks.TryGetValue(txId, out var owed)) _owedAcks[txId] = owed = new Dictionary<int, int>();
+        owed[nodeId] = owed.TryGetValue(nodeId, out var n) ? n + 1 : 1;
+    }
+
+    private void PayAck(Guid txId, int nodeId)
+    {
+        if (_owedAcks.TryGetValue(txId, out var owed) && owed.TryGetValue(nodeId, out var n) && n > 0)
+            owed[nodeId] = n - 1;
+    }
+
+    /// <summary>
+    /// ⭐⭐ P1 (Q91 §4-B, B1, R-4001) — a node that left owes no ACK any more: take what it still owed off every
+    /// in-flight round, and complete each round that was waiting only for it. ⛔ No timer: the heartbeat timeout that
+    /// ejected the node is the only time limit. ⚠ A round that completes this way completes on the nodes that remain.
+    /// </summary>
+    private void DropFromInFlightRounds(int nodeId)
+    {
+        foreach (var (txId, tracker) in _pendingTransactions.ToList())
+        {
+            if (!_owedAcks.TryGetValue(txId, out var owed) || !owed.Remove(nodeId, out var stillOwed) || stillOwed <= 0)
+                continue;
+            tracker.Expected -= stillOwed;
+            tracker.Targets?.Remove(nodeId);
+            FdpLog<ClusterMaster>.Warn(
+                "[Orchestrator] P1: node {0} left; round {1} no longer waits for its {2} ACK(s).", nodeId, txId, stillOwed);
+            if (tracker.Received >= tracker.Expected)
+                CompleteRound(txId, tracker);
+        }
+    }
+
+    /// <summary>⭐ P1 — forget the owed counts of fan-outs that never had a round (aborts, standby broadcasts).</summary>
+    private void PruneOwedAcks()
+    {
+        if (_owedAcks.Count == 0) return;
+        foreach (var txId in _owedAcks.Keys.ToList())
+            if (!_pendingTransactions.ContainsKey(txId)) _owedAcks.Remove(txId);
     }
 
     /// <summary>
@@ -1894,10 +2070,9 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void PublishClusterPause()
     {
-        var slaveIds = _roster.ActiveNodes
-            .Where(kv => kv.Value.SubsystemName is "SimHost" or "IG" or "CGF")
-            .Select(kv => kv.Key)
-            .ToHashSet();
+        // ⭐ P3 — the step roster by ROLE, never by subsystem name (an observer never gates a step, R-4014).
+        var slaveIds = StepRoster();
+        _lastStepRoster = new HashSet<int>(slaveIds);
         _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = slaveIds });
         _eventBus.PublishManaged(new PauseTimeIntent());
     }
@@ -1910,6 +2085,81 @@ public sealed class ClusterMaster : IDisposable
 
     private static double UtcNowSeconds() =>
         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+
+    /// <summary>The roles that make a node AUTHORITATIVE (Q91 §4-A). ⚠ The role → policy map is application code (R-4000).</summary>
+    private const Fdp.Core.NodeRole SimulationRoles =
+        Fdp.Core.NodeRole.Brain | Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver;
+
+    /// <summary>
+    /// ⭐⭐⭐ P2 (Q91 §4-A′, R-4014) — is this node an OBSERVER (formerly "best-effort", L4)? Nothing waits for an observer
+    /// and nothing fails because of it. ⛔ FAILS SAFE — an observer iff ALL THREE hold:
+    /// ① its capability advert HAS landed (the mask reads <c>None</c> until it does, <c>IngestHeartbeats</c>);
+    /// ② its roles hold no simulation role;
+    /// ③ the roster holds at least ONE authoritative node — otherwise nothing could ever fail a round (anti-vacuity).
+    /// Unknown ⇒ authoritative; alone ⇒ authoritative.
+    /// </summary>
+    public bool IsObserver(int nodeId)
+    {
+        if (!_roster.ActiveNodes.TryGetValue(nodeId, out var profile) || !IsObserverByRole(profile))
+            return false;
+        foreach (var other in _roster.ActiveNodes.Values)
+            if (!IsObserverByRole(other)) return true;   // ③ someone authoritative remains
+        return false;
+    }
+
+    private bool IsObserverByRole(NodeHealthProfile p)
+        => _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) == 0;
+
+    /// <summary>The node this master runs IN (the orchestrator's own node, or the editor's) — set by the core.</summary>
+    public int LocalNodeId { get; set; } = int.MinValue;
+
+    private HashSet<int> _lastStepRoster = new();
+
+    /// <summary>
+    /// ⭐⭐ P3 (Q91 §4-D D1, §4-D′) — the nodes the clock's step barrier waits for: advert landed ∧ holds a simulation
+    /// role ∧ is not the node this master runs in. ⚠ DELIBERATELY NOT <see cref="IsObserver"/>'s clause ③: in a cluster of
+    /// observers only, ③ would make ExCon and the orchestrator "authoritative", and neither ever ACKs a frame ⇒ every step
+    /// would hang. An EMPTY roster means nobody is waited for, which is safe. ⛔ Never the master's own node: it runs the
+    /// MASTER clock (the editor, R-4005) and never ACKs a frame to itself. Replaces the name match
+    /// <c>"SimHost" or "IG" or "CGF"</c> at BOTH sites (here and <c>ReplaySeekProcessManager</c>).
+    /// </summary>
+    public IReadOnlySet<int> StepRoster()
+    {
+        var roster = new HashSet<int>();
+        foreach (var p in _roster.ActiveNodes.Values)
+            if (p.NodeId != LocalNodeId && _nodeCapabilities.ContainsKey(p.NodeId) && (p.Roles & SimulationRoles) != 0)
+                roster.Add(p.NodeId);
+        return roster;
+    }
+
+    /// <summary>
+    /// ⭐ P3 ③ — publish the step roster whenever it CHANGES (a join, an advert landing, an ejection), so
+    /// <c>SlaveNodeSetUpdatedEvent</c> means what its own header says — and a departed node stops gating a step. ⭐ This IS
+    /// the departure channel to the clock: one event with an existing consumer, ⛔ not a second copy of <c>NodeDeparted</c>.
+    /// </summary>
+    private void PublishStepRosterIfChanged()
+    {
+        var now = StepRoster();
+        if (now.SetEquals(_lastStepRoster)) return;
+        _lastStepRoster = new HashSet<int>(now);
+        _eventBus.PublishManaged(new SlaveNodeSetUpdatedEvent { SlaveNodeIds = now });
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4002</c> — the master's roster as plain rows for the debug API (<c>GET /cluster/roster</c>), aged by the
+    /// SAME clock the ejection uses, so a row's age and the 5 s timeout can never disagree. ⛔ A read, no new state.
+    /// </summary>
+    public IReadOnlyList<Hrot.Presentation.DebugApi.ClusterRosterEntry> DescribeRoster()
+    {
+        double now = UtcNowSeconds();
+        var rows = new List<Hrot.Presentation.DebugApi.ClusterRosterEntry>(_roster.ActiveNodes.Count);
+        foreach (var p in _roster.ActiveNodes.Values)
+            rows.Add(new Hrot.Presentation.DebugApi.ClusterRosterEntry(
+                p.NodeId, p.SubsystemName, p.LocalClusterState.ToString(), p.Roles.ToString(),
+                Math.Round(now - p.LastHeartbeatUtcSeconds, 3)));
+        rows.Sort((a, b) => a.NodeId.CompareTo(b.NodeId));
+        return rows;
+    }
 
     public void Dispose()
     {

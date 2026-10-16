@@ -39,7 +39,12 @@ namespace Hrot.Map.Common.Replication.Egress
 
         public void ScanAndPublish(ISimulationView view)
         {
-            if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
+            if (WorldEpoch.Moved(view, ref _worldEpoch))
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal).
+                foreach (var id in _last.Keys) _writer?.DisposeInstance(new EntityWeather { EntityId = (int)id });
+                _last.Clear();
+            }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeatherConditions>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             foreach (var e in view.Query().With<WeatherConditions>().With<NetworkIdentity>().Build())

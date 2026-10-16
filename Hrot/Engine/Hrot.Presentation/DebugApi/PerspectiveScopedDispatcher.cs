@@ -223,6 +223,29 @@ public sealed class PerspectiveScopedDispatcher
         => Active()?.DumpStatus
            ?? _providers.Select(p => p.DumpStatus).FirstOrDefault(s => s is not null);
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — the master's roster from whichever subsystem hosts the <c>ClusterMaster</c>. ⭐ One cluster,
+    /// one roster — the same one-cluster-one-fact rationale as <see cref="ClusterStateAnyNode"/>; ⚠ but unlike the state
+    /// cache, only the MASTER holds it, so a host with no master answers <see langword="null"/>.
+    /// </summary>
+    public IReadOnlyList<ClusterRosterEntry>? ClusterRosterAnyNode
+        => Active()?.ClusterRoster
+           ?? _providers.Select(p => p.ClusterRoster).FirstOrDefault(r => r is not null);
+
+    /// <summary>⭐⭐ <c>CE-4002</c> — publish the operator's cancel from whichever node has a bus; cluster-wide like the dump.</summary>
+    public Action<Fdp.Toolkit.Orchestration.CancelOperationIntent>? RequestCancelAnyNode
+        => Active()?.RequestCancel
+           ?? _providers.Select(p => p.RequestCancel).FirstOrDefault(a => a is not null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4002</c> — a cluster TRANSITION from whichever node can publish it. ⚠ <see cref="RequestTransition"/>
+    /// stays perspective-scoped for the scenario routes; this is for <c>POST /cluster/transition</c>, which names the
+    /// cluster's target state directly and is cluster-wide by construction, like the dump.
+    /// </summary>
+    public Action<Fdp.Toolkit.Orchestration.TransitionStateIntent>? RequestTransitionAnyNode
+        => Active()?.RequestTransition
+           ?? _providers.Select(p => p.RequestTransition).FirstOrDefault(a => a is not null);
+
     /// <summary>⭐ Scenario inventory from whichever node caches it — same rationale as <see cref="ClusterStateAnyNode"/>.</summary>
     public IReadOnlyList<string>? AvailableScenariosAnyNode
         => Active()?.AvailableScenarios

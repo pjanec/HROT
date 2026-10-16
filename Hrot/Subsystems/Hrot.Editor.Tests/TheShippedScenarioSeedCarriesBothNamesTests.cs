@@ -11,7 +11,8 @@ using Xunit;
 namespace Hrot.Editor.Tests;
 
 /// <summary>
-/// ⭐⭐⭐ <c>H4</c> — <b>the rail that proves the whole of stage <c>H</c>.</b>
+/// ⭐⭐⭐ <c>H4</c> — <b>the rail that proves the whole of stage <c>H</c>.</b> ⛔⛔ <c>R-4018</c> (<c>2026-10-15</c>): the seed
+/// carries the TERRAIN name only — a scenario never names a TKB. Everything below about a TKB name is history.
 ///
 /// <para>🔒 §2.1e ⑤d's point is that the terrain and TKB names are <b>CARRIED</b>, not chosen: a scenario
 /// recipe is an ordinary scenario whose header already holds both, and <c>FromSeed</c> loads it and saves
@@ -55,31 +56,28 @@ public sealed class TheShippedScenarioSeedCarriesBothNamesTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>H4</c>'s claim: the header carries <b>BOTH</b> names, and they survive a round trip
-    /// through the very serializer options the product saves and loads with.
+    /// ⭐⭐⭐ <c>H4</c>'s claim, as amended by <c>R-4018</c>: the header carries the TERRAIN name, it survives a round trip
+    /// through the very serializer options the product saves and loads with — and the seed names NO TKB (a scenario never
+    /// does; the deployment's one TKB is synced by the orchestrator). ⛔ Was: "carries BOTH names".
     /// </summary>
     [Fact]
-    public void TheSeedHeaderCarriesBothNames_AndTheyRoundTrip()
+    public void TheSeedHeaderCarriesTheTerrainName_AndNoTkbName()
     {
-        var header = JsonSerializer.Deserialize<ScenarioEnvelopeProbe>(
-            File.ReadAllText(SeedFile), HrotSerializerOptions.HrotJsonOptions)?.Header;
+        var raw = File.ReadAllText(SeedFile);
+        Assert.DoesNotContain("tkbname", raw, System.StringComparison.OrdinalIgnoreCase);
+
+        var header = JsonSerializer.Deserialize<ScenarioEnvelopeProbe>(raw, HrotSerializerOptions.HrotJsonOptions)?.Header;
 
         Assert.NotNull(header);
-        Assert.False(string.IsNullOrWhiteSpace(header!.TkbName),
-            "The seed must NAME a TKB — carrying it is the entire point of the seed (§2.1e ⑤d).");
-        Assert.False(string.IsNullOrWhiteSpace(header.TerrainName),
+        Assert.False(string.IsNullOrWhiteSpace(header!.TerrainName),
             "The seed must NAME a terrain — B5 added the field and this is its first producer.");
 
-        // ⭐ The round trip, through the product's own options: write it back out and read it again.
-        //   ⚠ This is what "nothing re-authors them" means concretely — a save of a scenario created
-        //     from this seed must not drop or rewrite either name.
         var reparsed = JsonSerializer.Deserialize<ScenarioHeaderDto>(
             JsonSerializer.Serialize(header, HrotSerializerOptions.HrotJsonOptions),
             HrotSerializerOptions.HrotJsonOptions);
 
         Assert.NotNull(reparsed);
-        Assert.Equal(header.TkbName, reparsed!.TkbName);
-        Assert.Equal(header.TerrainName, reparsed.TerrainName);
+        Assert.Equal(header.TerrainName, reparsed!.TerrainName);
         Assert.Equal(header.SubsystemType, reparsed.SubsystemType);
     }
 

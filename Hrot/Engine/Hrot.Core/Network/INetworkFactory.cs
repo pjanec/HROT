@@ -161,6 +161,12 @@ public interface INetworkFactory : IGizmoNetworkFactory
     IDisposable CreateIdAllocatorServer();
 
     /// <summary>
+    /// ⭐⭐ <c>P6</c> part 2 (Q91 §4-E2) — the DDS file transport the MASTER sends with, to nodes that advertised no share.
+    /// <see langword="null"/> when this factory has no DDS participant (offline, tests): every push then goes to the share.
+    /// </summary>
+    Fdp.Toolkit.Orchestration.Transfer.IFileTransferProvider? CreateFileTransferProvider() => null;
+
+    /// <summary>
     /// Creates a network ID allocator client for the given logical client identifier.
     /// Returns a <c>DdsIdAllocator</c> when a live DDS participant is available; otherwise
     /// returns a local <see cref="SequentialIdAllocator"/> for offline/headless environments.

@@ -310,6 +310,17 @@ public abstract class SharedApplicationBootstrapper
             context.Kernel.Initialize();
         });
 
+        // Phase 7a — ⭐⭐ R-4007 (Q91 §4-M): a node BEHIND its cluster takes in no world state and discards world events.
+        //   AFTER kernel-initialize: modules register their ingress systems from RegisterSystems(), so only now does the
+        //   scheduler hold them all (the same reason CGF's debugger sweep runs there).
+        plan.Step("join-gate", requires: new[] { "kernel-initialized" }, run: () =>
+        {
+            int wired = Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem.WireJoinGate(
+                context.Kernel.SystemScheduler.GetAllSystems(), () => slave.IsJoinFrozen);
+            Fdp.Core.Logging.FdpLog<SharedApplicationBootstrapper>.Info(
+                "[{0}] R-4007 join gate wired onto {1} ingress system(s).", GetType().Name, wired);
+        });
+
         // Phase 7+ — Post-initialize hook (virtual, defaults to no-op).
         // Called after Kernel.Initialize() so that providers that require
         // RegisterSystems to have run (e.g. EngineBackedNavigationModule.RegisterProviders

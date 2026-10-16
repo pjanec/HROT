@@ -12,8 +12,11 @@ namespace Fdp.Toolkit.Orchestration
     /// <summary>
     /// Payload for <see cref="NodeOpType.NodeReplaySeek"/> intents.
     /// Replaces the previously boxed <c>long</c> wall-clock tick target.
+    /// <para>⭐⭐ <c>R-4012</c> (Q91 §4-P P1) — <paramref name="TargetWallTicks"/> is RELATIVE to the replay's zero, and
+    /// <paramref name="AnchorWallTicks"/> IS that zero: the earliest first frame across every node's recording, computed by the
+    /// master from the prepare round. 0 = not known (a node then uses its own first frame, as before).</para>
     /// </summary>
-    public readonly record struct ReplaySeekPayload(long TargetWallTicks);
+    public readonly record struct ReplaySeekPayload(long TargetWallTicks, long AnchorWallTicks = 0);
 
     /// <summary>
     /// Result payload returned by a completed <see cref="NodeOpType.NodeReplaySeek"/> operation.

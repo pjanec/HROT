@@ -53,12 +53,14 @@ public sealed class ScenarioPhase2Tests : IDisposable
     // ── T02 ──────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void ScenarioSerializer_Serialize_TkbName_StoredInHeader()
+    public void ScenarioSerializer_Serialize_TerrainName_StoredInHeader_AndNoTkbName()
     {
+        // ⛔ R-4018 — was "TkbName stored in header"; a scenario never names a TKB.
         var serializer = BuildSerializer();
-        var dom = serializer.Serialize(_repo, new ScenarioHeader(DocType, TkbName: "Alpha_v2"));
+        var dom = serializer.Serialize(_repo, new ScenarioHeader(DocType, TerrainName: "basic-desert"));
 
-        Assert.Equal("Alpha_v2", dom["Header"]!["TkbName"]!.GetValue<string>());
+        Assert.Equal("basic-desert", dom["Header"]!["TerrainName"]!.GetValue<string>());
+        Assert.Null(dom["Header"]!["TkbName"]);
     }
 
     // ── T03 ──────────────────────────────────────────────────────────────────

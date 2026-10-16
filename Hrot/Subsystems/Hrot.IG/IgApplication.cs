@@ -1865,6 +1865,10 @@ public class IgApplication : IDisposable
     /// <summary>Current kernel sim time in seconds ? available in both headless and normal mode.</summary>
     internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 
+    /// <summary>⭐ P5a — IG's recording controller, for the record-and-archive rail.</summary>
+    internal Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController? TestHook_RecordReplayController
+        => _igBootstrapper?.RecordReplayController;
+
     /// <summary>
     /// Exposes the <see cref="Hrot.Common.Abstractions.INedReplicationModule"/> wired during
     /// <see cref="InitializeNetwork"/>.  Used by MODINIT-S302 SC6 tests to confirm

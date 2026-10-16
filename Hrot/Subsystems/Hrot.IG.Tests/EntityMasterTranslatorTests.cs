@@ -361,6 +361,30 @@ public class EntityMasterTranslatorTests
             "DestroyEntityCommand.Reason must carry a non-empty disposal message for diagnostics");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-4000</c> F2 / <c>R-4019</c> — the guard: a delete whose sender is known and is NOT the entity's known owner is
+    /// ignored (a node's late delete of an id the next run gave to another node must not destroy it); the owner's delete, and a
+    /// delete whose sender or owner is unknown, tear the entity down as before.
+    /// </summary>
+    [Theory]
+    [InlineData(2, 2, true)]     // the owner deletes it
+    [InlineData(7, 2, false)]    // ⭐ a stranger's delete is ignored
+    [InlineData(-1, 2, true)]    // sender unknown ⇒ accepted, as before
+    [InlineData(7, -1, true)]    // owner unknown ⇒ accepted, as before
+    public void CE4000_ADeleteFromANodeThatIsNotTheOwner_IsIgnored(int sender, int owner, bool tornDown)
+    {
+        var (repo, entityMap, eventBus, translator) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = owner, LocalNodeId = 1 });
+        entityMap.Register(TestNetworkId, entity);
+
+        translator.ProcessDispose(TestNetworkId, sender, repo);
+
+        eventBus.SwapBuffers();
+        Assert.Equal(tornDown ? 1 : 0, eventBus.ReadManaged<DestroyEntityCommand>().Count);
+    }
+
     // ── Test-mode safety ─────────────────────────────────────────────────────
 
     /// <summary>
@@ -484,6 +508,73 @@ public class EntityMasterTranslatorTests
         Assert.NotNull(senderIdentity);
         // AppInstanceId maps to OwnerId in the application domain.
         Assert.Equal(ownerId, senderIdentity!.Value.AppInstanceId);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4000 (F2) — the question the dispose guard rests on: does a "deleted" sample (no payload, key only) still name
+    /// the node that wrote it? Two writers on two participants: the owner writes, a stranger disposes the same id.
+    /// </summary>
+    [Fact]
+    public void CE4000_ADisposeSample_NamesTheNodeThatDisposedIt()
+    {
+        const uint domain = 178u;
+        using var receiverParticipant = new DdsParticipant(domain);
+        receiverParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 99 });
+        using var ownerParticipant = new DdsParticipant(domain);
+        ownerParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 42 });
+        using var strangerParticipant = new DdsParticipant(domain);
+        strangerParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 7 });
+
+        using var reader = new DdsReader<EntityMaster>(receiverParticipant);
+        reader.EnableSenderTracking(receiverParticipant.SenderRegistry!);
+        using var owner = new DdsWriter<EntityMaster>(ownerParticipant);
+        using var stranger = new DdsWriter<EntityMaster>(strangerParticipant);
+
+        int? aliveFrom = null, strangerKnown = null, disposedFrom = null; bool sawDispose = false;
+        // ⭐ Wait until BOTH writers' identities resolve (the library looks them up from an async loop — under a busy suite
+        //   this lags, measured: CE-517). The guard's claim is about a writer whose identity IS known.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while ((aliveFrom == null || strangerKnown == null) && DateTime.UtcNow < deadline)
+        {
+            owner.Write(new EntityMaster { EntityId = 501 });
+            stranger.Write(new EntityMaster { EntityId = 900 });
+            Thread.Sleep(100);
+            using var loan = reader.Take();
+            int i = 0;
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState == DdsInstanceState.Alive && sample.IsValid)
+                {
+                    if (sample.Data.EntityId == 501) aliveFrom ??= loan.GetSender(i)?.AppInstanceId;
+                    if (sample.Data.EntityId == 900) strangerKnown ??= loan.GetSender(i)?.AppInstanceId;
+                }
+                i++;
+            }
+        }
+        Assert.Equal(7, strangerKnown);
+
+        stranger.DisposeInstance(new EntityMaster { EntityId = 501 });
+        deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!sawDispose && DateTime.UtcNow < deadline)
+        {
+            Thread.Sleep(50);
+            using var loan = reader.Take();
+            int i = 0;
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                {
+                    var key = DdsTypeSupport.FromNative<EntityMaster>(sample.NativePtr);
+                    if (key.EntityId == 501) { sawDispose = true; disposedFrom = loan.GetSender(i)?.AppInstanceId; }
+                }
+                i++;
+            }
+        }
+
+        Console.WriteLine($"PROBE alive-from={aliveFrom} dispose-seen={sawDispose} dispose-from={(disposedFrom?.ToString() ?? "null")}");
+        Assert.Equal(42, aliveFrom);
+        Assert.True(sawDispose, "the stranger's dispose never arrived");
+        Assert.Equal(7, disposedFrom);
     }
 
     /// <summary>

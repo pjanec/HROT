@@ -255,22 +255,18 @@ namespace Hrot.SimHost
             }
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
-            // Create EcsRecordReplayController for Brain-tier and MuscleGround nodes.
-            // MuscleGround (SimHost) must also handle PrepareReplay/FinalizeReplay so that
-            // replay transitions can ACK back to ClusterMaster and not time out.
+            // The recording controller — every ECS host, every role (P5a / R-4011); it also answers
+            // PrepareReplay/FinalizeReplay so replay transitions ACK back to ClusterMaster.
             // ⭐⭐ §2.1m step 3 — A SEEK IS A WORLD REPLACEMENT TOO. Composed into the existing afterSeek
             //   chain, right beside the NetworkEntityMap.RebuildFromWorld that already lives there for
             //   exactly this reason (a non-recorded index that time travel invalidates).
             //   ⛔ Clear only — a seek stays inside the replay, so the re-derive is NOT armed.
             Action<bool>? elmWorldReplaced = elm == null ? null : elm.OnWorldReplaced;
-            Action? afterSeekWithLifecycle = elm == null
-                ? afterSeek
-                : () => { elm.OnWorldReplaced(resumingToLive: false); afterSeek?.Invoke(); };
 
-            EcsRecordReplayController? controller = null;
-            if (role.HasFlag(NodeRole.Brain) || role.HasFlag(NodeRole.MuscleGround))
-                controller = new EcsRecordReplayController(kernel, nodeId, world,
-                    afterSeek: afterSeekWithLifecycle);
+            // ⭐⭐ P5a / R-4011 — EVERY ECS host holds the recording controller, whatever its role (R-4000: a behaviour
+            //   that must differ is decided by role, never by a missing handler). ⛔ Was: Brain or MuscleGround only.
+            //   The ONE composition (EcsRecordReplayController.ForNode) also gates the ELM during replay (§2.1m step 1).
+            EcsRecordReplayController? controller = EcsRecordReplayController.ForNode(kernel, nodeId, world, afterSeek, elm);
             RecordReplayController = controller;
 
             // ⭐⭐ Step 1 of DESIGN.md §2.1m: gate the ELM during replay, so LifecycleSystem's
@@ -280,8 +276,7 @@ namespace Hrot.SimHost
             //    ⛔ Gated IN PLACE rather than relocated into NetworkLifecycleSystemGroup: that group's
             //    ExecuteGroup has exactly ONE caller (NedReplicationModule.Tick), so it never ticks on the
             //    editor or on BDC nodes. Authorised deviation from mgmt-1/DESIGN.md §8.10.
-            if (elm != null && controller != null)
-                elm.IsReplayActive = () => controller.IsReplayActive;
+            //    (wired inside EcsRecordReplayController.ForNode — P5a)
 
             // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
             // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).
@@ -337,7 +332,6 @@ namespace Hrot.SimHost
 
             // CE-279 Layer A — build the SerializeLocal-family handlers as locals and register them TOGETHER,
             // in canonical order, via SerializeLocalRegistrar (below) — the ONE way every host does it.
-            var archiveHandler = new ReferenceArchiveHandler(localTempRoot, nodeId);
             IClusterStateHandler? scenarioSaveHandler = null;
 
             // ⭐⭐⭐ L2/L4 — THE LOAD-PHASE CHAIN. One participant, every required part, one acknowledgement.
@@ -385,7 +379,7 @@ namespace Hrot.SimHost
                 //   owns nothing). Registered below via SerializeLocalRegistrar.
                 //   📄 DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Unified_Cluster_Handler_Registration.md.
                 scenarioSaveHandler = new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                    scenarioSerializer, tkbDb, world, nodeId);
+                    scenarioSerializer, world, nodeId);
 
                 // ⭐⭐ L4a — the ONE scenario step, offered to the chain. It is still conditional on the
                 //   authoring deps, but the conditional now means only "this host can satisfy the part":
@@ -423,7 +417,7 @@ namespace Hrot.SimHost
 
             // CE-279 Layer A — register the SerializeLocal pair uniformly (save before archive; payload-aware
             //   CanHandle makes order non-load-bearing, but every host's slave is now identical here).
-            SerializeLocalRegistrar.Register(clusterSlave, scenarioSaveHandler, archiveHandler);
+            SerializeLocalRegistrar.Register(clusterSlave, scenarioSaveHandler, localTempRoot, nodeId);
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only claims
             // FinalizeLive and cold PrepareLive (when no scenario serializer was registered).

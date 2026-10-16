@@ -173,4 +173,61 @@ public sealed class TheFrozenWorldStillHearsItsResumeTests
 
         Assert.Equal(1, asked);
     }
+
+    // ── R-4007 (Q91 §4-M) — the JOIN gate: state left in DDS, events DISCARDED, control plane polled ──────────
+
+    private sealed class EventSpy : INetworkTranslator, IDiscardableIngress
+    {
+        public int Polls { get; private set; }
+        public int Discards { get; private set; }
+        public string TopicName => "weapon-fire";
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+        public long ReceivedSampleCount => Polls;
+        public long SentSampleCount => 0;
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) => Polls++;
+        public void ScanAndPublish(ISimulationView view) { }
+        public int DiscardIngress() { Discards++; return 0; }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>R-4007</c> — a node frozen for a JOIN: world state is not polled (DDS keeps the latest per instance), world
+    /// EVENTS are drained and thrown away (no stale burst when the gate opens), the control plane keeps polling.
+    /// ⭐ And the debugger freeze HOLDS events instead — the two freezes differ only there.
+    /// </summary>
+    [Fact]
+    public void R4007_AJoinDiscardsEventsAndLeavesState_TheDebuggerHoldsBoth()
+    {
+        var state   = new SpyTranslator("replication", TranslatorClass.WorldState);
+        var control = new SpyTranslator("time-mode",   TranslatorClass.ControlPlane);
+        var events  = new EventSpy();
+        bool joining = true, debugger = false;
+        var system = new CycloneNetworkIngressSystem(new INetworkTranslator[] { state, events, control })
+        {
+            IsJoinFrozen       = () => joining,
+            IsWorldStateFrozen = () => debugger,
+        };
+
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal((0, 0, 1, 1), (state.Polls, events.Polls, events.Discards, control.Polls));
+
+        joining = false; debugger = true;
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal((0, 0, 1, 2), (state.Polls, events.Polls, events.Discards, control.Polls));   // ⭐ held, not discarded
+
+        debugger = false;
+        system.Execute(View(), 1f / 60f);
+        Assert.Equal((1, 1, 1, 3), (state.Polls, events.Polls, events.Discards, control.Polls));
+    }
+
+    /// <summary>⭐ <c>R-4007</c> — the gate is wired onto EVERY ingress system among the scheduled systems, and nothing else.</summary>
+    [Fact]
+    public void R4007_WireJoinGate_ReachesEveryIngressSystem()
+    {
+        var a = new CycloneNetworkIngressSystem(new INetworkTranslator[0]);
+        var b = new CycloneNetworkIngressSystem(new INetworkTranslator[0]);
+        int wired = CycloneNetworkIngressSystem.WireJoinGate(new object[] { a, "not a system", b }, () => true);
+        Assert.Equal(2, wired);
+        Assert.True(a.IsJoinFrozen!() && b.IsJoinFrozen!());
+    }
 }

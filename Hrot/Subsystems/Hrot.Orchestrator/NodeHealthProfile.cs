@@ -11,6 +11,8 @@ public sealed class NodeHealthProfile
     public string SubsystemName { get; set; } = string.Empty;
     public ClusterState LocalClusterState { get; set; }
     public double LastHeartbeatUtcSeconds { get; set; }
+    /// <summary>⭐ C2 (R-4006 I5) — the cluster session the node reports following; empty until it has seen one.</summary>
+    public Guid SessionId { get; set; }
 
     /// <summary>CE-286 (C-roles): the node's declared <see cref="NodeRole"/> mask ([Flags], possibly
     /// multi-role), <b>DERIVED</b> from the <c>fdp.role.*</c> subset of <see cref="Capabilities"/> via

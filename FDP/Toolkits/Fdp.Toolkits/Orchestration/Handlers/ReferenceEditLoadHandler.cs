@@ -5,7 +5,10 @@ namespace Fdp.Toolkit.Orchestration.Handlers
     /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit</c> for the
     /// handler to perform any I/O; other target states are no-ops.
     ///
-    /// <para>⭐⭐⭐ <c>L1</c> — <b><c>TkbName</c> and <c>TerrainName</c> are the SHARED CONTENT NAMES</b>,
+    /// <para>⛔⛔ <b><c>R-4018</c> — no TKB name here.</b> The TKB is not tied to a scenario: its name travels with the
+    /// file sync that delivers it (<c>StagedTkb</c>), never with this load command.</para>
+    ///
+    /// <para>⭐⭐⭐ <c>L1</c> — <b><c>TerrainName</c> is a SHARED CONTENT NAME</b>,
     /// extracted by the orchestrator from the MASTER scenario on the NAS and carried to every node on the
     /// message that opens the <c>Loading*</c> phase.
     /// 📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2, <c>L1</c>.</para>
@@ -32,12 +35,14 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         bool IsNewScenario = false,
         ClusterState TargetState = ClusterState.LoadingEdit,
         System.Guid ExerciseId = default,
-        string? TkbName = null,
         string? TerrainName = null,
         // ⭐ CE-2101 — true on the load step entered FROM Idle: the world boundary, where every node clears its world
         //   before the load builds the new one (docs/DESIGN_Deterministic_Network_Ids.md §11b, §11g.4). Set by the
         //   master, by the same rule that resets the id authority.
-        bool IsWorldBoundary = false);
+        bool IsWorldBoundary = false,
+        // ⭐⭐ C7 (Q91 §4-M, R-4015) — a LATE JOINER's catch-up load: only the universal parts (knowledge base, terrain) run,
+        //   whatever the node's roles; the scenario is never read and no entity is created — the world arrives by replication.
+        bool IsCatchUp = false);
 
     /// <summary>
     /// Reference implementation of the edit-load Cluster handler.

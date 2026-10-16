@@ -93,6 +93,8 @@ namespace Hrot.ExCon
                 //    demonstration that the capabilities are genuinely independent, not one "is it wired" bit.
                 requestTransition: Hrot.Presentation.DebugApi.SubsystemDebugProvider
                                        .TransitionsVia(() => _bus),
+                // ⭐ CE-4002 — the operator's cancel (R-4004) on the SAME bus; its egress carries CancelOperationIntent to the master.
+                requestCancel: Hrot.Presentation.DebugApi.SubsystemDebugProvider.CancelsVia(() => _bus),
                 // ⭐⭐ MD-002 — EXPLICITLY null, written out rather than omitted: ExCon has no ECS kernel
                 //    (it already builds ArchitectureDiagnosticsService(() => null) for its own window),
                 //    so `diagnostics.architecture` is FALSE here and that is the true cell. ⛔ An empty
@@ -349,33 +351,14 @@ namespace Hrot.ExCon
             FdpEventBus bus         = _bus!;
             FdpEventBus observerBus = _observerBus!;
 
-            // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
-            // save scenario fragments or exercise recordings.  If the orchestrator fans
-            // out PrepareLive / FinalizeLive / PrepareReplay / FinalizeReplay to ExCon,
-            // this node must ACK so the cluster 2PC is never stalled.
-            // Shared listener controller tracks IsReplayActive for branch gating.
-            var iosRrController = new Hrot.Common.Orchestration.ListenerRecordReplayController("ExCon");
-
-            // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay;
-            // PrepareLive only when replay active — Live-from-Replay branch gate).
-            _clusterSlave!.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
-                iosRrController,
-                inputGroup:            null,
-                simGroup:              null,
-                postSimGroup:          null,
-                lifecycleGroup:        null,
-                bypassLifecycleToggle: null,
-                storageDirectory:      OrchestrationConstants.ResolveStagingRoot()));
-
-            // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive.
-            // ExCon carries no ECS state and does not start a recording.
-            _clusterSlave.RegisterHandler(new Fdp.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
-                checkpointWorker: null,
-                controller:       iosRrController,
-                storageDirectory: OrchestrationConstants.ResolveStagingRoot()));
+            // ⭐⭐ C10 (Q91 §4-L L5, R-4011) — ExCon holds NO record/replay controller and registers no live/replay load
+            //   handler: it has no ECS world, so it records nothing and replays nothing. The rounds it does not handle
+            //   (PrepareLive / FinalizeLive / PrepareReplay / FinalizeReplay) are answered by ClusterSlave's no-handler
+            //   path — Success, not participating — so the cluster 2PC never stalls on it. ⛔ Was: a listen-only
+            //   ListenerRecordReplayController (deleted) feeding two handlers whose only job was that same ACK.
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
-            _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
+            _clusterSlave!.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
 
             // ⭐ CE-277(c3) — ExCon DOES contribute to a distributed scenario save, in its OWN
             //   intentionally-incompatible format (observer camera state; $meta.docType="ExCon.Observer").
@@ -397,7 +380,7 @@ namespace Hrot.ExCon
             Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
                 _clusterSlave,
                 new Hrot.ExCon.Observer.ExConScenarioSaveHandler(_observerState, iosNodeId),
-                new ReferenceArchiveHandler(OrchestrationConstants.ResolveStagingRoot(), iosNodeId));
+                recordingRoot: OrchestrationConstants.ResolveStagingRoot(), nodeId: iosNodeId);
 
             // Diagnostic dumps: ExCon contributes logs and ACKs CollectDiagnostics.
             var exConArchService = new ArchitectureDiagnosticsService(() => null);

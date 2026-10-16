@@ -125,6 +125,14 @@ public static class CapabilityManifest
         // ⭐⭐ MD-006 — BEFORE the "/diagnostics" arm below? No: this path starts "/cluster", so the two
         //    cannot collide. ⚠ It is a DIFFERENT capability from the per-node architecture read — a node
         //    can trigger a cluster dump without having a kernel of its own, and vice versa.
+        // ⭐⭐ CE-4002 — the membership routes. ⚠ A transition is the SAME capability as a scenario load (a bus that
+        //    reaches the master); the roster needs the master itself; a cancel needs only the bus.
+        if (path.StartsWith("/cluster/roster", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ClusterRoster;
+        if (path.StartsWith("/cluster/cancel", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ClusterCancel;
+        if (path.StartsWith("/cluster/transition", StringComparison.Ordinal))
+            return Hrot.Presentation.DebugApi.DebugCapabilities.ScenarioLoad;
         if (path.StartsWith("/cluster/diagnostics", StringComparison.Ordinal))
             return Hrot.Presentation.DebugApi.DebugCapabilities.ClusterDiagnosticsDump;
         if (path.StartsWith("/diagnostics", StringComparison.Ordinal))

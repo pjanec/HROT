@@ -408,9 +408,9 @@ public sealed class TimeControlIntegrationTests : IDisposable
     // ── Scenario G: CGF is a lockstep participant, not just a roster entry ────
 
     /// <summary>
-    /// AS-14 regression rail (Batch 104). The orchestrator puts every kernel-owning node in the
-    /// lockstep roster — <c>SubsystemName is "SimHost" or "IG" or "CGF"</c> — so the master blocks
-    /// each step on a FrameAck from CGF as much as from SimHost.
+    /// AS-14 regression rail (Batch 104). The orchestrator puts every node holding a SIMULATION ROLE in the
+    /// lockstep roster — ⭐ P3: <c>ClusterMaster.StepRoster</c>, by role, no longer by subsystem name — so the master
+    /// blocks each step on a FrameAck from CGF (Brain) as much as from SimHost. An observer (a Player) is not in it.
     ///
     /// <para>CGF's live composition path (<c>CgfSubsystem</c> → <c>HrotNodeBuilder</c>) used to wire
     /// no time translators at all: the node held a <c>SlaveSyncController</c> that never heard

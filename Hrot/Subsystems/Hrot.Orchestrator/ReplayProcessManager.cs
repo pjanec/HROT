@@ -68,8 +68,14 @@ public sealed class ReplayProcessManager
             if (ev.StatusCode != OrchestrationStatusCode.Success) continue;
             if (ev.ResultPayload is ReplayPrepareResult rpr && rpr.DurationSeconds > 0f)
             {
-                _replayEndSimTime = _timeController.GetCurrentState().TotalTime + rpr.DurationSeconds;
+                // ⭐ C9 (Q91 §4-P P7) — the playhead is seconds after the replay's zero (entering a replay seeks every node
+                //   there), so the end IS the duration. ⛔ Was "now + duration": the clock entered at the live clock's time.
+                _replayEndSimTime = rpr.DurationSeconds;
                 _triggered        = false;
+            }
+            else if (ev.ResultPayload is ReplaySeekResult)
+            {
+                _triggered = false;   // ⭐ C9 — a seek back from the end plays to the end again
             }
         }
 

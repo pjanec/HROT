@@ -357,6 +357,66 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"nodes\":[1]}",
             ExampleGist: "collect diagnostics from node 1 to the NAS"),
 
+        // ⭐ CE-4002 — the membership routes (docs/DESIGN_Cluster_Membership_Use_Cases.md §3.1).
+        [("GET", "/cluster/roster")] = new RouteDoc(
+            Tool:    "get_cluster_roster",
+            Group:   "A — Lifecycle & status",
+            Summary: "Every node the cluster master holds, as the MASTER sees it: id, subsystem, its own reported state, roles, heartbeat age.",
+            Returns: "{ count, nodes[{ nodeId, subsystem, reportedState, roles, secondsSinceHeartbeat }], note }",
+            Hint:    "No args. Example: get_cluster_roster({})",
+            Params: System.Array.Empty<RouteParam>(),
+            Notes: new[]
+            {
+                "reportedState is each node's OWN claim from its heartbeat, not the cluster's state — read get_status for that.",
+                "A node leaves the list after the heartbeat timeout (default 5 s) of silence.",
+                "Only the node hosting the ClusterMaster can answer (the orchestrator process, or the editor's in-process core); elsewhere it answers 503 — check the 'cluster.roster' cell in get_capabilities.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "list the nodes in the cluster"),
+
+        [("POST", "/cluster/transition")] = new RouteDoc(
+            Tool:    "request_cluster_transition",
+            Group:   "A — Lifecycle & status",
+            Summary: "Ask the cluster master to move the whole cluster to a target state — the same TransitionStateIntent the operator panel publishes.",
+            Returns: "{ published:true, transactionId, target, note }",
+            Hint:    "Req: target (a ClusterState name). Example: request_cluster_transition({target:\"OperatingReplay\", exerciseId:\"…\"})",
+            Params: new RouteParam[]
+            {
+                new("target", "string", true, "The ClusterState to move to (e.g. Idle, OperatingReplay); the refusal lists the legal names"),
+                new("scenario", "string", false, "Scenario id for a load"),
+                new("exerciseId", "string", false, "Exercise GUID for a replay"),
+                new("timeMode", "string", false, "Time mode for the load"),
+                new("targetWallTicks", "number", false, "Wall-clock ticks the transition should take effect at"),
+            },
+            Notes: new[]
+            {
+                "ASYNCHRONOUS: the answer confirms the intent was PUBLISHED, not that the cluster reached the state — poll get_status or get_cluster_roster.",
+                "Pass the returned transactionId to cancel_cluster_operation to cancel it; a cancel returns the cluster to Idle (R-4004).",
+                "Any node with an orchestration bus can publish it; a host without one answers 503.",
+            },
+            ExampleArgsJson: "{\"target\":\"Idle\"}",
+            ExampleGist: "return the cluster to Idle",
+            ManualVerify: true),
+
+        [("POST", "/cluster/cancel")] = new RouteDoc(
+            Tool:    "cancel_cluster_operation",
+            Group:   "A — Lifecycle & status",
+            Summary: "The operator's cancel (R-4004): cancel a cluster request in flight by its transactionId; the cluster returns to Idle.",
+            Returns: "{ published:true, targetId }",
+            Hint:    "Req: targetId (the transactionId from request_cluster_transition). Example: cancel_cluster_operation({targetId:\"…\"})",
+            Params: new RouteParam[]
+            {
+                new("targetId", "string", true, "The transactionId of the request to cancel (a GUID)"),
+            },
+            Notes: new[]
+            {
+                "ASYNCHRONOUS: confirms the cancel was published; read get_status for the cluster returning to Idle.",
+                "Any node with an orchestration bus can publish it; a host without one answers 503.",
+            },
+            ExampleArgsJson: "{\"targetId\":\"00000000-0000-0000-0000-000000000000\"}",
+            ExampleGist: "cancel a cluster load in flight",
+            ManualVerify: true),
+
         [("GET", "/cluster/diagnostics/status")] = new RouteDoc(
             Tool:    "get_cluster_diagnostic_status",
             Group:   "Y — node diagnostics",

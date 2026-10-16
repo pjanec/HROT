@@ -20,7 +20,7 @@ namespace Hrot.Network.NED.IG
     /// <see cref="Hrot.IG.Systems.EventToEffectSystem"/> skips tracers for null entities.
     /// </para>
     /// </summary>
-    public sealed class WeaponFireIngressTranslator : IDescriptorTranslator
+    public sealed class WeaponFireIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
         private const string DdsTopicName = "WeaponFire";
 
@@ -51,6 +51,22 @@ namespace Hrot.Network.NED.IG
         /// Polls the DDS reader for incoming <see cref="WeaponFire"/> samples and
         /// publishes each as a <see cref="WeaponFireNotification"/> on the local event bus.
         /// </summary>
+        /// <summary>⭐ R-4007 (Q91 §4-M) — a one-shot world event: discarded while the node is frozen for a join.</summary>
+        public TranslatorClass Category => TranslatorClass.WorldEvent;
+
+        /// <inheritdoc/>
+        public int DiscardIngress()
+        {
+            if (_reader is null) return 0;
+            int discarded = 0;
+            while (true)
+            {
+                using var loan = _reader.Take();
+                if (loan.Count == 0) return discarded;
+                discarded += loan.Count;
+            }
+        }
+
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
             if (_reader is null) return;

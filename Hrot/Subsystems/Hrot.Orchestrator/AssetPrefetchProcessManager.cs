@@ -43,9 +43,22 @@ public sealed class AssetPrefetchProcessManager
 
     private readonly FdpEventBus _bus;
     private readonly StorageGatewayModule _gateway;
+
+    /// <summary>⭐ <c>R-4018</c> — the deployment's one TKB, synced on every prefetch (<c>ClusterConfiguration.TkbName</c>).</summary>
+    private readonly string _tkbName;
+
+    /// <summary>⭐ The TKB name this saga syncs — exposed so a rail can assert the production composition passes it.</summary>
+    public string TkbName => _tkbName;
     private readonly string _nasBasePath;
     private readonly string _localStagingRoot;
     private readonly Dictionary<Guid, PrefetchAckTracker> _pendingPrefetchAcks = new();
+
+    /// <summary>⭐ P8 H5 — the staging copy of each prefetch in flight, by request id, so a cancel can stop it.
+    /// ⚠ Written on the frame thread, removed by the copy's continuation on a worker.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, System.Threading.CancellationTokenSource> _copies = new();
+
+    /// <summary>The prefetch copies in flight — for rails.</summary>
+    internal int CopiesInFlight => _copies.Count;
 
     /// <param name="bus">Shared event bus.</param>
     /// <param name="gateway">Storage gateway for prefetch operations.</param>
@@ -58,8 +71,10 @@ public sealed class AssetPrefetchProcessManager
         FdpEventBus bus,
         StorageGatewayModule gateway,
         string nasBasePath,
-        string? localStagingRoot = null)
+        string? localStagingRoot = null,
+        string tkbName = ClusterConfiguration.DefaultTkbName)
     {
+        _tkbName          = tkbName;
         _bus              = bus              ?? throw new ArgumentNullException(nameof(bus));
         _gateway          = gateway          ?? throw new ArgumentNullException(nameof(gateway));
         _nasBasePath      = nasBasePath      ?? throw new ArgumentNullException(nameof(nasBasePath));
@@ -73,6 +88,18 @@ public sealed class AssetPrefetchProcessManager
     /// </summary>
     public void Tick()
     {
+        SyncTkbToJoinedNodes();
+
+        // ⭐⭐ P8 H5 — the operator cancelled the parked load: STOP its copy (the transfer cancels and removes its partial
+        //   files). Its continuation then publishes nothing — the master already answered the request Cancelled.
+        foreach (var cancel in _bus.ReadManaged<PrefetchCancelRequestedEvent>())
+            if (_copies.TryGetValue(cancel.RequestId, out var copy))
+            {
+                FdpLog<AssetPrefetchProcessManager>.Info(
+                    "[AssetPrefetchProcessManager] P8: the staging copy of request {0} is cancelled.", cancel.RequestId);
+                copy.Cancel();
+            }
+
         foreach (var intent in _bus.ReadManaged<ExecutePrefetchIntent>())
         {
             if (string.IsNullOrWhiteSpace(_nasBasePath))
@@ -105,9 +132,21 @@ public sealed class AssetPrefetchProcessManager
                 intent.ScenarioId, intent.RequestId);
 
             var capturedIntent = intent;
-            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath)
+            var copy = new System.Threading.CancellationTokenSource();
+            _copies[intent.RequestId] = copy;
+            _ = _gateway.PrefetchScenarioAsync(intent.ScenarioId, targets, _nasBasePath, _tkbName, copy.Token)
                 .ContinueWith(task =>
                 {
+                    _copies.TryRemove(capturedIntent.RequestId, out _);
+                    copy.Dispose();
+                    if (task.IsCanceled)
+                    {
+                        FdpLog<AssetPrefetchProcessManager>.Info(
+                            "[AssetPrefetchProcessManager] PrefetchScenario for '{0}' stopped — the load was cancelled.",
+                            capturedIntent.ScenarioId);
+                        return;   // ⭐ P8 H5 — the master already answered Cancelled; nothing more to say
+                    }
+
                     bool isSuccess = !task.IsFaulted && !task.IsCanceled
                                      && task.Result.FailureCount == 0;
                     if (!isSuccess)
@@ -186,6 +225,9 @@ public sealed class AssetPrefetchProcessManager
         {
             if (ack.Operation != Fdp.Toolkit.Orchestration.NodeOpType.PrefetchFiles)
                 continue;
+            // ⭐ P4 — a node still preparing reports progress; only its final answer settles its files.
+            if (ack.StatusCode is OrchestrationStatusCode.InProgress or OrchestrationStatusCode.Pending)
+                continue;
 
             if (!_pendingPrefetchAcks.TryGetValue(ack.TransactionId, out var tracker))
                 continue;
@@ -260,6 +302,41 @@ public sealed class AssetPrefetchProcessManager
             if (mode != null) list.Add(new AssetSyncTarget(kind, root, mode.Value));
         }
         return list;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-4018</c> / <c>CE-4003</c> step 2 — the JOIN SYNC: a node that entered the roster gets the deployment's TKB
+    /// copied into its staging, on a worker, through the same <see cref="StorageGatewayModule.SyncTkb"/> every scenario
+    /// load uses. ⭐ No command to the node and no ACK — its first world build loads the file (the knowledge-base step).
+    /// ⚠ A failure is logged, never fatal: the copy before the next scenario load runs again and fails that load loudly.
+    /// 📄 <c>docs/designs/tkb-1/DESIGN.md</c> §0a.
+    /// </summary>
+    private void SyncTkbToJoinedNodes()
+    {
+        foreach (var joined in _bus.ReadManaged<NodeJoinedRosterEvent>())
+        {
+            if (string.IsNullOrWhiteSpace(_nasBasePath) || string.IsNullOrWhiteSpace(_tkbName)) continue;
+
+            var target = new NodeDistributionTarget
+            {
+                NodeId             = joined.NodeId,
+                TkbDestinationPath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetNodeTkbStagingRoot(
+                    _localStagingRoot, joined.NodeId),
+            };
+            int nodeId = joined.NodeId;
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                int ok = 0, failed = 0;
+                StorageGatewayModule.SyncTkb(_tkbName, new[] { target }, _nasBasePath, ref ok, ref failed, _gateway.Provider);   // ⭐ P6 — the node's transport
+                if (failed > 0)
+                    FdpLog<AssetPrefetchProcessManager>.Error(
+                        "[AssetPrefetchProcessManager] Join sync of TKB '{0}' to node {1} failed — the next scenario load retries it.",
+                        _tkbName, nodeId);
+                else
+                    FdpLog<AssetPrefetchProcessManager>.Info(
+                        "[AssetPrefetchProcessManager] Join sync: TKB '{0}' checked on node {1}.", _tkbName, nodeId);
+            });
+        }
     }
 
     private List<NodeDistributionTarget> BuildNodeDistributionTargets(

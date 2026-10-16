@@ -59,7 +59,12 @@ namespace Hrot.Network.Translators
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view)
         {
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _lastSignature.Clear(); _lastSent.Clear(); }   // CE-2101 — the next world resends
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch))   // CE-2101 — the next world resends
+            {
+                // ⭐⭐ CE-4007 (Q91 §4-M) — a wiped world: DELETE every instance this node wrote, so a late joiner never receives a dead run (the topic is TransientLocal). Keyed by what THIS writer published — not by entity ownership: a descriptor owner may not be the entity's primary owner.
+                foreach (var id in _lastSent.Keys) _writer.DisposeInstance(new EntityBrainIntent { EntityId = id, IntentJson = string.Empty });
+                _lastSignature.Clear(); _lastSent.Clear();
+            }
             if (view is not EntityRepository repo) return;
             long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             var query = view.Query().With<NetworkIdentity>().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();

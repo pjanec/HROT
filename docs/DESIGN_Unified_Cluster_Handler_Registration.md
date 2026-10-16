@@ -8,6 +8,9 @@ superseded-by: —
 known-rot: —
 known-conflict: —
 related-designs:
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.3 (R-4000, 2026-10-15) owns the RULE this registration serves: every
+    node registers the same handlers, and a behaviour that must differ is decided by the node's ROLE, never by a host
+    omitting a handler. This doc owns the registration mechanism (which handlers, what order).
   - docs/designs/modularizing/MOD1-DESIGN.md — §3.3.3 defines NodeRole + role-driven NodeBootstrapper for
     REGISTRIES/MODULES/TRANSLATORS; THIS doc extends that same role model to the missing piece: cluster-STATE
     handler registration (which MOD1 left per-host).

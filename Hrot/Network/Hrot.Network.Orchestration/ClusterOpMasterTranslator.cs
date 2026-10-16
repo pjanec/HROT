@@ -88,8 +88,10 @@ public sealed class ClusterOpMasterTranslator
             {
                 _clusterStateWriter.Write(new ClusterStateTopic
                 {
-                    CurrentState = (NedClusterState)(int)ev.NewStateId,
-                    ExerciseId   = ev.ExerciseId,
+                    CurrentState     = (NedClusterState)(int)ev.NewStateId,
+                    ExerciseId       = ev.ExerciseId,
+                    SessionId        = ev.SessionId,          // ⭐ C2
+                    TransactionEpoch = ev.TransactionEpoch,   // ⭐ C4 — telemetry
                 });
             }
         }

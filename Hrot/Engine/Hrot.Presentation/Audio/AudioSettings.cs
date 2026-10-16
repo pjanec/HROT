@@ -43,7 +43,7 @@ namespace Hrot.UI.Common.Audio
             var s = new AudioSettings();
             try
             {
-                if (path != null && File.Exists(path) && JsonSerializer.Deserialize<AudioSettings>(File.ReadAllText(path)) is { } read) s = read;
+                if (path != null && File.Exists(path) && JsonSerializer.Deserialize<AudioSettings>(File.ReadAllText(path), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed) is { } read) s = read;
             }
             catch (Exception) { s = new AudioSettings(); }
             return s.Normalised();
@@ -55,7 +55,7 @@ namespace Hrot.UI.Common.Audio
             if (path == null) return false;
             try
             {
-                File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+                File.WriteAllText(path, JsonSerializer.Serialize(this, Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented));
                 return true;
             }
             catch (Exception) { return false; }

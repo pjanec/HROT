@@ -45,27 +45,29 @@ public enum LoadPart
 /// ⭐⭐ Everything a load step needs to know about the round it is running in — read off the ONE message
 /// the orchestrator fans out, never off a file.
 ///
-/// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2. ⚠ <see cref="TkbName"/> and
-/// <see cref="TerrainName"/> may be <see langword="null"/> when the sender omitted them (an older peer) or
-/// when the scenario genuinely names none — a step distinguishes the two by falling back to its staged
-/// header, and treats "no name anywhere" as legal and silent.</para>
+/// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.2. ⚠ <see cref="TerrainName"/> may be <see langword="null"/>
+/// when the sender omitted it (an older peer) or when the scenario genuinely names none — the step distinguishes the
+/// two by falling back to its staged header, and treats "no name anywhere" as legal and silent.</para>
+///
+/// <para>⛔ <c>R-4018</c> — no TKB name: the knowledge-base step reads the name its file sync left
+/// (<c>StagedTkb</c>).</para>
 /// </summary>
 public readonly record struct LoadPhaseContext(
     Guid TransactionId,
     ClusterState TargetState,
     string? ScenarioId,
-    string? TkbName,
     string? TerrainName,
     Guid ExerciseId,
     bool IsNewScenario,
-    bool IsWorldBoundary = false)
+    bool IsWorldBoundary = false,
+    bool IsCatchUp = false)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
     public static LoadPhaseContext? From(ExecuteNodeOpIntent intent)
         => intent.DomainPayload is EditLoadHandlerPayload p
             ? new LoadPhaseContext(
                 intent.TransactionId, p.TargetState, p.ScenarioId,
-                p.TkbName, p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary)
+                p.TerrainName, p.ExerciseId, p.IsNewScenario, p.IsWorldBoundary, p.IsCatchUp)
             : null;
 
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>
@@ -97,10 +99,20 @@ public interface ILoadPartProvider
     LoadPart Part { get; }
 
     /// <summary>
-    /// ⭐ The I/O half — runs OFF the main thread. ⛔ <b>Must not touch ECS</b>: the cluster may still
-    /// abort the round, and a mutation here would not roll back.
+    /// ⭐ The I/O half. ⛔ <b>Must not touch ECS</b>: the cluster may still abort the round, and a mutation here would
+    /// not roll back. ⚠ Runs on a WORKER only when <see cref="PreparesOffFrameThread"/> is true; otherwise inline on
+    /// the frame thread.
     /// </summary>
     Task PrepareAsync(LoadPhaseContext context, CancellationToken ct);
+
+    /// <summary>
+    /// ⭐⭐ P4 (Q91 §4-B2, R-4001) — <c>true</c> when <see cref="PrepareAsync"/> builds ONLY a private object nobody else
+    /// can see yet (and writes every shared thing in <see cref="Commit"/>), so it may run on a worker while the frame
+    /// thread keeps ticking — and the heartbeat keeps beating. ⛔ Default <c>false</c>: a step that touches anything
+    /// shared (an id allocator, a live database) prepares inline on the frame thread. 🔒 User: <i>"load preparation can
+    /// be run in background thread only if it is safe not touching global data."</i>
+    /// </summary>
+    bool PreparesOffFrameThread => false;
 
     /// <summary>
     /// ⭐ The ECS half — main thread, and the only place ECS is written.
