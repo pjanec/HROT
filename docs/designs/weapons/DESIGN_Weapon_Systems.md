@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16 (§6 CE-2182 row superseded by CE-3214: a weapon not embarked is hit by its parts; §5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — BUILT; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
-build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — ⭐ the rest of WS-6 designed in §10 (BUILDING `2026-10-16`); 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
+build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — ⭐ the rest of WS-6 BUILT `2026-10-16` (§10; `ua-weapon-systems` LIVE PASS 5/5); 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: ⭐ §10 WS-6 the weapon behaviours (orders, set up / pack up / carry) · §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
@@ -424,7 +424,7 @@ at the REQUEST TIER — the same place a template's child blueprints are spawned
 | ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
 | ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |
 
-## 10. WS-6 — the weapon behaviours (behaviors, `2026-10-16`; build-state: READY-TO-BUILD → BUILDING)
+## 10. WS-6 — the weapon behaviours (behaviors, `2026-10-16`; build-state: BUILT — as-built at the end of this section)
 
 ⭐ **Measured before drawing** — INVENTORY: `search_graph(name_pattern=".*WeaponSystem.*", label=Class)` → **11** (the DTO, params/state, translators, `WeaponSystems`, the replication rails — no behaviour); `.*WeaponDeploy.*` → **3** (`WeaponDeploySystem`, `WeaponDeployment`, its rail); `.*(SetUp|PackUp|Carry)Weapon.*\|.*WeaponSystem(Attack\|Hold).*` (Method) → **0** (codebase-memory CLI; `check_index_coverage` is not available through the CLI, so the zero is corroborated by `grep`, not by a coverage check). Then reads:
 a weapon system is class **`WeaponSystem` (DIS 1.1.\*.50)** under the land platform (`EntityClassTable.cs:140`), so by R-278 an
@@ -503,3 +503,23 @@ the deploy is advanced by `WeaponDeploySystem`, which already ticks, so `DeployW
 Rails, in the features' own suites: `TacticalIntentResolutionSystemTests` (a weapon system's Attack / Hold resolve to these, a tank's do
 not — mirrors `V4_ATanksAttackOrder…`), `CuratedBehaviorRegistrarTests` (the names register), `WeaponSystemNodesTests` ★ (DeployWeapon
 deploys and waits, packs and waits, fails on a weapon it does not own), and the demo `ua-weapon-systems`.
+
+⭐ **As built `2026-10-16` (CE-2220)** — `Hrot.AI.Behaviors/Brains/WeaponSystemBehaviors.cs` (`WeaponSystemNodes.DeployWeapon`,
+`WeaponSystemOrders`, `WeaponSystemBehaviors`), the names in `BehaviorNames`, three DTOs beside `ManWeaponParamsJsonDto`. The diagrams
+above hold; the deviations:
+
+| design said | built | why |
+|---|---|---|
+| `SetUpWeapon` = PutDown · Embark(Gunner) · DeployWeapon | as drawn — ⭐ and `EmbarkNodes.Embark` now WALKS AGAIN when a walk ends out of reach, at most `MaxWalks` = 3 (as `CarryNodes.PickUp`, CE-2152 R-e) | its first walk ever had been exercised live only from inside boarding range (`ua-indirect-fire`'s gunners start 2 m from their tubes) |
+| — | ⚠ a scenario writes the deploy state BY NAME (`"WeaponSystemState": {"Deploy": "Stowed"}`) | a number faults the whole load SILENTLY (an empty world; `PrepareLive` threw *"could not be converted to WeaponDeploy"*) |
+
+Rails: `WeaponSystemNodesTests` (4 — deploys and waits, packs and waits, not owned / gone, turned back), `TacticalIntentResolutionSystemTests.WS6_…`
+(the lookup — red-proved by renaming the behaviour; ⚠ dropping only `[Behavior]` stays green, the name registers from `[BTreeDefinition]`),
+`EmbarkNodesTests.WS6_Embark_AWalkThatEndsOutOfReach_WalksAgain_ThenGivesUp`, the registrar names.
+
+⭐ **Live `2026-10-16` — `ua-weapon-systems` PASS 5 / 5** (basic-desert): the sentry gun on `WeaponSystemHold` fires on its own (185 rounds;
+the intruder 100 → 1.8) · the gunner on `SetUpWeapon` mans the stowed M2 in 2 s and it is Deployed after 19 s (DeploySeconds 20) · the
+Javelin man on `CarryWeapon` carries the Javelin in 3 s. 📐 The runs that taught it: ① the numeric deploy state above · ② ③ the M2 placed at
+y 0 put its boarding point at y −4, OFF the 0…600 map, and every walk answered `FailedUnreachable` — a placement mistake, found by decoding the
+walk's destination.
+
