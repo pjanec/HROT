@@ -339,8 +339,26 @@ namespace Hrot.AI.Behaviors.Brains
             var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
             if (!scorer.TopCandidate(world, self, ThreatRankingId, 0, out Entity top, out float score)) return false;
 
-            threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
+            // ⭐ CE-2202 — never a BODY: the kept current and the ranking's top must still be in the fight (CombatLife, CE-466's rule — a
+            //   knocked-out man stays in the world and in memory). 📌 Live ua-ifv-standoff: the IFV killed one RPG man, kept him as its
+            //   threat (nothing else scored above zero), stood guarding the corpse, and two live men walked up to it unengaged.
+            bool keep = score <= 0f && !current.IsNull && Fdp.Toolkit.Combat.CombatLife.IsAlive(world, current) && Remembers(world, self, current);
+            threat = keep ? current : top;
+            if (!threat.IsNull && !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, threat)) threat = FirstLiveRemembered(world, self);
             return !threat.IsNull;
+        }
+
+        /// <summary>⭐ CE-2202 — the first identified, live entity in memory (slots are score-ordered), or none.</summary>
+        private static unsafe Entity FirstLiveRemembered(EntityRepository world, Entity self)
+        {
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+            {
+                if (TargetMemory.IsAnonymous(in mem, i)) continue;
+                var e = new Entity((ulong)mem.EntityIds[i]);
+                if (Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e)) return e;
+            }
+            return Entity.Null;
         }
 
         /// <summary>

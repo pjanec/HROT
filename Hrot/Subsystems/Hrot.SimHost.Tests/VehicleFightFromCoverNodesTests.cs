@@ -528,6 +528,37 @@ namespace Hrot.SimHost.Tests
             Assert.True(d.Sensor(VehicleFightFromCoverNodes.HideSite).IsNull);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2202</c> — A BODY IS NOT A THREAT. The one remembered enemy is knocked out (Health 0 — the body stays in the world and in
+        /// memory, CE-267 / CE-466) while still in sight: the cycle ends (Success) instead of guarding the corpse. With a second, live enemy
+        /// remembered (unseen, so nothing scores above zero), that one is the threat. 📌 Live <c>ua-ifv-standoff</c>: the IFV stood over
+        /// a dead RPG man while two live ones walked up to it. ✅ Red-proof: keeping the dead current ⇒ Running / the corpse.
+        /// </summary>
+        [Fact]
+        public void CE2202_ADeadThreat_IsNotFought_ALiveOneRemembered_Is()
+        {
+            var d = new Duel(Tank());
+            d.Repo.AddComponent(d.Enemy, new Health { Current = 100f, Max = 100f });
+            Assert.Equal(NodeStatus.Running, d.Step());
+            Assert.Equal(d.Enemy, d.Ws.Threat);
+            d.Repo.GetComponentRW<Health>(d.Enemy).Current = 0f;
+            Assert.Equal(NodeStatus.Success, d.Step());
+
+            var e = new Duel(Tank());
+            e.Repo.AddComponent(e.Enemy, new Health { Current = 100f, Max = 100f });
+            var live = e.Repo.CreateEntity();
+            e.Repo.AddComponent(live, new SimTransform { Position = new Vector3(60f, 40f, 0f), Rotation = Quaternion.Identity });
+            e.Repo.AddComponent(live, new Health { Current = 100f, Max = 100f });
+            ref var mem = ref e.Repo.GetComponentRW<TargetMemory>(e.Self);
+            mem.EntityIds[1] = (long)live.PackedValue; mem.Modalities[1] = (byte)SensorModality.Visual;
+            mem.Freshness[1] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
+            mem.PositionsX[1] = 60f; mem.PositionsY[1] = 40f; mem.Count = 2;
+            Assert.Equal(NodeStatus.Running, e.Step());
+            e.Repo.GetComponentRW<Health>(e.Enemy).Current = 0f;
+            Assert.Equal(NodeStatus.Running, e.Step());
+            Assert.Equal(live, e.Ws.Threat);
+        }
+
         /// <summary>The hull's capability bits (what <c>CombatLife.ApplyHitCapabilities</c> leaves after a mobility / firepower kill).</summary>
         private static void Caps(Duel d, ActorCapabilities caps)
         {
