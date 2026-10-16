@@ -1707,8 +1707,8 @@ def run_javelin_lock(c, timeout):
 
 
 # ── ua-technical-scoot (Urban Armour V7; Exposure Cycle §6 M9 technicals, D-J Auto ⇒ Scoot) — shoot and scoot ───────────────────────
-#   test-town: an M1 on BasicVehicleSop at the street crossing (200, 200) — ⚠ started in its hide south of the 4-storey block, no
-#   firing point of theirs saw it and nobody fired; an ATGM technical (105, a Kornet) behind the 20 m block at (140, 285) and an HMG
+#   test-town: an M1 on BasicVehicleSop in the south street (200, 120) — ⚠ started in its hide south of the 4-storey block, no
+#   firing point of theirs saw it and nobody fired; at the crossing (200, 200) the ATGM technical was ~104 m off and never fired; an ATGM technical (105, a Kornet) behind the 20 m block at (140, 285) and an HMG
 #   technical (104, an M2) east of the 40 m tower at (340, 262), each hidden from the tank, each on an attack order at the tank (LandPlatformAttack — a technical's 5 mm hull
 #   resolves Auto withdraw to SCOOT: a new hide every time). ① each technical fires from two points (≥ 5 m apart) · ② the tank's first
 #   round goes at the ATGM technical (the danger to its armour, V1).
