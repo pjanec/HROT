@@ -507,6 +507,76 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(AimAndFireExecutor.RoePermitsFire(_world, shooter));
         }
 
+        // ── CE-2218 — a shooter never fires into the wall in front of his own muzzle ──────────────────────────────────────────
+
+        /// <summary><c>bt-range</c> (the live case's terrain) on this world, and an RPG man's type whose launcher sits where the live
+        /// muzzle was: (−0.64, −0.73, +0.86) from the man, facing north (identity).</summary>
+        private Entity RpgManOnBtRange(Vector3 at)
+        {
+            var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems"))) dir = dir.Parent;
+            Assert.NotNull(dir);
+            var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            _world.SetSingletonManaged(terrain);
+
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("RPG man", 9218);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+                { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { TurretIndex = -1, MuzzleOffsetX = -0.64f, MuzzleOffsetY = -0.73f, MuzzleOffsetZ = 0.86f, MuzzleVelocity = 115f } } });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = _world.CreateEntity();
+            _world.AddComponent(man, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(man, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9218 });
+            return man;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2218</c> — live <c>ua-rpg-window</c>: the RPG man at House A's upper window (107.1, 100.9, 3) aimed steeply down at an IFV
+        /// ~10 m off; the rocket left the muzzle (106.46, 100.17, 3.86) for (100.03, 92.85, 1.49), stopped 5 cm out and killed him. That
+        /// line is masked; the same weapon aimed across open ground is not. 🔴 Red-proof: <c>MuzzleMasked</c> → false ⇒ the first assert fails.
+        /// </summary>
+        [Fact]
+        public void CE2218_TheRpgIntoHisOwnWindowFrame_IsMasked_AnOpenShotIsNot()
+        {
+            var man = RpgManOnBtRange(new Vector3(107.1f, 100.9f, 3f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.MuzzleMasked(_world, man, 0, 0L, new Vector3(100.03f, 92.85f, 1.49f)),
+                "the launcher's line runs into the wall it leans out of");
+
+            _world.SetComponent(man, new SimTransform { Position = new Vector3(149f, 10f, 0f), Rotation = Quaternion.Identity });
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.MuzzleMasked(_world, man, 0, 0L, new Vector3(149f, 27f, 1f)),
+                "nothing stands in front of the muzzle in the open");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2218</c> — the executor HOLDS that shot: no <see cref="WeaponFireIntent"/>, nothing spent, the action keeps running and
+        /// says <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked"/> (so a behaviour may move to a better spot).
+        /// 🔴 Red-proof: drop the executor's <c>MuzzleMasked</c> hold ⇒ the rocket is released.
+        /// </summary>
+        [Fact]
+        public void CE2218_TheExecutorHoldsTheMaskedShot_Masked_NothingSpent()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var target = SpawnTarget(new Vector3(100.03f, 92.85f, 0.5f));
+            var (shooter, channel) = SpawnShooter(new Vector3(107.1f, 100.9f, 3f), 5, 0f, target, 0.05f);
+            var man = RpgManOnBtRange(new Vector3(0f, 0f, 0f));
+            _world.DestroyEntity(man);
+            _world.AddComponent(shooter, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 9218 });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+
+            EnterAimed(shooter, ref channel);
+            Tick(shooter, ref channel, 0.016f);
+            _world.Bus.SwapBuffers();
+
+            Assert.Empty(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked, _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon.Reason);
+        }
+
         /// <summary>⭐ <c>CE-321</c> — a friendly BEHIND the shooter or BEYOND the target is not on the line of fire.</summary>
         [Fact]
         public void LineOfFire_IgnoresFriendliesBehindTheShooter_AndBeyondTheTarget_CE321()

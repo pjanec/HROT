@@ -27,8 +27,12 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// The first of <paramref name="boxes"/> (a body at <paramref name="position"/> turned by <paramref name="rotation"/>, its boxes scaled
         /// by <paramref name="scale"/>) that the segment <paramref name="a"/>→<paramref name="b"/> enters. False when it meets none.
         /// </summary>
+        /// <param name="arcFaces">⭐ <c>CE-2217</c> — a VEHICLE's part (its armour is stated per ARC, D-A): the face is the armour model's arc
+        /// the round ARRIVES from, read in the struck part's own frame (a turned turret still shows its front), and Top when it enters the roof
+        /// or descends ≥ 45°. ⛔ The face of the box entered dropped the glancing angle: a shot 16°–58° off a tank's nose entered the side
+        /// plate and was scored on the side armour, with no obliquity. A person's part keeps the face entered (a vest's plates).</param>
         public static bool Segment(ReadOnlySpan<BodyBox> boxes, Vector3 position, Quaternion rotation, float scale, Vector3 a, Vector3 b,
-                                   out BodyPartHitResult hit)
+                                   out BodyPartHitResult hit, bool arcFaces = false)
         {
             hit = default;
             if (scale <= 0f) return false;
@@ -51,7 +55,14 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 if (box.FaceYaw != 0f) normalBody = Vector3.Transform(normalBody, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
                 var at = pa + (pb - pa) * t;
                 var unit = new Vector3(Div(at.X, box.Half.X), Div(at.Y, box.Half.Y), Div(at.Z, box.Half.Z)) * 0.5f;   // −0.5 … 0.5
-                hit = new BodyPartHitResult(t, box.Part, FaceOf(normalBody), unit);
+                var face = FaceOf(normalBody);
+                if (arcFaces && face != Facing.Top)
+                {
+                    var travel = lb - la;
+                    if (box.FaceYaw != 0f) travel = Vector3.Transform(travel, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -box.FaceYaw));
+                    face = ArcFaceOf(travel);
+                }
+                hit = new BodyPartHitResult(t, box.Part, face, unit);
             }
             return any;
         }
@@ -64,6 +75,20 @@ namespace Fdp.Toolkit.Physics.BodyParts
             var h = new Vector2(normalBody.X, normalBody.Y);
             if (h.LengthSquared() < 1e-6f) return Facing.Side;
             float cos = Vector2.Normalize(h).X;
+            return cos > 0.5f ? Facing.Front : cos < -0.5f ? Facing.Rear : Facing.Side;
+        }
+
+        /// <summary>⭐ <c>CE-2217</c> — the armour model's face for a round TRAVELLING along <paramref name="travelPart"/> in the part's frame
+        /// (<c>ArmorModel.FacingOfArrival</c>'s rule: Top when it descends ≥ 45°, else the bearing it came from — &lt; 60° front, &gt; 120°
+        /// rear, else side).</summary>
+        public static Facing ArcFaceOf(Vector3 travelPart)
+        {
+            float len = travelPart.Length();
+            if (len < 1e-6f) return Facing.Front;
+            if (-travelPart.Z / len >= TopNormalZ) return Facing.Top;
+            var from = new Vector2(-travelPart.X, -travelPart.Y);
+            if (from.LengthSquared() < 1e-6f) return Facing.Top;
+            float cos = Vector2.Normalize(from).X;
             return cos > 0.5f ? Facing.Front : cos < -0.5f ? Facing.Rear : Facing.Side;
         }
 

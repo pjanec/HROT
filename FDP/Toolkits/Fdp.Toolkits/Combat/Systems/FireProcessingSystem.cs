@@ -120,9 +120,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   shot). ⛔ Before, it flew feet to feet, so once bullets meet the terrain every low wall and window sill would
                 //   have stopped a round the shooter aimed over. The ENTITY hit test stays 2-D (a circle) — body profiles are later.
                 // ⭐ WS-3 — a carried / station weapon system aims from its carrier's eye (HitModel.BodyOf; itself otherwise)
-                var sightBody = HitModel.BodyOf(repo, shooter);
-                if (sightBody != shooter) shooterPos = repo.GetComponent<SimTransform>(sightBody).Position;
-                shooterPos.Z += Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(repo, sightBody, HitModel.LogicalStance(repo, sightBody));
+                shooterPos = ShotOrigin.Eye(repo, shooter, out var sightBody);   // ⭐ CE-2218 — the one origin rule (the brain's hold reads it too)
                 if (!evt.AtPoint)
                 {
                     // ⭐ CE-3116 — a person by posture; ⭐ WL-2 — the same middle the turret aims at (AimPoint.Middle)
@@ -142,10 +140,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ E4 (DESIGN_Visual_Effects VE-K, §6b) — the round leaves from the BARREL when the type says where it is
                 //   (Muzzle.TryOf — the same point the flash, the tracer and the drawn barrel tip use); the aim point above was still
                 //   chosen from the eye. ⭐ CE-3059's "never past half way" stays: a barrel more than half way to the target ⇒ today's start.
-                var origin = shooterPos;
-                bool fromBarrel = Muzzle.TryOf(repo, shooter, evt.WeaponIndex, out var barrel)
-                                  && Vector3.Distance(barrel, shooterPos) <= 0.5f * Vector3.Distance(targetPos, shooterPos);
-                if (fromBarrel) origin = barrel;
+                var origin = ShotOrigin.From(repo, shooter, evt.WeaponIndex, shooterPos, targetPos, out bool fromBarrel);
                 // ⭐ CE-2183 (AT2, R-2021, DESIGN_Air_Operations §7c) — a STRAIGHT round at an AIRCRAFT is aimed where it will be: the ONE
                 //   predictor (TargetLead.Point, behaviors' B13), from the round's origin at its own speed, the target's velocity as this
                 //   node knows it (ReplicatedMotion). Ground targets, guided and arcing rounds are unchanged. ⭐ Here, not on the Brain: a

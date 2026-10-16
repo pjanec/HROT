@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-10 (§10 generalisation — G1–G8 APPROVED, R-257; §10.7 CoverClaim; §10.8 checked against the world-query seam after the ui merge)
+updated: 2026-10-16 (§10.10 the muzzle line — CE-2218)
 build-state: P-1–P-7 and P-7a (O1–O5) BUILT 2026-10-09 (§7, §9.7); P-8 (the duel scenario) next; READY-TO-BUILD for the rest of D1–D13 (APPROVED by the user 2026-10-09, R-234); §8 behaviour detail B1–B8 APPROVED 2026-10-09 (R-238); B1's storage rides on Q87 (unit memory, A–G APPROVED 2026-10-09, R-237)
 current-answer: ⭐ §10 GENERALISATION (R-256 L2: the library's fight-from-cover node, squad-aware) — G1–G8 APPROVED (R-257), READY-TO-BUILD (CE-3158) · §6 decisions (approved) · §8 behaviour detail (approved, R-238) · §9 P-7a static obstacles
 stale-below: nothing
@@ -812,3 +812,16 @@ the files §10.6 edits were touched (`LineOfFire`, `FireAtPointExecutor`, `Cover
 | G8 | `PeekDisable` flags byte (`BlindFire`, `HeatPenalty`, `SuppressAndBound`) — a zero param means "the default", so "off" has its own bit; an AIMED exposure lasts `max(ExposeSeconds, 2 × the weapon's aim time)` (`ExposeFor`) | ✅ as §10.5 G8. ⚠ the search radius stays 15 m (G8) — the old TakeCover asked 60 m; a soldier with no cover within 15 m now Fails after 3 s (G2) and the posture re-scores |
 | G5 seen | `PeekAndFireGizmo` draws an owner line from the unit to its live claim's hide point | ✅ as §10.7 "seen" |
 | G6 | `CombatPosture.btree.json`: the `Take cover` action is `PeekAndFireNodes.PeekAndFire` over a `peek` variable (zero = the G8 defaults) — a JSON tree edit, the tree stays a BTree (R-258) | ⚠ **not converted to a C#-built tree** — the design said "the C# library tree"; the binding needed only the node swap, and converting the whole posture tree is the separate R-258 library item |
+
+### 10.10 The muzzle line — `CE-2218` *(backend, `2026-10-16`)*
+
+📐 **Live `ua-rpg-window`:** an RPG man at House A's upper window aimed steeply down at an IFV 10 m off. The eye → target line passed the
+window; the LAUNCHER's line (muzzle 0.97 m from his eye) ran into the wall — the rocket stopped 5 cm out, burst, and killed him.
+
+| | |
+|---|---|
+| ⭐ the hold | `LineOfFire.MuzzleMasked` — beside `BlockedByFriendly`, the same "hold, Running, nothing spent" shape: before release the round is carried along its OWN line (`ShotOrigin`: the barrel when the type places one, else the eye — the one origin rule `FireProcessingSystem` now reads too) by the one penetration rule (`TerrainPenetration.Carry`); stopped within its danger distance ⇒ `ActionReason.Masked` (IF-1's reason — the weapon stays Ready, so a behaviour may move) |
+| danger distance | `MuzzleClearanceM` 2 m (the frame he leans out of), or a warhead's `BlastInjuryRadiusM` (it would burst on him) — never the whole line: a wall far off is the aim point's business (`AimPoint.For`) |
+| where | `AimAndFireExecutor`'s aimed release and its blind release; ⛔ not an arc (`ThrowArc` already lobs), not a bomb, not with no terrain |
+| rails | `AimAndFireExecutorTests.CE2218_TheRpgIntoHisOwnWindowFrame_IsMasked_AnOpenShotIsNot` (bt-range, the live points) · `CE2218_TheExecutorHoldsTheMaskedShot_Masked_NothingSpent` — both red-proved |
+| ⏭ not here | the behaviour's answer to `Masked` (move to a better spot) is behaviors' — handed off |

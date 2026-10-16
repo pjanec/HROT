@@ -256,7 +256,7 @@ namespace Fdp.Toolkit.Physics.Systems
                         float deployed = vehicle.Stowed != null ? Fdp.Toolkit.Combat.WeaponDeployment.FractionOf(repo, candidate) : 1f;
                         float elevation = hasTurret ? turretPose.Elevation : vehicle.Kit.RestElevation;
                         int nb = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Pose(vehicle, size, turretPose.Azimuth, elevation, deployed, vehicleBoxes);
-                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(vehicleBoxes[..nb], tf.Position, tf.Rotation, 1f, req.Start, req.End, out var vpart)) continue;
+                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(vehicleBoxes[..nb], tf.Position, tf.Rotation, 1f, req.Start, req.End, out var vpart, arcFaces: true)) continue;   // ⭐ CE-2217 — the armour arc
                         vpart = vpart with { Part = Fdp.Toolkit.Physics.BodyParts.VehicleBody.PartOf(vehicle, vpart.Part, vpart.LocalPoint) };
                         if (vpart.T < bestT) { bestT = vpart.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = vpart; }
                         continue;
