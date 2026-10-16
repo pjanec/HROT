@@ -441,6 +441,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(HideA, d.Moves[^1].Item1);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2219</c> — SURPRISED IN THE OPEN, THE GUN FIGHTS ON THE WAY TO THE HIDE: while the hull drives to its first hide it fires
+        /// at the threat it SEES, and only tracks him once it does not. 📌 Live <c>ua-rpg-window</c>: an IFV drove 6 s with the gun only
+        /// tracking the RPG man in the window and died without a round. 🔴 Red-proof: drop the fire step from <c>MoveToHide</c> and the
+        /// drive is silent.
+        /// </summary>
+        [Fact]
+        public void CE2219_DrivingToItsHide_ItFiresAtTheThreatItSees_AndTracksHimWhenItDoesNot()
+        {
+            var d = new Duel(Tank());
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            d.Orbits = true;                                                 // the drive takes as long as it takes
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide));
+            d.Run(1.0);
+            Assert.Equal(VehiclePhase.MoveToHide, d.Ws.Phase);
+            Assert.True(d.Firing, "seen on the way, the gun fires");
+            Assert.Contains(d.Enemy, d.AimedAt);
+            Assert.True(d.AimedRounds > 0);
+            d.See(false);
+            d.Run(0.5);
+            Assert.False(d.Firing, "out of sight, the fire stops");
+            Assert.True(d.Tracking, "and the gun stays on him");
+        }
+
         /// <summary>⭐⭐ <c>V4_R5</c> — a NEAR MISS while exposed cuts the exposure at once: back in reverse, rounds left unfired.</summary>
         [Fact]
         public void V4_ANearMiss_CutsTheExposure()

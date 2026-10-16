@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     break;
                 case VehiclePhase.StandAndFight: StandAndFight(ref ws, in p, ref mem, self, world, now, in threat, immobile); break;
-                case VehiclePhase.MoveToHide:  MoveToHide(ref ws, in p, ref mem, self, world, now); break;
+                case VehiclePhase.MoveToHide:  MoveToHide(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Hidden:      Hidden(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Exposing:    Exposing(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Engaging:    Engaging(ref ws, in p, ref mem, self, world, now, in threat); break;
@@ -270,9 +270,15 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Phase = VehiclePhase.MoveToHide;
         }
 
+        /// <summary>
+        /// The drive to a hide. ⭐ <c>CE-2219</c> — the gun fights on the way: it fires at the threat it SEES (a <c>FireOnMove</c> mount
+        /// shoots, the weapon brain holds the others, D-L) and tracks him when it does not. 📌 Live <c>ua-rpg-window</c>: an IFV surprised in
+        /// the open drove 6 s to its first hide with the gun only TRACKING the RPG man it saw, and died without a round.
+        /// </summary>
         private static void MoveToHide(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
-                                       Entity self, EntityRepository world, double now)
+                                       Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
+            if (!Disarmed(world, self)) FireOrTrack(ref ws, in p, self, world, in threat);
             var status = MoveStatus(world, self, ws.HidePoint);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
@@ -425,6 +431,13 @@ namespace Hrot.AI.Behaviors.Brains
                 GoToHide(ref ws, in p, self, world, hide);
                 return;
             }
+            FireOrTrack(ref ws, in p, self, world, in threat);
+        }
+
+        /// <summary>Fire at the locked threat when it is SEEN (rounds as the weapon brain grants them), else keep the gun on him — the
+        /// one step <see cref="StandAndFight"/> and <see cref="MoveToHide"/> share (⭐ <c>CE-2219</c>).</summary>
+        private static void FireOrTrack(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world, in ThreatAim threat)
+        {
             var target = PeekAndFireNodes.LockTarget(world, self, in threat);
             if (!target.IsNull && SightNow.Sees(world, self, target))
             {

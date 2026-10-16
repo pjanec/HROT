@@ -258,7 +258,7 @@ stateDiagram-v2
 | **Guiding** (the weapon channel's reason): stay in Engaging until the round lands, unless hit | a command missile needs its gunner (Missiles §4) |
 | **hidden**: `TrackTarget` keeps the gun on the threat's last known point; firing replaces it; `TrackTarget.Stop` on leaving | T4; the two share one channel (§1) |
 | **front to the threat**: Exposing drives forward along the hide's facing; Reverse withdraws backwards — never turns | T3 |
-| **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides) | D-L |
+| **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides). ⭐ **CE-2219 (`2026-10-16`, as built): EVERY drive to a hide (`MoveToHide`, the first one after contact included) fires at the threat it sees and tracks him when it does not** — `FireOrTrack`, the step `StandAndFight` already had. ⛔ SUPERSEDED: *"in `Scoot`"* only — live `ua-rpg-window`, an IFV surprised in the open drove 6 s to its first hide with the gun only tracking the RPG man it saw, and died without a round | D-L |
 | **watching**: no target ⇒ `Watching` (an observation exposure) for `WatchSeconds` | "for firing or watching" |
 | releases: stop fire, stop track, drop both sensors, stop the move, `ws = default`; `FiringPositionMemory` is kept | as PeekAndFire's `Release` |
 

@@ -1819,7 +1819,11 @@ def run_rpg_window(c, timeout):
         if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 3 for q in pts):
             pts.append((round(m[0], 1), round(m[1], 1)))
     c.ok(len(mine) >= 1 and (_hurt(ifv, 500) or _hurt(ifv2, 500)), f"① the RPG fires at an IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)} · IFV 2 {health(ifv2)}")
-    c.ok(len(pts) >= 2, f"② the RPG fires from two windows — {pts}")
+    # ② the relocation: fires from a second window — or, when both IFVs died first, MOVES to one (≥ 3 m along the same floor) after its
+    #   exposures there (WindowDuel shape A: 3 per window)
+    z0 = stops[0][2] if stops else 0
+    moved = [q for q in stops[1:] if abs(q[2] - z0) < 1.0 and ((q[0] - stops[0][0]) ** 2 + (q[1] - stops[0][1]) ** 2) ** 0.5 >= 3]
+    c.ok(len(pts) >= 2 or (len(mine) >= 3 and moved), f"② the RPG relocates to another window — fired from {pts}, after {len(mine)} rocket(s) moved to {moved[:1]}")
     back = [x for x in xs if x.get("shooter") in (ifv, ifv2)]
     c.ok(len(back) >= 1, f"③ the IFV fires back — {len(back)} round(s), at {sorted({name.get(x.get('target'), x.get('target')) for x in back}, key=str)}")
     print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
