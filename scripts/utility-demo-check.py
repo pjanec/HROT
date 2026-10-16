@@ -2027,7 +2027,7 @@ def run_fast_rope_roof(c, timeout):
         t = sim_time() or 0.0
         ph = (comps(heli).get("NavigationStatus") or {}).get("Phase")
         hp = position(heli)
-        if str(ph) in ("Roping", "11") and hover is None and hp:
+        if str(ph) in ("Roping", "10") and hover is None and hp:
             hover = hp
         for m in men:
             d = _descent(m)
