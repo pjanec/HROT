@@ -41,8 +41,8 @@
         "Entries": [
           {
             "Entity": "a2200d00-0000-4000-8000-000000000002",
-            "PosX": 200,
-            "PosY": 200,
+            "PosX": 100,
+            "PosY": 225,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
@@ -59,8 +59,8 @@
     "a2200d00-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          200,
-          200,
+          100,
+          225,
           0
         ],
         "Rotation": [
@@ -89,7 +89,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8601, \"advance\": {\"Objective\": [200, 200, 0], \"Speed\": 1, \"ArrivalRadius\": 3}}",
+        "Params": "{\"target\": 8601, \"advance\": {\"Objective\": [100, 225, 0], \"Speed\": 1, \"ArrivalRadius\": 3}}",
         "Origin": "Superior"
       }
     },

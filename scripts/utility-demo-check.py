@@ -1644,8 +1644,9 @@ def run_ifv_standoff(c, timeout):
 #   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across). ⚠ The cycling tank starts IN its hide
 #   (251, 110): started at (250, 70) in Javelin A's view, it was locked and hit while driving to the hide (40 m at 5 m/s, ~8 s) — the
 #   budget then held its first real exposure to ~2 s (lock 1.6 / 4 s). Javelin A holds (no assault): on an assault order it walked
-#   inside its 65 m minimum range. ⇒ Javelin A at (200, 200) holds (an advance objective on its own spot): the 4-storey block hides the
-#   tank's hide (251, 110) from him, its corner firing points ~100 m off are in his view; the tank starts knowing where he is (a seeded
+#   inside its 65 m minimum range. ⇒ Javelin A holds at (100, 225) (an advance objective on its own spot) — ua-tank-corner's geometry,
+#   where the cycle's firing points are the block's west corner (~(224, 115), measured); (200, 200) left the cycle no firing point that
+#   saw him. The hide (251, 110) is out of his sight; the tank starts knowing where he is (a seeded
 #   memory slot) and an ATTACK order on him (LandPlatformAttack — the SOP reacts to a fresh sense, not to a seeded memory, so on its SOP
 #   it idled). ① is refused as "not exercised" unless Javelin A was seen aiming at least once.
 def run_javelin_lock(c, timeout):
