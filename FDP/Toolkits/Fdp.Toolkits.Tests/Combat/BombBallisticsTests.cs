@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public void Dispose() => _w.Dispose();
 
         /// <summary>⭐ A3 — a bomb dropped at 150 m/s from 500 m: the predicted impact is the flown one (the burst stands off a few
-        /// centimetres back along the flight, AreaEffect.BurstStandOffMetres), and the fall takes the predicted time to a frame.</summary>
+        /// centimetres back along the flight, AreaEffect.BurstStandOffMetres), and the fall takes the predicted time to a frame (⭐ CE-2203: + the contact-hit wait before the burst).</summary>
         [Theory]
         [InlineData(500f, 150f)]
         [InlineData(120f, 220f)]
@@ -76,7 +76,8 @@ namespace Fdp.Toolkit.Combat.Tests
             var (burstTick, burst) = Assert.Single(bursts);
             float miss = Vector2.Distance(new Vector2(burst.HitX, burst.HitY), new Vector2(predicted.X, predicted.Y));
             Assert.True(miss <= AreaEffect.BurstStandOffMetres + 0.01f, $"predicted {predicted}, burst at ({burst.HitX}, {burst.HitY}, {burst.HitZ}) — {miss:F3} m");
-            Assert.InRange((burstTick - 1) * Dt, seconds, seconds + 2f * Dt);   // detected on the frame after it crossed
+            // detected on the frame after it crossed — ⭐ CE-2203: and it bursts the contact-hit wait later (a late hit on it wins)
+            Assert.InRange((burstTick - 1 - CombatConstants.ContactHitWaitTicks) * Dt, seconds, seconds + 2f * Dt);
             Assert.InRange(predicted.X, speed * seconds - 1f, speed * seconds + 1f);   // no drag: the carrier's speed all the way
         }
 

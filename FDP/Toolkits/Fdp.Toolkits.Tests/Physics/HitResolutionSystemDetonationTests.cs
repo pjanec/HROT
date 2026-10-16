@@ -265,5 +265,66 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(600f,  det.Penetration);
             Assert.Equal(1100f, det.Damage);
         }
-    }
+    
+        // ── ⭐⭐ CE-2204 — a round hits ONCE, and a late result never lands on the round that took its slot ─────────────────────────
+
+        private void Result(long rayId, Entity hitEntity, Entity shooter)
+            => _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+            {
+                HasHit = 1, RayId = rayId, HitEntity = hitEntity, IgnoreEntity = shooter, Start = Vector3.Zero, End = new Vector3(10, 0, 0), T = 0.5f,
+            } });
+
+        private DetonationNotification[] Resolve()
+        {
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            return _world.Bus.Read<DetonationNotification>().ToArray();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2204</c> — a rifle round's late raycast result (its round already spent and destroyed) resolves AFTER a tank's new HE
+        /// round took the rifle round's entity slot: it must be dropped — never a hit by the HE round, with the HE round's numbers, on the
+        /// tank that fired it. 🔴 Red before: the RayId carried the index only, so the result resolved against the HE round (live
+        /// ua-tank-ammo: "the tank hit its own hull").
+        /// </summary>
+        [Fact]
+        public void CE2204_ALateResult_ForADeadRound_NeverLandsOnTheRoundThatTookItsSlot()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var tank = _world.CreateEntity();
+            var rifleman = _world.CreateEntity();
+            var rifleRound = _world.CreateEntity();
+            _world.AddComponent(rifleRound, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = rifleman, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(rifleRound);
+            _world.DestroyEntity(rifleRound);
+            var he = _world.CreateEntity();
+            Assert.Equal(rifleRound.Index, he.Index);   // the slot is reused (the condition the live run hit)
+            _world.AddComponent(he, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = tank, Damage = 600, Penetration = 50 });
+
+            Result(rayId, tank, rifleman);
+            Assert.Empty(Resolve());
+            Assert.Equal(EntityLifecycle.Active, _world.GetLifecycleState(he));   // the HE round flies on
+        }
+
+        /// <summary>⭐ <c>CE-2204</c> — two segments of one round crossing the same body (they often do) resolve as ONE hit, in the same
+        /// frame and in the next (the round torn down by the first).</summary>
+        [Fact]
+        public void CE2204_ARound_HitsOnce_ThoughTwoOfItsSegmentsCrossTheBody()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            var target = _world.CreateEntity();
+            var shooter = _world.CreateEntity();
+            var round = _world.CreateEntity();
+            _world.AddComponent(round, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Shooter = shooter, Damage = 25, Penetration = 5 });
+            long rayId = PhysicsConstants.PackBulletRayId(round);
+            Result(rayId, target, shooter);
+            Result(rayId, target, shooter);
+            Assert.Single(Resolve());
+            Result(rayId, target, shooter);   // the next frame: the round is torn down
+            Assert.Empty(Resolve());
+        }
 }
+}
+

@@ -106,6 +106,18 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | red-proofs | 2 / 2 red: the deploy fraction pinned at 1 (the stowed rail), `IsBroken` without the wound (the firepower rail); the skip's own red is the rail's `VehicleParts = false` row |
 | ⚠ estimated | the zones' multipliers and thresholds (Mount ×0.5; Traverse at 128; Weapon at 64) — starter numbers |
 
+## 3g. CE-2203 / CE-2204 (`2026-10-16`, behaviors' [tank rounds handoff](HANDOFF_Behaviors_To_Backend_Tank_Rounds.md)) — folded into [Building Interiors §3d](../../DESIGN_Building_Interiors.md)
+
+| | |
+|---|---|
+| CE-2203 root cause | ⭐ the late-raycast lag, not the sweep and not LR-2: an IMPACT round burst on the ground the tick it landed and was marked Spent; the raycast of its 230 m segment (it had crossed the pickup about two ticks earlier) resolved later and was dropped as a Spent round's. APFSDS has no Area bit, so it never hit this |
+| CE-2203 fix | a stopped impact round waits `ContactHitWaitTicks` (4 = the lag + 1) at its burst point; a contact hit inside the wait ends it on the unit (its munition and numbers), else it bursts there, still travelling forward. ⚠ every impact burst (bombs, HE, rockets) now lands 4 ticks after the impact |
+| CE-2204 root cause | ⭐ a bullet RayId carried the INDEX only: a late result for a spent rifle round (several of its segments cross the same hull) resolved against the next round that took the slot — the M1's own new round |
+| CE-2204 fix | the RayId carries the generation; a round resolves ONE hit (gone / torn down / already resolved this frame ⇒ dropped). The 5 mm rifle hits did nothing (chance 0 at 5 / 350); the 240 fits the stale own-HE contact burst — ⛔ not separated live |
+| gates | `Fdp.Toolkits.Tests` 3 641 / 0 / 1 (the bomb rail `A3` now times the burst + the wait — its claim changed on purpose); `Hrot.SimHost.Tests` 1 442 / 0 / 6; `Hrot.Presentation.Tests` 662 / 0 / 26 |
+| red-proofs | 3 / 3 red: the burst at once + Spent (CE-2203), the generation ignored (the slot rail), the once-guard off (the hits-once rail). ⚠ the first red-proof run missed the third — a script pattern that did not match; re-run alone, red |
+| ⚠ for behaviors | re-run `ua-tank-ammo`: the HE / HEAT rounds should now meet the technical and the riflemen |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
 The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b: weapon systems by part) is built. Next: CE-3215 (S2c: aircraft by part).
