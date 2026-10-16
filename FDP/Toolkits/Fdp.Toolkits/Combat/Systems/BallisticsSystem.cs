@@ -68,6 +68,8 @@ namespace Fdp.Toolkit.Combat.Systems
             var terrain = global::Fdp.Toolkit.World.WorldQuery.Of(view);
 
             var shots = ShotLog.Peek(repo);   // ⭐ T-4 — rounds fired through FireProcessingSystem have a record
+            // ⭐ CE-1128 (docs/DESIGN_Visual_Effects.md §10) — the surfaces rounds mark, for the map hosts' puffs and marks
+            var impacts = repo.Bus.IsRegistered<Contracts.RoundImpactNotification>() ? (t_impacts ??= new List<RoundImpact>()) : null;
             bool guided = repo.IsComponentTypeRegistered<GuidedRound>();   // ⭐ M4
 
             var query = repo.Query()
@@ -168,7 +170,8 @@ namespace Fdp.Toolkit.Combat.Systems
                         proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
                         proj.TerrainFlags |= 1;
                     }
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null);
+                    impacts?.Clear();
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, impacts);
                     if (stopped)
                     {
                         end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
@@ -178,6 +181,25 @@ namespace Fdp.Toolkit.Combat.Systems
                         if (repo.HasComponent<SimVelocity>(entity)) repo.GetComponentRW<SimVelocity>(entity).Linear = System.Numerics.Vector3.Zero;
                     }
                 }
+
+                // ── 2a′. ⭐ CE-1128 (§10 IM-2) — ANY round meets the ground: the fire query does not count flat ground, so a bullet aimed
+                //   at it flew on below it until it expired (no mark could exist). With a world, it stops where its segment enters the
+                //   ground, like at a wall. (A warhead round's own ground check below then finds it already stopped and bursts there.)
+                bool groundStop = false;
+                if (terrain != null && (proj.Warhead & WarheadRound.Area) == 0 && proj.StoppedTick != (currentTick == 0 ? 1u : currentTick))
+                {
+                    float gz = terrain.GroundHeightAt(end.X, end.Y);
+                    if (end.Z < gz && proj.PreviousPosition.Z >= gz)
+                    {
+                        float t = (proj.PreviousPosition.Z - gz) / (proj.PreviousPosition.Z - end.Z);
+                        end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, end, t);
+                        proj.StoppedTick = currentTick == 0 ? 1u : currentTick;
+                        repo.GetComponentRW<SimTransform>(entity).Position = end;
+                        if (repo.HasComponent<SimVelocity>(entity)) repo.GetComponentRW<SimVelocity>(entity).Linear = System.Numerics.Vector3.Zero;
+                        groundStop = true;
+                    }
+                }
+                if (impacts != null) PublishImpacts(cmd, in proj, impacts, end, groundStop);
 
                 // ── 2b′. ⭐⭐ Stage 6 (CE-1032, W-3/W-4) — a WARHEAD round that stops (on the terrain, or on the flat ground — which the
                 //   terrain query does not count) does not just end: on an impact fuze it BURSTS there, a little back along its flight
@@ -230,6 +252,37 @@ namespace Fdp.Toolkit.Combat.Systems
                 // sweeps the correct segment (after LinearKinematicsSystem advances it).
                 proj.PreviousPosition = end;
             }
+        }
+
+        [ThreadStatic] private static List<RoundImpact>? t_impacts;
+
+        /// <summary>
+        /// ⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-2, IM-5) — this segment's marks as events: each crossing passed (entry,
+        /// exit) and the one that stopped the round — beyond <paramref name="end"/> only an exit can lie (the far face of a piece the round
+        /// passed); a ground stop adds a Stop facing up. ⛔ A WARHEAD round's stop is not marked here: its burst draws the explosion and the
+        /// scorch (VE-I step 1).
+        /// </summary>
+        private static void PublishImpacts(Fdp.Interfaces.IEntityCommandBuffer cmd, in BallisticProjectile proj, List<RoundImpact> impacts,
+                                           System.Numerics.Vector3 end, bool groundStop)
+        {
+            if (groundStop) impacts.Add(new RoundImpact(end, System.Numerics.Vector3.UnitZ, ImpactKind.Stop));
+            var travel = end - proj.PreviousPosition;
+            bool warhead = (proj.Warhead & WarheadRound.Area) != 0;
+            float reach = System.Numerics.Vector3.Dot(end - proj.PreviousPosition, travel);
+            foreach (var i in impacts)
+            {
+                if (warhead && i.Kind == ImpactKind.Stop) continue;
+                // an entry or a stop past where the round ended (it stopped at the ground first) never happened
+                if (i.Kind != ImpactKind.Exit && System.Numerics.Vector3.Dot(i.At - proj.PreviousPosition, travel) > reach + 1e-4f) continue;
+                cmd.PublishEvent(new Contracts.RoundImpactNotification
+                {
+                    Shooter = proj.Shooter, X = i.At.X, Y = i.At.Y, Z = i.At.Z,
+                    NormalX = i.Normal.X, NormalY = i.Normal.Y, NormalZ = i.Normal.Z,
+                    TravelX = travel.X, TravelY = travel.Y, TravelZ = travel.Z,
+                    Ammo = proj.Ammo, Kind = (byte)i.Kind,
+                });
+            }
+            impacts.Clear();
         }
 
         /// <summary>

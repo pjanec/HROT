@@ -120,6 +120,43 @@ namespace Hrot.NED.Messages
         public float Z;
     }
 
+    // ── Round impact (CE-1128, DESIGN_Visual_Effects §10) ──────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-1128</c> — a round marked a surface of the world (Muscle → every map host): entered or left a piece it passed through, or
+    /// stopped on one. Cosmetic ⇒ BestEffort: a lost puff is better than a backlog. ⛔ Not <see cref="MunitionDetonation"/> — that is a combat
+    /// message (area effect, damage, the observer's burst memory). docs/DESIGN_Visual_Effects.md §10 IM-3.
+    /// </summary>
+    [DdsTopic("RoundImpact")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 64)]
+    public partial struct RoundImpact
+    {
+        /// <summary>Network entity ID of the shooter (0 = unknown).</summary>
+        public long ShooterEntityId;
+
+        /// <summary>Where the round met the surface.</summary>
+        public float X;
+        public float Y;
+        public float Z;
+
+        /// <summary>The face's outward normal (all 0 = unknown).</summary>
+        public float NormalX;
+        public float NormalY;
+        public float NormalZ;
+
+        /// <summary>The round's travel direction (any length; all 0 = unknown).</summary>
+        public float TravelX;
+        public float TravelY;
+        public float TravelZ;
+
+        /// <summary>The TKB type id of the munition (0 = unknown).</summary>
+        public long MunitionType;
+
+        /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
+        public byte Kind;
+    }
+
     // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
 
     /// <summary>

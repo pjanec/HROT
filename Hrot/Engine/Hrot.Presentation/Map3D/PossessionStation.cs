@@ -373,6 +373,12 @@ namespace Hrot.UI.Common.Map3D
         /// dropped since the press; RMB clears it). The HUD's LOCKED.</summary>
         public bool ShotPending { get; private set; }
 
+        /// <summary>⭐ CE-1127 (§8g F-1) — how the selected weapon's trigger works (the brain's own rule, mirrored for the HUD).</summary>
+        public Fdp.Toolkit.Combat.OperatorFireMode FireMode
+            => _world() is { } w && w.IsAlive(Unit)
+                ? Fdp.Toolkit.Combat.OperatorFireModes.Of(w, Unit, Fdp.Toolkit.Combat.CombatTkb.MountOf(w, Unit, Mount))
+                : Fdp.Toolkit.Combat.OperatorFireMode.Sight;
+
         /// <summary>⭐ CE-1078 — the network id of the unit the last press locked on (0 = the ground point).</summary>
         public long LockedTarget => _shotTarget;
 
@@ -505,7 +511,7 @@ namespace Hrot.UI.Common.Map3D
                               && lw.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var lockedUnit)
                     ? Fdp.Toolkit.Combat.AimPoint.ToUnitFrame(lw, lockedUnit, aimAt) : aimAt;
                 _ammoAtPress = AmmoOf(Mount);
-                ShotPending = true;
+                ShotPending = FireMode == Fdp.Toolkit.Combat.OperatorFireMode.Lock;   // ⭐ CE-1127 — a SIGHT shot holds nothing to show
             }
             if (input.IsMouseButtonPressed(MapMouseButton.Right)) { unchecked { _cancelSeq++; } ShotPending = false; }
             if (ShotPending && AmmoOf(Mount) < _ammoAtPress) ShotPending = false;   // the round left
@@ -537,13 +543,14 @@ namespace Hrot.UI.Common.Map3D
         }
 
         /// <summary>
-        /// Where the crosshair rests: ⭐ CE-1080 (§8e D-4) — the nearest of the terrain and the units' boxes under the screen centre (never
-        /// the operator's own body — <see cref="EntityBoxPicker"/> skips it); a unit gives the point where the ray meets its box and its
-        /// network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
+        /// Where the crosshair rests: ⭐ CE-1080 (§8e D-4) — the nearest of the terrain and the units under the screen centre (never
+        /// the operator's own body — <see cref="EntityPartPicker"/> skips it); ⭐ CE-1126 (§8g F-4) a unit by the PART the ray enters (the
+        /// round's own boxes), giving that point and its network id. Nothing within <see cref="AimReach"/> ⇒ that far along the look.
         /// </summary>
         public static (Vector3 Point, long Target) Aim(MapCamera3D camera)
         {
-            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.All);
+            // ⭐ CE-1126 (§8g F-4) — the terrain and the entities' PARTS (the round's own boxes): the point is on his head, arm or hull
+            var hit = camera.Pick(camera.Viewport / 2f, PickFilter.Aim);
             if (hit.Kind == PickKind.None || !float.IsFinite(hit.Distance) || hit.Distance > AimReach)
                 return (camera.Eye + camera.Forward * AimReach, 0L);
             return hit.Kind == PickKind.Entity ? (camera.Eye + camera.Forward * hit.Distance, hit.NetworkId) : (hit.Point, 0L);

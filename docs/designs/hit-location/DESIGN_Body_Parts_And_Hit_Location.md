@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: HL-5 and S2-7 below say a VEHICLE part is scored on "the face entered" and that "no armour number moves" — SUPERSEDED for vehicles by §9b (CE-2217): a vehicle part's face is the armour model's arc in the part's frame. People keep HL-5.
 known-conflict: none.
 related-designs:
+  - docs/DESIGN_Entity_Control.md — §8g: the FPS crosshair meets these same parts through BodyPartRay (CE-1126), the function the solver's narrow phase is routed through
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — §9: a descending man (rope, canopy) is still a person target (IsPerson keys on VehicleParams — keep it there, not on Locomotions.Of), collides in his stance pose; canopy and rope are not parts (D-10)
   - docs/DESIGN_Terrain_Combat_Tuning.md — OWNS the resolution chain and provenance (§2, §2a); HL-12 is the first real use of its reserved ReferenceByDis step, for body profiles
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — OWNS the armour formula (R-212), the face rule (D-A) and D-G "no hull / turret split"; this file replaces ITS face rule (the face entered) and lifts D-G in S2, never the formula

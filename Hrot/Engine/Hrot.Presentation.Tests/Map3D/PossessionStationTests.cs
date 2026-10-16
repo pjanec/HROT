@@ -268,7 +268,7 @@ public sealed class PossessionStationTests
     /// <summary>A picker that answers a unit 30 m ahead (network id 77) — the crosshair resting on it.</summary>
     private sealed class UnitAhead : IPicker3D
     {
-        public PickFilter Kind => PickFilter.Entities;
+        public PickFilter Kind => PickFilter.EntityParts;   // ⭐ CE-1126 — the crosshair asks for the parts
         public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
         {
             hit = new PickResult(origin + direction * 30f + new Vector3(0f, 0f, -1f), PickKind.Entity, 30f, 77);
@@ -293,6 +293,18 @@ public sealed class PossessionStationTests
             ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
             ammo.Set(1, new WeaponState { Ammo = 200, MaxAmmo = 200 });
             w.AddComponent(unit, ammo);
+            // ⭐ CE-1127 — weapon 1 a grenade launcher (LOCK), weapon 2 a rifle (SIGHT)
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Grenadier", 4711);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, TurretIndex = -1 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, TurretIndex = -1 },
+            } });
+            db.Register(type);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 4711 });
             var (_, sw, _) = Map();
             sw.Camera3D.Pickers.Add(new UnitAhead());
             var station = new PossessionStation(sw, () => w);
@@ -337,6 +349,15 @@ public sealed class PossessionStationTests
             var one = new Input();
             one.Pressed.Add((int)Raylib_cs.KeyboardKey.One);
             Assert.Equal(0, Frame(one).Mount);
+
+            // ⭐ CE-1127 (§8g F-2) — the rifle fires by SIGHT: a press still counts (the brain fires it at once), but nothing is held
+            var two = new Input();
+            two.Pressed.Add((int)Raylib_cs.KeyboardKey.Two);
+            Frame(two);
+            Assert.Equal(Fdp.Toolkit.Combat.OperatorFireMode.Sight, driver.FireMode);
+            f = Frame(new Input { LeftPressed = true, LeftDown = true });
+            Assert.Equal(3, f.ShotSeq);
+            Assert.False(driver.ShotPending);
         }
     }
 

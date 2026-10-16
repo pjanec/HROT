@@ -71,4 +71,36 @@ namespace Fdp.Toolkit.Combat
             => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade
                          or WeaponCategory.Bomb or WeaponCategory.Howitzer or WeaponCategory.Sam;
     }
+
+    /// <summary>⭐ <c>CE-1127</c> (docs/DESIGN_Entity_Control.md §8g F-1) — how an OPERATOR's trigger works for a weapon.</summary>
+    public enum OperatorFireMode : byte
+    {
+        /// <summary>Each round goes to the point under the crosshair when it leaves — a rifle, a mount with no turret, an unguided rocket.</summary>
+        Sight = 0,
+        /// <summary>A press holds the point (on a unit, a building or the ground) and the round leaves when the weapon bears — a turret, a
+        /// thrown or arc weapon, a guided one.</summary>
+        Lock = 1,
+    }
+
+    /// <summary>⭐ <c>CE-1127</c> (§8g F-1) — the ONE rule for <see cref="OperatorFireMode"/>: the brain's latch and the station's HUD ask it.</summary>
+    public static class OperatorFireModes
+    {
+        /// <summary>
+        /// LOCK when <paramref name="mount"/> is fought through a turret <paramref name="unit"/> has (a slow turret, a remote weapon station),
+        /// is a thrown / arc weapon (Grenade, Mortar, Howitzer, Bomb, or an <c>Indirect</c> warhead) or a guided one (Atgm, Sam, or a guided
+        /// round loaded — <c>NeedsLock</c>); SIGHT for everything else (hand weapons, a pintle or tripod MG, an unguided rocket). 🔒 User,
+        /// 2026-10-16: <i>"The locking mode is good for grenade throwing and grenade launcher and mortar and howitzer and similar"</i> ·
+        /// <i>"locking mode for slow turrets as well"</i> · <i>"RPG-type unguided rockets: SIGHT"</i>.
+        /// </summary>
+        public static OperatorFireMode Of(EntityRepository world, Entity unit, WeaponMountDto? mount, long loadedAmmo = 0)
+        {
+            if (mount == null) return OperatorFireMode.Sight;
+            if (mount.TurretIndex >= 0 && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
+                && !TurretParts.Find(world, unit, mount.TurretIndex).IsNull) return OperatorFireMode.Lock;
+            if (mount.Category is WeaponCategory.Grenade or WeaponCategory.Mortar or WeaponCategory.Howitzer or WeaponCategory.Bomb
+                               or WeaponCategory.Atgm or WeaponCategory.Sam) return OperatorFireMode.Lock;
+            if (CombatTkb.WarheadOf(world, loadedAmmo != 0 ? loadedAmmo : unchecked((long)mount.AmmoGuid)) is { Indirect: true }) return OperatorFireMode.Lock;
+            return Executors.AimAndFireExecutor.NeedsLock(world, mount, loadedAmmo) ? OperatorFireMode.Lock : OperatorFireMode.Sight;
+        }
+    }
 }

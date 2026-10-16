@@ -514,6 +514,13 @@ namespace Fdp.Toolkit.Terrain
             /// <summary>⭐ <c>CE-1032</c> (W-7′) — the top of the piece crossed (a wall's top, a slab's level): how tall an obstacle a
             /// blast wave diffracts over.</summary>
             public float TopZ { get; init; }
+
+            /// <summary>⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-4) — the outward normal of the face the line ENTERS (a prism's
+            /// side, its top or base, a slab's triangle, the ground's up); zero = unknown.</summary>
+            public Vector3 EntryNormal { get; init; }
+
+            /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown (it does not leave the ground).</summary>
+            public Vector3 ExitNormal { get; init; }
         }
 
         /// <summary>
@@ -549,7 +556,8 @@ namespace Fdp.Toolkit.Terrain
             // ⭐ CE-1034 H2 — a hill in the way stops any round: one crossing where the line enters the ground, its TopZ the crest
             //   (a blast diffracts over the hill like over a wall — AreaEffect.TerrainShadow)
             if (Height != null && Height.Crosses(from, to, out float groundT, out float crest))
-                into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1) { TopZ = crest });
+                into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1)
+                    { TopZ = crest, EntryNormal = Vector3.UnitZ });
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
             var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
@@ -582,8 +590,13 @@ namespace Fdp.Toolkit.Terrain
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
                     float path = (hi - lo) * length;
                     float perMetre = prism.Material?.ResistanceMmRhaPerMetre ?? fallbackPerMetre;
+                    // ⭐ CE-1128 (IM-4) — the faces: a side where the footprint interval begins / ends, else the top or the base
+                    var dir = to - from;
+                    var entryN = lo > t0 + 1e-6f ? new Vector3(0f, 0f, dz > 0f ? -1f : 1f) : SideNormal(prism.Footprint, a + (b - a) * lo, dir, entering: true);
+                    var exitN = hi < t1 - 1e-6f ? new Vector3(0f, 0f, dz > 0f ? 1f : -1f) : SideNormal(prism.Footprint, a + (b - a) * hi, dir, entering: false);
                     into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
-                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1) { TopZ = prism.TopZ });
+                        prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1)
+                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN });
                 }
             }
 
@@ -598,9 +611,12 @@ namespace Fdp.Toolkit.Terrain
                     var n = Vector3.Cross(p1 - p0, p2 - p0);
                     float denom = Vector3.Dot(n, to - from);
                     float along = MathF.Abs(denom) < 1e-9f ? 0f : Vector3.Dot(n, p0 - from) / denom;
+                    // ⭐ CE-1128 (IM-4) — a slab's faces: its triangle's normal, toward where the line comes from, and away on the far side
+                    var nn = n.LengthSquared() > 1e-12f ? Vector3.Normalize(n) : Vector3.UnitZ;
+                    if (Vector3.Dot(nn, to - from) > 0f) nn = -nn;
                     into.Add(new FireCrossing(along, SlabThicknessMetres, fallbackPerMetre * SlabThicknessMetres,
                         w.Kind == TerrainWalkableKind.Ramp ? "ramp" : "slab", null, TerrainMaterialLibrary.DefaultMaterial, null, -1)
-                        { TopZ = MathF.Max(p0.Z, MathF.Max(p1.Z, p2.Z)) });
+                        { TopZ = MathF.Max(p0.Z, MathF.Max(p1.Z, p2.Z)), EntryNormal = nn, ExitNormal = -nn });
                     break;
                 }
             }
@@ -609,6 +625,33 @@ namespace Fdp.Toolkit.Terrain
         }
 
         private static readonly Comparison<FireCrossing> ByT = (x, y) => x.T.CompareTo(y.T);
+
+        /// <summary>
+        /// ⭐ <c>CE-1128</c> — the outward normal (horizontal) of the footprint edge nearest <paramref name="p"/>, turned to face the line
+        /// (against <paramref name="dir"/> where it <paramref name="entering"/>, along it where it leaves). A prism's sides are vertical.
+        /// </summary>
+        internal static Vector3 SideNormal(Vector2[] footprint, Vector2 p, Vector3 dir, bool entering)
+        {
+            int n = footprint.Length;
+            if (n < 2) return Vector3.Zero;
+            float best = float.MaxValue;
+            Vector2 edge = Vector2.Zero;
+            for (int i = 0; i < n; i++)
+            {
+                var e0 = footprint[i];
+                var e1 = footprint[(i + 1) % n];
+                var e = e1 - e0;
+                float len2 = e.LengthSquared();
+                float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(p - e0, e) / len2, 0f, 1f) : 0f;
+                float d = Vector2.DistanceSquared(p, e0 + e * t);
+                if (d < best) { best = d; edge = e; }
+            }
+            if (edge.LengthSquared() < 1e-12f) return Vector3.Zero;
+            var normal = Vector2.Normalize(new Vector2(edge.Y, -edge.X));
+            float along = normal.X * dir.X + normal.Y * dir.Y;
+            if (entering ? along > 0f : along < 0f) normal = -normal;
+            return new Vector3(normal, 0f);
+        }
 
         /// <summary>The surface type at a point (the last-listed surface wins on overlap), Open by default.</summary>
         public TerrainSurfaceType SurfaceTypeAt(float x, float y)

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station DESIGN 2026-10-14 (§8f), building
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station)
+updated: 2026-10-16
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g)
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
+  - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS PersonBody / VehicleBody, the parts a round meets; §8g's crosshair meets the same parts through one function (BodyPartRay)
+  - docs/DESIGN_Visual_Effects.md — §10 OWNS the impacts (entry, exit, stop; wall marks) asked in the same exchange as §8g
   - docs/designs/audio/DESIGN_FPS_Audio.md — sound exists only while PossessionStation holds a unit; the ear is the FPS camera (AU-3)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the gunner seat a player may later possess to fire a host's station weapon (R-2016)
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the simple pilot models that answer M-4 (mouse-aim plane, helicopter hover hold) and ControlScheme.FixedWing (R-2015)
@@ -816,6 +818,126 @@ for pitch* — `Vertical` already means it to the model; *the camera locked to t
 
 📐 **Rail** `PossessionStationTests.CE1095_*` (the scheme, the frame's axes, the camera's roll, the HUD line) — red-proved twice (the view does
 not bank; the plane is a Person).
+
+## 8g. S8 DETAIL — SIGHT or LOCK, the crosshair on the body parts (`CE-1126` · `CE-1127`, designed `2026-10-16`, ui)
+
+🔒 **User, `2026-10-16`:** *"yes, let's use the body part boxes for the crosshair"* · *"for FPS shooter with hand weapons like rifle … it is
+natural to shoot in the direction of aim … and letting the ballistics fly the bullet. The locking mode is good for grenade throwing and grenade
+launcher and mortar and howitzer and similar. the locking mode should work for buildings and terrain points as well"* · *"locking mode for slow
+turrets as well"* · *"Mounted fast weapons: OK"* (a pintle / tripod MG with no turret is SIGHT) · *"RPG-type unguided rockets: SIGHT for
+simplicity of the FPS mode"*. The impacts the user asked for in the same exchange are `DESIGN_Visual_Effects.md` §10.
+
+📐 **INVENTORY** *(graph `search_graph` Class `.*BodyPart.*` → `BodyPartHit`, `BodyPartHitResult`; `.*BodyRay.*`, `.*FireMode.*`, `.*AimMode.*` → 0;
+`.*Picker.*` → one 3-D entity picker, `EntityBoxPicker`; `IPicker3D` implementations by grep → `TerrainPicker`, `EntityBoxPicker`)*:
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the crosshair meets ONE coarse box per entity (`MinPickHalf` 0.4 m), not the parts a round meets | `EntityBoxPicker.cs:47` → `EntityBodyLayer3D.TryGetBox` | §8e D-4 *"where the ray meets the unit's box"*; Map 3D §3.8 (M17) — the box for SELECTION |
+| a round meets a person by `PersonBody` boxes and a vehicle by `VehicleBody` boxes, both generated from the drawing with parity rails | `RaycastSolverSystem.cs:219-262` | hit location HL-1, HL-9, §9 S2 (`CE-3209`, `CE-3211`) |
+| that per-entity part test is inline in the solver's parallel loop — no function another caller can use | `RaycastSolverSystem.cs:187-263` | ⛔ searched `docs/` + `.dev/`, none found |
+| the 1.5 m `AimPoint.Operator` fallback exists only because the coarse box and the parts disagree | `AimPoint.cs` (`CE-1125`) | §13.7a |
+| a press ALWAYS latches (locks the point or unit, waits for the round) | `OperatorControlBehavior.cs:142-150` | §8e D-1 |
+| direct-fire rounds fly straight; arc rounds fall and get an arc solve | `BallisticAim.cs:15`, `BallisticsSystem.cs:138`, `FireProcessingSystem.ArcLaunch` | Indirect Fire IF-1 |
+| the turret path already slews to a unit or a ground point | `AimAndFireExecutor.TurretPath` | §8e |
+
+```mermaid
+classDiagram
+    direction LR
+    class BodyPartRay { <<new, Fdp.Toolkits Physics>> +TryHit(world, entity, a, b, turretPart, out BodyPartHitResult) bool +HasParts(world, entity) bool }
+    class RaycastSolverSystem { <<existing, routed>> narrow phase calls BodyPartRay for persons and vehicles }
+    class BodyPartHit { <<existing>> Segment · SegmentTouchesSphere }
+    class PersonBody { <<existing>> Boxes(pose) · PoseOf · ScaleOf }
+    class VehicleBody { <<existing>> Of · Pose · PartOf }
+    class EntityPartPicker { <<new, ui Map3D>> Kind = EntityParts · parts first, the coarse box for a body with no parts · hit point = where the ray meets the part }
+    class EntityBoxPicker { <<existing>> Kind = Entities · RTS selection, unchanged }
+    class PickFilter { <<existing, grows>> + EntityParts · + Aim = Terrain or EntityParts }
+    class MapCamera3D { <<existing>> Pick(pixel, filter) · the cache keys on the filter }
+    class FpsCameraDriver { <<existing>> Aim picks PickFilter.Aim · HUD LOCKED ring only in LOCK }
+    class OperatorFireModes { <<new, Fdp.Toolkits Combat>> +Of(world, unit, mount, loadedAmmo) Sight or Lock }
+    class OperatorControlBehavior { <<existing, grows>> Pending 1 = LOCK (held point or unit) · 2 = SIGHT (the crosshair of each tick) }
+    class AimPoint { <<existing, shrinks>> ToUnitFrame · FromUnitFrame · Middle · ⛔ Operator and OnUnitMetres removed }
+    RaycastSolverSystem ..> BodyPartRay
+    EntityPartPicker ..> BodyPartRay
+    BodyPartRay ..> BodyPartHit
+    BodyPartRay ..> PersonBody
+    BodyPartRay ..> VehicleBody
+    MapCamera3D o-- EntityPartPicker
+    MapCamera3D o-- EntityBoxPicker
+    FpsCameraDriver ..> MapCamera3D : Pick(Aim)
+    FpsCameraDriver ..> OperatorFireModes : HUD
+    OperatorControlBehavior ..> OperatorFireModes
+    OperatorControlBehavior ..> AimPoint
+```
+
+*What the picture shows that prose hid:* the crosshair and the bullets reach the SAME parts through ONE function (`BodyPartRay`), so "the
+crosshair is on his head" and "the round strikes his head" cannot drift — and the selection box is a separate picker, so RTS clicks keep their
+generous box.
+
+```mermaid
+sequenceDiagram
+    participant D as FpsCameraDriver (station)
+    participant C as MapCamera3D
+    participant K as EntityPartPicker
+    participant O as OperatorControl (brain)
+    participant X as AimAndFireExecutor (brain)
+    D->>C: Pick(centre, Aim)
+    C->>K: TryPick(eye, look)
+    K->>K: BodyPartRay per entity, nearest part entered
+    K-->>D: the point on the part + network id
+    D->>O: frame ShotSeq+1, ShotTarget, AimPoint
+    alt LOCK (turret, arc or thrown, guided)
+        O->>O: Pending 1, point held in the unit's frame (CE-1125)
+        O->>X: Target, Point = FromUnitFrame each tick, Rounds = Cap
+    else SIGHT (hand weapon, mount with no turret, unguided rocket)
+        O->>O: Pending 2, no target
+        O->>X: Point = this tick's AimPoint, Rounds = Cap
+    end
+    X-->>O: RoundsFired reaches Cap, Pending 0
+```
+
+```mermaid
+graph TD
+    PACK[MapInteractionPack.AttachMapLayers, every map host] -->|Pickers.Add| EBP[EntityBoxPicker, selection]
+    PACK -->|Pickers.Add, NEW| EPP[EntityPartPicker, the crosshair]
+    CAN[MapCanvas each frame] -->|Camera.HandleInput| FPS[FpsCameraDriver]
+    FPS -->|Pick Aim| EPP
+    CAN -->|Pick All| EBP
+    FPS --> BUS[frame to PossessionSystem, brain]
+    BUS --> OC[OperatorControl]
+    OC -->|WeaponChannel params| X[AimAndFireExecutor]
+    MOD[Physics module, muscle] --> RS[RaycastSolverSystem]
+    RS --> BPR[BodyPartRay]
+    EPP --> BPR
+```
+
+*Caption:* the new picker is added by the SAME attach that adds `EntityBoxPicker`, so no map host can have one without the other; the only
+caller that asks `PickFilter.Aim` is the FPS station — every other click still asks `All` and gets the selection box.
+
+| # | decision (✅ user, `2026-10-16`) | rule |
+|---|---|---|
+| **F-1** | which mode | ⭐ **LOCK** when the weapon is fought through a turret (`UsesTurretTask`'s test: a mount naming a turret the unit has), or is a thrown / arc weapon (category Grenade, Mortar, Howitzer, Bomb, or an `Indirect` warhead), or guided (Atgm, Sam, or `NeedsLock`). **SIGHT** for everything else: hand weapons, a mount with no turret (pintle, tripod MG), an unguided rocket |
+| **F-2** | SIGHT | each round goes to the point under the crosshair WHEN IT LEAVES (the frame's `AimPoint`): a press fires one round at once (cooldown permitting), a held trigger on an automatic weapon follows the look. No target, no LOCKED ring |
+| **F-3** | LOCK | unchanged from §8e D-1 / `CE-1125`: the press holds the point on a unit (in his frame), a building or the ground, and fires when the weapon bears; RMB drops it |
+| **F-4** | the crosshair | the nearest of the terrain and every entity's PARTS (`BodyPartRay` — the round's own test); a body with no parts (an icon unit, an unknown type) keeps its coarse box. The point is where the ray meets the part |
+| **F-5** | the fallback | ⛔ `AimPoint.Operator` / `OnUnitMetres` go: the point IS on a part. The middle is used only when a shot names a unit and no point |
+| **F-6** | the sight zero | ⏭ not now — direct rounds have no gravity, so a round flown muzzle → crosshair point is a sight zeroed at that range. Filed `CE-1130` |
+
+**Rejected — one line each:**
+- *The part test inside `EntityBoxPicker` behind a flag* — one picker would then answer two questions and RTS selection would lose its generous box.
+- *A copy of the solver's part test in the ui* — two answers that drift (the reason `PersonBody` is generated from the drawing).
+- *SIGHT as "lock with a point only"* — a latched point fires late at where the crosshair WAS; a rifleman expects the round where he looks now.
+- *The mode in the station* — the brain owns the latch (§8e); the station only mirrors the mode for its HUD.
+
+**AS-BUILT (`CE-1126`, `CE-1127`, `2026-10-16`, ui)** — the three diagrams hold; the details they do not carry, and one deviation:
+
+| as-built | why |
+|---|---|
+| ⚠ DEVIATION from F-5: `AimPoint.Operator` STAYS, as *"the point, else the middle"*; only the 1.5 m test and `OnUnitMetres` went | the executor and the station's ring both call it — one rule, now trivial, instead of two inline copies |
+| `BodyPartRay.Person` / `.Vehicle` (the solver's narrow phase, its counters kept) and `.TryHit` (one entity, its main turret found by `TurretParts.Find`) | the solver keeps its per-tick turret map; a picker asks per entity |
+| `EntityPartPicker`: a body the node does not mark a pedestrian (no `VehicleParams` replicated) but DRAWS as a person is still met by `PersonBody` | what you aim at is what is drawn; the sim's pedestrian test needs a component a viewer may lack |
+| `MapCamera3D.Pick`'s cache keys on the FILTER (was "is it a drag") | `Aim` and `All` asked for the same pixel in one frame would have shared an answer |
+| SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
+| the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

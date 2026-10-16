@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
@@ -129,6 +130,44 @@ public sealed class EffectTests
         var decal = Assert.Single(fx, f => f.Type == EffectTkbCatalog.DecalLarge);   // VE-M: none for the hit on the tank
         Assert.DoesNotContain(fx, f => f.Type == EffectTkbCatalog.DecalSmall);
         Assert.Equal(0f, world.GetComponentRO<SimTransform>(decal.Entity).Position.Z); // on the ground under the hit (VE-I step 1)
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1129 (docs/DESIGN_Visual_Effects.md §10 IM-5, IM-6) — every surface a round marked gets the round's puff and its mark, the
+    /// mark turned onto the face: on a WALL it stands in the wall's plane (its +Z = the wall's normal), on the GROUND it is draped, on a ROOF
+    /// it lies on the roof — never dropped to the ground below. 🔒 User, 2026-10-16: <i>"Every surface pierced should get a decal and
+    /// particle effect on the entry side"</i> · <i>"the shot goes to that point and leaves a decal there"</i>.
+    /// </summary>
+    [Fact]
+    public void CE1129_EveryMarkedSurface_GetsThePuffAndTheMark_OnTheWallInItsPlane_OnTheGroundDraped_OnTheRoofOnTheRoof()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<RoundImpactNotification>();
+        long ball = Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball;
+        world.Bus.Publish(new RoundImpactNotification { X = 10, Y = 19.9f, Z = 1.5f, NormalY = -1f, TravelY = 1f, Ammo = ball, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Entry });
+        world.Bus.Publish(new RoundImpactNotification { X = 30, Y = 5, Z = 0f, NormalZ = 1f, Ammo = ball, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Stop });
+        world.Bus.Publish(new RoundImpactNotification { X = 50, Y = 5, Z = 6f, NormalZ = 1f, Ammo = ball, Kind = (byte)Fdp.Toolkit.Combat.ImpactKind.Stop });
+        var spawn = new EffectSpawnSystem();
+        Tick(world, spawn, 0.016f);
+
+        Assert.Equal(3, spawn.ImpactsDrawn);
+        var fx = Effects(world);
+        Assert.Equal(3, fx.Count(f => f.Type == EffectTkbCatalog.ExplosionSmall));   // the small-arms impact puff
+        var marks = fx.Where(f => f.Type == EffectTkbCatalog.DecalSmall).Select(f => f.Entity).ToList();
+        Assert.Equal(3, marks.Count);
+        Vector3 Up(Entity e) => Vector3.Transform(Vector3.UnitZ, world.GetComponentRO<SimTransform>(e).Rotation);
+        var wall = marks.Single(e => world.GetComponentRO<SimTransform>(e).Position.X == 10f);
+        Assert.True(Vector3.Distance(Up(wall), new Vector3(0, -1, 0)) < 1e-4f, $"the wall mark faces {Up(wall)}");
+
+        var layer = new EffectLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0f };
+        var drawn = layer.Resolve().Where(r => r.Look.Kind == EffectKind.Decal).ToList();
+        Assert.False(layer.IsOnGround(drawn.Single(r => r.At.X == 10f)));    // in the wall's plane
+        Assert.True(layer.IsOnGround(drawn.Single(r => r.At.X == 30f)));     // draped on the ground
+        Assert.False(layer.IsOnGround(drawn.Single(r => r.At.X == 50f)));    // on the roof, 6 m up — not dropped to the ground
+        var (centre, u, v) = EffectLayer.SurfaceDiscFrame(new Vector3(10, 19.9f, 1.5f), new Vector3(0, -1, 0));
+        Assert.True(centre.Y < 19.9f, "lifted off the wall toward the shooter");
+        Assert.Equal(0f, u.Y, 4);
+        Assert.Equal(0f, v.Y, 4);                                            // the disc lies in the wall's plane
     }
 
     /// <summary>

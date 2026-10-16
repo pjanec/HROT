@@ -45,6 +45,7 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<TracerTarget>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
         world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();   // ⭐ CE-1128 — the marks rounds leave
         world.RegisterEvent<Hrot.IG.IgWeaponFireEvent>();
         world.RegisterManagedComponent<ContextMenuState>();
 

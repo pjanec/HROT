@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). Programme index: PLAN_3D_World_And_Realism.md.
-updated: 2026-10-15 (§9 decoys — flares and chaff, CE-1115)
-current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5).
+build-state: BUILDING — ALL leans VE-A..VE-M APPROVED (U3, U5, 2026-10-10); E1–E3 BUILT 2026-10-11 (§6a); E4 BUILT 2026-10-11 (§6b). ⭐ §7 wrecks / bodies / burning / Lifespan APPROVED 2026-10-11 (U6–U8, R-269 (ui)); W1–W4 BUILT 2026-10-11 (§7.5). ⭐ §8 projectiles: P1 + P2 (tracers) BUILT 2026-10-11 (CE-1051); PR-D / PR-E DECIDED (R-271) — §8.5 lightweight replicated rounds, LR-1..LR-4 BUILT 2026-10-11 (§8.5.5). ⭐ §10 impacts on every surface BUILT 2026-10-16 (CE-1128 / CE-1129). Programme index: PLAN_3D_World_And_Realism.md.
+updated: 2026-10-16 (§10 impacts on every surface — CE-1128 / CE-1129)
+current-answer: §1 what the user asked · §2 inventory · §3 diagrams · §4 decisions with leans · §6 slices · §6a E1–E3 as-built · §6b E4 (`Muzzle.Of`) · §6c CE-1070 (the flash at the drawn rifle, blooming out of the barrel) · §7 wrecks, dead bodies, flames and smoke, `Lifespan` (approved; W1–W4 as-built in §7.5) · §8 projectiles (P1/P2 as-built §8.4; §8.5 lightweight replicated rounds — the R-271 design, as-built §8.5.5) · §9 decoys · §10 impacts on every surface a round meets (entry, exit, stop; wall / roof marks — VE-I step 2).
 stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
+  - DESIGN_Entity_Control.md — §8g OWNS the operator's fire modes (SIGHT / LOCK) and the crosshair on the body parts asked in the same exchange as §10
+  - DESIGN_World_Query_Seam.md — OWNS TraceCrossing; §10 IM-4 adds the entry / exit normals to it
   - designs/audio/DESIGN_FPS_Audio.md — the SOUND twin of this pattern: sound types in the TKB (SoundTkbCatalog 7201+), the munition → sound set with a calibre default, from the same fire / detonation events (AU-5)
   - designs/brain-split/BS-1-DESIGN.md — OWNS the fire event these effects are made from; §5.4b (CE-1111, R-1002) gives it the fired round, origin, velocity and quantity, and carries flare / chaff releases
   - DESIGN_Injury_States.md — OWNS the injury states (CE-2155); an incapacitated figure is a later presentation item
@@ -853,3 +855,136 @@ flare, chaff, a burnt-out release drawing nothing; the FIRED round's flash), fra
 
 ![](assets/map-3d/decoy-1-flares.png)
 
+
+## 10. Impacts on every surface a round meets — entry and exit, walls and roofs (VE-I step 2) *(`CE-1128` · `CE-1129`, ui, designed `2026-10-16`; build-state: BUILT `2026-10-16`)*
+
+🔒 **User, `2026-10-16`:** *"the round that penetrates an obstacle through should continue - this is what allows shooting through thin fences and
+similar weak obstacles. (independent on aim - generic rule) Every surface pierced should get a decal and particle effect on the entry side (maybe
+also in the exit side if that is not a bigger problem.)"* · *"Explosive rounds: of course ground scorch yes"* · (a lock) *"the shot goes to that
+point and leaves a decal there"*. The fire modes asked in the same exchange are `DESIGN_Entity_Control.md` §8g.
+
+📐 **INVENTORY** *(graph `search_graph` Class `.*Impact.*` → `DroneImpactSystem` only; `.*Decal.*` → 0; grep `DetonationNotification` consumers → 13 production files)*:
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a round that PASSES a crossing continues, its damage × the chance, its penetration less the resistance | ✅ `TerrainPenetration.Carry` / `Cross` (`TerrainPenetration.cs:39-73`), called every segment (`BallisticsSystem.cs:171`) | ✅ Building Interiors §3d P2, R-217 — ⇒ the user's generic rule is ALREADY BUILT; only its picture is missing |
+| a non-explosive round that STOPS ends silently (a shot-log record, no event) | `BallisticsSystem.cs:104-121` | ⛔ searched `docs/` + `.dev/`, no design asks for silence; audio's design already expects *"a ricochet off the world"* (`DESIGN_FPS_Audio.md` §impacts, `SoundSources.cs:179`) |
+| a bullet aimed at FLAT ground never stops: the fire query does not count the ground, so it flies on below it and `Expired` | `TerrainWorld.QueryFire` doc (`:524`), `BallisticsSystem.cs:149`; only a WARHEAD round checks the ground (`:186-200`) | ⛔ searched, none — a defect |
+| decals exist only under a detonation, draped on the ground | `EffectSpawnSystem` (`EffectSystems.cs:122-127`), `EffectLayer.DrawDrapedDisc` | VE-I step 1; step 2 *"once `IWorldQuery.Trace` reports the hit's surface normal"* |
+| a crossing knows where the round enters and its path inside, not the surface's normal | `TraceCrossing(T, PathMetres, …)` (`IWorldQuery.cs:24`); `FireCrossing` (`TerrainWorld.cs:511`) | World Query Seam WQ-A; ⛔ no normal planned |
+| the stand-in KNOWS the face crossed: a prism side (footprint edge), its top or base, a slab's triangle | `TerrainWorld.QueryFire` (`:566-604`) | — |
+| `DetonationNotification` is a COMBAT event: area effect, damage, heat, and the brain's 64-burst memory the fire-mission observer reads (`RecentDetonations.Capacity`) | `AreaEffectSystem`, `DamageCalculationSystem`, `SoundEmissionSystem`, `RecentDetonations` (`IndirectFireBehaviors.cs:545`) | Indirect Fire §3.8 (IF-3) — ⇒ a rifle strike on it would flush the observer's memory |
+| effects are made on every map host from events that cross the wire; an ordinary bullet is NOT replicated | `MunitionDetonation*Translator`; §8.5 LR-A | VE-A; LR-A |
+| a small-arms puff (7111) and a bullet mark (7121) already exist in the catalogue | `EffectTkbCatalog.cs:74,77` | VE-C |
+
+```mermaid
+classDiagram
+    direction LR
+    class TraceCrossing { <<existing, grows>> + EntryNormal · ExitNormal (init, zero = unknown) }
+    class FireCrossing { <<existing, grows>> + EntryNormal · ExitNormal }
+    class TerrainWorld { <<existing, grows>> QueryFire: the normal of the face entered and left }
+    class TerrainPenetration { <<existing, grows>> Carry(..., impacts) — an Entry and an Exit per crossing passed, a Stop where it stops }
+    class RoundImpact { <<new record, Fdp.Toolkits Combat>> At · Normal · Kind }
+    class BallisticsSystem { <<existing, grows>> publishes RoundImpactNotification per impact · every round stops at the ground }
+    class RoundImpactNotification { <<new event 5010, Combat.Contracts>> Shooter · At · Normal · Ammo · Kind Entry Exit Stop · IsRemote }
+    class RoundImpactEgressTranslator { <<new, NED, muscle>> }
+    class RoundImpactIngressTranslator { <<new, NED, viewers>> }
+    class RoundImpactMsg { <<new DDS topic RoundImpact, BestEffort>> }
+    class EffectSpawnSystem { <<existing, grows>> a puff + a mark at each impact, the mark's rotation = its surface }
+    class EffectLayer { <<existing, grows>> a mark on a wall or a roof: a disc in its plane; on the ground: draped }
+    class SoundEvents { <<existing>> Burst(HitBody false) = the ricochet }
+    TerrainWorld ..> FireCrossing
+    TraceCrossing <.. TerrainPenetration
+    TerrainPenetration ..> RoundImpact
+    BallisticsSystem ..> TerrainPenetration
+    BallisticsSystem --> RoundImpactNotification
+    RoundImpactNotification ..> RoundImpactEgressTranslator
+    RoundImpactEgressTranslator --> RoundImpactMsg
+    RoundImpactMsg --> RoundImpactIngressTranslator
+    RoundImpactIngressTranslator --> RoundImpactNotification : IsRemote
+    EffectSpawnSystem ..> RoundImpactNotification
+    EffectSpawnSystem ..> SoundEvents
+    EffectLayer ..> EffectSpawnSystem : draws its entities
+```
+
+*What the picture shows that prose hid:* the impact is its OWN event beside the detonation — no combat consumer of `DetonationNotification`
+learns of it — and the normal is born where the face is known (the terrain query), so neither the round nor the renderer guesses a wall's facing.
+
+```mermaid
+sequenceDiagram
+    participant B as BallisticsSystem (muscle)
+    participant P as TerrainPenetration
+    participant W as world query (TerrainWorld)
+    participant N as NED (egress, ingress)
+    participant E as EffectSpawnSystem (every map host)
+    participant L as EffectLayer
+    B->>P: Carry(segment, front damage, front penetration, impacts)
+    P->>W: Trace Fire
+    W-->>P: crossings with T, path, loss, entry and exit normals
+    loop each crossing
+        alt the round passes
+            P-->>B: Entry at T, Exit at T + path
+        else it stops
+            P-->>B: Stop at T, carry ends
+        end
+    end
+    B->>B: the segment dips below the ground: Stop there (every round)
+    B->>N: RoundImpactNotification per impact
+    N-->>E: the same event on a viewer (IsRemote)
+    E->>E: puff (the round's Explosion type) + mark (its Decal type), rotation from the normal
+    E->>E: a Stop with no warhead: Burst(HitBody false) for the ricochet
+    L->>L: mark in the surface's plane, a hair off it
+```
+
+```mermaid
+graph TD
+    MUS[CombatModule, muscle] --> BS[BallisticsSystem, PostSimulation]
+    BS -->|local event| EG[RoundImpactEgressTranslator, MuscleGround branch]
+    EG --> DDS[(RoundImpact topic)]
+    DDS --> IG1[RoundImpactIngress, IG translators]
+    DDS --> IG2[RoundImpactIngress, Perception-only branch]
+    DDS --> IG3[RoundImpactIngress, Brain-only branch]
+    IG1 --> ESS[EffectSpawnSystem, MapInteractionPack, every map host]
+    IG2 --> ESS
+    IG3 --> ESS
+    BS -->|same world: one-world host| ESS
+    classDef dead fill:#fdd,stroke:#c00
+    MM[a MuscleGround host viewing ANOTHER muscle's rounds]:::dead
+```
+
+*Caption:* the ingress sits beside every existing `MunitionDetonationIngressTranslator` EXCEPT the MuscleGround branch, where its own samples
+would loop back and draw every impact twice. ⚠ The red box is the known gap that leaves: a muscle node that is also a map host draws its OWN
+rounds' impacts only — a cluster with two muscles would not show the other's. Accepted for v1 (every built cluster has one muscle per area).
+
+| # | decision | rule |
+|---|---|---|
+| **IM-1** | penetration | ⭐ already the rule (R-217): a round passing a crossing continues with less damage and penetration, whatever fired it and however it was aimed. ⛔ Nothing changes in the combat numbers |
+| **IM-2** | what marks a surface | ⭐ every crossing PASSED gives an Entry impact (at T) and an Exit impact (at T + path / length); the crossing that STOPS a round gives a Stop impact; a round meeting the GROUND (any round — a bullet no longer flies on below it) stops there with a Stop impact |
+| **IM-3** | its own event | ⭐ `RoundImpactNotification` (5010) and a `RoundImpact` DDS topic, **BestEffort** (a lost puff is cosmetic) — ⛔ never `DetonationNotification` (IF-3's 64-burst memory, the area effect, heat) |
+| **IM-4** | the normal | ⭐ the terrain query reports the face entered and left: a prism's side = the footprint edge's outward normal, its top / base = ±Z, a slab = its triangle's, the ground = +Z. Zero = unknown ⇒ the mark faces back along the travel |
+| **IM-5** | what is drawn | ⭐ at each impact the round's set: its `Explosion` type as the puff and its `Decal` type as the mark (7111 / 7121 for small arms, VE-D). A WARHEAD round's Stop draws nothing here: its burst (`DetonationNotification`) already draws the explosion and the ground scorch (VE-I step 1 — kept). Exit impacts draw the mark and a smaller puff |
+| **IM-6** | a mark on a wall or a roof | ⭐ the decal entity's rotation turns +Z onto the normal; the 3-D layer draws a disc in that plane, 2 cm off the surface; on the ground (normal ≈ +Z) it stays DRAPED. VE-H's cap (256) covers them |
+| **IM-7** | sound | ⭐ a non-warhead Stop adds `SoundEvents.Burst(HitBody: false)` — the ricochet the audio design already plays |
+| **IM-8** | a bullet into a unit | ⛔ unchanged: `HitResolutionSystem`'s detonation, no mark (VE-M) |
+
+**Rejected — one line each:**
+- *Bullet strikes on `DetonationNotification`* — a few MG bursts would flush the fire-mission observer's 64-burst memory and wake the area effect.
+- *Each viewer re-tracing every round from the fire event* — a second ballistics that drifts from the muscle's (dispersion, units in the way).
+- *Replicating every bullet* — LR-A rejected it for bandwidth; one impact sample is cheaper than a round's flight.
+- *Facing a wall mark back along the travel only* — an oblique hit would stand the mark off the wall; the query knows the face.
+- *Reliable delivery* — a backlog of puffs is worse than a lost one.
+
+**AS-BUILT `2026-10-16`** — the three diagrams hold. Details, and where the build differs:
+
+| as-built | why |
+|---|---|
+| ⚠ DEVIATION from IM-5: an exit's puff is the SAME type as the entry's, not smaller | an effect has no per-entity scale (the TKB type IS the look, VE-C); a second puff type for one case was not worth a type |
+| the ground stop (IM-2) applies only WITH a world query, to non-warhead rounds | a world-less test or host behaves as before; a warhead round has its own ground check (W-3), which still bursts it |
+| `RoundImpactNotification` carries the TRAVEL too | the mark's fallback facing (IM-4) when a face is unknown, on any node |
+| `TerrainPenetration.Carry(…, impacts)`: a crossing that starts AT the segment's start (the round was already inside) is not marked again | the segment that entered it marked both faces |
+| the ground's crossing (a hill) faces +Z; the slab's faces are its triangle's normal, toward the shooter | IM-4 |
+| ⚠ known limits | a mark may appear on a wall behind a man struck in front of it within one segment (the hit resolves 3 ticks later); a piece spanning a segment boundary gets its exit where the segment ends; a MuscleGround node that is also a map host draws only its own rounds' marks (the red box above) |
+
+Rails: `StaticObstacleTests.CE1128_TheFireQuery_GivesTheFacesNormals_*`, `BallisticsSystemTests.CE1128_*` (fence both sides + the stopping
+fence; the ground, and a warhead stop left to its burst), `RoundImpactTranslatorTests.CE1128_*` (the sample → a remote event; the muscle
+writes, viewers read, never both), `EffectTests.CE1129_*` (puff + mark; a wall mark in its plane, a ground mark draped, a roof mark on the roof).

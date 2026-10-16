@@ -439,6 +439,8 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Camera3D.Pickers.Add(new Fdp.Toolkit.Vis3D.TerrainPicker(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null));
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityBoxPicker(worldProvider, tkb, bodies));
+            // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
+            viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
             canvas.AddLayer(terrain);
             canvas.AddLayer(bodies);
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
