@@ -98,7 +98,7 @@
    },
    "Behavior": {
     "Name": "WindowDuel",
-    "Params": "{\"shape\":0}",
+    "Params": "{\"shape\":0,\"exposuresPerPosition\":1}",
     "Origin": "Superior"
    }
   },

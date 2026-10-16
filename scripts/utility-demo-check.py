@@ -1718,15 +1718,17 @@ def run_technical_scoot(c, timeout):
     if not c.ok(None not in (tank, atgm, hmg), "the tank and both technicals are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots, track, tick = {}, {atgm: [], hmg: []}, 0
+    shots, track, tick, seen_at, timed = {}, {atgm: [], hmg: []}, 0, {}, {atgm: [], hmg: []}
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
+            seen_at.setdefault(x.get("seq"), tick)
         for t in (atgm, hmg):
             pt = position(t)
             if pt:
                 track[t].append(tuple(round(v) for v in pt[:2]))
+                timed[t].append((tick, pt[0], pt[1]))
         tick += 1
         if tick % 10 == 0:   # what the ATGM technical's sensors answer and why its weapon holds, every ~10 s
             st = ((data(call("GET", f"/entities/{atgm}/weapons")) or {}).get("status") or {})
@@ -1765,10 +1767,34 @@ def run_technical_scoot(c, timeout):
                         pts.append((round(m[0]), round(m[1])))
         return pts
     a_pts, h_pts = points(("ATGM", "Kornet")), points(("HMG", "M2"))
-    c.ok(len(a_pts) >= 2, f"① the ATGM technical fires from two points — {a_pts}")
-    c.ok(len(h_pts) >= 2, f"① the HMG technical fires from two points — {h_pts}")
+
+    def scooted(tech, owner_names):
+        # ① shoot AND scoot: fires from two points — or, after its first shot, drives ≥ 5 m from where it fired (the tank may kill it first)
+        xs = [x for k, v in by.items() if any(n in str(k) for n in owner_names) for x in v if x.get("muzzle")]
+        if not xs:
+            return None
+        x0 = min(xs, key=lambda x: x.get("seq") or 0)
+        m, t0 = x0["muzzle"], seen_at.get(x0.get("seq"), 0)
+        away = [(round(px), round(py)) for (tk, px, py) in timed[tech] if tk > t0 and ((px - m[0]) ** 2 + (py - m[1]) ** 2) ** 0.5 >= 5]
+        return away[:1]
+    a_sc, h_sc = scooted(atgm, ("ATGM", "Kornet")), scooted(hmg, ("HMG", "M2"))
+    c.ok(len(a_pts) >= 2 or bool(a_sc), f"① the ATGM technical shoots and scoots — fired from {a_pts}, then drove to {a_sc}")
+    c.ok(len(h_pts) >= 2 or bool(h_sc), f"① the HMG technical shoots and scoots — fired from {h_pts}, then drove to {h_sc}")
     tank_shots = by.get("Tank", [])
-    first = name.get(tank_shots[0].get("target")) if tank_shots else None
+
+    def nearest(tech, x):
+        # which technical a round was AIMED at: its aim point within 8 m of where that technical was (a mounted gun or crew is its own entity)
+        a = x.get("aim") or x.get("end")
+        tk = seen_at.get(x.get("seq"), 0)
+        ps = [(abs(k - tk), px, py) for (k, px, py) in timed[tech]]
+        if not a or not ps:
+            return False
+        _, px, py = min(ps)
+        return ((a[0] - px) ** 2 + (a[1] - py) ** 2) ** 0.5 <= 8
+    first = None
+    if tank_shots:
+        x = tank_shots[0]
+        first = "ATGM Technical" if nearest(atgm, x) else "HMG Technical" if nearest(hmg, x) else name.get(x.get("target"))
     c.ok(first == "ATGM Technical", f"② the tank's first round goes at the ATGM technical — {first} ({len(tank_shots)} rounds)")
     print(f"    health: tank {health(tank)} · ATGM technical {health(atgm)} · HMG technical {health(hmg)}")
 
@@ -1776,7 +1802,7 @@ def run_technical_scoot(c, timeout):
 # ── ua-rpg-window (Urban Armour V6; Exposure Cycle §7 — the AT side is a composition, no new node) — an RPG ambush from a window ──────
 #   bt-range: two IFVs (Bradley) on BasicVehicleSop in the street ~50 m south of House A (⚠ at 23 m the IFV drove under the window and the
 #   RPG man's steep shot met his own wall — CE-2218; one IFV dies in 2 rockets before a 3rd exposure, so two give the relocation a chance); an RPG man (Insurgent 2003) at
-#   House A's upper window on WindowDuel shape A (PeekAndFire: prone under the sill, up to fire, another window after a few exposures),
+#   House A's upper window on WindowDuel shape A with exposuresPerPosition 1 (PeekAndFire: prone under the sill, up to fire, another window after each rocket),
 #   knowing where the IFV is. ① the RPG fires at the IFV and hurts it · ② it fires from two windows (≥ 3 m apart) · ③ the IFV fires back.
 def run_rpg_window(c, timeout):
     ids = ids_by_name()
@@ -1819,11 +1845,11 @@ def run_rpg_window(c, timeout):
         if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 3 for q in pts):
             pts.append((round(m[0], 1), round(m[1], 1)))
     c.ok(len(mine) >= 1 and (_hurt(ifv, 500) or _hurt(ifv2, 500)), f"① the RPG fires at an IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)} · IFV 2 {health(ifv2)}")
-    # ② the relocation: fires from a second window — or, when both IFVs died first, MOVES to one (≥ 3 m along the same floor) after its
-    #   exposures there (WindowDuel shape A: 3 per window)
+    # ② the relocation: fires from a second window — or MOVES to one (≥ 3 m along the same floor) after he fired (an AT man fires
+    #   and moves: exposuresPerPosition 1 — the IFVs' fire may kill him before a second rocket)
     z0 = stops[0][2] if stops else 0
     moved = [q for q in stops[1:] if abs(q[2] - z0) < 1.0 and ((q[0] - stops[0][0]) ** 2 + (q[1] - stops[0][1]) ** 2) ** 0.5 >= 3]
-    c.ok(len(pts) >= 2 or (len(mine) >= 3 and moved), f"② the RPG relocates to another window — fired from {pts}, after {len(mine)} rocket(s) moved to {moved[:1]}")
+    c.ok(len(pts) >= 2 or (len(mine) >= 1 and moved), f"② the RPG relocates to another window after he fires — fired from {pts}, after {len(mine)} rocket(s) moved to {moved[:1]}")
     back = [x for x in xs if x.get("shooter") in (ifv, ifv2)]
     c.ok(len(back) >= 1, f"③ the IFV fires back — {len(back)} round(s), at {sorted({name.get(x.get('target'), x.get('target')) for x in back}, key=str)}")
     print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
