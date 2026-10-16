@@ -164,6 +164,40 @@ public sealed class NavigationIntentEgressTranslatorTests
         Assert.Equal(7800L, w.RouteEntityId);
     }
 
+    /// <summary>⭐⭐ CE-2208 — the Brain's hold release is a FLAG on the same command (FollowRouteExecutor writes it without a new
+    /// IntentId): it must cross the wire, and dropping it must cross too. 🔴 Before, the egress keyed on IntentId alone, so a helicopter
+    /// held its Rope stop for ever on a split cluster (live ua-fast-rope-roof). An unchanged intent still publishes nothing.</summary>
+    [Fact]
+    public void CE2208_AFlagOnlyChange_TheHoldRelease_IsPublished()
+    {
+        using var world = CreateWorld();
+        var (translator, writer) = CreateTranslator();
+        var entity = SpawnAuthoritativeEntity(world, netId: 46);
+        world.Tick();
+        var intent = new EcsNavigationIntent { IntentId = 1, Mode = EcsNavMode.FollowRoute, RouteEntityId = 7800 };
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+
+        world.Tick();
+        intent.ReleaseHold = true;
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+        Assert.Equal(2, writer.Publishes.Count);
+        Assert.Equal(1u, writer.Publishes[1].IntentId);
+        Assert.Equal(intent.Flags, writer.Publishes[1].Flags);
+
+        world.Tick();
+        translator.ScanAndPublish(world);
+        Assert.Equal(2, writer.Publishes.Count);   // no change, no sample
+
+        world.Tick();
+        intent.ReleaseHold = false;
+        world.SetComponent(entity, intent);
+        translator.ScanAndPublish(world);
+        Assert.Equal(3, writer.Publishes.Count);   // the level drops — and that crosses too
+        Assert.Equal((byte)0, writer.Publishes[2].Flags);
+    }
+
     /// <summary>⭐ CE-3026 — a STOP (Mode None with a new IntentId, as MoveToExecutor.OnExit writes) crosses the wire;
     /// only the never-commanded default (IntentId 0) stays silent.</summary>
     [Fact]
