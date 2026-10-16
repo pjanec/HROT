@@ -34,7 +34,7 @@ namespace Fhsm.Kernel.Data
 
         // === Navigation & Extra (4 bytes) ===
         [FieldOffset(28)] public byte OutputLaneMask;       // Output lanes this state writes to
-        [FieldOffset(29)] public byte Reserved29;           // Padding
+        [FieldOffset(29)] public byte RegionSlot;           // CE-1005: the region slot that owns this state (0 = root slot)
         [FieldOffset(30)] public ushort TimerActionId;      // Timer action (0 = none)
 
         // Total: 32 bytes

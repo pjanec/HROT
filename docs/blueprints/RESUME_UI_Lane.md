@@ -194,6 +194,8 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1017 | the ExCon ORBAT's New Unit opens the picker rooted at Units (D9) — the row closed; Stride is CE-1030 | [picker design §5](../DESIGN_Add_Entity_Picker.md) |
 | CE-1022 | closed — already resolved by CE-3123 (the label gizmo on every host) | [membership §10](../DESIGN_Uniform_Gizmo_Membership.md) |
 | CE-1124 | 🐞 half the ExCon suite never ran: a null behaviour list threw inside an ImGui frame and aborted the host — now 402/0 | [tracker](Blueprint_Issues_Tracker.md) |
+| CE-1039 | 🐞 the Presentation test-host aborts root-caused (core dump: a fresh Raylib window with an unusable GL context) — the frame harness keeps ONE window per process, GLX context handed between threads; 8/8 clean runs | [ui-probe README](../../tools/ui-probe/README.md) |
+| CE-1005 | ⭐ HSM kernel (cross-lane): a transition exits/enters by region slot — entering a parallel state starts every region; also fixed a non-initial nested target landing on the initial child and composite transitions skipping the child's exit | [Fhsm.Kernel.md](../projects/FDP/ExtDeps/FastHSM/Fhsm.Kernel.md) |
 | CE-1120 | ⭐ **FPS audio A0–A3 BUILT** (R-1004, autonomously): sound only while a unit is possessed, raylib output, generated sounds, doors / boarding / town / rumble, F6–F10 + per-operator `audio.json`. ⏳ **needs the user's ear on Windows** (F9 left then right; `HROT_AUDIO_PAN_FLIP=1` if reversed). Night insects not wired — no time of day exists | [DESIGN_FPS_Audio §8](../designs/audio/DESIGN_FPS_Audio.md) |
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)

@@ -251,7 +251,7 @@ only into the layout method.
 | rails | `Fhsm.Tests/Kernel/DeclaredRegionTests` (4 — runs the kernel: a declared region starts only its initial, a transition inside it moves only it, undeclared children keep one region each, two initials is an error) · `Hrot.Hsm.Editor.Tests/Host/HsmRegionsAndInitialStateTests` |
 
 ⚠ **Found while building, NOT fixed here — `CE-1005`:** entering a parallel state by a TRANSITION starts only one of
-its regions (measured: leaves `A, -, -`); region slots are initialised only at instance start. Kernel work.
+its regions (measured: leaves `A, -, -`); region slots are initialised only at instance start. Kernel work. ✅ **Fixed `2026-10-16`** (with two more transition defects) — [`Fhsm.Kernel.md`](../projects/FDP/ExtDeps/FastHSM/Fhsm.Kernel.md) "Transition Execution Across Regions".
 ⏸ **Not built:** dragging the start marker onto another state (design S4) — the menu item covers the gesture; a
 draggable custom element needs a new NodeEditor hook.
 
