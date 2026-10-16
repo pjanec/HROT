@@ -26,6 +26,7 @@ namespace Hrot.Map.Common.Tests.Replication.Egress;
 ///   4. QueryDelta provides the coarse filter: a totally-unchanged entity is never
 ///      yielded, so zero dictionary lookups occur for it.
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class NavigationIntentEgressTranslatorTests
 {
     // ── Test infrastructure ────────────────────────────────────────────────────

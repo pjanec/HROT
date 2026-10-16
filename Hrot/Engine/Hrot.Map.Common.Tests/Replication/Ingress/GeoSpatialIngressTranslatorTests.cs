@@ -27,6 +27,7 @@ namespace Hrot.Map.Common.Tests.Replication.Ingress;
 ///
 /// <para>Tests: GEOINGRESS-1 … GEOINGRESS-4.</para>
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class GeoSpatialIngressTranslatorTests
 {
     private const int  LocalNodeId     = 1;

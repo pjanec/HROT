@@ -15,6 +15,7 @@ namespace Hrot.Map.Common.Tests.Replication.Egress;
 /// commander ID and tactical designation are read from <see cref="UnitSubordinate"/>
 /// and published to the DDS <c>EntityInfo</c> sample.
 /// </summary>
+[Collection("SerialTests")]   // ⭐ it clears the process-wide ComponentTypeRegistry
 public sealed class EntityInfoEgressTranslatorTests
 {
     // ── Test double ───────────────────────────────────────────────────────────

@@ -53,6 +53,32 @@ public class MapRouteTranslatorTests
         Assert.Equal(3, writer.Publishes[0].Points!.Count);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2209</c> — a route with NO <c>SimTransform</c> (a hand-authored scenario) is still published: the translator never reads it.
+    /// 📐 Measured on two real nodes before: created on CGF without one, the route was promoted on SimHost with no plan, and the route
+    /// source answered nothing (the aircraft sat AwaitingPath). 🔴 Red-proof: the old <c>.With&lt;SimTransform&gt;()</c> ⇒ no publish.
+    /// </summary>
+    [Fact]
+    public void CE2209_ARouteWithoutATransform_IsStillPublished()
+    {
+        using var world  = CreateEcsWorld();
+        var entityMap    = new NetworkEntityMap();
+        var writer       = new CapturingWriter<MapRoute>();
+        var translator   = new MapRouteEgressTranslator(writer, entityMap, new StubGeoTransform());
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new NetworkIdentity(7));
+        world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+        entityMap.Register(7, entity);
+        var plan = new RoutePlan();
+        plan.Mutate(wps => { wps.Add(new RouteWaypoint { Position = new Vector3(10, 10, 0) }); wps.Add(new RouteWaypoint { Position = new Vector3(200, 10, 0) }); });
+        world.SetManagedComponent(entity, plan);
+
+        translator.ScanAndPublish(world);
+
+        Assert.Equal(1, writer.Publishes.Count);
+        Assert.Equal(2, writer.Publishes[0].Points!.Count);
+    }
+
     [Fact]
     public void Egress_IsLoop_And_SpeedAndExtensionJson_FaithfullyPropagated()
     {
