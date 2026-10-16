@@ -1675,13 +1675,15 @@ def run_javelin_lock(c, timeout):
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
 #   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
-#   y 210 hid every target and it never fired), against an enemy T-72 (240 m), a pickup (230 m) and two riflemen (220 m), the enemy tank IDLE (no brain) so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
+#   y 210 hid every target and it never fired), against an enemy T-72 (240 m), an HMG technical (230 m) and two riflemen (230 m,
+#   advancing on it — held still at that range they were never seen). ⚠ A bare pickup (106) here took 22 rounds straight through it
+#   (no hit, every round detonating 230 m beyond). The enemy tank is IDLE (no brain), so the M1 fights the three in turn. ① it fires at all three · ② the round differs by
 #   target (read from each shot's penetration — the kinetic APFSDS against the tank, a lower-penetration HE / HEAT at the soft ones).
 def run_tank_ammo(c, timeout):
     ids = ids_by_name()
-    tank, t72, pickup = ids.get("Tank"), ids.get("Enemy Tank"), ids.get("Pickup")
+    tank, t72, pickup = ids.get("Tank"), ids.get("Enemy Tank"), ids.get("Technical")
     riflemen = [ids.get("Rifleman 1"), ids.get("Rifleman 2")]
-    if not c.ok(None not in (tank, t72, pickup, *riflemen), "the tank, the T-72, the pickup and the riflemen are loaded"):
+    if not c.ok(None not in (tank, t72, pickup, *riflemen), "the tank, the T-72, the technical and the riflemen are loaded"):
         return
     call("POST", "/sim/play", {})
     shots = {}
@@ -1703,12 +1705,24 @@ def run_tank_ammo(c, timeout):
         by_target.setdefault(name.get(x.get("target"), x.get("target")), []).append(x)
     for t, xs in by_target.items():
         print(f"    at {t}: {len(xs)} rounds, penetration {sorted({round(x.get('penetration') or 0) for x in xs})}, weapon {sorted({x.get('weaponIndex') for x in xs})}")
-    hit = [n for n in ("Enemy Tank", "Pickup", "Rifleman 1", "Rifleman 2") if n in by_target]
-    c.ok(len(hit) >= 3, f"① it fires at the tank, the pickup and the men — {hit}")
+        print("      outcomes", dict(__import__("collections").Counter(x.get("outcome") for x in xs)))
+        for x in xs[:3]:
+            print("      e.g.", {k: x.get(k) for k in ("muzzle", "aim", "end", "hit", "outcome", "penetration", "crossings")})
+    at_tank = [x for x in shots.values() if x.get("target") == tank or x.get("hit") == tank]
+    print("    rounds at the tank:", dict(__import__("collections").Counter((name.get(x.get("shooter")), x.get("outcome"), x.get("hitPart"), x.get("hitFace")) for x in at_tank)))
+    for x in [x for x in at_tank if x.get("hit") == tank][:3]:
+        print("      hit on tank", {k: x.get(k) for k in ("shooter", "penetration", "damage", "arrivingDamage", "arrivingPenetration", "hitPart", "hitFace", "crossings")})
+    soft = [x for x in mine if x.get("target") != t72]
+    if soft:
+        print("      a soft-target round (all keys):", {k: v for k, v in soft[0].items() if k not in ("crossings",)})
+    md = data(call("GET", f"/entities/{tank}/memory")) or {}
+    print("    tank memory:", [(name.get(x.get("networkId"), x.get("networkId")), round(x.get("freshness") or 0, 1), x.get("modalities"), x.get("alive")) for x in md.get("slots") or []])
+    hit = [n for n in ("Enemy Tank", "Technical", "Rifleman 1", "Rifleman 2") if n in by_target]
+    c.ok(len(hit) >= 3, f"① it fires at the tank, the technical and the men — {hit}")
     pen = lambda n: max((x.get("penetration") or 0 for x in by_target.get(n, [])), default=0)
-    soft = max(pen("Pickup"), pen("Rifleman 1"), pen("Rifleman 2"))
+    soft = max(pen("Technical"), pen("Rifleman 1"), pen("Rifleman 2"))
     c.ok(pen("Enemy Tank") > 0 and pen("Enemy Tank") > soft, f"② a different round for the tank — penetration {pen('Enemy Tank'):.0f} vs {soft:.0f} at the soft targets")
-    print(f"    health: tank {health(tank)} · T-72 {health(t72)} · pickup {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
+    print(f"    health: tank {health(tank)} · T-72 {health(t72)} · technical {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
 
 
 def _turn(bearings, start, stop):
