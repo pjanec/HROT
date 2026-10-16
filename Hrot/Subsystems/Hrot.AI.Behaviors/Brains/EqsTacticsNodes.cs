@@ -342,8 +342,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2202 — never a BODY: the kept current and the ranking's top must still be in the fight (CombatLife, CE-466's rule — a
             //   knocked-out man stays in the world and in memory). 📌 Live ua-ifv-standoff: the IFV killed one RPG man, kept him as its
             //   threat (nothing else scored above zero), stood guarding the corpse, and two live men walked up to it unengaged.
-            bool keep = score <= 0f && !current.IsNull && Fdp.Toolkit.Combat.CombatLife.IsAlive(world, current) && Remembers(world, self, current);
-            threat = keep ? current : top;
+            threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
             if (!threat.IsNull && !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, threat)) threat = FirstLiveRemembered(world, self);
             return !threat.IsNull;
         }
