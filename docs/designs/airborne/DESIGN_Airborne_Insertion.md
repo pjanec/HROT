@@ -457,7 +457,13 @@ sequenceDiagram
 | the jumpmaster's 1 s gap is a FLOOR (0.8 × the interval), the release points set the pace — they are one interval of flight apart by construction; a strict 1 s gap drifted the stick one tick later per man | `SquadAirborneExitBehavior.MinGapShare` |
 | the plays keep ONE shell phase (+ Aborted); "jumping → assembling" is the per-member state in the play's params, not a shell phase | the phase table adds nothing the per-member state does not say |
 | `DisembarkParamsJsonDto.Exit` is a byte (0 / 1 / 2), not a named enum — ⚠ R-2005 asks for enums by name in JSON; a follow-up if it is authored by hand | — |
-| ⚠ not yet measured live: a man WALKING on a roof (the ring) — the navmesh may not hold roofs; `ua-fast-rope-roof` measures it | §8 |
+| ~~⚠ not yet measured live: a man WALKING on a roof~~ ✅ measured `2026-10-16` — see the live table below | §8 |
+
+| ⭐ live, `--mode all` (`scripts/utility-demo-check.py <demo> --launch`) | result | what the run had to fix first |
+|---|---|---|
+| **`ua-fast-rope-roof`** | ✅ **PASS** — 8 down two ropes in **7.6 s**, 8 ring spots ON the 12 m roof (radius ≈ 5 m, none on the ground, none within 1 m), the UH-60 left at 31.3 s after the last landing at 25.8 s | ① a scenario route entity needs `TkbIdentity 8802` AND a `SimTransform` — without the transform `MapRouteEgressTranslator` never publishes its `RoutePlan`, so SimHost had no route and the helicopter sat in `AwaitingPath` (**CE-2209**, for backend) · ② ⭐⭐ **CE-2208**: the Brain's hold release (a `Flags` bit on the same command) never crossed the wire — `NavigationIntentEgressTranslator` keyed on `IntentId` alone, so EVERY Unload / Pickup / Rope / Drop release was dead on a split cluster; fixed (fingerprint `(IntentId, Flags)`) |
+| ⭐ walking on a roof | ✅ the ring spots are reached and held at roof height (z = 12) — pedestrian navigation holds the roof | — |
+| the seat presets beside a scenario's own passengers | ✅ the UH-60's StartWith crew (2 × Rifleman + 2 × M134, seats 8–11) and the scenario's 8 riders (seats 0–7) coexist; only the riders count for the hold (CE-2207) | — |
 
 ## 7. Slices
 
