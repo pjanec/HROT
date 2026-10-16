@@ -210,6 +210,83 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             $"within {AuthorityTimeoutMs} ms when WorldPos is delegated to Muscle");
     }
 
+    // ── IT-SA-4 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-2210</c> (Airborne Insertion §7d, D-15) — a man CREATED coming down, through the real request path (what
+    /// <c>EjectionSystem</c> enqueues on the jet's Health owner): the Muscle that takes his position must hold his
+    /// <c>Descent</c> and the jet's speed, and FLY him — his phase leaves the seat's arc there, and the Brain sees it.
+    /// 📐 Measured before the fix: position and velocity crossed, the descent never did (its egress scanned Active entities
+    /// only, and the creator owns the descent only while he is Constructing) ⇒ a Pedestrian at a standstill, for ever.
+    /// 🔴 Red-proof: drop <c>WithLifecycle(All)</c> from <c>EntityDescentEgressTranslator</c> ⇒ no descent on the Muscle.
+    /// <para>Domain 33 — explicit: a fourth shared-counter domain here would be 233, above CycloneDDS's 232.</para>
+    /// </summary>
+    [Fact]
+    public void BrainCreatesAManComingDown_TheMuscleFliesHim()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 33);
+            using var cgf     = new CgfHarness(33);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = TkbEntityTypes.Infantry_Pilot,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(100, 200, 300), Rotation = System.Numerics.Quaternion.Identity },
+                    new SimVelocity  { Linear = new System.Numerics.Vector3(0, 150, 40) },
+                    new Fdp.Toolkit.Motion.Descent
+                    {
+                        Kind = Fdp.Toolkit.Motion.DescentKind.Ejection, Phase = Fdp.Toolkit.Motion.DescentPhase.Exit,
+                        Canopy = Fdp.Toolkit.Motion.CanopyKind.Round, PhaseSince = Fdp.Toolkit.Motion.DescentRules.Now(cgfWorld),
+                    },
+                },
+            });
+
+            float forwardSpeed = 0f;
+            bool descending = PumpBothUntil(simHost, cgf, () =>
+            {
+                var w = simHost.SimHost.World;
+                if (w == null || !w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Descent>()) return false;
+                var pilot = PilotIn(w);
+                if (pilot.IsNull || !w.HasComponent<Fdp.Toolkit.Motion.Descent>(pilot) || !w.HasComponent<SimVelocity>(pilot)) return false;
+                forwardSpeed = w.GetComponentRO<SimVelocity>(pilot).Linear.Y;
+                return w.GetComponentRO<Fdp.Toolkit.Motion.Descent>(pilot).Kind == Fdp.Toolkit.Motion.DescentKind.Ejection;
+            }, PropagationTimeoutMs);
+            Assert.True(descending, "the Muscle never received the pilot's Descent{Ejection} — he would be a Pedestrian there");
+            Assert.True(forwardSpeed > 100f, $"the jet's forward speed must ride with him (got {forwardSpeed:0.#} m/s)");
+
+            bool flown = PumpBothUntil(simHost, cgf, () =>
+            {
+                var w = simHost.SimHost.World!;
+                var pilot = PilotIn(w);
+                var brain = PilotIn(cgfWorld);
+                return !pilot.IsNull && w.HasComponent<Fdp.Toolkit.Motion.Descent>(pilot)
+                    && w.GetComponentRO<Fdp.Toolkit.Motion.Descent>(pilot).Phase != Fdp.Toolkit.Motion.DescentPhase.Exit
+                    && !brain.IsNull && cgfWorld.HasComponent<Fdp.Toolkit.Motion.Descent>(brain)
+                    && cgfWorld.GetComponentRO<Fdp.Toolkit.Motion.Descent>(brain).Phase != Fdp.Toolkit.Motion.DescentPhase.Exit;
+            }, AuthorityTimeoutMs);
+            Assert.True(flown, "the Muscle must fly him past the seat's arc, and the Brain must see his new phase");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    private static Entity PilotIn(EntityRepository w)
+    {
+        if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.Infantry_Pilot) return e;
+        return Entity.Null;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static bool PumpBothUntil(

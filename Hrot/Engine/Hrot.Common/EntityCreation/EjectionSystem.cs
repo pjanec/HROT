@@ -62,9 +62,11 @@ namespace Hrot.Common.EntityCreation
             _ejected.Add(aircraft);
 
             // ① the pilot, at the seat, with the aircraft's velocity and the rocket's climb, coming down from the start
+            // ⭐ CE-2210 — where the jet is and how it moves AS THIS NODE KNOWS IT: the Health owner (the Brain) does not own the jet's
+            //   motion, so its SimVelocity is never refreshed there (a pilot born with the rocket's climb and none of the jet's speed).
             ref readonly var tf = ref repo.GetComponentRO<SimTransform>(aircraft);
-            var seat = tf.Position + Vector3.Transform(new Vector3(ej.SeatX, ej.SeatY, ej.SeatZ), tf.Rotation);
-            var v = repo.HasComponent<SimVelocity>(aircraft) ? repo.GetComponentRO<SimVelocity>(aircraft).Linear : Vector3.Zero;
+            Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, aircraft, out var at, out var v);
+            var seat = at + Vector3.Transform(new Vector3(ej.SeatX, ej.SeatY, ej.SeatZ), tf.Rotation);
             float yaw = RotorcraftModel.YawOf(tf.Rotation);
             repo.GetSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
             {

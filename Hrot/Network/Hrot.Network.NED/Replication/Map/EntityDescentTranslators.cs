@@ -44,7 +44,10 @@ namespace Hrot.Map.Common.Replication.Egress
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<Descent>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
             _seen.Clear();
-            foreach (var e in view.Query().With<Descent>().With<NetworkIdentity>().Build())
+            // ⭐ CE-2210 — EVERY lifecycle, as GeoSpatialEgressTranslator: a body created already coming down (the ejected pilot)
+            //   is the creator's to publish only while it is CONSTRUCTING — the creator yields its Muscle group before it turns
+            //   Active (Ownership Groups D-7). The default (Active-only) query never saw it then, so nobody ever sent his descent.
+            foreach (var e in view.Query().With<Descent>().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(e).Value;

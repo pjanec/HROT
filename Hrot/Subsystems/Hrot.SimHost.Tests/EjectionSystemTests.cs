@@ -126,6 +126,30 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Frame().Spawned);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2210</c> — the Health owner (the Brain) does not own the jet's MOTION: its <c>SimVelocity</c> stands still there and the live
+        /// velocity arrives in <c>NetworkVelocity</c>. The pilot still leaves with the jet's speed (<c>ReplicatedMotion.Of</c>, CE-2173).
+        /// 📐 Live <c>ua-eject</c> before: the pilot was born with (0, 0, 40) — the rocket and none of the jet.
+        /// 🔴 Red-proof: reading <c>SimVelocity</c> again ⇒ (0, 0, 40) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2210_OnANodeNotOwningTheJetsMotion_ThePilotStillLeavesWithTheJetsSpeed()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+            var jet = Jet();
+            _w.SetComponent(jet, new SimVelocity { Linear = Vector3.Zero });   // the replica's copy, never refreshed on the Brain
+            _w.AddComponent(jet, new Fdp.Toolkit.Replication.Components.NetworkTransform { LastPosition = new Vector3(100, 200, 300), LastRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            _w.AddComponent(jet, new Fdp.Toolkit.Replication.Components.NetworkVelocity { Value = new Vector3(0, 150, 0) });
+            _w.AddComponent(jet, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _w.SetAuthority<Health>(jet, true);
+            _w.SetAuthority<SimTransform>(jet, false);
+
+            _w.Bus.Publish(new EjectRequestEvent { Aircraft = jet });
+            var pilot = Assert.Single(Frame().Spawned);
+            Assert.Equal(new Vector3(0, 150, ParachuteModel.EjectUpMps), pilot.InitialComponents!.OfType<SimVelocity>().Single().Linear);
+        }
+
         /// <summary>⭐ D-14 — a node that does not own the jet's Health ejects nobody (the owner does).</summary>
         [Fact]
         public void B8_ANodeNotOwningTheJetsHealth_EjectsNobody()
