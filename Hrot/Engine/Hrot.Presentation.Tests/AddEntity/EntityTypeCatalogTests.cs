@@ -22,6 +22,7 @@ public sealed class EntityTypeCatalogTests
         var db = new TkbDatabase();
         NedTkbCatalog.RegisterAll(db);
         UrbanCombatTkbCatalog.RegisterAll(db);
+        CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 — part of the built-in set (HrotEnvironment.RegisterBuiltInTkb)
         return db;
     }
 
@@ -240,6 +241,13 @@ public sealed class EntityTypeCatalogTests
         1001 CivilianPedestrian | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
         1002 CivilianCar | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1003 CivilianChild | dis 3.1.0.0.0.0.0 | family Person | folder Life Form/Land | icon _person
+        1101 CivilianAdultMale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1102 CivilianAdultFemale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1103 CivilianMinor | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1104 CivilianElderly | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1201 SecurityShield | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
+        1202 SecurityBaton | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
+        1203 SecurityLauncher | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
         2001 MilitaryAPC | dis 1.1.0.2.0.0.0 | family Afv | folder Platform/Land/Armored Fighting Vehicle | icon _afv
         2002 InfantrySoldier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2003 Insurgent | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
@@ -302,6 +310,8 @@ public sealed class EntityTypeCatalogTests
         3 Life Form
         3.1 Land
         3.1.*.1 Infantry (HROT)
+        3.1.*.2 Civilian (HROT)
+        3.1.*.3 Security Force (HROT)
         3.2 Air
         3.3 Surface
         3.4 Subsurface

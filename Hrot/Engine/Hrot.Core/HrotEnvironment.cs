@@ -45,6 +45,7 @@ namespace Hrot.Map.Common
             //    identical CONTENTS. ⚠ Development default only — the real system loads TKB from files
             //    synced to all nodes (user, 2026-08-31).
             Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
+            Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(tkb);   // ⭐ CE-3220 (civilians B-2, R-3013) — the civilian family + security forces
             Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // ⭐ CE-1032 — the munition types mounts load (warheads by name)
             Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
             Hrot.Core.Tkb.SoundTkbCatalog.RegisterAll(tkb);      // ⭐ CE-1120 — the FPS sound types (docs/designs/audio/DESIGN_FPS_Audio.md AU-5)

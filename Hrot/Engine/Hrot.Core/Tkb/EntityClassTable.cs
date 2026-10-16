@@ -176,6 +176,9 @@ namespace Hrot.Core.Tkb
             yield return C("SurfacePerson", "Surface", "3.3");
             yield return C("SubsurfacePerson", "Subsurface", "3.4");
             yield return C("Infantry", "Infantry (HROT)", "3.1.*.1");
+            // ⭐ CE-3220 (civilians B-2, CV-1, R-3013) — the civilian family and the security forces (CivilianTkbCatalog), HROT's own categories
+            yield return C("Civilian", "Civilian (HROT)", "3.1.*.2");
+            yield return C("SecurityForce", "Security Force (HROT)", "3.1.*.3");
 
             // ⭐ CE-2139 (C3, R-278) — UNITS, under their own Kind (UnitDis): Category = arm, Subcategory = echelon. The Kind's
             //   display name is the picker's units folder (EntityTypeCatalog.UnitsFolder, which ExCon's ORBAT list keys on).

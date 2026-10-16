@@ -355,6 +355,73 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
 
+    // ── IT-SA-6 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3221</c> (civilians B-3, CV-4, R-3013; docs/DESIGN_Civilians_And_Crowd_Control.md §7.1) — a runtime side flip made on
+    /// CGF (the creator, which owns <c>EntityInfo</c>, R-160) through the ONE write path, <c>EntityWriteRouter</c> + the
+    /// <c>Affiliation</c> attribute, reaches SimHost. ⚠ <c>EntityInfo</c>'s egress re-sends only when the descriptor is dirty, so a
+    /// bare <c>SetComponent</c> on CGF would never leave it (AX-015). 🔴 Red-proof: skip <c>EcsPatchContext.FlushDirtyMarks</c> ⇒
+    /// SimHost keeps the old side.
+    /// <para>Domain 36 — explicit, like IT-SA-5's 35.</para>
+    /// </summary>
+    [Fact]
+    public void CE3221_ASideFlipMadeOnCgf_ReachesSimHost()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 36);
+            using var cgf     = new CgfHarness(36);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = TkbEntityTypes.Infantry_Rifleman,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !OfType(w, TkbEntityTypes.Infantry_Rifleman).IsNull
+                    && w.HasComponent<EntityInfo>(OfType(w, TkbEntityTypes.Infantry_Rifleman)), PropagationTimeoutMs),
+                "the rifleman never reached SimHost");
+            var simWorld = simHost.SimHost.World!;
+            var simMan = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+            var cgfMan = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.NotEqual(ForceId.Hostile, simWorld.GetComponentRO<EntityInfo>(simMan).ForceId);
+
+            var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(cgfWorld).Write(cgfMan, new[]
+            {
+                new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+                {
+                    AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Affiliation,
+                    Value       = Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)Fdp.Toolkit.Replication.ForceIdentifier.Opposing),
+                },
+            });
+            Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct, route);   // CGF created him, so CGF owns EntityInfo
+            Assert.Equal(ForceId.Hostile, cgfWorld.GetComponentRO<EntityInfo>(cgfMan).ForceId);
+
+            Assert.True(PumpBothUntil(simHost, cgf, () => simWorld.GetComponentRO<EntityInfo>(simMan).ForceId == ForceId.Hostile, AuthorityTimeoutMs),
+                $"the flip never reached SimHost (it reads {simWorld.GetComponentRO<EntityInfo>(simMan).ForceId})");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    private static Entity OfType(EntityRepository w, long tkbType)
+    {
+        if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == tkbType) return e;
+        return Entity.Null;
+    }
+
     /// <summary>The World Environment whose clock started at <paramref name="startTicks"/> (Null when none has it).</summary>
     private static Entity EnvironmentIn(EntityRepository w, long startTicks)
     {
