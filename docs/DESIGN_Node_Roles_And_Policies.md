@@ -58,6 +58,7 @@ related-designs:
     model, and the `NetworkAuthority`/`NetworkOwnership` merge. ⭐ It SUPERSEDES §7.2's "ownership is
     discarded at save time" for the distributed case and ANSWERS §8 ①. This document keeps the policy
     (who may own what, R-138/R-140); that one keeps the mechanism.
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — adds the Traffic role: an ECS host running SumoSharp that publishes on SumoSharp's own topics, not NED (R-4020, R-4022).
 -->
 
 # ⭐⭐⭐ Node Roles, Policies and Conventions

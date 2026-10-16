@@ -63,6 +63,7 @@ related-designs:
   - DESIGN_Ownership_Groups_And_Grants.md — owns descriptor ownership and PARTS (F-6: mount parts never created); §3.11's
     turret part (M23) is a part of that model — one owner per descriptor instance.
   - DESIGN_Entity_Control.md — OWNS the FPS view: an ICameraDriver on MapCamera3D that never saves into the scenario camera (M-9, C-1)
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the CityLib-styled traffic road layer (R-4024) drapes through this mode's ground rule; bridges use the lane height.
 -->
 
 # DESIGN — a 3-D mode for the map

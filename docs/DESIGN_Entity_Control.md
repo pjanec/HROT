@@ -28,6 +28,7 @@ related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — OWNS the Brain / MuscleGround groups the new components join
   - docs/designs/gizmos-1/gizmo-input-focus-design.md §6.2d — OWNS the raw-input route to backend gizmos (the key queue's one reader, CE-3175)
   - docs/DESIGN_Peek_And_Fire.md §10.9 G4 — OWNS SquadAssignment.TargetOf, the ONE reader of "the target this unit was told to fight"; the attack order's DesignatedTarget (CE-3170) answers first there
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — R-4023 hands a vehicle to SUMO by a follow mode (KinematicsMode.Traffic), following M-6's rejection of an ownership move and M-1's Manual-mode shape.
 -->
 
 # DESIGN — **entity control** *(orders over HTTP, RTS clicks, the menu, and FPS possession — one path)*
