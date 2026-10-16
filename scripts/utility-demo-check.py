@@ -1774,13 +1774,14 @@ def run_technical_scoot(c, timeout):
 
 
 # ── ua-rpg-window (Urban Armour V6; Exposure Cycle §7 — the AT side is a composition, no new node) — an RPG ambush from a window ──────
-#   bt-range: an IFV (Bradley, 80 mm side) on BasicVehicleSop in the street south of House A, 23 m off; an RPG man (Insurgent 2003) at
+#   bt-range: two IFVs (Bradley) on BasicVehicleSop in the street ~50 m south of House A (⚠ at 23 m the IFV drove under the window and the
+#   RPG man's steep shot met his own wall — CE-2218; one IFV dies in 2 rockets before a 3rd exposure, so two give the relocation a chance); an RPG man (Insurgent 2003) at
 #   House A's upper window on WindowDuel shape A (PeekAndFire: prone under the sill, up to fire, another window after a few exposures),
 #   knowing where the IFV is. ① the RPG fires at the IFV and hurts it · ② it fires from two windows (≥ 3 m apart) · ③ the IFV fires back.
 def run_rpg_window(c, timeout):
     ids = ids_by_name()
-    ifv, rpg = ids.get("IFV"), ids.get("RPG Man")
-    if not c.ok(None not in (ifv, rpg), "the IFV and the RPG man are loaded"):
+    ifv, ifv2, rpg = ids.get("IFV"), ids.get("IFV 2"), ids.get("RPG Man")
+    if not c.ok(None not in (ifv, ifv2, rpg), "both IFVs and the RPG man are loaded"):
         return
     call("POST", "/sim/play", {})
     shots, track = {}, []
@@ -1793,12 +1794,12 @@ def run_rpg_window(c, timeout):
             track.append(tuple(round(v, 1) for v in pt[:3]))
         st = ((data(call("GET", f"/entities/{ifv}/weapons")) or {}).get("status") or {})
         md = data(call("GET", f"/entities/{ifv}/memory")) or {}
-        print(f"      @{len(track)}s IFV weapon {st.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}"
+        print(f"      @{len(track)}s IFV weapon {st} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}"
               f" · RPG health {health(rpg)} · IFV health {health(ifv)}")
         rst = ((data(call("GET", f"/entities/{rpg}/weapons")) or {}).get("status") or {})
         rmd = data(call("GET", f"/entities/{rpg}/memory")) or {}
         print(f"        RPG weapon {rst} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1), m.get('position') or m.get('pos')) for m in (rmd.get('slots') or [])][:3]}")
-        if _dead(ifv) or _dead(rpg):
+        if (_dead(ifv) and _dead(ifv2)) or _dead(rpg):
             break
         time.sleep(1.0)
     name = {v: k for k, v in ids.items()}
@@ -1817,11 +1818,11 @@ def run_rpg_window(c, timeout):
         m = x.get("muzzle")
         if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 3 for q in pts):
             pts.append((round(m[0], 1), round(m[1], 1)))
-    c.ok(len(mine) >= 1 and _hurt(ifv, 50), f"① the RPG fires at the IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)}")
+    c.ok(len(mine) >= 1 and (_hurt(ifv, 500) or _hurt(ifv2, 500)), f"① the RPG fires at an IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)} · IFV 2 {health(ifv2)}")
     c.ok(len(pts) >= 2, f"② the RPG fires from two windows — {pts}")
-    back = [x for x in xs if x.get("shooter") == ifv]
+    back = [x for x in xs if x.get("shooter") in (ifv, ifv2)]
     c.ok(len(back) >= 1, f"③ the IFV fires back — {len(back)} round(s), at {sorted({name.get(x.get('target'), x.get('target')) for x in back}, key=str)}")
-    print(f"    health: IFV {health(ifv)} · RPG man {health(rpg)}")
+    print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
