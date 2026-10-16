@@ -71,6 +71,27 @@ namespace Hrot.Map.Common.Tests
             Assert.NotEqual("WeaponSystem", EntityClassTable.Default.MostSpecific(hmg with { Domain = 2 })!.Name);
         }
 
+        /// <summary>⭐ <c>CE-3220</c> (civilians B-2, CV-1, R-3013; DESIGN_Civilians_And_Crowd_Control §7.2) — every civilian type's most specific
+        /// class is <c>Civilian</c>, every security-force type's is <c>SecurityForce</c>, under <c>LandPerson</c> — the class the picker, the
+        /// 3-D model and the behaviour lookup share (R-280).</summary>
+        [Fact]
+        public void CE3220_TheCivilianFamily_AndTheSecurityForces_HaveTheirOwnClasses()
+        {
+            var db = BuiltIn();
+            CivilianTkbCatalog.RegisterAll(db);
+            foreach (var (type, cls) in new[]
+            {
+                (CivilianTkbCatalog.TkbCivilianAdultMale, "Civilian"), (CivilianTkbCatalog.TkbCivilianAdultFemale, "Civilian"),
+                (CivilianTkbCatalog.TkbCivilianChild, "Civilian"), (CivilianTkbCatalog.TkbCivilianElderly, "Civilian"),
+                (CivilianTkbCatalog.TkbSecurityShield, "SecurityForce"), (CivilianTkbCatalog.TkbSecurityBaton, "SecurityForce"),
+                (CivilianTkbCatalog.TkbSecurityLauncher, "SecurityForce"),
+            })
+            {
+                var dis = db.GetByType(type)!.DisType;
+                Assert.Equal(new[] { "Person", "LandPerson", cls }, EntityClassTable.Default.Chain(dis).Select(c => c.Name));
+            }
+        }
+
         /// <summary>The chain runs general → specific; a grouping class (a list) sits between its level and its member.</summary>
         [Fact]
         public void CE2138_TheChain_RunsGeneralToSpecific()
