@@ -83,8 +83,14 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         Assert.False(sim.IsComponentTypeRegistered<BehaviorState>() && sim.HasAuthority<BehaviorState>(onMuscle),
             "SimHost must NOT own the Rifleman's brain — otherwise this rail proves nothing about the network");
 
-        // ⭐ the order is published on SimHost's own bus — exactly what an HTTP order on that node does
-        var result = new EntityOrders(sim, simMap, geo: null).Hold(id);
+        // ⭐ the order is published on SimHost's own bus — exactly what an HTTP order on that node does — with production's explicit
+        //   event registration ON (Program.cs sets it): 🔴 without it this rail was blind to SimHost never registering the intent event
+        //   (live: POST /entities/{id}/order on the SimHost perspective → 500 "published without being explicitly registered")
+        bool previousStrict = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        OrderResult result;
+        try { result = new EntityOrders(sim, simMap, geo: null).Hold(id); }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrict; }
         Assert.True(result.Accepted, result.Detail);
 
         int idle = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.PersonHold);   // ⭐ CE-2143 — the Rifleman's class runs ITS hold
