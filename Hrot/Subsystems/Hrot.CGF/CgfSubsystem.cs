@@ -1780,10 +1780,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //      the entity first — stays HERE, because the context menu acts on the clicked entity
                 //      while the toolbar acts on the selection. That is a CALLER concern, so the shared
                 //      body needs no host branch.
-                builder.AddItem("Center on entity", () => PublishForEntity(entity,
-                    netId => new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = netId }));
-                builder.AddItem("Select entity", () => PublishForEntity(entity,
-                    netId => new Hrot.Common.Events.SelectEntityCommand { NetworkId = netId }));
+                // ⭐ CE-1134 — "Center on entity" / "Select entity" moved into the map's entity menu, which now heads this menu on
+                //   every host (MapEntityMenuHandler, DiagnosticsWindowsBundle): Center View works in 3-D too, and Properties… joins.
                 builder.AddSeparator();
                 builder.AddItem("Delete entity", () => DeleteEntity(entity));
                 if (_context!.World.HasComponent<Fdp.Core.SimTransform>(entity))
@@ -3269,21 +3267,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// ⭐⭐ <c>CE-051</c> — publishes a network-id-keyed command for a clicked entity, resolving the id
-    /// through the ONE resolver this host already exposes.
-    ///
-    /// <para>⚠ The context menu hands us an <c>Entity</c>; the shared commands are keyed by NETWORK id,
-    /// because they must work from MCP and from a remote node too. ⛔ An entity with no network identity is
-    /// skipped rather than published with <c>0</c>, which would centre on whatever happens to hold id 0.</para>
-    /// </summary>
-    private void PublishForEntity<T>(Entity entity, Func<long, T> command) where T : unmanaged
-    {
-        if (_context == null || !_context.World.IsAlive(entity)) return;
-        long netId = RuntimeNetworkIdOf(entity);
-        if (netId <= 0) return;
-        _context.World.Bus.Publish(command(netId));
-    }
+    // ⭐ CE-1134 — `PublishForEntity` (CE-051) went with its two callers, the inspector's Center / Select items: the map's entity
+    //   menu heads the inspector menu now and runs the map's own actions.
 
     // ⭐⭐⭐ CE-051 (Axis-C E3) — `CenterCameraOnEntity` IS GONE. 📄 design §3 ⑤ / §6.
     //    🔴 It was MEASURED BROKEN: it assigned `Camera.Target`, which `MapCamera.Update` overwrites from

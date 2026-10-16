@@ -256,17 +256,8 @@ public sealed class ReplayBrowserSubsystem : ISubsystem, IWindowRegistrar,
 
             // â”€â”€ Layer Control & Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             // ⭐ The registry, its dispatcher and the layer control come from the shared map pack.
-            var actionRegistry = mapInteraction.Actions;
-
-            actionRegistry.Register(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
-            {
-                if (target == Fdp.Core.Entity.Null) return;
-                if (view.HasComponent<Fdp.Core.SimTransform>(target))
-                {
-                    ref readonly var tf = ref view.GetComponentRO<Fdp.Core.SimTransform>(target);
-                    _canvas.Camera.FocusOn(new System.Numerics.Vector2(tf.Position.X, tf.Position.Y));
-                }
-            });
+            // ⭐ CE-1134 — Center View is MapInteractionPack.RegisterViewActions now (every map host; 2-D and 3-D, the replicated
+            //   position first). This host's own copy read SimTransform only and moved only the 2-D camera.
 
             _actionDispatchSystem = mapInteraction.ActionDispatch;
             // ⭐ CE-3179 — the dispatcher above was ticked here with nothing feeding it: no ingress turned a map-menu click (Center

@@ -1372,8 +1372,8 @@ public class IgApplication : IDisposable
             _fdpContextMenusWired = true;
             _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
             {
-                builder.AddItem("Center on entity", () => CenterCameraOn(entity));
-                builder.AddItem("Select entity",    () => SelectEntityOnMap(entity));
+                // ⭐ CE-1134 — "Center on entity" / "Select entity" were here: the map's entity menu (Center View, 2-D and 3-D;
+                //   Select; Properties…) now heads this menu on every host (MapEntityMenuHandler, DiagnosticsWindowsBundle).
 
                 // "Edit Overlay" ? only shown for area entities that carry an EditablePolyline.
                 if (_world.HasManagedComponent<EditablePolyline>(entity)

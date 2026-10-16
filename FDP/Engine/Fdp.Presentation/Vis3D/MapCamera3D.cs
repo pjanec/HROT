@@ -168,6 +168,23 @@ namespace Fdp.Toolkit.Vis3D
             return new CameraPose(new Vector3(centre, ground), Math.Clamp(distance, MinDistance, MaxDistance), NorthUpYaw, OverheadPitch);
         }
 
+        /// <summary>How long a "centre on" glides (s).</summary>
+        public const float FocusSeconds = 0.35f;
+
+        /// <summary>
+        /// ⭐ CE-1134 — "centre on" in 3-D: the look-at point glides to the ground point (its height from the terrain), the yaw, pitch
+        /// and distance kept, so the operator looks at the entity from where they were looking. ⛔ Not while a driver (first person)
+        /// owns the camera. 🔒 User, 2026-10-16: <i>"center the map, either 2D or 3D, on a selected entity"</i>. Before, the base
+        /// method set the 2-D target, which the 3-D camera never reads, so centring did nothing in 3-D.
+        /// </summary>
+        public override void FocusOn(Vector2 position, float zoom = -1f)
+        {
+            if (_driver != null || !float.IsFinite(position.X) || !float.IsFinite(position.Y)) return;
+            float ground = GroundHeight?.Invoke(position.X, position.Y) ?? LookAt.Z;
+            if (!float.IsFinite(ground)) ground = LookAt.Z;
+            AnimateTo(Pose with { LookAt = new Vector3(position, ground) }, FocusSeconds);
+        }
+
         /// <summary>Animate to <paramref name="target"/> over <paramref name="seconds"/> (eased), then call <paramref name="done"/>.</summary>
         public void AnimateTo(CameraPose target, float seconds, Action? done = null)
         {

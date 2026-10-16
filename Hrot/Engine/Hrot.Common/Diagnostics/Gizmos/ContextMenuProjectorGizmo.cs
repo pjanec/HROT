@@ -103,6 +103,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View", Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",      Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135 — the inspector, on it
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.Rotate,         Label = "Rotate",      Shortcut = "R" },
                 new ContextMenuItemDto { IsSeparator = true },
@@ -133,6 +134,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.EditOverlay,    Label = "Edit Shape",   Shortcut = "E" },
                 new ContextMenuItemDto { IsSeparator = true },
@@ -149,6 +151,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.EditOverlay,    Label = "Edit Shape",   Shortcut = "E" },
                 new ContextMenuItemDto { Id = GlobalActionIds.LoadZone,       Label = "Load zone",    Shortcut = "L" },
@@ -162,6 +165,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             {
                 new ContextMenuItemDto { Id = GlobalActionIds.CenterOnEntity, Label = "Center View",  Shortcut = "C" },
                 new ContextMenuItemDto { Id = GlobalActionIds.Select,         Label = "Select",       Shortcut = "Space" },
+                new ContextMenuItemDto { Id = GlobalActionIds.Properties,     Label = "Properties…" },   // ⭐ CE-1135
                 new ContextMenuItemDto { IsSeparator = true },
                 new ContextMenuItemDto { Id = GlobalActionIds.EditRoute,      Label = "Edit Route",   Shortcut = "E" },
                 new ContextMenuItemDto { IsSeparator = true },

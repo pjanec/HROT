@@ -82,6 +82,13 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         public Hrot.Common.Interactions.GlobalActionRegistry Actions { get; }
 
+        /// <summary>⭐ CE-1134 — the world this map was built for (the inspector's map menu reads its entities here).</summary>
+        public EntityRepository World { get; init; } = null!;
+
+        /// <summary>⭐ CE-1134 — the host's inspector state (<c>MapInteractionContext.Inspector</c>): the key that joins this map to its
+        /// inspector window (<c>Hrot.UI.Common.Menus.InspectorMapLink</c>).</summary>
+        public Func<Fdp.Presentation.Abstractions.IInspectorContext?>? Inspector { get; init; }
+
         /// <summary>The system that runs <see cref="Actions"/>; ⚠ the HOST schedules it (the pack only constructs).</summary>
         public Hrot.Common.Systems.GlobalActionDispatchSystem ActionDispatch { get; }
 

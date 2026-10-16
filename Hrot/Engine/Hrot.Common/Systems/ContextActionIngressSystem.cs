@@ -9,7 +9,7 @@ using Hrot.Common.Events;
 namespace Hrot.Common.Systems
 {
     // Bridges the managed ContextActionTriggered event (forwarded by the IG over DDS or
-    // published locally by JsonEntityContextMenuHandler) into the typed, unmanaged
+    // published locally by an inspector menu — ⭐ CE-1134: MapEntityMenuHandler now publishes GlobalActionRequestedEvent directly) into the typed, unmanaged
     // GlobalActionRequestedEvent that GlobalActionDispatchSystem consumes.
     //
     // ContextActionTriggered is read from the isolated _interactionBus (not the global

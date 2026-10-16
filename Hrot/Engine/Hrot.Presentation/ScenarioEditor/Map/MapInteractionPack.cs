@@ -360,7 +360,12 @@ namespace Hrot.ScenarioEditor.Map
             }
             var canvasMenu = authoring?.CanvasMenu ?? new Hrot.Presentation.Systems.CanvasMenuUpdateSystem();
 
-            return new MapInteraction(
+            // ⭐ CE-1134 / CE-1135 (canvas-context-menu-design §9) — the map menu's view items, on EVERY map host. 📐 Before, only the
+            //   Editor and the ReplayBrowser registered Center View and only the Editor Select, so both were dead in the menu on CGF,
+            //   SimHost and the IG — and Properties… (an id since the first menu) had no handler anywhere.
+            RegisterViewActions(actions, ctx.Inspector);
+
+            var map = new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
                 globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
                 selection, selectionInteraction, selectionRequests, selectionNotifications,
@@ -370,7 +375,37 @@ namespace Hrot.ScenarioEditor.Map
                 MenuOrders     = menuOrders,
                 MenuShortcuts  = new MenuShortcuts(ctx.World, bus, selection, tools),   // ⭐ CE-1076
                 OrderForm      = orderForm,
+                World          = ctx.World,      // ⭐ CE-1134
+                Inspector      = ctx.Inspector,  // ⭐ CE-1134 — joins the inspector window (InspectorMapLink)
             };
+            Hrot.UI.Common.Menus.InspectorMapLink.RegisterMap(map);
+            return map;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1134 / CE-1135 — Center View (the map's camera, 2-D or 3-D, on the entity — this node only), Select (the one selection
+        /// request) and Properties… (select it, then show the inspector window). One registration for every map host.
+        /// </summary>
+        public static void RegisterViewActions(Hrot.Common.Interactions.GlobalActionRegistry actions,
+            Func<Fdp.Presentation.Abstractions.IInspectorContext?>? inspector)
+        {
+            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.CenterOnEntity, (view, target) =>
+            {
+                if (view is EntityRepository w && MapUiStates.CanvasOf(w)?.Camera is { } camera)
+                    Hrot.ScenarioEditor.Systems.CenterOnEntitySystem.CenterOn(camera, w, target);
+            });
+            actions.Register(Hrot.Common.Constants.GlobalActionIds.Select, (view, target) =>
+            {
+                // ⭐ UXI-11 S-2 — an action handler REQUESTS; the inspector follows the notification (S-3).
+                if (target.IsNull || view is not EntityRepository w) return;
+                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
+            });
+            actions.RegisterLocal(Hrot.Common.Constants.GlobalActionIds.Properties, (view, target) =>
+            {
+                if (target.IsNull || view is not EntityRepository w) return;
+                w.Bus.PublishManaged(Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Properties"));
+                Hrot.UI.Common.Menus.InspectorMapLink.ShowWindowFor(inspector?.Invoke());
+            });
         }
 
         /// <summary>
@@ -459,6 +494,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
             //   (unowned, so the default processor creates and owns it — R-140) on the first camera move, moved by its owner.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider));
+            canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky, first person only
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
             canvas.AddLayer(new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider));   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend
