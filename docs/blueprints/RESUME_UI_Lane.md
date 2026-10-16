@@ -183,6 +183,8 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | id | what | where |
 |---|---|---|
 | CE-1116…1119 | airborne insertion DESIGNED + approved (R-1003): fast-rope and parachute slice 1, ejection slice 2, three demos; handoffs CE-1117 (backend) / CE-1118 (behaviors) dispatched; CE-1119 (ui drawing) waits for backend B-1 | [DESIGN_Airborne_Insertion](../designs/airborne/DESIGN_Airborne_Insertion.md) |
+| CE-1119 | ⭐ **airborne DRAWN (U-1)** — ropes, round / ram-air canopies banked with the body, a pose per descent phase, cut ropes; U-2 (the ejection seat) waits for backend B-7…B-9 | [Map 3D §6w](../DESIGN_Map_3D_Mode.md) |
+| CE-1121 | ⭐ the fire mission's aim points on the map (`FireMissionOverlayGizmo`); the fire-mission form measured to work already | [Map 3D §6x](../DESIGN_Map_3D_Mode.md) |
 | CE-1120 | ⭐ **FPS audio A0–A3 BUILT** (R-1004, autonomously): sound only while a unit is possessed, raylib output, generated sounds, doors / boarding / town / rumble, F6–F10 + per-operator `audio.json`. ⏳ **needs the user's ear on Windows** (F9 left then right; `HROT_AUDIO_PAN_FLIP=1` if reversed). Night insects not wired — no time of day exists | [DESIGN_FPS_Audio §8](../designs/audio/DESIGN_FPS_Audio.md) |
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)

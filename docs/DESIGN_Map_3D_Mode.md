@@ -1741,8 +1741,8 @@ salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun ty
 a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
 to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
-the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
-fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). ~~STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
 
 ⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
 rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
@@ -2383,6 +2383,74 @@ Rails `Map3DTests.CE1119_*` (the figures per phase and the opening blend, the ca
 | ![](assets/map-3d/airborne-1-ropes.png) | ![](assets/map-3d/airborne-2-the-stick.png) |
 |---|---|
 | ![](assets/map-3d/airborne-3-landing.png) | ![](assets/map-3d/airborne-4-ropes-cut.png) |
+
+### 6x. §6n's last blocked items — the fire mission's aim points on the map, the fire-mission form — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+🔒 User, `2026-10-16`: *"Approved, go autonomously"*. These were blocked on behaviors' IF-2, now built
+([Indirect Fire §3.7](designs/indirect-fire/DESIGN_Indirect_Fire.md)).
+
+**INVENTORY** (grep + graph: `BatteryFireMissionPlay`, `FireAtPointExecutor`, `WeaponPostureOf`, the order form):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| each gun of a battery mission runs `FireAtPoint` on ITS OWN aim point (the sheaf), and holds laid until its fire time | ✅ `IndirectFireBehaviors.cs:100` `AimPoint`; `FireAtPointExecutor` holds with `AwaitingFireTime` | Indirect Fire §3.4, FM-3 |
+| while it holds or fires, the gun's replicated `WeaponPosture` is AIMED at that POINT | ✅ `WeaponPostureOf.For` (`AwaitingFireTime`, `Firing` ⇒ Aimed) and `Report` (`Point` when no target), called from `FireAtPointExecutor.Say` (`:277`) | Weapon Layers W-13b, R-272 |
+| an indirect weapon is a mount with an `IndirectArc` | ✅ `WeaponMountDto.Arc` (`CombatTkb.MountOf`); a controlled weapon by its index 32 + k (`WeaponSystems.ControlledAt`) | IF-1 I2 |
+| the order form is the ONE reflected form over the order struct | ✅ `OrderForm` + `OrderMenu.FieldsOf`; `StrikeOrder` carries Method · Rounds · Sheaf · SheafWidthM · Control · ImpactInS · DangerClose | §13.12 (Orders design), IF-2 |
+| a passive overlay on every map host has a home | ✅ `DesignationOverlayGizmo` registered by `MapInteractionPack` | §13.12 O8 |
+
+```mermaid
+classDiagram
+    direction LR
+    class FireMissionOverlayGizmo { <<NEW passive global gizmo>> AimsOf(world) · UpdateAndDraw }
+    class WeaponPosture { <<existing, replicated>> Kind Point Target ActiveMount }
+    class CombatTkb { <<existing>> MountOf · WarheadOf }
+    class WeaponSystems { <<existing>> ControlledAt }
+    class SidePalette { <<existing>> Of(force) }
+    class DesignationOverlayGizmo { <<existing, the pattern>> }
+    class MapInteractionPack { <<existing>> registers both }
+    FireMissionOverlayGizmo ..> WeaponPosture : aimed at a point
+    FireMissionOverlayGizmo ..> CombatTkb : an indirect arc? the burst radius
+    FireMissionOverlayGizmo ..> WeaponSystems : a manned tube
+    FireMissionOverlayGizmo ..> SidePalette
+    MapInteractionPack ..> FireMissionOverlayGizmo
+    MapInteractionPack ..> DesignationOverlayGizmo
+```
+
+```mermaid
+sequenceDiagram
+    participant B as battery (Brain)
+    participant G as gun (FireAtPoint)
+    participant W as WeaponPosture (replicated)
+    participant O as FireMissionOverlayGizmo (every map host)
+    B->>G: FireAtPoint(aim i, fireAt)
+    G->>W: Aimed, Point = aim i (laid, waiting)
+    O->>W: every gun Aimed at a POINT with an indirect mount
+    O->>O: a ring of the round's burst radius + a cross at each aim point, in the gun's side colour
+    O->>O: a selected gun: a dashed line from it to its aim point
+    G->>W: rounds gone: Ready, then AtEase - its mark goes
+```
+
+*Caption:* nothing new on the wire or in the Brain — the sheaf is drawn from what each gun already publishes about its own aim, so a CGF, IG or
+editor map shows the same pattern, and a gun that has fired its rounds drops its mark by itself.
+
+| decision | rule |
+|---|---|
+| **FX-1 what** | at each aim point of a gun laid or firing on a POINT with an INDIRECT mount: a ring the size of its round's blast injury radius (20 m when the round names none) and a small cross, in the gun's side colour — the parallel / open / converged sheaf reads from the rings' pattern |
+| **FX-2 the line** | only for a SELECTED gun (or a selected battery's members): a dashed line from the gun to its aim point — a battery 10 km away drawing a line per gun all the time would cross the whole map |
+| **FX-3 layer** | the Entities layer (on by default): a mark exists only during a mission, so it adds nothing to a quiet map (CE-1065's complaint was standing clutter) |
+| **FX-4 the form** | no fire-mission screen: the reflected order form already carries every Strike field, and a battery and an SP gun are offered Strike and "Order with options › Strike…" — measured by a rail, built by construction |
+
+**Rejected — one line each:** *drawing the battery's plan from the Brain's play params* — they are not replicated, so only the Brain node
+could draw it; *a new layer bit* — the layer panel, its persistence and its rails for a mark that only exists during a mission;
+*a Strike-specific form* — a second form for one order is what §13.12 retired.
+
+**As-built `2026-10-16`** — matches the diagrams: `Hrot.Presentation/Orders/FireMissionOverlayGizmo.cs` (`AimsOf`, `IndirectMount` — its own
+mount or the controlled weapon's at 32 + k; the ring from `CombatTkb.WarheadOf`'s blast injury radius, else its fragment radius, else 20 m),
+registered in `MapInteractionPack` BEFORE the live-only order block so a replay draws the marks too. Measured on the way: every tactical-brain
+unit carries a `WeaponPosture` (`BehaviorTkbTranslator.cs:144-146`), so an M109 or a mortar's gunner publishes its aim with no new component.
+Rails `MenuOrdersTests.FX1_*` and `IF2_ABatteryAndAnSpGun_*` (the form, measured); red-proved by five breaks. ⚠ Not screenshotted: the marks
+are ordinary gizmo spheres and lines, drawn in 2-D and draped in 3-D by the existing renderers (§6e).
 
 ## 7. NOT VERIFIED — say so before it is built on
 
