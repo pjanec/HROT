@@ -1,3 +1,12 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-16
+current-answer: "Architecture" + "Glyph coverage (CE-1063)" — the faces, what each carries, and the rail that holds it
+stale-below: none
+known-rot: the "Unicode" row of the first table (before CE-1063) said only scripts were missing; symbols were too — Roboto has no arrow, shape, ⚠ or ✓
+related-designs:
+  - docs/blueprints/Blueprint_Issues_Tracker.md — CE-1063 (the "?" glyphs), the row this section closes
+-->
 # Editor Fonts, DPI Scaling & Colored Menu Icons
 
 Branch: `claude/editor-font-scaling-dpi-tawnwp` · 3 commits · applies to `clusterrunner -m editor`
@@ -13,7 +22,7 @@ was unreadable. This work replaces the font pipeline and adds colored menu icons
 |---|---|---|
 | Chrome (menus, panels) | ProggyClean 13 px, no DPI | **Roboto**, DPI-scaled, `ScaleAllSizes` |
 | Canvas (node text) | single 13 px bitmap upscaled | **ladder** of baked Roboto faces, picked per zoom |
-| Unicode | ASCII/Latin-1 → `?` | Latin-ext + **Cyrillic** + Greek + Vietnamese |
+| Unicode | ASCII/Latin-1 → `?` | Latin-ext + **Cyrillic** + Greek + Vietnamese; **symbols** (→ ● ▶ ⚠ ✓ ①) from a DejaVu subset — CE-1063 |
 | Icons in text | none | **FontAwesome 6** merged onto the UI font |
 | Scaling control | none | **auto DPI × user UI-scale slider** (persisted) |
 | Menu icons | text only | **full-color silk icons**, aligned gutter |
@@ -25,8 +34,8 @@ was unreadable. This work replaces the font pipeline and adds colored menu icons
 flowchart TD
   DPI["GetWindowScaleDPI()"] --> S
   Slider["Settings: UI-scale slider"] --> S
-  S["EditorFontService.Rebuild(scale)"] --> UI["Roboto UI face + FontAwesome (Fonts0)"]
-  S --> Lad["Roboto canvas ladder 10..32 x scale"]
+  S["EditorFontService.Rebuild(scale)"] --> UI["Roboto UI face + FontAwesome (whole PUA) + DejaVu symbols (Fonts0)"]
+  S --> Lad["Roboto canvas ladder 10..32 x scale + DejaVu arrows/shapes/marks + NAMED FA icons"]
   S --> Style["ScaleAllSizes()"]
   Lad --> Reg["EditorFontRegistry"]
   Reg --> Theme["EngineEditorTheme.GetFontForSize()"]
@@ -42,12 +51,30 @@ flowchart TD
 - **Menu icon vocabulary** stays editor-owned (`SilkIconProvider`); the shared menu
   renderers only know a `MenuIconResolver` delegate (no layering violation).
 
+## Glyph coverage (CE-1063)
+
+📐 Measured from the cmap: **Roboto has no arrow, geometric shape, ⚠, ✓ or circled digit** (of U+2190–27BF only • and ◊), so every
+"→" in a diagnostic, "● EDIT", "▶ Enter Preview" and "⚠ …" drew `?`. Loading the range (the old `0x2190–0x21FF` line) cannot help — the
+font has nothing there. Fix: a symbol fallback merged under Roboto, and Font Awesome where no font has the glyph.
+
+| face | Roboto | DejaVu symbols merged | Font Awesome merged |
+|---|---|---|---|
+| UI (`Fonts[0]`, every panel) | Latin, Greek, Cyrillic, punctuation, currency | super/subscripts, number forms, arrows, maths, technical, enclosed alphanumerics, shapes, misc symbols, dingbats | the whole PUA |
+| canvas ladder (×6) | Latin, Cyrillic | arrows, shapes, ⚠, ✓–✘ | **only the named `IconsFontAwesome6` constants** (a node badge uses one) |
+
+| ⭐ rule | |
+|---|---|
+| a symbol no font carries (⏭ ⏹ ❌, emoji 📡 🔗 📊) | use an `IconsFontAwesome6` constant — add the name if missing; a node badge may only use a NAMED one |
+| merge order | Roboto first, merge mode never overwrites — √ ≈ ∞ stay Roboto's |
+| the rail | `Hrot.Presentation.Tests/Fonts/EditorFontCoverageTests` — every non-ASCII char in a UI string literal must be baked into the UI face; every attachment / header glyph into the canvas faces; a real `EditorFontService` bake must hold them. ⭐⭐ Three chars are allow-listed as never drawn (⭐ ⛔ 📄 — log, exception and generated-comment text only) |
+
 ## Files changed
 
 **Fonts / DPI**
 | File | Change |
 |---|---|
 | `FDP/Data/Fonts/fa-solid-900.ttf` (+ `.LICENSE.txt`) | new asset — Font Awesome 6 Free Solid (SIL OFL 1.1) |
+| `FDP/Data/Fonts/DejaVuSans-Symbols.ttf` (+ `.LICENSE.txt`) | CE-1063 — DejaVu Sans subset (141 KB, Bitstream Vera licence): the symbol blocks Roboto lacks |
 | `Fdp.Presentation/ImGui/Fonts/EditorFontService.cs` | new — bake/merge/DPI/rebuild/ScaleAllSizes |
 | `Fdp.Presentation/ImGui/Fonts/EditorFontRegistry.cs` | new — ambient default-font + canvas ladder |
 | `Fdp.Presentation/ImGui/Fonts/IconsFontAwesome6.cs` | new — FA glyph constants |

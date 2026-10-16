@@ -96,14 +96,14 @@ public class MissionPanelTests
     public void GetTaskIcon_SkippedTask_ReturnsSkipIcon()
     {
         var task = new MissionTask { State = eTaskState.TASK_SKIPPED };
-        Assert.Equal("⏭", MissionPanel.GetTaskIcon(task, isActive: false));
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.ForwardStep, MissionPanel.GetTaskIcon(task, isActive: false));
     }
 
     [Fact]
     public void GetTaskIcon_PlannedTask_ReturnsStopIcon()
     {
         var task = new MissionTask { State = eTaskState.TASK_PLANNED };
-        Assert.Equal("⏹", MissionPanel.GetTaskIcon(task, isActive: false));
+        Assert.Equal(Fdp.Presentation.Fonts.IconsFontAwesome6.Stop, MissionPanel.GetTaskIcon(task, isActive: false));
     }
 
     [Fact]

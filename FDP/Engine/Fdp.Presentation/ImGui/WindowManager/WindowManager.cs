@@ -608,8 +608,10 @@ public class WindowManager
             //    items must be distinguishable from a host whose menu was never instrumented.
             GlobalMenu.PublishSnapshot(CurrentPerspective);
 
-            RenderGlobalMenu(GlobalMenu.Root);
+            // ⭐ CE-1026: File, Edit, View, … (the leading global menus) · Perspective · Settings and after · Windows, Help.
+            RenderGlobalMenu(GlobalMenu.Root, leading: true);
             RenderPerspectiveMenu();
+            RenderGlobalMenu(GlobalMenu.Root, leading: false);
             var hostMenus = BuildHostMenuDtos();
             GizmoMap.Presentation.ImGuiMenuRenderer.DrawMenus(hostMenus, HandleHostMenuAction, MenuIcons);
 
@@ -713,8 +715,13 @@ public class WindowManager
     /// Recursively renders the trie rooted at <paramref name="node"/>.
     /// The root itself is not rendered � only its children are iterated.
     /// </summary>
-    private void RenderGlobalMenu(MenuItemNode node)
+    private void RenderGlobalMenu(MenuItemNode node, bool? leading = null)
     {
+        // ⭐ CE-1026: the root level draws in GlobalMenuRegistry's top-level order, in two passes around the Perspective menu.
+        IEnumerable<MenuItemNode> children = leading is { } lead && ReferenceEquals(node, GlobalMenu.Root)
+            ? GlobalMenu.TopLevelMenus().Where(c => GlobalMenuRegistry.IsLeadingMenu(c.Name) == lead)
+            : node.Children.Values;
+
         // Reserve an aligned icon gutter for this whole level if any sibling carries an icon.
         bool reserve = MenuIcons != null;
         if (reserve)
@@ -724,7 +731,7 @@ public class WindowManager
                 if (!string.IsNullOrEmpty(c.Icon)) { reserve = true; break; }
         }
 
-        foreach (var child in node.Children.Values)
+        foreach (var child in children)
         {
             if (child.IsSeparator)
             {

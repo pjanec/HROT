@@ -13,7 +13,7 @@ public sealed class ConditionSummaryAttachment : IAttachmentModel
     public AttachmentId Id { get; } = new(Guid.NewGuid());
     public NodeId HostNodeId { get; }
     public AttachmentCategory Category => AttachmentCategory.Custom;
-    public string? Glyph => "⚡";
+    public string? Glyph => Fdp.Presentation.Fonts.IconsFontAwesome6.Bolt; // CE-1063: ⚡ has no glyph in any baked font — Font Awesome's, merged into the canvas faces
     public string? Label { get; private set; }
     public string? Tooltip { get; private set; }
     public AttachmentState State { get; private set; }
