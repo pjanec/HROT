@@ -100,7 +100,9 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, null);
 
-        Assert.Equal(2, Drain(source).Count);
+        var all = Drain(source);
+        Assert.Equal(2, all.Count(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment));
+        Assert.Single(all, r => r.TkbType == Hrot.Map.Common.TkbEntityTypes.WorldEnvironment);   // ⭐ CE-3216 C-3 — and the default World Environment
     }
 
     /// <summary>
@@ -122,7 +124,8 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Empty(Drain(source));
     }
 
-    /// <summary>⭐ Re-homed from the editor suite: a NEW scenario reads no file and enqueues nothing.</summary>
+    /// <summary>⭐ Re-homed from the editor suite: a NEW scenario reads no file and enqueues nothing of its own — ⭐ CE-3216 C-3: only the
+    /// default World Environment (railed by <see cref="CE3216_C3_ANewScenario_GetsTheDefaultWorldEnvironment_AtTheFixedBuiltInStart"/>).</summary>
     [Fact]
     public async Task ANewScenario_ReadsNoFile_AndEnqueuesNothing()
     {
@@ -138,7 +141,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, null);
 
-        Assert.Empty(Drain(source));
+        Assert.Empty(Drain(source).Where(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment));
     }
 
     /// <summary>⭐ Re-homed from the CGF suite: abort clears the pending state, so a later commit is a no-op.</summary>
@@ -217,7 +220,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, world);
 
-        var doors = Drain(source);
+        var doors = Drain(source).Where(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment).ToList();   // (CE-3216 C-3: the default World Environment follows them)
         Assert.Equal(new[] { "range/H/front", "range/H/hall" },
             doors.Select(r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key));
         Assert.All(doors, r => Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Door, r.TkbType));
@@ -246,7 +249,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, world);
 
-        var all = Drain(source);
+        var all = Drain(source).Where(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment).ToList();   // (CE-3216 C-3: the default World Environment follows)
         Assert.Equal(2, all.Count);
         Assert.NotEqual(Hrot.Map.Common.TkbEntityTypes.Door, all[0].TkbType);   // the scenario's entity first
         Assert.Equal("range/H/front", all[1].InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key);
@@ -279,12 +282,73 @@ public sealed class ScenarioLoadStepTests : IDisposable
         await step.PrepareAsync(ctx, CancellationToken.None);
         step.Commit(ctx, loading);
 
-        var doors = Drain(source).ToDictionary(
+        var doors = Drain(source).Where(r => r.TkbType != Hrot.Map.Common.TkbEntityTypes.WorldEnvironment).ToDictionary(
             r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.TerrainObjectKey>().Single().Key,
             r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.DoorState>().Single().State);
         Assert.Equal(2, doors.Count);                                                       // K5 — no door came in as a scenario entity
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/front"]);    // the saved state, not the authored lock
         Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, doors["range/H/hall"]);     // authored open, never written
+    }
+
+    // ── ⭐ CE-3216 C-3 / W-8 — exactly one World Environment, its start time as authored ─────────────────────
+
+    /// <summary>
+    /// ⭐ C-3 / W-8 (📄 docs/designs/weather/DESIGN_Weather_And_Time.md §3) — a NEW scenario gets a DEFAULT World Environment: positionless,
+    /// its clock at the FIXED built-in start time — ⛔ never the wall clock — with an id from the one allocator, after the terrain's doors.
+    /// 🔴 Red-proof (by construction, not run): drop the default from <c>ScenarioLoadStep.Commit</c> ⇒ no request, <c>Assert.Single</c> fails.
+    /// </summary>
+    [Fact]
+    public async Task CE3216_C3_ANewScenario_GetsTheDefaultWorldEnvironment_AtTheFixedBuiltInStart()
+    {
+        var source = new ScenarioEntityCreationRequestSource();
+        var step = new ScenarioLoadStep(
+            new ScenarioSerializerBuilder(SubsystemType).Build(),
+            new LambdaScenarioLoader(_ => throw new InvalidOperationException("must not be read")),
+            new StagingEntityExtractor(), source, new StubIdAllocator(100));
+        var ctx = Ctx(Guid.NewGuid(), ClusterState.LoadingEdit, scenarioId: null, isNew: true);
+
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, null);
+
+        var env = Assert.Single(Drain(source));
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.WorldEnvironment, env.TkbType);
+        Assert.Equal(100, env.PreAllocatedNetworkId);
+        Assert.DoesNotContain(env.InitialComponents!, c => c is SimTransform);   // positionless
+        var clock = env.InitialComponents!.OfType<Fdp.Toolkit.Weather.ScenarioClock>().Single();
+        Assert.Equal(Fdp.Toolkit.Weather.ScenarioClock.DefaultStartUtc.Ticks, clock.StartUtcTicks);   // the fixed built-in, not "now"
+    }
+
+    /// <summary>
+    /// ⭐ W-8 — a scenario that SAVED its World Environment loads it with the start time exactly as authored (the scenario serializer's
+    /// default policy writes it, the extractor reads it back) and gets no second, default one; a second World Environment in the file is
+    /// ignored with a warning, the first kept (C-3). 🔴 Red-proof (by construction, not run): drop the one-environment guard ⇒ two requests.
+    /// </summary>
+    [Fact]
+    public async Task CE3216_W8_ASavedStartTime_LoadsAsAuthored_AndASecondWorldEnvironmentIsIgnored()
+    {
+        _goldRepo.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();
+        long authored = new DateTime(1999, 12, 31, 23, 0, 0, DateTimeKind.Utc).Ticks;
+        foreach (long start in new[] { authored, authored + TimeSpan.TicksPerHour })
+        {
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.AddComponent(e, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.WorldEnvironment });
+            _goldRepo.AddComponent(e, new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = -300 });
+        }
+        // ⚠ a serializer built AFTER ScenarioClock is registered (FdpAutoSerializer compiles its roster at Build — the shared _serializer
+        //   predates this test's registration; production registers ScenarioClock with every shared component, before any serializer)
+        string json = new ScenarioSerializerBuilder(SubsystemType).Build().Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();
+        Assert.Contains(authored.ToString(), json);   // saved exactly as authored
+
+        var source = new ScenarioEntityCreationRequestSource();
+        var step   = MakeStep(json, source);
+        var ctx    = Ctx(Guid.NewGuid());
+        await step.PrepareAsync(ctx, CancellationToken.None);
+        step.Commit(ctx, null);
+
+        var env = Assert.Single(Drain(source), r => r.TkbType == Hrot.Map.Common.TkbEntityTypes.WorldEnvironment);
+        var clock = env.InitialComponents!.OfType<Fdp.Toolkit.Weather.ScenarioClock>().Single();
+        Assert.Equal(authored, clock.StartUtcTicks);
+        Assert.Equal((short)-300, clock.DisplayUtcOffsetMinutes);
     }
 
     // ── THE readiness predicate — one implementation, asked of both targets ───────────────────

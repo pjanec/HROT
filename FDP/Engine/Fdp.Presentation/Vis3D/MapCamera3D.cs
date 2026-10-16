@@ -352,7 +352,7 @@ namespace Fdp.Toolkit.Vis3D
 
         // One pick per (pixel, filter, camera pose) per frame: the canvas, the gizmo layer and the hover all ask for the same pixel.
         private Vector2 _cachePixel = new(float.NaN);
-        private bool _cacheForDrag;
+        private PickFilter _cacheFilter;
         private CameraPose _cachePose;
         private PickResult _cacheResult;
 
@@ -374,8 +374,8 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>The pick under a screen pixel with <paramref name="filter"/> (P2: a drag passes <see cref="PickFilter.Terrain"/>).</summary>
         public PickResult Pick(Vector2 screenPos, PickFilter filter)
         {
-            bool forDrag = filter == PickFilter.Terrain;
-            if (screenPos == _cachePixel && forDrag == _cacheForDrag && Pose == _cachePose) return _cacheResult;
+            // ⭐ CE-1126 — keyed on the FILTER (it was "is it a drag"): the crosshair's Aim and a click's All differ by more than that
+            if (screenPos == _cachePixel && filter == _cacheFilter && Pose == _cachePose) return _cacheResult;
 
             var dir = RayDirection(screenPos);
             var eye = Eye;
@@ -401,7 +401,7 @@ namespace Fdp.Toolkit.Vis3D
                     best = new PickResult(new Vector3(far, LookAt.Z), PickKind.None, maxRange);
                 }
             }
-            _cachePixel = screenPos; _cacheForDrag = forDrag; _cachePose = Pose; _cacheResult = best;
+            _cachePixel = screenPos; _cacheFilter = filter; _cachePose = Pose; _cacheResult = best;
             return best;
         }
 

@@ -103,6 +103,13 @@ namespace Hrot.NED.Descriptors
         // ⭐ Airborne insertion B-1 — a body coming down a rope or under a canopy (the position's owner, Muscle → every node). D-1.
         //   ⚠ 137 measured free on backend, ui and behaviors 2026-10-16.
         dtDescent                     = 137,
+        // ⭐ CE-3216 S1-0 (R-3012, W-8) — the scenario clock (start time) on the World Environment, Brain group (its creator owns it).
+        dtScenarioClock               = 138,
+        // ⭐ CE-3216 S1 (R-3012) — AUTHORED weather (the global on the World Environment, a region's on a Weather Region), Brain group.
+        dtWeather                     = 139,
+        // ⭐ CE-1128 — a round marked a surface of the world (Muscle → every map host): the puff and the mark. 📄 docs/DESIGN_Visual_Effects.md §10.
+        //   ⚠ 138 / 139 are backend's (dtScenarioClock, dtWeather, measured on origin/backend 2026-10-16) — 140 measured free on all three lanes.
+        dtRoundImpact                 = 140,
         // etc., all known descriptor types here
     }
 

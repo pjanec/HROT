@@ -31,7 +31,15 @@ namespace Fdp.Toolkit.World
         string? Label,
         string? Material,
         string? Building,
-        int Storey);
+        int Storey)
+    {
+        /// <summary>⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-4) — the outward normal of the face the line ENTERS; zero =
+        /// unknown (an implementation that cannot tell). Geometry, not description: an impact mark lies on this face.</summary>
+        public Vector3 EntryNormal { get; init; }
+
+        /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown, or it does not leave.</summary>
+        public Vector3 ExitNormal { get; init; }
+    }
 
     /// <summary>
     /// ⭐ THE WORLD-QUERY SEAM (<c>docs/DESIGN_World_Query_Seam.md</c>, <c>R-250</c>) — the questions the brain, the simulation stand-in

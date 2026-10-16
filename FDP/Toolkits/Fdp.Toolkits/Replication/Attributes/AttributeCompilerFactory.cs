@@ -111,6 +111,17 @@ public static class AttributeCompilerFactory
             },
             kind: KindOf("Heading"));
 
+        // ── ScenarioClock — ⭐ CE-3216 S1-0 (W-8): a runtime edit sets a new start time, as sent; never re-anchored ───────────
+        builder
+            .RegisterValuePath<Fdp.Toolkit.Weather.ScenarioClock>(
+                "ScenarioStartUtcTicks",
+                (ref Fdp.Toolkit.Weather.ScenarioClock c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.StartUtcTicks = r.GetInt64(),
+                kind: KindOf("ScenarioStartUtcTicks"))
+            .RegisterValuePath<Fdp.Toolkit.Weather.ScenarioClock>(
+                "ScenarioUtcOffsetMinutes",
+                (ref Fdp.Toolkit.Weather.ScenarioClock c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.DisplayUtcOffsetMinutes = (short)r.GetInt32(),
+                kind: KindOf("ScenarioUtcOffsetMinutes"));
+
         return builder.Build();
     }
 
@@ -172,7 +183,8 @@ public static class AttributeCompilerFactory
             //    📐 it needs no IGeographicTransform, because a compass heading is already in the units
             //    SimTransformBridgeSystem.HeadingDegToRotation takes. ⇒ ⭐ heading works on a host with no
             //    geo transform, and gating it behind one would refuse rotation for no reason.
-            .AddInstaller(new SimTransformHeadingInstaller());
+            .AddInstaller(new SimTransformHeadingInstaller())
+            .AddInstaller(new ScenarioClockAttributeInstaller());   // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
 
         if (geoTransform != null)
             builder.AddInstaller(new SimTransformAttributeInstaller(geoTransform));

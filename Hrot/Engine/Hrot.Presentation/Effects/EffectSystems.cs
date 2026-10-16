@@ -24,6 +24,8 @@ namespace Hrot.UI.Common.Effects;
 ///   — no position of its own, VE-J). ⛔ No tracer any more (LR-4): a tracer is a real, replicated round.</item>
 ///   <item><b>Hit</b> (<see cref="DetonationNotification"/>): an explosion at the hit point, world-fixed; a decal on the GROUND under it
 ///   (VE-I step 1, draped) — but none for a hit on a vehicle or a person (VE-M).</item>
+///   <item><b>Impact</b> (<see cref="RoundImpactNotification"/>, ⭐ CE-1129): a puff and a mark on each surface a round entered, left or
+///   stopped on — a wall, a roof, a floor, the ground (VE-I step 2, §10).</item>
 /// </list>
 /// Which effect types: the round's AMMO type's <c>Effect.Set</c>, else its calibre class (<see cref="EffectTkbCatalog.EffectsFor"/>, VE-D).
 /// The events reach every node (local fire, or the NED ingress), so every host makes its own — effects are never replicated.
@@ -108,6 +110,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             }
         }
 
+        ImpactsDrawn = 0;
+        if (world.Bus.IsRegistered<RoundImpactNotification>())   // ⭐ CE-1129 (VE §10) — every surface a round marked
+            foreach (ref readonly var impact in view.ReadEvents<RoundImpactNotification>())
+                SpawnImpact(cmd, tkb, world, impact, now);
+
         if (world.Bus.IsRegistered<DetonationNotification>())
         {
             var ground = Fdp.Toolkit.World.WorldQuery.Of(view);
@@ -128,6 +135,46 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             }
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-1129 (docs/DESIGN_Visual_Effects.md §10 IM-5 … IM-7) — each surface a round marked (<see cref="RoundImpactNotification"/>):
+    /// the round's puff (its set's <c>Explosion</c> — a small-arms round's is the 7111 impact puff) and its mark (its <c>Decal</c>), the mark
+    /// turned onto the face it struck (no normal ⇒ back along the travel). A stop that is not a burst adds the ricochet sound (IM-7).
+    /// </summary>
+    private void SpawnImpact(IEntityCommandBuffer cmd, ITkbDatabase? tkb, EntityRepository world, in RoundImpactNotification hit, double now)
+    {
+        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, 0f);
+        var point = new Vector3(hit.X, hit.Y, hit.Z);
+        var normal = SurfaceOf(hit);
+        Spawn(cmd, tkb, set.Explosion, point + normal * 0.05f, null, now);
+        Spawn(cmd, tkb, set.Decal, point, null, now, MarkRotation(normal));
+        ImpactsDrawn++;
+        if (hit.Kind == (byte)ImpactKind.Stop)
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, 0f, false));   // the ricochet
+    }
+
+    /// <summary>⭐ CE-1129 (IM-4) — the face a mark lies on: the impact's normal, else back along the round's travel, else up.</summary>
+    public static Vector3 SurfaceOf(in RoundImpactNotification hit)
+    {
+        var n = new Vector3(hit.NormalX, hit.NormalY, hit.NormalZ);
+        if (n.LengthSquared() > 1e-6f) return Vector3.Normalize(n);
+        var back = -new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ);
+        return back.LengthSquared() > 1e-6f ? Vector3.Normalize(back) : Vector3.UnitZ;
+    }
+
+    /// <summary>⭐ CE-1129 (IM-6) — the rotation that turns a mark's +Z onto <paramref name="normal"/> (identity for a mark facing up).</summary>
+    public static Quaternion MarkRotation(Vector3 normal)
+    {
+        var n = Vector3.Normalize(normal);
+        float d = Vector3.Dot(Vector3.UnitZ, n);
+        if (d > 0.9999f) return Quaternion.Identity;
+        if (d < -0.9999f) return Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
+        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, n));
+        return Quaternion.CreateFromAxisAngle(axis, MathF.Acos(Math.Clamp(d, -1f, 1f)));
+    }
+
+    /// <summary>Impact marks made in the last tick — the rail's counter (CE-1129).</summary>
+    public int ImpactsDrawn { get; private set; }
 
     /// <summary>
     /// ⭐ CE-1115 (§9 DV-1 … DV-3) — a release's decoy: its munition's <c>Release</c> effect, born at the RELEASE (<c>FiredAt</c>) and living
@@ -176,11 +223,11 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 
-    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Vector3 at, EffectAnchor? anchor, double now)
+    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Vector3 at, EffectAnchor? anchor, double now, Quaternion? rotation = null)
     {
         if (type == 0 || EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
         var e = cmd.CreateEntity();
-        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = rotation ?? Quaternion.Identity });
         cmd.AddComponent(e, new TkbIdentity { TkbType = type });
         cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
         if (anchor is { } a) cmd.AddComponent(e, a);

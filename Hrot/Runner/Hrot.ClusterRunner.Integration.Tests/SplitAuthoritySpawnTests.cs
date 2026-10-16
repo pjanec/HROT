@@ -279,6 +279,92 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
 
+    // ── IT-SA-5 ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-3216</c> S1-0 (R-3012, C-4; docs/designs/weather/DESIGN_Weather_And_Time.md §5) — the FIRST positionless replicated
+    /// entity: a World Environment created on CGF through the real request path carries its <c>ScenarioClock</c> to SimHost with no
+    /// <c>SimTransform</c> on either node; both derive UTC = start + their own sim time from the same start; and a runtime edit sent
+    /// by the NON-owner (SimHost) is applied by the owner (CGF's <c>UpdateEntityAttributeRequestSystem</c>) as sent and replicates back
+    /// (W-8: a new start time). 🔴 Red-proofs: drop the clock egress from <c>SharedTranslatorPack</c> ⇒ the clock never reaches SimHost;
+    /// drop the JSON route in <c>AttributeCompilerFactory.Build</c> ⇒ the edit never lands on CGF.
+    /// <para>Domain 35 — explicit, like IT-SA-4's 33 (the shared counter would pass CycloneDDS's 232).</para>
+    /// </summary>
+    [Fact]
+    public void CE3216_ThePositionlessWorldEnvironment_CarriesItsClock_AndAnEditFromANonOwnerReachesEveryNode()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 35);
+            using var cgf     = new CgfHarness(35);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            long start = new DateTime(2024, 3, 1, 4, 30, 0, DateTimeKind.Utc).Ticks;
+            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = TkbEntityTypes.WorldEnvironment,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new Fdp.Toolkit.Weather.ScenarioClock { StartUtcTicks = start, DisplayUtcOffsetMinutes = 180 },
+                    // ⭐ CE-3216 S1 — and the global weather on dtWeather: a steady 7 m/s wind toward the north-east
+                    Fdp.Toolkit.Weather.WeatherConditions.SteadyWind(new System.Numerics.Vector2(5f, 5f)),
+                },
+            });
+
+            // ① the clock arrives on SimHost — an entity with no position, on both nodes
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !EnvironmentIn(w, start).IsNull, PropagationTimeoutMs),
+                "the World Environment's clock never reached SimHost — a positionless entity did not replicate");
+            var simWorld = simHost.SimHost.World!;
+            var simEnv = EnvironmentIn(simWorld, start);
+            var cgfEnv = EnvironmentIn(cgfWorld, start);
+            Assert.False(cgfEnv.IsNull, "the creator lost its own World Environment");
+            Assert.False(simWorld.HasComponent<SimTransform>(simEnv), "the World Environment must stay positionless on SimHost");
+            Assert.False(cgfWorld.HasComponent<SimTransform>(cgfEnv), "the World Environment must stay positionless on CGF");
+            Assert.Equal((short)180, simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).DisplayUtcOffsetMinutes);
+
+            // ⭐ CE-3216 S1 — the global weather crossed too (dtWeather): SimHost's weather field blows the CGF's wind
+            Assert.True(PumpBothUntil(simHost, cgf, () => simWorld.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(simEnv), PropagationTimeoutMs),
+                "the World Environment's weather never reached SimHost (dtWeather)");
+            var simWind = Fdp.Toolkit.Weather.WeatherField.WindAt(simWorld, new System.Numerics.Vector3(0, 0, 300));
+            Assert.True(System.Numerics.Vector2.Distance(simWind, new System.Numerics.Vector2(5f, 5f)) < 0.01f, $"SimHost's wind {simWind}");
+
+            // ② both nodes derive UTC = start + their own sim time, from the SAME start (the cluster syncs the sim time)
+            foreach (var w in new[] { cgfWorld, simWorld })
+            {
+                double now = w.GetSingleton<GlobalTime>().TotalTime;
+                Assert.Equal(new DateTime(start, DateTimeKind.Utc).AddTicks((long)Math.Round(now * TimeSpan.TicksPerSecond)),
+                    Fdp.Toolkit.Weather.ScenarioTime.Utc(w));
+            }
+
+            // ③ a runtime edit from the NON-owner: SimHost asks, CGF (the owner) applies it as sent, and the new start replicates back
+            long newStart = new DateTime(2024, 3, 1, 22, 0, 0, DateTimeKind.Utc).Ticks;
+            Assert.True(Fdp.Toolkit.Replication.Attributes.EntityAttributeChangeRequests.TryPublishJsonPatch(
+                simWorld, simEnv, $"{{\"ScenarioStartUtcTicks\":{newStart}}}"), "SimHost could not address the clock's owner");
+            Assert.True(PumpBothUntil(simHost, cgf, () =>
+                    cgfWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(cgfEnv).StartUtcTicks == newStart
+                    && simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).StartUtcTicks == newStart, AuthorityTimeoutMs),
+                $"the edit did not round-trip: CGF {new DateTime(cgfWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(cgfEnv).StartUtcTicks):O}, " +
+                $"SimHost {new DateTime(simWorld.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(simEnv).StartUtcTicks):O}");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
+    /// <summary>The World Environment whose clock started at <paramref name="startTicks"/> (Null when none has it).</summary>
+    private static Entity EnvironmentIn(EntityRepository w, long startTicks)
+    {
+        if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Weather.ScenarioClock>() || !w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;
+        foreach (var e in w.Query().With<Fdp.Toolkit.Weather.ScenarioClock>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            if (w.GetComponentRO<TkbIdentity>(e).TkbType == TkbEntityTypes.WorldEnvironment
+                && w.GetComponentRO<Fdp.Toolkit.Weather.ScenarioClock>(e).StartUtcTicks == startTicks) return e;
+        return Entity.Null;
+    }
+
     private static Entity PilotIn(EntityRepository w)
     {
         if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;

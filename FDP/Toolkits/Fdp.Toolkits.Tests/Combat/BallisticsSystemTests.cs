@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Core
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics;
@@ -296,6 +297,69 @@ namespace Fdp.Toolkit.Combat.Tests
             p.Damage = damage;
             p.Penetration = penetration;
             return bullet;
+        }
+
+        private Fdp.Toolkit.Combat.Contracts.RoundImpactNotification[] Impacts()
+            => _world.Bus.Read<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>().ToArray();
+
+        /// <summary>
+        /// ⭐⭐ CE-1128 (docs/DESIGN_Visual_Effects.md §10 IM-2, IM-4) — a round MARKS every surface it meets: a fence it passes on BOTH
+        /// sides (the entry facing the shooter, the exit facing away — R-217 already lets it go on), then the fence that stops it, each with
+        /// the face's normal. 🔒 User, 2026-10-16: <i>"Every surface pierced should get a decal and particle effect on the entry side (maybe
+        /// also in the exit side…)"</i>.
+        /// </summary>
+        [Fact]
+        public void CE1128_AFenceIsMarkedOnBothSides_TheFenceThatStopsTheRound_OnItsNearFace_EachWithItsNormal()
+        {
+            SeedTerrain();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();
+            var round = SpawnRound(new Vector3(25, 15, 1.6f), new Vector3(25, 25, 1.6f), damage: 25f, penetration: 5f);
+
+            RunAndReadEvents();
+            var through = Impacts();
+            Assert.Equal(2, through.Length);
+            Assert.Equal((byte)ImpactKind.Entry, through[0].Kind);
+            Assert.InRange(through[0].Y, 19.965f, 19.985f);
+            Assert.Equal(new Vector3(0, -1, 0), new Vector3(through[0].NormalX, through[0].NormalY, through[0].NormalZ));   // faces the shooter
+            Assert.Equal((byte)ImpactKind.Exit, through[1].Kind);
+            Assert.InRange(through[1].Y, 20.015f, 20.035f);
+            Assert.Equal(new Vector3(0, 1, 0), new Vector3(through[1].NormalX, through[1].NormalY, through[1].NormalZ));    // faces away
+            Assert.True(through[1].TravelY > 0f);
+
+            ref var tf = ref _world.GetComponentRW<SimTransform>(round);
+            tf.Position = new Vector3(25, 35, 1.6f);
+            SetCurrentTick(1);
+            RunAndReadEvents();
+            var stop = Assert.Single(Impacts());
+            Assert.Equal((byte)ImpactKind.Stop, stop.Kind);
+            Assert.InRange(stop.Y, 29.965f, 29.985f);
+            Assert.Equal(-1f, stop.NormalY, 3);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1128 (IM-2) — a bullet aimed at the GROUND stops there and marks it, facing up. ⛔ The fire query does not count flat ground,
+        /// so it flew on below it until it expired: nothing could be marked. A WARHEAD round's stop is NOT marked (its burst draws it — IM-5).
+        /// </summary>
+        [Fact]
+        public void CE1128_ABulletAimedAtTheGround_StopsThereAndMarksIt_FacingUp_AWarheadRoundsStopIsLeftToItsBurst()
+        {
+            SeedTerrain();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();
+            var round = SpawnRound(new Vector3(60, 60, 1.6f), new Vector3(60, 70, -1.6f), damage: 25f, penetration: 5f);
+
+            var req = Assert.Single(RunAndReadEvents());
+            Assert.Equal(0f, req.End.Z, 3);                                         // the raycast ends at the ground
+            Assert.NotEqual(0u, _world.GetComponent<BallisticProjectile>(round).StoppedTick);
+            var mark = Assert.Single(Impacts());
+            Assert.Equal((byte)ImpactKind.Stop, mark.Kind);
+            Assert.InRange(mark.Y, 64.99f, 65.01f);
+            Assert.Equal(1f, mark.NormalZ, 3);
+
+            var shell = SpawnRound(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f), damage: 25f, penetration: 5f);
+            _world.GetComponentRW<BallisticProjectile>(shell).Warhead = WarheadRound.Area;
+            SetCurrentTick(1);
+            RunAndReadEvents();
+            Assert.DoesNotContain(Impacts(), i => i.Kind == (byte)ImpactKind.Stop && i.Y < 11f);   // stopped by the wall: its burst draws
         }
 
         [Fact]

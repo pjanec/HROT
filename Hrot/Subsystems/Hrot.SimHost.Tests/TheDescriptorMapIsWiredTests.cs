@@ -282,7 +282,9 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponAmmo),     // ⭐ CE-3174 — the ammunition per mount
                     D(Hrot.NED.Descriptors.EDescriptorType.dtPassengerBuffer),   // ⭐ CE-3110 I-2b — a vehicle's passenger list
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeaponSystemState),     // ⭐ Weapon systems WS-1 — a weapon's deploy state
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtPartDamage) },          // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtPartDamage),            // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtScenarioClock),         // ⭐ CE-3216 S1-0 — the scenario clock (the World Environment)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtWeather) },             // ⭐ CE-3216 S1 — authored weather          // ⭐ CE-3210 (HL-6) — the damage per body part, beside Health
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

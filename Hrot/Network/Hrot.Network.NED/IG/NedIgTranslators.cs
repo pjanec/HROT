@@ -44,6 +44,7 @@ public sealed class NedIgTranslators : IIgTranslators
                 participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(
                 participant, entityMap));
+            translators.Add(new Hrot.Network.NED.SimHost.RoundImpactIngressTranslator(participant, entityMap));   // ⭐ CE-1128 (VE §10)
             translators.Add(new ContextActionsUpdateTranslator(
                 participant, entityMap, bus, ghostCreationSystem, localNodeId));
         }

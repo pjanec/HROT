@@ -71,7 +71,7 @@ namespace Fdp.Toolkit.Terrain
                     {
                         var c = fire[i];
                         into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
-                            c.Kind, c.Label, c.Material, c.Building, c.Storey));
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });   // ⭐ CE-1128
                     }
                     break;
                 }

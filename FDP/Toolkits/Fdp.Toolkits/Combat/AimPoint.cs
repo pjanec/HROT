@@ -45,10 +45,6 @@ namespace Fdp.Toolkit.Combat
             return at;
         }
 
-        /// <summary>⭐ CE-1125 — how far from the target's <see cref="Middle"/> (plus its hull height) a point may lie and still be ON the
-        /// unit: a standing man's head is ~0.7 m above his middle, his feet ~1 m below it.</summary>
-        public const float OnUnitMetres = 1.5f;
-
         /// <summary>⭐ CE-1125 — <paramref name="point"/> in <paramref name="unit"/>'s own frame (its position and rotation), so a point the
         /// operator's crosshair put on him can be carried as he moves (<see cref="FromUnitFrame"/>).</summary>
         public static Vector3 ToUnitFrame(EntityRepository repo, Entity unit, Vector3 point)
@@ -67,15 +63,13 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
-        /// ⭐ CE-1125 — where an operator's shot locked on <paramref name="unit"/> goes: <paramref name="crosshair"/> (the point the ray met
-        /// on him) while it is ON him, else his <see cref="Middle"/>. 🔒 User, 2026-10-16: <i>"when i aim at character and fire i always hit
-        /// the belly of a standing figure"</i> — the lock aimed at the middle and dropped the point.
+        /// ⭐ CE-1126 (DESIGN_Entity_Control §8g F-5) — where an operator's shot locked on <paramref name="unit"/> goes: the point the crosshair
+        /// put on one of his PARTS (the crosshair meets the round's own boxes now), carried with him; his <see cref="Middle"/> only when the
+        /// shot names him and no point. ⛔ The 1.5 m "is it on him" test (CE-1125) is gone: it covered a crosshair box that disagreed with the
+        /// parts. 🔒 User, 2026-10-16: <i>"the 1.5m hardcoded threshold also looks suspicious"</i>.
         /// </summary>
         public static Vector3 Operator(EntityRepository repo, Entity unit, Vector3 crosshair)
-        {
-            var middle = Middle(repo, unit, out _, out float hullHeight);
-            return Vector3.Distance(crosshair, middle) <= OnUnitMetres + hullHeight ? crosshair : middle;
-        }
+            => crosshair != Vector3.Zero ? crosshair : Middle(repo, unit, out _, out _);
 
         public static Vector3 For(ISimulationView view, IWorldQuery? world, Vector3 eye, Vector3 middle,
             Entity target, StanceId stance, float hullHeight, float penetration, List<Vector3> scratch)

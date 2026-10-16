@@ -60,6 +60,9 @@ public static class AttributeVocabulary
         //    — so it is registered unconditionally. 📌 Q59-N1 renamed the id from GeoHeading, which had
         //    advertised a "GeoPosition.Heading" path that does not exist.
         new("Heading",               AttributeIds.Heading,     AttributeValueKind.CsFloat64, typeof(SimTransform)),
+        // ⭐ CE-3216 S1-0 (W-8) — the World Environment's clock: a new scenario start time, and its display offset.
+        new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
+        new("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, AttributeValueKind.CsInt32, typeof(Fdp.Toolkit.Weather.ScenarioClock)),
     };
 
     /// <summary>⭐ The definitions active on a host, given whether it has a geographic transform.</summary>

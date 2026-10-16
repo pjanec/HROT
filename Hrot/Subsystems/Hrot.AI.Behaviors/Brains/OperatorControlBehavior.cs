@@ -36,7 +36,8 @@ namespace Hrot.AI.Behaviors.Brains
             public uint Seq;
             /// <summary>⭐ CE-1078 / CE-1079 (DESIGN_Entity_Control §8e) — the press counters already acted on.</summary>
             public byte ShotSeq, CancelSeq, AmmoSeq;
-            /// <summary>⭐ CE-1078 — 1 while a locked shot waits for its round to leave.</summary>
+            /// <summary>⭐ CE-1078 — 1 while a LOCKED shot waits for its round to leave; ⭐ CE-1127 (§8g F-2) — 2 while a SIGHT shot does (its
+            /// point is the crosshair of the tick it leaves, never held).</summary>
             public byte Pending;
             /// <summary>⭐ CE-1078 — the locked shot's unit (null = <see cref="PendingPoint"/>).</summary>
             public Entity PendingTarget;
@@ -139,13 +140,26 @@ namespace Hrot.AI.Behaviors.Brains
             // a new station's frames start again from 1, and its counters from 0
             if (input.Seq < lastSeq) { ws.ShotSeq = ws.CancelSeq = ws.AmmoSeq = 0; ws.Pending = 0; }
             if (input.CancelSeq != ws.CancelSeq) { ws.CancelSeq = input.CancelSeq; ws.Pending = 0; }
+            var mountDto = CombatTkb.MountOf(world, self, input.Mount);
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
-                ws.Pending = 1;
-                ws.PendingTarget = ShotTargetOf(world, self, input.ShotTarget);
-                // ⭐ CE-1125 — a point on a unit is held in HIS frame, so the shot goes where the crosshair was on him as he moves
-                ws.PendingPoint = ws.PendingTarget.IsNull ? input.AimPoint : AimPoint.ToUnitFrame(world, ws.PendingTarget, input.AimPoint);
+                // ⭐ CE-1127 (§8g F-1) — a turret, a thrown / arc or a guided weapon LOCKS; a rifle, a mount with no turret, an unguided
+                //   rocket fires by SIGHT (the round goes where the crosshair is when it leaves)
+                var mode = OperatorFireModes.Of(world, self, mountDto,
+                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, self, input.Mount)));
+                if (mode == OperatorFireMode.Lock)
+                {
+                    ws.Pending = 1;
+                    ws.PendingTarget = ShotTargetOf(world, self, input.ShotTarget);
+                    // ⭐ CE-1125 — a point on a unit is held in HIS frame, so the shot goes where the crosshair was on him as he moves
+                    ws.PendingPoint = ws.PendingTarget.IsNull ? input.AimPoint : AimPoint.ToUnitFrame(world, ws.PendingTarget, input.AimPoint);
+                }
+                else
+                {
+                    ws.Pending = 2;
+                    ws.PendingTarget = Entity.Null;
+                }
                 ws.Cap = fired + 1;
             }
             int ammoSteps = (byte)(input.AmmoSeq - ws.AmmoSeq);
@@ -159,13 +173,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Pending != 0 && (fired >= ws.Cap || !ws.PendingTarget.IsNull && !Standing(world, ws.PendingTarget)))
                 ws.Pending = 0;   // the round left — or the unit it was locked on is gone
 
-            var category = CombatTkb.MountOf(world, self, input.Mount)?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown;
+            var category = mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown;
             bool held = input.Trigger != 0 && !WeaponBrainProfiles.FiresPerPress(category);
             p = ws.Pending != 0
                 ? new AimAndFireParams
                 {
                     Operator = 1, Trigger = 1, Mount = input.Mount, Target = ws.PendingTarget, Rounds = ws.Cap,
-                    Point = ws.PendingTarget.IsNull ? ws.PendingPoint : AimPoint.FromUnitFrame(world, ws.PendingTarget, ws.PendingPoint),
+                    Point = ws.Pending == 2 ? input.AimPoint   // ⭐ CE-1127 — SIGHT: this tick's crosshair
+                          : ws.PendingTarget.IsNull ? ws.PendingPoint : AimPoint.FromUnitFrame(world, ws.PendingTarget, ws.PendingPoint),
                     CooldownSeconds = OperatorCooldownSeconds,
                 }
                 : new AimAndFireParams

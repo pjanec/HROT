@@ -310,7 +310,8 @@ namespace Fdp.Toolkit.Motion
             ref var d = ref world.GetComponentRW<Descent>(f.Self);
             double now = DescentRules.Now(world);
             var p = Of(world, f.Self, d.Canopy);
-            var wind = Wind.Of(world);
+            // ⭐ CE-3216 W-5 — the wind AT HIS HEIGHT and place (the regional blend and the profile), not one constant for the scenario
+            var wind = Fdp.Toolkit.Weather.WeatherField.WindAt(world, f.Transform.Position);
             var pos = f.Transform.Position;
             float surface = DescentRules.SurfaceBelow(in f, pos.X, pos.Y, pos.Z);
             var target = d.Target != Vector3.Zero ? d.Target : intent.Mode != NavigationMode.None ? intent.FinalDestination : Vector3.Zero;

@@ -35,6 +35,11 @@ namespace Fdp.Toolkit.Vis3D
         Terrain = 1,
         Entities = 2,
         All = Terrain | Entities,
+        /// <summary>⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — an entity by the PARTS a round meets (its body-part boxes), not its selection
+        /// box; the hit point is where the ray meets the part.</summary>
+        EntityParts = 4,
+        /// <summary>⭐ CE-1126 — what the FPS crosshair sees: the terrain and the entities' parts.</summary>
+        Aim = Terrain | EntityParts,
     }
 
     /// <summary>

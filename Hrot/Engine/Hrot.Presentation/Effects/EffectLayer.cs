@@ -55,7 +55,11 @@ public sealed class EffectLayer : IMapLayer
     /// <summary>One effect, resolved for drawing: what it is, where, how far through its life, how opaque — and (W3) its own seed and
     /// age in seconds, from which its particles are derived (stateless, VE-P).</summary>
     public readonly record struct Resolved(EffectVisualDto Look, Vector3 At, Vector3 Toward, float Phase, float Opacity, Color Colour,
-                                           int Seed = 0, float Age = 0f, Vector3 Forward = default, EffectFlight? Flight = null);
+                                           int Seed = 0, float Age = 0f, Vector3 Forward = default, EffectFlight? Flight = null)
+    {
+        /// <summary>⭐ CE-1129 (VE §10 IM-6) — the surface a decal lies on: its rotation's +Z (up for a ground mark and a burst's scorch).</summary>
+        public Vector3 Normal { get; init; } = Vector3.UnitZ;
+    }
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
     public List<Resolved> Resolve()
@@ -102,7 +106,8 @@ public sealed class EffectLayer : IMapLayer
             var colour = ParseRgba(look.ColorHex);
             EffectFlight? flight = flying && world.HasComponent<EffectFlight>(e) ? world.GetComponentRO<EffectFlight>(e) : null;
             list.Add(new Resolved(look, at, toward, life.Phase(now), opacity, colour, Seed: e.Index * 7919 + e.Generation, Age: life.Age(now),
-                                  Forward: forward, Flight: flight));
+                                  Forward: forward, Flight: flight)
+                     { Normal = Vector3.Transform(Vector3.UnitZ, world.GetComponentRO<SimTransform>(e).Rotation) });
         }
         // decals underneath, then bursts, then fire, then smoke over it, then flashes and tracers
         list.Sort((x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind)));
@@ -342,7 +347,9 @@ public sealed class EffectLayer : IMapLayer
             switch (r.Look.Kind)
             {
                 case EffectKind.Decal:
-                    DrawDrapedDisc(r.At, size / 2f, c);
+                    // ⭐ CE-1129 (VE §10 IM-6) — on the ground: draped; on a wall or a roof: a disc in the face's plane, a hair off it
+                    if (IsOnGround(r)) DrawDrapedDisc(r.At, size / 2f, c);
+                    else DrawSurfaceDisc(r.At, r.Normal, size / 2f, c);
                     break;
                 case EffectKind.Explosion:
                     Raylib.BeginBlendMode(BlendMode.Additive);
@@ -403,6 +410,42 @@ public sealed class EffectLayer : IMapLayer
         from = r.At + path * tail;
         to = r.At + path * head;
         return head > tail;
+    }
+
+    /// <summary>⭐ CE-1129 — a mark lies on the GROUND (draped) when it faces up and sits within <see cref="GroundMarkBand"/> of it; a roof
+    /// faces up too, but stands above the ground.</summary>
+    public bool IsOnGround(in Resolved r)
+        => r.Normal.Z > 0.9f && MathF.Abs(r.At.Z - (GroundHeight?.Invoke(r.At.X, r.At.Y) ?? r.At.Z)) <= GroundMarkBand;
+
+    /// <summary>⭐ CE-1129 — how far off the ground (m) a mark facing up still counts as on it.</summary>
+    public const float GroundMarkBand = 0.3f;
+
+    /// <summary>⭐ CE-1129 — how far a mark on a wall or a roof stands off its face (m), so it does not flicker into it.</summary>
+    public const float SurfaceMarkLift = 0.02f;
+
+    /// <summary>⭐ CE-1129 (VE §10 IM-6) — the disc a mark on a wall or a roof is: in the plane of <paramref name="normal"/>, lifted
+    /// <see cref="SurfaceMarkLift"/> off it, both sides drawn.</summary>
+    public static (Vector3 Centre, Vector3 U, Vector3 V) SurfaceDiscFrame(Vector3 at, Vector3 normal)
+    {
+        var n = normal.LengthSquared() > 1e-8f ? Vector3.Normalize(normal) : Vector3.UnitZ;
+        var u = Vector3.Cross(n, MathF.Abs(n.Z) < 0.9f ? Vector3.UnitZ : Vector3.UnitX);
+        u = Vector3.Normalize(u);
+        return (at + n * SurfaceMarkLift, u, Vector3.Cross(n, u));
+    }
+
+    private static void DrawSurfaceDisc(Vector3 at, Vector3 normal, float radius, Color colour)
+    {
+        const int n = 16;
+        var (centre, u, v) = SurfaceDiscFrame(at, normal);
+        var mid = HrotToRaylib.Position(centre);
+        for (int i = 0; i < n; i++)
+        {
+            float a0 = i * MathF.PI * 2f / n, a1 = (i + 1) * MathF.PI * 2f / n;
+            var p0 = HrotToRaylib.Position(centre + (u * MathF.Cos(a0) + v * MathF.Sin(a0)) * radius);
+            var p1 = HrotToRaylib.Position(centre + (u * MathF.Cos(a1) + v * MathF.Sin(a1)) * radius);
+            Raylib.DrawTriangle3D(mid, p0, p1, colour);
+            Raylib.DrawTriangle3D(mid, p1, p0, colour);
+        }
     }
 
     private void DrawDrapedDisc(Vector3 centre, float radius, Color colour)

@@ -21,6 +21,11 @@ S1-0 (the weather programme's first slice: a positionless World Environment enti
 ② CE-3216 S1, ③ CE-3217 for ui. Built `2026-10-16`: CE-2210 (the ejected pilot flies) · CE-2217 (a vehicle part's face is the armour arc) ·
 CE-2218 (the muzzle-line hold, `Masked`) · CE-2209 (routes without a transform) · CE-2222 (missile turn rate as data; the Javelin
 top-attacks from 150 m). Designed: [Weather and Time](../designs/weather/DESIGN_Weather_And_Time.md) (R-3012, W-8).
+⭐ **Progress (`2026-10-16`, this session):** ① **CE-3216 S1-0 ✅** and ② **S1 ✅** (backend half) — the World Environment (8810) with
+the scenario clock and the global weather, Weather Regions (8811), `WeatherField`, the `Wind` singleton retired; as built in the design §6,
+report [REPORT_Backend_Weather_And_Time_S1](batches/REPORT_Backend_Weather_And_Time_S1.md). ③ the editor half + CE-3217 → ui:
+[HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time](batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md). **Next:** S2 (perception:
+vision by visibility and light, thermal crossover, hearing by wind) — not started; a runtime weather edit from a non-owning host.
 
 ## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
 

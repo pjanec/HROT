@@ -84,6 +84,40 @@ public sealed class StaticObstacleTests
         Assert.Equal(1f, damage, 3);
     }
 
+    /// <summary>
+    /// ⭐ CE-1128 (docs/DESIGN_Visual_Effects.md §10 IM-4) — the fire query reports the FACES a round meets: through a crate's sides the
+    /// entry faces the shooter and the exit faces away; dropping onto a block it enters through the TOP (+Z) — so a mark lies on the face.
+    /// </summary>
+    [Fact]
+    public void CE1128_TheFireQuery_GivesTheFacesNormals_SidesInAndOut_AndTheTopFromAbove()
+    {
+        var crate = WithBox("fence-wood", length: 1.2f, width: 1f, height: 1f);
+        float damage = 1f, pen = 100f;
+        var impacts = new List<RoundImpact>();
+        Assert.False(TerrainPenetration.Carry(new TerrainWorldQuery(crate), new Vector3(30, 20, 0.5f), new Vector3(30, 40, 0.5f), ref damage, ref pen, out _, null, impacts));
+        Assert.Equal(2, impacts.Count);
+        Assert.Equal((ImpactKind.Entry, 29.5f), (impacts[0].Kind, MathF.Round(impacts[0].At.Y, 3)));
+        Assert.Equal(new Vector3(0, -1, 0), impacts[0].Normal, new V3Eq(1e-4f));
+        Assert.Equal((ImpactKind.Exit, 30.5f), (impacts[1].Kind, MathF.Round(impacts[1].At.Y, 3)));
+        Assert.Equal(new Vector3(0, 1, 0), impacts[1].Normal, new V3Eq(1e-4f));
+
+        var block = WithBox("concrete", length: 2f, width: 1f, height: 1f);
+        damage = 1f; pen = 100f; impacts.Clear();
+        Assert.True(TerrainPenetration.Carry(new TerrainWorldQuery(block), new Vector3(30, 25, 5f), new Vector3(30, 31, 0.5f), ref damage, ref pen, out _, null, impacts));
+        var top = Assert.Single(impacts);
+        Assert.Equal(ImpactKind.Stop, top.Kind);
+        Assert.Equal(1f, top.At.Z, 3);
+        Assert.Equal(Vector3.UnitZ, top.Normal, new V3Eq(1e-4f));
+    }
+
+    private sealed class V3Eq : IEqualityComparer<Vector3>
+    {
+        private readonly float _eps;
+        public V3Eq(float eps) => _eps = eps;
+        public bool Equals(Vector3 a, Vector3 b) => Vector3.Distance(a, b) <= _eps;
+        public int GetHashCode(Vector3 v) => 0;
+    }
+
     [Fact]
     public void P7a_R3_SightIsBlockedByTheCarBody_BelowItsRoof_NotAbove()
     {

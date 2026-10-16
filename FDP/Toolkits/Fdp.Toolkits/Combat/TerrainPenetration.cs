@@ -36,22 +36,36 @@ namespace Fdp.Toolkit.Combat
         /// <returns>True when a crossing stopped the round.</returns>
         /// <param name="log">⭐ T-4 — when given, each crossing is appended (what, where, the round's chance through it) for the shot log.</param>
         /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.ModuleHost.Abstractions.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
+        /// <param name="impacts">⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-2) — when given, the surfaces the round marks: an
+        /// <see cref="ImpactKind.Entry"/> and an <see cref="ImpactKind.Exit"/> for each crossing it passes, a <see cref="ImpactKind.Stop"/>
+        /// where it stops — each with the face's normal (zero = unknown).</param>
         public static bool Carry(Fdp.Toolkit.World.IWorldQuery world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
-            List<ShotCrossing>? log = null)
+            List<ShotCrossing>? log = null, List<RoundImpact>? impacts = null)
         {
             stopT = 1f;
             var crossings = t_crossings ??= new List<Fdp.Toolkit.World.TraceCrossing>();
             world.Trace(from, to, Fdp.Toolkit.World.TracePurpose.Fire, crossings);   // ⭐ CE-1035 Q1 — through the world query (its doors are bound)
+            float length = Vector3.Distance(from, to);
             foreach (var c in crossings)
             {
                 float roundPen = EngineFallbacks.TerrainPenetrationOrFallback(penetration);
                 bool passed = Cross(c.Loss, ref damage, ref penetration);
+                var entry = Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f));
                 log?.Add(new ShotCrossing(c.Kind, c.Label, c.Material ?? "", c.Loss, roundPen,
-                    ArmorModel.PenetrationChance(roundPen, c.Loss), passed, Vector3.Lerp(from, to, Math.Clamp(c.T, 0f, 1f))));
+                    ArmorModel.PenetrationChance(roundPen, c.Loss), passed, entry));
                 if (!passed)
                 {
                     stopT = Math.Clamp(c.T, 0f, 1f);
+                    impacts?.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Stop));
                     return true;
+                }
+                // a piece the round was already inside at the segment's start was marked by the segment that entered it (its exit too:
+                // the far face lies on the same straight line, past that segment's end)
+                if (impacts != null && c.T > 1e-5f)
+                {
+                    impacts.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Entry));
+                    float exitT = length > 0f ? c.T + c.PathMetres / length : c.T;
+                    impacts.Add(new RoundImpact(from + (to - from) * exitT, c.ExitNormal, ImpactKind.Exit));
                 }
             }
             return false;
@@ -72,4 +86,18 @@ namespace Fdp.Toolkit.Combat
             return true;
         }
     }
+
+    /// <summary>⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-2) — what a round did at a surface.</summary>
+    public enum ImpactKind : byte
+    {
+        /// <summary>It entered a piece it then passed through.</summary>
+        Entry = 0,
+        /// <summary>It left a piece it passed through (the far side of a fence, a wall).</summary>
+        Exit = 1,
+        /// <summary>It stopped here (a wall it could not pass, the ground).</summary>
+        Stop = 2,
+    }
+
+    /// <summary>⭐ <c>CE-1128</c> — one surface a round marked: where, the face's outward normal (zero = unknown), and what it did.</summary>
+    public readonly record struct RoundImpact(Vector3 At, Vector3 Normal, ImpactKind Kind);
 }

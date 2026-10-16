@@ -218,18 +218,11 @@ namespace Fdp.Toolkit.Physics.Systems
                     //   entered wins; the hit carries the part, the face entered and the point in the part.
                     if (PersonParts && PhysicsConstants.IsBulletRay(req.RayId) && PhysicsColliderReaders.IsPerson(repo, candidate))
                     {
-                        var pose  = Fdp.Toolkit.Physics.BodyParts.PersonBody.PoseOf(repo, candidate);
-                        float scale = Fdp.Toolkit.Physics.BodyParts.PersonBody.ScaleOf(collider.Height);
-                        var (bc, br) = Fdp.Toolkit.Physics.BodyParts.PersonBody.Bound(pose);
-                        var sphereCentre = tf.Position + Vector3.Transform(bc * scale, tf.Rotation);
-                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.SegmentTouchesSphere(req.Start, req.End, sphereCentre, br * scale))
-                        {
-                            Interlocked.Increment(ref _sphereRejects);
-                            continue;
-                        }
+                        // ⭐ CE-1126 — the one body test the FPS crosshair also makes (BodyPartRay)
+                        var test = Fdp.Toolkit.Physics.BodyParts.BodyPartRay.Person(repo, candidate, tf, collider.Height, req.Start, req.End, out var part);
+                        if (test == Fdp.Toolkit.Physics.BodyParts.BodyPartTest.SphereMiss) { Interlocked.Increment(ref _sphereRejects); continue; }
                         Interlocked.Increment(ref _partTests);
-                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(Fdp.Toolkit.Physics.BodyParts.PersonBody.Boxes(pose),
-                                tf.Position, tf.Rotation, scale, req.Start, req.End, out var part)) continue;
+                        if (test != Fdp.Toolkit.Physics.BodyParts.BodyPartTest.Hit) continue;
                         if (part.T < bestT) { bestT = part.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = part; }
                         continue;
                     }
@@ -240,24 +233,13 @@ namespace Fdp.Toolkit.Physics.Systems
                     if (VehicleParts && PhysicsConstants.IsBulletRay(req.RayId)
                         && Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, candidate) is { } vehicle)
                     {
-                        var size = Fdp.Toolkit.Physics.BodyParts.VehicleBody.SizeOf(repo, candidate, vehicle);
-                        float grow = MathF.Max(MathF.Max(size.X / vehicle.Size.X, size.Y / vehicle.Size.Y), 1f);
-                        var sphereCentre = tf.Position + Vector3.Transform(vehicle.BoundCentre, tf.Rotation);
-                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.SegmentTouchesSphere(req.Start, req.End, sphereCentre, vehicle.BoundRadius * grow))
-                        {
-                            Interlocked.Increment(ref _sphereRejects);
-                            continue;
-                        }
-                        Interlocked.Increment(ref _partTests);
                         Entity turretPart = default;
-                        bool hasTurret = turretOf != null && turretOf.TryGetValue(candidate, out turretPart);
-                        var turretPose = hasTurret ? repo.GetComponentRO<Fdp.Toolkit.Combat.Components.TurretPose>(turretPart) : default;
-                        // ⭐ CE-3214 (S2b-7, S2b-8) — a weapon system: how far it is deployed; with no turret part, laid at its kit's rest elevation
-                        float deployed = vehicle.Stowed != null ? Fdp.Toolkit.Combat.WeaponDeployment.FractionOf(repo, candidate) : 1f;
-                        float elevation = hasTurret ? turretPose.Elevation : vehicle.Kit.RestElevation;
-                        int nb = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Pose(vehicle, size, turretPose.Azimuth, elevation, deployed, vehicleBoxes);
-                        if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(vehicleBoxes[..nb], tf.Position, tf.Rotation, 1f, req.Start, req.End, out var vpart, arcFaces: true)) continue;   // ⭐ CE-2217 — the armour arc
-                        vpart = vpart with { Part = Fdp.Toolkit.Physics.BodyParts.VehicleBody.PartOf(vehicle, vpart.Part, vpart.LocalPoint) };
+                        if (turretOf != null) turretOf.TryGetValue(candidate, out turretPart);
+                        // ⭐ CE-1126 — the one body test the FPS crosshair also makes (BodyPartRay)
+                        var test = Fdp.Toolkit.Physics.BodyParts.BodyPartRay.Vehicle(repo, candidate, vehicle, tf, turretPart, req.Start, req.End, vehicleBoxes, out var vpart);
+                        if (test == Fdp.Toolkit.Physics.BodyParts.BodyPartTest.SphereMiss) { Interlocked.Increment(ref _sphereRejects); continue; }
+                        Interlocked.Increment(ref _partTests);
+                        if (test != Fdp.Toolkit.Physics.BodyParts.BodyPartTest.Hit) continue;
                         if (vpart.T < bestT) { bestT = vpart.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = vpart; }
                         continue;
                     }

@@ -63,5 +63,9 @@ internal sealed class FakeDescriptorTranslator : IDescriptorTranslator
                 GlobalComponentIds.SimTransform,
                 GlobalComponentIds.NetworkTransform,
                 GlobalComponentIds.NetworkVelocity),
+            // ⭐ CE-3216 S1-0 — EntityScenarioClockEgressTranslator's pairing (the clock's two attributes write ScenarioClock)
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtScenarioClock,
+                GlobalComponentIds.ScenarioClock),
         });
 }

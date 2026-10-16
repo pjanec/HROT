@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: READY-TO-BUILD — 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
-current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails. §0 is the measured ground.
+build-state: BUILDING — S1-0 and S1 BUILT 2026-10-16 (§6.1, §6.2; S1's editor UI handed to ui). S2–S4 not started. READY-TO-BUILD was approved by 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
+current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails · §6 AS BUILT (what the code does, slice by slice). §0 is the measured ground.
 stale-below: nothing.
 known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
@@ -196,3 +196,64 @@ singleton is drawn dead: S1 moves its two readers onto `WeatherField`.
 | **S2** | backend | perception: vision range by visibility and light level (night), thermal contrast from the temperature model (crossover), hearing by wind | rails in the sensors' suites |
 | **S3** | ui | the 3D map: sun direction and sky colour, fog from the extinction, cloud layers; smoke drifts on the wind | frame rails + screenshots |
 | **S4** | backend + ui | air density for aircraft and long-range ballistics; wind drift on rounds; ambient audio from wind and time of day | — |
+
+## 6. As built
+
+### 6.1 S1-0 — the positionless World Environment and its clock ✅ BUILT `2026-10-16` (CE-3216)
+
+| piece | where | note |
+|---|---|---|
+| `ScenarioClock` (394) `{ StartUtcTicks, DisplayUtcOffsetMinutes }` · `ScenarioClock.DefaultStartUtc` = **2025-06-21 06:00 UTC** (C-3, fixed) · `ScenarioTime.TryClock / Utc` | `FDP/Toolkits/Fdp.Toolkits/Weather/ScenarioClock.cs` | default data policy ⇒ the scenario serializer saves it as authored (W-8) with no new code; `Utc(world)` falls back to the C-3 default when no World Environment has arrived |
+| TKB type **`WorldEnvironment` = 8810**, a bare template (no `SimTransform`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs` | the door's pattern: its state arrives with the request on the creator and on its descriptor elsewhere |
+| `dtScenarioClock` = 138, `EntityScenarioClock` (Reliable, TransientLocal, KeepLast 1) | `AllDescriptors.cs`, `SimDescriptors.cs` | Brain group (`HrotOwnershipGroups`, `NedOwnershipGroupBinding`) — the creating Brain owns it (W-6) |
+| `EntityScenarioClockEgressTranslator` / `…IngressTranslator` | `Hrot.Network.NED/Replication/Map/EntityScenarioClockTranslators.cs` | the `WeaponSystemState` shape (send on change; hold a sample until its entity is known; the recorded owner drops its own); in `SharedTranslatorPack` and `EntityStatesIngressPack` (a pure IG sees the time too) |
+| the runtime edit: attributes **`ScenarioStartUtcTicks`** (20, Int64) and **`ScenarioUtcOffsetMinutes`** (21, Int32) | `AttributeVocabulary`, `AttributeCompilerFactory.Build`, `ScenarioClockAttributeInstaller` | ⭐ no new message: `UpdateEntityAttributeCommand` → the owner's `UpdateEntityAttributeRequestSystem` applies it AS SENT (W-8); the egress declares `TargetComponentIds = {ScenarioClock}` |
+| C-3 / W-8 in `ScenarioLoadStep.Commit` | `Hrot.Core/Services/LoadPhase/ScenarioLoadStep.cs` | a scenario with none ⇒ `WorldEnvironmentRequest` (after the doors, so their ids are unchanged); a second in the file is ignored with a warning; also for a NEW scenario; only after a `PrepareAsync` (an aborted round enqueues nothing) |
+
+**Rails:** `SplitAuthoritySpawnTests.CE3216_ThePositionlessWorldEnvironment_CarriesItsClock_AndAnEditFromANonOwnerReachesEveryNode`
+(IT-SA-5, domain 35: created on CGF through the request path, no `SimTransform` on either node, UTC = start + sim time on both, an edit
+SENT BY SimHost applied by CGF and replicated back — red-proved by dropping the clock egress and by a no-op JSON route) ·
+`ScenarioLoadStepTests.CE3216_C3_*` / `CE3216_W8_*` (the default at the fixed start; a saved start loads as authored; a second ignored) ·
+`TheFourRoutingTablesAgreeTests` / `TheDescriptorMapIsWiredTests` (the two attributes in every routing table, `dtScenarioClock` in the
+Brain group).
+
+⚠ **Measured on the way:** the positionless entity needed **nothing** special in the creation, ghost and promotion paths — the request
+path, `EntityMaster` and the TKB derivation all work without a `SimTransform` (confirms docs/designs/tkb-1/DESIGN.md 2026-09-13).
+
+### 6.2 S1 — the weather, the regions, `WeatherField`; `Wind` retired ✅ BUILT `2026-10-16` (CE-3216)
+
+| piece | where | note |
+|---|---|---|
+| `WeatherConditions` (395): daily-mean ground temperature, lapse rate, sea-level pressure, humidity; **8 wind levels** (MSL m, from °, speed, gust) and **4 cloud layers** (base MSL, thickness, octas, kind) as fixed buffers; visibility, fog top + fog visibility, precipitation kind + rate, `FeatherM` | `FDP/Toolkits/Fdp.Toolkits/Weather/WeatherConditions.cs` | fixed buffers save as JSON arrays (the auto-serializer's fixed-buffer support) ⇒ saved as authored; `Standard` (the C-3 built-in) and `SteadyWind(v)` |
+| ⚠ **the built-in weather is CALM** | same | deviation from "the built-in weather" left open in C-3: the retired `Wind` singleton's contract was *absent ⇒ calm*, so every scenario that states no weather (and every test world) behaves exactly as before. 📌 Found by `DescentModelsTests.B2_TheBank_*`, which reddened when the default had a breeze |
+| TKB **`WeatherRegion` = 8811**, a bare area template; the default World Environment request now carries `WeatherConditions.Standard` too | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `ScenarioLoadStep` | |
+| `dtWeather` = 139, `EntityWeather` (flat fields, the `dtPartDamage` shape), egress/ingress like the clock's, Brain group | `SimDescriptors.cs`, `EntityWeatherTranslators.cs`, `HrotOwnershipGroups`, `NedOwnershipGroupBinding` | |
+| ⭐ **`IAreaOutline`** (Fdp.Toolkits) implemented by `EditablePolyline` (Hrot.Core) | `Fdp.Toolkits/Terrain/IAreaOutline.cs` | the seam that lets toolkit code read a region's outline without referencing Hrot: `WeatherField` reads the managed component under `GlobalComponentIds.EditablePolyline` as `IAreaOutline` (`EntityRepository.GetManagedComponentByTypeId`). ⛔ Rejected: moving `EditablePolyline` down (a Hrot namespace in FDP) and a host-registered delegate (a silent default on any host that forgets it) |
+| `WeatherField` — `RegionWeight` (W-1: the ray from the centroid to the boundary, `smoothstep(1 − t)`, the feather extends the boundary), `Contributors` (W-2: regions add, the global fills `max(0, 1 − Σw)`, past 1 normalised; ≤ 16), `WindAt`, `At` (§4) | `Fdp.Toolkits/Weather/WeatherField.cs` | ⚠ the region's CENTROID is the polygon's area centroid, not its `SimTransform` (the authoring tools put the origin where the operator clicked first); allocation-free per call apart from the query |
+| `SolarPosition.Of` (NOAA spreadsheet formulas, no refraction) | `Fdp.Toolkits/Weather/SolarPosition.cs` | |
+| ⚠ **the wind's surface fall-off applies BELOW the lowest level only**; a lowest level at or below the ground means the author's wind reaches the ground | `WeatherField.WindOf` | ⇒ a 10 m level over a 500 m hill does not slow a man 2 m above the hill; author a level above the ground where the surface matters |
+| **W-5**: `ParachuteModel.Autonomous` reads `WeatherField.WindAt(world, his position)`; the airborne release point reads it at the carrier's place, half way to the ground; `struct Wind` deleted, id 393 RESERVED | `DescentModels.cs`, `AirborneDrillBehaviors.cs` (behaviors' file — cross-lane), `Descent.cs`, `GlobalComponentIds.cs` | |
+
+**Moved to the ui lane** (deviation from §5's S1 row — editor UI is theirs): the area tool's "Weather Region" kind, the inspectors and the
+Scenario Details view → [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md)
+(with CE-3217). ⚠ **Not built:** a runtime WEATHER edit from a non-owning node has no attribute path yet (only the clock has one) — the
+editor owns the World Environment in edit mode and writes the component directly; a runtime weather change from another host is a
+follow-up (the attribute vocabulary or `UpdateEntityDescriptorRequestSystem`).
+
+**Rails:** `WeatherFieldTests` (Fdp.Toolkits — W-1 weights and smoothness, feather, W-2 wind across north, W-3 profile, the NOAA sun
+against the almanac, light bands, §4 temperature / pressure / density / irradiance / fog, W-4 UTC) · `WeatherRegionBlendTests`
+(Hrot.Core — regions add, the global fills, an overlap normalises, the wind across two regions, an area without weather is no region) ·
+`DescentModelsTests.CE3216_ARoundCanopy_DriftsOnTheWindAtItsHeight` (+ the three wind rails ported off the singleton) · IT-SA-5 now also
+carries the global weather to SimHost on `dtWeather`.
+
+### 6.3 Clouds — aviation cover, cover above a point, the deck ✅ BUILT `2026-10-16` (🔒 user: *"do we support cloud types in multiple altitude levels? can we specify overcast and similar?"* → *"yes please"*)
+
+| | |
+|---|---|
+| **layers** | up to 4 per weather (global or regional), each its own base (m MSL), thickness, cover and kind (stratus · cumulus · stratocumulus · cirrus · cumulonimbus) — unchanged from §6.2 |
+| **aviation cover** | `CloudCover` { Clear · Few · Scattered · Broken · Overcast } = the METAR bands (SKC 0 · FEW 1–2 · SCT 3–4 · BKN 5–7 · OVC 8 octas); `SetCloud(i, base, thickness, CloudCover.Overcast, kind)` stores the band's upper value (FEW 2, SCT 4, BKN 7, OVC 8 — conservative for the light and the ceiling); octas stay the stored value. A ceiling is the lowest BKN / OVC base |
+| **cover above the point** (§4 "cloud cover above") | `WeatherSample.CloudOctasAbove` = the layers whose TOP is above the point (inside a cloud counts), overlapping at random. ⭐ The irradiance and the light read it: an aircraft above an overcast deck has the clear-sky sun; the ground under it a quarter of it. `CloudOctas` (every layer, seen from the ground) still drives the day–night temperature swing. ⛔ SUPERSEDES §6.2's "irradiance from the total cover" |
+| **the deck** | `WeatherSample.Clouds` (`CloudDeck`) = the STRONGEST contributing weather's layers as authored (W-2: a deck is a category; the cover numbers are blended) — what S3's renderer draws |
+
+**Rails:** `WeatherFieldTests.Clouds_*` (the bands; shade below, inside, not above a deck; the deck in the sample) ·
+`WeatherRegionBlendTests.Clouds_TheDeckIsTheStrongerWeathers_TheCoverIsBlended`.
