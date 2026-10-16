@@ -70,6 +70,8 @@ namespace Hrot.Network.NED.SimHost
                     HitEntityId = netId,
                     TotalDamage = evt.TotalDamage,
                     BodyPart    = evt.HasBodyPart != 0 ? (byte)(evt.BodyPart + 1) : (byte)0,   // ⭐ CE-3210 — id + 1, 0 = none
+                    EffectKind    = (byte)evt.Effect,   // ⭐ CE-3219 — the non-lethal effect rides the same hit
+                    EffectSeconds = evt.EffectSeconds,
                 });
                 SentSampleCount++;
             }

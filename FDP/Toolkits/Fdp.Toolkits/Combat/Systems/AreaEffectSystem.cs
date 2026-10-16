@@ -181,6 +181,11 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
                 float total = fragDamage + blastDamage;
                 if (!split && total > 0f) repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = total });
+                // ⭐ CE-3219 (civilians B-1, CV-6) — a STUN burst stuns everyone its blast reaches, for its EffectSeconds scaled by the same blast
+                //   fall-off, barrier and shadow (a wall between a man and the flash spares him). Health is untouched; the owner stores it.
+                float stunSeconds = w.Kind == Fdp.Toolkit.Tkb.Domain.WarheadKind.Stun ? w.EffectSeconds * blastFall * barrier * shadow : 0f;
+                if (stunSeconds > 0.05f)
+                    repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = stunSeconds });
                 // ⭐ CE-3210 (HL-10) / CE-3212 (S3-5) — the marks the fragments leave on a man, as many as struck him (capped), seeded by the
                 //   burst so every run draws the same; on the parts by their shares when he has a body.
                 if (kind == AreaEffect.FragmentTarget.Person && strike is { Hits: >= 0.5f } s)

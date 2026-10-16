@@ -952,5 +952,9 @@ namespace Fdp.Core
         /// press {UseSeq, ActionId, Outcome, Reason}, on the possessed unit, Brain group, replicated as <c>dtOperatorUseStatus</c> (141) so the
         /// station's HUD on another node reads it.</summary>
         public const int OperatorUseStatus = 396;
+
+        /// <summary><c>EffectState</c> — ⭐ CE-3219 (civilians B-1, CV-6; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3): a person's stored
+        /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
+        public const int EffectState = 397;
     }
 }

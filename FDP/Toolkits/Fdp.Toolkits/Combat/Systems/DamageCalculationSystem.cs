@@ -102,12 +102,19 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
                 float damage = ArmorModel.HitDamage(evt.Penetration, evt.Damage, armour) * multiplier;
 
+                // ⭐ CE-3219 (civilians B-1, CV-6) — a BLUNT round (a baton round, a thrown stone) knocks the man it hits down for its
+                //   warhead's EffectSeconds; the Health owner stores it (EffectState). Every other round is Kinetic, as before.
+                var effectWarhead = evt.Ammo != 0 ? CombatTkb.WarheadOf(repo, evt.Ammo) : null;
+                bool blunt = effectWarhead is { Kind: Fdp.Toolkit.Tkb.Domain.WarheadKind.Blunt, EffectSeconds: > 0f };
+
                 repo.Bus.Publish(new DamageAssessedEvent
                 {
                     HitEntity   = targetEntity,
                     TotalDamage = damage,
                     HasBodyPart = evt.HasBodyPart,   // ⭐ CE-3210 — the Health owner records it on the part
                     BodyPart    = evt.BodyPart,
+                    Effect        = blunt ? HitEffect.Blunt : HitEffect.Kinetic,
+                    EffectSeconds = blunt ? effectWarhead!.EffectSeconds : 0f,
                 });
             }
         }

@@ -88,6 +88,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((byte)0, e[0].HasBodyPart);
         }
 
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — the hit's effect kind and duration cross the wire unchanged; an unset field is
+        /// Kinetic (damage only), so every sender from before reads as before.</summary>
+        [Fact]
+        public void CE3219_TheEffectArrives_AndAnUnsetFieldMeansKinetic()
+        {
+            var translator = BuildTranslator();
+            var entity = _world.CreateEntity();
+            _entityMap.Register(8L, entity);
+
+            var blunt = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, EffectKind = (byte)Fdp.Toolkit.Combat.HitEffect.Blunt, EffectSeconds = 4f };
+            var e = ProcessAndFlush(translator, in blunt);
+            Assert.Equal((Fdp.Toolkit.Combat.HitEffect.Blunt, 4f), (e[0].Effect, e[0].EffectSeconds));
+
+            var plain = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f };
+            e = ProcessAndFlush(translator, in plain);
+            Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, e[0].Effect);
+        }
+
         // ── SC-2: Unknown entity → skipped ────────────────────────────────────
 
         [Fact]
