@@ -29,16 +29,17 @@ decision first.
 | Complexity | Open | Done |
 |---|---:|---:|
 | `WIRING` | 0 | 1 |
-| `RW-L` | 4 | 7 |
+| `RW-L` | 3 | 8 |
 | `RW-M` | 2 | 9 |
 | `RW-H` | 1 | 3 |
-| **Total** | **7** | **20** |
+| **Total** | **6** | **21** |
 
 > ⚠⚠ **The previous table (`12 open / 7 done`) was ALREADY STALE before the `2026-10-06` batch touched it** —
 > `HSM-001/002/003/005/006/010` had been ticked by the `Q84` / canvas work (`CE-1000`…`CE-1004`) without the
 > count being recomputed. 📌 Recomputed here with the file's own reconciliation recipe (below), three ways:
 > checkbox tally **3 / 20** · column sums `0+1+1+1 = 3` open, `1+7+9+3 = 20` done · 23 rows total.
 > ⭐ `2026-10-06` (later): + `HSM-024`…`027` (Area J, user-reported) ⇒ **7 open / 20 done**, 27 rows.
+> ⭐ `2026-10-16`: `HSM-027` closed by `CE-1010` ⇒ **6 open / 21 done** (checkbox tally agrees).
 > ⭐ **Every original row is now closed**; the three open ones were all split out of this batch by measurement
 > (`HSM-021` timer arming, `HSM-022` the BTree rename twin, `HSM-023` annotate the actions with their lanes).
 
@@ -764,7 +765,7 @@ the two trackers do not drift.
   the source completes"), or an error where completion cannot happen (a source with no completion semantics).
   🔒 Ruling needed on which.
 
-- [ ] **HSM-027** · `RW-L` — **"Toggle Breakpoint" on a state does nothing visible.** 📐 Same root as `CE-1010`
+- [x] **HSM-027** · `RW-L` — **"Toggle Breakpoint" on a state does nothing visible.** ✅ **FIXED `2026-10-16` by `CE-1010` (ui, cross-tracker): the canvas item is greyed when the host registers no handler; HSM breakpoints stay on the gutter menu.** 📐 Same root as `CE-1010`
   (`Blueprint_Issues_Tracker.md`): only the Blueprint host registers `CommandCatalog.ToggleBreakpoint`, so the canvas
   menu item is a no-op here. HSM HAS breakpoints — `HsmBreakpointGutterRenderer` + its own gutter menu
   (`HsmBreakpointContextMenuProvider`) — while `StateNode.IsBreakpoint` only tints the node (`HsmAsset.cs:1311`) and
