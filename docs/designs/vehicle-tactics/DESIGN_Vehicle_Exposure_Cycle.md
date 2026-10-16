@@ -461,6 +461,16 @@ behaviour lane's.
 | Javelin / NLAW team (new type) | `CombatPosture` with `FiringPosition` (`FindOpenFiringPosition`) at range | the lock (aim time) needs continuous sight — the tank's short exposure denies it |
 | ATGM technical | `LandPlatformAttack` (this node, `Scoot`) | halts for the flight (FireOnMove no), Guiding |
 
+⭐ **Live `2026-10-16` — `ua-rpg-window` PASS 4 / 4** (bt-range; an RPG man at House A's upper window on `WindowDuel` shape A with
+`exposuresPerPosition` 1, two IFVs on `BasicVehicleSop` 50 m south). The composition holds with no new node: he hits an IFV's side, moves along
+the floor to the next window (x 107 → 102) and fires again; the IFVs fire back on the move and kill him. 📐 What the runs taught:
+
+| run | what happened | where it went |
+|---|---|---|
+| 1 | the IFV 23 m off drove under the window; his steep shot met his own wall 5 cm from the muzzle and killed him | **CE-2218 (backend)**: nothing tests muzzle → aim before release. The demo starts the IFVs 50 m off |
+| 2 | the IFV drove 6 s to its first hide with the gun only TRACKING him, and died without a round | **CE-2219 (fixed)**: `MoveToHide` fires at a seen threat (§4 *fire on the move*) |
+| 3 | the IFVs killed him after his first rocket, before the 3 exposures shape A spends at a window | an AT man fires and moves: `exposuresPerPosition` 1 |
+
 ## 8. Counter-drone (V8, D-H)
 
 ```mermaid
