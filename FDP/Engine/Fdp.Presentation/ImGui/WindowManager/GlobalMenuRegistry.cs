@@ -127,6 +127,34 @@ public class GlobalMenuRegistry
     /// <summary>The trie root. Its <see cref="MenuItemNode.Children"/> are the top-level menu entries.</summary>
     public MenuItemNode Root { get; } = new() { Name = "<root>" };
 
+    // ── Top-level order (CE-1026) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐ CE-1026 — the conventional order of the TOP-LEVEL menus, left to right. The bar used to follow first-registration order, and
+    /// <c>WindowManager</c>'s own constructor registers <c>Settings</c> before any host, so <c>Settings</c> came first and <c>File</c> later.
+    /// A name not listed ranks between <c>Debug</c> and <c>Settings</c>; ties keep registration order. <c>Windows</c> and <c>Help</c> are the
+    /// window manager's own menus, listed so a host extending them through this registry lands in the same place.
+    /// </summary>
+    public static readonly IReadOnlyList<string> TopLevelOrder = new[] { "File", "Edit", "View", "Scenario", "Tools", "Debug", "Settings", "Windows", "Help" };
+
+    /// <summary>The first menu that draws AFTER the <c>Perspective</c> menu: it and everything ranked after it trail the bar.</summary>
+    public const string FirstTrailingMenu = "Settings";
+
+    /// <summary>The rank of a top-level menu named <paramref name="name"/> in <see cref="TopLevelOrder"/> (an unlisted name ranks just before <see cref="FirstTrailingMenu"/>).</summary>
+    public static int TopLevelRank(string name)
+    {
+        for (int i = 0; i < TopLevelOrder.Count; i++)
+            if (string.Equals(TopLevelOrder[i], name, StringComparison.Ordinal)) return i * 10;
+        return TopLevelRank(FirstTrailingMenu) - 5;
+    }
+
+    /// <summary>True when the top-level menu <paramref name="name"/> draws before the <c>Perspective</c> menu.</summary>
+    public static bool IsLeadingMenu(string name) => TopLevelRank(name) < TopLevelRank(FirstTrailingMenu);
+
+    /// <summary>The top-level menus in bar order (rank, then registration order).</summary>
+    public IReadOnlyList<MenuItemNode> TopLevelMenus()
+        => Root.Children.Values.Select((node, i) => (node, i)).OrderBy(t => TopLevelRank(t.node.Name)).ThenBy(t => t.i).Select(t => t.node).ToList();
+
     /// <summary>
     /// Registers a plain menu item at the given path.
     /// Intermediate nodes are created as needed. Last-write-wins on re-registration.
@@ -201,7 +229,13 @@ public class GlobalMenuRegistry
     public GlobalMenuPanelViewModel BuildViewModel(string currentPerspective)
     {
         var items = new List<GlobalMenuItemView>();
-        Walk(Root, "", items, currentPerspective);
+        // ⭐ CE-1026: the top level in BAR order, so the dump lists what the bar draws in the order it draws it.
+        foreach (var top in TopLevelMenus())
+        {
+            var single = new MenuItemNode { Name = Root.Name };
+            single.Children[top.Name] = top;
+            Walk(single, "", items, currentPerspective);
+        }
         return new GlobalMenuPanelViewModel(
             PanelIdLiteral, PanelKindLiteral, currentPerspective, items);
 
