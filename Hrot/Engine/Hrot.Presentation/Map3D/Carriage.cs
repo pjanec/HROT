@@ -87,6 +87,10 @@ public static class Carriage
         }
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && Injury.StateOf(world, e) == InjuryState.Incapacitated)
             return new FigureCarriage(CarriageKind.Downed);
+        // ⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a) — KNOCKED DOWN (a baton round, a shove: the stored
+        //   EffectState, CE-3219) lies on the ground like a man down, at full health; he gets up when the effect runs out
+        if (Fdp.Toolkit.Combat.Effects.IsKnockedDown(world, e))
+            return new FigureCarriage(CarriageKind.Downed);
         // ⭐ CE-1104 (§6t) — the SECOND man of a team carry: at the rear of what his carrier carries (a stretcher, or a two-man weapon)
         if (world.IsComponentTypeRegistered<IsAssistingTag>() && world.HasComponent<IsAssistingTag>(e))
         {

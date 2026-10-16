@@ -713,3 +713,9 @@ U-5 (crowd overlay) stays LATER as the handoff leans, with no id until behaviors
 
 Rails: `EntityPresentationGizmoTests.CE1163_…` ×3 (the live side and its flip, a resolved tint wins, one palette) · `Map3DTests.CE1162_…`
 (the kit from the class; police uniform on every side; civilians in clothes; every infantryman still a soldier).
+
+**U-3 (`CE-1164`, `2026-10-16`) as built:** `Carriage.Of` returns `Downed` when `Effects.IsKnockedDown` (backend's `EffectState`, CE-3219) —
+so a knocked-down man lies like a man down at full health and stands when it runs out (U3-a, through the carriage that already picks
+`Downed` for the incapacitated, not a second pose path in `FigurePose`). `EffectStateGizmo` (Hrot.Common, auto-discovered, Labels layer)
+writes `DOWN · STUNNED · GASSED` under him in 2-D (U3-c). ⏳ **Cower is not built**: `EffectState` has no Cowering yet (finding F-3).
+Rail `Map3DTests.CE1164_…`, red-proved (both halves).

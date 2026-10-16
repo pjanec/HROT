@@ -654,6 +654,36 @@ public sealed class Map3DTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a/c) — a man KNOCKED DOWN by a non-lethal hit (the stored
+    /// <c>EffectState</c>, CE-3219) lies like a man down at FULL health, and stands again when the effect runs out; the 2-D line says what
+    /// runs (DOWN · STUNNED · GASSED), and nothing once it is over.
+    /// </summary>
+    [Fact]
+    public void CE1164_AKnockedDownMan_LiesDown_UntilItRunsOut_AndThe2DLineSaysWhatRuns()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            Assert.Equal(CarriageKind.Free, Carriage.Of(world, man, db).Kind);
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = 14.0, IrritatedUntil = 30.0 });
+            Assert.Equal(CarriageKind.Downed, Carriage.Of(world, man, db).Kind);   // at full health
+            Assert.Equal("DOWN · GASSED", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 20.0 });       // the knock-down is over, the gas is not
+            Assert.Equal(CarriageKind.Free, Carriage.Of(world, man, db).Kind);
+            Assert.Equal("GASSED", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 40.0 });
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1081 … CE-1083 — ONE classifier says how a man is held, from what every map host already has: the embarked tag (carried /
     /// dragged by a person carrier, seated in an exposed seat with a place), the carrier's own list (he carries / drags), and the injury
     /// state off the replicated health (wounded — combinable; incapacitated — down). An ENCLOSED seat, or an open one with no place, is
