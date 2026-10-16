@@ -182,6 +182,98 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1154</c> (docs/DESIGN_Entity_Control.md §8h U-2, U-7, §8h.6) — the USE key across the cluster: SimHost is the station;
+    /// its frame's use press (counter + the door's network id) crosses to CGF, whose <c>OperatorControl</c> asks the shared rule and
+    /// starts the door action on the soldier's interaction channel; the door's state comes back to SimHost, and the brain's verdict
+    /// (<c>dtOperatorUseStatus</c>) reaches the station AND the IG (the live IG check the backend's <c>CE-1153</c> owed).
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_AndTheVerdictReachesTheStationAndTheIg()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on both nodes");
+        var onBrain = ByName(cgf, "Rifleman");
+        var onMuscle = ByName(sim, "Rifleman");
+        var simMap = harness.SimHost.App.TestHook_EntityMap;
+        Assert.True(simMap.TryGetNetworkId(onMuscle, out long id), "the Rifleman has a network id on SimHost");
+        var station = new EntityOrders(sim, simMap, geo: null);
+        int operatorControl = BehaviorHash.FromName("OperatorControl");
+        Assert.True(station.Possess(id).Accepted);
+        Assert.True(harness.PumpUntil(() =>
+        {
+            var bs = cgf.GetComponentRO<BehaviorState>(onBrain);
+            return bs.ActiveBehaviorHash == operatorControl && bs.Origin == BehaviorOrigin.Possession && station.HolderOf(id) is not null;
+        }, timeoutFrames: 600), "the possession must reach the CGF brain");
+
+        // the bt-range door nearest the Rifleman, as SimHost sees it
+        var me = sim.GetComponentRO<SimTransform>(onMuscle).Position;
+        Entity door = Entity.Null;
+        float best = float.MaxValue;
+        for (int i = 0; i <= sim.MaxEntityIndex; i++)
+        {
+            var e = sim.GetEntityByIndex(i);
+            if (!sim.IsAlive(e) || !sim.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.DoorState>() || !sim.HasComponent<Fdp.Toolkit.Terrain.DoorState>(e)) continue;
+            float d = System.Numerics.Vector3.Distance(sim.GetComponentRO<SimTransform>(e).Position, me);
+            if (d < best) { best = d; door = e; }
+        }
+        Assert.False(door.IsNull, "bt-range must ship doors");
+        Assert.True(simMap.TryGetNetworkId(door, out long doorId), "a door is a network entity");
+        var before = sim.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State;
+        var expected = before == Fdp.Toolkit.Terrain.TerrainDoorState.Open ? Fdp.Toolkit.Terrain.TerrainDoorState.Closed : Fdp.Toolkit.Terrain.TerrainDoorState.Open;
+        _out.WriteLine($"door {doorId} at {sim.GetComponentRO<SimTransform>(door).Position} is {before}; the Rifleman at {me}, {best:0.0} m");
+
+        // stand him beside it (SimHost owns his pose) and hold still until the brain's copy is within reach
+        var doorAt = sim.GetComponentRO<SimTransform>(door).Position;
+        uint seq = 1;
+        Assert.True(harness.PumpUntil(() =>
+        {
+            sim.GetComponentRW<SimTransform>(onMuscle).Position = doorAt + new System.Numerics.Vector3(0.8f, 0f, 0f);
+            station.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++ });
+            var a = cgf.GetComponentRO<SimTransform>(onBrain).Position;
+            return System.Numerics.Vector2.Distance(new(a.X, a.Y), new(doorAt.X, doorAt.Y)) <= Fdp.Toolkit.Terrain.DoorRules.ReachMetres - 0.5f;
+        }, timeoutFrames: 600), "the brain must see the Rifleman beside the door");
+
+        // ONE use press: the counter goes to 1 and stays there in every later frame
+        bool toggled = harness.PumpUntil(() =>
+        {
+            sim.GetComponentRW<SimTransform>(onMuscle).Position = doorAt + new System.Numerics.Vector3(0.8f, 0f, 0f);
+            station.Control(id, new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Seq = seq++, UseSeq = 1, UseTarget = doorId });
+            return sim.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State == expected
+                && sim.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>()
+                && sim.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onMuscle)
+                && sim.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onMuscle) is { UseSeq: 1, Outcome: Fdp.Toolkit.Behavior.Possession.UseOutcome.Done };
+        }, timeoutFrames: 900);
+        var onBrainStatus = cgf.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onBrain) ? cgf.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onBrain) : default;
+        _out.WriteLine($"door now {sim.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State}; verdict on CGF {onBrainStatus.UseSeq}/{onBrainStatus.ActionId}/{onBrainStatus.Outcome}/{onBrainStatus.Reason}");
+        Assert.True(toggled, "one use press on the station must toggle the door through the brain, and its verdict (Done) must come back to SimHost");
+
+        var onIg = ByName(ig, "Rifleman");
+        Assert.True(!onIg.IsNull && harness.PumpUntil(() => ig.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>()
+            && ig.HasComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onIg)
+            && ig.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(onIg).Outcome == Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, timeoutFrames: 300),
+            "the IG must receive the verdict too (dtOperatorUseStatus on a pure IG)");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>C3</c> (handoff 2; DESIGN_FPV_Drone §6, Motion Domains §5; R-3005) — an FPV DRONE possessed from another node flies there:
     /// SimHost is the station; its frames cross to CGF as <c>ControlFrameInteractionPayload</c> (with the B10 <c>Vertical</c> axis);
     /// CGF's <c>OperatorControl</c> writes <c>ManualDrive</c> + <c>NavigationIntent.Manual</c>, which come back as dtManualDrive /

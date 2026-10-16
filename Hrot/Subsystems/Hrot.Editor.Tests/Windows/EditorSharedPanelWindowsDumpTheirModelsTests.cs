@@ -43,6 +43,7 @@ public sealed class EditorSharedPanelWindowsDumpTheirModelsTests : IDisposable
     {
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) { }
         public void StartAreaAuthoringMode(string styleOverrideJson = "") { }
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") { }
         public void StartRouteAuthoringMode() { }
         // ⭐ E5 — the zone arm. Present because ISpawnController declares it with NO default body
         //   (R-133: a defaulted no-op would let a host ship the surface and draw nothing).

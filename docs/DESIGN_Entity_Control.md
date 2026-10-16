@@ -1172,6 +1172,26 @@ Built against §8h.2's diagrams; the class names are the diagram's. Where it dif
 Rails: `InteractionTransportTests.CE3172_PossessControlRelease…` (the three fields cross unchanged), `PossessionReplicationTests.CE1156_…`
 and `.CE1153_…`, `OperatorUseActionsTests` (door, body, vehicle, weapon, params, `CanEmbark` ≡ `TryEmbark`).
 
+### 8h.8 AS-BUILT — the behaviors half, S9a (`CE-1154`, `2026-10-16`, behaviors)
+
+Built against §8h.2's class diagram and the door sequence: `OperatorControlBehavior.OperateUse` runs inside the one `ManualControl` node,
+after `OperateWeapon`, in the same shape — a new `UseSeq` ⇒ `OperatorUseActions.For(world, soldier, target)` ⇒ the verb `UseVerb` names ⇒
+the action on the `InteractionChannel` with `OperatorUseActions.WriteParams` ⇒ `OperatorUseStatus`. No new executor, no new channel.
+
+| point | as built | deviation, and why |
+|---|---|---|
+| channel use | the action starts and hands back through the SAME helpers the AI's carry / embark nodes use (`EmbarkNodes.Start` stamps the run's `BehaviorInstanceId`, `OwnsInteraction` reads only OUR action instance, `Release` hands the channel back once the answer is forwarded) | — the DoorNodes rule: a finished action left on the channel would read as the next press's answer |
+| verdict | `Running` when the action starts; `Done` (executor Success) or `Refused` + `Failed` (executor Failure after the start); `Refused` + the RULE's reason when the chosen action is unavailable (out of reach, locked, not down, seat taken) — then nothing starts and nothing walks (U-3) | ⭐ a `UseVerb` past the target's list ⇒ `Refused` + `NothingToDo` (the rule offers nothing at that index) |
+| target | `UseTarget` resolved through the brain's `NetworkEntityMap`; 0 or unknown ⇒ no target — the rule still offers Put down (carrying) and Get out (aboard), so "E again" works wherever the crosshair rests (U-6) | — |
+| repeat press | a press while an earlier use action runs REPLACES it (a new action instance ⇒ the executor starts over) | ⭐ not in §8h.2; the alternative (ignore the press) would swallow the human's intent with no verdict |
+| new station | a frame whose `Seq` goes back resets the use counter to 0, as the trigger's does | — |
+| buffer | the rule's answer goes to a `[ThreadStatic]` `UseAction[MaxActions]` | `UseAction` carries its label (a string), so it cannot be `stackalloc`ed; a press must not allocate |
+
+Rails (red-proved): `EmbarkNodesTests.CE1154_OneUseOpensAClosedDoor_ASecondClosesIt_…`, `.CE1154_OutOfReach_IsRefusedWithItsReason_…`,
+`.CE1154_UseOnAManDown_DragsHim_AndUseAgain_PutsHimDown`, `.CE1154_ANewStationsFirstPress_IsActedOn_…`; across nodes
+`EntityOrdersAcrossNodesTests.CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_…` (SimHost station → CGF brain → the door's
+owner; the verdict on SimHost and on the pure IG — the live IG check `CE-1153` left owed).
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |

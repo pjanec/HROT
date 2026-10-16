@@ -456,5 +456,188 @@ namespace Hrot.SimHost.Tests
             var none = new LoadCasualtyNodeParams { Vehicle = vehicle };
             Assert.Equal(NodeStatus.Success, CarryNodes.LoadCasualty(ref none, Man(Vector3.Zero, 100f), _w));  // carrying nobody: done
         }
+
+        // ── CE-1154 (docs/DESIGN_Entity_Control.md §8h U-1, U-2, U-6, U-7, §8h.6) — the operator's USE key on the brain ───────────────
+
+        private Fdp.Toolkit.Replication.Services.NetworkEntityMap NetMap()
+        {
+            if (!_w.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>())
+                _w.SetSingletonManaged(new Fdp.Toolkit.Replication.Services.NetworkEntityMap());
+            return _w.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!;
+        }
+
+        private long NetIdOf(Entity e)
+        {
+            long id = 7000 + e.Index;
+            if (!NetMap().TryGetEntity(id, out _)) NetMap().Register(id, e);
+            return id;
+        }
+
+        /// <summary>A possessed operator: a soldier with a navigation intent (the operator behaviour drives it) and a station frame.</summary>
+        private Entity Operator(Vector3 at)
+        {
+            var s = Man(at, 100f);
+            _w.AddComponent(s, new NavigationIntent());
+            // the possession registers the frame component on the brain host when it first holds a unit (PossessionSystem)
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.OperatorInput>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorInput>();
+            _w.AddComponent(s, new Fdp.Toolkit.Behavior.Possession.OperatorInput { Seq = 1 });
+            return s;
+        }
+
+        private Entity DoorAt(Vector3 at, Fdp.Toolkit.Terrain.TerrainDoorState state)
+        {
+            var d = _w.CreateEntity();
+            _w.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(d, new Fdp.Toolkit.Terrain.DoorState { State = state });
+            return d;
+        }
+
+        /// <summary>The station's next frame: a new <c>Seq</c>; a use press bumps <c>UseSeq</c> and names the target.</summary>
+        private void Press(Entity op, Entity target, byte verb = 0)
+        {
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++;
+            unchecked { input.UseSeq++; }
+            input.UseVerb = verb;
+            input.UseTarget = target.IsNull ? 0 : NetIdOf(target);
+        }
+
+        private void Tick(Entity op, ref OperatorControlBehavior.ManualControlState ws)
+        {
+            var p = default(OperatorControlBehavior.ManualControlParams);
+            OperatorControlBehavior.ManualControl(ref p, ref ws, op, _w);
+        }
+
+        private Fdp.Toolkit.Behavior.Possession.OperatorUseStatus StatusOf(Entity op) => _w.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>(op);
+
+        /// <summary>What the interaction dispatcher and the door's owner do for a door action: enter, spend its time, raise the one
+        /// command, the owner applies it next frame, the executor reads the replicated state back.</summary>
+        private void DispatchDoor(Entity op, Fdp.Toolkit.Terrain.DoorVerb verb)
+        {
+            var exec = new DoorActionExecutor(verb);
+            ref var ch = ref _w.GetComponentRW<InteractionChannel>(op);
+            exec.OnEnter(op, ref ch, _w);
+            exec.Execute(op, ref ch, _w, Fdp.Toolkit.Terrain.DoorRules.ActionSeconds(verb) + 0.1f);
+            _w.Bus.SwapBuffers();
+            new Fdp.Toolkit.Terrain.DoorCommandSystem().Execute(_w, 0.016f);
+            ref var ch2 = ref _w.GetComponentRW<InteractionChannel>(op);
+            if (ch2.Status == NodeStatus.Running) exec.Execute(op, ref ch2, _w, 0.016f);
+        }
+
+        /// <summary>⭐ <c>CE-1154</c> (U-7) — one E on a closed door within reach opens it, a second closes it; the brain's verdict is
+        /// Running when the action starts and Done when it ends, each for the press it answers, and the channel is handed back between.
+        /// ✅ Red-proof: OperateUse not called from ManualControl ⇒ no action on the channel ⇒ red.</summary>
+        [Fact]
+        public void CE1154_OneUseOpensAClosedDoor_ASecondClosesIt_AndTheVerdictFollowsEachPress()
+        {
+            var op = Operator(Vector3.Zero);
+            var door = DoorAt(new Vector3(1f, 0f, 0f), Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            Tick(op, ref ws);
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);              // no press yet
+
+            Press(op, door);
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdOpenDoor, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Assert.Equal((ws.UseSeq, BehaviorConstants.ActionIdOpenDoor, Fdp.Toolkit.Behavior.Possession.UseOutcome.Running),
+                (StatusOf(op).UseSeq, StatusOf(op).ActionId, StatusOf(op).Outcome));
+            DispatchDoor(op, Fdp.Toolkit.Terrain.DoorVerb.Open);
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, _w.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);              // handed back
+
+            Tick(op, ref ws);
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);              // a frame with no new press does nothing
+
+            Press(op, door);                                                                     // the toggle: open ⇒ close
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdCloseDoor, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            DispatchDoor(op, Fdp.Toolkit.Terrain.DoorVerb.Close);
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, _w.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State);
+            Assert.Equal((ws.UseSeq, Fdp.Toolkit.Behavior.Possession.UseOutcome.Done), (StatusOf(op).UseSeq, StatusOf(op).Outcome));
+        }
+
+        /// <summary>⭐ <c>CE-1154</c> (U-3) — out of reach the brain REFUSES with the rule's reason and starts nothing: no walk-to, the
+        /// door unchanged; a locked door says Locked; a verb past the target's list says NothingToDo. ✅ Red-proof: starting the action
+        /// without checking <c>Available</c> ⇒ the channel holds Open door ⇒ red.</summary>
+        [Fact]
+        public void CE1154_OutOfReach_IsRefusedWithItsReason_AndNothingStarts()
+        {
+            var op = Operator(Vector3.Zero);
+            var far = DoorAt(new Vector3(Fdp.Toolkit.Terrain.DoorRules.ReachMetres + 2f, 0f, 0f), Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            Press(op, far);
+            Tick(op, ref ws);
+            Assert.Equal((Fdp.Toolkit.Behavior.Possession.UseOutcome.Refused, Fdp.Toolkit.Behavior.Possession.UseReason.OutOfReach),
+                (StatusOf(op).Outcome, StatusOf(op).Reason));
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Assert.Equal(0, _w.GetComponentRO<LocomotionChannel>(op).ActiveAction);              // no walk-to
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, _w.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(far).State);
+
+            var locked = DoorAt(new Vector3(1f, 0f, 0f), Fdp.Toolkit.Terrain.TerrainDoorState.Locked);
+            Press(op, locked);
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseReason.Locked, StatusOf(op).Reason);
+
+            Press(op, locked, verb: 7);                                                         // past the list (Open, Unlock, Breach)
+            Tick(op, ref ws);
+            Assert.Equal((Fdp.Toolkit.Behavior.Possession.UseOutcome.Refused, Fdp.Toolkit.Behavior.Possession.UseReason.NothingToDo),
+                (StatusOf(op).Outcome, StatusOf(op).Reason));
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+        }
+
+        /// <summary>⭐ <c>CE-1154</c> (U-6) — E on a man who is down drags him (the rule's primary), E again — whatever the crosshair rests
+        /// on — puts him down. ✅ Red-proof: the params not written ⇒ the pick-up names no casualty ⇒ the executor fails ⇒ red.</summary>
+        [Fact]
+        public void CE1154_UseOnAManDown_DragsHim_AndUseAgain_PutsHimDown()
+        {
+            var op = Operator(Vector3.Zero);
+            var down = Man(new Vector3(1f, 0f, 0f), 20f);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+
+            Press(op, down);
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdPickUp, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Dispatch(op, new PickUpExecutor());
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.Equal(op, _w.GetComponentRO<IsEmbarkedTag>(down).VehicleEntity);
+            Assert.Equal(CarryMode.Dragged, _w.GetComponentRO<IsEmbarkedTag>(down).Mode);
+
+            Press(op, Entity.Null);                                                              // the crosshair on nothing
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdPutDown, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Dispatch(op, new PutDownExecutor());
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(down));
+        }
+
+        /// <summary>⭐ <c>CE-1154</c> — a new station's frames start again from 1 and its use counter from 0 (the trigger's rule): its
+        /// first press is acted on even though the counter equals one this brain already acted on. ✅ Red-proof: no reset on a stale
+        /// <c>Seq</c> ⇒ the press reads as old ⇒ nothing starts ⇒ red.</summary>
+        [Fact]
+        public void CE1154_ANewStationsFirstPress_IsActedOn_AfterTheCounterReset()
+        {
+            var op = Operator(Vector3.Zero);
+            var door = DoorAt(new Vector3(1f, 0f, 0f), Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq = 40; input.UseSeq = 1; input.UseTarget = NetIdOf(door);
+            Tick(op, ref ws);                                                                    // the old station's press 1
+            DispatchDoor(op, Fdp.Toolkit.Terrain.DoorVerb.Open);
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Open, _w.GetComponentRO<Fdp.Toolkit.Terrain.DoorState>(door).State);
+
+            ref var fresh = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            fresh.Seq = 1; fresh.UseSeq = 0;                                                     // a new station: frame 1, no press yet
+            Tick(op, ref ws);
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Press(op, door);                                                                     // its press 1 (Seq 2)
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdCloseDoor, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+        }
     }
 }
