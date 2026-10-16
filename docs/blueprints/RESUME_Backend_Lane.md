@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15
-current-answer: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+updated: 2026-10-16
+current-answer: ⭐⭐⭐ §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,14 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 0000. NOW (`2026-10-16`) — a new backend session holds the lane *(🔒 user: "pls write handoff to another session (also backend) so i can continue there")*
+
+⭐ **The queue is [`batches/HANDOFF_Backend_Continuation_2026_10_16.md`](batches/HANDOFF_Backend_Continuation_2026_10_16.md)** — ① CE-3216
+S1-0 (the weather programme's first slice: a positionless World Environment entity with the scenario clock, two-node rail FIRST),
+② CE-3216 S1, ③ CE-3217 for ui. Built `2026-10-16`: CE-2210 (the ejected pilot flies) · CE-2217 (a vehicle part's face is the armour arc) ·
+CE-2218 (the muzzle-line hold, `Masked`) · CE-2209 (routes without a transform) · CE-2222 (missile turn rate as data; the Javelin
+top-attacks from 150 m). Designed: [Weather and Time](../designs/weather/DESIGN_Weather_And_Time.md) (R-3012, W-8).
 
 ## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
 
