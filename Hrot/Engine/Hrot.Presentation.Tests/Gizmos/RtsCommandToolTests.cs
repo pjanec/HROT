@@ -187,6 +187,49 @@ public sealed class RtsCommandToolTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-1133 — 🔒 user, 2026-10-16: <i>"The right-click-to-move also seems to affect also for no longer selected entities."</i>
+    /// END TO END through the pack: select A and B, then click C alone (a Replace), let the selection system apply each request as
+    /// the host does, then right-click the ground — exactly C is ordered. Pins that the order loop reads the selection the map
+    /// shows, never an earlier one.
+    /// </summary>
+    [Fact]
+    public void CE1133_AfterReselecting_ARightClick_OrdersOnlyTheUnitsSelectedNow()
+    {
+        _w.RegisterComponent<Hrot.IG.Components.SelectionState>();
+        var a = Unit(10, ForceId.Friend, new Vector2(1, 1));
+        var b = Unit(11, ForceId.Friend, new Vector2(2, 1));
+        var c = Unit(12, ForceId.Friend, new Vector2(3, 1));
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 64 });
+        mi.MenuOrders.PickService = () => _pick;
+        Assert.True(mi.Actions.TryGetHandler(GlobalActionIds.ToggleRtsCommand, out var toggle));
+        toggle!(_w, Entity.Null);
+        mi.GlobalManager.Execute(_w, 0.016f);
+
+        void Mouse(MapMouseButton button, bool pressed, Vector3 at)
+        {
+            mi.InteractionBus.Publish(new GizmoMouseEvent { Button = button, IsPressed = pressed, WorldPos = at });
+            mi.InteractionBus.SwapBuffers();
+            mi.GlobalManager.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            mi.SelectionRequests.Execute(_w, 0.016f);                       // the host applies the request in its tick
+        }
+
+        Mouse(MapMouseButton.Left, false, new Vector3(1, 1, 0));
+        Mouse(MapMouseButton.Left | MapMouseButton.ShiftMask, false, new Vector3(2, 1, 0));
+        Assert.Equal(new[] { a, b }, mi.Selection.SelectedEntities.ToArray());
+
+        Mouse(MapMouseButton.Left, false, new Vector3(3, 1, 0));             // C alone: A and B are deselected
+        Assert.Equal(new[] { c }, mi.Selection.SelectedEntities.ToArray());
+
+        Mouse(MapMouseButton.Right, true, new Vector3(80, 80, 0));
+        mi.InteractionBus.Publish(new GizmoMouseEvent { Button = MapMouseButton.Right, IsPressed = false, WorldPos = new Vector3(80, 80, 0) });
+        mi.InteractionBus.SwapBuffers();
+        mi.GlobalManager.Execute(_w, 0.016f);
+        var move = Assert.Single(Read<AssignTacticalIntentEvent>());
+        Assert.Equal(c, move.Entity);
+    }
+
+    /// <summary>
     /// ⭐⭐ CE-1077 (docs/DESIGN_Entity_Control.md §13.6) — 🔒 user, 2026-10-14: "in RTS mode a right click commands and a right drag
     /// only looks". A right press, the mouse moving (the terminal's drag updates — the 3-D look, the 2-D pan) and a release orders
     /// nothing; a still click (a little jitter allowed) orders at the PRESS point, where the operator clicked.

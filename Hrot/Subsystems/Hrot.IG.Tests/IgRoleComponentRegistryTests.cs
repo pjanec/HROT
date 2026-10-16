@@ -26,4 +26,14 @@ public class IgRoleComponentRegistryTests
         Assert.Null(Record.Exception(() => world.GetComponentTable<VisualEffectState>()));
         Assert.Null(Record.Exception(() => world.GetComponentTable<PhysicsCollider>()));
     }
+
+    /// <summary>⭐ CE-1139 — the IG carries the body stance (replicated in), so it can draw a crouched or prone soldier.</summary>
+    [Fact]
+    public void CE1139_TheIg_RegistersTheStanceComponents()
+    {
+        using var world = new EntityRepository();
+        IgRoleComponentRegistry.RegisterAll(world);
+        Assert.True(world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>());
+        Assert.True(world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceStatus>());
+    }
 }
