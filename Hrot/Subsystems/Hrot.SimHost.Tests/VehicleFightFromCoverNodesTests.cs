@@ -53,6 +53,11 @@ namespace Hrot.SimHost.Tests
             public bool Guiding;
             /// <summary>⭐ CE-2205 — the fake follower never arrives (live: a hull orbits a point inside its turning circle).</summary>
             public bool Orbits;
+            /// <summary>⭐ CE-2230 — the fake follower DRIVES: the hull moves toward the move's destination at its speed each step
+            /// (instead of arriving on the next step).</summary>
+            public bool Drives;
+            /// <summary>⭐ CE-2230 — the crest: the unit sees the enemy exactly while its X is at least this (null = <see cref="See"/> rules).</summary>
+            public float? SeesFromX;
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -112,6 +117,7 @@ namespace Hrot.SimHost.Tests
             public NodeStatus Step(double dt = 0.1)
             {
                 Clock();
+                if (SeesFromX is float crest) See(Repo.GetComponentRO<SimTransform>(Self).Position.X >= crest);
                 var status = VehicleFightFromCoverNodes.VehicleFightFromCover(ref P, ref Ws, Self, Repo);
                 Repo.FlushCommandBuffers();
                 Body();
@@ -140,6 +146,18 @@ namespace Hrot.SimHost.Tests
                     return;   // arrives on the next step
                 }
                 if (Orbits) return;
+                if (Drives)
+                {
+                    MoveToParams mp;
+                    fixed (byte* src = loco.Params) mp = *(MoveToParams*)src;
+                    ref var tf = ref Repo.GetComponentRW<SimTransform>(Self);
+                    var at = new Vector2(tf.Position.X, tf.Position.Y);
+                    var to = new Vector2(mp.Destination.X, mp.Destination.Y);
+                    float step = mp.Speed * 0.1f;
+                    if ((to - at).Length() <= MathF.Max(mp.ArrivalRadius, step)) { tf.Position = new Vector3(to, tf.Position.Z); loco.Status = NodeStatus.Success; }
+                    else { at += Vector2.Normalize(to - at) * step; tf.Position = new Vector3(at, tf.Position.Z); }
+                    return;
+                }
                 loco.Status = NodeStatus.Success;
             }
 
@@ -247,6 +265,96 @@ namespace Hrot.SimHost.Tests
         {
             WithdrawMode = WithdrawMode.Reverse, HideSecondsMin = 2f, HideSecondsMax = 2f,
         };
+
+        /// <summary>⭐ CE-2230 — the hill attack's run: the hide given (the baseline slot at the origin), a lane from (40, 0) east,
+        /// one round, one exposure, reverse.</summary>
+        private static VehicleFightFromCoverParams Hill() => new()
+        {
+            WithdrawMode = WithdrawMode.Reverse, HideSecondsMin = 1f, HideSecondsMax = 1f, RoundsPerExposure = 1, MaxExposures = 1,
+            UseGivenHide = 1, GivenHide = Vector2.Zero, LaneStart = new Vector2(40f, 0f), LaneDir = new Vector2(1f, 0f),
+            ApproachSpeed = 10f, CreepSpeed = 5f,
+        };
+
+        private static Duel HillDuel(float seesFromX) => new(Hill(), seen: false) { Drives = true, SeesFromX = seesFromX };
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-2230</c> HA-2 — THE CREST: on the lane the unit stops the FIRST tick it sees its target — here on the APPROACH, 20 m
+        /// short of the lane start — and fires from there (hull-down: only the turret clears the crest, R-246). 📌 The node it replaces
+        /// looked only once near the slot. 🔒 R-2022. 🔴 Red-proof: check the sight only while creeping and it drives on past x = 20.
+        /// </summary>
+        [Fact]
+        public void CE2230_TheLane_StopsTheFirstTickItSeesItsTarget_ApproachIncluded()
+        {
+            var d = HillDuel(seesFromX: 20f);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 20));
+            float x = d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X;
+            Assert.InRange(x, 20f, 21.5f);   // one approach step (1 m) at most past the first sight
+            Assert.Equal(d.Enemy, Assert.Single(d.AimedAt));
+            Assert.True(EqsChildSensor.Find(d.Repo, d.Self, VehicleFightFromCoverNodes.HideSite).IsNull, "a given hide asks no hide query");
+            Assert.True(d.Sensor(VehicleFightFromCoverNodes.FiringSite).IsNull, "a lane asks no firing-point query");
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-2230</c> HA-3 / 🔒 R-2022 — ONE ROUND, THEN BACK: the creep (past the lane start) stops on the sight, one aimed round,
+        /// then a REVERSE to the given hide, and the run answers Success (the commander's next pair goes). 🔴 Red-proof: drop the
+        /// <c>MaxExposures</c> check and the node is still Running, hidden, after the reverse.
+        /// </summary>
+        [Fact]
+        public void CE2230_OneRound_ThenReversesToTheGivenHide_AndTheRunSucceeds()
+        {
+            var d = HillDuel(seesFromX: 55f);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 30));
+            Assert.InRange(d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X, 55f, 56f);
+            NodeStatus status = NodeStatus.Running;
+            for (int i = 0; i < 400 && status == NodeStatus.Running; i++) status = d.Step();
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.Equal(1, d.AimedRounds);
+            Assert.Equal((new Vector3(0f, 0f, 0f), true), d.Moves[^1]);   // backed straight into the hide
+            Assert.True(new Vector2(d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X, 0f).Length() <= VehicleFightFromCoverNodes.ArrivalRadius);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2230</c> HA-2 — NO SIGHT WITHIN THE CAP: the creep goes no further than <c>MaxOvershootMetres</c> past the lane start
+        /// (CE-174: a target never in sight is not chased), backs into the hide, and the run still ends. 🔴 Red-proof: drop the cap and
+        /// the hull creeps on past x = 90.
+        /// </summary>
+        [Fact]
+        public void CE2230_NoSightWithinTheCap_BacksIntoTheHide_AndTheRunEnds()
+        {
+            var d = HillDuel(seesFromX: 1000f);
+            NodeStatus status = NodeStatus.Running;
+            float furthest = 0f;
+            for (int i = 0; i < 800 && status == NodeStatus.Running; i++)
+            {
+                status = d.Step();
+                furthest = MathF.Max(furthest, d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X);
+            }
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.InRange(furthest, 89f, 91.5f);   // the lane start 40 + the 50 m cap
+            Assert.Equal(0, d.AimedRounds);
+            Assert.True(d.Moves[^1].Reverse, "back into the hide in reverse");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2230</c> / 🔒 R-2022 — the target gone mid-run (killed by the other tank of the pair, or forgotten): with a GIVEN
+        /// hide the unit still backs into it before the run ends — never left standing on the crest. 🔴 Red-proof: drop the given-hide
+        /// arm of "nothing left to fight" and the run ends out on the lane.
+        /// </summary>
+        [Fact]
+        public void CE2230_TheTargetGoneMidRun_StillBacksIntoTheHide()
+        {
+            var d = HillDuel(seesFromX: 1000f);
+            Assert.Equal(VehiclePhase.Exposing, d.RunUntil(VehiclePhase.Exposing, 20));
+            d.Run(3.0);   // out on the lane, approaching
+            Assert.True(d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X > 10f);
+            d.Repo.GetComponentRW<TargetMemory>(d.Self).Count = 0;   // nothing left to fight
+            NodeStatus status = NodeStatus.Running;
+            for (int i = 0; i < 400 && status == NodeStatus.Running; i++) status = d.Step();
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.True(d.Moves[^1].Reverse, "back into the hide in reverse");
+            Assert.True(d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X <= VehicleFightFromCoverNodes.ArrivalRadius,
+                $"ended in the hide (x = {d.Repo.GetComponentRO<SimTransform>(d.Self).Position.X:0.0})");
+        }
 
         private static VehicleFightFromCoverParams Technical() => new()
         {

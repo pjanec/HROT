@@ -161,7 +161,7 @@ the library cycle.
 
 | slice | what | rails |
 |---|---|---|
-| **H-1** | the cycle's lane mode: `GivenHide`, `LaneStart`/`LaneDir`, `MaxExposures`; the lane exposure step | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · one round, then the reverse to the given hide · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
+| **H-1** ✅ BUILT `2026-10-16` | the cycle's lane mode: `UseGivenHide`/`GivenHide`, `LaneStart`/`LaneDir`, `ApproachSpeed`/`CreepSpeed`/`MaxOvershootMetres`, `MaxExposures`; the lane step `LaneStatus`; a lane attempt with no sight still counts as the run; with a given hide "nothing left to fight" backs into the hide first; a given hide asks no hide query, a lane no firing-point query; `LocomotionMoveTo.Issue(onSurface)` for 2-D slots | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · one round, then the reverse to the given hide · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
 | **H-2** | `HullDownAttackRun` rebuilt on it; the dispatch payload trimmed; the 5 tank nodes retired | `HillAttackIntegrationTests` (the feature's own suite) + `HillAttackNodeTests` re-homed to the new run |
 | **H-3** | `ua-hill-attack` on the ridge + its checker; the runbook | live: hull-down at the shot, reverse home, both enemies dead |
 | **H-4** | fold the as-built here; this section's §3–§4 to HISTORY | — |

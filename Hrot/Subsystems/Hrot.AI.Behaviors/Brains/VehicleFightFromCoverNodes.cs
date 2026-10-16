@@ -69,6 +69,19 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Which forces count as threats for the queries (0 = every acquired contact) · a top score must move by this to publish.</summary>
         public uint FactionFilter;
         public float ScoreDeltaThreshold;
+
+        // ⭐⭐ CE-2230 (hill attack §0, HA-1/HA-2) — the LANE exposure: what the cycle otherwise searches for, given by a commander.
+        //   All zero = the urban cycle as before.
+        /// <summary>1 = <see cref="GivenHide"/> IS the hide (a commander's baseline slot, a place on the map) — no hide query.</summary>
+        public byte UseGivenHide;
+        public Vector2 GivenHide;
+        /// <summary>≠ 0 ⇒ the exposure is a drive from <see cref="LaneStart"/> along this direction (unit) that ends the tick the unit
+        /// SEES its target — the crest, hull-down (R-246) — instead of a drive to a queried firing point.</summary>
+        public Vector2 LaneStart, LaneDir;
+        /// <summary>Lane speeds (m/s; 0 ⇒ 15 / 5) · how far past <see cref="LaneStart"/> the creep may go without a sight (m; 0 ⇒ 50, CE-174).</summary>
+        public float ApproachSpeed, CreepSpeed, MaxOvershootMetres;
+        /// <summary>The node answers Success once this many exposures ended back in the hide (0 = it keeps cycling).</summary>
+        public int MaxExposures;
     }
 
     /// <summary>⭐ <c>CE-2165</c> V4 — the node's working state: scratch, lost on every exit; what outlives an exit is in <see cref="FiringPositionMemory"/>.</summary>
@@ -76,8 +89,9 @@ namespace Hrot.AI.Behaviors.Brains
     public struct VehicleFightFromCoverState
     {
         public VehiclePhase Phase;
-        /// <summary>1 while a move this node issued runs · 1 = the withdraw mode resolved to Scoot · 1 while waiting for a hide.</summary>
-        public byte Moving, Scoot, Waiting;
+        /// <summary>1 while a move this node issued runs · 1 = the withdraw mode resolved to Scoot · 1 while waiting for a hide ·
+        /// ⭐ CE-2230 1 once a lane exposure creeps (past the approach).</summary>
+        public byte Moving, Scoot, Waiting, Creeping;
         public Vector3 HidePoint, FiringPoint;
         public EqsSensorHandle HideSensor, FiringSensor;
         /// <summary>What both sensors are pointed at.</summary>
@@ -147,8 +161,18 @@ namespace Hrot.AI.Behaviors.Brains
             if (e.MinRelocateMetres <= 0f) e.MinRelocateMetres = d.MinRelocateMetres;
             if (e.ScoreDeltaThreshold <= 0f) e.ScoreDeltaThreshold = d.ScoreDeltaThreshold;
             if (e.Speed <= 0f) e.Speed = d.Speed;
+            if (e.ApproachSpeed <= 0f) e.ApproachSpeed = LaneApproachSpeed;
+            if (e.CreepSpeed <= 0f) e.CreepSpeed = LaneCreepSpeed;
+            if (e.MaxOvershootMetres <= 0f) e.MaxOvershootMetres = LaneMaxOvershootMetres;
             return e;
         }
+
+        /// <summary>⭐ CE-2230 — the lane defaults (the hill attack's: approach 15, creep 5, overshoot 50 m — CE-174) · within this of the
+        /// lane start the approach becomes the creep (m).</summary>
+        public const float LaneApproachSpeed = 15f, LaneCreepSpeed = 5f, LaneMaxOvershootMetres = 50f, LaneCreepFromMetres = 15f;
+
+        /// <summary>⭐ CE-2230 — a lane exposure (<see cref="VehicleFightFromCoverParams.LaneDir"/> ≠ 0).</summary>
+        public static bool Lane(in VehicleFightFromCoverParams p) => p.LaneDir.LengthSquared() > 1e-6f;
 
         /// <summary>The heat of firing points: each exposure adds 1; a point is burned after <c>ExposuresPerPosition</c> uses.</summary>
         public static HeatRules Rules(in VehicleFightFromCoverParams p) => new()
@@ -182,6 +206,17 @@ namespace Hrot.AI.Behaviors.Brains
             var was = new ThreatAim(ws.Threat, ws.HeardId, ws.HeardPoint);
             if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat))
             {
+                // ⭐ CE-2230 — a given hide: nothing left to fight still ends IN the hide, never out on the crest (R-2022)
+                if (p.UseGivenHide == 1 && !Immobile(world, self)
+                    && ws.Phase is VehiclePhase.Exposing or VehiclePhase.Engaging or VehiclePhase.Watching or VehiclePhase.Withdrawing)
+                {
+                    if (ws.Phase != VehiclePhase.Withdrawing)
+                    {
+                        Withdraw(ref ws, in p, ref UnitMemory.Ref<FiringPositionMemory>(world, self), self, world, now);
+                        return NodeStatus.Running;
+                    }
+                    if (MoveStatus(world, self, ws.HidePoint) == NodeStatus.Running) return NodeStatus.Running;
+                }
                 Release(ref ws, self, world);
                 return NodeStatus.Success;   // nothing left to fight
             }
@@ -198,8 +233,17 @@ namespace Hrot.AI.Behaviors.Brains
             if (immobile && ws.Phase != VehiclePhase.StandAndFight) BeginStand(ref ws, self, world);
             else if (disarmed && ws.Phase is VehiclePhase.Exposing or VehiclePhase.Engaging or VehiclePhase.Watching or VehiclePhase.StandAndFight)
                 Withdraw(ref ws, in p, ref mem, self, world, now);   // a broken gun has no business in the open
+            // ⭐ CE-2230 — a run of N exposures ends back in the hide (the hill attack's one shot per wave, R-2022)
+            if (p.MaxExposures > 0 && ws.Exposures >= p.MaxExposures && ws.Phase == VehiclePhase.Hidden)
+            {
+                Release(ref ws, self, world);
+                return NodeStatus.Success;
+            }
             switch (ws.Phase)
             {
+                case VehiclePhase.Choose when p.UseGivenHide == 1 && !immobile:
+                    GoToHide(ref ws, in p, self, world, new Vector3(p.GivenHide.X, p.GivenHide.Y, 0f));   // ⭐ CE-2230 — the commander's slot
+                    break;
                 case VehiclePhase.Choose:
                     // ⭐ CE-2229 — a hide given up (used up, or no firing point near it) is LEFT for another, before the first exposure too
                     if (!ChooseOrWait(ref ws, in p, ref mem, self, world, now,
@@ -268,7 +312,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             ws.HidePoint = hide;
             ws.ExposuresHere = 0;
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, hide, p.Speed, ArrivalRadius, onSurface: p.UseGivenHide == 1) ? 1 : 0);
             ws.Phase = VehiclePhase.MoveToHide;
         }
 
@@ -307,6 +351,17 @@ namespace Hrot.AI.Behaviors.Brains
             if (!AimAndFireExecutor.RoePermitsFire(world, self) || Reloading(world, self) || UnderFire(world, self, now - 3.0)) return;
             if (now < ws.PhaseUntil) return;
 
+            if (Lane(in p))
+            {
+                // ⭐ CE-2230 — the lane: out to its start at the approach speed; Exposing creeps on from there until it SEES its target
+                ws.FiringPoint = new Vector3(p.LaneStart.X, p.LaneStart.Y, 0f);
+                ws.Creeping = 0;
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.FiringPoint, p.ApproachSpeed, ArrivalRadius, onSurface: true) ? 1 : 0);
+                ws.SeenSince = 0;
+                ws.Phase = VehiclePhase.Exposing;
+                return;
+            }
+
             if (!PickBest(ws.FiringSensor, ref mem, in p, world, self, now, null, 0f, out var firing))
             {
                 // no firing point from this hide for NoCoverSeconds: it cannot be fought from — to the next hide
@@ -330,7 +385,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Exposing(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
-            var status = MoveStatus(world, self, ws.FiringPoint);
+            var status = Lane(in p) ? LaneStatus(ref ws, in p, self, world, in threat) : MoveStatus(world, self, ws.FiringPoint);
             if (status == NodeStatus.Running)
             {
                 // ⭐ CE-2216 — the DRIVE OUT is part of the exposure: a dangerous threat that can see me starts the clock here, and the
@@ -344,6 +399,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Moving = 0;
             if (status != NodeStatus.Success)
             {
+                if (Lane(in p)) ws.Exposures++;   // ⭐ CE-2230 — a lane run that saw nothing is still the run (the old node's overshoot abort)
                 PositionHeat.Add(ref mem, ws.FiringPoint, Rules(in p).BurnHeat, now, Rules(in p), exposure: false);   // never this one again
                 Withdraw(ref ws, in p, ref mem, self, world, now);
                 return;
@@ -362,6 +418,47 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.PhaseUntil = now + p.WatchSeconds;
                 ws.Phase = VehiclePhase.Watching;
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2230</c> (hill attack §0, HA-2) — the LANE exposure's move: out to the lane start at the approach speed, then a creep
+        /// along the lane — and the FIRST tick the unit SEES its locked target (<see cref="SightNow.Sees"/>, approach included) it stops
+        /// where it is: Success, that spot the firing point. On a crest that is hull-down by construction — the eye sees out exactly when
+        /// the turret top clears the crest (R-246). Failure when the creep passes <c>MaxOvershootMetres</c> beyond the lane start
+        /// without a sight (CE-174), or the move fails. 📌 The node it replaces looked only for the assigned target, and only once
+        /// near the slot — a tank that saw its target on the approach drove on to the slot regardless.
+        /// </summary>
+        private static NodeStatus LaneStatus(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self,
+                                             EntityRepository world, in ThreatAim threat)
+        {
+            if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
+            var at3 = world.GetComponentRO<SimTransform>(self).Position;
+            var at = new Vector2(at3.X, at3.Y);
+            var target = PeekAndFireNodes.LockTarget(world, self, in threat);
+            if (!target.IsNull && SightNow.Sees(world, self, target))
+            {
+                LocomotionMoveTo.Stop(world, self);
+                ws.FiringPoint = at3;
+                return NodeStatus.Success;
+            }
+            var dir = Vector2.Normalize(p.LaneDir);
+            float past = Vector2.Dot(at - p.LaneStart, dir);
+            if (past > p.MaxOvershootMetres)
+            {
+                LocomotionMoveTo.Stop(world, self);
+                return NodeStatus.Failure;   // no sight within the cap — the target is not there to be seen from this lane
+            }
+            var status = LocomotionMoveTo.Status(world, self);
+            bool nearStart = past >= 0f || Vector2.Distance(at, p.LaneStart) <= LaneCreepFromMetres;
+            if (ws.Creeping == 0 && (nearStart || status == NodeStatus.Success))
+            {
+                ws.Creeping = 1;   // the creep: a point well past the cap, so the cap — or a sight — ends it, never an arrival
+                var ahead = at + dir * (p.MaxOvershootMetres + LaneCreepFromMetres + 10f);
+                ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(ahead.X, ahead.Y, 0f), p.CreepSpeed, ArrivalRadius,
+                                                          onSurface: true) ? 1 : 0);
+                return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Failure;
+            }
+            return status == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Failure;
         }
 
         private static void Engaging(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
@@ -420,7 +517,8 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             PostureNodes.StopFiring(world, self, ref ws.Fire);
-            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, reverseAllowed: true) ? 1 : 0);
+            ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, ws.HidePoint, p.Speed, ArrivalRadius, reverseAllowed: true,
+                                                      onSurface: p.UseGivenHide == 1) ? 1 : 0);
             ws.Phase = VehiclePhase.Withdrawing;
         }
 
@@ -626,8 +724,10 @@ namespace Hrot.AI.Behaviors.Brains
             var aim = PeekAndFireNodes.SensorAim(world, self, in threat);
             bool retarget = ws.SensorId == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorId, ws.SensorAt), in aim);
             var hide = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = p.ScoreDeltaThreshold, FactionFilter = p.FactionFilter };
-            ws.HideSensor = PostureNodes.Keep(ws.HideSensor, world, self, HideSite, FindVehicleHide.BlueprintId, in hide, in aim, retarget);
-            if (ws.Phase == VehiclePhase.Hidden)
+            // ⭐ CE-2230 — a given hide asks no hide query, a lane no firing-point query
+            if (p.UseGivenHide == 0)
+                ws.HideSensor = PostureNodes.Keep(ws.HideSensor, world, self, HideSite, FindVehicleHide.BlueprintId, in hide, in aim, retarget);
+            if (ws.Phase == VehiclePhase.Hidden && !Lane(in p))
             {
                 var firing = hide;
                 firing.SearchRadius = p.FiringSearchRadius;
