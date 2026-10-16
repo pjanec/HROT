@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5)
-build-state: DESIGN — the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
+build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
+  SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
@@ -67,6 +68,7 @@ related-designs:
 | **R-4034** | a civilian's **attitude changes at runtime** (neutral → hostile); a hostile civilian is a threat soldiers may answer |
 | **R-4035** | a panicking civilian **hides in a building whose door can be opened**, and **disappears** after a while inside — never flees indefinitely |
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
+| **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
 
 ## 1. INVENTORY *(2026-10-16 — four read-only sweeps: codebase-memory CLI `search_graph` + grep + the design corpus; `check_index_coverage` NOT run)*
 
@@ -275,7 +277,7 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
   civilian simply ranks at 0.3. Civilians with brains, in crowds, next to soldiers make that a live hazard the moment slice
   CIV-1 ships, so it ships first (AQ93 P6).
 
-## 4. Decisions — leans *(not yet ruled)*
+## 4. Decisions — ✅ RULED `2026-10-16` (R-3013): every lean below approved as written
 
 | id | question | ⭐ lean | rejected — one line each | blast radius |
 |---|---|---|---|---|
@@ -323,7 +325,7 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 - After a side flip, the SIDC symbol keeps its TKB affiliation letter and an `IgSymbolOverride` may keep its old style (map tint follows live).
 - `TargetMemory` holds 16 contacts per unit — a soldier facing a 100-person riot remembers the nearest 16.
 
-## 7. Backend detailed designs *(backend, 2026-10-16 — B-3 and B-2 first, as the handoff orders; ⛔ no build until the CV is ruled)*
+## 7. Backend detailed designs *(backend, 2026-10-16 — B-3 and B-2 first, as the handoff orders; CVs ruled 2026-10-16, R-3013 — ids CE-3219…CE-3223)*
 
 ⭐ Cross-lane: this section is the backend lane's, written into the behaviors-lane design because it owns the programme.
 INVENTORY for this section: codebase-memory CLI `search_graph` (`.*(MarkDirty|SetForce|ForceId).*`, 50 hits read) + grep
@@ -502,4 +504,4 @@ round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions i
 weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
 node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
 
-⭐ All five are DESIGN — nothing is built until the user rules CV-1, CV-4, CV-6, CV-9, CV-10.
+⭐ Ruled `2026-10-16` (R-3013). Tracker: B-1 `CE-3219` · B-2 `CE-3220` · B-3 `CE-3221` · B-4 `CE-3222` · B-5 `CE-3223`.
