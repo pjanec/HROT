@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-14
-build-state: BUILDING — the Muscle half built (§6, backend B11); owned by the one Muscle role MuscleGround (R-3005, CE-3199); the Brain half is the behaviour lane's
+build-state: BUILT — the Muscle half (§6, backend B11; owned by MuscleGround, R-3005) and the Brain half as AirAttack's Dive profile (Air Operations §9i, 2026-10-16)
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
@@ -223,7 +223,7 @@ behind it hit the hull ⇒ `DroneImpactSystem` now takes whichever is FIRST alon
 bisected on `SightBlocked`; the ground contact; the body's entry) · ✅ (handoff 2 C3) `EntityOrdersAcrossNodesTests.M7_APossessedDrone_FollowsTheStation_AcrossNodes`
 — SimHost possesses a drone whose brain is on CGF; the frames' `Vertical` crosses as `ControlFrameInteractionPayload`, comes back as
 dtManualDrive, and SimHost (the one Muscle role, R-3005) climbs it 20 → 22 m in 17 frames, then flies it forward; release resumes the
-brain. ⛔ Not built: the demo `ua-drone-shelter` (behaviour lane).
+brain. ⭐ **The Brain half is BUILT `2026-10-16` as AirAttack's Dive profile** (B5) — [Air Operations §9i](../air-attack/DESIGN_Air_Operations.md): `AirAttackProfile.Dive`, the Search / Pursue / Dive stages, the battery, and `DroneTargets` (this file's `DroneTargetDecision`, a static scorer — §9i D-5 argues why not a catalogue decision). The demo `ua-drone-shelter` is authored (Urban Armour §8).
 
 > ⭐ **`2026-10-14` (R-3007, `CE-3202` — 📄 `DESIGN_Air_Operations.md` §6b):** `DroneImpactSystem` bursts the first mount ONLY for a flyer
 > whose `Gen.Flight DetonatesOnImpact` is set — this drone (type 403). Any other aircraft that meets something crashes: destroyed, at rest,
