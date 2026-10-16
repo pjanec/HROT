@@ -28,6 +28,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2176</c> — the seat role to take: Passenger (0) rides; Gunner MANS a crew weapon (<c>ManWeapon</c>,
         /// Weapon Systems §4b). Appended.</summary>
         public Fdp.Toolkit.Behavior.Components.SeatRole Role;
+        /// <summary>⭐ WS-6 — runtime: how many walks to the boarding point this node issued; never authored. Appended.</summary>
+        [JsonIgnore] public byte Walks;
     }
 
     /// <summary>The params of <see cref="EmbarkNodes.Disembark"/>: the vehicle is the one the unit is aboard; HOW he leaves is authored
@@ -66,6 +68,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultSpeed = 2f;
         /// <summary>A walk is re-issued when the boarding point moved this far from where it was sent (m).</summary>
         public const float RewalkMetres = 2f;
+        /// <summary>⭐ WS-6 — at most this many walks to the boarding point per boarding (as <c>CarryNodes.MaxWalks</c>): a walk that
+        /// ended still out of reach is walked again. 📐 Live <c>ua-weapon-systems</c>: the gunner's FIRST walk failed in its first second
+        /// and the node gave up for good; the pick-up beside him (which re-walks, CE-2152 R-e) went on and took its Javelin.</summary>
+        public const int MaxWalks = 3;
 
         [SharedAiAction]
         public static unsafe NodeStatus Embark(ref EmbarkNodeParams p, Entity self, EntityRepository world)
@@ -113,7 +119,8 @@ namespace Hrot.AI.Behaviors.Brains
                     var walk = LocomotionMoveTo.Status(world, self);
                     if (walk == NodeStatus.Running) return NodeStatus.Running;
                     p.Walking = 0;
-                    return NodeStatus.Failure;   // the walk ended (arrived or failed) and the unit is still out of reach
+                    if (p.Walks >= MaxWalks) { p.Walks = 0; return NodeStatus.Failure; }   // walked MaxWalks times, still out of reach
+                    // ⭐ WS-6 — the walk ended (arrived short, or failed) and the unit is out of reach: walk again (below)
                 }
                 if (!LocomotionMoveTo.Issue(world, self, point, p.Speed > 0f ? p.Speed : DefaultSpeed, 0.5f))
                 {
@@ -122,10 +129,12 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 p.Walking = 1;
                 p.WalkTo = point;
+                p.Walks++;
                 return NodeStatus.Running;
             }
 
             EndWalk(ref p, self, world);
+            p.Walks = 0;
             ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
             Start(world, self, ref channel, BehaviorConstants.ActionIdEmbark);
             Unsafe.As<byte, EmbarkParams>(ref channel.Params[0]) = new EmbarkParams { VehicleEntity = vehicle, MaxBoardingRange = range, Role = p.Role };

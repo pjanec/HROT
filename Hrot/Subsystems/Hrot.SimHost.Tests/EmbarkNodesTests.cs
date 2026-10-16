@@ -91,6 +91,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, EmbarkNodes.Embark(ref p, soldier, _w));                      // already aboard: at once
         }
 
+        /// <summary>⭐ WS-6 — a walk to the boarding point that ENDS out of reach (here: it fails) is walked again — at most
+        /// <c>EmbarkNodes.MaxWalks</c> walks in all, then the boarding fails. 📐 Live <c>ua-weapon-systems</c>: the M2 gunner's first walk
+        /// failed in his first second and <c>SetUpWeapon</c> ended for good. 🔴 Red-proof: the old "walk ended ⇒ Failure" and the first
+        /// assertion in the loop fails.</summary>
+        [Fact]
+        public void WS6_Embark_AWalkThatEndsOutOfReach_WalksAgain_ThenGivesUp()
+        {
+            var vehicle = Vehicle(new Vector3(50f, 0f, 0f));
+            var soldier = Soldier(Vector3.Zero);
+            var p = new EmbarkNodeParams { Vehicle = vehicle };
+            Assert.Equal(NodeStatus.Running, EmbarkNodes.Embark(ref p, soldier, _w));
+            for (int walk = 1; walk < EmbarkNodes.MaxWalks; walk++)
+            {
+                _w.GetComponentRW<LocomotionChannel>(soldier).Status = NodeStatus.Failure;                 // the walk failed, nowhere near
+                Assert.Equal(NodeStatus.Running, EmbarkNodes.Embark(ref p, soldier, _w));
+                Assert.Equal(NavigationConstants.ActionIdMoveTo, _w.GetComponentRO<LocomotionChannel>(soldier).ActiveAction);   // walking again
+                Assert.Equal(NodeStatus.Running, _w.GetComponentRO<LocomotionChannel>(soldier).Status);
+            }
+            _w.GetComponentRW<LocomotionChannel>(soldier).Status = NodeStatus.Failure;
+            Assert.Equal(NodeStatus.Failure, EmbarkNodes.Embark(ref p, soldier, _w));                       // the last walk too: give up
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2176</c> (Weapon Systems §4b, W-B) — MANNING is boarding the Gunner seat. A two-man crew weapon (the 81 mm: a Gunner seat,
         /// then the loader's plain seat): a plain <c>Embark</c> takes the LOADER's seat and controls nothing; <c>ManWeapon</c> (the same node,
