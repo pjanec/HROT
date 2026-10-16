@@ -989,3 +989,11 @@ rounds' impacts only — a cluster with two muscles would not show the other's. 
 Rails: `StaticObstacleTests.CE1128_TheFireQuery_GivesTheFacesNormals_*`, `BallisticsSystemTests.CE1128_*` (fence both sides + the stopping
 fence; the ground, and a warhead stop left to its burst), `RoundImpactTranslatorTests.CE1128_*` (the sample → a remote event; the muscle
 writes, viewers read, never both), `EffectTests.CE1129_*` (puff + mark; a wall mark in its plane, a ground mark draped, a roof mark on the roof).
+
+## CE-1146 — the effects keep their brightness at night (`2026-10-16`, ui)
+
+🔒 User: *"weapon flashes and flares and explosions and similar light emitting stuff should stay bright no matter the ambient light level"*.
+⭐ Held **by construction**, not by a rule to remember: the effect layer draws without `LitShader`, and only the lit shader takes the weather's
+light ([Map 3D §6aa](DESIGN_Map_3D_Mode.md) WS-5). ⚠ Whatever is added to the effects must keep drawing unlit; an effect that lights its
+SURROUNDINGS at night (a flare lighting the ground) is not built — CE-1146's open discussion.
+

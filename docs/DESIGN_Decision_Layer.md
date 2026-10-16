@@ -952,7 +952,7 @@ left without a defence. Flee is no longer a wounded option at all.
 `NearDeath_With_No_Escape_And_No_Cover_*` now expects HoldProne (was the plain Hold floor); `Wounded_Member_Vetoes_*` (§10.3) breaks
 off by HoldProne; NEW `CE3090_HalfHealth_Outmatched_With_HiddenEscape_Flees`.
 
-### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILT (slices ① ② — IG ingress open); approved)*
+### 3.3g `CE-2121` — body stance: the brain asks for prone, the body performs it, the map shows it *(behaviors, `2026-10-07`; build-state: BUILT (slices ① ② · the IG viewer's ingress built `2026-10-16`, CE-1139 (ui): `AnimationReplicationModule.RegisterStanceViewerOn` — both stance topics in, nothing out — see [Map 3D §7](DESIGN_Map_3D_Mode.md)); approved)*
 
 > 🔒 **User, `2026-10-07`:** *"the effect is that the entity should change its stance to 'prone' — the stance could be shown on the
 > map as just another text indicator on the entity. we need the stance support, and we could add some fake implementation of the

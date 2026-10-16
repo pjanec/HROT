@@ -131,6 +131,37 @@ public sealed class PossessionStationTests
         }
     }
 
+    /// <summary>
+    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky is drawn ONLY in first person: the free 3-D camera keeps the clear
+    /// day it always had (no atmosphere); in a unit the camera gets the weather's at the eye; released, it is taken away again.
+    /// 🔒 User, 2026-10-16: "especially for the FPS mode; but not in the usual free camera 3d map mode where it would be obstructing the view".
+    /// </summary>
+    [Fact]
+    public void CE1146_TheWeathersSky_OnlyInFirstPerson()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            var (_, sw, _) = Map();
+            var sky = new WeatherSkyLayer(sw, () => w);
+            var station = new PossessionStation(sw, () => w);
+            sw.Set(true, animate: false);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);                              // the free camera: the clear day
+
+            w.AddComponent(unit, new PossessedBy { StationNodeId = 0, Mode = PossessionMode.Fps, Epoch = 1 });
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            sky.Update(0.016f);
+            Assert.NotNull(sw.Camera3D.Atmosphere);                           // in the unit: the weather's
+
+            w.SetComponent(unit, new PossessedBy { StationNodeId = 77, Mode = PossessionMode.Fps, Epoch = 2 });
+            station.Update(0.016f);
+            sky.Update(0.016f);
+            Assert.Null(sw.Camera3D.Atmosphere);
+        }
+    }
+
     [Fact]
     public void CE3174_TheControls_BecomeControlFrames_TheCursorLocks_AndEscReleases()
     {

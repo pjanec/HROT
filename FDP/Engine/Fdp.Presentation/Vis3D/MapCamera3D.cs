@@ -497,15 +497,48 @@ namespace Fdp.Toolkit.Vis3D
             return Vector3.Normalize(Forward + Right * (nx * tan * aspect) + Up * (ny * tan));
         }
 
+        /// <summary>
+        /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the sky, sun and air to draw with; null = <see cref="SceneAtmosphere.Default"/>
+        /// (the free camera's clear day). A host that knows the weather sets it — only in first person (🔒 user, 2026-10-16: <i>"not in the
+        /// usual free camera 3d map mode where it would be obstructing the view"</i>).
+        /// </summary>
+        public SceneAtmosphere? Atmosphere { get; set; }
+
+        /// <summary>The far clip distance, m.</summary>
+        public float FarClip => MathF.Max(2000f, Distance * 60f);
+
+        /// <summary>⭐ CE-1146 — the fog constant for <paramref name="a"/>: its visibility's, never thinner than one that fades fully by
+        /// the far clip (so the world ends in haze, not at an edge); without a visibility, the camera-distance haze it always had.</summary>
+        public float FogDensityFor(in SceneAtmosphere a)
+            => a.VisibilityM > 0f
+                ? MathF.Max(SceneAtmosphere.FogFor(a.VisibilityM), SceneAtmosphere.FogFor(FarClip * 0.9f))
+                : 1.1f / (Distance * 6f + 600f);
+
         public override void BeginMode()
         {
             var vp = Viewport;
-            Raylib.DrawRectangleGradientV(0, 0, (int)vp.X, (int)vp.Y, LitShader.SkyTop, LitShader.SkyHorizon);
+            var a = Atmosphere ?? SceneAtmosphere.Default;
+            Raylib.DrawRectangleGradientV(0, 0, (int)vp.X, (int)vp.Y, a.SkyTop, a.SkyHorizon);
+            if (a.SunVisible) DrawSun(a);
             var cam = ToRaylib();
             if (LitShader.IsCreated)
-                LitShader.Shared.ApplyFrame(cam.Position, 1.1f / (Distance * 6f + 600f));
-            Rlgl.SetClipPlanes(MathF.Max(0.05f, Distance * 0.001f), MathF.Max(2000f, Distance * 60f));
+            {
+                LitShader.Shared.ApplyFrame(cam.Position, FogDensityFor(a));
+                LitShader.Shared.ApplyAtmosphere(a);
+            }
+            Rlgl.SetClipPlanes(MathF.Max(0.05f, Distance * 0.001f), FarClip);
             Raylib.BeginMode3D(cam);
+        }
+
+        /// <summary>⭐ CE-1146 — the sun disc and its glow, on the sky behind the world (drawn before it, so terrain covers a set sun).</summary>
+        private void DrawSun(in SceneAtmosphere a)
+        {
+            if (Vector3.Dot(a.ToSun, Forward) <= 0.05f) return;
+            var at = WorldToScreen(Eye + a.ToSun * (FarClip * 0.5f));
+            if (!float.IsFinite(at.X) || !float.IsFinite(at.Y)) return;
+            Raylib.DrawCircleV(at, 70f, new Color(a.SunDisc.R, a.SunDisc.G, a.SunDisc.B, (byte)40));
+            Raylib.DrawCircleV(at, 30f, new Color(a.SunDisc.R, a.SunDisc.G, a.SunDisc.B, (byte)90));
+            Raylib.DrawCircleV(at, 13f, a.SunDisc);
         }
 
         public override void EndMode()
