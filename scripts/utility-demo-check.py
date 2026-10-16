@@ -1971,6 +1971,97 @@ def run_tank_ammo(c, timeout):
     print(f"    health: tank {health(tank)} · T-72 {health(t72)} · technical {health(pickup)} · riflemen {[health(r) for r in riflemen]}")
 
 
+# ── ua-hill-attack (CE-2230 H-3; hill-attack DESIGN §0, R-2022) — the platoon's hull-down attack over the basic-desert ridge ─────────
+#   basic-desert: a platoon of four M1s south of the ridge (crest y 210, 10 m, x 230..320), baseline y 140, firing line y 180, against two
+#   idle T-72s north of it (y 380..395) inside the target area. The commander (PlatoonHillAttack) sends a wave (a pair, by index parity) to
+#   its firing slots; each tank creeps up its lane, STOPS the first tick it sees its target (hull-down: R-246), fires ONE round, reverses
+#   into its baseline slot; the other pair goes; they alternate until both T-72s are dead.
+#   ① every shot is fired from south of the crest (hull-down, never over the top) · ② one round per exposure · ③ never more than a pair
+#   up at once · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
+HILL_CREST_Y, HILL_UP_Y, HILL_HOME_Y = 210.0, 170.0, 160.0
+
+
+def run_hill_attack(c, timeout):
+    ids = ids_by_name()
+    tanks = [ids.get(f"Tank {i}") for i in range(1, 5)]
+    enemies = [ids.get("Enemy Tank 1"), ids.get("Enemy Tank 2")]
+    if not c.ok(None not in (*tanks, *enemies), "the four tanks and both T-72s are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, track, tick = {}, {t: [] for t in tanks}, 0
+    end = time.time() + timeout + 400
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots.setdefault(x.get("seq"), (x, tick))
+        for t in tanks:
+            comps = (data(call("GET", f"/entities/{t}")) or {}).get("Components") or {}
+            tr = comps.get("SimTransform") or {}
+            p, q = tr.get("Position"), tr.get("Rotation")
+            if p and q:
+                # heading of the hull's +X axis from the quaternion (z-up yaw)
+                yaw = math.atan2(2 * (q[3] * q[2] + q[0] * q[1]), 1 - 2 * (q[1] ** 2 + q[2] ** 2))
+                track[t].append((tick, p[0], p[1], yaw))
+        tick += 1
+        if tick % 15 == 0:
+            print(f"      @{tick}s y {[round(track[t][-1][2]) if track[t] else None for t in tanks]} · shots {len(shots)} · T-72 health {[health(e) for e in enemies]}")
+        if all(_dead(e) for e in enemies):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    mine = sorted((x for x, _ in shots.values() if x.get("shooter") in tanks), key=lambda x: x.get("seq") or 0)
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter")) for x in mine)))
+    for x in mine[:12]:
+        print("      shot", name.get(x.get("shooter")), "at", name.get(x.get("target"), x.get("target")), "from", [round(v, 1) for v in (x.get("muzzle") or [])],
+              "outcome", x.get("outcome"))
+    # ① hull-down: every friendly round leaves from south of the crest
+    over = [(name.get(x.get("shooter")), round(x["muzzle"][1], 1)) for x in mine if x.get("muzzle") and x["muzzle"][1] >= HILL_CREST_Y]
+    c.ok(bool(mine) and not over, f"① every round is fired from below the crest (y < {HILL_CREST_Y:.0f}) — {len(mine)} rounds, over the top {over}")
+
+    # exposures: a run of samples at y >= HILL_UP_Y
+    def exposures(t):
+        out, cur = [], None
+        for (tk, x, y, yaw) in track[t]:
+            if y >= HILL_UP_Y and cur is None:
+                cur = [tk, tk]
+            elif y >= HILL_UP_Y:
+                cur[1] = tk
+            elif cur is not None:
+                out.append(tuple(cur)); cur = None
+        if cur is not None:
+            out.append(tuple(cur))
+        return out
+    exp = {t: exposures(t) for t in tanks}
+    print("    exposures (tick spans):", {name.get(t): v for t, v in exp.items()})
+    # ② one round per exposure — shots attributed by the tick they were first seen (±1 for the poll)
+    per = []
+    for t in tanks:
+        for (a, b) in exp[t]:
+            n = sum(1 for x, tk in shots.values() if x.get("shooter") == t and a - 1 <= tk <= b + 1)
+            per.append((name.get(t), a, n))
+    c.ok(bool(per) and all(n <= 1 for (_, _, n) in per), f"② one round per exposure — {per}")
+    # ③ never more than a pair up at once
+    up_at = {}
+    for t in tanks:
+        for (tk, x, y, yaw) in track[t]:
+            if y >= HILL_UP_Y:
+                up_at.setdefault(tk, set()).add(name.get(t))
+    crowd = max((len(v) for v in up_at.values()), default=0)
+    c.ok(crowd <= 2, f"③ at most a pair on the slope at once — most at once {crowd}")
+    # ④ every exposure ends back home, reversing: while falling back the nose still points north (yaw within 60 deg of +Y)
+    backs = []
+    for t in tanks:
+        rows = track[t]
+        for (a, b) in exp[t]:
+            after = [r for r in rows if r[0] > b]
+            home = next((r for r in after if r[2] <= HILL_HOME_Y), None)
+            down = [r for r in after if home is None or r[0] <= home[0]]
+            nose_north = all(abs(math.remainder(r[3] - math.pi / 2, 2 * math.pi)) < math.radians(60) for r in down) if down else None
+            backs.append((name.get(t), a, home is not None, nose_north))
+    finished = [b for b in backs if b[1] < tick - 30]   # an exposure in the last 30 s may still be backing down
+    c.ok(bool(finished) and all(h and n for (_, _, h, n) in finished), f"④ every tank backs into its slot, nose north — {backs}")
+    c.ok(all(_dead(e) for e in enemies), f"⑤ both T-72s are dead — health {[health(e) for e in enemies]} · tanks {[health(t) for t in tanks]}")
+
+
 def _turn(bearings, start, stop):
     total, last = 0.0, None
     for t, b in bearings:
@@ -2508,6 +2599,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-weapon-systems": run_weapon_systems,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
+             # ⭐ CE-2230 H-3 — the hull-down hill attack on the ridge (hill-attack DESIGN §0, R-2022)
+             "ua-hill-attack": run_hill_attack,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
              "ua-indirect-fire": run_indirect_fire,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
