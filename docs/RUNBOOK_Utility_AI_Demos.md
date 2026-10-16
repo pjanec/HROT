@@ -39,6 +39,11 @@ python3 scripts/utility-demo-check.py ua-posture                      # against 
 | network ids | a load renumbers entities (the Rifleman is `1000`, not the scenario's `7101`) — the script finds them by NAME via `GET /entities` |
 | stopping | `pgrep -f 'ClusterRunner[.]dll'`, then `kill` the ids in a SEPARATE command — `pkill -f` matches its own shell |
 | a scenario not found | only folders under `scenarios/` are seeded in `--mode all`; the `tt-*` recipes are seeded by the editor only |
+| "the runner is older than …" | `--launch` refuses a runner older than any engine `.cs` / `.csproj`; it reads the NEWEST dll in the runner's bin (the runner's own dll is not rewritten when only a dependency changed). ⛔ An edit to any `.cs` mid-sweep makes every later run refuse — finish the sweep, then edit |
+| two clusters | ⛔ never two at once on one machine: they share the DDS domain and contaminate each other's runs |
+| `No space left on device` | every `--mode all` run leaves an exercise recording under `$TMPDIR/FDP_Temp/exercises` (and per-node `.fdp` files) — a long sweep fills a cloud session's disk; `rm -rf /tmp/FDP_Temp/exercises/*` between runs (asked of backend, `2026-10-16`) |
+
+⭐ **Full sweep `2026-10-16`** (after backend's CE-2222 and behaviors' CE-2224…CE-2228): **34 of 35 PASS** live; ⏳ `ua-technical-scoot` (parked for geometry, Exposure Cycle §6) re-run with its ATGM technical moved to (185, 295), where its line to the tank runs down the street gap between the 20 m and 9 m blocks.
 
 ## 2. The scenarios
 
