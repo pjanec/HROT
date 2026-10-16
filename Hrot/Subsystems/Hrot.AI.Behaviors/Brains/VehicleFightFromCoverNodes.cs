@@ -309,6 +309,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.FiringPoint = firing;
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius) ? 1 : 0);   // T3 — front first
+            ws.SeenSince = 0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
         }
 
@@ -316,7 +317,16 @@ namespace Hrot.AI.Behaviors.Brains
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             var status = MoveStatus(world, self, ws.FiringPoint);
-            if (status == NodeStatus.Running) return;
+            if (status == NodeStatus.Running)
+            {
+                // ⭐ CE-2216 — the DRIVE OUT is part of the exposure: a dangerous threat that can see me starts the clock here, and the
+                //   budget spent before I reach the point sends me back. 📐 Live ua-javelin-lock: Javelin A saw the tank 3 s before it
+                //   reached its firing point and launched as it arrived — the clock only started at the point
+                if (!SeenByADangerousThreat(world, self, in p)) ws.SeenSince = 0;
+                else if (ws.SeenSince == 0) { ws.SeenSince = now; ws.Budget = Budget(in p, world, self); }
+                else if (now - ws.SeenSince >= ws.Budget) Withdraw(ref ws, in p, ref mem, self, world, now);
+                return;
+            }
             ws.Moving = 0;
             if (status != NodeStatus.Success)
             {
@@ -327,11 +337,12 @@ namespace Hrot.AI.Behaviors.Brains
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = now;
             ws.ExposedTick = world.SimulationTick;
-            ws.SeenSince = 0;
             ws.ExposuresHere++;
             ws.Exposures++;
             PositionHeat.Add(ref mem, ws.FiringPoint, 1f, now, Rules(in p), exposure: true);
-            ws.Budget = Budget(in p, world, self);
+            // ⭐ CE-2216 — a clock started on the drive out keeps running (the threat has been locking since); the budget is the tighter
+            float budget = Budget(in p, world, self);
+            ws.Budget = ws.SeenSince > 0 ? MathF.Min(ws.Budget, budget) : budget;
             if (!StartFire(ref ws, in p, self, world, in threat))
             {
                 ws.PhaseUntil = now + p.WatchSeconds;
