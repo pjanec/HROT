@@ -211,5 +211,37 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.True(_w.GetComponentRO<SimTransform>(drone).Position.Z > 4.0f, "the wreck rests on the deck, not under it");
             Assert.Equal(2500f, _w.GetComponentRO<Health>(tank).Current);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2214</c> (live <c>ua-drone-shelter</c>) — a LOW deck: test-town's garage slab at 3.0 m over an M1's 2.44 m roof. The hull's
+        /// band, grown by the drone's 0.8 m contact radius, reaches 3.24 m — ABOVE the slab — so a drone coming down onto the slab's top
+        /// entered it first and the tank under the deck took the full direct hit. Now the deck is met: no target, the tank untouched.
+        /// ✅ Red-proof (mutant): drop the through-terrain test ⇒ the warhead goes off on the tank ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2214_ADive_OntoALowDeck_JustAboveTheHull_MeetsTheSlab_NotTheTankUnderIt()
+        {
+            Deck(3.0f);
+            var tank = _w.CreateEntity();
+            _w.AddComponent(tank, new SimTransform { Position = new Vector3(100, 0, 0), Rotation = Quaternion.Identity });
+            _w.AddComponent(tank, new PhysicsCollider { Radius = 2f, Height = 2.44f });
+            _w.AddComponent(tank, new Health { Current = 3000, Max = 3000 });
+            var v = new Vector3(15, 0, -26);                                    // 60° dive
+            var drone = Drone(new Vector3(97, 0, 8f), v);
+            DetonationNotification[] dets = Array.Empty<DetonationNotification>();
+            for (int k = 0; k < 120 && dets.Length == 0; k++)
+            {
+                ref var tf = ref _w.GetComponentRW<SimTransform>(drone);
+                if (_w.GetComponentRO<FlightState>(drone).Airborne == 0) break;
+                tf.Position += v * Dt;
+                new DroneImpactSystem().Execute(_w, Dt);
+                _w.Bus.SwapBuffers();
+                dets = _w.Bus.Read<DetonationNotification>().ToArray();
+            }
+            var det = Assert.Single(dets);
+            Assert.True(det.Target.IsNull, $"the warhead went off on {det.Target}, not on the deck");
+            Assert.InRange(det.HitZ, 2.9f, 3.3f);
+            Assert.Equal(3000f, _w.GetComponentRO<Health>(tank).Current);
+        }
 }
 }

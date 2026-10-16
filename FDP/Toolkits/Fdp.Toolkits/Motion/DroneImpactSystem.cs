@@ -87,6 +87,12 @@ namespace Fdp.Toolkit.Motion
                         terrainT = MathF.Min(terrainT, tGround);
                     }
                 }
+                // ⭐ CE-2214 — a body met THROUGH the terrain is not met: the band is grown by the contact radius, so under a LOW deck
+                //   (test-town's garage, 3.0 m, over an M1's 2.44 m roof + 0.8 m) it pokes up through the slab and a drone touching the
+                //   slab's top "entered the hull" first — 📐 live ua-drone-shelter: the warhead burst on the deck and the tank under it took
+                //   the full direct hit (3000 → 2550). The hit counts only when nothing solid lies between where the segment entered the
+                //   grown band and the hull's own surface; else the drone flies on and meets the slab (the terrain arm, next frame or now)
+                if (!hit.IsNull && world != null && MetThroughTerrain(repo, world, hit, p0 + (p1 - p0) * Math.Clamp(bestT, 0f, 1f))) hit = Entity.Null;
                 if (!hit.IsNull && terrainT <= bestT) hit = Entity.Null;
                 if (hit.IsNull && terrainT == float.MaxValue) continue;
 
@@ -121,6 +127,19 @@ namespace Fdp.Toolkit.Motion
                 fs.Airborne = 0;
                 fs.VerticalSpeed = 0f;
             }
+        }
+
+        /// <summary>⭐ CE-2214 — true when the terrain blocks the line from <paramref name="entry"/> (where a swept segment entered a body's
+        /// contact-grown band) to the nearest point of the body's own cylinder: a deck, a roof or a wall between them.</summary>
+        internal static bool MetThroughTerrain(EntityRepository repo, IWorldQuery world, Entity body, Vector3 entry)
+        {
+            var c = repo.GetComponentRO<PhysicsCollider>(body);
+            var bp = repo.GetComponentRO<SimTransform>(body).Position;
+            float top = bp.Z + (c.Height > 0f ? c.Height : 2f * c.Radius);
+            var off = new Vector2(entry.X - bp.X, entry.Y - bp.Y);
+            if (off.Length() > c.Radius && off.LengthSquared() > 1e-8f) off = Vector2.Normalize(off) * c.Radius;
+            var surface = new Vector3(bp.X + off.X, bp.Y + off.Y, Math.Clamp(entry.Z, bp.Z, top));
+            return Vector3.DistanceSquared(entry, surface) > 1e-6f && world.SightBlocked(entry, surface);
         }
 
         /// <summary>The route phases that touch the ground on purpose (<see cref="RotorcraftModel"/>).</summary>
