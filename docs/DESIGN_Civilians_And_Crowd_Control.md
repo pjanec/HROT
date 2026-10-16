@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-3, B-2)
+updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5)
 build-state: DESIGN — the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-3, B-2).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-1…B-5).
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thousands of trivial entities (traffic, crowds)"
@@ -436,4 +436,70 @@ behaviour lookup (R-280) silently disagree.
 | B2-c migration | the 4 scenarios, ~9 tests and map keys 501–505 re-pointed in the same commit; a rail that no scenario/test names 1001/1003 outside HISTORY | a compatibility alias 1001→1101: two ids for one thing |
 | B2-d the HSM name | `DefaultBehaviorHash` = the hash of `CivilianHsm`, which the behaviors lane registers (`CE-2235`); until then the type loads with no behaviour (Tier HSM, nothing bound) | waiting on CE-2235: blocks the perf gate B-4 needs |
 
-⏳ **B-1, B-4, B-5** follow in the next pass (B-1 before B-5, per the handoff).
+### 7.3 B-1 — non-lethal effects *(CV-6)*
+
+⭐⭐ **Finding: the cloud's sight effect is an obstacle prism.** `TerrainMaterial` already carries `SightTransmittance`,
+`ResistanceMmRhaPerMetre`, `SoundAttenuationDb` and `BlocksMovement` (`TerrainMaterials.cs:14-19`), and a `StaticObstacle`
+entity (Material + `ObstacleShape`) becomes a terrain prism through the debounced rebake (`StaticObstacles.cs:17-35`,
+`StaticObstacleBake.cs:51`, P-7a). ⇒ a gas or smoke cloud = an obstacle of material `smoke` (sight 0.15, resistance 0,
+sound 0, `BlocksMovement = false`) — every sight solver sees it with no new LOS code.
+
+```mermaid
+classDiagram
+  direction LR
+  class EffectKind { <<NEW enum>> Kinetic Blunt Irritant Stun Push }
+  class DamageAssessedEvent { <<existing, grows>> +EffectKind +EffectMagnitude }
+  class EntityHitDamage { <<existing wire, grows>> +EffectKind +EffectMagnitude, appended }
+  class HealthApplicationSystem { <<existing, grows>> applies Health AND EffectState on the owner }
+  class EffectState { <<NEW component, Brain group beside Health>> Stunned Irritated KnockedDown, UntilSimTime }
+  class EffectStateTranslators { <<NEW, dtEffectState>> the dtWeaponAmmo shape }
+  class AreaEffectCloud { <<NEW component>> Kind Radius Magnitude }
+  class AreaEffectCloudSystem { <<NEW, SimHost, sibling of AreaEffectSystem>> each tick: people inside get an EffectKind hit }
+  class StaticObstacle { <<existing, P-7a>> Material smoke, ObstacleShape cylinder-ish box }
+  class Lifespan { <<existing>> }
+  class WarheadKind { <<existing, grows>> +Blunt +Irritant +Stun }
+  class AreaEffectSystem { <<existing, one moment>> Irritant or Stun burst spawns a cloud }
+  WarheadKind ..> AreaEffectSystem
+  AreaEffectSystem ..> AreaEffectCloud : spawn on Irritant
+  AreaEffectCloud --> StaticObstacle : sight
+  AreaEffectCloud --> Lifespan : gone after
+  AreaEffectCloudSystem ..> DamageAssessedEvent : EffectKind hit, 0 damage
+  DamageAssessedEvent ..> EntityHitDamage : existing egress
+  EntityHitDamage ..> HealthApplicationSystem
+  HealthApplicationSystem ..> EffectState
+  EffectState ..> EffectStateTranslators
+```
+*What the picture shows that prose hid:* the effect rides the EXISTING damage pipeline to the owner (one event, one wire
+message, one applier) — so an effect lands on the node owning `Health`, the same rule damage already obeys; nothing new
+crosses the wire except two appended fields and the stored state.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B1-a the effect on the wire | append `EffectKind` + `EffectMagnitude` to `DamageAssessedEvent` and `EntityHitDamage` (`FireInteractionMessages.cs:221`) | a second hit message: two appliers racing on one victim |
+| B1-b the state | `EffectState` beside Health in the Brain group, written only by `HealthApplicationSystem`; KnockedDown sets the stance prone; Health is never read to mean stunned (I1) | derive from Health: breaks I1 |
+| B1-c the cloud's sight | a `StaticObstacle` of material `smoke` | a new LOS strategy term: every solver would need it |
+| B1-d the cloud's people effect | `AreaEffectCloudSystem` on the node that resolves area effects (SimHost), ticking at 1 Hz | per-frame: a riot's 100 people × N clouds for nothing |
+
+| the design rests on | code | design |
+|---|---|---|
+| a material can let movement and rounds through | ✅ `TerrainMaterials.cs:14-19` | ✅ Building_Interiors §3c |
+| an obstacle entity becomes a prism after a debounced rebake | ✅ `StaticObstacleBake.cs:37-51` | ✅ P-7a (Peek and fire) |
+| Health is Brain-group, its applier on the owner | ✅ `HrotOwnershipGroups.cs:53`, `HealthApplicationSystem.cs:47` | ✅ CE-523 |
+| a rebake per cloud is cheap enough | ⛔ **not measured** — a navmesh rebake for a non-blocking prism may be wasted work | ⛔ none ⇒ **M-4**: time one cloud's rebake on bt-range; if heavy, skip the navmesh for `BlocksMovement = false` prisms |
+
+### 7.4 B-4 — the perf-gate harness *(CV-10)*
+
+One command (`scripts/perf-civilians.sh <count>`) runs the ClusterRunner `--mode all` headless on test-town with N civilians
+spawned by a generated scenario, reads the scheduler's per-system `SystemProfileData` (`SystemScheduler.cs:21`) through `/diagnostics/architecture` (⚠ its system rows carrying the timing is not yet checked; the profiler panel reads the same data) over 60 s
+of sim time on CGF and SimHost, and prints ms/frame for `BrainTickSystem`, the perception systems and `CarKinematicsSystem`
+at 100 / 300 / 500. ⭐ It reads the existing diagnostics route — no new timing code. ⛔ Not built until B-2 gives it a type
+with a brain.
+
+### 7.5 B-5 — the weapons *(CV-9)*
+
+Data on existing types, no new code beyond B-1: `WarheadKind` Blunt (baton round, stone), Irritant (gas grenade/launcher
+round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions in `MunitionTkbCatalog`, launchers as
+weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
+node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
+
+⭐ All five are DESIGN — nothing is built until the user rules CV-1, CV-4, CV-6, CV-9, CV-10.
