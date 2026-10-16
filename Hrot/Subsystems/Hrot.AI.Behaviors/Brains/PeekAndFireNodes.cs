@@ -592,16 +592,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ws.Fire.Threat.IsNull && SightNow.Sees(world, self, ws.Fire.Threat)) ws.LastSeenAt = now;   // the LOCKED target
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool done = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status != NodeStatus.Running;
+            // ⭐ CE-2228 (Exposure Cycle §7, V6: "a TOW-type gunner holds sight through the flight") — a command-guided round in flight
+            //   needs its gunner: neither the exposure cap nor a lost sight brings him down; only the round landing (done) or being shot at
+            bool guiding = Guiding(world, self);
             // ⭐ CE-2218 — the weapon holds MASKED (its own round would stop in the wall in front of the muzzle — the eye's line passed the
             //   window, the barrel's does not): this spot cannot shoot that target. Burn it and come down; the next choice moves on.
-            if (MaskedSince(world, self, ws.ExposedAt))
+            if (!guiding && MaskedSince(world, self, ws.ExposedAt))
             {
                 PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
                 Recover(ref ws, in p, ref mem, self, world, now, false);
                 return;
             }
             bool firedUpon = FiredUponSince(world, self, ws.ExposedAt);
-            if (done || firedUpon || now - ws.ExposedAt >= ExposeFor(in p, world, self) || now - ws.LastSeenAt > p.GraceSeconds)
+            if (done || firedUpon || (!guiding && (now - ws.ExposedAt >= ExposeFor(in p, world, self) || now - ws.LastSeenAt > p.GraceSeconds)))
                 Recover(ref ws, in p, ref mem, self, world, now, firedUpon);
         }
 
@@ -801,8 +804,22 @@ namespace Hrot.AI.Behaviors.Brains
             || RecentSensesOf.Within(world, self, SensorChange.Hit, p.SuppressedSeconds);
 
         /// <summary>B2 — near-missed or hit since the unit came up.</summary>
+        /// <summary>⭐ <c>CE-2228</c> — a command-guided round of this unit's aimed fire is in flight: the aimed-fire executor's own answer
+        /// (<c>ActionReason.Guiding</c> on its status row, W-12c). The ONE reader — PeekAndFire and <c>VehicleFightFromCover</c> both hold
+        /// their gunner on it.</summary>
         /// <summary>⭐ <c>CE-2218</c> — the weapon channel said <c>Masked</c> during this exposure (the row is stamped, so a reason left by the
         /// previous exposure does not count).</summary>
+        internal static bool Guiding(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<WeaponChannel>(self)) return false;
+            ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
+            return channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status == NodeStatus.Running
+                   && world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                   && world.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(self)
+                   && world.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(self).Weapon.Reason
+                      == Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Guiding;
+        }
+
         internal static bool MaskedSince(EntityRepository world, Entity self, double since)
         {
             if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()

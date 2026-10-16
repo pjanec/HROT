@@ -364,10 +364,8 @@ namespace Hrot.AI.Behaviors.Brains
             else if (ws.SeenSince == 0) ws.SeenSince = now;
 
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
-            // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c)
-            bool guiding = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status == NodeStatus.Running
-                           && world.IsComponentTypeRegistered<ActionStatus>() && world.HasComponent<ActionStatus>(self)
-                           && world.GetComponentRO<ActionStatus>(self).Weapon.Reason == ActionReason.Guiding;
+            // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
+            bool guiding = PeekAndFireNodes.Guiding(world, self);
             bool done = channel.ActiveAction != CombatConstants.ActionIdAimAndFire || channel.Status != NodeStatus.Running;
             bool hit = FiredUponSince(world, self, ws.ExposedAt);
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;

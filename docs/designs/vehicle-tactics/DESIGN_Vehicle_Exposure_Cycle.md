@@ -475,6 +475,7 @@ behaviour lane's.
 | LAW man | the same; the LAW is disposable (1 round each, 2 carried) | a light-vehicle killer |
 | Javelin / NLAW team (new type) | `CombatPosture` with `FiringPosition` (`FindOpenFiringPosition`) at range | the lock (aim time) needs continuous sight — the tank's short exposure denies it |
 | ATGM technical | `LandPlatformAttack` (this node, `Scoot`) | halts for the flight (FireOnMove no), Guiding |
+| ⭐ TOW-type gunner (infantry, command-guided) — **as built `2026-10-16`, `CE-2228`** | `CombatPosture` → PeekAndFire, as the RPG man | ⭐ he HOLDS SIGHT THROUGH THE FLIGHT: while the aimed-fire executor reports `Guiding` (a command round of his in the air), PeekAndFire's `Aimed` phase ignores the exposure cap and the lost-sight grace — he comes down when the round lands or when he is shot at. The one reader `PeekAndFireNodes.Guiding` is the vehicle node's own check, now shared (`VehicleFightFromCover` reads it too). Rail `PeekAndFireNodesTests.CE2228_AGuidedRoundInFlight_HoldsTheGunnerUp_UntilItLands` |
 
 ⭐ **Live `2026-10-16` — `ua-rpg-window` PASS 4 / 4** (bt-range; an RPG man at House A's upper window on `WindowDuel` shape A with
 `exposuresPerPosition` 1, two IFVs on `BasicVehicleSop` 50 m south). The composition holds with no new node: he hits an IFV's side, moves along
