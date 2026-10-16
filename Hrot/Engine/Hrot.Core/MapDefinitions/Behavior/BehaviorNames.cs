@@ -94,6 +94,18 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Embark = "Embark";
         /// <summary>⭐ <c>CE-2176</c> (Weapon Systems §4b) — walk to a crew weapon and take its Gunner seat.</summary>
         public const string ManWeapon = "ManWeapon";
+        /// <summary>⭐ WS-6 (Weapon Systems §10) — a soldier sets a weapon system up: puts it down if he carries it, mans it, deploys it.</summary>
+        public const string SetUpWeapon = "SetUpWeapon";
+        /// <summary>⭐ WS-6 (Weapon Systems §10) — a soldier packs his weapon system up (Stowed) and steps off it.</summary>
+        public const string PackUpWeapon = "PackUpWeapon";
+        /// <summary>⭐ WS-6 (Weapon Systems §10) — a soldier picks a portable weapon system up and carries it (one-man; two-man is T-c, later).</summary>
+        public const string CarryWeapon = "CarryWeapon";
+        /// <summary>⭐ WS-6 (Weapon Systems §10, R-278 <c>&lt;Class&gt;&lt;Order&gt;</c>) — a weapon system's ATTACK: it fights the named
+        /// target from where it stands (it cannot move) until the target is down.</summary>
+        public const string WeaponSystemAttack = "WeaponSystemAttack";
+        /// <summary>⭐ WS-6 (Weapon Systems §10, W-E) — a weapon system's HOLD: it stays and fires at whatever threat comes (an automatic
+        /// turret's standing behaviour) — not <c>Idle</c>.</summary>
+        public const string WeaponSystemHold = "WeaponSystemHold";
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a passenger leaves its vehicle, beside the hull (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Disembark = "Disembark";

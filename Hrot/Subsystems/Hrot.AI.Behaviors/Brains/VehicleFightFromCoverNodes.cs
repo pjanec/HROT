@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     break;
                 case VehiclePhase.StandAndFight: StandAndFight(ref ws, in p, ref mem, self, world, now, in threat, immobile); break;
-                case VehiclePhase.MoveToHide:  MoveToHide(ref ws, in p, ref mem, self, world, now); break;
+                case VehiclePhase.MoveToHide:  MoveToHide(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Hidden:      Hidden(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Exposing:    Exposing(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Engaging:    Engaging(ref ws, in p, ref mem, self, world, now, in threat); break;
@@ -270,9 +270,15 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Phase = VehiclePhase.MoveToHide;
         }
 
+        /// <summary>
+        /// The drive to a hide. ⭐ <c>CE-2219</c> — the gun fights on the way: it fires at the threat it SEES (a <c>FireOnMove</c> mount
+        /// shoots, the weapon brain holds the others, D-L) and tracks him when it does not. 📌 Live <c>ua-rpg-window</c>: an IFV surprised in
+        /// the open drove 6 s to its first hide with the gun only TRACKING the RPG man it saw, and died without a round.
+        /// </summary>
         private static void MoveToHide(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, ref FiringPositionMemory mem,
-                                       Entity self, EntityRepository world, double now)
+                                       Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
+            if (!Disarmed(world, self)) FireOrTrack(ref ws, in p, self, world, in threat);
             var status = MoveStatus(world, self, ws.HidePoint);
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
@@ -309,6 +315,7 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Waiting = 0;
             ws.FiringPoint = firing;
             ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, firing, p.Speed, ArrivalRadius) ? 1 : 0);   // T3 — front first
+            ws.SeenSince = 0;   // CE-2216 — this exposure's clock starts on the way out
             ws.Phase = VehiclePhase.Exposing;
         }
 
@@ -316,7 +323,16 @@ namespace Hrot.AI.Behaviors.Brains
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             var status = MoveStatus(world, self, ws.FiringPoint);
-            if (status == NodeStatus.Running) return;
+            if (status == NodeStatus.Running)
+            {
+                // ⭐ CE-2216 — the DRIVE OUT is part of the exposure: a dangerous threat that can see me starts the clock here, and the
+                //   budget spent before I reach the point sends me back. 📐 Live ua-javelin-lock: Javelin A saw the tank 3 s before it
+                //   reached its firing point and launched as it arrived — the clock only started at the point
+                if (!SeenByADangerousThreat(world, self, in p)) ws.SeenSince = 0;
+                else if (ws.SeenSince == 0) { ws.SeenSince = now; ws.Budget = Budget(in p, world, self); }
+                else if (now - ws.SeenSince >= ws.Budget) Withdraw(ref ws, in p, ref mem, self, world, now);
+                return;
+            }
             ws.Moving = 0;
             if (status != NodeStatus.Success)
             {
@@ -327,11 +343,12 @@ namespace Hrot.AI.Behaviors.Brains
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = now;
             ws.ExposedTick = world.SimulationTick;
-            ws.SeenSince = 0;
             ws.ExposuresHere++;
             ws.Exposures++;
             PositionHeat.Add(ref mem, ws.FiringPoint, 1f, now, Rules(in p), exposure: true);
-            ws.Budget = Budget(in p, world, self);
+            // ⭐ CE-2216 — a clock started on the drive out keeps running (the threat has been locking since); the budget is the tighter
+            float budget = Budget(in p, world, self);
+            ws.Budget = ws.SeenSince > 0 ? MathF.Min(ws.Budget, budget) : budget;
             if (!StartFire(ref ws, in p, self, world, in threat))
             {
                 ws.PhaseUntil = now + p.WatchSeconds;
@@ -414,6 +431,13 @@ namespace Hrot.AI.Behaviors.Brains
                 GoToHide(ref ws, in p, self, world, hide);
                 return;
             }
+            FireOrTrack(ref ws, in p, self, world, in threat);
+        }
+
+        /// <summary>Fire at the locked threat when it is SEEN (rounds as the weapon brain grants them), else keep the gun on him — the
+        /// one step <see cref="StandAndFight"/> and <see cref="MoveToHide"/> share (⭐ <c>CE-2219</c>).</summary>
+        private static void FireOrTrack(ref VehicleFightFromCoverState ws, in VehicleFightFromCoverParams p, Entity self, EntityRepository world, in ThreatAim threat)
+        {
             var target = PeekAndFireNodes.LockTarget(world, self, in threat);
             if (!target.IsNull && SightNow.Sees(world, self, target))
             {
@@ -487,13 +511,35 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (!world.IsAlive(e) || ThreatDanger.Of(world, self, e) < p.AtDangerMin || !SightNow.Sees(world, self, e)) continue;
+                if (!world.IsAlive(e) || ThreatDanger.Of(world, self, e) < p.AtDangerMin || !CanSeeMe(world, self, in mem, i, e)) continue;
                 budget = MathF.Min(budget, p.AimBudgetFactor * AimAndFireExecutor.AimSecondsFor(world, e, 0));
             }
             return budget;
         }
 
-        /// <summary>A threat dangerous to me (<c>AtDangerMin</c>) is in sight now.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-2215</c> — the remembered threat in slot <paramref name="i"/> CAN SEE ME now: I see him (R-246: if I see him, he sees
+        /// me) — or, when I do not, the line from where I remember him (his eye, 1.6 m up) to my hull's top is clear of the terrain. Sight is
+        /// not symmetric: a Javelin gunner at a window with a thermal sight sees a hull it does not show itself to. 📐 Live
+        /// <c>ua-javelin-lock</c>: the tank, not seeing the gunner it knew of, exposed for its full 8 s and gave him his 4 s lock.
+        /// No terrain ⇒ only the R-246 half (as before).
+        /// </summary>
+        internal static unsafe bool CanSeeMe(EntityRepository world, Entity self, in TargetMemory mem, int i, Entity threat)
+        {
+            if (SightNow.Sees(world, self, threat)) return true;
+            var terrain = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (terrain == null || !world.HasComponent<SimTransform>(self)) return false;
+            var me = world.GetComponentRO<SimTransform>(self).Position;
+            float hull = Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(world, self);
+            var top = me + new Vector3(0f, 0f, hull > 0f ? hull : 2f);
+            var him = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i] + ThreatEyeHeightM);
+            return !terrain.SightBlocked(him, top);
+        }
+
+        /// <summary>The eye height of a remembered threat for <see cref="CanSeeMe"/> (m) — a standing man's.</summary>
+        public const float ThreatEyeHeightM = 1.6f;
+
+        /// <summary>A threat dangerous to me (<c>AtDangerMin</c>) can see me now (<see cref="CanSeeMe"/>).</summary>
         private static unsafe bool SeenByADangerousThreat(EntityRepository world, Entity self, in VehicleFightFromCoverParams p)
         {
             if (!world.HasComponent<TargetMemory>(self)) return false;
@@ -502,7 +548,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (world.IsAlive(e) && ThreatDanger.Of(world, self, e) >= p.AtDangerMin && SightNow.Sees(world, self, e)) return true;
+                if (world.IsAlive(e) && ThreatDanger.Of(world, self, e) >= p.AtDangerMin && CanSeeMe(world, self, in mem, i, e)) return true;
             }
             return false;
         }

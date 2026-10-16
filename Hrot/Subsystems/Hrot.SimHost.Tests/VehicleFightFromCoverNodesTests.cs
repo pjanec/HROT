@@ -264,7 +264,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(FindVehicleHide.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).BlueprintId);
             Assert.Equal(VehiclePhase.Choose, d.Ws.Phase);
 
+            d.See(false);   // unseen on the drive in — seen, the drive would fire too (CE-2219, its own rail)
             d.ToHide(HideA);
+            d.See(true);
             Assert.True(d.Tracking, "hidden, the gun is kept on the threat (T4)");
             Assert.False(d.Sensor(VehicleFightFromCoverNodes.FiringSite).IsNull, "hidden, the node asks for a firing point");
             Assert.Equal(FindVehicleFiringPoint.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.FiringSite)).BlueprintId);
@@ -390,6 +392,80 @@ namespace Hrot.SimHost.Tests
 
             d.See(false);
             Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2215</c> — a dangerous threat I do NOT see still bounds my exposure when it can see me: the RPG man on my side, not in
+        /// my tracks, with a clear line from where I remember him ⇒ 1.4 s; a wall between us ⇒ the full exposure. 📐 Live <c>ua-javelin-lock</c>:
+        /// the tank did not see the Javelin gunner it knew of, exposed for 8 s, and gave him his 4 s lock.
+        /// 🔴 Red-proof (mutant): <c>CanSeeMe</c> = <c>SightNow.Sees</c> only ⇒ the open case is 6 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot()
+        {
+            var d = new Duel(Tank());
+            d.UseTkb();
+            d.EnemyTo(new Vector3(0f, 80f, 0f));
+            d.See(false);
+            var p = VehicleFightFromCoverNodes.Effective(d.P, scoot: false);
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200) });
+            Assert.InRange(VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self), 1.39f, 1.41f);
+
+            var wall = new[] { new Vector2(-10f, 40f), new Vector2(10f, 40f), new Vector2(10f, 41f), new Vector2(-10f, 41f) };
+            d.Repo.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainWorld
+            {
+                BoundsMin = new Vector2(-200, -200), BoundsMax = new Vector2(200, 200),
+                Prisms = new[] { new Fdp.Toolkit.Terrain.TerrainPrism { Kind = Fdp.Toolkit.Terrain.TerrainPrismKind.Wall, Footprint = wall, BaseZ = 0f, TopZ = 6f,
+                                                                       Min = new Vector2(-10f, 40f), Max = new Vector2(10f, 41f) } },
+            });
+            Assert.Equal(p.ExposeSeconds, VehicleFightFromCoverNodes.Budget(in p, d.Repo, d.Self));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2216</c> — the DRIVE OUT is part of the exposure: seen by the RPG man on my side (2 s aim ⇒ a 1.4 s budget) while still
+        /// driving to the firing point, I turn back to the hide once the budget is spent, before I ever reach it. 📐 Live <c>ua-javelin-lock</c>:
+        /// Javelin A saw the tank 3 s before its firing point and launched as it arrived — the clock started only at the point.
+        /// 🔴 Red-proof (mutant): no clock on the drive out ⇒ it never withdraws while the move runs ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2216_SeenOnTheDriveOut_TheBudgetRunsOut_BackToTheHide_BeforeTheFiringPoint()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 6f });
+            d.UseTkb();
+            d.EnemyTo(new Vector3(0f, 80f, 0f));
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            d.Orbits = true;                                                 // the drive out takes as long as it takes
+            Assert.Equal(VehiclePhase.Exposing, d.RunUntil(VehiclePhase.Exposing));
+            double outAt = d.Time;
+            Assert.Equal(VehiclePhase.Withdrawing, d.RunUntil(VehiclePhase.Withdrawing, 10));
+            Assert.InRange(d.Time - outAt, 1.3, 1.8);
+            Assert.Equal(HideA, d.Moves[^1].Item1);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2219</c> — SURPRISED IN THE OPEN, THE GUN FIGHTS ON THE WAY TO THE HIDE: while the hull drives to its first hide it fires
+        /// at the threat it SEES, and only tracks him once it does not. 📌 Live <c>ua-rpg-window</c>: an IFV drove 6 s with the gun only
+        /// tracking the RPG man in the window and died without a round. 🔴 Red-proof: drop the fire step from <c>MoveToHide</c> and the
+        /// drive is silent.
+        /// </summary>
+        [Fact]
+        public void CE2219_DrivingToItsHide_ItFiresAtTheThreatItSees_AndTracksHimWhenItDoesNot()
+        {
+            var d = new Duel(Tank());
+            d.Orbits = true;                                                 // the drive to the first hide takes as long as it takes
+            d.Step();
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 5, HideA);
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide));
+            d.Run(1.0);
+            Assert.Equal(VehiclePhase.MoveToHide, d.Ws.Phase);
+            Assert.True(d.Firing, "seen on the way, the gun fires");
+            Assert.Contains(d.Enemy, d.AimedAt);
+            Assert.True(d.AimedRounds > 0);
+            d.See(false);
+            d.Run(0.5);
+            Assert.False(d.Firing, "out of sight, the fire stops");
+            Assert.True(d.Tracking, "and the gun stays on him");
         }
 
         /// <summary>⭐⭐ <c>V4_R5</c> — a NEAR MISS while exposed cuts the exposure at once: back in reverse, rounds left unfired.</summary>

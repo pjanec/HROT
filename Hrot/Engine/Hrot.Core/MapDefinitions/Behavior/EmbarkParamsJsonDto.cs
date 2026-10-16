@@ -42,6 +42,51 @@ namespace Hrot.Map.Definitions.Behavior
         public float Speed;
     }
 
+    /// <summary>⭐ WS-6 (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §10) — the authored contract of the library <c>SetUpWeapon</c>: put it down if carried, man it, deploy it.</summary>
+    [ParamsDto]
+    public struct SetUpWeaponParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.SetUpWeapon;
+
+        /// <summary>The weapon system.</summary>
+        [JsonPropertyName("weapon")]
+        public EntityRef Weapon;
+
+        /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+
+    /// <summary>⭐ WS-6 (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §10) — the authored contract of the library <c>PackUpWeapon</c>: pack it up (Stowed), then step off it.</summary>
+    [ParamsDto]
+    public struct PackUpWeaponParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.PackUpWeapon;
+
+        /// <summary>The weapon system.</summary>
+        [JsonPropertyName("weapon")]
+        public EntityRef Weapon;
+
+        /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+
+    /// <summary>⭐ WS-6 (📄 docs/designs/weapons/DESIGN_Weapon_Systems.md §10) — the authored contract of the library <c>CarryWeapon</c>: walk to a portable weapon and pick it up.</summary>
+    [ParamsDto]
+    public struct CarryWeaponParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.CarryWeapon;
+
+        /// <summary>The weapon system.</summary>
+        [JsonPropertyName("weapon")]
+        public EntityRef Weapon;
+
+        /// <summary>Walking speed to it (m/s); 0 ⇒ the node's default.</summary>
+        [JsonPropertyName("speed")]
+        public float Speed;
+    }
+
 }
 
 namespace Hrot.Map.Definitions.Behavior

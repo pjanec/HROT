@@ -1718,15 +1718,30 @@ def run_technical_scoot(c, timeout):
     if not c.ok(None not in (tank, atgm, hmg), "the tank and both technicals are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots, track = {}, {atgm: [], hmg: []}
+    shots, track, tick, seen_at, timed = {}, {atgm: [], hmg: []}, 0, {}, {atgm: [], hmg: []}
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
             shots[x.get("seq")] = x
+            seen_at.setdefault(x.get("seq"), tick)
         for t in (atgm, hmg):
             pt = position(t)
             if pt:
                 track[t].append(tuple(round(v) for v in pt[:2]))
+                timed[t].append((tick, pt[0], pt[1]))
+        tick += 1
+        if tick % 10 == 0:   # what the ATGM technical's sensors answer and why its weapon holds, every ~10 s
+            st = ((data(call("GET", f"/entities/{atgm}/weapons")) or {}).get("status") or {})
+            md = data(call("GET", f"/entities/{atgm}/memory")) or {}
+            tst = ((data(call("GET", f"/entities/{tank}/weapons")) or {}).get("status") or {})
+            tmd = data(call("GET", f"/entities/{tank}/memory")) or {}
+            print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (tmd.get('slots') or [])][:3]} · health {health(tank)}")
+            print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
+                  f" knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}")
+            for sn in (data(call("GET", f"/entities/{atgm}/sensors")) or {}).get("sensors") or []:
+                ans = sn.get("answer") or {}
+                print("        sensor", {k: sn.get(k) for k in ("kind", "template", "status")},
+                      {k: (v if not isinstance(v, list) else v[:3]) for k, v in ans.items()} if isinstance(ans, dict) else ans)
         if _dead(atgm) and _dead(hmg):
             break
         time.sleep(1.0)
@@ -1752,12 +1767,132 @@ def run_technical_scoot(c, timeout):
                         pts.append((round(m[0]), round(m[1])))
         return pts
     a_pts, h_pts = points(("ATGM", "Kornet")), points(("HMG", "M2"))
-    c.ok(len(a_pts) >= 2, f"① the ATGM technical fires from two points — {a_pts}")
-    c.ok(len(h_pts) >= 2, f"① the HMG technical fires from two points — {h_pts}")
+
+    def scooted(tech, owner_names):
+        # ① shoot AND scoot: fires from two points — or, after its first shot, drives ≥ 5 m from where it fired (the tank may kill it first)
+        xs = [x for k, v in by.items() if any(n in str(k) for n in owner_names) for x in v if x.get("muzzle")]
+        if not xs:
+            return None
+        x0 = min(xs, key=lambda x: x.get("seq") or 0)
+        m, t0 = x0["muzzle"], seen_at.get(x0.get("seq"), 0)
+        away = [(round(px), round(py)) for (tk, px, py) in timed[tech] if tk > t0 and ((px - m[0]) ** 2 + (py - m[1]) ** 2) ** 0.5 >= 5]
+        return away[:1]
+    a_sc, h_sc = scooted(atgm, ("ATGM", "Kornet")), scooted(hmg, ("HMG", "M2"))
+    c.ok(len(a_pts) >= 2 or bool(a_sc), f"① the ATGM technical shoots and scoots — fired from {a_pts}, then drove to {a_sc}")
+    c.ok(len(h_pts) >= 2 or bool(h_sc), f"① the HMG technical shoots and scoots — fired from {h_pts}, then drove to {h_sc}")
     tank_shots = by.get("Tank", [])
-    first = name.get(tank_shots[0].get("target")) if tank_shots else None
+
+    def nearest(tech, x):
+        # which technical a round was AIMED at: its aim point within 8 m of where that technical was (a mounted gun or crew is its own entity)
+        a = x.get("aim") or x.get("end")
+        tk = seen_at.get(x.get("seq"), 0)
+        ps = [(abs(k - tk), px, py) for (k, px, py) in timed[tech]]
+        if not a or not ps:
+            return False
+        _, px, py = min(ps)
+        return ((a[0] - px) ** 2 + (a[1] - py) ** 2) ** 0.5 <= 8
+    first = None
+    if tank_shots:
+        x = tank_shots[0]
+        first = "ATGM Technical" if nearest(atgm, x) else "HMG Technical" if nearest(hmg, x) else name.get(x.get("target"))
     c.ok(first == "ATGM Technical", f"② the tank's first round goes at the ATGM technical — {first} ({len(tank_shots)} rounds)")
     print(f"    health: tank {health(tank)} · ATGM technical {health(atgm)} · HMG technical {health(hmg)}")
+
+
+# ── ua-rpg-window (Urban Armour V6; Exposure Cycle §7 — the AT side is a composition, no new node) — an RPG ambush from a window ──────
+#   bt-range: two IFVs (Bradley) on BasicVehicleSop in the street ~50 m south of House A (⚠ at 23 m the IFV drove under the window and the
+#   RPG man's steep shot met his own wall — CE-2218; one IFV dies in 2 rockets before a 3rd exposure, so two give the relocation a chance); an RPG man (Insurgent 2003) at
+#   House A's upper window on WindowDuel shape A with exposuresPerPosition 1 (PeekAndFire: prone under the sill, up to fire, another window after each rocket),
+#   knowing where the IFV is. ① the RPG fires at the IFV and hurts it · ② it fires from two windows (≥ 3 m apart) · ③ the IFV fires back.
+def run_rpg_window(c, timeout):
+    ids = ids_by_name()
+    ifv, ifv2, rpg = ids.get("IFV"), ids.get("IFV 2"), ids.get("RPG Man")
+    if not c.ok(None not in (ifv, ifv2, rpg), "both IFVs and the RPG man are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, track = {}, []
+    end = time.time() + timeout + 60
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pt = position(rpg)
+        if pt:
+            track.append(tuple(round(v, 1) for v in pt[:3]))
+        st = ((data(call("GET", f"/entities/{ifv}/weapons")) or {}).get("status") or {})
+        md = data(call("GET", f"/entities/{ifv}/memory")) or {}
+        print(f"      @{len(track)}s IFV weapon {st} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}"
+              f" · RPG health {health(rpg)} · IFV health {health(ifv)}")
+        rst = ((data(call("GET", f"/entities/{rpg}/weapons")) or {}).get("status") or {})
+        rmd = data(call("GET", f"/entities/{rpg}/memory")) or {}
+        print(f"        RPG weapon {rst} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1), m.get('position') or m.get('pos')) for m in (rmd.get('slots') or [])][:3]}")
+        if (_dead(ifv) and _dead(ifv2)) or _dead(rpg):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    xs = sorted(shots.values(), key=lambda x: x.get("seq") or 0)
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in xs)))
+    mine = [x for x in xs if x.get("shooter") == rpg]
+    for x in mine[:6]:
+        print("      RPG", {k: x.get(k) for k in ("muzzle", "aim", "end", "hit", "outcome", "hitFace", "penetration", "crossings")})
+    stops = []
+    for q in track:
+        if not stops or sum((a - b) ** 2 for a, b in zip(q, stops[-1])) ** 0.5 > 1.5:
+            stops.append(q)
+    print(f"    RPG man path (1.5 m steps): {stops[:20]}")
+    pts = []
+    for x in mine:
+        m = x.get("muzzle")
+        if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 3 for q in pts):
+            pts.append((round(m[0], 1), round(m[1], 1)))
+    c.ok(len(mine) >= 1 and (_hurt(ifv, 500) or _hurt(ifv2, 500)), f"① the RPG fires at an IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)} · IFV 2 {health(ifv2)}")
+    # ② the relocation: fires from a second window — or MOVES to one (≥ 3 m along the same floor) after he fired (an AT man fires
+    #   and moves: exposuresPerPosition 1 — the IFVs' fire may kill him before a second rocket)
+    z0 = stops[0][2] if stops else 0
+    moved = [q for q in stops[1:] if abs(q[2] - z0) < 1.0 and ((q[0] - stops[0][0]) ** 2 + (q[1] - stops[0][1]) ** 2) ** 0.5 >= 3]
+    c.ok(len(pts) >= 2 or (len(mine) >= 1 and moved), f"② the RPG relocates to another window after he fires — fired from {pts}, after {len(mine)} rocket(s) moved to {moved[:1]}")
+    back = [x for x in xs if x.get("shooter") in (ifv, ifv2)]
+    c.ok(len(back) >= 1, f"③ the IFV fires back — {len(back)} round(s), at {sorted({name.get(x.get('target'), x.get('target')) for x in back}, key=str)}")
+    print(f"    health: IFV {health(ifv)} · IFV 2 {health(ifv2)} · RPG man {health(rpg)}")
+
+
+# ── ua-weapon-systems (Weapon Systems §10, WS-6) — a sentry gun holds a gate, a soldier sets up an M2, a soldier picks up a Javelin ─────
+#   basic-desert, three vignettes on one field. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 250 m:
+#   the gun fires on its own and hurts him. ② "M2 Gunner" on SetUpWeapon with a STOWED "M2 HMG" 8 m off: he walks to it, takes its
+#   Gunner seat, and it is Deployed (DeploySeconds 20). ③ "Javelin Man" on CarryWeapon with a stowed "Javelin" 8 m off: he carries it.
+def run_weapon_systems(c, timeout):
+    ids = ids_by_name()
+    sentry, intruder = ids.get("Sentry Gun"), ids.get("Intruder")
+    m2, gunner, jav, jman = ids.get("M2 HMG"), ids.get("M2 Gunner"), ids.get("Javelin"), ids.get("Javelin Man")
+    if not c.ok(None not in (sentry, intruder, m2, gunner, jav, jman), "the sentry gun, the intruder, the M2 and its gunner, the Javelin and its man are loaded"):
+        return
+    deploy = lambda n: (comps(n).get("WeaponSystemState") or {}).get("Deploy")
+    print(f"    start: M2 deploy {deploy(m2)} · Javelin deploy {deploy(jav)} · sentry deploy {deploy(sentry)}")
+    call("POST", "/sim/play", {})
+    shots, manned, deployed, carried, t = {}, None, None, None, 0
+    end = time.time() + timeout + 60
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        t += 1
+        if manned is None and _aboard(gunner) is not None:
+            manned = t
+        if deployed is None and str(deploy(m2)) in ("2", "Deployed"):
+            deployed = t
+        if carried is None and _aboard(jav) is not None:
+            carried = t
+        if t % 10 == 0:
+            gst = data(call("GET", f"/entities/{gunner}/state")) or {}
+            print(f"      @{t}s M2 {deploy(m2)} gunner aboard {_aboard(gunner)} at {position(gunner)} behaviour {gst.get('behavior')} · Javelin aboard {_aboard(jav)} · intruder {health(intruder)}")
+        if manned and deployed and carried and _hurt(intruder, 100):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in shots.values())))
+    at_him = [x for x in shots.values() if x.get("shooter") == sentry]
+    c.ok(len(at_him) >= 1 and _hurt(intruder, 100), f"① the sentry gun fires on its own and hurts the intruder — {len(at_him)} round(s), his health {health(intruder)}")
+    c.ok(manned is not None, f"② the gunner mans the M2 — aboard after {manned} s ({_aboard(gunner)})")
+    c.ok(deployed is not None, f"② the M2 is set up — Deployed after {deployed} s (now {deploy(m2)})")
+    c.ok(carried is not None, f"③ the Javelin man carries the Javelin — after {carried} s ({_aboard(jav)})")
 
 
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
@@ -2242,6 +2377,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-tank-corner": run_tank_corner,
              "ua-javelin-lock": run_javelin_lock,
              "ua-technical-scoot": run_technical_scoot,
+             "ua-rpg-window": run_rpg_window,
+             "ua-weapon-systems": run_weapon_systems,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)

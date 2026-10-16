@@ -1,0 +1,143 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range"
+ },
+ "entities": {
+  "a2209d00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     108.5,
+     50,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9201
+   },
+   "TkbIdentity": {
+    "TkbType": 101
+   },
+   "EntityInfo": {
+    "Name": "IFV",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 500,
+    "Max": 500
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "BasicVehicleSop",
+    "Params": "{}",
+    "Origin": "Superior"
+   }
+  },
+  "a2209d00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     107.1,
+     100.9,
+     3
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "NetworkIdentity": {
+    "Value": 9211
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "RPG Man",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": [
+     {
+      "Entity": "a2209d00-0000-4000-8000-000000000001",
+      "PosX": 108.5,
+      "PosY": 50.0,
+      "PosZ": 0,
+      "Score": 500,
+      "Tick": 0,
+      "Modality": 1
+     },
+     {
+      "Entity": "a2209d00-0000-4000-8000-000000000003",
+      "PosX": 96.0,
+      "PosY": 48.0,
+      "PosZ": 0,
+      "Score": 400,
+      "Tick": 0,
+      "Modality": 1
+     }
+    ]
+   },
+   "Behavior": {
+    "Name": "WindowDuel",
+    "Params": "{\"shape\":0,\"exposuresPerPosition\":1}",
+    "Origin": "Superior"
+   }
+  },
+  "a2209d00-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     96,
+     48,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9202
+   },
+   "TkbIdentity": {
+    "TkbType": 101
+   },
+   "EntityInfo": {
+    "Name": "IFV 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 500,
+    "Max": 500
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "BasicVehicleSop",
+    "Params": "{}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}

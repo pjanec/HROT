@@ -253,12 +253,12 @@ stateDiagram-v2
 | rule | why |
 |---|---|
 | **withdraw mode** `Auto`: the type's `ArmorFront ≥ 2 × ArmorSide` ⇒ `Reverse` to the SAME hide (a straight reverse — the firing point is chosen ahead of the hide's facing); else `Scoot`: drive forward to a NEW `FindVehicleHide` answer away from the threat, and the point burns after 1 use | D-J |
-| **exposure budget**: at each exposure, `Budget = min(ExposeSeconds, AimBudgetFactor × the AimSeconds of every seen threat whose danger to me ≥ AtDangerMin)`; `SeenAtFor` counts continuous sight of such a threat; withdraw at `SeenAtFor ≥ Budget` | the enemy's aim / lock time bounds the exposure (programme §3; R-246: if I see him, he sees me) |
+| **exposure budget**: at each exposure, `Budget = min(ExposeSeconds, AimBudgetFactor × the AimSeconds of every seen threat whose danger to me ≥ AtDangerMin)`; `SeenAtFor` counts continuous sight of such a threat; withdraw at `SeenAtFor ≥ Budget` | the enemy's aim / lock time bounds the exposure (programme §3; R-246: if I see him, he sees me). ⭐ **CE-2215 (`2026-10-16`, as built): "seen" = the threat CAN SEE ME — I see him, OR the line from where I remember him (eye 1.6 m) to my hull's top is clear of the terrain** (`VehicleFightFromCoverNodes.CanSeeMe`, read by `Budget` and the `SeenSince` clock). ⛔ SUPERSEDED: *"every seen threat"* (my own visual track only) — sight is not symmetric: live `ua-javelin-lock`, the tank did not see the Javelin gunner it knew of, exposed its full 8 s and gave him his 4 s lock. Rail `VehicleFightFromCoverNodesTests.CE2215_AnUnseenThreat_ThatCanSeeMe_BoundsTheExposure_AWallBetweenUsDoesNot` · ⭐ **CE-2216: the clock starts on the DRIVE OUT** (`Exposing`), not at the firing point: seen on the way out and over budget ⇒ back to the hide before the point; a clock already running on arrival keeps running (the tighter budget). ⛔ SUPERSEDED: *"at each exposure"* = from the firing point — live, Javelin A saw the tank ~3 s before it reached the point and launched as it arrived. Rail `CE2216_SeenOnTheDriveOut_TheBudgetRunsOut_BackToTheHide_BeforeTheFiringPoint` |
 | **cut short** on a Hit / NearMiss since `ExposedAt`, or a heard `HeavyWeapon` source within 30° of the threat (a launch) — `RecentSenses` | T5 |
 | **Guiding** (the weapon channel's reason): stay in Engaging until the round lands, unless hit | a command missile needs its gunner (Missiles §4) |
 | **hidden**: `TrackTarget` keeps the gun on the threat's last known point; firing replaces it; `TrackTarget.Stop` on leaving | T4; the two share one channel (§1) |
 | **front to the threat**: Exposing drives forward along the hide's facing; Reverse withdraws backwards — never turns | T3 |
-| **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides) | D-L |
+| **fire on the move**: in `Scoot`, `Fire` keeps running during the drive when the target is seen (a `FireOnMove` mount fires, others hold — the weapon brain decides). ⭐ **CE-2219 (`2026-10-16`, as built): EVERY drive to a hide (`MoveToHide`, the first one after contact included) fires at the threat it sees and tracks him when it does not** — `FireOrTrack`, the step `StandAndFight` already had. ⛔ SUPERSEDED: *"in `Scoot`"* only — live `ua-rpg-window`, an IFV surprised in the open drove 6 s to its first hide with the gun only tracking the RPG man it saw, and died without a round | D-L |
 | **watching**: no target ⇒ `Watching` (an observation exposure) for `WatchSeconds` | "for firing or watching" |
 | releases: stop fire, stop track, drop both sensors, stop the move, `ws = default`; `FiringPositionMemory` is kept | as PeekAndFire's `Release` |
 
@@ -339,6 +339,13 @@ that sees the block's whole west face, or let the cycle prefer firing points tha
 target expiring from memory, which ends the designation, is how `TopThreat` (CE-3170) is meant to behave. It is noted here because a
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
+
+⏸ **Update, after CE-2215/2216 (`2026-10-16`):** ① now runs end to end — A sees the tank on its drive out, the tank sees A, the tank
+fires back — ⛔ and still loses the lock race. 📐 Probed: the tank rates A at danger **0.11** (A is ~19° off the nose ⇒ the eye→hull line
+reads FRONT, and the direct Javelin barely beats the front's CE armour). 0.11 < `AtDangerMin` ⇒ A does not bound the budget, which is the
+budget working as designed. The round then scored on the **SIDE** (760 mm, 3000 → 1500). ⇒ the face the danger model predicts and the face
+the impact is scored on disagree for this shot: **CE-2217 (backend)**. Not measured: what turned the impact to the side (the missile
+curving after the reversing tank, the tank turning, or the body-part face).
 
 ⏸ **`ua-technical-scoot` (`2026-10-16`) — written, three runs, parked; geometry, not behaviour, so far:**
 
@@ -453,6 +460,16 @@ behaviour lane's.
 | LAW man | the same; the LAW is disposable (1 round each, 2 carried) | a light-vehicle killer |
 | Javelin / NLAW team (new type) | `CombatPosture` with `FiringPosition` (`FindOpenFiringPosition`) at range | the lock (aim time) needs continuous sight — the tank's short exposure denies it |
 | ATGM technical | `LandPlatformAttack` (this node, `Scoot`) | halts for the flight (FireOnMove no), Guiding |
+
+⭐ **Live `2026-10-16` — `ua-rpg-window` PASS 4 / 4** (bt-range; an RPG man at House A's upper window on `WindowDuel` shape A with
+`exposuresPerPosition` 1, two IFVs on `BasicVehicleSop` 50 m south). The composition holds with no new node: he hits an IFV's side, moves along
+the floor to the next window (x 107 → 102) and fires again; the IFVs fire back on the move and kill him. 📐 What the runs taught:
+
+| run | what happened | where it went |
+|---|---|---|
+| 1 | the IFV 23 m off drove under the window; his steep shot met his own wall 5 cm from the muzzle and killed him | **CE-2218 (backend)**: nothing tests muzzle → aim before release. The demo starts the IFVs 50 m off |
+| 2 | the IFV drove 6 s to its first hide with the gun only TRACKING him, and died without a round | **CE-2219 (fixed)**: `MoveToHide` fires at a seen threat (§4 *fire on the move*) |
+| 3 | the IFVs killed him after his first rocket, before the 3 exposures shape A spends at a window | an AT man fires and moves: `exposuresPerPosition` 1 |
 
 ## 8. Counter-drone (V8, D-H)
 

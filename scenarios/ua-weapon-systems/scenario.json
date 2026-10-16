@@ -1,0 +1,215 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert"
+ },
+ "entities": {
+  "a2222d00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9301
+   },
+   "TkbIdentity": {
+    "TkbType": 608
+   },
+   "EntityInfo": {
+    "Name": "Sentry Gun",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "WeaponSystemHold",
+    "Params": "{}",
+    "Origin": "Superior"
+   }
+  },
+  "a2222d00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     0,
+     250,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9302
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Intruder",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": "{\"x\": 0, \"y\": 30}",
+    "Origin": "Superior"
+   }
+  },
+  "a2222d00-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     120,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9303
+   },
+   "TkbIdentity": {
+    "TkbType": 600
+   },
+   "EntityInfo": {
+    "Name": "M2 HMG",
+    "ForceId": "Friend"
+   },
+   "WeaponSystemState": {
+    "Deploy": "Stowed",
+    "Until": 0
+   }
+  },
+  "a2222d00-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     128,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9304
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "M2 Gunner",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "SetUpWeapon",
+    "Params": "{\"weapon\": 9303}",
+    "Origin": "Superior"
+   }
+  },
+  "a2222d00-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     240,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9305
+   },
+   "TkbIdentity": {
+    "TkbType": 603
+   },
+   "EntityInfo": {
+    "Name": "Javelin",
+    "ForceId": "Friend"
+   },
+   "WeaponSystemState": {
+    "Deploy": "Stowed",
+    "Until": 0
+   }
+  },
+  "a2222d00-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     248,
+     0,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "NetworkIdentity": {
+    "Value": 9306
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Javelin Man",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "CarryWeapon",
+    "Params": "{\"weapon\": 9305}",
+    "Origin": "Superior"
+   }
+  }
+ }
+}
