@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -26,6 +28,30 @@ namespace Hrot.ScenarioEditor.Gizmos
         private readonly uint _hashShowScores;
         private readonly uint _hashShowVerdict;
         private EqsResult[] _verdict = new EqsResult[64];
+
+        // ⭐ CE-1160 (docs/designs/gizmos-1/DESIGN.md §11.11) — the verdict is CACHED per sensor and recomputed on a BUDGET: it runs the AI's
+        //   whole filter pipeline (sight tests against the terrain, for every candidate) on the DRAW thread, and doing that every frame for
+        //   every sensor froze the 3-D map on selection (🔒 user, 2026-10-16: "1 frame drawn in few seconds"). Debug dots a quarter second
+        //   old are harmless; a frozen frame is not.
+        private readonly Dictionary<(Entity Sensor, uint Template), VerdictCache> _verdicts = new();
+        private long _pruneAt;
+
+        /// <summary>The verdict is recomputed at least this often (s).</summary>
+        public const double VerdictRefreshSeconds = 0.25;
+        /// <summary>…and no sooner than this many times its own last cost: the verdict takes at most ~1/<c>N</c> of the frame time.</summary>
+        public const int VerdictCostFactor = 10;
+
+        /// <summary>The clock the cache runs on (<see cref="System.Diagnostics.Stopwatch"/> ticks; the rails set it).</summary>
+        public System.Func<long> Clock { get; set; } = System.Diagnostics.Stopwatch.GetTimestamp;
+
+        /// <summary>How many times the verdict was computed (the rail reads it).</summary>
+        public int VerdictsComputed { get; private set; }
+
+        private sealed class VerdictCache
+        {
+            public long NextAt, LastSeen;
+            public readonly List<(Vector3 Point, bool Kept)> Dots = new();
+        }
 
         /// <summary>A kept candidate (the filters let it through — e.g. hidden from the threat).</summary>
         public static readonly Rgba32 KeptColor     = new(0, 230, 90, 230);
@@ -112,6 +138,35 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// </summary>
         private void DrawVerdict(ISimulationView view, Entity entity, in EqsSensor sensor, IDebugDrawBuilder draw)
         {
+            long now = Clock();
+            var key = (entity, sensor.BlueprintId);
+            if (!_verdicts.TryGetValue(key, out var cache)) _verdicts[key] = cache = new VerdictCache();
+            cache.LastSeen = now;
+            if (now >= cache.NextAt)
+            {
+                long start = System.Diagnostics.Stopwatch.GetTimestamp();
+                ComputeVerdict(view, entity, in sensor, cache.Dots);
+                VerdictsComputed++;
+                long cost = System.Diagnostics.Stopwatch.GetTimestamp() - start;
+                long minimum = (long)(VerdictRefreshSeconds * System.Diagnostics.Stopwatch.Frequency);
+                cache.NextAt = now + System.Math.Max(minimum, cost * VerdictCostFactor);
+            }
+            foreach (var (point, kept) in cache.Dots)
+            {
+                var color = kept ? KeptColor : RejectedColor;
+                draw.DrawSphere(point, 0.3f, color, fillColor: color);
+            }
+            if (now >= _pruneAt)   // a sensor not drawn for a few seconds (deselected, gone) leaves the cache
+            {
+                long stale = 5L * System.Diagnostics.Stopwatch.Frequency;
+                foreach (var k in _verdicts.Where(kv => now - kv.Value.LastSeen > stale).Select(kv => kv.Key).ToList()) _verdicts.Remove(k);
+                _pruneAt = now + stale;
+            }
+        }
+
+        private void ComputeVerdict(ISimulationView view, Entity entity, in EqsSensor sensor, List<(Vector3 Point, bool Kept)> dots)
+        {
+            dots.Clear();
             var registry = view is EntityRepository repo && repo.HasSingletonManaged<IEqsTemplateRegistry>()
                 ? repo.GetSingletonManaged<IEqsTemplateRegistry>()
                 : null;
@@ -126,10 +181,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             var generated = candidates.Slice(0, count);
             EqsFilters.Run(in template, entity, ref probe, view, generated);
             foreach (ref readonly var c in generated)
-            {
-                var color = c.EntityId == -1L ? RejectedColor : KeptColor;
-                draw.DrawSphere(new Vector3(c.PositionX, c.PositionY, c.PositionZ + 0.1f), 0.3f, color, fillColor: color);
-            }
+                dots.Add((new Vector3(c.PositionX, c.PositionY, c.PositionZ + 0.1f), c.EntityId != -1L));
         }
     }
 }
