@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Weather;
@@ -163,6 +164,65 @@ namespace Fdp.Toolkit.Tests.Weather
             Assert.Equal(150f, WeatherField.At(foggy, new Vector3(0, 0, 2)).VisibilityM, 0);
             Assert.Equal(20_000f, WeatherField.At(foggy, new Vector3(0, 0, 200)).VisibilityM, 0);
             Assert.Equal(3.912f / 150f, WeatherField.At(foggy, new Vector3(0, 0, 2)).ExtinctionPerM, 5);
+        }
+
+        // ── §6.3 — clouds: aviation cover, cover above the point, the deck ──────────────────────────────────────────────────
+
+        /// <summary>⭐ §6.3 — a layer can be written by its aviation name, and the octas map back to the METAR bands (SKC 0 · FEW 1–2 · SCT
+        /// 3–4 · BKN 5–7 · OVC 8); broken and overcast make a ceiling, scattered does not.</summary>
+        [Fact]
+        public void Clouds_AnAuthorCanSayOvercast_AndTheOctasMapToTheMetarBands()
+        {
+            Assert.Equal(new[] { CloudCover.Clear, CloudCover.Few, CloudCover.Few, CloudCover.Scattered, CloudCover.Scattered,
+                                 CloudCover.Broken, CloudCover.Broken, CloudCover.Broken, CloudCover.Overcast },
+                         new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }.Select(CloudCovers.Of));
+            foreach (CloudCover c in Enum.GetValues<CloudCover>()) Assert.Equal(c, CloudCovers.Of(CloudCovers.Octas(c)));
+
+            var w = Clear();
+            w.SetCloud(0, 1500f, 600f, CloudCover.Scattered, CloudKind.Cumulus);
+            w.CloudCount = 1;
+            Assert.Equal(float.PositiveInfinity, WeatherField.CeilingOf(w));
+            w.SetCloud(1, 2500f, 400f, CloudCover.Overcast, CloudKind.Stratus);
+            w.CloudCount = 2;
+            Assert.Equal((byte)8, CloudDeck.Of(w).Layer(1).Octas);
+            Assert.Equal(2500f, WeatherField.CeilingOf(w));
+        }
+
+        /// <summary>
+        /// ⭐ §6.3 — an overcast deck at 1 500–2 300 m shades the ground (the Kasten–Czeplak cut, a quarter of the clear sun) and a point
+        /// INSIDE it, but not an aircraft above it: there the sun is the clear-sky sun, though the sky (seen from the ground) is still
+        /// overcast. 🔴 Red-proof: cut by the total cover ⇒ the aircraft above the deck reads ~255 W/m², not ~1020.
+        /// </summary>
+        [Fact]
+        public void Clouds_AnOvercastDeck_ShadesBelowAndInside_NotAbove()
+        {
+            using var world = WorldWith(Overcast(), new DateTime(2025, 6, 21, 0, 0, 0, DateTimeKind.Utc));
+            var noon = new DateTime(2024, 3, 20, 12, 8, 0, DateTimeKind.Utc);   // the sun overhead at 0°, 0°
+            var ground = WeatherField.At(world, Vector3.Zero, noon);
+            var inside = WeatherField.At(world, new Vector3(0, 0, 1800), noon);
+            var above = WeatherField.At(world, new Vector3(0, 0, 3000), noon);
+            Assert.InRange(ground.IrradianceWm2, 240f, 270f);
+            Assert.InRange(inside.IrradianceWm2, 240f, 270f);
+            Assert.InRange(above.IrradianceWm2, 1000f, 1025f);
+            Assert.Equal(8f, above.CloudOctas, 3);           // the sky is still overcast
+            Assert.Equal(0f, above.CloudOctasAbove, 3);      // nothing over the aircraft
+            Assert.True(above.RelativeLight > ground.RelativeLight);
+        }
+
+        /// <summary>⭐ §6.3 — the sample carries the deck as authored, layer by layer (a renderer draws it): a broken cumulus layer under an
+        /// overcast cirrus deck.</summary>
+        [Fact]
+        public void Clouds_TheSampleCarriesTheLayers()
+        {
+            var w = Clear();
+            w.SetCloud(0, 1500f, 800f, CloudCover.Broken, CloudKind.Cumulus);
+            w.SetCloud(1, 8000f, 500f, CloudCover.Overcast, CloudKind.Cirrus);
+            w.CloudCount = 2;
+            using var world = WorldWith(w, new DateTime(2025, 6, 21, 0, 0, 0, DateTimeKind.Utc));
+            var deck = WeatherField.At(world, Vector3.Zero).Clouds;
+            Assert.Equal(2, deck.Count);
+            Assert.Equal((1500f, 800f, (byte)7, CloudCover.Broken, CloudKind.Cumulus), deck.Layer(0));
+            Assert.Equal((8000f, 500f, (byte)8, CloudCover.Overcast, CloudKind.Cirrus), deck.Layer(1));
         }
 
         /// <summary>⭐ W-4 — UTC is the start time + the sim time; ⛔ no day rate. And a world with no World Environment reads the C-3 default.</summary>

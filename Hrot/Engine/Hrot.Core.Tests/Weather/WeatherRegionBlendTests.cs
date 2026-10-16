@@ -66,6 +66,22 @@ namespace Hrot.Core.Tests.Weather
             Assert.Equal(wind, WeatherField.WindAt(_w, new Vector3(25, 0, 500)));
         }
 
+        /// <summary>⭐ §6.3 — where a region and the global weather share a point the cover is BLENDED (the light) but the DECK is the
+        /// stronger weather's (a renderer draws one sky): an overcast region over a clear global, 30 % of the way to its edge.</summary>
+        [Fact]
+        public void Clouds_TheDeckIsTheStrongerWeathers_TheCoverIsBlended()
+        {
+            var overcast = Weather(15f, 0f, 0f);
+            overcast.SetCloud(0, 1000f, 600f, CloudCover.Overcast, CloudKind.Stratus);
+            overcast.CloudCount = 1;
+            Region(new Vector2(0, 0), 100f, overcast);
+            var s = WeatherField.At(_w, new Vector3(30, 0, 0));       // the region weighs smoothstep(0.7) ≈ 0.78
+            Assert.Equal(1, s.Clouds.Count);
+            Assert.Equal(CloudCover.Overcast, s.Clouds.Layer(0).Cover);
+            Assert.InRange(s.CloudOctas, 0.78f * 8f - 0.1f, 0.78f * 8f + 0.1f);   // the global (clear here) fills the rest
+            Assert.Equal(0, WeatherField.At(_w, new Vector3(-300, 0, 0)).Clouds.Count);   // outside: the global's (no layers)
+        }
+
         /// <summary>⭐ An area without weather (a tactical area, a terrain zone) and weather without an area are no region.</summary>
         [Fact]
         public void AnAreaWithoutWeather_AndWeatherWithoutAnArea_AreNoRegion()
@@ -96,6 +112,7 @@ namespace Hrot.Core.Tests.Weather
         private static WeatherConditions Weather(float meanC, float windFrom, float windSpeed)
         {
             var w = WeatherConditions.Standard;
+            w.CloudCount = 0;   // clear unless a test says otherwise
             w.GroundTemperatureC = meanC;
             w.SetWind(0, -1000f, windFrom, windSpeed, 0f);
             w.WindCount = 1;

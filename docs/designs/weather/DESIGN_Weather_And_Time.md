@@ -245,3 +245,15 @@ against the almanac, light bands, §4 temperature / pressure / density / irradia
 (Hrot.Core — regions add, the global fills, an overlap normalises, the wind across two regions, an area without weather is no region) ·
 `DescentModelsTests.CE3216_ARoundCanopy_DriftsOnTheWindAtItsHeight` (+ the three wind rails ported off the singleton) · IT-SA-5 now also
 carries the global weather to SimHost on `dtWeather`.
+
+### 6.3 Clouds — aviation cover, cover above a point, the deck ✅ BUILT `2026-10-16` (🔒 user: *"do we support cloud types in multiple altitude levels? can we specify overcast and similar?"* → *"yes please"*)
+
+| | |
+|---|---|
+| **layers** | up to 4 per weather (global or regional), each its own base (m MSL), thickness, cover and kind (stratus · cumulus · stratocumulus · cirrus · cumulonimbus) — unchanged from §6.2 |
+| **aviation cover** | `CloudCover` { Clear · Few · Scattered · Broken · Overcast } = the METAR bands (SKC 0 · FEW 1–2 · SCT 3–4 · BKN 5–7 · OVC 8 octas); `SetCloud(i, base, thickness, CloudCover.Overcast, kind)` stores the band's upper value (FEW 2, SCT 4, BKN 7, OVC 8 — conservative for the light and the ceiling); octas stay the stored value. A ceiling is the lowest BKN / OVC base |
+| **cover above the point** (§4 "cloud cover above") | `WeatherSample.CloudOctasAbove` = the layers whose TOP is above the point (inside a cloud counts), overlapping at random. ⭐ The irradiance and the light read it: an aircraft above an overcast deck has the clear-sky sun; the ground under it a quarter of it. `CloudOctas` (every layer, seen from the ground) still drives the day–night temperature swing. ⛔ SUPERSEDES §6.2's "irradiance from the total cover" |
+| **the deck** | `WeatherSample.Clouds` (`CloudDeck`) = the STRONGEST contributing weather's layers as authored (W-2: a deck is a category; the cover numbers are blended) — what S3's renderer draws |
+
+**Rails:** `WeatherFieldTests.Clouds_*` (the bands; shade below, inside, not above a deck; the deck in the sample) ·
+`WeatherRegionBlendTests.Clouds_TheDeckIsTheStrongerWeathers_TheCoverIsBlended`.

@@ -12,6 +12,35 @@ namespace Fdp.Toolkit.Weather
     /// <summary>Daylight band from the sun's elevation (the standard twilight limits, §4).</summary>
     public enum LightBand : byte { Night = 0, AstronomicalTwilight = 1, NauticalTwilight = 2, CivilTwilight = 3, Day = 4 }
 
+    /// <summary>⭐ CE-3216 S1 (§6.3) — up to <see cref="WeatherConditions.MaxCloudLayers"/> cloud layers, as authored.</summary>
+    public unsafe struct CloudDeck
+    {
+        public byte Count;
+        private fixed float _base[WeatherConditions.MaxCloudLayers];
+        private fixed float _thickness[WeatherConditions.MaxCloudLayers];
+        private fixed byte _octas[WeatherConditions.MaxCloudLayers];
+        private fixed byte _kind[WeatherConditions.MaxCloudLayers];
+
+        /// <summary>The deck of <paramref name="w"/>.</summary>
+        public static CloudDeck Of(WeatherConditions w)
+        {
+            var d = new CloudDeck { Count = (byte)Math.Min((int)w.CloudCount, WeatherConditions.MaxCloudLayers) };
+            for (int i = 0; i < d.Count; i++)
+            {
+                d._base[i] = w.CloudBaseM[i]; d._thickness[i] = w.CloudThicknessM[i]; d._octas[i] = w.CloudOctas[i]; d._kind[i] = w.CloudKind[i];
+            }
+            return d;
+        }
+
+        /// <summary>Layer <paramref name="i"/>: base (m MSL), thickness (m), cover (octas, and its aviation band) and kind.</summary>
+        public readonly (float BaseM, float ThicknessM, byte Octas, CloudCover Cover, CloudKind Kind) Layer(int i)
+        {
+            if ((uint)i >= Count) throw new ArgumentOutOfRangeException(nameof(i));
+            fixed (float* b = _base) fixed (float* t = _thickness) fixed (byte* o = _octas) fixed (byte* k = _kind)
+                return (b[i], t[i], o[i], CloudCovers.Of(o[i]), (CloudKind)k[i]);
+        }
+    }
+
     /// <summary>⭐ CE-3216 S1 — the weather at one point and moment: everything §4 derives, the one answer every consumer reads.</summary>
     public struct WeatherSample
     {
@@ -31,8 +60,14 @@ namespace Fdp.Toolkit.Weather
         public float VisibilityM;
         /// <summary>Extinction coefficient σ = 3.912 / V, per metre (Koschmieder).</summary>
         public float ExtinctionPerM;
-        /// <summary>Total sky cover, octas (0…8).</summary>
+        /// <summary>Total sky cover, octas (0…8) — every layer, as seen from the ground (the day–night swing reads it).</summary>
         public float CloudOctas;
+        /// <summary>⭐ §6.3 — the cover of the layers whose TOP is above the point, octas: what shades the point (the irradiance and the light
+        /// read it). Above an overcast deck it is 0.</summary>
+        public float CloudOctasAbove;
+        /// <summary>⭐ §6.3 — the cloud layers at the point, for a renderer: the STRONGEST contributing weather's deck (W-2: a deck is a
+        /// category; the cover numbers above are blended).</summary>
+        public CloudDeck Clouds;
         /// <summary>Lowest base (m MSL) of a layer of ≥ 5 octas; +∞ when none.</summary>
         public float CeilingM;
         public PrecipitationKind Precipitation;
@@ -239,7 +274,8 @@ namespace Fdp.Toolkit.Weather
             var sun = SolarPosition.Of(utc, lat, lon);
 
             // ⭐ W-2 — scalars linearly, the wind as a vector, extinction (not visibility) linearly, categories by the strongest
-            float mean = 0, lapse = 0, slp = 0, rh = 0, gust = 0, sigma = 0, octas = 0, precipRate = 0;
+            float mean = 0, lapse = 0, slp = 0, rh = 0, gust = 0, sigma = 0, octas = 0, octasAbove = 0, precipRate = 0;
+            var deck = default(CloudDeck);
             var wind = Vector2.Zero;
             float strongest = -1f; float ceiling = float.PositiveInfinity; byte precip = 0;
             for (int i = 0; i < n; i++)
@@ -255,20 +291,21 @@ namespace Fdp.Toolkit.Weather
                 gust += w * g;
                 sigma += w * 3.912f / VisibilityOf(x, point.Z - ground);
                 octas += w * TotalOctas(x);
+                octasAbove += w * OctasAbove(x, point.Z);
                 precipRate += w * x.PrecipitationMmPerHour;
-                if (w > strongest) { strongest = w; ceiling = CeilingOf(x); precip = x.Precipitation; }
+                if (w > strongest) { strongest = w; ceiling = CeilingOf(x); precip = x.Precipitation; deck = CloudDeck.Of(x); }
             }
 
             var s = new WeatherSample
             {
                 Utc = utc, RelativeHumidity = rh, Wind = wind, WindGustMps = gust, ExtinctionPerM = sigma,
-                VisibilityM = sigma > 0f ? 3.912f / sigma : float.PositiveInfinity, CloudOctas = octas, CeilingM = ceiling,
+                VisibilityM = sigma > 0f ? 3.912f / sigma : float.PositiveInfinity, CloudOctas = octas, CloudOctasAbove = octasAbove, CeilingM = ceiling, Clouds = deck,
                 Precipitation = (PrecipitationKind)precip, PrecipitationMmPerHour = precipRate,
                 SunElevationDeg = sun.ElevationDeg, SunAzimuthDeg = sun.AzimuthDeg,
             };
 
-            // irradiance: 1361 · sin(elevation) · τ × the Kasten–Czeplak cloud cut 1 − 0.75 (N/8)^3.4
-            float cloudCut = 1f - 0.75f * MathF.Pow(Math.Clamp(octas / 8f, 0f, 1f), 3.4f);
+            // irradiance: 1361 · sin(elevation) · τ × the Kasten–Czeplak cloud cut 1 − 0.75 (N/8)^3.4 — N the cover ABOVE the point (§6.3)
+            float cloudCut = 1f - 0.75f * MathF.Pow(Math.Clamp(octasAbove / 8f, 0f, 1f), 3.4f);
             float sinEl = (float)Math.Sin(sun.ElevationDeg * Math.PI / 180.0);
             s.IrradianceWm2 = sinEl > 0f ? SolarConstant * sinEl * ClearSkyTransmittance * cloudCut : 0f;
             (s.Light, s.RelativeLight) = LightOf(sun.ElevationDeg, cloudCut);
@@ -336,6 +373,17 @@ namespace Fdp.Toolkit.Weather
             float clear = 1f;
             int n = Math.Min((int)w.CloudCount, WeatherConditions.MaxCloudLayers);
             for (int i = 0; i < n; i++) clear *= 1f - Math.Clamp(w.CloudOctas[i] / 8f, 0f, 1f);
+            return 8f * (1f - clear);
+        }
+
+        /// <summary>⭐ §6.3 — the cover over <paramref name="altitudeM"/> (MSL): the layers whose top is above it (a point inside a cloud is
+        /// shaded by it), overlapping at random like <see cref="TotalOctas"/>.</summary>
+        public static unsafe float OctasAbove(WeatherConditions w, float altitudeM)
+        {
+            float clear = 1f;
+            int n = Math.Min((int)w.CloudCount, WeatherConditions.MaxCloudLayers);
+            for (int i = 0; i < n; i++)
+                if (w.CloudBaseM[i] + MathF.Max(w.CloudThicknessM[i], 0f) > altitudeM) clear *= 1f - Math.Clamp(w.CloudOctas[i] / 8f, 0f, 1f);
             return 8f * (1f - clear);
         }
 

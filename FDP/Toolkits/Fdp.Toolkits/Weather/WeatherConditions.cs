@@ -8,6 +8,41 @@ namespace Fdp.Toolkit.Weather
     /// <summary>Kind of a cloud layer (a category: the strongest contributor wins a blend, W-2).</summary>
     public enum CloudKind : byte { Stratus = 0, Cumulus = 1, Stratocumulus = 2, Cirrus = 3, Cumulonimbus = 4 }
 
+    /// <summary>
+    /// ⭐ CE-3216 S1 (DESIGN_Weather_And_Time.md §6.3) — a cloud layer's cover by its aviation name (METAR): the octas
+    /// (<see cref="WeatherConditions.CloudOctas"/>) stay the stored value; this names the bands so an author can say "overcast".
+    /// </summary>
+    public enum CloudCover : byte
+    {
+        /// <summary>SKC — 0 octas.</summary>
+        Clear = 0,
+        /// <summary>FEW — 1–2 octas.</summary>
+        Few = 1,
+        /// <summary>SCT — 3–4 octas.</summary>
+        Scattered = 2,
+        /// <summary>BKN — 5–7 octas (a ceiling).</summary>
+        Broken = 3,
+        /// <summary>OVC — 8 octas (a ceiling).</summary>
+        Overcast = 4,
+    }
+
+    /// <summary>The octas ↔ <see cref="CloudCover"/> mapping (the METAR bands).</summary>
+    public static class CloudCovers
+    {
+        /// <summary>The octas an author's cover stands for — the band's upper value (FEW 2, SCT 4, BKN 7, OVC 8): conservative for the
+        /// light and the ceiling.</summary>
+        public static byte Octas(CloudCover cover) => cover switch
+        {
+            CloudCover.Few => 2, CloudCover.Scattered => 4, CloudCover.Broken => 7, CloudCover.Overcast => 8, _ => 0,
+        };
+
+        /// <summary>The band <paramref name="octas"/> falls in.</summary>
+        public static CloudCover Of(int octas) => octas switch
+        {
+            <= 0 => CloudCover.Clear, <= 2 => CloudCover.Few, <= 4 => CloudCover.Scattered, <= 7 => CloudCover.Broken, _ => CloudCover.Overcast,
+        };
+    }
+
     /// <summary>Kind of precipitation (a category: the strongest contributor wins a blend, W-2).</summary>
     public enum PrecipitationKind : byte { None = 0, Drizzle = 1, Rain = 2, Snow = 3, Sleet = 4, Hail = 5 }
 
@@ -112,6 +147,10 @@ namespace Fdp.Toolkit.Weather
         {
             WindAltitudeM[i] = altitudeM; WindFromDeg[i] = fromDeg; WindSpeedMps[i] = speedMps; WindGustMps[i] = gustMps;
         }
+
+        /// <summary>Writes cloud layer <paramref name="i"/> by its aviation cover ("overcast at 1 500 m") — does not change <see cref="CloudCount"/>.</summary>
+        public void SetCloud(int i, float baseM, float thicknessM, CloudCover cover, CloudKind kind)
+            => SetCloud(i, baseM, thicknessM, CloudCovers.Octas(cover), kind);
 
         /// <summary>Writes cloud layer <paramref name="i"/> (does not change <see cref="CloudCount"/>).</summary>
         public void SetCloud(int i, float baseM, float thicknessM, byte octas, CloudKind kind)
