@@ -45,6 +45,38 @@ namespace Fdp.Toolkit.Combat
             return at;
         }
 
+        /// <summary>⭐ CE-1125 — how far from the target's <see cref="Middle"/> (plus its hull height) a point may lie and still be ON the
+        /// unit: a standing man's head is ~0.7 m above his middle, his feet ~1 m below it.</summary>
+        public const float OnUnitMetres = 1.5f;
+
+        /// <summary>⭐ CE-1125 — <paramref name="point"/> in <paramref name="unit"/>'s own frame (its position and rotation), so a point the
+        /// operator's crosshair put on him can be carried as he moves (<see cref="FromUnitFrame"/>).</summary>
+        public static Vector3 ToUnitFrame(EntityRepository repo, Entity unit, Vector3 point)
+        {
+            if (!repo.HasComponent<SimTransform>(unit)) return point;
+            var t = repo.GetComponentRO<SimTransform>(unit);
+            return Vector3.Transform(point - t.Position, Quaternion.Inverse(t.Rotation));
+        }
+
+        /// <summary>⭐ CE-1125 — a point held in <paramref name="unit"/>'s frame (<see cref="ToUnitFrame"/>), back in the world.</summary>
+        public static Vector3 FromUnitFrame(EntityRepository repo, Entity unit, Vector3 local)
+        {
+            if (!repo.HasComponent<SimTransform>(unit)) return local;
+            var t = repo.GetComponentRO<SimTransform>(unit);
+            return t.Position + Vector3.Transform(local, t.Rotation);
+        }
+
+        /// <summary>
+        /// ⭐ CE-1125 — where an operator's shot locked on <paramref name="unit"/> goes: <paramref name="crosshair"/> (the point the ray met
+        /// on him) while it is ON him, else his <see cref="Middle"/>. 🔒 User, 2026-10-16: <i>"when i aim at character and fire i always hit
+        /// the belly of a standing figure"</i> — the lock aimed at the middle and dropped the point.
+        /// </summary>
+        public static Vector3 Operator(EntityRepository repo, Entity unit, Vector3 crosshair)
+        {
+            var middle = Middle(repo, unit, out _, out float hullHeight);
+            return Vector3.Distance(crosshair, middle) <= OnUnitMetres + hullHeight ? crosshair : middle;
+        }
+
         public static Vector3 For(ISimulationView view, IWorldQuery? world, Vector3 eye, Vector3 middle,
             Entity target, StanceId stance, float hullHeight, float penetration, List<Vector3> scratch)
         {

@@ -173,11 +173,12 @@ namespace Hrot.UI.Common.Map3D
             return width;
         }
 
-        /// <summary>⭐ CE-1078 — where the locked shot is: its unit's middle while it stands, else the locked point.</summary>
+        /// <summary>⭐ CE-1078 — where the locked shot is: on its unit while it stands, else the locked point. ⭐ CE-1125 — the point the
+        /// crosshair put on him, carried with him (the same rule the shot follows, <c>AimPoint.Operator</c>), not his middle.</summary>
         private static Vector3 LockedWorldPoint(EntityRepository w, FpsCameraDriver d)
             => d.LockedTarget != 0 && w.HasSingletonManaged<NetworkEntityMap>()
                && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(d.LockedTarget, out var e) && w.IsAlive(e) && w.HasComponent<SimTransform>(e)
-                ? Fdp.Toolkit.Combat.AimPoint.Middle(w, e, out _, out _) : d.LockedPoint;
+                ? Fdp.Toolkit.Combat.AimPoint.Operator(w, e, Fdp.Toolkit.Combat.AimPoint.FromUnitFrame(w, e, d.LockedLocal)) : d.LockedPoint;
 
         /// <summary>
         /// ⭐ CE-1078 — where the selected weapon's turret points: along its posed barrel (the hull's heading + <see cref="TurretPose"/>),
@@ -378,6 +379,10 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1078 — where the last press locked (the unit's box hit, or the ground).</summary>
         public Vector3 LockedPoint { get; private set; }
 
+        /// <summary>⭐ CE-1125 — <see cref="LockedPoint"/> in the locked unit's own frame (the brain holds it the same way), so the ring follows
+        /// the point on him as he moves.</summary>
+        public Vector3 LockedLocal { get; private set; }
+
         /// <summary>⭐ CE-1078 / CE-1080 — what the crosshair rests on this frame: the point, and the unit's network id (0 = none).</summary>
         public Vector3 AimAt { get; private set; }
         public long AimTarget { get; private set; }
@@ -496,6 +501,9 @@ namespace Hrot.UI.Common.Map3D
                 unchecked { _shotSeq++; }
                 _shotTarget = aimTarget;
                 LockedPoint = aimAt;
+                LockedLocal = aimTarget != 0 && _world() is { } lw && lw.HasSingletonManaged<NetworkEntityMap>()
+                              && lw.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(aimTarget, out var lockedUnit)
+                    ? Fdp.Toolkit.Combat.AimPoint.ToUnitFrame(lw, lockedUnit, aimAt) : aimAt;
                 _ammoAtPress = AmmoOf(Mount);
                 ShotPending = true;
             }
