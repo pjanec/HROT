@@ -264,7 +264,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(FindVehicleHide.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.HideSite)).BlueprintId);
             Assert.Equal(VehiclePhase.Choose, d.Ws.Phase);
 
+            d.See(false);   // unseen on the drive in — seen, the drive would fire too (CE-2219, its own rail)
             d.ToHide(HideA);
+            d.See(true);
             Assert.True(d.Tracking, "hidden, the gun is kept on the threat (T4)");
             Assert.False(d.Sensor(VehicleFightFromCoverNodes.FiringSite).IsNull, "hidden, the node asks for a firing point");
             Assert.Equal(FindVehicleFiringPoint.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.FiringSite)).BlueprintId);
@@ -451,9 +453,9 @@ namespace Hrot.SimHost.Tests
         public void CE2219_DrivingToItsHide_ItFiresAtTheThreatItSees_AndTracksHimWhenItDoesNot()
         {
             var d = new Duel(Tank());
-            d.ToHide(HideA);
-            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
-            d.Orbits = true;                                                 // the drive takes as long as it takes
+            d.Orbits = true;                                                 // the drive to the first hide takes as long as it takes
+            d.Step();
+            d.Answer(VehicleFightFromCoverNodes.HideSite, 5, HideA);
             Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide));
             d.Run(1.0);
             Assert.Equal(VehiclePhase.MoveToHide, d.Ws.Phase);
