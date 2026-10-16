@@ -944,13 +944,14 @@ caller that asks `PickFilter.Aim` is the FPS station — every other click still
 | SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
 | the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
 
-## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — ⚠ PRELIMINARY, NOT READY TO BUILD
+## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — ✅ READY TO BUILD (`CE-1151`…`CE-1158`)
 
 🔒 **User, `2026-10-16`:** *"There should be a key (or keys) that allows acting on stuff aimed at - opening/closing doors, dragging a body,
 possessing a vehicle (becoming a driver there) or weapon operator if the standalone or vehicle mounted weapon is clicked - this needs bigger
 discussion."* → on the leans U-1…U-7 below: *"approved, but just preliminarily so you write the design where you suggest how to wire it all,
-then i will need to think about that , i.e. not ready to built"*. ⇒ **build-state of this section: DESIGN.** The open points (§8h.5) are the
-user's to settle before any slice starts.
+then i will need to think about that , i.e. not ready to built"*. → on the explanation, `2026-10-16`: *"sound good! … pls records into items
+and write handoff to the backend node and behavior node to implement"*. ⇒ **build-state of this section: READY-TO-BUILD.** The items and lanes
+are §8h.4; the brain → HUD verdict the user asked about is §8h.6.
 
 ### 8h.1 INVENTORY — what already exists (measured `2026-10-16`; graph `search_graph` Class `.*Interaction.*`, `.*Executor.*`; grep)
 
@@ -982,8 +983,11 @@ classDiagram
     class DoorActionExecutor { <<existing>> }
     class PickUpExecutor { <<existing>> PutDownExecutor beside it }
     class EmbarkExecutor { <<existing>> DisembarkExecutor beside it }
-    class PossessionStation { <<existing, grows>> + the hand-over: Drive / Get out switch the held unit · HUD prompt line }
-    class EntityOrders { <<existing, grows>> Possess releases what this station held }
+    class PossessionStation { <<existing, grows>> + the hand-over: Drive / Get out switch the held unit · HUD prompt line · verdict line }
+    class EntityOrders { <<existing, grows>> Possess(unit, mode) · a new Fps possession releases this station's other Fps unit }
+    class PossessionMode { <<existing enum, grows>> Fps · + Riding: held, task paused, frames ignored }
+    class OperatorUseStatus { <<new component, Brain group, dtOperatorUseStatus 141>> UseSeq · ActionId · Outcome · Reason }
+    class Embarkation { <<existing, grows>> + CanEmbark: TryEmbark's checks without seating, one rule for both }
     FpsCameraDriver ..> OperatorUseActions : HUD prompt
     FpsCameraDriver --> OperatorControlFrameEvent
     OperatorControlFrameEvent ..> ControlFrameInteractionPayload : off-node
@@ -995,7 +999,11 @@ classDiagram
     ActionDispatchModule --> DoorActionExecutor
     ActionDispatchModule --> PickUpExecutor
     ActionDispatchModule --> EmbarkExecutor
-    PossessionStation ..> EntityOrders : Release then Possess
+    PossessionStation ..> EntityOrders : Riding then Possess
+    OperatorControlBehavior --> OperatorUseStatus : writes the verdict
+    PossessionStation ..> OperatorUseStatus : reads, replicated
+    OperatorUseActions ..> Embarkation : CanEmbark
+    EntityOrders ..> PossessionMode
 ```
 
 *What the picture shows that prose hid:* nothing new acts on the world — the use key only CHOOSES one of five executors that already have reach,
@@ -1011,9 +1019,11 @@ sequenceDiagram
     D->>O: frame UseSeq+1, UseVerb 0, UseTarget = the door
     O->>O: OperatorUseActions.For(soldier, door), primary = Open
     O->>X: InteractionChannel = Open door, new instance
-    X->>X: in reach? (2 m) else Failure, HUD "too far"
+    O-->>D: OperatorUseStatus UseSeq, Running (replicated, §8h.6)
+    X->>X: in reach? (2 m) else Failure
     X->>T: DoorCommandEvent (routed by the interaction topic)
     T-->>D: replicated DoorState, the leaf swings
+    O-->>D: OperatorUseStatus UseSeq, Success or Refused + Reason
 ```
 
 ```mermaid
@@ -1024,12 +1034,13 @@ sequenceDiagram
     D->>S: frame UseSeq+1, target = the BMP, primary = Drive
     S->>V: EmbarkEntityCommand, Role Driver (EmbarkExecutor)
     V-->>D: replicated passenger list, the soldier aboard
-    D->>S: Release (the soldier's paused task resumes, aboard)
-    D->>V: Possess, remember Rider = the soldier
+    D->>S: Possess mode Riding (his task stays paused - O-2)
+    D->>V: Possess mode Fps, remember Rider = the soldier
     Note over D,V: the human now drives and shoots the BMP (crew abstract, B5)
     D->>V: E pressed: Get out
-    D->>V: Release
-    D->>S: Possess, then a frame UseSeq+1, verb Get out
+    D->>S: Possess mode Fps (a take-over, the operator behaviour keeps running)
+    D->>V: Release (the vehicle's own task resumes)
+    D->>S: frame UseSeq+1, verb Get out
     S->>V: DisembarkEntityCommand
 ```
 
@@ -1046,7 +1057,8 @@ graph TD
     OC -.->|NEW: interaction channel| AD[ActionDispatchModule, brain host]
     AD --> EX[door / pick-up / embark executors]
     EX --> IT[interaction topic to the target's owner]
-    ST[PossessionStation] -.->|NEW: Release then Possess| EO[EntityOrders]
+    ST[PossessionStation] -.->|NEW: Riding then Possess| EO[EntityOrders]
+    OC -.->|NEW: OperatorUseStatus, Brain group| ST
     classDef dead fill:#fdd,stroke:#c00
     GAP1[station weapon list counts only the man's own mounts]:::dead
     GAP2[EntityOrders.Possess does not release the held unit]:::dead
@@ -1061,7 +1073,7 @@ reaches the operator's weapon keys, and a second `Possess` leaves the station ho
 |---|---|---|
 | **U-1** | keys | ⭐ ONE key, `E`, acts on what the crosshair rests on; the HUD names it (*E Open door · E Drag · E Drive BMP · E Man ZU-23*). Holding `E` lists the other verbs (lock / unlock / breach; carry instead of drag). `E` again undoes: put the body down, get out |
 | **U-2** | wire | ⭐ three fields appended to the frame / `OperatorInput` / payload: `UseSeq` (a counter, §8e), `UseVerb` (0 = the primary), `UseTarget` (network id). The BRAIN decides with `OperatorUseActions` and writes the action into the `InteractionChannel` — exactly how `OperateWeapon` writes the weapon channel. The station calls the same rule only for its HUD |
-| **U-3** | reach | ⭐ out of reach ⇒ the executor refuses and the HUD says *too far*; no walk-to. The prompt is greyed past reach |
+| **U-3** | reach | ⭐ out of reach ⇒ the executor refuses; no walk-to. The prompt is greyed past reach — the STATION predicts it from replicated state; the brain's own refusal comes back as `OperatorUseStatus` (§8h.6) |
 | **U-4** | driving | ⭐ `E` on a vehicle boards the soldier in its Driver seat; the STATION then releases the soldier and possesses the vehicle, remembering him as the rider; `E` in the vehicle reverses it (possess him, he disembarks). Flyers alike (*Pilot*) |
 | **U-5** | weapons | ⭐ a STANDALONE weapon: `E` = take its Gunner seat; possession stays on the soldier and the weapon joins his keys 1–4 (`WeaponSystems.Controlled`, index 32+k — the fire path already takes it). A VEHICLE's weapon: as U-4 (the vehicle fires its station gun; one human drives and shoots, crew abstract) |
 | **U-6** | bodies | ⭐ `E` on an incapacitated man = drag (`PickUp`, Dragged); hold-`E` = carry; `E` again = put down; the HUD says the rifle is slung (C7). Stretchers (two men, T4) not in v1 |
@@ -1072,26 +1084,78 @@ raising the door / embark commands itself* — it would skip the executors' reac
 target* — takes the body away from the operator · *a driver / gunner split now* — crew is abstract by design (B5) · *the brain moving
 possession on boarding* — the soldier and the vehicle may live on two brain nodes.
 
-### 8h.4 Proposed slices (after the open points are settled)
+### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs [backend](blueprints/batches/HANDOFF_Use_Key_To_Backend.md) · [behaviors](blueprints/batches/HANDOFF_Use_Key_To_Behaviors.md) · [ui](blueprints/batches/HANDOFF_Use_Key_To_UI.md))
 
-| slice | builds | lanes |
-|---|---|---|
-| S9a | `OperatorUseActions`; the three frame fields + codec; `OperateUse` for doors and bodies; the HUD prompt and hold-`E` list | backend (toolkit, NED codec) · behaviors (operator brain) · ui (station, HUD) |
-| S9b | standalone weapons: `E` = Gunner seat; the station's weapon list and HUD include the controlled weapons | ui · behaviors |
-| S9c | driving: `EntityOrders.Possess` releases the held unit, `HeldHere` takes the newest; the station's hand-over and rider memory | ui |
+| id | slice | builds | lane | needs |
+|---|---|---|---|---|
+| `CE-1151` | S9a | the three frame fields end to end: `OperatorControlFrameEvent`, `OperatorInput`, `ControlFrameInteractionPayload`, `InteractionTransport` both ways, `PossessionSystem`'s copy, the Debug API body | backend | — |
+| `CE-1152` | S9a | `OperatorUseActions.For` + `UseAction` + `UseReason`; `Embarkation.CanEmbark` (TryEmbark's checks without seating — `TryEmbark` calls it); reads ONLY replicated components | backend | — |
+| `CE-1153` | S9a | `OperatorUseStatus` (Brain group) + `dtOperatorUseStatus` = 141 + both translators + ownership mapping + registration on every host | backend | — |
+| `CE-1154` | S9a | `OperatorControlBehavior.OperateUse`: a new `UseSeq` ⇒ the rule ⇒ the action on the `InteractionChannel` (doors 4–8, pick up 9 / put down 10); writes `OperatorUseStatus` | behaviors | 1151–1153 |
+| `CE-1155` | S9b | standalone weapon: `E` = embark into its Gunner seat; the possessed man fires it through the controlled index (32+k) | behaviors | 1154 |
+| `CE-1156` | S9c | `PossessionMode.Riding`: `PossessionSystem` holds the unit, keeps its task paused, ignores frames; a mode change is a take-over | backend | — |
+| `CE-1157` | S9c | the operator brain while Riding holds still and stays aboard; `E` on a vehicle = embark Driver / Pilot; Get out = disembark | behaviors | 1154, 1156 |
+| `CE-1158` | S9a–c | the station: `E` counter + verb + target, hold-`E` list (O-1), the HUD prompt (local prediction) and the verdict line; the weapon list counts controlled mounts; the hand-over (`EntityOrders.Possess(unit, mode)`, `HeldHere` skips Riding) | ui | 1151–1153, 1156 |
 
 ### 8h.5 Open points — ✅ ALL SIX ACCEPTED as leaned (user, `2026-10-16`: *"O-1,2,3,4,5,6 accepted."*)
 
-⚠ The section stays **DESIGN**: U-1…U-7 were approved preliminarily and the user has not said *ready to build*.
+✅ `2026-10-16`: the user asked for items and handoffs — the section is **READY-TO-BUILD** (§8h.4).
 
 | | the question | lean, if asked |
 |---|---|---|
 | **O-1** | hold-`E`: a small list near the crosshair, or a radial? | a short list — fewer pixels over the view |
-| **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | ✅ pause it: the station keeps a "riding" mark the soldier's brain honours |
+| **O-2** | while the human drives, the soldier's own task resumes aboard — could it order him out (a squad move)? | ✅ pause it — the mark is `PossessionMode.Riding` (`CE-1156`): the station keeps holding the soldier, so his task stays paused by the possession that already pauses it (origin Possession), and frames are not sent to him |
 | **O-3** | the vehicle already has an AI driving it: does the human simply take over (its task pauses, as for any possession)? | yes — possession outranks it (origin rank, Q83) |
 | **O-4** | two humans board the same vehicle | one station per unit (C-3): the second becomes a passenger, not its driver |
 | **O-5** | a gunner and a driver as different humans | waits for crew to stop being abstract |
 | **O-6** | stretchers / two-man weapons for a human | later: naming the assistant is its own design (T4) |
+
+### 8h.6 The verdict back to the station — the brain runs on CGF, the HUD on the player's node
+
+🔒 User, `2026-10-16`: *"brain is on CGF, HUD is on whatever player node. How can brain action communication with its player node to show
+anything on HUD?"*
+
+| the answer rests on | code — how it IS | design basis |
+|---|---|---|
+| everything the rule reads is already on every node: positions, doors, health, seats, passengers, weapon systems | `HrotSharedComponentRegistry.cs:51` `SimTransform`, `:94` `DoorState`, `:116-129` `PassengerBuffer` / `CarrierSeats` / `CarrierStations` / `WeaponSystemParams` / `IsEmbarkedTag`, `:159` `Health`; the IG calls the same `RegisterAll` (`IgNodeBootstrapper.cs:206`) | Entity Interactions §7.4 (state replicated, commands routed) |
+| the reach test is a pure function of two replicated transforms | `OpenDoorExecutor.InReach` (`OpenDoorExecutor.cs:102-108`), static | Building Interiors §3j |
+| the executor's verdict stays on the brain: `InteractionChannel` is brain-local and says only `Failure`, never why | `ChannelComponents.cs:41-50` (`Status` only), registered by the cognitive registry, not the shared one; `OpenDoorExecutor.cs:66,76,83,85` | ⛔ searched `docs/` + `.dev/`, no design returns an interaction verdict to a station |
+| the precedent for "brain state the HUD needs" is a mirrored Brain-group descriptor | `WeaponAmmoMirrorSystem` → `dtWeaponAmmo` 130 (`WeaponAmmo.cs:10`, `NedOwnershipGroupBinding.cs:116`); `dtPossessedBy` 129 | §8e module diagram (`WAM -->|dtWeaponAmmo| HUD`) |
+
+**Decision — two layers, no new channel:**
+
+1. **Before the press, the station predicts.** It calls the same `OperatorUseActions.For` on its own replicated copy: the prompt, the
+   greyed *too far*, *locked*, *seat taken*, *he is not down* are all drawn without asking the brain. The rule may read only replicated
+   components; that is the condition that makes the prediction match the brain (`CE-1152`).
+2. **After the press, the brain answers in state, not in a message.** The operator behaviour writes `OperatorUseStatus { UseSeq, ActionId,
+   Outcome (Running / Done / Refused), Reason }` on the possessed unit (Brain group, `dtOperatorUseStatus` = 141, `CE-1153`), exactly as the
+   ammo reaches the HUD. The station shows it when `UseSeq` is its own last press. The effect itself (the leaf swings, the man is aboard)
+   arrives through the state that is already replicated.
+
+```mermaid
+sequenceDiagram
+    participant P as player node (station + HUD)
+    participant C as CGF (the soldier's brain)
+    P->>P: OperatorUseActions.For on replicated state, prompt "E Open door" or greyed "too far"
+    P->>C: control frame UseSeq 7, verb 0, target door (interaction topic)
+    C->>C: same rule, then InteractionChannel = Open door
+    C-->>P: OperatorUseStatus 7 Running (dtOperatorUseStatus)
+    C->>C: executor ends Success or Failure
+    C-->>P: OperatorUseStatus 7 Done, or Refused + Reason
+    P->>P: HUD line "door opened" / "too far" for 2 s
+```
+
+*What the picture shows that prose hid:* the HUD never waits on the brain to draw the prompt — only the verdict line waits, and it waits on
+replicated state the station already receives for the ammo.
+
+**Rejected — one line each:** *a reply event from brain to station* — a lost or late event leaves the HUD stale, a counter in state does not ·
+*replicate the `InteractionChannel`* — its params and state blobs for every unit, to say one word to one station · *station-only
+verdict* — it cannot see the brain's refusals (a door locked a tick earlier, a seat just taken) · *reasons from the executors* — they return
+only `Failure`; the rule already knows why an action is unavailable, so `Reason` comes from it (an executor failure after a start is
+`Reason = Failed`).
+
+⚠ **Every map host must receive it** — the IG included. 📌 CE-1139 (`2026-10-16`) measured a shared component that never reached the IG;
+`CE-1153` checks the new descriptor live on the IG the same way, and CE-1147 / CE-1148 (stance unification, retire "pure IG") remove the cause.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
