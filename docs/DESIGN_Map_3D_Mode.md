@@ -1741,8 +1741,8 @@ salvoes (air weapons F1–F4), the fire mission's aim points (IF-2), real gun ty
 a casualty with `IsEmbarkedTag.Mode == Stretcher` and the `IsAssistingTag` second man), the attack helicopter 406's own kit (it resolves
 to the generic helicopter), the door gunners (404's seats 8–11 — ✅ CHECKED `2026-10-15` in `CE1105_V`: they draw through the station path, but the gunner's seat sat inside the fuselage; CE-1106 moved it into the door, §6u), a dense
 stream for the M134 / GAU-8 (the clients see only every 5th M134 round, at the behaviour's cadence), the real gun types (600–612 resolve to
-the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). STILL BLOCKED — the sheaf aim points and the
-fire-mission form (behaviors' IF-2). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
+the weapon-system kits, 107 to the SP-artillery kit — verified in the picker golden). ~~STILL BLOCKED — the sheaf aim points and the
+fire-mission form (behaviors' IF-2).~~ ✅ **DONE `2026-10-16` — §6x** (CE-1121). ⭐ HANDED TO BACKEND (`CE-1102`, [handoff](blueprints/batches/HANDOFF_Ui_To_Backend_Presets_Elevation_Attitude.md)): the laid elevation (P2), pitch and roll (P3), the active weapon (P4), and the weapon presets that replace the editor placement (P1, 🔒 R-1001). ✅ **DELIVERED `2026-10-15` (`b6ad14c83`, merged into ui `103c9903a`)**: P1 / P2 / P3 need no ui change (the HMMWV and the new technicals 108 / 109 draw through the station path; the laid tube through `LaidPose`; the attitude arrives in `SimTransform.Rotation`); P4 is CE-1107. ⚠ Left: a heading-only attribute patch still levels a banked body ([steer](blueprints/batches/STEER_Backend_P3_Every_Ingress_Restores_Attitude.md) row 7).
 
 ⭐ **CE-1108 — found checking P1 in a frame (`CE1102_V`):** the technicals' gunner seat (104 / 105 / 108 / 109) had **no place**, so its
 rifleman was drawn at the pickup's reference point, inside the body; the HMMWV's ring gunner sat at 1.2 m and only his head cleared the roof.
@@ -2444,6 +2444,13 @@ editor map shows the same pattern, and a gun that has fired its rounds drops its
 **Rejected — one line each:** *drawing the battery's plan from the Brain's play params* — they are not replicated, so only the Brain node
 could draw it; *a new layer bit* — the layer panel, its persistence and its rails for a mark that only exists during a mission;
 *a Strike-specific form* — a second form for one order is what §13.12 retired.
+
+**As-built `2026-10-16`** — matches the diagrams: `Hrot.Presentation/Orders/FireMissionOverlayGizmo.cs` (`AimsOf`, `IndirectMount` — its own
+mount or the controlled weapon's at 32 + k; the ring from `CombatTkb.WarheadOf`'s blast injury radius, else its fragment radius, else 20 m),
+registered in `MapInteractionPack` BEFORE the live-only order block so a replay draws the marks too. Measured on the way: every tactical-brain
+unit carries a `WeaponPosture` (`BehaviorTkbTranslator.cs:144-146`), so an M109 or a mortar's gunner publishes its aim with no new component.
+Rails `MenuOrdersTests.FX1_*` and `IF2_ABatteryAndAnSpGun_*` (the form, measured); red-proved by five breaks. ⚠ Not screenshotted: the marks
+are ordinary gizmo spheres and lines, drawn in 2-D and draped in 3-D by the existing renderers (§6e).
 
 ## 7. NOT VERIFIED — say so before it is built on
 
