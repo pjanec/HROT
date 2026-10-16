@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-13 (R-2006)
-current-answer: ⭐ §0 (CE-2230, DESIGN 2026-10-16 — the tank run rebuilt on the vehicle exposure cycle; leans HA-1..HA-6 awaiting the user). Until it is built, §1–§6 describe the running build; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
+current-answer: ⭐ §0 (CE-2230, DESIGN 2026-10-16 — the tank run rebuilt on the vehicle exposure cycle; HA-3 ruled by the user: one round then back, pairs alternate; HA-1/2/4/5/6 as leaned). Until it is built, §1–§6 describe the running build; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
 stale-below: nothing.
 known-rot: ⛔ `PlatoonHillAttackBp` and its scenario `hill-attack-close-bp` are RETIRED (R-2006, 2026-10-13: "we prefer csharp hardcoded version"); the C# `PlatoonHillAttack` is the hill attack. Its node usages live on in `SubordinateForEachDemo` (DESIGN_Orders_Params_Entity_Classes.md §13.5) (the `PlatoonHillAttackBpAuthoring` mention near §4 is history) · ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
   destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
@@ -110,8 +110,8 @@ sequenceDiagram
   end
   N->>L: seen → Stop (hull-down: only the turret clears the crest)
   N->>F: Fire(target, MountAuto) — the weapon brain picks gun and round (M8)
-  F-->>N: target down → next SEEN threat, until none is seen (HA-3)
-  N->>L: Withdraw: REVERSE to the hide (V5) — on a hit / near miss at once
+  F-->>N: ONE round left (RoundsPerExposure = 1, HA-3)
+  N->>L: Withdraw: REVERSE to the hide (V5) — on a hit / near miss before the round, at once
   N-->>T: MaxExposures reached → Success
   T-->>C: run ended (BehaviorFinished) · wave completion as today (§4.5)
 ```
@@ -140,9 +140,9 @@ system, no new registration — the only edge that changes is HullDownAttackRun 
 |---|---|---|---|---|
 | **HA-1** | where the tank run lives | ⭐ **inside the exposure cycle**: `VehicleFightFromCover` gains a LANE exposure (given hide + lane start + direction) and `MaxExposures`; `HullDownAttackRun` becomes `Sequence{ Parallel(1){UntilTargetDown ‖ cycle(lane, 1 exposure)}, reverse home }` | the shared cycle gains 4 params, all zero = today's behaviour (every existing vehicle demo unchanged); the 5 tank nodes and their 2 deactivator test classes are deleted | if the cycle's urban rules (hide heat, scoot, relocate) fight the lane — then a sibling node reusing the cycle's steps |
 | **HA-2** | when the creep stops | ⭐ **the first tick the tank SEES its locked target** (`SightNow.Sees` — any body point clear), checked through the WHOLE drive, approach included; the 50 m overshoot cap stays (CE-174) | lane mode only | if "first sight" proves too early (one pixel of the target) — then require ≥ 2 body points, a one-line change |
-| **HA-3** | how long it stays up | ⭐ **until nothing it SEES is alive**: after its target dies the next seen threat is fired at (standard ranking, designated first); a HIT or NEAR MISS still sends it back at once (the cycle's rule); the time budget is OFF for the lane (hull-down shows only the turret, and the waves alternate) | lane mode only | if you want shoot-and-duck: keep the cycle's exposure budget (0.7 × the quickest enemy gunner's aim time) |
-| **HA-4** | target and weapon | ⭐ **the commander's pick is a DESIGNATION** (ranked first, entered in memory so the tank tracks it from behind the crest); the weapon brain picks the gun and the round (`MountAuto`, M8); `MaxRounds = 1` goes | the commander's dispatch DTO drops `MaxRounds`/`RoundsFired`/`LastObservedAmmo` | none expected — R-261 |
-| **HA-5** | the commander | ⭐ **kept as it is** (waves, area query, slots, burned slots, return to baseline) — only its dispatch payload changes | `HillAttackCommanderNodes` dispatch only | if you want the squad-manoeuvre runner instead — it does not exist (`HillCrestHullDownManeuver` is a stub); that is its own programme |
+| **HA-3** | how long it stays up | ✅ **USER, `2026-10-16` — ONE ROUND, THEN BACK INTO COVER** (shoot and duck): the cycle's `RoundsPerExposure = 1` at its target, then the reverse; a hit or near miss before the round sends it back at once, and the cycle's exposure budget stays ON (the standard rule). The PAIRS alternate — one pair comes up, fires, goes back; the next pair comes up — until every target is dead. 🔒 *"the tank doesn't stay up until there is anything to fire at. The tank is firing just one round and then moving back to cover. Because if it would stay, it would be exposed to enemy fire, which is the goal not to be. So the tanks go in pairs, usually. They reach the crest of the hill, they fire at their target and they go back. And another pair comes up the hill and does the same procedure. And they alternate like that until all targets are dead."* ⛔ SUPERSEDED lean: *"until nothing it SEES is alive"* | lane mode only | — |
+| **HA-4** | target and weapon | ⭐ **the commander's pick is a DESIGNATION** (ranked first, entered in memory so the tank tracks it from behind the crest); the weapon brain picks the gun and the round (`MountAuto`, M8); the ONE round is the cycle's `RoundsPerExposure = 1` (HA-3), counted by the executor | the commander's dispatch DTO drops `MaxRounds`/`RoundsFired`/`LastObservedAmmo` (the bespoke ammo-diff counter) | none expected — R-261 |
+| **HA-5** | the commander | ⭐ **kept as it is** — its waves ARE the alternating pairs (HA-3): `Entity.Index` parity splits a platoon of four into two pairs (§4.4), each wave one exposure per tank, the loop runs until the area query finds no live target; area query, slots, burned slots, return to baseline unchanged — only its dispatch payload changes | `HillAttackCommanderNodes` dispatch only | if you want the squad-manoeuvre runner instead — it does not exist (`HillCrestHullDownManeuver` is a stub); that is its own programme |
 | **HA-6** | the demo | ⭐ **a new `ua-hill-attack` on `basic-desert`'s ridge** (platoon south of it, two enemy tanks north, beyond the crest), with a live check: no tank's hull above the crest when it fires, every tank reverses, both enemies die; `hill-attack` / `hill-attack-close` stay untouched (CE-174) and keep running | a new scenario + checker entry | if you would rather the existing scenarios move to the ridge |
 
 **Rejected:** a new hill-only fire node — duplicates `PostureNodes.Fire` (R-256 L1(d)) · the squad-manoeuvre `HillCrestHullDown` —
@@ -161,7 +161,7 @@ the library cycle.
 
 | slice | what | rails |
 |---|---|---|
-| **H-1** | the cycle's lane mode: `GivenHide`, `LaneStart`/`LaneDir`, `MaxExposures`; the lane exposure step; HA-3's stay-while-seen | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · stays and re-targets while a target is seen · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
+| **H-1** | the cycle's lane mode: `GivenHide`, `LaneStart`/`LaneDir`, `MaxExposures`; the lane exposure step | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · one round, then the reverse to the given hide · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
 | **H-2** | `HullDownAttackRun` rebuilt on it; the dispatch payload trimmed; the 5 tank nodes retired | `HillAttackIntegrationTests` (the feature's own suite) + `HillAttackNodeTests` re-homed to the new run |
 | **H-3** | `ua-hill-attack` on the ridge + its checker; the runbook | live: hull-down at the shot, reverse home, both enemies dead |
 | **H-4** | fold the as-built here; this section's §3–§4 to HISTORY | — |
