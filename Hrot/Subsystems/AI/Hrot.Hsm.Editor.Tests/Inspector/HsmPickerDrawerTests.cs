@@ -313,6 +313,22 @@ public sealed class HsmPickerDrawerTests
                clrType:  typeof(string),
                metadata: new StructEdit.Core.EditNodeMetadata { CustomAttributes = new[] { attr } });
 
+    /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the HSM factory forwards the host's picker to the binding, the state
+    /// and the event pickers — one shared choice field.</summary>
+    [Fact]
+    public void CE1008_TheHostsPicker_ReachesTheBindingStateAndEventPickers_OneSharedField()
+    {
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>> open = (_, _) => { };
+        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset(), openPicker: open);
+        var binding   = (ActionBindingDrawer)drawers[typeof(BehaviorActionBindingFacet)];
+        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
+        var state = (HsmStateSelectorDrawer)composite.Resolve(NodeWithAttribute(new HsmStateSelectorAttribute()))!;
+        var ev    = (HsmEventPickerDrawer)composite.Resolve(NodeWithAttribute(new HsmEventPickerAttribute()))!;
+        binding.Field.CanSearch.Should().BeTrue();
+        state.Field.Should().BeSameAs(binding.Field);
+        ev.Field.Should().BeSameAs(binding.Field);
+    }
+
     private static System.Collections.Generic.IReadOnlyList<string> ItemsFor(
         Hrot.Editor.AiShared.Catalog.IAssetCatalog catalog, Hrot.Editor.AiShared.AssetKind kind)
     {

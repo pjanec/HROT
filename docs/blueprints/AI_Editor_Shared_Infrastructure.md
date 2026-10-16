@@ -1085,6 +1085,17 @@ graph TD
 | an `EditNode` lives for one selection | ✅ `EditSession` keeps its document until a structural change (`EditSession.cs:16,53-57`) | ⛔ searched, no design states it — measured only |
 | the BTree method LIST is the right list | ⛔ **not measured** — it is the behaviour registry's names (`BTreePickerDrawers.cs:42`), not the `[BTreeAction]` exporter's | ⛔ not this item's question (it is search, not list contents) — recorded as an open measurement for the behaviors lane |
 
+#### AS-BUILT (`CE-1008`, `2026-10-16`, ui) — as designed
+
+`PickerField` + `PickerChoice` + `PickerChoices` in `Hrot.Editor.AiShared/Inspector/PickerField.cs`; `AiFacetPickerServices.OpenPicker`
+→ both drawer factories (`openPicker`, one `PickerField` per document) → `ActionBindingDrawer` (method as an FQN tree, blueprint, variable,
+working state), `HsmStateSelectorDrawer`, `HsmEventPickerDrawer` (the pick maps back to the event id), `AiAssetPickerDrawer`,
+`AiBehaviorPickerDrawer`. Both hosts pass `_shellPickers.OpenPicker` (`EditorSubsystem`, `CgfSubsystem`). The private combo helpers became
+`PickerField.Combo` (the no-picker fallback), so two duplicate combo bodies are gone. The button keeps the old combos' visible labels
+("method", "blueprint" …). ⚠ No frame screenshot yet (the picker opens over the editor; rails cover the request and the landing).
+Rails: `PickerFieldTests` ×3 (none + every choice, landing on its node only, once; none clears, cancel does nothing; the FQN tree),
+`BTreePickerDrawerTests.CE1008_…`, `HsmPickerDrawerTests.CE1008_…` (the forwarding: one shared field). Each red-proved.
+
 ### 7.2 Per-subsystem graph model
 
 Each subsystem implements `IGraphModel` over its in-memory editor model. The implementation is a thin projection:
