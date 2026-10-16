@@ -126,8 +126,10 @@ namespace Fdp.Toolkit.Perception.Sensors
     public sealed class StrategySightTest : IEqsTest, IEqsCostWeight
     {
         private readonly ILosStrategy _strategy;
-        private ISimulationView? _batchFor;
-        private uint _batchTick;
+        // ⭐ CE-1160 — which batch THIS THREAD's strategy holds (the strategy's batch is per thread too): the EQS solver's background thread
+        //   and the map's EQS verdict on the draw thread call this one instance (CE-1055's rule, now for the filter).
+        private sealed class BatchMark { public ISimulationView? For; public uint Tick; }
+        private readonly System.Threading.ThreadLocal<BatchMark> _mark = new(() => new BatchMark());
 
         public StrategySightTest(ILosStrategy strategy) => _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
 
@@ -140,11 +142,12 @@ namespace Fdp.Toolkit.Perception.Sensors
         {
             var unit = EqsContext.Self(view, observer, sensor);
             bool unitOk = !unit.IsNull && view.IsAlive(unit) && view.HasComponent<SimTransform>(unit);
-            if (unitOk && (!ReferenceEquals(view, _batchFor) || view.Tick != _batchTick))
+            var mark = _mark.Value!;
+            if (unitOk && (!ReferenceEquals(view, mark.For) || view.Tick != mark.Tick))
             {
                 _strategy.BeginBatch(view);
-                _batchFor  = view;
-                _batchTick = view.Tick;
+                mark.For  = view;
+                mark.Tick = view.Tick;
             }
             for (int i = 0; i < candidates.Length; i++)
             {

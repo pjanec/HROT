@@ -34,39 +34,47 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     public sealed class PlanarCircleLosStrategy : ILosStrategy
     {
         private readonly Func<ISimulationView, Entity, float>? _radius;
-        private readonly List<(Entity E, Vector2 P, float R)> _colliders = new();
-        private readonly RideGroups _rides = new();   // ⭐ WS-4
-        private readonly ColliderIndex _index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
-        private readonly List<int> _near = new();
+        // ⭐ CE-1160 — the batch is per calling thread, as TerrainWorldLosStrategy's (the solver and the map's EQS verdict share a template).
+        private sealed class Batch
+        {
+            public readonly List<(Entity E, Vector2 P, float R)> Colliders = new();
+            public readonly RideGroups Rides = new();   // ⭐ WS-4
+            public readonly ColliderIndex Index = new();   // ⭐ CE-3032 — the colliders near the segment, not all of them
+            public readonly List<int> Near = new();
+        }
+        private readonly System.Threading.ThreadLocal<Batch> _batch = new(() => new Batch());
 
         public PlanarCircleLosStrategy(Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
             => _radius = colliderRadiusReader;
 
         public void BeginBatch(ISimulationView view)
         {
-            _colliders.Clear();
+            var b = _batch.Value!;
+            var colliders = b.Colliders;
+            colliders.Clear();
             foreach (var c in view.Query().With<SimTransform>().WithComponentId(GlobalComponentIds.PhysicsCollider).Build())
             {
                 if (!view.IsAlive(c)) continue;
                 if (PhysicalPresence.IsHidden(view, c)) continue;   // ⭐ CE-3110 I-2c (R-271) — an enclosed passenger is no cover
                 var p = view.GetComponentRO<SimTransform>(c).Position;
-                _colliders.Add((c, new Vector2(p.X, p.Y), _radius?.Invoke(view, c) ?? 0f));
+                colliders.Add((c, new Vector2(p.X, p.Y), _radius?.Invoke(view, c) ?? 0f));
             }
-            _index.Build(_colliders.Count, i => _colliders[i].P, i => _colliders[i].R);
-            _rides.Build(view);
+            b.Index.Build(colliders.Count, i => colliders[i].P, i => colliders[i].R);
+            b.Rides.Build(view);
         }
 
         public bool IsVisible(ISimulationView view, Entity observer, Entity target)
         {
+            var batch = _batch.Value!;
             var a3 = view.GetComponentRO<SimTransform>(observer).Position;
             var b3 = view.GetComponentRO<SimTransform>(target).Position;
             var a = new Vector2(a3.X, a3.Y);
             var b = new Vector2(b3.X, b3.Y);
-            _index.Query(a, b, _near);
-            foreach (int k in _near)
+            batch.Index.Query(a, b, batch.Near);
+            foreach (int k in batch.Near)
             {
-                var (e, p, r) = _colliders[k];
-                if (e.Index == observer.Index || e.Index == target.Index || _rides.Together(e, observer) || _rides.Together(e, target)) continue;
+                var (e, p, r) = batch.Colliders[k];
+                if (e.Index == observer.Index || e.Index == target.Index || batch.Rides.Together(e, observer) || batch.Rides.Together(e, target)) continue;
                 if (LosGeometry.LegacyCrossing(a, b, p, r)) return false;
             }
             return true;
@@ -100,10 +108,18 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private readonly Func<ISimulationView, Entity, float>? _height;
         private readonly Func<ISimulationView, Entity, float>? _hull;
         private readonly Func<ISimulationView, Entity, StanceId>? _stance;
-        private readonly ColliderOcclusion _occlusion = new();   // ⭐ CE-1032 — the 3-D collider test, shared with fragments (W-6′)
-        // ⭐ R-219 — bound to the BATCH's view (its doors; a background perception batch runs on its snapshot)
-        private Fdp.Toolkit.World.IWorldQuery? _world;
-        private readonly List<Fdp.Toolkit.World.TraceCrossing> _explainScratch = new();
+        // ⭐⭐ CE-1160 — the BATCH is per calling thread (the CE-1055 rule, BroadphaseCache): the EQS solver runs this on its background
+        //   thread and the map's EQS verdict (EqsSensorGizmo, CE-3143) on the draw thread, through the SAME template. 📐 Shared, one
+        //   caller rebuilt the colliders while the other read them: ArgumentOutOfRangeException in ColliderOcclusion.Blocking (user,
+        //   2026-10-16), after frames of "1 frame in few seconds". Per thread, neither touches the other's batch.
+        private sealed class Batch
+        {
+            public readonly ColliderOcclusion Occlusion = new();   // ⭐ CE-1032 — the 3-D collider test, shared with fragments (W-6′)
+            // ⭐ R-219 — bound to the BATCH's view (its doors; a background perception batch runs on its snapshot)
+            public Fdp.Toolkit.World.IWorldQuery? World;
+            public readonly List<Fdp.Toolkit.World.TraceCrossing> ExplainScratch = new();
+        }
+        private readonly System.Threading.ThreadLocal<Batch> _batch = new(() => new Batch());
 
         /// <param name="worldSource">The terrain world now resident; null result = no terrain (colliders only).</param>
         /// <param name="colliderRadiusReader">Collider radius (as the planar strategy).</param>
@@ -154,9 +170,9 @@ namespace Fdp.Toolkit.Perception.LineOfSight
 
         public void BeginBatch(ISimulationView view)
         {
-            _world = _worldSource(view);
-
-            _occlusion.Build(view, _radius, _height);
+            var batch = _batch.Value!;
+            batch.World = _worldSource(view);
+            batch.Occlusion.Build(view, _radius, _height);
         }
 
         /// <summary>The height of the entity's eye above its Z for its current posture.</summary>
@@ -216,6 +232,10 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             float eh = EyeHeight(view, observer);
             eye.Z += eh;
             var points = new List<LosPoint>();
+            var batch = _batch.Value!;
+            var world = batch.World;
+            var scratch = batch.ExplainScratch;
+            var occlusion = batch.Occlusion;
             foreach (var aim in BodyPoints(view, target, st))
             {
                 // ⭐ CE-1035 Q2 — the world query (bound to the batch view's doors, R-219): the verdict is SightBlocked, the SAME question
@@ -223,14 +243,14 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 float? transmittance = null;
                 IReadOnlyList<Fdp.Toolkit.World.TraceCrossing>? crossed = null;
                 bool terrainBlocks = false;
-                if (_world != null)
+                if (world != null)
                 {
-                    _world.Trace(eye, aim, Fdp.Toolkit.World.TracePurpose.Sight, _explainScratch);
+                    world.Trace(eye, aim, Fdp.Toolkit.World.TracePurpose.Sight, scratch);
                     float product = 1f;
-                    foreach (var c in _explainScratch) product *= c.Loss;
+                    foreach (var c in scratch) product *= c.Loss;
                     transmittance = product;
-                    crossed = _explainScratch.ToArray();
-                    terrainBlocks = _world.SightBlocked(eye, aim);
+                    crossed = scratch.ToArray();
+                    terrainBlocks = world.SightBlocked(eye, aim);
                 }
                 float height = aim.Z - view.GetComponentRO<SimTransform>(target).Position.Z;
                 if (terrainBlocks)
@@ -238,7 +258,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                     points.Add(new(height, aim, false, transmittance, crossed, null, $"blocked by terrain: transmittance {transmittance:0.###} < {TerrainWorld.SightThreshold}"));
                     continue;
                 }
-                var blocker = _occlusion.Blocking(eye, aim, observer, target, out bool unknownHeight);
+                var blocker = occlusion.Blocking(eye, aim, observer, target, out bool unknownHeight);
                 points.Add(blocker is { } b
                     ? new(height, aim, false, transmittance, crossed, b, unknownHeight ? "blocked by an entity of unknown height" : "blocked by an entity within its height")
                     : new(height, aim, true, transmittance, crossed, null, transmittance == null ? "clear (no terrain resident)" : $"clear: transmittance {transmittance:0.###} ≥ {TerrainWorld.SightThreshold}"));
@@ -268,12 +288,15 @@ namespace Fdp.Toolkit.Perception.LineOfSight
             var stance = _stance?.Invoke(view, target) ?? StanceId.Standing;
             float collider = _hull?.Invoke(view, target) ?? 0f;
             float scale = collider > 0f ? collider : EyeHeightFor(view, target, stance);
+            var batch = _batch.Value!;
+            var world = batch.World;
+            var occlusion = batch.Occlusion;
             // ⭐ Stage 4 — SEEN when ANY body point's line is clear (a standing man's head over a 1.2 m wall is seen)
             foreach (float f in BodyProfile.Fractions(stance, collider > 0f))
             {
                 var aim = basePos with { Z = basePos.Z + f * scale };
-                if (_world != null && _world.SightBlocked(eye, aim)) continue;
-                if (_occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
+                if (world != null && world.SightBlocked(eye, aim)) continue;
+                if (occlusion.Blocking(eye, aim, observer, target, out _) == null) return true;
             }
             return false;
         }
