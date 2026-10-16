@@ -528,8 +528,9 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ WS-6 (Weapon Systems §10) — with the PRODUCTION registry, a WEAPON SYSTEM's (class 1.1.*.50) ATTACK resolves to
         /// <c>WeaponSystemAttack</c> and its HOLD to <c>WeaponSystemHold</c> — not the land platform's exposure cycle (it cannot move) nor
-        /// <c>PlatformHold</c> (Idle: a holding sentry gun never fired); a tank's attack stays <c>LandPlatformAttack</c>. 🔴 Red-proof: drop the
-        /// <c>[Behavior]</c> on <c>BuildAttack</c> and the sentry gun resolves to <c>LandPlatformAttack</c>.
+        /// <c>PlatformHold</c> (Idle: a holding sentry gun never fired); a tank's attack stays <c>LandPlatformAttack</c>. 🔴 Red-proof: rename the
+        /// behaviour (<c>BehaviorNames.WeaponSystemAttack</c> ≠ "WeaponSystem" + "Attack") and the sentry gun resolves to <c>LandPlatformAttack</c>.
+        /// ⚠ Dropping only its <c>[Behavior]</c> attribute stays GREEN — the curated registrar registers the name from <c>[BTreeDefinition]</c>.
         /// </summary>
         [Fact]
         public void WS6_AWeaponSystemsAttackAndHold_ResolveTo_WeaponSystemAttackAndHold()
