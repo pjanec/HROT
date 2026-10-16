@@ -2,7 +2,8 @@
 state: LIVE
 updated: 2026-10-16
 build-state: DESIGN — cars: all decisions RULED 2026-10-16 (§0, R-4020…R-4031) except E7b (no LFS, lean). Pedestrians and
-  panic (§8): SumoSharp may be extended (R-4031); P1–P8 are LEANS awaiting the user. Nothing is dispatched; §6 is the slice plan.
+  panic (§8): P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1's promotion zones (lean: drop them). The civilians themselves
+  (P5, P6) moved to docs/DESIGN_Civilians_And_Crowd_Control.md, a separate programme built first (R-4033). Nothing is dispatched; §6 is the slice plan.
 current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
@@ -31,6 +32,8 @@ related-designs:
     restoring), which the mirror module obeys (§4 E5).
   - External: github.com/pjanec/SumoSharp — docs/SUMOSHARP-API.md, docs/PACKAGES.md, docs/SUMOSHARP-DEADRECKONING.md,
     docs/EXTERNAL-AGENTS-VIZ.md, docs/PEDESTRIANS.md, demos/City3D (CityLib).
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — ⭐ OWNS the civilians a panicked SUMO pedestrian becomes (one family, panic as a
+    MODE — supersedes §8 P5's single type), the Neutral targeting gate (§8 P6 ⇒ its CIV-0) and the riot/non-lethal work.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — owns the civilian behaviours (CIV-2 panic flight, CIV-7 shelter; ruling D3 civilians as HSM crowd agents) that §8 P5 hands panicked pedestrians to.
 -->
 
@@ -291,7 +294,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | 5 | R-4023 handover (`KinematicsMode.Traffic`) | a vehicle handed over arrives at its destination on SUMO roads and is taken back; ownership never changes |
 | 6 | E6 pedestrians | promoted pedestrians near our units react to them; ambient ones are drawn without entities |
 
-## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 are LEANS)*
+## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
 
 ### 8.1 INVENTORY *(two read-only sweeps, 2026-10-16; code graph CLI + grep)*
 
@@ -333,7 +336,7 @@ sequenceDiagram
 traffic-node crash (it is optional, R-4027) cannot delete people mid-incident (R-4008); and one network id spans the
 handover, which is what lets every receiver swap its mirror for the real entity without a jump.
 
-### 8.3 Leans
+### 8.3 Decisions *(ACCEPTED 2026-10-16, R-4032 — P5 and P6 are now owned by DESIGN_Civilians_And_Crowd_Control.md: P5's type is superseded by its CV-1 family, P6 is its slice CIV-0)*
 
 | id | question | ⭐ lean | rejected — one line each |
 |---|---|---|---|
@@ -361,6 +364,20 @@ handover, which is what lets every receiver swap its mirror for the real entity 
 - Low-power peds report z = 0 on a 3-D net (SumoSharp's open bug, `TUTORIAL-PEDESTRIANS.md`) — under R-4025 they would walk under raised sidewalks.
 - High-power ORCA peds have no walls (`PedLodManager.cs:216-218`) — they follow waypoints only.
 - No panic state on the wire — a panicked ped that stays in SumoSharp (P7) shows only as a new leg and a promotion.
+
+### 8.6 ⚠ P1 re-examined — **do we need promotion zones?** *(user: "I would carefully consider if we really need promotion zones"; lean, not ruled)*
+
+📐 **Measured:** cars see EVERY pedestrian on a crosswalk, promoted or not — crossing occupancy covers everyone
+(`TUTORIAL-LIVE-CITY.md`, "The coupling: one seam"); only a low-power pedestrian standing in the road ELSEWHERE is unseen,
+and low-power pedestrians keep to sidewalks and crosswalks. Panic detection reads positions, which low-power pedestrians
+have (`PositionOf`), and the handover reads velocity from the path (`PathArcMotion`).
+
+⭐ **Lean: drop the HROT-attached promotion zones, and with them the pedestrian mirror entities.** A pedestrian becomes our
+entity only when it panics (§8.2) — which is exactly when shooting starts near it. ⇒ **S3 and S4 are deferred** (S1, S2,
+S5 stay). ⚠ The accepted cost: a pedestrian may walk through one of our vehicles parked on a sidewalk, and dense crowds do
+not dodge each other outside SumoSharp's own default promotion.
+⛔ Rejected — keep the zones: ORCA cost and two SumoSharp changes for avoidance that only matters where no shooting is
+happening yet.
 
 ## 7. ⛔ HISTORY
 

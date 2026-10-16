@@ -64,6 +64,7 @@ related-designs:
     turret part (M23) is a part of that model — one owner per descriptor instance.
   - DESIGN_Entity_Control.md — OWNS the FPS view: an ICameraDriver on MapCamera3D that never saves into the scenario camera (M-9, C-1)
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the CityLib-styled traffic road layer (R-4024) drapes through this mode's ground rule; bridges use the lane height.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-1: the new civilian family keeps §6q's outfits and child bodies.
 -->
 
 # DESIGN — a 3-D mode for the map

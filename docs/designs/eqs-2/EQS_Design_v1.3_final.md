@@ -43,6 +43,7 @@ related-designs:
   - docs/DESIGN_Ownership_Groups_And_Grants.md — §5.8 owns WHICH node solves a child sensor (R-179, CE-3002): the Brain
     names it in `EqsSensorConfigTopic.SolverNodeId` (least-loaded Perception node, once per sensor), every node records it
     as the owner of result part n, and only that node builds a carrier. This design owns the solve itself.
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-7 adds an enterable-building generator and an InsideTest (FindEnterableShelter).
 -->
 # EQS (Environment Query System) — Design v1.3
 

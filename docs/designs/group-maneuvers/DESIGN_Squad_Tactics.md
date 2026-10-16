@@ -26,6 +26,7 @@ related-designs:
   - docs/designs/commander-subordinates/DESIGN.md — OWNS UnitRoster / UnitSubordinate and the FormationController/Follower refactor (Phase 2) §6 measures
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the cover query and its publish policies; §17.6.1 is what the squad plays' one-shot cover queries measured (§7.6.2)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that gives the Watch / overwatch / march orders a facing (LD-3) — §7.7.6's "no facing control exists"
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-5 keeps crowds out of the squad layer (no UnitRoster); CV-11's police line uses SquadMarch's Line formation.
 -->
 
 # Squad tactics — the runner, react to contact, and what embark / formations can carry

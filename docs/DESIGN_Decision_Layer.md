@@ -31,6 +31,7 @@ related-designs:
   - docs/designs/ai-btree-deactivator-1/DESIGN.md — OWNS the BTree exit sweep (deactivators); CE-2117 (§3.3e) extended it to switches beneath a running Parallel.
   - docs/designs/brain-split/BS-1-DESIGN.md — §5.1a OWNS the fire executor's guard order, where ROE `Fire` is enforced (CE-2075, backend).
   - docs/DESIGN_Entity_Control.md — OWNS FPS possession, which pauses the task like a reaction and resumes it on release (M-7, C-4)
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-8: Roe grows a ForceLevel (Warn, NonLethal, Lethal) and ground targeting skips Neutral targets — the escalation ladder this doc's §4.4 "later" row deferred.
 -->
 
 # The decision layer — missions, SOP, threat, intent

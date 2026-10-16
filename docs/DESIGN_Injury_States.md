@@ -16,6 +16,7 @@ related-designs:
   - DESIGN_Decision_Layer.md — §3.3f OWNS CE-3090's "wounded" (a HealthFraction curve today), which this state can later replace
   - DESIGN_Visual_Effects.md — §7 OWNS how the dead LOOK (reads CombatLife.IsDestroyed); an incapacitated figure is a later presentation item
   - designs/group-maneuvers/DESIGN_Squad_Tactics.md — L4 OWNS casualty care (buddy aid, moving the casualty), which waits for these states
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-6 adds a STORED EffectState (stunned, irritated, knocked down) — the full-health stun case rule I1 names.
 -->
 
 # Injury states — ok · wounded · incapacitated · dead *(R-263 D1; CE-2155)*
