@@ -50,9 +50,9 @@
           }
         ]
       },
-      "Sop": {
-        "Name": "BasicVehicleSop",
-        "Params": "{}",
+      "Behavior": {
+        "Name": "LandPlatformAttack",
+        "Params": "{\"Target\": 8611}",
         "Origin": "Superior"
       }
     },
