@@ -327,7 +327,17 @@ tank's memory, the cycle's EQS answers), four scenario faults and one cycle defe
 | 3 | on its SOP the tank idled: a SEEDED memory never fires the `FirstThreat` sense the SOP reacts to | the tank gets an attack order (`LandPlatformAttack`) |
 | 4 | with A at (200, 200) the block hid every firing point from him | A on `ua-tank-corner`'s measured geometry, (100, 225) |
 | 5 | ⛔ the tank ORBITED a cover point 2.3 m off for 60 s and never left MoveToHide | **CE-2205** (above) — the cycle's own arrival test |
-| 6 | ✅ **the lock is denied**: one exposure, A's lock reached 1.5 / 4 s, the tank back in cover, no launch | ⚠ but the tank fired 0 rounds in that exposure — being measured | `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
+| 6, 7 | ✅ **the lock is denied** in both: one exposure each, A's lock reached 1.5 / 4 s, then 2.5 / 4 s; the tank was back in cover and nothing was launched | — |
+| 8 | the tank fought (2 rounds), but at Javelin **B**: A was never seen, his seeded slot expired, and the designation lapsed with it (it holds only while remembered) | vignette ② moved to the open north strip, out of the cycling tank's view |
+| 9 | A never saw the tank: the cycle's firing points vary run to run, and from (100, 225) A sees only some of them | ⏸ **stopped here** |
+
+⏸ **Status of `ua-javelin-lock` (`2026-10-16`):** ② passes every run. Javelin B locks the open tank and hits it direct, and the face read is
+correct: a FRONT hit, 760 mm against the M1's 900 mm, did 378. Of ①, **the lock denial is demonstrated (runs 6–7)**. The tank firing
+back has also been seen (run 8). ⛔ **They have not yet come together in ONE run**: whether Javelin A sees an exposure depends on which
+firing point the EQS picks. The check refuses a vacuous pass ("exercised" needs A to aim). The next step, not taken: give A a position
+that sees the block's whole west face, or let the cycle prefer firing points that see the designated target. ⚠ An unseen designated
+target expiring from memory, which ends the designation, is how `TopThreat` (CE-3170) is meant to behave. It is noted here because a
+long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
