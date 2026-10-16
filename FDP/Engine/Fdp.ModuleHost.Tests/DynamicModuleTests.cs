@@ -793,8 +793,11 @@ namespace Fdp.ModuleHost.Tests
             _requiredComponents = requiredComponents;
         }
 
+        /// <summary>Asynchronous by default (SlowBackground); a convoy test sets <see cref="RunMode.FrameSynced"/>.</summary>
+        public RunMode Mode { get; init; } = RunMode.Asynchronous;
+
         // SlowBackground → DataStrategy.SoD
-        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(60).WithTimeout(5000);
+        public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(60).WithTimeout(5000).WithMode(Mode);
 
         public IEnumerable<Type>? GetRequiredComponents() => _requiredComponents;
 
@@ -957,12 +960,15 @@ namespace Fdp.ModuleHost.Tests
         //    (single swap → all three become live in the same BeforeSync boundary)
         // ──────────────────────────────────────────────────────────────────────────
 
+        // ⭐ A convoy (one SharedSnapshotProvider) forms only for modules the main thread WAITS for (FrameSynced): the kernel keeps
+        //   Asynchronous modules out (ModuleHostKernel.AssignProvider…, `Mode != RunMode.Asynchronous`), because an async module that
+        //   finishes early would re-acquire the snapshot a slower convoy member still holds — frames stale, its events read twice (TM-023).
         [Fact(Timeout = 15_000)]
         public async Task BatchInstall_SodModules_ActivatedAtomically()
         {
-            var modA = new SodCountingModule("BatchSodA", typeof(DynCompAlpha));
-            var modB = new SodCountingModule("BatchSodB", typeof(DynCompBeta));
-            var modC = new SodCountingModule("BatchSodC", typeof(DynCompGamma));
+            var modA = new SodCountingModule("BatchSodA", typeof(DynCompAlpha)) { Mode = RunMode.FrameSynced };
+            var modB = new SodCountingModule("BatchSodB", typeof(DynCompBeta)) { Mode = RunMode.FrameSynced };
+            var modC = new SodCountingModule("BatchSodC", typeof(DynCompGamma)) { Mode = RunMode.FrameSynced };
 
             using var cts = new CancellationTokenSource();
             var loopTask = RunKernelLoop(_kernel, cts.Token);
@@ -1008,8 +1014,8 @@ namespace Fdp.ModuleHost.Tests
         [Fact(Timeout = 15_000)]
         public async Task UnionMask_Expansion_NewSodModule_ExpandsSharedProvider()
         {
-            var modA = new SodCountingModule("SodMaskA", typeof(DynCompAlpha));
-            var modB = new SodCountingModule("SodMaskB", typeof(DynCompBeta));
+            var modA = new SodCountingModule("SodMaskA", typeof(DynCompAlpha)) { Mode = RunMode.FrameSynced };
+            var modB = new SodCountingModule("SodMaskB", typeof(DynCompBeta)) { Mode = RunMode.FrameSynced };
 
             using var cts = new CancellationTokenSource();
             var loopTask = RunKernelLoop(_kernel, cts.Token);
