@@ -1198,7 +1198,7 @@ NO host wiring at all: the layer is added by the shared map attach, and it asks 
 
 ⛔ **Superseded the same day:** the first build had each host pass a `MapCameraOwnership` argument (Editor / CGF saved it). Measured wrong: every host, IG included, registers the SAME scenario save handler and saves what it OWNS (`IgNodeBootstrapper.cs:435-440`, CE-275), so "saves the scenario" is not a host property; and the user ruled out per-host wiring. ⚠ **Left, named:** a host that does not OWN the camera does not move it — a change request would need a pitch path the
 attribute vocabulary lacks (geodetic position + heading only); folded into [`CE-1047`](blueprints/Blueprint_Issues_Tracker.md).
-In a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there until that lands. · Moves during
+⛔ *Corrected `2026-10-16` (user):* ~~in a cluster the Brain owns the reloaded camera, so the Editor's own moves are not saved there~~ — the Editor is networkless, and in a cluster the CGF IS the editor, so its moves are saved. The one open case is several CGF nodes ([CE-1149](blueprints/Blueprint_Issues_Tracker.md); lean: the smallest node id owns it). · Moves during
 Live/Preview are written too (the camera is the view, not simulation state). · Field of view stays a viewer setting (D7).
 **Gates:** `Map3DTests.S5_*` (6: pose round trip on a slope and overhead · adopt in 3-D and in 2-D · the first move requests ONE
 unowned camera, the creator owns it, its pose is kept and saved · no request source ⇒ never made, a moved view not taken over ·
