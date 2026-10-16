@@ -297,5 +297,32 @@ namespace Fdp.Toolkit.Combat.Tests
             // straight down: 160 / 150 = 1.067 ⇒ P = 0.667
             Assert.Equal(1100f * (160f / 150f - 0.8f) / 0.4f, DamageArriving(tank, new System.Numerics.Vector3(0, 0, -1), 160, 1100), precision: 2);
         }
-    }
+    
+        /// <summary>
+        /// ⭐ <c>CE-3219</c> (civilians B-1, CV-6; DESIGN_Civilians_And_Crowd_Control §7.3) — a BLUNT round's hit carries a knock-down for its
+        /// warhead's EffectSeconds (the Health owner stores it); a kinetic round's hit carries none.
+        /// </summary>
+        [Fact]
+        public void CE3219_ABluntRound_KnocksDown_AKineticRoundDoesNot()
+        {
+            const long BatonRound = 6031, Ball = 6032;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var baton = new Fdp.Interfaces.TkbTemplate("baton round", BatonRound);
+            baton.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Blunt, EffectSeconds = 5f });
+            db.Register(baton);
+            db.Register(new Fdp.Interfaces.TkbTemplate("ball", Ball));
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var man = SpawnTarget();
+
+            foreach (var (ammo, effect, seconds) in new[] { (BatonRound, HitEffect.Blunt, 5f), (Ball, HitEffect.Kinetic, 0f) })
+            {
+                _world.Bus.Publish(new DetonationNotification { Target = man, Damage = 3f, Ammo = ammo });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+                _world.Bus.SwapBuffers();
+                var hit = Assert.Single(_world.Bus.Read<DamageAssessedEvent>().ToArray());
+                Assert.Equal((effect, seconds), (hit.Effect, hit.EffectSeconds));
+            }
+        }
+}
 }

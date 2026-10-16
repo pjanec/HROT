@@ -530,7 +530,17 @@ crosses the wire except two appended fields and the stored state.
 
 Rails: `HealthApplicationSystemTests.CE3219_ABluntHit_StoresKnockedDown_…`, `EntityHitDamageIngressTranslatorTests.CE3219_TheEffectArrives_…`,
 the descriptor-map lists (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStrategyTests`).
-⏳ **Part 2:** `AreaEffectCloud` + its system + the `smoke` material (B1-c, B1-d, M-4).
+**Part 2a (built the same night):** `WarheadDto.EffectSeconds`; a `Blunt` round's direct hit carries `HitEffect.Blunt` for that long
+(`DamageCalculationSystem`); a `Stun` burst gives every man its blast reaches a `HitEffect.Stun` hit with no damage, for `EffectSeconds`
+× the blast fall-off × barrier × shadow (`AreaEffectSystem` — a wall between him and the flash spares him). Rails:
+`DamageCalculationSystemTests.CE3219_ABluntRound_…`, `AreaEffectSystemTests.CE3219_AStunBurst_…`.
+
+⏳ **Part 3 — the cloud (B1-c, B1-d, M-4), with one design point measured:** `DetonationNotification` reaches EVERY node (remote copies
+flagged `IsRemote`), and a LOCAL entity carrying `StaticObstacle` + `ObstacleShape` + `SimTransform` is baked like any other obstacle
+(`StaticObstacleBake.cs:167`). ⇒ ⭐ lean: each node DERIVES the same cloud from the same detonation (like the visual effects, W1) — no
+replicated cloud entity, no new descriptor; only the node that owned the detonation pulses the irritation. ⚠ Open: the spawning system
+must run on every host that bakes terrain, i.e. beside `StaticObstacleBakeSystem`, whose hosts each register it and are checked by
+`EntityCreation`'s missing-system list — a registration on every host, not a single pack line.
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 

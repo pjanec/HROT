@@ -682,5 +682,35 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(c[Fdp.Toolkit.Physics.BodyParts.PersonPart.Torso] > 0f);
             Assert.Equal(c[Fdp.Toolkit.Physics.BodyParts.PersonPart.ThighL], s[Fdp.Toolkit.Physics.BodyParts.PersonPart.ThighL], 1);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3219</c> (civilians B-1, CV-6; DESIGN_Civilians_And_Crowd_Control §7.3) — a STUN burst stuns a man near it (no damage), for
+        /// less the farther he stands, and nobody past its reach.
+        /// </summary>
+        [Fact]
+        public void CE3219_AStunBurst_StunsTheNearMan_LongerThanTheFarOne_AndNobodyBeyond()
+        {
+            const long StunGrenade = 6041;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var stun = new TkbTemplate("stun grenade", StunGrenade) { DisType = new DISEntityType { Kind = 2 } };
+            stun.AddDescriptor(new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = 10f, EffectSeconds = 8f });
+            db.Register(stun);
+            _w.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50) });
+            var near = Soldier(2, 0);
+            var far = Soldier(7, 0);
+            var beyond = Soldier(20, 0);
+
+            _w.Bus.Publish(new DetonationNotification { HitX = 0, HitY = 0, HitZ = 0.1f, Ammo = StunGrenade });
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var hits = _w.Bus.Read<DamageAssessedEvent>().ToArray().Where(d => d.Effect == HitEffect.Stun).ToArray();
+
+            float Seconds(Entity e) => hits.Where(d => d.HitEntity == e).Sum(d => d.EffectSeconds);
+            Assert.True(Seconds(near) > Seconds(far), $"near {Seconds(near)} s, far {Seconds(far)} s");
+            Assert.True(Seconds(far) > 0f, "a man inside the reach is stunned");
+            Assert.Equal(0f, Seconds(beyond));
+            Assert.All(hits, d => Assert.Equal(0f, d.TotalDamage));
+        }
 }
 }

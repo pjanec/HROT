@@ -117,6 +117,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("Tandem shaped charge (defeats reactive armour once ERA exists).")]
         public bool Tandem { get; init; }
 
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6) — how long a non-lethal warhead's effect lasts on a man (s): a <see cref="WarheadKind.Blunt"/>
+        /// round's knock-down, a <see cref="WarheadKind.Stun"/> burst's stun at its centre (it falls off with the blast), an
+        /// <see cref="WarheadKind.Irritant"/> cloud's irritation per pulse.</summary>
+        [EditUnit("s")]
+        [Description("How long a non-lethal effect lasts (s): a blunt round's knock-down, a stun burst's stun, an irritant's irritation.")]
+        public float EffectSeconds { get; init; }
+
         /// <summary>True when the warhead has any area effect.</summary>
         [JsonIgnore]
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;
