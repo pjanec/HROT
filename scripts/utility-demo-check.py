@@ -1881,7 +1881,8 @@ def run_weapon_systems(c, timeout):
         if carried is None and _aboard(jav) is not None:
             carried = t
         if t % 10 == 0:
-            print(f"      @{t}s M2 {deploy(m2)} gunner aboard {_aboard(gunner)} · Javelin aboard {_aboard(jav)} · intruder {health(intruder)} at {position(intruder)}")
+            gst = data(call("GET", f"/entities/{gunner}/state")) or {}
+            print(f"      @{t}s M2 {deploy(m2)} gunner aboard {_aboard(gunner)} at {position(gunner)} behaviour {gst.get('behavior')} · Javelin aboard {_aboard(jav)} · intruder {health(intruder)}")
         if manned and deployed and carried and _hurt(intruder, 100):
             break
         time.sleep(1.0)
