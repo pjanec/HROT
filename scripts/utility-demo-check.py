@@ -1706,6 +1706,59 @@ def run_javelin_lock(c, timeout):
         print("      cycle s", row)
 
 
+# ── ua-technical-scoot (Urban Armour V7; Exposure Cycle §6 M9 technicals, D-J Auto ⇒ Scoot) — shoot and scoot ───────────────────────
+#   test-town: an M1 on BasicVehicleSop in its hide south of the 4-storey block; an ATGM technical (105, a Kornet) and an HMG technical
+#   (104, an M2) north of the street, each in a hide, each on an attack order at the tank (LandPlatformAttack — a technical's 5 mm hull
+#   resolves Auto withdraw to SCOOT: a new hide every time). ① each technical fires from two points (≥ 5 m apart) · ② the tank's first
+#   round goes at the ATGM technical (the danger to its armour, V1).
+def run_technical_scoot(c, timeout):
+    ids = ids_by_name()
+    tank, atgm, hmg = ids.get("Tank"), ids.get("ATGM Technical"), ids.get("HMG Technical")
+    if not c.ok(None not in (tank, atgm, hmg), "the tank and both technicals are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, track = {}, {atgm: [], hmg: []}
+    end = time.time() + timeout + 150
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        for t in (atgm, hmg):
+            pt = position(t)
+            if pt:
+                track[t].append(tuple(round(v) for v in pt[:2]))
+        if _dead(atgm) and _dead(hmg):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    by = {}
+    for x in sorted(shots.values(), key=lambda x: x.get("seq") or 0):
+        by.setdefault(name.get(x.get("shooter"), x.get("shooter")), []).append(x)
+    print("    shots by shooter:", {k: len(v) for k, v in by.items()})
+    for t in (atgm, hmg):
+        stops = []
+        for q in track[t]:
+            if not stops or ((q[0] - stops[-1][0]) ** 2 + (q[1] - stops[-1][1]) ** 2) ** 0.5 > 3:
+                stops.append(q)
+        print(f"    {name.get(t)} path (3 m steps): {stops[:20]}")
+
+    def points(owner_names):
+        pts = []
+        for k, xs in by.items():
+            if any(n in str(k) for n in owner_names):
+                for x in xs:
+                    m = x.get("muzzle")
+                    if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 5 for q in pts):
+                        pts.append((round(m[0]), round(m[1])))
+        return pts
+    a_pts, h_pts = points(("ATGM", "Kornet")), points(("HMG", "M2"))
+    c.ok(len(a_pts) >= 2, f"① the ATGM technical fires from two points — {a_pts}")
+    c.ok(len(h_pts) >= 2, f"① the HMG technical fires from two points — {h_pts}")
+    tank_shots = by.get("Tank", [])
+    first = name.get(tank_shots[0].get("target")) if tank_shots else None
+    c.ok(first == "ATGM Technical", f"② the tank's first round goes at the ATGM technical — {first} ({len(tank_shots)} rounds)")
+    print(f"    health: tank {health(tank)} · ATGM technical {health(atgm)} · HMG technical {health(hmg)}")
+
+
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
 #   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
 #   y 210 hid every target and it never fired), against an enemy T-72 (240 m), an HMG technical (230 m) and two riflemen (230 m,
@@ -1969,6 +2022,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-air-defence": run_air_defence,
              "ua-tank-corner": run_tank_corner,
              "ua-javelin-lock": run_javelin_lock,
+             "ua-technical-scoot": run_technical_scoot,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)

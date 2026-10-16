@@ -1,0 +1,124 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a2207d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          251,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8701
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2207d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          140,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8711
+      },
+      "TkbIdentity": {
+        "TkbType": 105
+      },
+      "EntityInfo": {
+        "Name": "ATGM Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 300,
+        "Max": 300
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "LandPlatformAttack",
+        "Params": "{\"Target\": 8701}",
+        "Origin": "Superior"
+      }
+    },
+    "a2207d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          315,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 8712
+      },
+      "TkbIdentity": {
+        "TkbType": 104
+      },
+      "EntityInfo": {
+        "Name": "HMG Technical",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 300,
+        "Max": 300
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "LandPlatformAttack",
+        "Params": "{\"Target\": 8701}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
