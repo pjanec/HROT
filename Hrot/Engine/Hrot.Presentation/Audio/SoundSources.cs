@@ -110,6 +110,9 @@ namespace Hrot.UI.Common.Audio
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
 
+        /// <summary>⭐ CE-1141 — the operator's OWN movement (his footsteps, his engine) at this share (was 0.6): it is under him all the time.</summary>
+        public const float OwnMoverShare = 0.5f;
+
         private float Volume(SoundDto s) => Spatializer.Db(s.VolumeDb) * _mixer.CategoryVolume[(int)s.Category];
 
         private float Jitter(SoundDto s) => 1f + s.PitchJitter * (float)(_jitter.NextDouble() * 2.0 - 1.0);
@@ -210,7 +213,7 @@ namespace Hrot.UI.Common.Audio
                 bool fixedWing = loco == LocomotionClass.FixedWing;
                 long clip = SoundTkbCatalog.MovingFor(tkb, type, a.MovingClass, fixedWing);
                 if (SoundTkbCatalog.SoundOf(tkb, clip) is not { } s) continue;
-                float g = Spatializer.Gain(d, s.ReferenceM, a.MovingAudibleRange) * (0.35f + 0.65f * level) * Volume(s) * (e == own ? 0.6f : 1f);
+                float g = Spatializer.Gain(d, s.ReferenceM, a.MovingAudibleRange) * (0.35f + 0.65f * level) * Volume(s) * (e == own ? OwnMoverShare : 1f);
                 if (g <= 1e-3f) continue;
                 _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority));
             }

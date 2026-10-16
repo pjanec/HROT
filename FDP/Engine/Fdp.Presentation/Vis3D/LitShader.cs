@@ -54,6 +54,7 @@ uniform vec3 sunDir;
 uniform vec3 fogColor;
 uniform float fogDensity;
 uniform float ambient;
+uniform float sunLight;
 out vec4 finalColor;
 ";
 
@@ -65,7 +66,7 @@ void main()
     float diffuse = max(dot(n, -sunDir), 0.0);
     vec4 base = fragColor * colDiffuse;
     vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
-    vec3 lit = albedo * (ambient + (1.0 - ambient) * diffuse);
+    vec3 lit = albedo * (ambient + sunLight * diffuse);
     float d = length(viewPos - fragPos) * fogDensity;
     float visible = clamp(exp(-d * d), 0.0, 1.0);
     finalColor = vec4(mix(fogColor, lit, visible), base.a);
@@ -128,7 +129,7 @@ void main()
         /// <summary>False when the GL driver refused the program — Raylib then falls back to its default shader (unlit).</summary>
         public bool IsValid { get; }
 
-        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _ambient;
+        private readonly int _viewPos, _sunDir, _fogColor, _fogDensity, _ambient, _sunLight;
 
         /// <summary>Sky colour the fog fades into (also the sky gradient's horizon, <see cref="MapCamera3D"/>).</summary>
         public static readonly Color SkyHorizon = new(196, 214, 230, 255);
@@ -146,6 +147,7 @@ void main()
             _fogColor = Raylib.GetShaderLocation(shader, "fogColor");
             _fogDensity = Raylib.GetShaderLocation(shader, "fogDensity");
             _ambient = Raylib.GetShaderLocation(shader, "ambient");
+            _sunLight = Raylib.GetShaderLocation(shader, "sunLight");
             Shader = shader;
 
             var material = Raylib.LoadMaterialDefault();
@@ -156,6 +158,18 @@ void main()
             Raylib.SetShaderValue(shader, _sunDir, Vector3.Normalize(HrotToRaylib.Position(new Vector3(0.45f, 0.6f, -1f))), ShaderUniformDataType.Vec3);
             Raylib.SetShaderValue(shader, _fogColor, new Vector3(SkyHorizon.R, SkyHorizon.G, SkyHorizon.B) / 255f, ShaderUniformDataType.Vec3);
             Raylib.SetShaderValue(shader, _ambient, 0.42f, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(shader, _sunLight, 0.58f, ShaderUniformDataType.Float);
+        }
+
+        /// <summary>⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — per frame: the sun's direction, the light (ambient + sun) and the colour
+        /// the fog fades into (the sky's horizon). <see cref="SceneAtmosphere.Default"/> reproduces the look the shader always had.</summary>
+        public void ApplyAtmosphere(in SceneAtmosphere a)
+        {
+            var travel = HrotToRaylib.Position(-a.ToSun);   // the light travels AWAY from the sun
+            Raylib.SetShaderValue(Shader, _sunDir, travel.LengthSquared() > 0f ? Vector3.Normalize(travel) : new Vector3(0f, -1f, 0f), ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(Shader, _fogColor, new Vector3(a.SkyHorizon.R, a.SkyHorizon.G, a.SkyHorizon.B) / 255f, ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(Shader, _ambient, a.Ambient, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(Shader, _sunLight, a.SunLight, ShaderUniformDataType.Float);
         }
 
         /// <summary>Per frame: where the eye is (Raylib coordinates) and how far the fog lets you see.</summary>

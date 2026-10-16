@@ -1465,6 +1465,21 @@ is his belly. The rail `CE1078_PerShot…` even pinned "at the unit, not at the 
 
 Rails: `AimAndFireExecutorTests.CE1125_ALockedShot_GoesToTheCrosshairPointOnTheUnit_NotHisMiddle`, `CE1125_APointOnAUnit_FollowsHim_AsHeMovesAndTurns`.
 
+### 13.8 AS-BUILT — the manual test's fixes: the HUD, stance keys, the attack modifier, the cockpit (`CE-1131`, `CE-1132`, `CE-1139`, `CE-1140`, `CE-1143`, `2026-10-16`, ui)
+
+🔒 User, manual test `2026-10-16` ([tracker](blueprints/Blueprint_Issues_Tracker.md) CE-1131 … CE-1145). No box in §8a/§8e moved; the details:
+
+| as-built | why |
+|---|---|
+| ⛔ **§13.7's HUD placement SUPERSEDED:** the HUD sits at the **bottom-left of the map's visible area** (`OpenMapArea` — the dockspace's central node, so a docked panel never covers it), 16 px in; Roboto (`HudText`, the entity cards' font) at 20 px, 24 px lines; each kind of line its own colour (`Hud.ColourOf`: the unit, the weapon, the stance, the keys) | 🔒 *"HUD font ugly, use the entity labels/card font, bottom-left, coloured texts"* |
+| stance keys: **C** toggles crouch, **Z** toggles prone, **Ctrl held** crouches (not from prone), **Shift** runs (`Gait` 0 = full speed — unchanged); the frame sends the EFFECTIVE stance; the HUD's stance line says `RUN` | 🔒 *"Shift+W run, Ctrl hold crouch, prone toggle key"* — supersedes §13.5's one cycle key |
+| 🔴 **CE-1139 root cause:** the IG world carried no `StanceIntent`, so `LogicalStance.Of` answered Standing — the brain's crouch reached the brain and the muscle but never the IG's figure, and the eye rides the drawn head. ⭐ The IG now takes both stance topics in (`AnimationReplicationModule.RegisterStanceViewerOn`; [Decision Layer §3.3g](DESIGN_Decision_Layer.md)) | 🔒 *"switching FPS posture does not seem to move the camera"* |
+| the RTS tool: **Ctrl + RMB attacks whatever is under the cursor** (any side); a legend (`RtsModeState.Legend`) top-left while armed, a red reticle at the cursor while Ctrl is held | 🔒 *"how to switch to attack mode … would not matter if ctrl or shift-click activated the attack"* |
+| in first person in a vehicle the own vehicle's body is not drawn (`EntityBodyLayer3D` skips the FirstPerson entity unless a person) | 🔒 *"flyer cockpit view cluttered"* — ⚠ a cockpit / crew-eye position from the TKB is a follow-up |
+| ⚠ **CE-1133 not reproduced:** select A+B, click C, right-click the ground orders only C through the real pack (`RtsCommandToolTests.CE1133_*`) | the order loop reads the selection the map shows; the reported case needs a repro (which view, how the units were deselected) |
+
+Rails: `PossessionStationTests.CE1143_*`, `CE1140_*` ×2, `RtsCommandToolTests.CE1133_*`, `StanceWireTests.CE1139_*`, `IgRoleComponentRegistryTests.CE1139_*`.
+
 ## 8. Known limits and defects found while designing
 
 | | |

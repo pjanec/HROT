@@ -1788,6 +1788,83 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — the weather's sky at eye height over the town: a clear noon, a sunset (the warm horizon,
+    /// the sun's disc), the darkest night (still a dusk — the user's twilight floor), and a 150 m fog. The production camera, shader and
+    /// layers; the atmosphere set as WeatherSkyLayer sets it in first person. Screenshots <c>weather-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1146_V_NoonSunsetNightAndFog()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        for (int i = 0; i < 3; i++)
+        {
+            var m = world.CreateEntity();
+            float x = spot.X + 4f + i * 1.5f, y = spot.Y - 6f;
+            world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)) });
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+        }
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(new EntityBodyLayer3D(() => world, () => tkb));
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+        // looking south, a little up, from eye height: the sun is in the south at noon and set in the south-west in the sunset shot
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y - 8f, ground + 1.6f), 8f, MathF.PI * 1.5f, -0.02f);
+
+        static Fdp.Toolkit.Weather.WeatherSample S(double el, double az, float light, float vis = 20000f)
+            => new() { SunElevationDeg = el, SunAzimuthDeg = az, RelativeLight = light, VisibilityM = vis };
+        float Shot(string name, Fdp.Toolkit.Weather.WeatherSample sample)
+        {
+            sw.Camera3D.Atmosphere = WeatherSky.Of(sample);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            string path = Path.Combine(shots, name);
+            frame.Screenshot(path);
+            var img = Raylib.LoadImage(path);
+            try
+            {
+                double sum = 0; int n = 0;
+                for (int y = 0; y < img.Height; y += 20)
+                    for (int x = 0; x < img.Width; x += 20) { var c = Raylib.GetImageColor(img, x, y); sum += 0.299 * c.R + 0.587 * c.G + 0.114 * c.B; n++; }
+                return (float)(sum / Math.Max(1, n));
+            }
+            finally { Raylib.UnloadImage(img); }
+        }
+
+        float noon = Shot("weather-noon.png", S(55, 180, 1f));
+        float sunset = Shot("weather-sunset.png", S(2, 200, 0.32f));
+        float night = Shot("weather-night.png", S(-35, 0, 0.001f));
+        float fog = Shot("weather-fog.png", S(40, 180, 0.8f, vis: 150f));
+        sw.Camera3D.Atmosphere = null;
+
+        Assert.True(night < noon * 0.75f, $"night {night:F0} darker than noon {noon:F0}");
+        Assert.True(night > noon * 0.25f, $"but never black: night {night:F0} vs noon {noon:F0} (the twilight floor)");
+        Assert.True(sunset < noon, $"sunset {sunset:F0} vs noon {noon:F0}");
+        Assert.True(fog > 0f);
+    }
+
+    /// <summary>
     /// ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a doors-off UH-60 hovering 12 m up, ROPING, two SF men on its ropes; a stick of
     /// paratroopers in every phase (the exit tuck, a free-fall arch, a canopy opening, round canopies — one banked —, a ram-air wing banked
     /// in a spiral, the flare, the landing roll, sitting up landed). Then the hold ends: the ropes are cut and lie where they fell, and a man

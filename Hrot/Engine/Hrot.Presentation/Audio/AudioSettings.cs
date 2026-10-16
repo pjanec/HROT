@@ -22,6 +22,10 @@ namespace Hrot.UI.Common.Audio
         public float Master { get; set; } = 0.8f;
         public bool Muted { get; set; }
 
+        /// <summary>⭐ CE-1137 — hear the world in the 3-D view outside FPS too, from the camera (Settings ▸ Sound in the 3-D view). Off by
+        /// default: AU-3 keeps the scene silent unless a unit is possessed.</summary>
+        public bool CameraSound { get; set; }
+
         /// <summary>One volume per <see cref="SoundCategory"/>, indexed by it.</summary>
         public float[] Categories { get; set; } = Defaults();
 
@@ -71,5 +75,38 @@ namespace Hrot.UI.Common.Audio
         }
 
         private static float Clamp(float v) => float.IsFinite(v) ? Math.Clamp(v, 0f, 1f) : 1f;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1137 — ONE settings object per file for the whole process: every map host's <see cref="AudioLayer"/> and the Settings menu share
+    /// it, so a save from one never overwrites another's change with a stale copy.
+    /// </summary>
+    public static class AudioPreferences
+    {
+        private static readonly System.Collections.Generic.Dictionary<string, AudioSettings> ByPath = new();
+        private static readonly object Gate = new();
+
+        /// <summary>The settings in <paramref name="path"/> (loaded once); a null path ⇒ a fresh default object (tests).</summary>
+        public static AudioSettings For(string? path)
+        {
+            if (path == null) return AudioSettings.Load(null);
+            lock (Gate)
+            {
+                if (!ByPath.TryGetValue(path, out var s)) ByPath[path] = s = AudioSettings.Load(path);
+                return s;
+            }
+        }
+
+        /// <summary>⭐ CE-1137 — the operator's camera-sound switch (the default file), saved on change.</summary>
+        public static bool CameraSound
+        {
+            get => For(SafeDefaultPath()).CameraSound;
+            set { var s = For(SafeDefaultPath()); s.CameraSound = value; s.Save(SafeDefaultPath()); }
+        }
+
+        private static string? SafeDefaultPath()
+        {
+            try { return AudioSettings.DefaultPath(); } catch (Exception) { return null; }
+        }
     }
 }

@@ -24,7 +24,8 @@ namespace Hrot.UI.Common.Audio
 
     /// <summary>
     /// ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-3, §1) — the sound of the scene, ONLY while this map host's
-    /// <see cref="Map3D.PossessionStation"/> holds a unit: the first time it does, the device opens and every sound type is defined (a file
+    /// <see cref="Map3D.PossessionStation"/> holds a unit (⭐ CE-1137 — or, when the operator turned on Settings ▸ Sound in the 3-D view,
+    /// in the 3-D view from the camera): the first time it does, the device opens and every sound type is defined (a file
     /// when its <c>SoundDto</c> names one, else the generated placeholder); the ear is the FPS camera; losing the unit stops every voice.
     /// Attached on every map host by <c>MapInteractionPack.AttachMapLayers</c> beside the station. Keys while in FPS: F6 / F7 volume
     /// down / up, F8 mute, F9 a left-then-right test click (the A0 check of which side is which), F10 the sound panel (↑ ↓ pick master or
@@ -40,6 +41,7 @@ namespace Hrot.UI.Common.Audio
         private readonly Func<ITkbDatabase?> _tkb;
         private readonly Func<Entity> _held;
         private readonly Func<Ear?> _ear;
+        private readonly Func<bool> _cameraSound;   // ⭐ CE-1137 — no unit held, yet the operator wants the scene heard from the camera
         private readonly Func<IAudioOutput> _makeOutput;
         private readonly Func<KeyboardKey, bool> _keyPressed;
         private IAudioOutput? _output;
@@ -59,8 +61,10 @@ namespace Hrot.UI.Common.Audio
         /// <param name="keyPressed">The keyboard; default raylib's while a window runs.</param>
         /// <param name="settingsPath">Where the operator's settings file is; null (the default) keeps them for the process only.</param>
         public AudioLayer(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, Func<Entity> held, Func<Ear?> ear,
-                          Func<IAudioOutput>? output = null, Func<KeyboardKey, bool>? keyPressed = null, Func<string?>? settingsPath = null)
+                          Func<IAudioOutput>? output = null, Func<KeyboardKey, bool>? keyPressed = null, Func<string?>? settingsPath = null,
+                          Func<bool>? cameraSound = null)
         {
+            _cameraSound = cameraSound ?? (() => false);
             _settingsPath = settingsPath ?? (() => null);
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _tkb = tkb ?? throw new ArgumentNullException(nameof(tkb));
@@ -76,7 +80,8 @@ namespace Hrot.UI.Common.Audio
         public static AudioLayer For(Map3D.PossessionStation station, MapViewSwitch view, Func<EntityRepository?> world, Func<ITkbDatabase?> tkb)
             => new(world, tkb, () => station.InFps ? station.Unit : Entity.Null,
                    () => view.Is3D ? new Ear(view.Camera3D.Eye, view.Camera3D.Forward) : null,
-                   settingsPath: AudioSettings.DefaultPath);
+                   settingsPath: AudioSettings.DefaultPath,
+                   cameraSound: () => view.Is3D && AudioPreferences.CameraSound);   // ⭐ CE-1137
 
         private static IAudioOutput DefaultOutput()
             => Environment.GetEnvironmentVariable("HROT_AUDIO") != "0" && Raylib.IsWindowReady()
@@ -109,7 +114,10 @@ namespace Hrot.UI.Common.Audio
             _now += Math.Max(0f, dt);
             var w = _world();
             var unit = _held();
-            if (w == null || unit.IsNull || !w.IsAlive(unit))
+            // ⭐ CE-1137 — with no unit held, the camera may still listen (Settings ▸ Sound in the 3-D view): no "own" sounds then
+            bool camera = (unit.IsNull || w == null || !w.IsAlive(unit)) && _cameraSound();
+            if (camera) unit = Entity.Null;
+            if (w == null || (!camera && (unit.IsNull || !w.IsAlive(unit))))
             {
                 if (State != AudioState.Idle) Deactivate();
                 return;
@@ -197,7 +205,7 @@ namespace Hrot.UI.Common.Audio
         {
             string? path = null;
             try { path = _settingsPath(); } catch (Exception) { }
-            return AudioSettings.Load(path);
+            return AudioPreferences.For(path);   // ⭐ CE-1137 — one object per file, shared with the Settings menu
         }
 
         /// <summary>The settings into the output (master, mute) and the mixer (per category).</summary>

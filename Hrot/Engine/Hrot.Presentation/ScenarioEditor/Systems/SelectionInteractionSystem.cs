@@ -119,6 +119,10 @@ public sealed class SelectionInteractionSystem
                     _rubberBandState.IsActive = false;
                     _rubberBandState.Start    = _boxStart;
                     _rubberBandState.Current  = _boxStart;
+                    // ⭐ CE-1136 — in 3-D the band is the screen rectangle between the press and the cursor
+                    var screen = _rubberBandState.Projector?.Invoke(evt.WorldPos);
+                    _rubberBandState.InScreen = screen.HasValue;
+                    _rubberBandState.ScreenStart = _rubberBandState.ScreenCurrent = screen ?? default;
                 }
             }
             else if (_world.IsAlive(entity))
@@ -163,6 +167,8 @@ public sealed class SelectionInteractionSystem
             {
                 _rubberBandState.IsActive = true;
                 _rubberBandState.Current  = _boxCurrent;
+                if (_rubberBandState.InScreen && _rubberBandState.Projector?.Invoke(evt.WorldPos) is { } screen)
+                    _rubberBandState.ScreenCurrent = screen;   // ⭐ CE-1136
             }
         }
 
@@ -246,6 +252,8 @@ public sealed class SelectionInteractionSystem
     /// </summary>
     private void ExecuteBoxSelection()
     {
+        if (_rubberBandState is { InScreen: true, Projector: { } projector }) { ExecuteScreenBoxSelection(_rubberBandState, projector); return; }
+
         float dx = Math.Abs(_boxCurrent.X - _boxStart.X);
         float dy = Math.Abs(_boxCurrent.Y - _boxStart.Y);
         if (dx < 2f && dy < 2f)
@@ -281,5 +289,30 @@ public sealed class SelectionInteractionSystem
 
         Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
     }
+
+    /// <summary>⭐ CE-1136 — the 3-D band: a drag under <see cref="ScreenClickPixels"/> is a click on empty space (clears); otherwise every
+    /// entity with a <see cref="NetworkIdentity"/> whose position projects inside the screen rectangle (and lies in front of the eye).</summary>
+    private void ExecuteScreenBoxSelection(RubberBandState band, Func<Vector3, Vector2?> projector)
+    {
+        var a = band.ScreenStart; var b = band.ScreenCurrent;
+        if (Math.Abs(a.X - b.X) < ScreenClickPixels && Math.Abs(a.Y - b.Y) < ScreenClickPixels)
+        {
+            Request(SelectionChangeRequest.ClearAll("Map.EmptyClick"));
+            OnSelectionChanged?.Invoke(Entity.Null, new Vector3(_boxStart.X, _boxStart.Y, 0f));
+            return;
+        }
+        var min = Vector2.Min(a, b); var max = Vector2.Max(a, b);
+        var inBox = new List<Entity>();
+        foreach (var e in _world.Query().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
+        {
+            if (!_world.IsAlive(e) || !_world.HasComponent<NetworkIdentity>(e)) continue;
+            if (projector(_world.GetComponentRO<SimTransform>(e).Position) is not { } p) continue;
+            if (p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y) inBox.Add(e);
+        }
+        Request(SelectionChangeRequest.ReplaceWith(inBox, "Map.RubberBand"));
+    }
+
+    /// <summary>⭐ CE-1136 — a 3-D drag smaller than this (px, both ways) is a click.</summary>
+    public const float ScreenClickPixels = 4f;
 }
 

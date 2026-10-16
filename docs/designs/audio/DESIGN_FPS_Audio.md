@@ -241,3 +241,13 @@ A small volume panel in the FPS HUD's menu (AU-9) and a mute key; the ambient be
 `</usr/share/alsa/alsa.conf>` and `pcm.!default { type null }`, then `ALSA_CONFIG_PATH=<that file> HROT_AUDIO_SMOKE=1 dotnet test … --filter CE1120_TheRaylibOutput`.
 Measured: the device opens (miniaudio | ALSA), every clip loads, the loop streams, it closes.
 
+### 8.1 AS BUILT — the camera's ear, quieter footsteps (`CE-1137`, `CE-1141`, `2026-10-16`, ui)
+
+| # | change | why |
+|---|---|---|
+| **D11** | ⛔ **AU-3 SUPERSEDED in part:** with no unit held, the 3-D view's free camera is the ear **when the operator asks** — `Settings ▸ Sound in the 3-D view (from the camera)` (`AudioPreferences.CameraSound`, saved in the same settings file). Off by default, so AU-3's default is unchanged; in 2-D there is still no sound | 🔒 user, manual test: *"menu setting for sounds in 3D non-FPS mode from camera"* — AU-3 rejected "always on" for having no ear; the camera is one, by choice |
+| **D12** | footsteps −6 dB → **−18 dB**, and the own mover's share 0.6 → 0.5 (`SoundSources.OwnMoverShare`) | 🔒 user: *"footstep too loud"* — a rifle shot is at least 12 dB louder now (rail `CE1141_FootstepsAreWellUnderARifleShot`) |
+
+`AudioPreferences` keeps ONE settings object per file, so the menu toggle and the layer read the same value (rail
+`CE1137_WithNoUnitHeld_TheCameraListens_OnlyWhenTheOperatorAsks`).
+

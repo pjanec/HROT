@@ -69,12 +69,23 @@ public sealed class CenterOnEntitySystem : IEcsModuleSystem
             // ⭐ BP-508 — the ONE resolver (R-77).
             var target = NetworkIdResolver.FindEntityByNetworkId(world, cmd.NetworkId);
             if (target.IsNull) continue;
-            if (!TryResolvePosition(world, target, out var pos)) continue;
-
-            // ⭐⭐⭐ FocusOn, NOT `Camera.Target = pos` — see the class remarks: the direct assignment is
-            //    overwritten by MapCamera.Update on the next frame, which is the CGF bug this replaces.
-            camera.FocusOn(pos);
+            CenterOn(camera, world, target);
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1134 — THE one "centre the map on this entity": its position (<see cref="TryResolvePosition"/>) through
+    /// <see cref="MapCamera.FocusOn"/> — the 2-D camera's target, or the 3-D camera's look-at (its override). Shared by this system
+    /// (the <c>CenterOnEntityCommand</c>) and the map menu's Center View action (<c>MapInteractionPack</c>). False when it has no position.
+    /// </summary>
+    public static bool CenterOn(MapCamera camera, EntityRepository world, Entity target)
+    {
+        if (camera == null || target.IsNull || !world.IsAlive(target)) return false;
+        if (!TryResolvePosition(world, target, out var pos)) return false;
+        // ⭐⭐⭐ FocusOn, NOT `Camera.Target = pos` — see the class remarks: the direct assignment is
+        //    overwritten by MapCamera.Update on the next frame, which is the CGF bug this replaces.
+        camera.FocusOn(pos);
+        return true;
     }
 
     /// <summary>
@@ -82,7 +93,7 @@ public sealed class CenterOnEntitySystem : IEcsModuleSystem
     /// ⚠ On a non-owning host the replicated transform is the fresher of the two; on the editor *(which
     /// owns everything it shows)* the two agree, so taking the better ordering costs the editor nothing.
     /// </summary>
-    private static bool TryResolvePosition(EntityRepository world, Entity e, out Vector2 pos)
+    public static bool TryResolvePosition(EntityRepository world, Entity e, out Vector2 pos)
     {
         if (world.HasComponent<NetworkTransform>(e))
         {
