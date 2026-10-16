@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (CE-041..CE-045, 2026-08-26). §4/§5 UML updated to the AS-BUILT.
-updated: 2026-08-26
+updated: 2026-10-16 (§11 top-level order, CE-1026)
 stale-below: §3 ④ and §7's `File/Reload` on CGF, and their "CGF gains four File items" — both SUPERSEDED
   by §10.3/§10.4 and listed under `## ⛔ HISTORY`. Do NOT quote them as current.
 current-answer: the whole file. Intent basis: UX/UX_Feature_Menu_Follows_Focus.md (UXI-05) +
@@ -269,6 +269,38 @@ registration-order property the shared table does not promise.
 | `TheToolbarLayoutIsOneListTests` **+2** *(now 7)* | T0 | ⭐⭐⭐ the editor's File menu is **byte-identical and in order** *(the `MenuOrder` gate)* + **no `File/Reload`** · CGF's menu is **derived** — only what its shell services, registered **GLOBAL** |
 | `The_global_menu_is_readable_on_both_hosts` | **T3** | both hosts publish `global-menu`; the editor's is non-empty *(anti-vacuity on the reference side)*; the cluster offers `File/Save` **and it is VISIBLE**, ⛔ not registered-but-filtered-away |
 | `The_two_modes_agree_on_every_shared_panel_kind` *(extended)* | **T3** | ⭐ `global-menu` classified **`SUBSET-BY-DESIGN`**: every cluster path on the editor with the same visibility; ⛔ an **empty** cluster list is a **VIOLATION** |
+
+## 11. ⭐ TOP-LEVEL ORDER — `File` leads *(CE-1026, `2026-10-16`, ui)*
+
+🔒 User-reported (`2026-10-06`): *"Settings comes first; File must be leftmost — and there is no way to define top-level order."*
+📐 Measured: `Root.Children` is a `Dictionary` in first-registration order, and `WindowManager`'s constructor registers
+`Settings/UI Scale & Fonts…` before any host; `MenuOrder` (§10.2) orders only WITHIN a menu. Inventory of top-level names
+registered through this registry *(grep over `Register*Item("X/…` and toolbar `MenuPath`)*: **File, Settings** — the window
+manager's own `Windows` / `Help` are DTO menus drawn by a separate pass.
+
+```mermaid
+sequenceDiagram
+    participant WM as WindowManager.RenderMainMenuBar
+    participant R as GlobalMenuRegistry
+    WM->>R: TopLevelMenus() (rank, then registration order)
+    WM->>WM: RenderGlobalMenu(Root, leading: true) - File, Edit, View, Scenario, Tools, Debug, any unlisted
+    WM->>WM: RenderPerspectiveMenu() - Perspective
+    WM->>WM: RenderGlobalMenu(Root, leading: false) - Settings (and a host's Windows / Help, if any)
+    WM->>WM: DrawMenus(BuildHostMenuDtos()) - Windows, Help
+    WM->>WM: DrawMenus(gizmo menus)
+```
+*What the picture shows that prose hid: the bar is FOUR passes from three models, so one sort key cannot order it — the global
+registry's top level is split in two around the `Perspective` menu, which is what puts `Settings` next to `Windows` / `Help`.*
+
+| ⭐ rule | |
+|---|---|
+| `GlobalMenuRegistry.TopLevelOrder` — `File, Edit, View, Scenario, Tools, Debug, Settings, Windows, Help` | an unlisted name ranks just before `Settings` (it leads); ties keep registration order |
+| `IsLeadingMenu(name)` — rank before `FirstTrailingMenu` (`Settings`) | leading menus draw before `Perspective`, the rest after it |
+| the `global-menu` snapshot (`BuildViewModel`) walks the top level in the same order | ⭐ the dump lists what the bar draws in the order it draws it |
+| ⛔ not done | no per-registration order key (a host cannot move its menu); the DTO and gizmo passes keep their fixed place. Rejected: a numeric order argument on `RegisterItem` — every caller would need one, and the convention list is the actual requirement |
+
+Rail: `Fdp.Presentation.Tests/ImGui/WindowManager/TopLevelMenuOrderTests` (4). ⚠ The two-pass draw is not frame-railed (no
+ImGui context in that suite); the order source both passes read is.
 
 ## ⛔ HISTORY — *superseded `2026-08-26` by §10*
 

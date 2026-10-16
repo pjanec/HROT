@@ -95,6 +95,57 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | gates | `Fdp.Toolkits.Tests` 3 632 / 2 / 1 — both reds are `SquadCoordinationSystemTests` allocation counts (the known flaky family, not touched: alone 1 red then 2 green); `Hrot.SimHost.Tests` 1 441 / 0 / 6; `tracker-counts --check` OK; `design-digest --check` OK; `rulings-check` 215 / 215; Mermaid 13 / 13 parse |
 | red-proofs | CE-2200: 2 / 2 locking rows red with the gate bypassed. CE-2201: 6 / 14 rows red with the old range-only rule. The dive fixes: 900 m red with ①, then 750 / 800 / 900 / 1000 red with ② |
 
+## 3f. CE-3214 (`2026-10-16`) — hit location S2b: weapon systems by part, as drawn in [design §11 / §11a](../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md)
+
+| | |
+|---|---|
+| built | a weapon NOT embarked is met by the kit ui draws (stowed / blended / deployed, laid by its `TurretPose` or its rest elevation): parts Mount / Traverse / Weapon; nine DIS profiles; a Firepower wound breaks it (`IsBroken` ⇒ `CanFire` = Destroyed). Embarked it keeps CE-2182's skip |
+| found by the rail | `VehicleBody.MaxBoxes` 16 truncated the ZU-23's 17-part kit — now 24 · the weapon kits needed round-trip precision |
+| ⚠ cross-lane | ui's `WeaponKits.Deployment` now delegates to `WeaponDeployment.Fraction` (one formula); ui's `VehicleBodyParityTests` grows the weapon rail and generator |
+| gates | `Fdp.Toolkits.Tests` 3 638 / 0 / 1; `Hrot.SimHost.Tests` 1 442 / 0 / 6; `Hrot.Presentation.Tests` 660 / 0 / 25; design-digest OK; Mermaid 9 / 9 |
+| red-proofs | 2 / 2 red: the deploy fraction pinned at 1 (the stowed rail), `IsBroken` without the wound (the firepower rail); the skip's own red is the rail's `VehicleParts = false` row |
+| ⚠ estimated | the zones' multipliers and thresholds (Mount ×0.5; Traverse at 128; Weapon at 64) — starter numbers |
+
+## 3g. CE-2203 / CE-2204 (`2026-10-16`, behaviors' [tank rounds handoff](HANDOFF_Behaviors_To_Backend_Tank_Rounds.md)) — folded into [Building Interiors §3d](../../DESIGN_Building_Interiors.md)
+
+| | |
+|---|---|
+| CE-2203 root cause | ⭐ the late-raycast lag, not the sweep and not LR-2: an IMPACT round burst on the ground the tick it landed and was marked Spent; the raycast of its 230 m segment (it had crossed the pickup about two ticks earlier) resolved later and was dropped as a Spent round's. APFSDS has no Area bit, so it never hit this |
+| CE-2203 fix | a stopped impact round waits `ContactHitWaitTicks` (4 = the lag + 1) at its burst point; a contact hit inside the wait ends it on the unit (its munition and numbers), else it bursts there, still travelling forward. ⚠ every impact burst (bombs, HE, rockets) now lands 4 ticks after the impact |
+| CE-2204 root cause | ⭐ a bullet RayId carried the INDEX only: a late result for a spent rifle round (several of its segments cross the same hull) resolved against the next round that took the slot — the M1's own new round |
+| CE-2204 fix | the RayId carries the generation; a round resolves ONE hit (gone / torn down / already resolved this frame ⇒ dropped). The 5 mm rifle hits did nothing (chance 0 at 5 / 350); the 240 fits the stale own-HE contact burst — ⛔ not separated live |
+| gates | `Fdp.Toolkits.Tests` 3 641 / 0 / 1 (the bomb rail `A3` now times the burst + the wait — its claim changed on purpose); `Hrot.SimHost.Tests` 1 442 / 0 / 6; `Hrot.Presentation.Tests` 662 / 0 / 26 |
+| red-proofs | 3 / 3 red: the burst at once + Spent (CE-2203), the generation ignored (the slot rail), the once-guard off (the hits-once rail). ⚠ the first red-proof run missed the third — a script pattern that did not match; re-run alone, red |
+| ⚠ for behaviors | re-run `ua-tank-ammo`: the HE / HEAT rounds should now meet the technical and the riflemen |
+
+## 3h. CE-3215 (`2026-10-16`) — hit location S2c: aircraft by part, as drawn in [design §12 / §12a](../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md)
+
+| | |
+|---|---|
+| built | the five air kits by part (explicit id maps, checked); `Catastrophic` (engine, tail, cockpit, wing past their thresholds) ⇒ Health 0 ⇒ the CE-2184 fall; the crew of a wreck still ejects (once) |
+| found by the rail | ⭐ the cell walk's pad could be too small for a type no ray had met yet (`MaxBoundRadius` grew in the narrow phase) — now primed per TKB database |
+| ⚠ estimated | every zone multiplier and threshold (starter numbers) |
+| gates | `Fdp.Toolkits.Tests` 3 643 / 1 (`SquadCoordinationSystemTests.Execute_DoesNotAllocate_…` — the known flaky allocation count, not touched) / 1; `Hrot.SimHost.Tests` 1 443 / 0 / 6; `Hrot.Presentation.Tests` 662 / 0 / 26; `Hrot.Core.Tests` 268 / 0; `Hrot.Editor.Tests` 509 / 0 / 2 |
+| red-proofs | 2 / 2 red: the Catastrophic rule off (the tail rail), the wreck rule off (the ejection rail); the solver rail's own parts-off row |
+| ⚠ wire | `BodyPlan` gains `FixedWing` (appended; the `PartDamage` header — IDL regenerated) |
+
+## 3i. Live verification on the cluster (`2026-10-16`, `utility-demo-check.py --launch`, at `8e70971a3` + behaviors `186e3d6ca`)
+
+| demo | result | what it shows |
+|---|---|---|
+| `ua-tank-ammo` | ✅ **PASS 2 / 2** | ⭐ CE-2203 live: the M1's HE round **hit the technical** (Engine, Side — S2's parts) and killed it; the riflemen died. ⭐ CE-2204 live: the M1 ended at **3000 / 3000** — no self-hit; the rifle hits on it arrive at 5 mm and do nothing |
+| `ua-javelin-lock` | ② ✅ · ① 2 / 4 ✗ (behaviors' WIP) | ⭐ CE-2201: Javelin B's 230 m launches flew DIRECT and hit (Side), 2 / 2, the open tank killed. ⭐ CE-2200: Javelin A launched **0** rounds (it fired a blind round before). ⛔ "the cycling tank fights" / "Javelin A aimed" fail on behaviors' newest WIP vignette (`186e3d6ca`: the tank sat in its hide at (250, 101), Javelin A "not seen" throughout) — their scenario geometry, in progress; not a backend finding |
+
+## 3j. CE-2206 (`2026-10-16`, behaviors' [orbit handoff](HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)) — folded into [Motion Domains §5c](../../designs/motion-models/DESIGN_Motion_Domains.md)
+
+| | |
+|---|---|
+| root cause | pure pursuit at full lock traces the hull's smallest turning circle; a point INSIDE it is never on that circle — the follower orbits for ever (live: 60 s round a ~5 m circle) |
+| fix | `InsideTurningCircle` ⇒ drive on straight at `TurnClearanceSpeed` (2 m/s) until the point is outside both circles; then one arc reaches it. Direct mode and a path's end-homing |
+| rejected | reversing (the circles mirror); "success as close as the circle allows" (a 2.3 m move could end ~7 m off); a loop detector (state, one orbit anyway) |
+| gates | `Fdp.Toolkits.Tests` 3 646 / 0 / 1; `Hrot.SimHost.Tests` 1 444 / 0 / 6; red-proof 2 / 2 red (the rule off ⇒ both modes orbit) |
+| ⚠ for behaviors | CE-2205's 4 m arrival in `VehicleFightFromCover` can stay or go back to the move's own radius — your call |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
-The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. Later: CE-3214 (S2b: weapon systems by part), CE-3215 (S2c: aircraft by part).
+The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b) and CE-3215 (S2c) are built — the hit-location programme's slices are all in.

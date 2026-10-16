@@ -145,6 +145,37 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The sim clock the deploy times run on.</summary>
         public static double Now(EntityRepository repo) => repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
 
+        /// <summary>
+        /// ⭐ <c>CE-3214</c> (hit location §11 S2b-7) — how far a weapon is deployed (0 stowed … 1 deployed) at <paramref name="now"/>: a deploy
+        /// rises over its last <paramref name="seconds"/> before <paramref name="until"/>, a pack-up falls. The ONE formula: the drawing
+        /// (ui's <c>WeaponKits.Deployment</c>) and the hit test both read it.
+        /// </summary>
+        public static float Fraction(WeaponDeploy deploy, double until, double now, float seconds)
+        {
+            float left = seconds > 0f ? Math.Clamp((float)((until - now) / seconds), 0f, 1f) : 0f;
+            return deploy switch
+            {
+                WeaponDeploy.Deployed => 1f,
+                WeaponDeploy.Deploying => 1f - left,
+                WeaponDeploy.Packing => left,
+                _ => 0f,
+            };
+        }
+
+        /// <summary>⭐ <c>CE-3214</c> — how far <paramref name="weapon"/> is deployed now, from its replicated state; 1 without one.</summary>
+        public static float FractionOf(EntityRepository repo, Entity weapon)
+        {
+            if (!repo.IsComponentTypeRegistered<WeaponSystemState>() || !repo.HasComponent<WeaponSystemState>(weapon)) return 1f;
+            var state = repo.GetComponentRO<WeaponSystemState>(weapon);
+            float seconds = 0f;
+            if (repo.IsComponentTypeRegistered<WeaponSystemParams>() && repo.HasComponent<WeaponSystemParams>(weapon))
+            {
+                var p = repo.GetComponentRO<WeaponSystemParams>(weapon);
+                seconds = state.Deploy == WeaponDeploy.Packing ? p.PackSeconds : p.DeploySeconds;
+            }
+            return Fraction(state.Deploy, state.Until, Now(repo), seconds);
+        }
+
         private static bool Begin(EntityRepository repo, Entity weapon, bool deploy)
         {
             if (!repo.IsAlive(weapon) || !repo.IsComponentTypeRegistered<WeaponSystemState>() || !repo.HasComponent<WeaponSystemState>(weapon)

@@ -147,6 +147,9 @@ namespace Fdp.Toolkit.Physics.Systems
 
             // ⭐ CE-3211 — each vehicle's main turret, found ONCE per tick (the parallel loop only reads the map)
             var turretOf = VehicleParts ? TurretsOf(repo) : null;
+            // ⭐ CE-3215 — every type's shape built once per database, so the pad below already covers the largest body (a helicopter's tail)
+            if (VehicleParts && repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>())
+                Fdp.Toolkit.Physics.BodyParts.VehicleBody.Prime(repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>());
 
             Parallel.For(0, count, i =>
             {
@@ -198,7 +201,10 @@ namespace Fdp.Toolkit.Physics.Systems
                     //   Systems §6) with a 2.5 m fallback collider and no height, so meeting it would shadow the pickup or the man who
                     //   holds it. Fragments and blast break it (CE-3203). This is today's behaviour, kept: before AT1 the round's mask
                     //   skipped the combat layer it sits on alone.
-                    if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(repo, candidate)) continue;
+                    //   ⭐⭐ CE-3214 (hit location §11 S2b-1) — EXCEPT a weapon NOT embarked (placed, deployed, lying stowed) whose type has a body:
+                    //   it is met by its parts below, like a vehicle. Embarked (on a back, in a station) it keeps the skip.
+                    if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(repo, candidate)
+                        && !(VehicleParts && !IsEmbarked(repo, candidate) && Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, candidate) != null)) continue;
 
                     var collider = repo.GetComponent<PhysicsCollider>(candidate);
 
@@ -243,9 +249,13 @@ namespace Fdp.Toolkit.Physics.Systems
                             continue;
                         }
                         Interlocked.Increment(ref _partTests);
-                        var turretPose = turretOf != null && turretOf.TryGetValue(candidate, out var turretPart)
-                            ? repo.GetComponentRO<Fdp.Toolkit.Combat.Components.TurretPose>(turretPart) : default;
-                        int nb = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Pose(vehicle, size, turretPose.Azimuth, turretPose.Elevation, vehicleBoxes);
+                        Entity turretPart = default;
+                        bool hasTurret = turretOf != null && turretOf.TryGetValue(candidate, out turretPart);
+                        var turretPose = hasTurret ? repo.GetComponentRO<Fdp.Toolkit.Combat.Components.TurretPose>(turretPart) : default;
+                        // ⭐ CE-3214 (S2b-7, S2b-8) — a weapon system: how far it is deployed; with no turret part, laid at its kit's rest elevation
+                        float deployed = vehicle.Stowed != null ? Fdp.Toolkit.Combat.WeaponDeployment.FractionOf(repo, candidate) : 1f;
+                        float elevation = hasTurret ? turretPose.Elevation : vehicle.Kit.RestElevation;
+                        int nb = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Pose(vehicle, size, turretPose.Azimuth, elevation, deployed, vehicleBoxes);
                         if (!Fdp.Toolkit.Physics.BodyParts.BodyPartHit.Segment(vehicleBoxes[..nb], tf.Position, tf.Rotation, 1f, req.Start, req.End, out var vpart)) continue;
                         vpart = vpart with { Part = Fdp.Toolkit.Physics.BodyParts.VehicleBody.PartOf(vehicle, vpart.Part, vpart.LocalPoint) };
                         if (vpart.T < bestT) { bestT = vpart.T; bestEnt = candidate; anyHit = true; bestHasPart = true; bestPart = vpart; }
@@ -318,6 +328,11 @@ namespace Fdp.Toolkit.Physics.Systems
         /// <summary>⭐ M1 — narrows [<paramref name="tIn"/>, <paramref name="tOut"/>] of a segment whose height runs
         /// <paramref name="z0"/>→<paramref name="z1"/> to where it lies in [<paramref name="lo"/>, <paramref name="hi"/>]; false when it
         /// never does.</summary>
+        /// <summary>⭐ <c>CE-3214</c> (S2b-1) — is <paramref name="e"/> aboard something (carried, in a station, manning)?</summary>
+        private static bool IsEmbarked(EntityRepository repo, Entity e)
+            => repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+               && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e);
+
         /// <summary>⭐ <c>CE-3211</c> — parent → its main turret part (<c>TurretParts</c> id 2000), for this tick; null when no turrets exist.</summary>
         private static Dictionary<Entity, Entity>? TurretsOf(EntityRepository repo)
         {

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
+updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached)
 build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement.
+current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -237,4 +237,29 @@ the surface sampler keeps its "a unit spawned inside a footprint stands on the r
 | one `StoppingSpeed(params, d, v)` for the three envelopes (direct, path end, end-homing), less the lag `v / AccelGain` | `CarKinematicsSystem` | a stronger gain — changes every vehicle's feel; a fixed margin — wrong at every speed but one |
 | the arrival LATCHES the end-homing (`HasArrived == 0` to home) | `SampleCustomTrajectory` | re-homing after arrival — the runaway |
 | a ground vehicle never takes a step through a `ClosedBarrier` or up a wall | the write-back (beside CE-3145's "a person never steps off a ledge") | the sampler refusing the roof — it would break a unit spawned inside a footprint; static colliders for buildings — a second geometry of the same walls |
+
+## 5c. The ground model: a point inside the turning circle is REACHED, never orbited — `CE-2206` (`2026-10-16`, backend)
+
+📐 Measured live (`ua-javelin-lock`, behaviors' [handoff](../../blueprints/batches/HANDOFF_Behaviors_To_Backend_Vehicle_Orbit.md)): an M1 sent
+2.3 m to a cover point drove a ~5 m circle round it for 60 s; the move never ended.
+
+```mermaid
+graph LR
+  H["homing on the point<br/>(direct, or a path's end)"] --> Q{"the point inside<br/>a turning circle?<br/>R = WheelBase / sin MaxSteer"}
+  Q -- yes --> S["drive on STRAIGHT<br/>at TurnClearanceSpeed (2 m/s)"]
+  S --> Q
+  Q -- no --> A["one arc of radius ≥ R<br/>reaches it — pure pursuit"]
+  A --> Z["arrived"]
+```
+
+*Caption:* what the picture shows that the code hid — pure pursuit at full lock traces the hull's SMALLEST circle; a point inside it is never
+on that circle, so the follower orbits for ever. Driving straight moves both circles off the point (a driver's U-turn), after which a single
+arc reaches it. Neither reversing nor a looser arrival is needed.
+
+| decision (built) | where | rejected — one line each |
+|---|---|---|
+| `InsideTurningCircle(params, pos, fwd, point)`: inside either circle of radius `WheelBase / sin MaxSteerAngle` (the bicycle model's, as the cornering limit uses) ⇒ head straight on at `TurnClearanceSpeed` until it is not | `CarKinematicsSystem` — Direct mode and a path's end-homing | reversing onto it — the circles mirror, a point to the side stays inside; success "as close as the circle allows" — a 2.3 m move could end ~7 m off; a loop detector — state, and it still circles once |
+
+⭐ Rail: `CarKinematicsSystemTests.CE2206_AHullSentToAPointInsideItsTurningCircle_Arrives` (an M1 sent 2.3 m to its left, both modes:
+arrives within 2.5 m, the excursion bounded) — red-proofed. Behaviors' CE-2205 (the cycle's 4 m arrival) stays: it serves that caller.
 

@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Fdp.Toolkit.Physics
 {
     /// <summary>
@@ -63,6 +64,26 @@ namespace Fdp.Toolkit.Physics
         /// <summary>Packs a bullet entity index into a bullet RayId (bit 63 = 1).</summary>
         public static long PackBulletRayId(int bulletEntityIndex)
             => (1L << 63) | (uint)bulletEntityIndex;
+
+        /// <summary>
+        /// ⭐ <c>CE-2204</c> — packs a bullet's index AND generation (bits 32–47) into a bullet RayId, so a raycast resolving after the round
+        /// died never lands on the NEXT entity that reuses its slot (<see cref="TryBulletOf"/>). ⛔ Index-only, a late result for a spent rifle
+        /// round resolved against whatever round took its slot — 📐 live ua-tank-ammo: a tank "hit its own hull" with its own new round.
+        /// </summary>
+        public static long PackBulletRayId(Entity bullet)
+            => (1L << 63) | ((long)bullet.Generation << 32) | (uint)bullet.Index;
+
+        /// <summary>⭐ <c>CE-2204</c> — the bullet a bullet RayId names: false when the ray carries a generation and that round no longer
+        /// exists (its slot is free or holds a newer entity — the result is stale). A RayId packed without one
+        /// (<see cref="PackBulletRayId(int)"/>) resolves by index alone, as before.</summary>
+        public static bool TryBulletOf(EntityRepository repo, long rayId, out Entity bullet)
+        {
+            int index = (int)(rayId & 0xFFFF_FFFFL);
+            ushort generation = (ushort)((rayId >> 32) & 0xFFFF);
+            bullet = repo.GetEntityByIndex(index);
+            if (generation == 0) return true;
+            return bullet.Generation == generation && repo.IsAlive(bullet);
+        }
 
         /// <summary>Returns true when the RayId represents a bullet ray (bit 63 set).</summary>
         public static bool IsBulletRay(long rayId) => (rayId & (1L << 63)) != 0;

@@ -920,12 +920,17 @@ public sealed class CanvasRenderer
                 }
 
                 ImGui.Separator();
-                if (ImGui.MenuItem("Toggle Breakpoint", "F9"))
+                // CE-1010: greyed (not a silent no-op) when the host registered no handler — BTree and HSM set breakpoints
+                // from their own node gutter, not through this command.
+                bool canToggle = ToggleBreakpointEnabled(_editorCommands, isHoveredSelected);
+                if (ImGui.MenuItem("Toggle Breakpoint", "F9", false, canToggle))
                 {
                     if (!isHoveredSelected)
                         view.Selection.ReplaceWith(SelectionEntry.OfNode(target.Node));
                     _editorCommands?.Invoke(CommandCatalog.ToggleBreakpoint);
                 }
+                if (!canToggle && _editorCommands?.Get(CommandCatalog.ToggleBreakpoint) is null)
+                    ImGui.SetItemTooltip("This editor does not set breakpoints from here — see the node's own breakpoint menu");
 
                 var nodeMenuProvider = view.Host.NodeContextMenu;
                 if (nodeMenuProvider != null)
@@ -1133,6 +1138,14 @@ public sealed class CanvasRenderer
     /// </summary>
     private bool IsCommandEnabled(string commandId)
         => _editorCommands?.Get(commandId)?.IsEnabled() == true;
+
+    /// <summary>
+    /// CE-1010 — the node menu's "Toggle Breakpoint": enabled only when a host registered the command. On a node that is already
+    /// selected the host's own predicate decides (Blueprint: a breakpointable exec node); on an unselected one the selection only
+    /// moves on click, so a registered command is offered and the handler decides.
+    /// </summary>
+    internal static bool ToggleBreakpointEnabled(IEditorCommands? commands, bool targetSelected)
+        => commands?.Get(CommandCatalog.ToggleBreakpoint) is { } d && (!targetSelected || d.IsEnabled());
 
     /// <summary>
     /// BP-76 — draws a node-scoped item that a HOST command implements, selecting the node first so

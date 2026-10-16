@@ -103,6 +103,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   last segments (three ticks in flight) still resolve — a unit IN FRONT of the wall is still struck — then goes.
                 if (proj.StoppedTick != 0)
                 {
+                    // ⭐⭐ CE-2203 — an IMPACT round that stopped bursts only once the raycasts of its last segments have resolved
+                    //   (ContactHitWaitTicks): one of them meeting a unit (a contact hit) ends the round first and it never bursts here.
+                    if ((proj.Warhead & WarheadRound.Area) != 0 && (proj.Warhead & (WarheadRound.Spent | WarheadRound.TimeFuze)) == 0
+                        && currentTick - proj.StoppedTick >= CombatConstants.ContactHitWaitTicks)
+                    {
+                        BurstWhereStopped(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        repo.DestroyEntity(entity);
+                        continue;
+                    }
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
                     {
                         if (shot != null && (proj.Warhead & WarheadRound.Spent) == 0)
@@ -195,15 +204,12 @@ namespace Fdp.Toolkit.Combat.Systems
                         var burst = back.LengthSquared() > 1e-8f
                             ? end + System.Numerics.Vector3.Normalize(back) * AreaEffect.BurstStandOffMetres : end;
                         if ((proj.Warhead & WarheadRound.TimeFuze) != 0)
-                        {
                             proj.Warhead |= WarheadRound.Landed;
-                            repo.GetComponentRW<SimTransform>(entity).Position = burst;
-                        }
-                        else
-                        {
-                            Detonate(repo, in proj, burst, shot, currentTick);
-                            proj.Warhead |= WarheadRound.Spent;
-                        }
+                        // ⭐⭐ CE-2203 — an impact round waits at its burst point for the grace (the StoppedTick branch above bursts it):
+                        //   ⛔ it burst HERE at once and was marked Spent, so the raycast of an EARLIER segment that crossed a unit —
+                        //   resolving up to three ticks later — was dropped (HitResolutionSystem skips a Spent round). 📐 Live
+                        //   ua-tank-ammo: a tank's HE / HEAT rounds at a pickup 230 m away burst on the ground 230 m beyond it, 13 / 13.
+                        repo.GetComponentRW<SimTransform>(entity).Position = burst;
                     }
                 }
 
@@ -211,7 +217,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     Start        = proj.PreviousPosition,
                     End          = end,
-                    RayId        = PhysicsConstants.PackBulletRayId(entity.Index),
+                    RayId        = PhysicsConstants.PackBulletRayId(entity),   // ⭐ CE-2204 — with its generation
                     LayerMask    = ~CombatConstants.BulletCollisionLayer,  // hit everything except other bullets
                     IgnoreEntity = proj.Shooter,
                 });
@@ -239,6 +245,16 @@ namespace Fdp.Toolkit.Combat.Systems
                 TravelX = at.X - proj.PreviousPosition.X, TravelY = at.Y - proj.PreviousPosition.Y, TravelZ = at.Z - proj.PreviousPosition.Z,
             });
             if (shot != null) ShotLog.End(shot, ShotOutcome.Detonated, tick, at);
+        }
+
+        /// <summary>⭐ <c>CE-2203</c> — the delayed impact burst of a round waiting at <paramref name="burst"/> (its stop point is its
+        /// <c>PreviousPosition</c>, the burst stands off it back along the flight): the travel is the flight's, toward the stop point.</summary>
+        private static void BurstWhereStopped(EntityRepository repo, in BallisticProjectile proj, System.Numerics.Vector3 burst, ShotRecord? shot, uint tick)
+        {
+            var forward = proj.PreviousPosition - burst;
+            var asFlown = proj;
+            asFlown.PreviousPosition = burst - forward;   // Detonate's travel = burst − PreviousPosition = the flight's direction
+            Detonate(repo, in asFlown, burst, shot, tick);
         }
 
         /// <summary>

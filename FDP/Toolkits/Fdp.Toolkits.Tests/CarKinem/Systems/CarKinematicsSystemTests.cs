@@ -712,6 +712,46 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2206</c> (behaviors handoff, live <c>ua-javelin-lock</c>) — an M1 sent 2.3 m to its LEFT (inside its ~6.6 m turning circle)
+        /// arrives within its 2 m radius, on a path and driven direct: it drives on, turns back round and comes to the point, in a bounded
+        /// excursion — never orbiting it (measured live: 60 s round a ~5 m circle, the move never ended).
+        /// </summary>
+        [Theory]
+        [InlineData(KinematicsMode.CustomTrajectory)]
+        [InlineData(KinematicsMode.Direct)]
+        public void CE2206_AHullSentToAPointInsideItsTurningCircle_Arrives(KinematicsMode mode)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 0f);
+            var point = new Vector3(0.5f, 2.3f, 0f);
+            Assert.True(CarKinematicsSystem.InsideTurningCircle(repo.GetComponent<VehicleParams>(e), Vector2.Zero, Vector2.UnitX, new Vector2(point.X, point.Y)));
+            pool.RegisterTrajectoryWithKey(new[] { Vector3.Zero, point }, 9);
+            var nav0 = repo.GetComponent<NavState>(e);
+            nav0.Mode = mode;
+            nav0.TrajectoryId = 9;
+            nav0.ArrivalRadius = 2f;
+            nav0.FinalDestination = point;
+            repo.SetComponent(e, nav0);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float farthest = 0f;
+            int arrivedAt = -1;
+            for (int i = 0; i < 60 * 60 && arrivedAt < 0; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var p = repo.GetComponent<SimTransform>(e).Position;
+                farthest = MathF.Max(farthest, Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(point.X, point.Y)));
+                if (repo.GetComponent<NavState>(e).HasArrived == 1) arrivedAt = i;
+            }
+            var end = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(arrivedAt >= 0, $"{mode}: never arrived in 60 s — at ({end.X:F1}, {end.Y:F1}), farthest {farthest:F1} m");
+            Assert.True(Vector2.Distance(new Vector2(end.X, end.Y), new Vector2(point.X, point.Y)) <= 2.5f, $"{mode}: arrived at ({end.X:F1}, {end.Y:F1})");
+            Assert.True(farthest < 30f, $"{mode}: an excursion of {farthest:F1} m");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2198</c> (behaviors handoff ②, live <c>ua-tank-corner</c>) — a ground vehicle driven at a building's wall STOPS at it: inside
         /// the solid footprint the surface sampler offers only the roof, and the hull was lifted onto the 15 m roof. ✅ Red-proof: the mover
         /// without the wall rule ⇒ z = 12 ⇒ red.

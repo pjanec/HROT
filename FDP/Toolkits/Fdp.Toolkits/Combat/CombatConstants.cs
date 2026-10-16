@@ -98,6 +98,10 @@ namespace Fdp.Toolkit.Combat
         /// for the raycasts of its last segments to resolve (they take three ticks), so a unit in front of the wall is still hit.</summary>
         public const uint  StoppedRoundGraceTicks = 8;
 
+        /// <summary>⭐ <c>CE-2203</c> — how long an IMPACT round that stopped waits before it bursts there: the raycast lag (a segment's
+        /// result resolves three ticks later, Building Interiors §3d) + one, so a contact hit on an earlier segment ends it first.</summary>
+        public const uint  ContactHitWaitTicks = 4;
+
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the lifetime of a WARHEAD round on an arc, or lying on the ground on a time fuze (a
         /// mortar bomb flies for tens of seconds; a thrown grenade lies until its fuze).</summary>
         public const uint  ArcRoundLifetimeTicks = 3600;

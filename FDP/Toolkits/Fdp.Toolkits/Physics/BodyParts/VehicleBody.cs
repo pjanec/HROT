@@ -27,6 +27,18 @@ namespace Fdp.Toolkit.Physics.BodyParts
         };
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-3214</c> (§11 S2b-3) — a WEAPON SYSTEM's part ids (plan <see cref="BodyPlan.WeaponSystem"/>): what it stands on, what
+    /// traverses, and the weapon itself (receiver, barrel, tube, sight).
+    /// </summary>
+    public static class WeaponPart
+    {
+        public const byte Mount = 0, Traverse = 1, Weapon = 2;
+        public const int Count = 3;
+
+        public static string NameOf(byte part) => part switch { Mount => "Mount", Traverse => "Traverse", Weapon => "Weapon", _ => "None" };
+    }
+
     /// <summary>A kit part's shape (ui's <c>PartShape</c>).</summary>
     public enum KitShape : byte { Box, Cylinder, Cone }
 
@@ -47,8 +59,10 @@ namespace Fdp.Toolkit.Physics.BodyParts
     public readonly record struct VehicleKitPart(byte Part, KitShape Shape, Vector3 Centre, Vector3 Extent, KitAxis Axis, float PitchDegrees,
                                                  float YawDegrees, KitRole Role, bool EngineBox = false);
 
-    /// <summary>⭐ <c>CE-3211</c> — a vehicle kit: its default size (m), where its turret turns and its gun's trunnion (fractions), its parts.</summary>
-    public sealed record VehicleKit(string Name, Vector3 DefaultSize, Vector2 TurretPivot, Vector2 GunTrunnionXZ, VehicleKitPart[] Parts)
+    /// <summary>⭐ <c>CE-3211</c> — a vehicle kit: its default size (m), where its turret turns and its gun's trunnion (fractions), its parts.
+    /// ⭐ <c>CE-3214</c> (S2b-8) — <paramref name="RestElevation"/>: the lay (radians) of a gun with no turret part (ui's <c>LaidPose</c> fallback).</summary>
+    public sealed record VehicleKit(string Name, Vector3 DefaultSize, Vector2 TurretPivot, Vector2 GunTrunnionXZ, VehicleKitPart[] Parts,
+                                    float RestElevation = 0f)
     {
         public bool IsArticulated { get; } = Array.Exists(Parts, p => p.Role != KitRole.Hull);
     }
@@ -73,6 +87,9 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>The bounding sphere at <see cref="Size"/>, in the BODY frame, covering every turret and gun pose (S2-9).</summary>
         public Vector3 BoundCentre { get; init; }
         public float BoundRadius { get; init; }
+        /// <summary>⭐ <c>CE-3214</c> (S2b) — a weapon system's TRANSPORT kit (same parts, same order as <see cref="Kit"/>, its deployed one);
+        /// null for a vehicle. A weapon is posed by how far it is deployed (<see cref="VehicleBody.Pose(VehicleShape, Vector3, float, float, float, Span{BodyBox})"/>).</summary>
+        public VehicleKit? Stowed { get; init; }
     }
 
     /// <summary>
@@ -85,11 +102,25 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>The engine-candidate marker a posed main hull box carries until the hit's local point says Engine or Hull.</summary>
         internal const byte EngineBoxMarker = 254;
 
-        /// <summary>The most boxes a vehicle kit poses.</summary>
-        public const int MaxBoxes = 16;
+        /// <summary>The most boxes a vehicle or weapon kit poses (⭐ CE-3214: the ZU-23-2's kit has 17 — a 16 truncated it silently).</summary>
+        public const int MaxBoxes = 24;
 
         private static readonly ConditionalWeakTable<TkbTemplate, VehicleShape?[]> s_cache = new();
         private static float s_maxBoundRadius;
+
+        private static readonly ConditionalWeakTable<ITkbDatabase, object> s_primed = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-3215</c> — builds the shape of EVERY type in <paramref name="db"/> once (per database), so <see cref="MaxBoundRadius"/> is
+        /// the catalogue's before the first ray: ⛔ it grew only when a type's shape was first built, in the narrow phase — AFTER the cell walk
+        /// had chosen its pad — so the first rounds at a new helicopter type could miss its tail, ~10 m from its point.
+        /// </summary>
+        public static void Prime(ITkbDatabase? db)
+        {
+            if (db == null || s_primed.TryGetValue(db, out _)) return;
+            foreach (var t in db.GetAll()) Of(t);
+            s_primed.AddOrUpdate(db, db);
+        }
 
         /// <summary>The largest bound radius of any vehicle shape built so far (m) — the cell walk's pad (S2-9).</summary>
         public static float MaxBoundRadius => Volatile.Read(ref s_maxBoundRadius);
@@ -99,6 +130,14 @@ namespace Fdp.Toolkit.Physics.BodyParts
         {
             if (name == null) return null;
             foreach (var k in Kits) if (k.Name == name) return k;
+            return null;
+        }
+
+        /// <summary>⭐ <c>CE-3214</c> — the weapon kits (stowed, deployed) of the kind named <paramref name="name"/> (generated), or null.</summary>
+        public static (VehicleKit Stowed, VehicleKit Deployed)? WeaponKitNamed(string? name)
+        {
+            if (name == null) return null;
+            foreach (var k in WeaponKits) if (k.Deployed.Name == name) return k;
             return null;
         }
 
@@ -147,23 +186,30 @@ namespace Fdp.Toolkit.Physics.BodyParts
 
         private static VehicleShape? Build(TkbTemplate t)
         {
-            if (BodyZones.Of(t) is not { Kit: { } kitName } body || KitNamed(kitName) is not { } kit) return null;
+            if (BodyZones.Of(t) is not { Kit: { } kitName } body) return null;
+            // ⭐ CE-3214 (S2b) — a weapon system's kit is its DEPLOYED one, with its stowed one beside it
+            VehicleKit? stowed = null;
+            var kit = KitNamed(kitName);
+            if (kit == null && WeaponKitNamed(kitName) is { } pair) (stowed, kit) = pair;
+            if (kit == null) return null;
             var size = TemplateSize(t, kit);
             var geometry = t.GetDescriptor<BodyGeometryDto>();
-            var turret = t.GetDescriptor<TurretSuiteDto>() is { Turrets.Count: > 0 } suite ? suite.Turrets[0] : null;
+            // a weapon is drawn at its kit's own pivots (ui does not place a weapon kit from the TKB turret)
+            var turret = stowed == null && t.GetDescriptor<TurretSuiteDto>() is { Turrets.Count: > 0 } suite ? suite.Turrets[0] : null;
             var shape = new VehicleShape
             {
                 Kit = kit, Plan = body.Plan, EngineEnd = body.EngineEnd, Size = size,
                 KitToBody = geometry == null ? Vector3.Zero : new Vector3(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f),
                 PivotShift = geometry is { Length: > 0f, Width: > 0f, Height: > 0f } g
                     ? new Vector3(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ - size.Z / 2f) : Vector3.Zero,
-                Turret = turret, MainGun = turret != null ? MainGunOf(t) : null,
+                Turret = turret, MainGun = turret != null ? MainGunOf(t) : null, Stowed = stowed,
             };
             var (c, r) = Bound(shape, size);
             var withBound = new VehicleShape
             {
                 Kit = shape.Kit, Plan = shape.Plan, EngineEnd = shape.EngineEnd, Size = shape.Size, KitToBody = shape.KitToBody,
                 PivotShift = shape.PivotShift, Turret = shape.Turret, MainGun = shape.MainGun, BoundCentre = c, BoundRadius = r,
+                Stowed = shape.Stowed,
             };
             float seen;
             while ((seen = Volatile.Read(ref s_maxBoundRadius)) < r && Interlocked.CompareExchange(ref s_maxBoundRadius, r, seen) != seen) { }
@@ -266,8 +312,21 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// reference point at the origin). The main hull box carries <see cref="EngineBoxMarker"/> until <see cref="PartOf"/> resolves it.
         /// </summary>
         public static int Pose(VehicleShape shape, Vector3 size, float azimuth, float elevation, Span<BodyBox> boxes)
+            => Pose(shape, size, azimuth, elevation, 1f, boxes);
+
+        /// <summary>
+        /// ⭐ <c>CE-3214</c> (S2b) — as above, a weapon system <paramref name="deployed"/> 0 (stowed) … 1 (deployed): fully deployed it is the
+        /// deployed kit, articulated; stowed it is the stowed kit; between, every part's centre, size, pitch and yaw blended and the whole
+        /// weapon one piece (ui's <c>WeaponKits.Blend</c>). A vehicle ignores <paramref name="deployed"/>.
+        /// </summary>
+        public static int Pose(VehicleShape shape, Vector3 size, float azimuth, float elevation, float deployed, Span<BodyBox> boxes)
         {
             var (parts, pivot, trunnion) = Placed(shape, size);
+            if (shape.Stowed is { } stowed && deployed < 1f)
+            {
+                parts = Blend(stowed.Parts, shape.Kit.Parts, deployed);
+                azimuth = 0f; elevation = 0f;
+            }
             if (!shape.Kit.IsArticulated) { azimuth = 0f; elevation = 0f; }
             var toBody = Matrix4x4.CreateTranslation(shape.KitToBody);
             int n = 0;
@@ -279,6 +338,29 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 boxes[n++] = BoxOf(id, p.Shape, m, p.Role == KitRole.Hull ? 0f : azimuth);
             }
             return n;
+        }
+
+        /// <summary>⭐ <c>CE-3214</c> — the parts part-way from <paramref name="stowed"/> to <paramref name="deployed"/> (<paramref name="t"/> 0..1,
+        /// clamped): centre, extent, pitch and yaw interpolated, every part the HULL role (it moves as one piece) — ui's <c>WeaponKits.Blend</c>.</summary>
+        public static VehicleKitPart[] Blend(VehicleKitPart[] stowed, VehicleKitPart[] deployed, float t)
+        {
+            t = System.Math.Clamp(t, 0f, 1f);
+            if (t <= 0f) return stowed;
+            var parts = new VehicleKitPart[deployed.Length];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var a = stowed[i];
+                var b = deployed[i];
+                parts[i] = b with
+                {
+                    Centre = Vector3.Lerp(a.Centre, b.Centre, t),
+                    Extent = Vector3.Lerp(a.Extent, b.Extent, t),
+                    PitchDegrees = a.PitchDegrees + (b.PitchDegrees - a.PitchDegrees) * t,
+                    YawDegrees = a.YawDegrees + (b.YawDegrees - a.YawDegrees) * t,
+                    Role = KitRole.Hull,
+                };
+            }
+            return parts;
         }
 
         /// <summary>The part a hit on a posed box is: the engine region of the main hull box is <see cref="VehiclePart.Engine"/> (S2-4).</summary>
@@ -314,7 +396,22 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 };
                 radius = MathF.Max(radius, r);
             }
+            // ⭐ CE-3214 (S2b-9) — a weapon's stowed kit and every blend toward it: a blended part's centre lies between its two ends and
+            //   its size between its two sizes, so its reach is at most the farther end's distance + the larger half-size
+            if (shape.Stowed is { } stowed)
+                for (int i = 0; i < stowed.Parts.Length && i < parts.Length; i++)
+                {
+                    var a = BoxOf(0, stowed.Parts[i].Shape, PartTransform(stowed.Parts[i], size, pivotF, trunnionF, 0f, 0f) * Matrix4x4.CreateTranslation(shape.KitToBody));
+                    var b = BoxOf(0, parts[i].Shape, PartTransform(parts[i] with { Role = KitRole.Hull }, size, pivotF, trunnionF, 0f, 0f) * Matrix4x4.CreateTranslation(shape.KitToBody));
+                    float r = MathF.Max(Vector3.Distance(a.Centre, centre), Vector3.Distance(b.Centre, centre))
+                              + MathF.Max(MaxHalfDiagonal(stowed.Parts[i], size), MaxHalfDiagonal(parts[i], size));
+                    radius = MathF.Max(radius, r);
+                }
             return (centre, radius);
         }
+
+        /// <summary>Half the diagonal of the box a part spans at <paramref name="size"/> whatever its pitch and yaw (its extent box's).</summary>
+        private static float MaxHalfDiagonal(in VehicleKitPart p, Vector3 size)
+            => BoxOf(0, p.Shape, PartTransform(p with { PitchDegrees = 0f, YawDegrees = 0f, Role = KitRole.Hull }, size, Vector2.Zero, Vector2.Zero, 0f, 0f)).Half.Length();
     }
 }

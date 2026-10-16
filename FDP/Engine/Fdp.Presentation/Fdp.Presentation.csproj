@@ -45,5 +45,10 @@
     <EmbeddedResource Include="..\..\Data\Fonts\fa-solid-900.ttf">
       <LogicalName>FDP.Toolkit_ImGui.Fonts.fa-solid-900.ttf</LogicalName>
     </EmbeddedResource>
+    <!-- CE-1063: a DejaVu Sans SUBSET (arrows, maths, shapes, symbols, dingbats) merged under Roboto,
+         which has none of them. Bitstream Vera licence; see DejaVuSans-Symbols.LICENSE.txt. -->
+    <EmbeddedResource Include="..\..\Data\Fonts\DejaVuSans-Symbols.ttf">
+      <LogicalName>FDP.Toolkit_ImGui.Fonts.DejaVuSans-Symbols.ttf</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

@@ -8,7 +8,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
     /// ⭐⭐ <c>CE-3209</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-3) — the body plans: each has its own fixed
     /// part ids (a byte), the same on every node and on the wire. S1 builds <see cref="Person"/>; the vehicle plans are S2.
     /// </summary>
-    public enum BodyPlan : byte { None = 0, Person = 1, TrackedVehicle = 2, WheeledVehicle = 3, Rotorcraft = 4, WeaponSystem = 5 }
+    public enum BodyPlan : byte { None = 0, Person = 1, TrackedVehicle = 2, WheeledVehicle = 3, Rotorcraft = 4, WeaponSystem = 5, FixedWing = 6 }   // ⭐ CE-3215 — FixedWing appended
 
     /// <summary>
     /// ⭐ <c>CE-3209</c> (HL-3) — a PERSON's part ids: the block figure's shared part order (Map 3D §6, <c>BlockFigure</c>), so the drawing,
@@ -43,4 +43,23 @@ namespace Fdp.Toolkit.Physics.BodyParts
 
     /// <summary>The result of a segment meeting a body: where along it (0..1), which part, the face it entered, the point in the part.</summary>
     public readonly record struct BodyPartHitResult(float T, byte Part, Facing Face, Vector3 LocalPoint);
+
+    /// <summary>
+    /// ⭐ <c>CE-3215</c> (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §12 S2c-2) — an AIRCRAFT's part ids (plans
+    /// <see cref="BodyPlan.Rotorcraft"/> and <see cref="BodyPlan.FixedWing"/>). Rotors and gear do not collide.
+    /// </summary>
+    public static class AircraftPart
+    {
+        public const byte Fuselage = 0, Cockpit = 1, Wing = 2, Engine = 3, Tail = 4, Turret = 5, Gun = 6, Stores = 7;
+        public const int Count = 8;
+
+        public static string NameOf(byte part) => part switch
+        {
+            Fuselage => "Fuselage", Cockpit => "Cockpit", Wing => "Wing", Engine => "Engine", Tail => "Tail", Turret => "Turret", Gun => "Gun",
+            Stores => "Stores", _ => "None",
+        };
+
+        /// <summary>Is <paramref name="plan"/> an aircraft's?</summary>
+        public static bool IsAircraft(BodyPlan plan) => plan is BodyPlan.Rotorcraft or BodyPlan.FixedWing;
+    }
 }

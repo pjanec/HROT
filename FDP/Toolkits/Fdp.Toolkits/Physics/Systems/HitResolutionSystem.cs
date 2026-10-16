@@ -55,6 +55,8 @@ namespace Fdp.Toolkit.Physics.Systems
     [UpdateInPhase(SystemPhase.Input)]
     public class HitResolutionSystem : IEcsModuleSystem
     {
+        private readonly System.Collections.Generic.HashSet<Entity> _resolved = new();   // ⭐ CE-2204 — the rounds resolved this frame
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -65,6 +67,7 @@ namespace Fdp.Toolkit.Physics.Systems
             var events = view.ReadEvents<RaycastResultEvent>();
             if (events.IsEmpty) return;
 
+            _resolved.Clear();
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var hit = ref events[i].Hit;
@@ -72,8 +75,12 @@ namespace Fdp.Toolkit.Physics.Systems
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
                 {
-                    int bulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL);
-                    var bulletEntity = repo.GetEntityByIndex(bulletIndex);
+                    // ⭐⭐ CE-2204 — a round hits ONCE: the bullet the ray names (index AND generation — a slot reused by a newer round is
+                    //   not it), still in flight (not torn down by an earlier hit), and not already resolved this frame. Its other
+                    //   segments' results (they often cross the same body) are dropped.
+                    if (!PhysicsConstants.TryBulletOf(repo, hit.RayId, out var bulletEntity)) continue;
+                    if (repo.IsAlive(bulletEntity)
+                        && (repo.GetLifecycleState(bulletEntity) == EntityLifecycle.TearDown || !_resolved.Add(bulletEntity))) continue;
 
                     // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
@@ -126,9 +133,14 @@ namespace Fdp.Toolkit.Physics.Systems
                             shot.HitEntity = hit.HitEntity;
                             if (hit.HasBodyPart != 0)   // ⭐ CE-3209 — the part and the face, for /combat/shots
                             {
-                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) != null   // ⭐ CE-3211 — a vehicle's parts
-                                    ? Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart)
-                                    : Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart);
+                                shot.HitPart = Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, hit.HitEntity) switch   // ⭐ CE-3211 — a vehicle's parts
+                                {
+                                    { Stowed: not null } => Fdp.Toolkit.Physics.BodyParts.WeaponPart.NameOf(hit.BodyPart),   // ⭐ CE-3214 — a weapon's
+                                    { } air when Fdp.Toolkit.Physics.BodyParts.AircraftPart.IsAircraft(air.Plan)
+                                        => Fdp.Toolkit.Physics.BodyParts.AircraftPart.NameOf(hit.BodyPart),   // ⭐ CE-3215 — an aircraft's
+                                    not null => Fdp.Toolkit.Physics.BodyParts.VehiclePart.NameOf(hit.BodyPart),
+                                    _ => Fdp.Toolkit.Physics.BodyParts.PersonPart.NameOf(hit.BodyPart),
+                                };
                                 shot.HitFace = ((Fdp.Toolkit.Combat.Facing)hit.Face).ToString();
                             }
                             shot.ArrivingDamage = damage;

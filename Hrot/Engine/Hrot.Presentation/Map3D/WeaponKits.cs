@@ -109,17 +109,10 @@ public static class WeaponKits
 
     /// <summary>How far a weapon is deployed (0 stowed … 1 deployed) at <paramref name="now"/>, from its replicated state: a deploy rises
     /// over its last <paramref name="seconds"/> before <paramref name="until"/>, a pack-up falls.</summary>
+    /// <remarks>⭐ CE-3214 (backend, cross-lane; hit location §11 S2b-7) — the one formula lives in <c>WeaponDeployment.Fraction</c>,
+    /// which the hit test reads too, so a half-deployed weapon is hit where it is drawn.</remarks>
     public static float Deployment(Fdp.Toolkit.Combat.WeaponDeploy deploy, double until, double now, float seconds)
-    {
-        float left = seconds > 0f ? Math.Clamp((float)((until - now) / seconds), 0f, 1f) : 0f;
-        return deploy switch
-        {
-            Fdp.Toolkit.Combat.WeaponDeploy.Deployed => 1f,
-            Fdp.Toolkit.Combat.WeaponDeploy.Deploying => 1f - left,
-            Fdp.Toolkit.Combat.WeaponDeploy.Packing => left,
-            _ => 0f,
-        };
-    }
+        => Fdp.Toolkit.Combat.WeaponDeployment.Fraction(deploy, until, now, seconds);
 
     /// <summary>⭐ N-2 — where the gunner of a <paramref name="kind"/> is (metres from the weapon's origin in its frame, turned with its
     /// traverse), which way he faces (radians from the weapon's forward), and his pose: KNEEL / STAND (the place is his feet) or ⭐ CE-1112

@@ -1,5 +1,5 @@
 {
-  "_doc": "CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-12) — body profiles, matched by DIS class (kind.domain.country.category.subcategory.specific.extra; * or absent = any), most specific first. A TKB type overrides a field with a sparse Combat.BodyZones. Armour in mm RHA; part ids are the plan's (Person: ThighL 0, ShinL 1, ThighR 2, ShinR 3, Torso 4, Head 5, UpperArmL 6, ForearmL 7, UpperArmR 8, ForearmR 9). Starter numbers (HL-11) — tuning starts here. ⭐ CE-3211 (§9): a VEHICLE profile names its kit (VehicleBody, generated from ui's ShapeKits), its engine end, and inheritArmour (a face with no number keeps the platform's armour); its parts are Hull 0, Turret 1, Gun 2, RunningGearL 3, RunningGearR 4, Engine 5; dis may be a list.",
+  "_doc": "CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-12) — body profiles, matched by DIS class (kind.domain.country.category.subcategory.specific.extra; * or absent = any), most specific first. A TKB type overrides a field with a sparse Combat.BodyZones. Armour in mm RHA; part ids are the plan's (Person: ThighL 0, ShinL 1, ThighR 2, ShinR 3, Torso 4, Head 5, UpperArmL 6, ForearmL 7, UpperArmR 8, ForearmR 9). Starter numbers (HL-11) — tuning starts here. ⭐ CE-3211 (§9): a VEHICLE profile names its kit (VehicleBody, generated from ui's ShapeKits), its engine end, and inheritArmour (a face with no number keeps the platform's armour); its parts are Hull 0, Turret 1, Gun 2, RunningGearL 3, RunningGearR 4, Engine 5; dis may be a list. ⭐ CE-3214 (§11): a WEAPON SYSTEM profile (plan WeaponSystem) names its WeaponKits kind; its parts are Mount 0, Traverse 1, Weapon 2. ⭐ CE-3215 (§12): an AIRCRAFT profile (plan Rotorcraft / FixedWing) names its kit; its parts are Fuselage 0, Cockpit 1, Wing 2, Engine 3, Tail 4, Turret 5, Gun 6, Stores 7; Catastrophic ⇒ Health 0 (the crash).",
   "profiles": [
     {
       "name": "Soldier",
@@ -96,6 +96,199 @@
         { "zone": "Gun",         "parts": [2],    "multiplier": 0.2, "effect": "Firepower", "woundedAt": 32 },
         { "zone": "RunningGear", "parts": [3, 4], "multiplier": 0.3, "effect": "Mobility",  "woundedAt": 32 },
         { "zone": "Engine",      "parts": [5],    "multiplier": 0.8, "effect": "Mobility",  "woundedAt": 96 }
+      ]
+    },
+    {
+      "name": "HmgWeapon",
+      "plan": "WeaponSystem",
+      "dis": ["1.1.*.50", "1.1.*.50.1"],
+      "kit": "Hmg",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "MinigunWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.2",
+      "kit": "Minigun",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "AtgmWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.3",
+      "kit": "Atgm",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "LauncherWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.4",
+      "kit": "Launcher",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "SentryWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.5",
+      "kit": "Sentry",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "ManpadsWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.6",
+      "kit": "Manpads",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "AaGunWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.50.7",
+      "kit": "AaGun",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "MortarWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.10",
+      "kit": "Mortar",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "TowedGunWeapon",
+      "plan": "WeaponSystem",
+      "dis": "1.1.*.5",
+      "kit": "TowedGun",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Mount",    "parts": [0], "multiplier": 0.5 },
+        { "zone": "Traverse", "parts": [1], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 128 },
+        { "zone": "Weapon",   "parts": [2], "multiplier": 1.0, "effect": "Firepower", "woundedAt": 64 }
+      ]
+    },
+    {
+      "name": "Helicopter",
+      "plan": "Rotorcraft",
+      "dis": ["1.2.*.21", "1.2.*.22", "1.2.*.23", "1.2.*.24", "1.2.*.25"],
+      "kit": "Helicopter",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
+      ]
+    },
+    {
+      "name": "AttackHelicopter",
+      "plan": "Rotorcraft",
+      "dis": "1.2.*.20",
+      "kit": "AttackHelicopter",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
+      ]
+    },
+    {
+      "name": "Jet",
+      "plan": "FixedWing",
+      "dis": ["1.2.*.1", "1.2.*.6", "1.2.*.7", "1.2.*.40", "1.2.*.47"],
+      "kit": "Jet",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
+      ]
+    },
+    {
+      "name": "AttackJet",
+      "plan": "FixedWing",
+      "dis": "1.2.*.2",
+      "kit": "AttackJet",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
+      ]
+    },
+    {
+      "name": "CargoPlane",
+      "plan": "FixedWing",
+      "dis": ["1.2.*.3", "1.2.*.4", "1.2.*.5", "1.2.*.8", "1.2.*.57"],
+      "kit": "CargoPlane",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
       ]
     }
   ]

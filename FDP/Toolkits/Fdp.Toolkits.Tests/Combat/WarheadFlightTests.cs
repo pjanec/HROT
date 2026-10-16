@@ -8,6 +8,7 @@ using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Physics.Systems;
 using Xunit;
 
 namespace Fdp.Toolkit.Combat.Tests
@@ -54,12 +55,17 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>Runs the flight: integrate (LinearKinematicsSystem's pos += v·dt), then the ballistics step; returns every burst and
         /// the tick it happened at.</summary>
-        private List<(uint Tick, DetonationNotification D)> Fly(int maxTicks)
+        private List<(uint Tick, DetonationNotification D)> Fly(int maxTicks) => Fly(2, (uint)maxTicks);
+
+        /// <summary>The flight from <paramref name="first"/> to before <paramref name="end"/> (ticks); ⭐ CE-2203 — <paramref name="beforeStep"/>
+        /// runs at the start of each tick (a late raycast result arriving).</summary>
+        private List<(uint Tick, DetonationNotification D)> Fly(uint first, uint end, Action<uint>? beforeStep = null)
         {
             var bursts = new List<(uint, DetonationNotification)>();
-            for (uint tick = 2; tick < maxTicks; tick++)
+            for (uint tick = first; tick < end; tick++)
             {
                 _w.SetSingleton(new GlobalTime { FrameNumber = tick, TimeScale = 1f });
+                beforeStep?.Invoke(tick);
                 foreach (var e in _w.Query().With<SimTransform>().With<SimVelocity>().Build())
                 {
                     ref var tf = ref _w.GetComponentRW<SimTransform>(e);
@@ -71,6 +77,64 @@ namespace Fdp.Toolkit.Combat.Tests
                 foreach (var d in _w.Bus.Read<DetonationNotification>()) bursts.Add((tick, d));
             }
             return bursts;
+        }
+
+        /// <summary>⭐ CE-2203 — the live tank HE shot: from a 1.88 m muzzle, flat, at 1000 m/s, meeting the ground ~460 m out.</summary>
+        private Entity FireFlatHe()
+        {
+            var from = new Vector3(0f, 0f, 1.88f);
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = from, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new SimVelocity { Linear = Vector3.Normalize(new Vector3(460f, 0f, -1.88f)) * 1000f });
+            _w.AddComponent(e, new BallisticProjectile
+            {
+                PreviousPosition = from, Muzzle = from, SpawnTick = 1, TerrainFlags = 1, Ammo = 6018, Warhead = WarheadRound.Area,
+                Penetration = 50f, Damage = 600f,
+            });
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2203</c> — an IMPACT round that meets the ground bursts there ONCE, but only after the contact-hit wait
+        /// (<see cref="CombatConstants.ContactHitWaitTicks"/>), still travelling forward; and a CONTACT HIT on one of its earlier segments
+        /// that resolves inside the grace (the pickup it crossed, three ticks late) ends the round on that unit — it never bursts on the
+        /// ground. 🔴 Red before: it burst the tick it landed and was marked Spent, so the late hit was dropped (live ua-tank-ammo: 13 / 13
+        /// HE / HEAT rounds burst 230 m beyond the pickup they crossed).
+        /// </summary>
+        [Fact]
+        public void CE2203_AnImpactRound_WaitsTheGrace_SoALateContactHitOnAnEarlierSegment_Wins()
+        {
+            FireFlatHe();
+            var alone = Fly(2, 80);
+            var (tick, b) = Assert.Single(alone);
+            Assert.InRange(b.HitX, 450f, 462f);
+            Assert.Equal(Entity.Null, b.Target);
+            Assert.True(b.TravelX > 0f && MathF.Abs(b.TravelY) < 1e-3f, $"travelling {b.TravelX}, {b.TravelY}, {b.TravelZ}");
+            Assert.True(tick >= 28 + CombatConstants.ContactHitWaitTicks, $"burst at tick {tick}, before the contact-hit wait");
+
+            // the same shot, and the raycast of its 230 m segment resolving on the tick after it landed
+            _w.RegisterEvent<RaycastResultEvent>();
+            _w.RegisterEvent<HitEvent>();
+            var round = FireFlatHe();
+            var pickup = _w.CreateEntity();
+            var hits = new HitResolutionSystem();
+            bool sent = false;
+            var bursts = Fly(2, 80, t =>
+            {
+                if (sent || _w.GetComponentRO<BallisticProjectile>(round).StoppedTick == 0) return;
+                sent = true;
+                _w.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(round), HitEntity = pickup, IgnoreEntity = Entity.Null,
+                    Start = new Vector3(220f, 0f, 1f), End = new Vector3(240f, 0f, 0.95f), T = 0.5f,
+                } });
+                _w.Bus.SwapBuffers();
+                hits.Execute(_w, Dt);
+                ((EntityCommandBuffer)((ISimulationView)_w).GetCommandBuffer()).Playback(_w);
+            });
+            Assert.True(sent);
+            Assert.DoesNotContain(bursts, x => x.D.Target == Entity.Null);   // no ground burst
+            Assert.Contains(bursts, x => x.D.Target == pickup && x.D.Ammo == 6018 && x.D.Damage == 600f);   // the contact hit, its munition
         }
 
         [Theory]

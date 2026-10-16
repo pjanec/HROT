@@ -354,6 +354,23 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             Assert.Equal(new Vector3(-1, -1, -1), _repo.GetComponentRO<SimTransform>(remote).Position);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3208</c> — the bytes this thread allocates over 1000 frames, the LEAST of three windows. 📐 One window alone failed ~1 run in
+        /// 20 with a single ~4 KB allocation (once, not per frame — a runtime event such as a tier-up landing in the window); a hot-path
+        /// allocation happens every frame, so it shows in EVERY window and still fails here.
+        /// </summary>
+        private static long SteadyStateAllocation(Action frame)
+        {
+            long least = long.MaxValue;
+            for (int w = 0; w < 3; w++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 1000; i++) frame();
+                least = Math.Min(least, GC.GetAllocatedBytesForCurrentThread() - before);
+            }
+            return least;
+        }
+
         /// <summary>⭐⭐ User ruling: no allocation on the hot path. The query is built once and cached.</summary>
         [Fact]
         public void Execute_DoesNotAllocate_OnTheSteadyStatePath()
@@ -363,11 +380,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             var system = new SquadCoordinationSystem();
             for (int i = 0; i < 100; i++) system.Execute(_repo, 0.016f);   // warm up (query build, JIT)
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1000; i++) system.Execute(_repo, 0.016f);
-            long after = GC.GetAllocatedBytesForCurrentThread();
-
-            Assert.Equal(0, after - before);
+            Assert.Equal(0, SteadyStateAllocation(() => system.Execute(_repo, 0.016f)));
         }
 
         /// <summary>⭐ <c>CE-3088</c> — the fire distribution it now runs after each merge keeps the hot path allocation-free.</summary>
@@ -383,11 +396,7 @@ namespace Fdp.Toolkits.Tests.Squad.Systems
             void Frame() { _repo.Tick(); system.Execute(_repo, 0.016f); }
             for (int i = 0; i < 100; i++) Frame();   // warm up
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1000; i++) Frame();   // ≈ 166 merges + assignments
-            long after = GC.GetAllocatedBytesForCurrentThread();
-
-            Assert.Equal(0, after - before);
+            Assert.Equal(0, SteadyStateAllocation(Frame));   // ≈ 166 merges + assignments a window
         }
     }
 }

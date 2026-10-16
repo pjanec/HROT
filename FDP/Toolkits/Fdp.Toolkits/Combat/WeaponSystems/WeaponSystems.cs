@@ -190,9 +190,12 @@ namespace Fdp.Toolkit.Combat
         /// ⭐ CE-3203 (DESIGN_Weapon_Systems §5b) — is <paramref name="weapon"/> a weapon SYSTEM that has been broken (its health at 0)?
         /// It stays where it is (and in its host's controlled list, so the others' <c>32 + k</c> indices hold) but fires for nobody.
         /// </summary>
+        /// <remarks>⭐ <c>CE-3214</c> (hit location §11 S2b-6) — or its WEAPON / TRAVERSE zone is wounded past its threshold (a Firepower
+        /// wound, derived from the replicated <c>PartDamage</c>): a round through the receiver or the sight breaks it as surely.</remarks>
         public static bool IsBroken(EntityRepository world, Entity weapon)
             => IsWeaponSystem(world, weapon) && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
-               && CombatLife.IsDestroyed(world, weapon);
+               && (CombatLife.IsDestroyed(world, weapon)
+                   || Fdp.Toolkit.Physics.BodyParts.Wounds.Has(world, weapon, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower));
 
         /// <summary>The mount index <paramref name="weapon"/> has in <paramref name="unit"/>'s mount list, or −1 when the unit does not
         /// control it.</summary>
