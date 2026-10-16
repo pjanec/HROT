@@ -1869,10 +1869,15 @@ def run_weapon_systems(c, timeout):
     print(f"    start: M2 deploy {deploy(m2)} · Javelin deploy {deploy(jav)} · sentry deploy {deploy(sentry)}")
     print(f"    gunner BehaviorState {json.dumps(comps(gunner).get('BehaviorState'))[:300]} · M2 PassengerBuffer {json.dumps(comps(m2).get('PassengerBuffer'))[:200]}")
     call("POST", "/sim/play", {})
-    for i in range(6):   # the gunner's first seconds: the behaviour, the interaction channel
-        time.sleep(1.0)
+    import struct
+    for i in range(10):   # the gunner's first 2 s: his walk's destination and the navigation's answer
+        time.sleep(0.2)
         g = comps(gunner)
-        print(f"      +{i}s gunner BS {json.dumps(g.get('BehaviorState'))[:220]} · Inter {json.dumps(g.get('InteractionChannel'))[:160]} · Loco {json.dumps(g.get('LocomotionChannel'))[:120]}")
+        lo = g.get("LocomotionChannel") or {}
+        pb = lo.get("Params") or []
+        dest = struct.unpack("<3f", bytes(pb[:12])) if len(pb) >= 12 else None
+        print(f"      +{i*0.2:.1f}s gunner Loco act {lo.get('ActiveAction')} inst {lo.get('ActionInstanceId')} {lo.get('Status')} dest {tuple(round(v, 2) for v in dest) if dest else None}"
+              f" · Nav {json.dumps(g.get('NavigationStatus'))[:200]} · ActionStatus {json.dumps(g.get('ActionStatus'))[:200]}")
     shots, manned, deployed, carried, t = {}, None, None, None, 0
     end = time.time() + timeout + 60
     while time.time() < end:
