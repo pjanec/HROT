@@ -61,8 +61,8 @@ namespace Hrot.Core.Tkb
         public const int TkbNlawGunner         = 2007;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
-        private const float CivilianVisionRange  = 30f;
-        private const float CivilianHearingRange = 100f;
+        internal const float CivilianVisionRange  = 30f;
+        internal const float CivilianHearingRange = 100f;
         private const float SoldierVisionRange   = 150f;
         private const float SoldierHearingRange  = 200f;
 
@@ -71,7 +71,7 @@ namespace Hrot.Core.Tkb
 
         // ⭐ CE-2106 — what each type gives off to EARS (AcousticSignatureDto, R-205 / R-207). First-cut ranges (m), heard when
         //   within both the sound's range and the listener's HearingRange. 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md §8.1.
-        private const float FootstepsRange   = 25f;
+        internal const float FootstepsRange   = 25f;
         private const float CarEngineRange   = 80f;
         private const float ApcEngineRange   = 300f;
         private const float RifleShotRange   = 400f;
@@ -317,14 +317,14 @@ namespace Hrot.Core.Tkb
         /// fell into the always-visible fallback) and the Add Entity picker could not group them. Country 0 = generic (the
         /// picker skips an unknown level); 81 = car, 2 = armoured fighting vehicle (SISO-REF-010 land categories).
         /// </summary>
-        private static void Master(TkbTemplate t, string name, DISEntityType dis)
+        internal static void Master(TkbTemplate t, string name, DISEntityType dis)
         {
             t.DisType = dis;
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString() });
         }
 
         /// <summary>⭐ <c>CE-2106</c> — a type's sounds (movement always; shots and bursts when it has a weapon).</summary>
-        private static SignaturesDto Sounds(float moving, SoundSourceClass movingClass,
+        internal static SignaturesDto Sounds(float moving, SoundSourceClass movingClass,
                                             float firing = 0f, SoundSourceClass firingClass = SoundSourceClass.Unknown, float detonation = 0f)
             => new SignaturesDto
             {

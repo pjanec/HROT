@@ -34,7 +34,7 @@ after the driver sat.
 
 ⚠ **Owed:** the live IG check of `dtOperatorUseStatus` (handoff "It must reach the IG"). 📐 It cannot run yet: nothing in
 production writes `OperatorUseStatus` (grep over `Hrot/` `FDP/`: only the type, the translators and the wiring) — its writer is
-behaviors' `CE-1154`. ⇒ the check runs once `CE-1154` is on a branch backend can merge.
+behaviors' `CE-1154`. ⇒ the check runs once `CE-1154` is on a branch backend can merge. ✅ **CLOSED:** behaviors' `CE1154_…TheVerdictReachesTheStationAndTheIg` (`EntityOrdersAcrossNodesTests`) asserts it on a pure IG — 11/0 on backend after merging behaviors.
 
 ⭐ **Behaviors lane:** `CE-1154` (`OperatorControlBehavior.OperateUse`) starts from **`backend@4439b8aba`** ([note](HANDOFF_Backend_To_Behaviors_Use_Key_Ready.md)).
 
