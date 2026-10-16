@@ -237,6 +237,35 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2218</c> — at a window whose launcher line runs into the wall, the weapon holds <c>Masked</c>: the exposure ends at once, the
+        /// window is BURNED (it cannot shoot that target), and the unit moves to the next window. A <c>Masked</c> left by an EARLIER exposure
+        /// does not count. 🔴 Red-proof: without the node's masked check it stays up at the first window for the whole exposure.
+        /// </summary>
+        [Fact]
+        public void CE2218_AMaskedShot_BurnsTheWindow_AndMovesToTheNext()
+        {
+            var d = new Duel(Window());
+            d.Repo.AddComponent(d.Self, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            d.Step();
+            d.Answer(PeekAndFireNodes.CoverSite, 5, (2f, 3f, StanceId.Crouched), (8f, 3f, StanceId.Crouched));
+            Assert.Equal(PeekPhase.Aimed, d.RunUntil(PeekPhase.Aimed));
+            Assert.False(PeekAndFireNodes.MaskedSince(d.Repo, d.Self, d.Time + 1.0), "a reason stamped before the exposure does not count");
+
+            ref var status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
+            status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked;
+            status.Weapon.At = d.Time;
+            d.Step();
+            Assert.NotEqual(PeekPhase.Aimed, d.Ws.Phase);
+            var m = d.Memory;
+            Assert.True(m.Heat[0] >= d.P.BurnHeat, $"the window is burned (heat {m.Heat[0]:0.##})");
+
+            status = ref d.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(d.Self);
+            status.Weapon.Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None;
+            d.Run(10);
+            Assert.Contains(new Vector3(8f, 3f, 0f), d.Moves);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>P6_R2</c> — THE STEP PEEK (B at a corner): to the cover point at its stance, then out to the step-peek sensor's point,
         /// standing, aimed fire, and back to the cover point — the same machine, other parameters.
         /// </summary>
