@@ -639,5 +639,70 @@ namespace Hrot.SimHost.Tests
             Tick(op, ref ws);
             Assert.Equal(BehaviorConstants.ActionIdCloseDoor, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
         }
+
+        // ── CE-1155 (docs/DESIGN_Entity_Control.md §8h U-5; Weapon Systems §6 WS-6) — E on a standalone weapon: man it, fire it ──────
+
+        private const long KornetType = 115501;
+
+        /// <summary>A standalone ATGM on a tripod: its own Gunner seat, it needs an operator, its type's one mount is an ATGM.</summary>
+        private Entity Kornet(Vector3 at)
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("Kornet", KornetType);
+            t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.Atgm, TurretIndex = -1 } } });
+            db.Register(t);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var k = Vehicle(at);
+            var seats = new CarrierSeats { SeatCount = 1 };
+            seats.Roles[0] = SeatRole.Gunner;
+            _w.AddComponent(k, seats);
+            _w.AddComponent(k, new WeaponSystemParams { NeedsOperator = 1 });
+            _w.AddComponent(k, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = KornetType });
+            _w.AddComponent(k, new WeaponState { Ammo = 2 });
+            return k;
+        }
+
+        /// <summary>⭐ <c>CE-1155</c> — E on a standalone weapon takes its GUNNER seat (the rule's "Man", through the embark executor and the
+        /// owner), and he then controls it; possession stays on him. 📐 Measured gap, then fixed: his weapon keys name the controlled
+        /// mount (32+k) — the executor already fires the weapon through it (WS-3), but <c>OperateWeapon</c> read that index on the MAN, so
+        /// the weapon's type was lost: an ATGM fired by sight with a held trigger repeating. Now the weapon's own mount decides — it LOCKS one
+        /// round per press. ✅ Red-proof: <c>OperatedMount</c> returning the man ⇒ the shot is a SIGHT shot (Pending 2) ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE1155_UseOnAStandaloneWeapon_MansItsGunnerSeat_AndItsControlledMountFiresAsThatWeapon()
+        {
+            var op = Operator(Vector3.Zero);
+            _w.AddComponent(op, new WeaponChannel());
+            var kornet = Kornet(new Vector3(1f, 0f, 0f));
+            var ws = default(OperatorControlBehavior.ManualControlState);
+
+            Press(op, kornet);
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdEmbark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Dispatch(op, new EmbarkExecutor());
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.Equal(0, _w.GetComponentRO<IsEmbarkedTag>(op).Seat);                          // the Gunner seat
+            Assert.Equal(op, WeaponSystems.ControllerOf(_w, kornet));                             // he controls it
+            Assert.Equal(kornet, WeaponSystems.ControlledAt(_w, op, WeaponSystems.ControlledMountBase));
+
+            // his weapon keys select the controlled mount; one trigger press, held
+            ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            input.Seq++; input.Mount = (byte)WeaponSystems.ControlledMountBase; input.ShotSeq = 1; input.Trigger = 1;
+            input.AimPoint = new Vector3(300f, 0f, 0f);
+            Tick(op, ref ws);
+            Assert.Equal((byte)1, ws.Pending);                                                    // an ATGM LOCKS (not a sight shot)
+            var p = System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref _w.GetComponentRW<WeaponChannel>(op).Params[0]);
+            Assert.Equal(WeaponSystems.ControlledMountBase, (int)p.Mount);
+
+            ref var cancel = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            cancel.Seq++; cancel.CancelSeq = 1;                                                   // RMB drops the lock; the trigger stays held
+            Tick(op, ref ws);
+            p = System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref _w.GetComponentRW<WeaponChannel>(op).Params[0]);
+            Assert.Equal((byte)0, p.Trigger);                                                     // an ATGM fires one round per press
+
+            Press(op, Entity.Null);                                                               // E again, aboard: get out
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdDisembark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+        }
     }
 }
