@@ -1666,6 +1666,11 @@ def run_javelin_lock(c, timeout):
             md = data(call("GET", f"/entities/{cyc}/memory")) or {}
             knows = [round(x.get("freshness") or 0) for x in md.get("slots") or [] if x.get("networkId") == ja]
             st = ((data(call("GET", f"/entities/{ja}/weapons")) or {}).get("status") or {})
+            if len(trace) % 3 == 0:   # what the cycle's EQS sensors answer (hide / firing point), every 3 s
+                for sn in (data(call("GET", f"/entities/{cyc}/sensors")) or {}).get("sensors") or []:
+                    ans = sn.get("answer") or {}
+                    print("      sensor @", len(trace), {k: sn.get(k) for k in ("kind", "template", "status", "partId")},
+                          {k: (v if not isinstance(v, list) else v[:3]) for k, v in ans.items()} if isinstance(ans, dict) else ans)
             trace.append((len(trace),
                           tuple(round(v) for v in pc[:2]) if pc else None, knows, st.get("reason"), st.get("progress"), st.get("needed")))
         if _hurt(opn, 3000) and _dead(ja):
