@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Physics.Tests
     /// </summary>
     public sealed class BodyPartDamageTests : IDisposable
     {
-        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5, Tank = 6;
+        private const long Soldier = 1, Civilian = 2, Militia = 3, Vested = 4, Truck = 5, Tank = 6, Hmg = 7, Atgm = 8;
         private readonly EntityRepository _world = new();
         private readonly TkbDatabase _db = new();
 
@@ -60,6 +60,12 @@ namespace Fdp.Toolkit.Physics.Tests
             var tank = Type(Tank, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
             tank.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 500f, ArmorSide = 80f, ArmorRear = 40f, ArmorTop = 30f });
             _db.Register(tank);
+            foreach (var (id, sub) in new[] { (Hmg, (byte)1), (Atgm, (byte)3) })   // ⭐ CE-3214 — weapon systems (§5b's casing and health)
+            {
+                var w = Type(id, new DISEntityType { Kind = 1, Domain = 1, Category = 50, Subcategory = sub });
+                w.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 80f, ArmorFront = 1.5f, ArmorSide = 1.5f, ArmorRear = 1.5f, ArmorTop = 1.5f });
+                _db.Register(w);
+            }
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
 
@@ -384,6 +390,42 @@ namespace Fdp.Toolkit.Physics.Tests
             var c = Armed(Tank);
             Apply(c, VehiclePart.Hull, 400f);             // the hull has no effect: health only
             Assert.Equal(ActorCapabilities.CanMove | ActorCapabilities.CanShoot, _world.GetComponentRO<ActorCapabilityState>(c).Capabilities);
+        }
+
+        // ── ⭐⭐ CE-3214 (§11 S2b) — a weapon system's parts ─────────────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ <c>CE-3214</c> (S2b-4, S2b-5) — a weapon type gets its kind's profile by DIS class (the HMG and the ATGM tripod), the
+        /// weapon-system plan, its kit and its casing as the inherited armour.</summary>
+        [Fact]
+        public void CE3214_AWeaponType_GetsItsKindsProfile_ByDis()
+        {
+            var hmg = BodyZones.Of(_db.GetByType(Hmg))!;
+            Assert.Equal((BodyPlan.WeaponSystem, "Hmg"), (hmg.Plan, hmg.Kit));
+            Assert.Equal("Atgm", BodyZones.Of(_db.GetByType(Atgm))!.Kit);
+            Assert.Equal(WoundEffect.Firepower, hmg.ZoneOf(WeaponPart.Weapon)!.Effect);
+            Assert.Equal(0.5f, hmg.ZoneOf(WeaponPart.Mount)!.Multiplier);
+            Assert.True(float.IsNaN(hmg.ZoneOf(WeaponPart.Weapon)!.ArmourOn(Facing.Side)));   // the casing, kept by ArmorModel
+            Assert.NotNull(VehicleBody.Of(_db.GetByType(Hmg))?.Stowed);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3214</c> (S2b-6) — a round through the WEAPON (receiver, barrel, sight) past its threshold breaks it — the fire gate
+        /// (<c>CanFire</c> ⇒ <c>Destroyed</c>) reads it, though its health is far from 0; a leg of its tripod shot off does not.
+        /// 🔴 Red-proof: with <c>IsBroken</c> reading health alone the weapon still fires.
+        /// </summary>
+        [Fact]
+        public void CE3214_AWrecked_Weapon_Part_BreaksTheWeapon_ATripodLegDoesNot()
+        {
+            _world.RegisterComponent<WeaponSystemParams>();
+            var w = Body(Hmg, health: 80f);
+            _world.AddComponent(w, new WeaponSystemParams());
+            Apply(w, WeaponPart.Mount, 30f);    // the tripod: level 96, no effect
+            Assert.False(WeaponSystems.IsBroken(_world, w));
+            Apply(w, WeaponPart.Weapon, 25f);   // level 80 ≥ 64 ⇒ the firepower wound
+            Assert.True(_world.GetComponentRO<Health>(w).Current > 0f);
+            Assert.True(WeaponSystems.IsBroken(_world, w));
+            Assert.False(WeaponSystems.CanFire(_world, w, out var why));
+            Assert.Equal(WeaponHold.Destroyed, why);
         }
 }
 }

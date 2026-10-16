@@ -578,6 +578,64 @@ namespace Fdp.Toolkit.Physics.Tests
             FromLeft(10f, 1.0f, sys);
             Assert.Equal(1L, sys.PartTests);
         }
+
+        // ── ⭐⭐ CE-3214 (hit location §11 S2b) — a round meets a WEAPON SYSTEM's parts ─────────────────────────────────────────────
+
+        private const long HmgType = 9314;
+
+        /// <summary>An M2-like HMG (the Hmg kits at their default 1.65 × 0.9 × 0.75 m, no turret part) at (10, 0) facing +x, in
+        /// <paramref name="deploy"/>; <paramref name="embarked"/> ⇒ aboard something (carried or in a station).</summary>
+        private Entity SpawnHmg(Fdp.Toolkit.Combat.WeaponDeploy deploy, bool embarked = false)
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemState>()) _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("T-test HMG", HmgType) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 50, Subcategory = 1 } };
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 80f, ArmorFront = 1.5f, ArmorSide = 1.5f, ArmorRear = 1.5f, ArmorTop = 1.5f });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var hmg = SpawnCollider(new Vector2(10f, 0f), radius: 2.5f, layer: 1);   // the 2.5 m fallback collider, no height (CE-2182)
+            _world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = HmgType });
+            _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
+            if (embarked) _world.AddComponent(hmg, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            return hmg;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3214</c> (S2b-1, S2b-3) — a DEPLOYED HMG on its tripod: a round across the receiver meets the Weapon; a round low across
+        /// the middle passes between the tripod's legs; a round over it misses. 🔴 Red before: CE-2182's skip — no round ever met it.
+        /// </summary>
+        [Fact]
+        public void CE3214_ADeployedHmg_IsMetByItsParts()
+        {
+            var hmg = SpawnHmg(Fdp.Toolkit.Combat.WeaponDeploy.Deployed);
+            var receiver = FromLeft(9.95f, 0.6f);
+            Assert.Equal((hmg, (byte)1, Fdp.Toolkit.Physics.BodyParts.WeaponPart.Weapon, (byte)Fdp.Toolkit.Combat.Facing.Side),
+                         (receiver.HitEntity, receiver.HasBodyPart, receiver.BodyPart, receiver.Face));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.WeaponPart.Weapon, FromLeft(10.9f, 0.62f).BodyPart);   // the barrel
+            Assert.Equal(0, FromLeft(10f, 0.2f).HasHit);   // between the legs
+            Assert.Equal(0, FromLeft(10f, 1.2f).HasHit);   // over it
+            Assert.Equal(0, FromLeft(9.95f, 0.6f, new RaycastSolverSystem { VehicleParts = false }).HasHit);   // the parts off: CE-2182's skip
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3214</c> (S2b-1, S2b-3) — the same HMG STOWED lies on the ground: a round at its height meets it (the gun lying beside the
+        /// folded tripod is still the Weapon); the receiver's old height is empty. EMBARKED (carried, in a station) no round meets it — the
+        /// man or the host does (CE-2182, kept).
+        /// </summary>
+        [Fact]
+        public void CE3214_AStowedHmg_LiesLow_AndAnEmbarkedOne_IsNeverMet()
+        {
+            var hmg = SpawnHmg(Fdp.Toolkit.Combat.WeaponDeploy.Stowed);
+            var low = FromLeft(9.95f, 0.11f);
+            Assert.Equal((hmg, Fdp.Toolkit.Physics.BodyParts.WeaponPart.Weapon), (low.HitEntity, low.BodyPart));
+            Assert.Equal(0, FromLeft(9.95f, 0.6f).HasHit);
+            _world.AddComponent(hmg, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
+            Assert.Equal(0, FromLeft(9.95f, 0.11f).HasHit);
+        }
 }
 }
 

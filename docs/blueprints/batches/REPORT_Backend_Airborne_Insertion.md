@@ -95,6 +95,17 @@ The deviations from the design, each argued, are in [design §7a](../../designs/
 | gates | `Fdp.Toolkits.Tests` 3 632 / 2 / 1 — both reds are `SquadCoordinationSystemTests` allocation counts (the known flaky family, not touched: alone 1 red then 2 green); `Hrot.SimHost.Tests` 1 441 / 0 / 6; `tracker-counts --check` OK; `design-digest --check` OK; `rulings-check` 215 / 215; Mermaid 13 / 13 parse |
 | red-proofs | CE-2200: 2 / 2 locking rows red with the gate bypassed. CE-2201: 6 / 14 rows red with the old range-only rule. The dive fixes: 900 m red with ①, then 750 / 800 / 900 / 1000 red with ② |
 
+## 3f. CE-3214 (`2026-10-16`) — hit location S2b: weapon systems by part, as drawn in [design §11 / §11a](../../designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md)
+
+| | |
+|---|---|
+| built | a weapon NOT embarked is met by the kit ui draws (stowed / blended / deployed, laid by its `TurretPose` or its rest elevation): parts Mount / Traverse / Weapon; nine DIS profiles; a Firepower wound breaks it (`IsBroken` ⇒ `CanFire` = Destroyed). Embarked it keeps CE-2182's skip |
+| found by the rail | `VehicleBody.MaxBoxes` 16 truncated the ZU-23's 17-part kit — now 24 · the weapon kits needed round-trip precision |
+| ⚠ cross-lane | ui's `WeaponKits.Deployment` now delegates to `WeaponDeployment.Fraction` (one formula); ui's `VehicleBodyParityTests` grows the weapon rail and generator |
+| gates | `Fdp.Toolkits.Tests` 3 638 / 0 / 1; `Hrot.SimHost.Tests` 1 442 / 0 / 6; `Hrot.Presentation.Tests` 660 / 0 / 25; design-digest OK; Mermaid 9 / 9 |
+| red-proofs | 2 / 2 red: the deploy fraction pinned at 1 (the stowed rail), `IsBroken` without the wound (the firepower rail); the skip's own red is the rail's `VehicleParts = false` row |
+| ⚠ estimated | the zones' multipliers and thresholds (Mount ×0.5; Traverse at 128; Weapon at 64) — starter numbers |
+
 ## 4. Next (this lane)
 ⏳ only the scenario's wind remains — design §7b **D-13**, a decision for the user (lean ③: the load message, like the terrain name).
-The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. Later: CE-3214 (S2b: weapon systems by part), CE-3215 (S2c: aircraft by part).
+The behaviors handoffs CE-2198 / CE-2199 / CE-2200 / CE-2201 are done. CE-3214 (S2b: weapon systems by part) is built. Next: CE-3215 (S2c: aircraft by part).

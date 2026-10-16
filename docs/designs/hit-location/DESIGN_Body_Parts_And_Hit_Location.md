@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (HL-12: body profiles by DIS class + sparse per-type overrides, user-approved)
-build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
-current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built. §1 is the measured ground.
+updated: 2026-10-16 (§11 / §11a: weapon systems by part, CE-3214)
+build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
+current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built. §1 is the measured ground.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
@@ -396,4 +396,95 @@ drawn by the shares (`MarkFragments(…, shares)`). Notes:
 **Rails** (`AreaEffectSystemTests`, the feature's suite): `CE3212_AnUnarmouredMan_TakesTheLawsTotal_SpreadOverHisParts` (the total equals
 hits × per-hit × exposure, eight or more parts struck, the torso more than a forearm) · `CE3212_TheVest_StopsFragmentsOnTheTorso_TheLimbsAreOpen`
 (3.5 mm fragments from behind: the soldier's torso untouched, the civilian's struck, their thighs equal).
+
+## 11. S2b — weapon systems by part, `CE-3214` *(backend, designed `2026-10-16`, leans under the overnight mandate)*
+
+🔒 Basis: §6's S2 row (R-3010, user-approved) — *"weapon systems hittable when not embarked (supersedes CE-2182's skip)"*; this
+resolves [Weapon Systems §6](../weapons/DESIGN_Weapon_Systems.md)'s open *"a direct hit on a DEPLOYED weapon needs a real collider
+first"*. Leans below are taken under the user's overnight mandate; each says what would change it.
+
+#### INVENTORY — the queries run *(codebase-memory CLI, `2026-10-16`)*
+
+| query | total | what it found |
+|---|---|---|
+| `search_graph name_pattern=".*WeaponKit.*" label=Class` | 1 | ui's `WeaponKits` (Presentation) — the stowed and deployed kits per `WeaponKind`, `Blend`, `Deployment`, `DefaultElevation` |
+| `search_graph name_pattern=".*WeaponSystem.*" label=Class` | 11 | `WeaponSystemParams` / `WeaponSystemState` / `WeaponSystemTkbTranslator`, `WeaponSystems` (`IsWeaponSystem`, `CanFire`, `IsBroken`), the NED state + translators, tests |
+| `search_graph name_pattern=".*Deploy.*" label=Class` | 5 | `WeaponDeploySystem`, `WeaponDeployment` (owner of the deploy clock) — and no sim-side deploy FRACTION (it lived in ui only) |
+| grep `IsWeaponSystem` in `RaycastSolverSystem` | 1 | CE-2182's skip — the one site to narrow |
+| `EntityClassTable` (`Hrot.Core`) | 9 classes | `1.1.*.50.{1…7}`, Mortar `1.1.*.10`, TowedArtillery `1.1.*.5` — what ui's `KindOf` walks |
+⚠ `check_index_coverage` is not available through the CLI, so these counts are not proven exhaustive; grep confirmed the solver site.
+
+```mermaid
+classDiagram
+  direction LR
+  class VehicleKit { <<existing, grows>> + RestElevation (a gun with no turret part is laid at it) }
+  class VehicleShape { <<existing, grows>> + Stowed : VehicleKit? (a weapon system's transport kit) }
+  class VehicleBody { <<existing, grows>> +WeaponKits (generated, stowed + deployed per kind) · Pose(…, deployed 0..1) · Bound over stowed, blend, deployed }
+  class WeaponPart { <<NEW byte ids, WeaponSystem plan>> Mount 0 · Traverse 1 · Weapon 2 }
+  class WeaponDeployment { <<existing, grows>> +Fraction(state, until, now, seconds) · +FractionOf(world, weapon) }
+  class WeaponKits { <<existing ui>> Kit(kind, deployed) · Blend · Deployment ⇒ delegates to WeaponDeployment.Fraction }
+  class RaycastSolverSystem { <<grows>> a weapon system NOT embarked takes the vehicle branch; embarked keeps CE-2182's skip }
+  class WeaponSystems { <<existing, grows>> IsBroken = destroyed OR a Firepower wound }
+  class VehicleBodyParityTests { <<existing ui suite, grows>> generates the weapon kits; every catalog weapon type: kit, size, boxes at deploy 0 / ½ / 1 and three lays }
+  VehicleBody ..> VehicleShape
+  VehicleShape ..> VehicleKit : Kit (deployed) + Stowed
+  VehicleKit ..> WeaponPart : part ids
+  RaycastSolverSystem ..> VehicleBody
+  RaycastSolverSystem ..> WeaponDeployment : how far deployed
+  WeaponKits ..> WeaponDeployment : one formula
+  VehicleBodyParityTests ..> WeaponKits : reads
+  VehicleBodyParityTests ..> VehicleBody : writes / compares
+  WeaponSystems ..> Wounds : Firepower
+```
+*What the picture shows that prose hid: a weapon system is NOT a new body type — it is a vehicle-shaped body with a second (stowed) kit;
+the solver branch, the bound sphere, the face rule, the zones, `PartDamage` and the parity rail are the ones S2 built. The only new
+runtime read is how far the weapon is deployed — one formula, moved down from ui so the drawing and the hit cannot disagree.*
+
+```mermaid
+sequenceDiagram
+  participant RS as RaycastSolverSystem
+  participant WD as WeaponDeployment
+  participant VB as VehicleBody
+  participant HA as HealthApplicationSystem (Health owner)
+  participant WS as WeaponSystems (weapon brain)
+  RS->>RS: weapon system? embarked (on a back, in a station) ⇒ skip, as CE-2182
+  RS->>VB: Of(world, weapon) — its profile's kit: deployed + stowed (cached per type)
+  RS->>WD: FractionOf(weapon) — Stowed 0 · Deploying rising · Deployed 1 · Packing falling
+  RS->>VB: Pose(shape, size, turret pose or (0, RestElevation), fraction) — 1: articulated · 0: stowed · between: the blend, one piece
+  RS-->>HA: hit + part (Mount / Traverse / Weapon) + face ⇒ DamageAssessed(+part)
+  HA->>HA: Health − d · PartDamage[part] += level
+  WS->>WS: IsBroken: Health ≤ 0 OR the Weapon / Traverse zone over its threshold ⇒ CanFire = Destroyed
+```
+
+| id | decision (lean) | why | rejected · what would change it |
+|---|---|---|---|
+| **S2b-1** | a weapon system with a body is met by a round when it is NOT embarked (`IsEmbarkedTag` absent: placed, deployed or lying stowed); embarked (carried on a back, in a host's station) it keeps CE-2182's skip — the carrier or the host is what the round meets, and fragments still reach it (§5b C4) | a weapon on a man's back drawn and hit would steal his hits; in a station it sits inside the host's own boxes | hitting embarked weapons too (needs the carriage frames — ui's `OnBack`, the station pose — in the sim) · a user wanting a carried launcher shot off a back |
+| **S2b-2** | the kits are GENERATED from ui's `WeaponKits` (stowed + deployed, every `WeaponKind`) into `VehicleBody.WeaponKits.g.cs` by the S2 rail (`HROT_GEN_VEHICLE_BODY=1`), and that rail compares, for EVERY catalog weapon type, the kind, the size and the posed boxes at deploy 0, ½ and 1 (and three lays when deployed) | S2-2's pattern: one source, checked | a hand-written collision kit |
+| **S2b-3** | part ids by INDEX from the deployed kit (both kits list the same parts in the same order — ui's blend rule): role `Turret` → Traverse 1, `Gun` → Weapon 2, else Mount 0; a kit with no articulated part (Launcher, Manpads: the tube IS the weapon) → Weapon for every part | a stowed HMG's receiver lying on the ground is still the weapon | ids from the stowed kit (it has no roles) |
+| **S2b-4** | the kit by a body profile per kind, matched by DIS class (`1.1.*.50.1`…`.7`, the generic `1.1.*.50` ⇒ Hmg, Mortar `1.1.*.10`, TowedGun `1.1.*.5`), plan `WeaponSystem`, `inheritArmour` (the casing, §5b) | S2-5's mechanism: ui's `KindOf` walks the same classes | — |
+| **S2b-5** | zones: Mount ×0.5 (no effect) · Traverse ×1, Firepower at 128 · Weapon ×1, Firepower at 64 | a tripod leg shot off leaves a gun that fires; the receiver or the sight does not | starter numbers (HL-11's spirit) — tuning starts here |
+| **S2b-6** | the Firepower consequence is read where a weapon's fire gate is: `WeaponSystems.IsBroken` (⇒ `CanFire` = `Destroyed`), NOT `CanShoot` — a weapon system has no `ActorCapabilityState` | one gate the weapon brain already reads (§5b) | adding capability bits to every weapon |
+| **S2b-7** | the deploy fraction is ONE formula, `WeaponDeployment.Fraction` (Fdp.Toolkits); ui's `WeaponKits.Deployment` delegates to it (cross-lane, ui file) | the drawing and the hit read the same blend | two copies of a 6-line formula |
+| **S2b-8** | the lay: the weapon's turret part's `TurretPose` when it has one; otherwise azimuth 0 and the kit's `RestElevation` (Mortar 60°, TowedGun 25°) — ui's `LaidPose` | ui draws exactly that | — |
+| **S2b-9** | the bound sphere covers the stowed kit, every blend (a part's centre runs on a line between its two ends, its size between its two sizes) and every deployed lay | no candidate lost while a weapon is set up | a per-frame bound |
+
+### 11a. S2b as built — `CE-3214` *(backend, `2026-10-16`)*
+
+Built as §11 draws it: `WeaponPart`, `VehicleKit.RestElevation`, `VehicleShape.Stowed`, `VehicleBody.WeaponKits` (generated,
+`VehicleBody.WeaponKits.g.cs`), `VehicleBody.Blend` + the `Pose(…, deployed, …)` overload, the bound over stowed and blends,
+`WeaponDeployment.Fraction` / `FractionOf` (ui's `WeaponKits.Deployment` delegates — cross-lane), the solver's skip narrowed to embarked
+weapons, `WeaponSystems.IsBroken` + the Firepower wound, nine `bodies.json` weapon profiles. Deviations:
+
+| as designed | as built | why |
+|---|---|---|
+| — | `VehicleBody.MaxBoxes` 16 → **24** | 📐 the ZU-23-2's kit has 17 parts: the parity rail caught the 17th silently dropped |
+| the generator prints like S2's (5 decimals) | the weapon kits print round-trip (`R`) | they are COMPUTED (metres ÷ size), so 5 decimals were not ui's parts exactly — the rail's part-by-part equality caught it |
+| — | a weapon kit is NOT placed from the TKB turret (`VehicleShape.Turret` null) | ui draws a weapon kit at its own pivots (`EntityBodyLayer3D` does not run `KitFromTkb` for a weapon) |
+| — | `/combat/shots` names a weapon's parts (`WeaponPart.NameOf`) | the vehicle names were wrong for a tripod |
+
+**Rails:** `RaycastSolverSystemTests.CE3214_ADeployedHmg_IsMetByItsParts` (the receiver and barrel are the Weapon from the side, a round
+between the tripod's legs and one over it miss, the parts off ⇒ CE-2182's skip) · `.CE3214_AStowedHmg_LiesLow_AndAnEmbarkedOne_IsNeverMet` ·
+`BodyPartDamageTests.CE3214_AWeaponType_GetsItsKindsProfile_ByDis` · `.CE3214_AWrecked_Weapon_Part_BreaksTheWeapon_ATripodLegDoesNot` ·
+ui's `VehicleBodyParityTests.CE3214_…_ForEveryCatalogWeapon` (the generated kits = `WeaponKits`, and for every catalogue weapon type the kind,
+the size and the posed boxes stowed, half-deployed and deployed at three lays, inside the bound sphere).
 

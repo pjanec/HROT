@@ -72,6 +72,7 @@ public class VehicleBodyParityTests
         foreach (var t in db.GetAll())
         {
             var look = EntityBodyLayer3D.Resolve(t);
+            if (look.Family == VisualFamily.WeaponSystem) continue;   // ⭐ CE-3214 — the weapon rail below
             var shape = VehicleBody.Of(t);
             bool inScope = Families.Contains(look.Family) && t.GetDescriptor<CombatPlatformDefDto>() != null;
             Assert.True(inScope == (shape != null),
@@ -107,6 +108,135 @@ public class VehicleBodyParityTests
             }
         }
         Assert.True(checkedTypes >= 5, $"only {checkedTypes} catalog vehicles checked");
+    }
+
+    // ── ⭐⭐ CE-3214 (§11 S2b) — weapon systems: the same rail for the stowed and deployed kits of every WeaponKind ───────────────────
+
+    /// <summary>S2b-3 — a weapon part's id, by its INDEX in the deployed kit (both kits list the same parts): Turret ⇒ Traverse, Gun ⇒ Weapon,
+    /// else Mount; a kit with no articulated part (a tube fired from the shoulder) is all weapon.</summary>
+    private static byte WeaponIdOf(ShapeKit deployed, int i) => !deployed.IsArticulated ? WeaponPart.Weapon : deployed.Parts[i].Role switch
+    {
+        PartRole.Turret => WeaponPart.Traverse,
+        PartRole.Gun => WeaponPart.Weapon,
+        _ => WeaponPart.Mount,
+    };
+
+    /// <summary>The deploy fractions checked: stowed, half-way, deployed.</summary>
+    private static readonly float[] Deploys = { 0f, 0.5f, 1f };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3214</c> — the boxes a round meets on a weapon system are the parts the map draws: the generated kits are ui's
+    /// <see cref="WeaponKits"/> part by part, and for EVERY catalog weapon type the sim picks the same kind and size and poses the same boxes
+    /// stowed, half-deployed and deployed (laid three ways), inside the bound sphere.
+    /// </summary>
+    [Fact]
+    public void CE3214_TheBoxesTheRoundsMeet_AreThePartsTheMapDraws_ForEveryCatalogWeapon()
+    {
+        if (Environment.GetEnvironmentVariable("HROT_GEN_VEHICLE_BODY") == "1") Generate();
+
+        foreach (var kind in Enum.GetValues<WeaponKind>())
+        {
+            var sim = VehicleBody.WeaponKitNamed(kind.ToString());
+            Assert.True(sim != null, $"{kind}: no generated weapon kit — regenerate (HROT_GEN_VEHICLE_BODY=1)");
+            var deployed = WeaponKits.Kit(kind, true);
+            foreach (var (drawnKit, simKit) in new[] { (WeaponKits.Kit(kind, false), sim!.Value.Stowed), (deployed, sim.Value.Deployed) })
+            {
+                var drawn = drawnKit.Parts.Where(Collides).ToArray();
+                Assert.True(drawn.Length == simKit.Parts.Length, $"{kind}: {simKit.Parts.Length} parts vs {drawn.Length} drawn — regenerate");
+                Assert.Equal(WeaponKits.DefaultSize(kind), simKit.DefaultSize);
+                for (int i = 0; i < drawn.Length; i++)
+                {
+                    Assert.Equal(WeaponIdOf(deployed, i), simKit.Parts[i].Part);
+                    Assert.Equal(drawn[i].Centre, simKit.Parts[i].Centre);
+                    Assert.Equal(drawn[i].Extent, simKit.Parts[i].Extent);
+                }
+            }
+            Assert.Equal(WeaponKits.DefaultElevation(kind), sim.Value.Deployed.RestElevation);
+        }
+
+        var db = Map3DTests.BuiltIn();
+        int checkedTypes = 0;
+        foreach (var t in db.GetAll())
+        {
+            var look = EntityBodyLayer3D.Resolve(t);
+            if (look.Family != VisualFamily.WeaponSystem || t.GetDescriptor<CombatPlatformDefDto>() == null) continue;
+            var shape = VehicleBody.Of(t);
+            Assert.True(shape is { Stowed: not null }, $"{t.Name}: drawn as a {look.Weapon} weapon, no sim weapon shape ({shape?.Kit.Name ?? "none"})");
+            checkedTypes++;
+            Assert.Equal(look.Weapon.ToString(), shape!.Kit.Name);
+            Assert.True(Vector3.Distance(look.Size, shape.Size) < 1e-4f, $"{t.Name}: sim size {shape.Size} vs drawn {look.Size}");
+            var kitToBody = look.Geometry is { } g
+                ? Matrix4x4.CreateTranslation(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ - look.Size.Z / 2f) : Matrix4x4.Identity;
+            Span<BodyBox> boxes = stackalloc BodyBox[VehicleBody.MaxBoxes];
+            foreach (var t01 in Deploys)
+                foreach (var (az, el) in t01 >= 1f ? Poses : new[] { (0f, 0f) })
+                {
+                    var kit = WeaponKits.Blend(look.Weapon, t01);
+                    var drawn = kit.Parts.Where(Collides).ToArray();
+                    var pose = t01 >= 1f && kit.IsArticulated ? new ArticulationPose(az, el) : ArticulationPose.Neutral;
+                    int n = VehicleBody.Pose(shape, look.Size, az, el, t01, boxes);
+                    Assert.Equal(drawn.Length, n);
+                    for (int i = 0; i < n; i++)
+                    {
+                        var m = drawn[i].BodyTransform(look.Size, kit.Pivots, pose) * kitToBody;
+                        var want = VehicleBody.BoxOf(0, drawn[i].Shape == PartShape.Box ? KitShape.Box : KitShape.Cylinder, m);
+                        var got = boxes[i];
+                        string at = $"{t.Name} part {i} ({WeaponPart.NameOf(got.Part)}) deployed {t01} az {az} el {el}";
+                        Assert.True(Vector3.Distance(want.Centre, got.Centre) < 1e-3f, $"{at}: centre {got.Centre} vs drawn {want.Centre}");
+                        Assert.True(Vector3.Distance(want.Half, got.Half) < 1e-3f, $"{at}: half {got.Half} vs drawn {want.Half}");
+                        Assert.True(MathF.Abs(Quaternion.Dot(want.Rotation, got.Rotation)) > 0.9999f, $"{at}: rotation differs");
+                        Assert.True(Vector3.Distance(got.Centre, shape.BoundCentre) + got.Half.Length() <= shape.BoundRadius + 1e-3f, $"{at}: outside the bound sphere");
+                    }
+                }
+        }
+        Assert.True(checkedTypes >= 10, $"only {checkedTypes} catalog weapons checked");
+    }
+
+    private static void GenerateWeapons(string root)
+    {
+        // the weapon kits are COMPUTED (metres ÷ size): printed round-trip, or the parts would not be ui's exactly
+        static string F(float v) => v.ToString("R", CultureInfo.InvariantCulture) + "f";
+        var sb = new StringBuilder();
+        sb.AppendLine("// <auto-generated> by Hrot.Presentation.Tests VehicleBodyParityTests (HROT_GEN_VEHICLE_BODY=1) from ui's WeaponKits —");
+        sb.AppendLine("//   do not edit by hand; CE-3214, docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md §11 S2b-2 </auto-generated>");
+        sb.AppendLine("using System.Numerics;");
+        sb.AppendLine();
+        sb.AppendLine("namespace Fdp.Toolkit.Physics.BodyParts");
+        sb.AppendLine("{");
+        sb.AppendLine("    public static partial class VehicleBody");
+        sb.AppendLine("    {");
+        sb.AppendLine("        /// <summary>The weapon-system kits (stowed, deployed) per kind, generated from ui's <c>WeaponKits</c>.</summary>");
+        sb.AppendLine("        public static readonly (VehicleKit Stowed, VehicleKit Deployed)[] WeaponKits =");
+        sb.AppendLine("        {");
+        foreach (var kind in Enum.GetValues<WeaponKind>())
+        {
+            var size = WeaponKits.DefaultSize(kind);
+            var deployed = WeaponKits.Kit(kind, true);
+            sb.AppendLine("            (");
+            foreach (var stowed in new[] { true, false })
+            {
+                var kit = WeaponKits.Kit(kind, !stowed);
+                var parts = kit.Parts.Where(Collides).ToArray();
+                float rest = stowed ? 0f : WeaponKits.DefaultElevation(kind);
+                sb.AppendLine($"                new(\"{kind}\", new({F(size.X)}, {F(size.Y)}, {F(size.Z)}), new({F(kit.Pivots.Turret.X)}, {F(kit.Pivots.Turret.Y)}), " +
+                              $"new({F(kit.Pivots.GunTrunnionXZ.X)}, {F(kit.Pivots.GunTrunnionXZ.Y)}), new VehicleKitPart[]");
+                sb.AppendLine("                {");
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    var p = parts[i];
+                    byte id = WeaponIdOf(deployed, i);
+                    string role = p.Role switch { PartRole.Turret => "KitRole.Turret", PartRole.Gun => "KitRole.Gun", _ => "KitRole.Hull" };
+                    sb.AppendLine($"                    new({id}, KitShape.{p.Shape}, new({F(p.Centre.X)}, {F(p.Centre.Y)}, {F(p.Centre.Z)}), " +
+                                  $"new({F(p.Extent.X)}, {F(p.Extent.Y)}, {F(p.Extent.Z)}), KitAxis.{p.Axis}, {F(p.PitchDegrees)}, {F(p.YawDegrees)}, {role}),   // {WeaponPart.NameOf(id)}");
+                }
+                sb.AppendLine("                }" + (rest != 0f ? $", RestElevation: {F(rest)}" : "") + ")" + (stowed ? "," : ""));
+            }
+            sb.AppendLine("            ),");
+        }
+        sb.AppendLine("        };");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        File.WriteAllText(Path.Combine(root, "FDP", "Toolkits", "Fdp.Toolkits", "Physics", "BodyParts", "VehicleBody.WeaponKits.g.cs"), sb.ToString());
     }
 
     private static void Generate()
@@ -159,5 +289,6 @@ public class VehicleBodyParityTests
         while (dir != null && !File.Exists(Path.Combine(dir, "HROT.sln"))) dir = Path.GetDirectoryName(dir);
         Assert.NotNull(dir);
         File.WriteAllText(Path.Combine(dir!, "FDP", "Toolkits", "Fdp.Toolkits", "Physics", "BodyParts", "VehicleBody.Tables.g.cs"), sb.ToString());
+        GenerateWeapons(dir!);   // ⭐ CE-3214
     }
 }
