@@ -277,6 +277,8 @@ sequenceDiagram
         S->>B: ReleasePossessionEvent
     else unit killed (Health ≤ 0)
         B->>B: PossessionSystem releases on its own
+    else the station's node departs (Q91 §4-F, CE-2231)
+        B->>B: NodeDeparted{S} ⇒ PossessionSystem releases every unit S holds (no timer, R-4001)
     end
     B->>B: clear OperatorControl ⇒ the paused task resumes (R-203)
     B-->>S: PossessedBy cleared ⇒ station leaves FPS, camera stays where it was
