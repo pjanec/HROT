@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached)
+updated: 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211 the rotorcraft strike mode)
 build-state: BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206)
+current-answer: §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -263,3 +263,26 @@ arc reaches it. Neither reversing nor a looser arrival is needed.
 ⭐ Rail: `CarKinematicsSystemTests.CE2206_AHullSentToAPointInsideItsTurningCircle_Arrives` (an M1 sent 2.3 m to its left, both modes:
 arrives within 2.5 m, the excursion bounded) — red-proofed. Behaviors' CE-2205 (the cycle's 4 m arrival) stays: it serves that caller.
 
+## 5d. The rotorcraft: a flyer that IS its warhead strikes its point — never brakes, never arrives — `CE-2211` (`2026-10-16`, behaviors, cross-lane)
+
+📐 Measured on behaviors' rail `AirAttackNodesTests.S6e_ADroneDivesOnAFleeingTank_LeadsIt_AndHitsItFromAbove`: `RotorcraftModel`'s point move
+brakes as √(2ad) and caps the descent at `ClimbMps` — right for a helicopter settling on a point, wrong for an FPV drone diving on a tank,
+which slowed over a target that kept going and trailed it at 14 m height.
+
+```mermaid
+graph LR
+  P["point move<br/>(NavigationIntent, a 3-D point)"] --> Q{"FlightParams.DetonatesOnImpact<br/>AND ArrivalRadius ≤ 0?"}
+  Q -- "no (every other flyer)" --> B["brake √(2ad) · descent ≤ ClimbMps<br/>⇒ Arrived inside the radius"]
+  Q -- "yes — strike" --> S["full speed along the line · descent up to MaxSpeedMps<br/>never Arrived: the flight ends in DroneImpactSystem's meeting"]
+```
+
+*Caption:* what the picture shows that the code hid — the drone and the helicopter share one point move, and the difference is not a
+speed but whether the move is allowed to END. A radius of 0 already says "there is no arrival"; the warhead flag says "so do not slow for it".
+
+| decision (built) | where | rejected — one line each |
+|---|---|---|
+| strike = `DetonatesOnImpact != 0 && ArrivalRadius <= 0` ⇒ no arrival test, no √(2ad) braking (horizontal or vertical), vertical clamp `−MaxSpeed … +ClimbMps` | `RotorcraftModel.Autonomous`, the point move | a dive-speed field on the intent — the braking was the defect, not the speed; a separate drone model — R-3005's one rotorcraft model; strike on the flag alone — a drone sent to a waypoint (radius > 0) must still arrive |
+
+⭐ Rail: `RotorcraftModelTests.CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive` (a drone at 60 m sent to a ground point
+40 m off reaches it within 3 s and is not Arrived; the same body with radius 2 is still above 30 m) — red-proofed (strike off). The
+behaviour half: [Air Ops §9i](../air-attack/DESIGN_Air_Operations.md) D-3.

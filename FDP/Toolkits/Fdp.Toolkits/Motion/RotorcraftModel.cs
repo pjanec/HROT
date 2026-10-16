@@ -75,7 +75,12 @@ namespace Fdp.Toolkit.Motion
 
             var to = intent.FinalDestination - f.Transform.Position;
             float arrive = intent.ArrivalRadius > 0f ? intent.ArrivalRadius : DefaultArrivalRadiusM;
-            if (to.Length() <= arrive)
+            // ⭐ CE-2211 (Air Operations §9i, FPV §2 "the dive … at AttackSpeed") — a flyer that IS its warhead (DetonatesOnImpact, R-3007)
+            //   sent to a point with arrival radius 0 STRIKES it: it never arrives (its impact ends the flight), it does not brake for the
+            //   point and it dives at up to its full speed. 📐 Live ua-drone-shelter: braking for a fleeing M1 it matched the tank's speed
+            //   a few metres short and the 8 m/s descent cap could not follow a dive — it trailed the tank for a minute
+            bool strike = p.DetonatesOnImpact != 0 && intent.ArrivalRadius <= 0f;
+            if (!strike && to.Length() <= arrive)
             {
                 f.Velocity.Linear = Vector3.Zero;
                 SetVertical(ref f, 0f);
@@ -91,11 +96,12 @@ namespace Fdp.Toolkit.Motion
             //   into its speed and brakes for the point at the type's acceleration (√(2·a·d)), climbing and descending likewise
             float a = Accel(in p), step = a * dt, inv = 1f / MathF.Max(dt, 1e-4f);
             var now = f.Velocity.Linear;
-            float alongWant = MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * a * flat.Length())), flat.Length() * inv);
+            float alongWant = strike ? MathF.Min(speed, flat.Length() * inv)
+                                     : MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * a * flat.Length())), flat.Length() * inv);
             float hNow = new Vector2(now.X, now.Y).Length();
             float along = MathF.Min(hNow + Math.Clamp(alongWant - hNow, -step, step), flat.Length() * inv);
-            float vzWant = Math.Clamp(to.Z * inv, -p.ClimbMps, p.ClimbMps);
-            vzWant = MathF.Sign(vzWant) * MathF.Min(MathF.Abs(vzWant), MathF.Sqrt(2f * a * MathF.Abs(to.Z)));
+            float vzWant = Math.Clamp(to.Z * inv, strike ? -speed : -p.ClimbMps, p.ClimbMps);
+            if (!strike) vzWant = MathF.Sign(vzWant) * MathF.Min(MathF.Abs(vzWant), MathF.Sqrt(2f * a * MathF.Abs(to.Z)));
             float vz = now.Z + Math.Clamp(vzWant - now.Z, -step, step);
             if (MathF.Abs(vz) > MathF.Abs(to.Z) * inv) vz = to.Z * inv;
             Fly(ref f, yaw, new Vector3(MathF.Cos(yaw) * along, MathF.Sin(yaw) * along, vz), dt);

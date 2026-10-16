@@ -77,6 +77,28 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.Equal(Vector3.Zero, _w.GetComponent<SimVelocity>(d).Linear);   // it hovers there
         }
 
+        /// <summary>⭐ CE-2211 (Air Operations §9i) — a flyer that IS its warhead (<c>DetonatesOnImpact</c>), sent to a point with arrival radius
+        /// 0, STRIKES it: it does not brake for the point and dives faster than its 8 m/s climb, so it is at the point 60 m below and 40 m
+        /// ahead in under 3 s, never reporting Arrived; the same body with an arrival radius brakes and hovers there as before.
+        /// ✅ Red-proof (mutant): strike off ⇒ the 8 m/s descent takes 7.5 s ⇒ red.</summary>
+        [Fact]
+        public void CE2211_AFlyerThatIsItsWarhead_StrikesItsPoint_ItDoesNotBrakeOrArrive()
+        {
+            var d = Drone(new Vector3(0, 0, 60), accel: 15f);
+            _w.SetComponent(d, FlightParams.From(new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = true }));
+            _w.SetComponent(d, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 3, FinalDestination = new Vector3(40, 0, 0), TargetSpeed = 30, ArrivalRadius = 0f });
+            int frames = 0;
+            while (frames < 60 * 3 && Vector3.Distance(_w.GetComponent<SimTransform>(d).Position, new Vector3(40, 0, 0)) > 1f) { Run(1); frames++; }
+            Assert.True(frames < 60 * 3, $"at the point in {frames / 60f:F2} s — at {_w.GetComponent<SimTransform>(d).Position}");
+            Assert.NotEqual(NavigationResult.Arrived, _w.GetComponent<NavigationStatus>(d).Result);
+
+            var h = Drone(new Vector3(0, 50, 60), accel: 15f);
+            _w.SetComponent(h, FlightParams.From(new FlightParamsDto { AccelMps2 = 15f, DetonatesOnImpact = true }));
+            _w.SetComponent(h, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 4, FinalDestination = new Vector3(40, 50, 0), TargetSpeed = 30, ArrivalRadius = 2f });
+            Run(60 * 3);
+            Assert.True(_w.GetComponent<SimTransform>(h).Position.Z > 30f, "with an arrival radius it still descends at its climb rate");
+        }
+
         /// <summary>⭐ M7 / MD-D — manual: Vertical climbs, Forward flies along the nose, Yaw turns it (≤ 120°/s), nothing ⇒ it brakes to a
         /// hover and holds it. ⭐ R-3007: the axes ask for a velocity the body reaches at its type's acceleration (here 60 m/s²).</summary>
         [Fact]

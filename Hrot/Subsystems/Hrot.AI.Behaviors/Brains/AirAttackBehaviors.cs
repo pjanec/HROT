@@ -334,6 +334,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultSearchRadiusM = 150f;
         /// <summary>⭐ Slice 6e — the dive is re-aimed this often (s): every re-aim is a new intent on the wire.</summary>
         public const double DiveSteerPeriod = 0.2;
+        /// <summary>⭐ Slice 6e — within this horizontal distance of the target the dive line reaches its middle (m).</summary>
+        public const float DiveHitRadiusM = 1f;
 
         private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
         private const byte StageSearch = 6, StagePursue = 7, StageDive = 8;
@@ -569,10 +571,16 @@ namespace Hrot.AI.Behaviors.Brains
                     ? NodeStatus.Running : NodeStatus.Failure;
             }
 
-            // the target (Run keeps p.Point on it and ends the attack when it is dead)
+            // the target (Run keeps p.Point on it and ends the attack when it is dead), LED: where it will be when the drone gets there.
+            //   📐 live ua-drone-shelter (2026-10-16): aimed at where it IS, the drone sank to the hull's height and trailed a fleeing M1
+            //   ~10 m behind for a minute (braking on the approach, it held the tank's own speed)
             var aim = p.Point;
             if (!p.Target.IsNull && world.HasComponent<SimTransform>(p.Target))
+            {
                 aim.Z += Fdp.Toolkit.Combat.AimPoint.Middle(world, p.Target, out _, out _).Z - world.GetComponentRO<SimTransform>(p.Target).Position.Z;
+                if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out _, out var tv))
+                    aim += new Vector3(tv.X, tv.Y, 0f) * (Vector3.Distance(at, aim) / MathF.Max(speed, 1f));
+            }
             float flat = new Vector2(aim.X - at.X, aim.Y - at.Y).Length();
             float angle = (p.DiveAngleDeg > 0f ? p.DiveAngleDeg : DefaultDiveAngleDeg) * MathF.PI / 180f;
             if (ws.Stage == StagePursue && flat <= MathF.Max(at.Z - aim.Z, 0f) / MathF.Tan(angle))
@@ -588,7 +596,10 @@ namespace Hrot.AI.Behaviors.Brains
                     ? NodeStatus.Running : NodeStatus.Failure;
             }
             ws.NextSteer = now + DiveSteerPeriod;
-            return LocomotionMoveTo.Issue(world, self, aim, speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;   // D-3
+            // D-3 — down the DIVE LINE: the point above the (led) target at flat · tan(angle), never above the cruise height — so the drone
+            //   stays over the target until it is above it and comes down on its roof, never skimming the ground behind it
+            float over = MathF.Min(height, MathF.Max(0f, flat - DiveHitRadiusM) * MathF.Tan(angle));
+            return LocomotionMoveTo.Issue(world, self, aim + new Vector3(0f, 0f, over), speed, 0f) ? NodeStatus.Running : NodeStatus.Failure;
         }
 
         /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its

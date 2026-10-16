@@ -1045,16 +1045,19 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>The stand-in for <c>RotorcraftModel</c>'s point move: horizontal toward the point at up to its speed, braking √(2·a·d);
-        /// vertical capped at ±ClimbMps — as the model flies it (no instant velocity).</summary>
+        /// vertical capped at ±ClimbMps — as the model flies it; ⭐ CE-2211 a strike (arrival radius 0) neither brakes nor caps the dive.</summary>
         private void FlyDrone(Entity e)
         {
             var move = MoveOf(e);
             ref var tr = ref _w.GetComponentRW<SimTransform>(e);
             var to = move.Destination - tr.Position;
             var flat = new Vector2(to.X, to.Y);
-            float along = MathF.Min(MathF.Min(move.Speed > 0f ? move.Speed : DroneSpeed, MathF.Sqrt(2f * DroneAccel * flat.Length())), flat.Length() / Dt);
+            // ⭐ CE-2211 — a flyer that IS its warhead, sent with arrival radius 0, strikes its point: no braking, the dive at its full speed
+            float speed = move.Speed > 0f ? move.Speed : DroneSpeed;
+            bool strike = move.ArrivalRadius <= 0f;
+            float along = strike ? MathF.Min(speed, flat.Length() / Dt) : MathF.Min(MathF.Min(speed, MathF.Sqrt(2f * DroneAccel * flat.Length())), flat.Length() / Dt);
             var h = flat.LengthSquared() > 1e-6f ? Vector2.Normalize(flat) * along : Vector2.Zero;
-            float vz = Math.Clamp(to.Z / Dt, -DroneClimb, DroneClimb);
+            float vz = Math.Clamp(to.Z / Dt, strike ? -speed : -DroneClimb, DroneClimb);
             var v = new Vector3(h, vz);
             _w.GetComponentRW<SimVelocity>(e).Linear = v;
             tr.Position += v * Dt;
@@ -1071,7 +1074,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ §9i ① — an FPV drone ordered to Attack a tank 600 m off: it picks <b>Dive</b> (it detonates on impact), pursues at 60 m above
-        /// the tank, begins the dive within height / tan 60° (≈ 35 m, horizontal), every dive point is the tank's middle, it comes down on
+        /// the tank, begins the dive within height / tan 60° (≈ 35 m, horizontal), every dive point is ON the dive line over the tank's middle
+        /// (never below it), it comes down on
         /// it from ABOVE (the last 5 m of descent steeper than 45°), and the attack ends — Success — the frame the tank is destroyed.
         /// ✅ Red-proofs (mutants): no Dive pick ⇒ no profile, Failure at once; the dive never begun (pursue only) ⇒ it hovers 60 m over
         /// the tank ⇒ red; the dive aimed at the pursuit height ⇒ it never comes down ⇒ red.
@@ -1095,7 +1099,8 @@ namespace Hrot.SimHost.Tests
                 status = DroneStep(ref p, ref ws, drone, frame);
                 var at = _w.GetComponentRO<SimTransform>(drone).Position;
                 var dest = MoveOf(drone).Destination;
-                bool diving = Vector3.Distance(dest, middle) < 0.01f;
+                bool diving = new Vector2(dest.X - middle.X, dest.Y - middle.Y).Length() < 0.01f && dest.Z < 59.9f;   // down the dive line
+                if (diving) Assert.True(dest.Z >= middle.Z - 0.01f, $"the dive line is never below the tank's middle: {dest}");
                 if (!diving) maxPursuit = MathF.Max(maxPursuit, dest.Z);
                 else
                 {
@@ -1113,6 +1118,39 @@ namespace Hrot.SimHost.Tests
             Assert.True(-leg.Z >= new Vector2(leg.X, leg.Y).Length(), $"from above: the last leg {leg}");   // steeper than 45°
             _w.GetComponentRW<Health>(tank).Current = 0f;                               // the warhead's work (DroneImpactSystem)
             Assert.Equal(NodeStatus.Success, DroneStep(ref p, ref ws, drone, ++frame));
+        }
+
+        /// <summary>
+        /// ⭐ §9i ④ (found live, ua-drone-shelter) — a tank FLEEING at 15 m/s is still hit, from above: the dive LEADS it (its velocity × the
+        /// time to reach it) and follows the dive line over it, so the drone comes down on its roof within 40 s.
+        /// ✅ Red-proof (mutant): no lead ⇒ red (measured, see §9i). 📐 Live before the fix: it trailed an M1 ~10 m behind at the hull's height
+        /// for a minute — the model braked for the point and capped the dive at 8 m/s (CE-2211).
+        /// </summary>
+        [Fact]
+        public void S6e_ADroneDivesOnAFleeingTank_LeadsIt_AndHitsItFromAbove()
+        {
+            var drone = SpawnDrone(new Vector3(400f, 0f, 60f));
+            var tank = SpawnGround(Vector3.Zero, 1000f, vehicle: true, ForceId.Friend);
+            var flee = new Vector3(-15f, 0f, 0f);
+            _w.GetComponentRW<SimVelocity>(tank).Linear = flee;
+            var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var track = new System.Collections.Generic.List<Vector3>();
+            bool hit = false;
+            int frame = 0;
+            for (; frame < 60 * 40 && !hit; frame++)
+            {
+                DroneStep(ref p, ref ws, drone, frame);
+                _w.GetComponentRW<SimTransform>(tank).Position += flee * Dt;
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, tank, out _, out _);
+                track.Add(at - middle);
+                hit = Vector3.Distance(at, middle) < 1.5f;
+            }
+            Assert.True(hit, $"the drone reached the fleeing tank within 40 s — last offset {track[^1]}");
+            int k = track.FindIndex(q => q.Z <= 5f);
+            var leg = track[^1] - track[Math.Max(0, k - 1)];
+            Assert.True(-leg.Z >= new Vector2(leg.X, leg.Y).Length(), $"from above (relative to the tank): the last leg {leg}");
         }
 
         /// <summary>
