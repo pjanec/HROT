@@ -32,9 +32,11 @@ Deviations (all in §8h.7): the vehicle reach is a constant (no `PhysicsCollider
 seat — found by its own rail: `FreeSeat(Driver)` falls back to a passenger seat, so `CanEmbark(Driver)` said `Applied`
 after the driver sat.
 
-⚠ **Owed:** the live IG check of `dtOperatorUseStatus` (handoff "It must reach the IG"). Not run this pass.
+⚠ **Owed:** the live IG check of `dtOperatorUseStatus` (handoff "It must reach the IG"). 📐 It cannot run yet: nothing in
+production writes `OperatorUseStatus` (grep over `Hrot/` `FDP/`: only the type, the translators and the wiring) — its writer is
+behaviors' `CE-1154`. ⇒ the check runs once `CE-1154` is on a branch backend can merge.
 
-⭐ **Behaviors lane:** `CE-1154` (`OperatorControlBehavior.OperateUse`) starts from the commit that carries this report.
+⭐ **Behaviors lane:** `CE-1154` (`OperatorControlBehavior.OperateUse`) starts from **`backend@4439b8aba`** ([note](HANDOFF_Backend_To_Behaviors_Use_Key_Ready.md)).
 
 ## 2. Re-run handoff
 
