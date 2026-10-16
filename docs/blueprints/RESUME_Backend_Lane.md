@@ -26,6 +26,9 @@ the scenario clock and the global weather, Weather Regions (8811), `WeatherField
 report [REPORT_Backend_Weather_And_Time_S1](batches/REPORT_Backend_Weather_And_Time_S1.md). ③ the editor half + CE-3217 → ui:
 [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time](batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md). **Next:** S2 (perception:
 vision by visibility and light, thermal crossover, hearing by wind) — not started; a runtime weather edit from a non-owning host.
+④ **`coordinator@0eb432b0f` merged** (`5252dab54`, the Player-node programme, Q91 / CE-4000…4011) with three merge fixes: CE-4007's
+delete-on-wipe on the clock/weather egress, route docs + MCP tools for `/cluster/roster|transition|cancel`, and the shared-JSON-options
+rail (coordinator's transfer code + backend's `AudioSettings`). ⚠ Still red on `backend` before and after: 6 `Fdp.ModuleHost` convoy tests.
 
 ## 000. NOW (`2026-10-15`) — a new backend session holds the lane *(🔒 user: the CE-3203 session is ON HOLD until it finishes)*
 
