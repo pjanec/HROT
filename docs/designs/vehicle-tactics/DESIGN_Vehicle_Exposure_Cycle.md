@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
+updated: 2026-10-16 (§8 CE-2212 the shelter query is pointed once)
 build-state: BUILDING — V1, V3, V4, V8 built (as-built rows in §2–§4, §8); V6 compositions + demos to do. 🔒 user, 2026-10-14: "Leans accepted. Write the designs" (V1–V8, D-H, D-J, D-K approved)
 current-answer: §2 danger to me (V1), §3 vehicle points (V3), §4 the node (V4), §5 reverse (V5), §6 technicals (M9), §7 the AT side (V6), §8 counter-drone (V8), §9 who runs it, §10 rails — §1 is the measured ground.
 stale-below: nothing.
@@ -502,10 +502,11 @@ classDiagram
 | "clear" = no air contact FRESH for `ClearSeconds` | = no NEW sensing (a newer `LastSeenTick` on any air slot) for `ClearSeconds` | memory freshness fades over ≈ 70 s, so "fresh" would hold the shelter a minute after the drone left; a new sighting or hearing is the edge the node can count |
 | no answer ⇒ evade | ✅ 40 m legs away from the drone's last spot, swerving ±35° on alternate sides; a shelter that answers MID-evade is taken; a failed shelter move evades | a straight line is what a diving drone leads |
 | `Fire(the drone)`; the weapon brain fails a mount that cannot elevate | ✅, and a FAILED fire (out of arc) is retried only after 2 s | `PostureNodes.Fire` re-issues on Failure — every frame against a tank gun's `OutOfArc` |
+| `Keep(FindShelter)` aimed at the drone | ⭐ **CE-2212 (`2026-10-16`, live `ua-drone-shelter`)**: the sensor is pointed at the drone ONCE, when it starts, and never re-pointed as the drone moves | `FindShelter` scores from the self alone (slot 0 — the grid, the overhead line, the distance, the path), so the point changes nothing in its answer, while every re-point bumps the epoch and CLEARS the answer (`EqsChildSensor.Refresh`). ⛔ SUPERSEDED: *"re-pointed when it moves (> 2 m, as PeekAndFire)"* — measured live: a 30 m/s drone moved past 2 m every perception update, the epoch climbed ~13/s, the answer stayed `ready: false` for the whole raid, and the tank by the deck evaded instead of backing under it. The same query on the same terrain off-line answers 25 covered points |
 | `EvadeSpeed 0 ⇒ max` | 0 ⇒ the vehicle's own speed | `LocomotionMoveTo` has a speed, not a "max" knob — ⛔ open: a top-speed evade needs the type's max speed read here |
 
 Rails: `ThreatEvaluationSystemTests.V8_AHeardDrone_Raises_AirThreat` · `V8_ASeenFlyer_Raises_AirThreat_ATankDoesNot_AndHeardThenSeenIsOneAlarm` ·
-`ShelterFromAirNodesTests` (5: under the deck / hold / clear · evade legs · shelter mid-evade · fire + out-of-arc retry · release) ·
+`ShelterFromAirNodesTests` (6: under the deck / hold / clear · evade legs · shelter mid-evade · fire + out-of-arc retry · release · ⭐ CE-2212 a moving drone does not reset the query) ·
 `BasicVehicleSopTests` (2: registered + idles · the rows in order) · ✅ `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc`
 (backend, handoff 2 C4 — the weapon-brain half: a drone 40 m up, 30 m out (~52°) — the technical's pintle HMG (−10…+70°) is granted and fires 5 rounds; the M1's
 gun (−10…+20°) ends its task `OutOfArc` and fires none; green without a code change; the behaviour half is

@@ -84,6 +84,14 @@ namespace Hrot.SimHost.Tests
                 t.Count = 1;
             }
 
+            /// <summary>The drone is sensed again this frame somewhere else (a diving drone: its remembered spot moves).</summary>
+            public void SenseAt(Vector3 at)
+            {
+                ref var mem = ref Repo.GetComponentRW<TargetMemory>(Self);
+                mem.PositionsX[0] = at.X; mem.PositionsY[0] = at.Y; mem.PositionsZ[0] = at.Z;
+                mem.LastSeenTick[0] = ++_tick;
+            }
+
             /// <summary>The drone is sensed again this frame (a newer sighting / hearing tick).</summary>
             public void SenseAgain() => Repo.GetComponentRW<TargetMemory>(Self).LastSeenTick[0] = ++_tick;
 
@@ -176,6 +184,27 @@ namespace Hrot.SimHost.Tests
             r.Repo.FlushCommandBuffers();
             Assert.True(r.Sensor.IsNull, "the sensor goes with the run");
             Assert.Single(r.Moves);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-2212</c> — A DRONE THAT MOVES DOES NOT RESET THE SHELTER QUERY: its remembered spot moves 3 m every frame (a 30 m/s
+        /// FPV drone), yet the sensor keeps its epoch, an answer that arrives is not wiped, and the vehicle drives under the deck.
+        /// 🔴 Red-proof: re-point past 2 m (the PeekAndFire rule) and every frame clears the answer — the vehicle evades instead.
+        /// </summary>
+        [Fact]
+        public void CE2212_AMovingDrone_DoesNotResetTheShelterQuery_TheVehicleStillShelters()
+        {
+            var r = new Raid(new ShelterFromAirParams { FindSeconds = 3f, ClearSeconds = 30f });
+            r.Step();
+            uint epoch = r.Repo.GetComponentRO<EqsSensor>(r.Sensor).Epoch;
+            var at = DroneAt;
+            for (int i = 0; i < 10; i++) { at += new Vector3(0f, -3f, 0f); r.SenseAt(at); r.Step(); }
+            Assert.Equal(epoch, r.Repo.GetComponentRO<EqsSensor>(r.Sensor).Epoch);
+
+            r.AnswerShelter(ShelterAt);
+            for (int i = 0; i < 5; i++) { at += new Vector3(0f, -3f, 0f); r.SenseAt(at); r.Step(); }
+            Assert.Equal((ShelterAt, true), Assert.Single(r.Moves));
+            Assert.NotEqual(ShelterPhase.Evading, r.Ws.Phase);
         }
 
         /// <summary>

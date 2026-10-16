@@ -150,9 +150,13 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var cfg = new PostureSensorsParams { SearchRadius = p.SearchRadius, ScoreDeltaThreshold = 0.05f };
             if (ws.DroneSlot == 0) return;   // nothing in the air remembered yet: nothing to shelter from
-            // the drone's remembered spot as a POINT keyed by its slot (D14, as PeekAndFire): re-pointed when it moves or another drone is newest
+            // the drone's remembered spot as a POINT keyed by its slot (D14, as PeekAndFire) — set ONCE, when the sensor starts.
+            // ⭐ CE-2212: never re-pointed as the drone moves. FindShelter scores from the self alone (slot 0: the grid, the overhead
+            //   line, the distance, the path), so the point changes nothing in its answer — and every re-point bumps the epoch and
+            //   clears the buffer (EqsChildSensor.Refresh). ⛔ It was re-pointed past 2 m (EqsTacticsNodes.Moved): a 30 m/s drone
+            //   moved that far every perception update, so the query never answered and the tank by the deck evaded instead.
             var aim = new ThreatAim(Entity.Null, ws.DroneSlot, ws.DroneAt);
-            bool retarget = ws.SensorSlot == 0 || EqsTacticsNodes.Moved(new ThreatAim(Entity.Null, ws.SensorSlot, ws.SensorAt), in aim);
+            bool retarget = ws.SensorSlot == 0;
             ws.Sensor = PostureNodes.Keep(ws.Sensor, world, self, ShelterSite, FindShelter.BlueprintId, in cfg, in aim, retarget);
             if (retarget) { ws.SensorSlot = ws.DroneSlot; ws.SensorAt = ws.DroneAt; }
         }
