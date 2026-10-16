@@ -1867,7 +1867,12 @@ def run_weapon_systems(c, timeout):
         return
     deploy = lambda n: (comps(n).get("WeaponSystemState") or {}).get("Deploy")
     print(f"    start: M2 deploy {deploy(m2)} · Javelin deploy {deploy(jav)} · sentry deploy {deploy(sentry)}")
+    print(f"    gunner BehaviorState {json.dumps(comps(gunner).get('BehaviorState'))[:300]} · M2 PassengerBuffer {json.dumps(comps(m2).get('PassengerBuffer'))[:200]}")
     call("POST", "/sim/play", {})
+    for i in range(6):   # the gunner's first seconds: the behaviour, the interaction channel
+        time.sleep(1.0)
+        g = comps(gunner)
+        print(f"      +{i}s gunner BS {json.dumps(g.get('BehaviorState'))[:220]} · Inter {json.dumps(g.get('InteractionChannel'))[:160]} · Loco {json.dumps(g.get('LocomotionChannel'))[:120]}")
     shots, manned, deployed, carried, t = {}, None, None, None, 0
     end = time.time() + timeout + 60
     while time.time() < end:
