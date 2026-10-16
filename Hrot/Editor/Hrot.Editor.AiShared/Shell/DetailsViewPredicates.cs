@@ -87,6 +87,14 @@ public static class DetailsViewPredicates
     public static bool FocusIs(DetailsContext context, SelectionOrigin origin)
         => context.Focus == origin;
 
+    /// <summary>
+    /// ⭐ CE-1161 (docs/designs/weather/DESIGN_Weather_And_Time.md §7 E-1) — the MAP BACKGROUND holds focus AND no entity is selected:
+    /// what the scenario-wide views (Zones, Scenario) want. ⚠ The focus latch is a LEVEL that an entity click does not move, so the
+    /// entity count is what lets an entity's own views win once a unit is picked.
+    /// </summary>
+    public static bool MapBackgroundWithNothingSelected(DetailsContext context)
+        => FocusIs(context, SelectionOrigin.MapBackground) && context.Entities.Count == 0;
+
     /// <summary>⭐ An asset is open — the weakest useful predicate, for views that are about the
     /// document as a whole *(§6 <c>L3</c>: "asset context")*.</summary>
     public static bool HasAsset(DetailsContext context) => context.Asset is not null;

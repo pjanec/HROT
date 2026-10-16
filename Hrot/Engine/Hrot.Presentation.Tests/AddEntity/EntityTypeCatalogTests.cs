@@ -111,6 +111,7 @@ public sealed class EntityTypeCatalogTests
         public readonly List<string> Calls = new();
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) => Calls.Add($"point {tkbType} {initialPropertiesJson}");
         public void StartAreaAuthoringMode(string styleOverrideJson = "") => Calls.Add("area");
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") => Calls.Add($"area:{tkbType}");
         public void StartRouteAuthoringMode() => Calls.Add("route");
         public void StartZoneAuthoringMode(string styleOverrideJson = "") => Calls.Add("zone");
     }
@@ -129,6 +130,7 @@ public sealed class EntityTypeCatalogTests
     [InlineData(TkbEntityTypes.TacGraphic_Area, "area")]
     [InlineData(TkbEntityTypes.TacGraphic_Route, "route")]
     [InlineData(TkbEntityTypes.TerrainZone, "zone")]
+    [InlineData(TkbEntityTypes.WeatherRegion, "area:8811")]   // ⭐ CE-1161 — an area born as a Weather Region
     public void CE1017_Arm_AGraphic_ArmsItsOwnTool_NoSideAsked(long tkbType, string expected)
     {
         var spawn = new RecordingSpawn();

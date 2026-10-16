@@ -21,6 +21,13 @@ public interface ISpawnController
     void StartAreaAuthoringMode(string styleOverrideJson = "");
 
     /// <summary>
+    /// ⭐ CE-1161 (docs/designs/weather/DESIGN_Weather_And_Time.md §7 E-4) — area authoring that births <paramref name="tkbType"/>: a
+    /// Weather Region (<c>TkbEntityTypes.WeatherRegion</c>) is an area born as its own type, exactly as a zone is (Terrain Zones §2.1,
+    /// "TkbType is THE discriminator"). 0 = the tactical area. ⛔ No default implementation (R-133, as <see cref="StartZoneAuthoringMode"/>).
+    /// </summary>
+    void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "");
+
+    /// <summary>
     /// Activates route authoring mode, allowing the operator to draw a polyline route on the map.
     /// </summary>
     void StartRouteAuthoringMode();

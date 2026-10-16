@@ -45,6 +45,8 @@ public static class PlacementToolRegistry
         new MapGraphicInfo(TkbEntityTypes.TacGraphic_Area,     "Area",         PlacementToolKind.Area,  "_area"),
         new MapGraphicInfo(TkbEntityTypes.TacGraphic_Route,    "Route",        PlacementToolKind.Route, "_route"),
         new MapGraphicInfo(TkbEntityTypes.TerrainZone,         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
+        // ⭐ CE-1161 (Weather and Time §7 E-4) — an area born as a Weather Region (8811); the arm gives it WeatherConditions.Standard.
+        new MapGraphicInfo(TkbEntityTypes.WeatherRegion,       "Weather Region", PlacementToolKind.Area, "_area"),
         new MapGraphicInfo(TkbEntityTypes.TacGraphic_FireLine, "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };
@@ -79,7 +81,8 @@ public static class PlacementToolRegistry
                 spawn.StartPlacementMode(tkbType, AffiliationJson(side));
                 return true;
             case PlacementToolKind.Area:
-                spawn.StartAreaAuthoringMode();
+                if (tkbType == TkbEntityTypes.TacGraphic_Area) spawn.StartAreaAuthoringMode();
+                else spawn.StartAreaAuthoringMode(tkbType);   // ⭐ CE-1161 — an area born as its own type (a Weather Region)
                 return true;
             case PlacementToolKind.Route:
                 spawn.StartRouteAuthoringMode();

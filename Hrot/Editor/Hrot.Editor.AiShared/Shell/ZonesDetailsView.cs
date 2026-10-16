@@ -132,5 +132,5 @@ public static class ZonesDetailsViewDescriptor
     /// the predicate helper were all already there.</para>
     /// </summary>
     public static bool Applies(DetailsContext context)
-        => DetailsViewPredicates.FocusIs(context, SelectionOrigin.MapBackground);
+        => DetailsViewPredicates.MapBackgroundWithNothingSelected(context);   // ⭐ CE-1161 E-1 — an entity's views win once one is picked
 }

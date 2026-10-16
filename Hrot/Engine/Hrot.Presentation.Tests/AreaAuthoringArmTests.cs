@@ -280,6 +280,26 @@ public sealed class AreaAuthoringArmTests
         Assert.Equal(TkbEntityTypes.TerrainZone, Assert.Single(captured).TkbType);
     }
 
+    /// <summary>⭐ CE-1161 (Weather and Time §7 E-5; backend handoff U3) — a drawn Weather Region is born WITH its weather: a region
+    /// without <c>WeatherConditions</c> is no region (<c>WeatherField</c> ignores it). Any other area is born without one.</summary>
+    [Fact]
+    public void CE1161_AWeatherRegion_IsBornWithStandardWeather_AnAreaIsNot()
+    {
+        var arm      = new AreaAuthoringArm(MakeManager());
+        var captured = new List<SpawnEntityCommand>();
+
+        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.WeatherRegion, string.Empty, captured.Add));
+        Commit(arm, ThreePoints);
+        var region = Assert.Single(captured);
+        Assert.Equal(TkbEntityTypes.WeatherRegion, region.TkbType);
+        Assert.Contains(region.InitialComponents!, c => c is Fdp.Toolkit.Weather.WeatherConditions);
+
+        captured.Clear();
+        arm.Arm(new AreaAuthoringRequest(TkbEntityTypes.TacGraphic_Area, string.Empty, captured.Add));
+        Commit(arm, ThreePoints);
+        Assert.DoesNotContain(Assert.Single(captured).InitialComponents!, c => c is Fdp.Toolkit.Weather.WeatherConditions);
+    }
+
     // ── Too few points ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>

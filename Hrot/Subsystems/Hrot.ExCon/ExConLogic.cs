@@ -308,6 +308,12 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
     /// type explicitly rather than relying on the default.</para>
     /// </remarks>
     public void StartZoneAuthoringMode(string styleOverrideJson = "")
+        => StartAreaAuthoringMode(TkbEntityTypes.TerrainZone, styleOverrideJson);
+
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-1161 — the typed area arm (a Weather Region, a zone): the same <c>CMD_START_AUTHORING</c> carrying the type, so the
+    /// map host's shared <c>AreaAuthoringArm</c> births it. The zone arm above is this with <c>TerrainZone</c>.</remarks>
+    public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "")
     {
         ThrowIfDisposed();
 
@@ -316,12 +322,12 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
 
         var requestId = Guid.NewGuid();
         _lastCommandRequestId = requestId;
-        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+        TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (tkb {tkbType}) ctx={ActiveContextId:N}");
 
         string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
         {
             contextId = ActiveContextId.ToString("N"),
-            tkbType   = TkbEntityTypes.TerrainZone,
+            tkbType   = tkbType == 0 ? TkbEntityTypes.TacGraphic_Area : tkbType,
             styleOverrideJson
         });
 
@@ -333,10 +339,10 @@ public sealed class ExConLogic : IExConLogic, Hrot.UI.Common.Facades.IMapPickSer
             CommandArgsJson = argsJson,
         });
         _interactionPanel.AddLog("TX", ExConLogicConstants.LogTopicCommand,
-            $"CMD_START_AUTHORING (Zone) ctx={ActiveContextId:N}");
+            $"CMD_START_AUTHORING (tkb {tkbType}) ctx={ActiveContextId:N}");
 
         FdpLog<ExConLogic>.Debug(
-            "[Node-{0}] Zone Authoring Mode ON. ContextId={1}", _localNodeId, ActiveContextId);
+            "[Node-{0}] Shape Authoring Mode ON. ContextId={1} TKB={2}", _localNodeId, ActiveContextId, tkbType);
     }
 
     /// <inheritdoc/>

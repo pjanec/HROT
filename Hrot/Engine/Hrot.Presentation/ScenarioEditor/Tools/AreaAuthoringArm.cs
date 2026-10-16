@@ -138,7 +138,7 @@ namespace Hrot.ScenarioEditor.Tools
                         InitType          = ReliableInitType.AllPeers,
                         RequestId         = Guid.NewGuid(),
                         InitialTransform  = new SimTransform { Position = anchor },
-                        InitialComponents = new List<object> { polyline, style },
+                        InitialComponents = BornWith(tkbType, polyline, style),
                     });
                 },
                 onRemove: () =>
@@ -175,6 +175,19 @@ namespace Hrot.ScenarioEditor.Tools
             _gizmos?.Unregister(ActiveGizmoId.Value);
             ActiveGizmoId = null;
             ActiveGizmo   = null;
+        }
+
+        /// <summary>
+        /// ⭐ CE-1161 (docs/designs/weather/DESIGN_Weather_And_Time.md §7 E-5) — what an area of <paramref name="tkbType"/> is BORN with:
+        /// the outline and the style, and a Weather Region also its weather (<see cref="Fdp.Toolkit.Weather.WeatherConditions.Standard"/>
+        /// — ⚠ a region without it is no region: <c>WeatherField</c> ignores it). ⭐ Here, because every host's area commit passes this arm
+        /// (the editor's adapter, and the map host serving an ExCon <c>CMD_START_AUTHORING</c>).
+        /// </summary>
+        public static List<object> BornWith(long tkbType, EditablePolyline polyline, MapOverlayStyle style)
+        {
+            var components = new List<object> { polyline, style };
+            if (tkbType == TkbEntityTypes.WeatherRegion) components.Add(Fdp.Toolkit.Weather.WeatherConditions.Standard);
+            return components;
         }
 
         /// <summary>
