@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-13 (CE-3193 sweep) — superseded vocabulary in this file
   §7.1b's first host-deviation row said Stage B for the UrbanCombatNew applier — corrected in place to Stage A (CE-2126, 2026-10-12)
 known-conflict: docs/DESIGN_Building_Interiors.md §3j "5d" — 5d-1 was built with a door-only topic (EntityDoorCommand) and door-only translators; slice I-1 here replaces them, and that section says so
 related-designs:
+  - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key starts this design's executors from a possessed unit
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — OWNS the DOOR exit into a descent (Embarkation.ExitIntoDescent, B-4): a rope / jump leaves at the seat's anchor and height, not beside the hull
   - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — OWNS mortars and artillery: the 81 / 120 mm mortar tubes carried as TwoMan loads (§7.5)
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — OWNS the Station seat role, the weapon carry station and manning a weapon's Gunner seat (a TwoMan weapon uses §7.5's team carry) — mounting, carrying and manning a weapon are boarding (R-2016)
