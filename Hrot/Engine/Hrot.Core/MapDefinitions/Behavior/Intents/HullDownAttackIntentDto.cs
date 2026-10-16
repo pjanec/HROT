@@ -8,10 +8,10 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// had NO contract: the C# helper serialised the internal <c>HullDownAttackParams</c> struct, contradicting
     /// <c>docs/designs/tactical-intent/DESIGN.md</c> §4.2 (every intent has a <c>[Behavior(Params = …)]</c> DTO).
     /// <para>
-    /// The member names match <c>HullDownAttackParams</c>'s fields, so the receiver's parse
-    /// (<c>HillAttackTankNodes.ParseHullDownAttackParams</c>, case-insensitive <c>DefaultRelaxed</c>) reads it as-is.
-    /// The defaults are the constants the C# commander bakes (<c>HillAttackCommanderNodes</c>, the HullDownAttack dispatch; the <c>HullDownIntentJson</c> helper that also baked them retired <c>2026-10-01</c>). The receiver owns the run-time counters
-    /// (<c>RoundsFired</c>, <c>LastObservedAmmo</c>), so they are not part of the contract.
+    /// The member names match <c>HullDownAttackParams</c>'s fields, so the receiver's resolver
+    /// (<c>HillAttackTankNodes.ResolveHullDownAttackRun</c>, the typed block resolver, CE-2230) reads it as-is.
+    /// The defaults are the constants the C# commander bakes (<c>HillAttackCommanderNodes</c>, the HullDownAttack dispatch; the <c>HullDownIntentJson</c> helper that also baked them retired <c>2026-10-01</c>). ⭐ CE-2230 — one round per run is
+    /// the receiver's doctrine (R-2022), not a field: <c>MaxRounds</c> left the contract.
     /// </para>
     /// 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c> §4 D.
     /// </summary>
@@ -39,7 +39,5 @@ namespace Hrot.Map.Definitions.Behavior.Intents
         public float ApproachSpeed = 15f;
         /// <summary>Creep speed near the slot (m/s).</summary>
         public float CreepSpeed = 5f;
-        /// <summary>Rounds to fire before success; 0 = unlimited.</summary>
-        public int MaxRounds = 1;
     }
 }

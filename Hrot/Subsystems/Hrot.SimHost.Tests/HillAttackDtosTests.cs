@@ -59,10 +59,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public unsafe void HullDownAttackParams_Is40Bytes()
         {
-            // Struct grew from 40 bytes: 8 fields × 4 bytes + TargetNetworkId(long, 8 bytes) +
-            // MaxRounds + RoundsFired + LastObservedAmmo (3 × 4 bytes) = 52 bytes raw,
-            // padded to 56 by Sequential layout (must align to largest field: 8 bytes).
-            Assert.Equal(56, sizeof(HullDownAttackParams));
+            // 8 floats + TargetNetworkId (long, at offset 32) = 40 bytes. ⭐ CE-2230: back from 56 — MaxRounds, RoundsFired and
+            // LastObservedAmmo went with the bespoke fire node; the run fires ONE round (R-2022) through the weapon brain.
+            Assert.Equal(40, sizeof(HullDownAttackParams));
+            Assert.Equal(32, (int)Marshal.OffsetOf<HullDownAttackParams>(nameof(HullDownAttackParams.TargetNetworkId)));
         }
 
         /// <summary>

@@ -19,7 +19,7 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// <para>
 /// The committed blueprint <c>Assets/Blueprints/Samples/ChannelMoveAndWaitDemo.bp.json</c> (AiPrimitive,
 /// Intent=Action, Hostings=[BTreeAction]) is a from-scratch, blueprint-authored rebuild of the C# oracle
-/// <c>HillAttackTankNodes.Action_ReverseToBaseline</c> (~line 456), using only shipped nodes
+/// <c>HillAttackTankNodes.Action_ReverseToBaseline</c> (retired by <c>CE-2230</c> — the run is the vehicle exposure cycle now), using only shipped nodes
 /// (<c>ChannelCommand</c>, <c>WaitForChannel</c>, <c>GetAllParameters</c>, <c>PublishEvent</c>,
 /// <c>Return</c>) plus one small curated helper (<see cref="Hrot.AI.Behaviors.Brains.VectorOps.Vec3"/>)
 /// for <c>Vector3</c> construction -- there is no vector-literal node. Graph: <c>EventEntry</c> -&gt;

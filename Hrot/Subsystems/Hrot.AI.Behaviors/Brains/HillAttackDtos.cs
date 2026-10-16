@@ -188,10 +188,10 @@ namespace Hrot.AI.Behaviors.Brains
     ///   <item>Attack direction: <c>AttackDirX, AttackDirY</c> (8 bytes) at offset 16.</item>
     ///   <item>Kinematic limits: <c>ApproachSpeed, CreepSpeed</c> (8 bytes) at offset 24.</item>
     ///   <item>Assigned target: <c>TargetNetworkId</c> (long, 8 bytes) at offset 32.</item>
-    ///   <item>Shot quota: <c>MaxRounds</c> and <c>RoundsFired</c> (8 bytes) at offsets 40 and 44.</item>
-    ///   <item>Tracking: <c>LastObservedAmmo</c> (4 bytes) at offset 48.</item>
     /// </list>
-    /// Total = 52 bytes.
+    /// Total = 40 bytes. ⭐ CE-2230 — the run is the vehicle exposure cycle's lane (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>):
+    /// one round per run is the cycle's own count (R-2022). ⛔ HISTORY: <c>MaxRounds</c> / <c>RoundsFired</c> / <c>LastObservedAmmo</c> were
+    /// the retired fire node's ammo-diff counter.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
@@ -227,29 +227,6 @@ namespace Hrot.AI.Behaviors.Brains
         /// Never stores a local generational entity handle (would become stale across frames).
         /// </summary>
         public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
-
-        /// <summary>Maximum rounds to fire before the node returns success. 0 means unlimited.</summary>
-        public int MaxRounds;            // 4, offset 40
-
-        /// <summary>Rounds fired so far during this behavior run.</summary>
-        public int RoundsFired;          // 4, offset 44
-
-        /// <summary>
-        /// Last observed ammo value used to detect discrete shots via ammo drop.
-        /// Initialized to -1 on parse and set on first tick.
-        /// </summary>
-        public int LastObservedAmmo;     // 4, offset 48
-        // Total: 52 bytes
-    }
-
-    /// <summary>
-    /// Single-field blackboard wrapper used as <c>TBlackboard</c> in the HullDownAttackRun
-    /// <c>BTreeBuilder</c> expression-binding overloads.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    public struct HullDownAttackBlackboard
-    {
-        /// <summary>Per-tank static configuration for the attack run.</summary>
-        public HullDownAttackParams Params;
+        // Total: 40 bytes
     }
 }

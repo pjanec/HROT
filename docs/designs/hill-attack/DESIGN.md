@@ -74,21 +74,23 @@ along the attack direction) that ends the moment the tank SEES a target — inst
 ```mermaid
 classDiagram
   class PlatoonHillAttack { <<existing BTree, commander>> waves · area query · slots }
-  class HullDownAttackRun { <<existing BTree name, REBUILT>> Sequence: Parallel1(UntilTargetDown ‖ VehicleFightFromCover) · ReverseHome }
-  class VehicleFightFromCoverParams { <<existing, +4 fields>> +GivenHide xy · +LaneStart xy · +LaneDir xy · +MaxExposures }
+  class HullDownAttackRun { <<existing BTree name, REBUILT>> ONE node: VehicleFightFromCover(lane) }
+  class HullDownRunConfig { <<new block>> fight : VehicleFightFromCoverParams }
+  class VehicleFightFromCoverParams { <<existing, + lane fields>> +GivenHide · +LaneStart · +LaneDir · +Approach/CreepSpeed · +MaxExposures · +DesignatePacked }
   class VehicleFightFromCoverNodes { <<existing>> Choose · MoveToHide · Hidden · Exposing · Engaging · Withdrawing }
   class LaneExposure { <<new private step>> approach → creep → stop on SightNow.Sees }
-  class PostureNodes { <<existing>> Fire(target, MountAuto) · UntilTargetDown }
+  class PostureNodes { <<existing>> Fire(target, MountAuto) · Designate (extracted from UntilTargetDown) }
   class DesignatedTarget { <<existing>> the commander's pick ranked first }
   class HullDownAttackParams { <<existing DTO, trimmed>> Slot · Baseline · AttackDir · Target · Speeds }
-  class HillAttackTankNodes { <<existing — 5 nodes RETIRED>> CreepToAndBeyondSlot · AimAndFireSpecific · ReverseToBaseline · HasTarget · AbortEngagement }
+  class HillAttackTankNodes { <<existing — 5 nodes RETIRED>> ResolveHullDownAttackRun (curated resolver) only }
   PlatoonHillAttack ..> HullDownAttackParams : dispatches (intent HullDownAttack)
-  HullDownAttackRun --> PostureNodes : UntilTargetDown
+  HullDownAttackRun --> HullDownRunConfig : block
   HullDownAttackRun --> VehicleFightFromCoverNodes : lane mode
+  VehicleFightFromCoverNodes --> PostureNodes : Designate(DesignatePacked)
   VehicleFightFromCoverNodes --> LaneExposure : when LaneDir ≠ 0
   VehicleFightFromCoverNodes --> PostureNodes : Fire
   PostureNodes --> DesignatedTarget
-  HullDownAttackParams ..> VehicleFightFromCoverParams : resolved into
+  HullDownAttackParams ..> HullDownRunConfig : ResolveHullDownAttackRun
 ```
 *What the picture shows that prose hid: nothing new beside one private step — the commander, the cycle, the fire step and the
 designation all exist; the tank's five bespoke nodes go.*
@@ -101,7 +103,8 @@ sequenceDiagram
   participant L as LocomotionMoveTo
   participant F as PostureNodes.Fire / weapon brain
   C->>T: HullDownAttack {slot, baseline, dir, target}
-  T->>T: UntilTargetDown: designate target (ranked first, entered in memory)
+  T->>N: ResolveHullDownAttackRun: payload → lane params (one round, one exposure, reverse)
+  N->>N: Designate(DesignatePacked): ranked first, entered in memory
   N->>N: Choose: hide = the given baseline slot (no hide query)
   N->>L: drive to the hide · Hidden (gun tracking the reported target)
   N->>L: Exposing: approach the lane start, then creep along dir
@@ -112,7 +115,7 @@ sequenceDiagram
   N->>F: Fire(target, MountAuto) — the weapon brain picks gun and round (M8)
   F-->>N: ONE round left (RoundsPerExposure = 1, HA-3)
   N->>L: Withdraw: REVERSE to the hide (V5) — on a hit / near miss before the round, at once
-  N-->>T: MaxExposures reached → Success
+  N-->>T: MaxExposures reached (or nothing left to fight) → back in the hide → Success
   T-->>C: run ended (BehaviorFinished) · wave completion as today (§4.5)
 ```
 *What the picture shows: the stop is a sight test on EVERY creep tick (today: none during the approach), and the run ends through the
@@ -162,7 +165,7 @@ the library cycle.
 | slice | what | rails |
 |---|---|---|
 | **H-1** ✅ BUILT `2026-10-16` | the cycle's lane mode: `UseGivenHide`/`GivenHide`, `LaneStart`/`LaneDir`, `ApproachSpeed`/`CreepSpeed`/`MaxOvershootMetres`, `MaxExposures`; the lane step `LaneStatus`; a lane attempt with no sight still counts as the run; with a given hide "nothing left to fight" backs into the hide first; a given hide asks no hide query, a lane no firing-point query; `LocomotionMoveTo.Issue(onSurface)` for 2-D slots | `VehicleFightFromCoverNodesTests`: the creep stops on first sight (approach included) · one round, then the reverse to the given hide · a near miss sends it back · one exposure then Success · lane off = every existing rail green |
-| **H-2** | `HullDownAttackRun` rebuilt on it; the dispatch payload trimmed; the 5 tank nodes retired | `HillAttackIntegrationTests` (the feature's own suite) + `HillAttackNodeTests` re-homed to the new run |
+| **H-2** ✅ BUILT `2026-10-16` | `HullDownAttackRun.btree.json` is ONE node — `VehicleFightFromCover` bound to `Params.fight` of the new block `HullDownRunConfig`; the curated resolver `HillAttackTankNodes.ResolveHullDownAttackRun` turns the commander's `HullDownAttackParams` into the lane run (baseline = given hide, slot + attack dir = lane, network id → `DesignatePacked`, one round, one exposure, reverse); `HullDownAttackParams` trimmed to 40 bytes; the 5 tank nodes, their deactivators, parser, constants and code tree deleted. ⚠ **Deviation from HA-1's sketch** *(`Sequence{Parallel(1){UntilTargetDown ‖ cycle}, reverse home}`)*: the cycle carries the designation (`DesignatePacked`, through the extracted `PostureNodes.Designate`) and backs into the given hide itself when nothing is left — so the tree needs no decorator, no Parallel and no second reverse node | `HillAttackNodeTests.CE304_TheCommandersPayload_LandsInTheRootSlot_AsTheLaneRun` (the real chain: event → ingress → resolver → root slot) · `SC_HA013_4` (the cycle node is resource-owning) · `HillAttackIntegrationTests` (the feature's own suite) · `CE472` / `BTreeCallShapeTests` / `HillAttackDtosTests` re-homed |
 | **H-3** | `ua-hill-attack` on the ridge + its checker; the runbook | live: hull-down at the shot, reverse home, both enemies dead |
 | **H-4** | fold the as-built here; this section's §3–§4 to HISTORY | — |
 

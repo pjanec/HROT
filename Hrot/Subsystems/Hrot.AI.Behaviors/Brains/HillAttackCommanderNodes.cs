@@ -472,10 +472,7 @@ namespace Hrot.AI.Behaviors.Brains
                     AttackDirY = p.AttackDirY,
                     TargetNetworkId = targetNetId,
                     ApproachSpeed = 15f,
-                    CreepSpeed = 5f,
-                    MaxRounds = 1,
-                    RoundsFired = 0,
-                    LastObservedAmmo = -1
+                    CreepSpeed = 5f,   // ⭐ CE-2230 — one round per run is the tank's own doctrine now (R-2022)
                 };
 
                 string json = JsonSerializer.Serialize(

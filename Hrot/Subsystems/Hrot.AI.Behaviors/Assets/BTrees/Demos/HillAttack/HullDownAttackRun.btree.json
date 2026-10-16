@@ -13,135 +13,37 @@
 			"kind": "Root",
 			"VisualId": "2b000000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [
-				"2b000000-0000-0000-0000-000000000002"
+				"2b000000-0000-0000-0000-0000000000b1"
 			],
 			"DisplayLabel": "Root",
 			"EditorMetadata": {
 				"X": 400,
 				"Y": 0,
-				"Comment": "HullDownAttackRun — one tank: creep over the crest, fire at its assigned target, then reverse back to baseline (guaranteed retreat).",
+				"Comment": "HullDownAttackRun — one tank's run in the hill attack (CE-2230, hill-attack DESIGN §0): the vehicle exposure cycle in its LANE mode. From the baseline slot out along the lane, stop the first tick it SEES its target (hull-down), ONE round, reverse back into the slot, done (R-2022). The commander's payload is written into Params.fight by HillAttackTankNodes.ResolveHullDownAttackRun.",
 				"Collapsed": false,
 				"Color": null
 			}
 		},
 		{
-			"kind": "Sequence",
-			"VisualId": "2b000000-0000-0000-0000-000000000002",
-			"ChildVisualIds": [
-				"2b000000-0000-0000-0000-000000000003",
-				"2b000000-0000-0000-0000-0000000000a4"
-			],
-			"DisplayLabel": "Sequence",
+			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover",
+				"ExpressionTargetField": "Params.fight",
+				"WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.VehicleFightFromCoverState"
+			},
+			"VisualId": "2b000000-0000-0000-0000-0000000000b1",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Fight from cover — the lane, one round",
 			"EditorMetadata": {
 				"X": 400,
-				"Y": 100,
-				"Comment": "Engagement (with always-succeeding fallback) THEN a guaranteed reverse-to-baseline.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Selector",
-			"VisualId": "2b000000-0000-0000-0000-000000000003",
-			"ChildVisualIds": [
-				"2b000000-0000-0000-0000-000000000004",
-				"2b000000-0000-0000-0000-0000000000a3"
-			],
-			"DisplayLabel": "Selector",
-			"EditorMetadata": {
-				"X": 400,
-				"Y": 220,
-				"Comment": "Try the engagement; if it fails (overshoot), fall back to AbortEngagement so the outer Sequence still reaches ReverseToBaseline.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Sequence",
-			"VisualId": "2b000000-0000-0000-0000-000000000004",
-			"ChildVisualIds": [
-				"2b000000-0000-0000-0000-0000000000a1",
-				"2b000000-0000-0000-0000-0000000000a2"
-			],
-			"DisplayLabel": "Engagement",
-			"EditorMetadata": {
-				"X": 300,
-				"Y": 340,
-				"Comment": "Creep to/past the firing slot, then aim and fire at the assigned target.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Action",
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot",
-				"ExpressionTargetField": "Params"
-			},
-			"VisualId": "2b000000-0000-0000-0000-0000000000a1",
-			"ChildVisualIds": [],
-			"DisplayLabel": "CreepToAndBeyondSlot",
-			"EditorMetadata": {
-				"X": 200,
-				"Y": 460,
-				"Comment": "Approach the slot, then creep along AttackDir; Running normally, Failure on >50m overshoot, early Success when the target becomes visible.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Action",
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific",
-				"ExpressionTargetField": "Params"
-			},
-			"VisualId": "2b000000-0000-0000-0000-0000000000a2",
-			"ChildVisualIds": [],
-			"DisplayLabel": "AimAndFireSpecific",
-			"EditorMetadata": {
-				"X": 400,
-				"Y": 460,
-				"Comment": "Aim + fire at TargetNetworkId; tracks rounds via ammo drop against MaxRounds.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Action",
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement",
-				"ExpressionTargetField": "Params"
-			},
-			"VisualId": "2b000000-0000-0000-0000-0000000000a3",
-			"ChildVisualIds": [],
-			"DisplayLabel": "AbortEngagement",
-			"EditorMetadata": {
-				"X": 550,
-				"Y": 340,
-				"Comment": "Always-Success fallback so the guaranteed retreat runs regardless of overshoot.",
-				"Collapsed": false,
-				"Color": null
-			}
-		},
-		{
-			"kind": "Action",
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline",
-				"ExpressionTargetField": "Params"
-			},
-			"VisualId": "2b000000-0000-0000-0000-0000000000a4",
-			"ChildVisualIds": [],
-			"DisplayLabel": "ReverseToBaseline",
-			"EditorMetadata": {
-				"X": 550,
-				"Y": 220,
-				"Comment": "Reverse (armor toward enemy) to the baseline slot; publishes ClearBehaviorEvent on arrival — this is what the commander's IsWaveCompleted watches for.",
+				"Y": 120,
+				"Comment": "Given hide (baseline) · lane (slot + attack direction) · stop on first sight · one round (the weapon brain picks gun and round) · reverse home · Success after one exposure.",
 				"Collapsed": false,
 				"Color": null
 			}
 		}
 	],
-	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HullDownAttackParams",
+	"ParamsDtoTypeId": "Hrot.AI.Behaviors.Brains.HullDownRunConfig",
 	"Pills": [],
 	"Canvas": {
 		"PanX": 0,
@@ -155,9 +57,8 @@
 	},
 	"Blackboard": {
 		"Managed": true,
-		"TypeName": "",
+		"TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
 		"HeavyDtoType": null,
-		"Variables": [
-		]
+		"Variables": []
 	}
 }

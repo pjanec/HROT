@@ -82,6 +82,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float ApproachSpeed, CreepSpeed, MaxOvershootMetres;
         /// <summary>The node answers Success once this many exposures ended back in the hide (0 = it keeps cycling).</summary>
         public int MaxExposures;
+        /// <summary>⭐ CE-2230 (HA-4) — a NAMED target (<see cref="Entity.PackedValue"/>, 0 = none — a commander's pick): designated while it
+        /// lives, so the threat ranking puts it first, and entered in memory once, so the unit tracks it from behind its cover
+        /// (<see cref="PostureNodes.Designate"/>). Once it is down the ranking picks the next.</summary>
+        public long DesignatePacked;
     }
 
     /// <summary>⭐ <c>CE-2165</c> V4 — the node's working state: scratch, lost on every exit; what outlives an exit is in <see cref="FiringPositionMemory"/>.</summary>
@@ -91,7 +95,7 @@ namespace Hrot.AI.Behaviors.Brains
         public VehiclePhase Phase;
         /// <summary>1 while a move this node issued runs · 1 = the withdraw mode resolved to Scoot · 1 while waiting for a hide ·
         /// ⭐ CE-2230 1 once a lane exposure creeps (past the approach).</summary>
-        public byte Moving, Scoot, Waiting, Creeping;
+        public byte Moving, Scoot, Waiting, Creeping, Told;
         public Vector3 HidePoint, FiringPoint;
         public EqsSensorHandle HideSensor, FiringSensor;
         /// <summary>What both sensors are pointed at.</summary>
@@ -199,6 +203,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus VehicleFightFromCover(ref VehicleFightFromCoverParams authored, ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
         {
             if (!world.HasComponent<LocomotionChannel>(self) || !world.HasComponent<WeaponChannel>(self)) return NodeStatus.Failure;
+            if (authored.DesignatePacked != 0 && new Entity((ulong)authored.DesignatePacked) is var named && CombatLife.IsAlive(world, named))
+                PostureNodes.Designate(world, self, named, ref ws.Told);   // ⭐ CE-2230 — the named target (the one step UntilTargetDown takes)
             if (ws.Phase == VehiclePhase.Choose && ws.Exposures == 0 && ws.Moving == 0) ws.Scoot = (byte)(Scoots(in authored, world, self) ? 1 : 0);
             var p = Effective(in authored, ws.Scoot == 1);
             double now = Now(world);

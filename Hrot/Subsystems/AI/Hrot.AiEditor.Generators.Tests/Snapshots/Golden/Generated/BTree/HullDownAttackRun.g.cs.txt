@@ -16,26 +16,8 @@ public static class HullDownAttackRun
 {
     public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
         new BTreeBuilder<byte, BTreeContext>()
-            .Sequence(seq =>
-            {
-                seq.Selector(sel =>
-                {
-                    sel.Sequence(seq =>
-                    {
-                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_CreepToAndBeyondSlot@0",
-                            visualId: new Guid("2b000000-0000-0000-0000-0000000000a1"));
-                        seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AimAndFireSpecific@0",
-                            visualId: new Guid("2b000000-0000-0000-0000-0000000000a2"));
-                    },
-                        visualId: new Guid("2b000000-0000-0000-0000-000000000004"));
-                    sel.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_AbortEngagement@0",
-                        visualId: new Guid("2b000000-0000-0000-0000-0000000000a3"));
-                },
-                    visualId: new Guid("2b000000-0000-0000-0000-000000000003"));
-                seq.Action("Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
-                    visualId: new Guid("2b000000-0000-0000-0000-0000000000a4"));
-            },
-                visualId: new Guid("2b000000-0000-0000-0000-000000000002"));
+            .Action("Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover@0@230311729",
+                visualId: new Guid("2b000000-0000-0000-0000-0000000000b1"));
 
     [BTreeDefinition("HullDownAttackRun", AssetId = "2b000000-0000-0000-0000-0000000000dd")]
     public static BehaviorTreeBlob Build() =>

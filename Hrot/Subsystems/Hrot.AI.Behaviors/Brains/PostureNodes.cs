@@ -313,20 +313,28 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.TargetPacked == 0) return NodeStatus.Failure;
             var target = new Entity((ulong)p.TargetPacked);
             if (!CombatLife.IsAlive(world, target)) return NodeStatus.Success;
+            Designate(world, self, target, ref ws.Told);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3170</c> / <c>CE-2230</c> — the ONE designation step: <paramref name="target"/> designated (the threat ranking puts it
+        /// first) and, the first time (<paramref name="told"/> 0 → 1), entered in the unit's memory as a reported contact — no sensor
+        /// modality, so it does not read as in sight. Shared by <see cref="UntilTargetDown"/> and the vehicle cycle's named target.
+        /// </summary>
+        internal static void Designate(EntityRepository world, Entity self, Entity target, ref byte told)
+        {
             if (!DesignatedTarget.Of(world, self, out var designated) || !designated.Equals(target))
                 DesignatedTarget.Set(world, self, target);
-            if (ws.Told == 0)
+            if (told != 0) return;
+            told = 1;
+            if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self) && world.HasComponent<SimTransform>(target))
             {
-                ws.Told = 1;
-                if (world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self) && world.HasComponent<SimTransform>(target))
-                {
-                    var at = world.GetComponentRO<SimTransform>(target).Position;
-                    ref var mem = ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
-                    Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, p.TargetPacked, at.X, at.Y, ReportedScore,
-                        ((Fdp.ModuleHost.Abstractions.ISimulationView)world).Tick, (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
-                }
+                var at = world.GetComponentRO<SimTransform>(target).Position;
+                ref var mem = ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)target.PackedValue, at.X, at.Y, ReportedScore,
+                    ((Fdp.ModuleHost.Abstractions.ISimulationView)world).Tick, (Fdp.Toolkit.Perception.Components.SensorModality)0, at.Z);
             }
-            return NodeStatus.Running;
         }
 
         /// <summary>⭐ <c>CE-3170</c> — the memory score a reported target enters with: a contact just seen (live ≈ 14 s, then fading and

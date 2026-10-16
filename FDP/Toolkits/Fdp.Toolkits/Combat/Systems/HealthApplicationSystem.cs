@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <para>⚠⚠ <b><c>CE-267</c> WAS REVERTED HERE (<c>2026-09-13</c>).</b> 🔒 User ruling: <i>"dead entity
     /// should not vanish, it should stay dead in the world, every entity (no magic dead body vanishing)."</i>
     /// An earlier version published a <c>DestroyEntityCommand</c> at 0 HP so that downstream
-    /// <c>!world.IsAlive(target)</c> checks (<c>AimAndFireExecutor</c>, <c>Action_AimAndFireSpecific</c>)
+    /// <c>!world.IsAlive(target)</c> checks (<c>AimAndFireExecutor</c>; formerly <c>Action_AimAndFireSpecific</c>, retired by <c>CE-2230</c>)
     /// would come true. ⛔ That conflated two different concepts: <c>IsAlive</c> is an ECS-EXISTENCE
     /// predicate (does the entity handle exist?), NOT a combat-death one. Deleting the body to satisfy an
     /// existence check was the wrong fix. <b>Combat-death is the STATE <c>Health.Current &lt;= 0</c></b>
