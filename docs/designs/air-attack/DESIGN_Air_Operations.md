@@ -1219,6 +1219,89 @@ door-gun rounds hit (median 2.7 m), the truck dies.
 | the Orbit Truck carries **8 000** health | ⭐ a demo setting, not a model: at 100 the run-in's first 30 rounds killed it before the orbit; at 3 000 it died before the gunner was shot |
 | the reversal turn cuts inside the circle (224 m on ≈ 360 m) at ≥ 21 m/s | a 180° turn at speed; the check skips the 10 s after the gunner falls for the band, as for the turn sign. ⚠ The orbit settles ≈ 40 m inside `OrbitRadiusM` — the 30° lead point's chord |
 
+### 9i. Slice 6e (behaviors) — Dive: the FPV drone searches, picks, pursues and dives on the roof — build-state: READY-TO-BUILD `2026-10-16`
+
+Builds §7's row *"drone (FPV) · its warhead ⇒ Dive (FPV §3's sequence; B5)"* — the Brain half of [FPV Drone](../vehicle-tactics/DESIGN_FPV_Drone.md)
+§2/§3, whose Muscle half (flight, impact, sound) backend built (FPV §6). It unblocks the demo `ua-drone-shelter`
+([Urban Armour Tactics](../vehicle-tactics/DESIGN_Urban_Armour_Tactics.md) §8).
+
+📐 INVENTORY (`2026-10-16`): `search_graph .*Dive.*|.*FpvAttack.*|.*DroneTarget.*` ⇒ nothing in the Brain (only `GuidedPhase.Dive`, a
+missile's) — FPV §2's `FpvAttackNodes` / `DroneTargetDecision` were never built (B5 superseded them). Reused: `AirAttackNodes.Run`'s stage
+loop · `LocomotionMoveTo.Issue` (a 3-D point; `RotorcraftModel` flies it) · `FlightParams` on every node (`DetonatesOnImpact`,
+`EnduranceSeconds`, `MaxSpeedMps`) · `AmmoChoice.ExpectedDamage` (the one damage rule, R-212 A1 — what `WeaponEffectivenessVsTarget` reads) ·
+`TargetMemory` (the drone's own sensors: 1500 m sight, freshness) · `ReplicatedMotion.Of` (where an entity is, on the brain node — B13) ·
+`DroneImpactSystem` (the meeting and the burst — Muscle, built). The utility-decision catalogue was weighed for the target pick and not used
+(below).
+
+```mermaid
+classDiagram
+  direction LR
+  class AirAttackProfile { <<existing, grows>> … · +Dive = 6 ★ }
+  class AirAttackProfiles { <<existing, grows>> Pick: a flyer that DetonatesOnImpact ⇒ Dive, first ★ }
+  class AirAttackParams { <<existing, grows>> … · +SearchRadiusM ★ · +DiveAngleDeg ★ }
+  class AirAttackState { <<existing, grows>> … · +StartedAt ★ «the battery» }
+  class AirAttackNodes { <<existing, grows>> Run: +Search ★ · +Pursue ★ · +Dive ★ — the stages of the Dive profile }
+  class DroneTargets { <<★ new static>> +Pick(world, drone, centre, radius) Entity · +Score(world, drone, target, freshness) float }
+  class AmmoChoice { <<existing>> ExpectedDamage(world, shooter, target, mount, ammo) }
+  class TargetMemory { <<existing>> EntityIds · Freshness · Anonymous }
+  class FlightParams { <<existing, every node>> DetonatesOnImpact · EnduranceSeconds · MaxSpeedMps }
+  class LocomotionMoveTo { <<existing>> Issue(world, self, 3-D point, speed, radius) }
+  class DroneImpactSystem { <<existing, Muscle>> the swept segment meets a hull or a slab ⇒ the burst, the drone spent }
+  AirAttackNodes ..> AirAttackProfiles
+  AirAttackNodes ..> DroneTargets : Search
+  DroneTargets ..> TargetMemory
+  DroneTargets ..> AmmoChoice : its warhead on the target
+  AirAttackNodes ..> FlightParams
+  AirAttackNodes ..> LocomotionMoveTo : Pursue · Dive
+  LocomotionMoveTo ..> DroneImpactSystem : (Muscle) the flight ends in the meeting
+```
+
+*What the picture shows that prose hid: the drone adds ONE new class, and it is a scorer — the attack is three more stages of the one air
+attack loop, the flight is a MoveTo, and the kill is the Muscle's existing impact. Nothing fires: the drone IS its warhead.*
+
+```mermaid
+sequenceDiagram
+  participant N as AirAttackNodes.Run · Dive (CGF brain)
+  participant T as DroneTargets
+  participant M as MoveTo → RotorcraftModel (SimHost)
+  participant I as DroneImpactSystem (SimHost)
+  alt a Strike on a point (no target named)
+    N->>M: Search — the point at the cruise height, then a circle of SearchRadiusM round it
+    loop every 0.5 s
+      N->>T: Pick(drone, the point, SearchRadiusM)
+      T-->>N: the best remembered live entity in the area (freshness × warhead effect × vehicle 1 / person 0.3) — or none
+    end
+  end
+  N->>M: Pursue — every 0.5 s, the point ABOVE the target at the cruise height, full speed
+  N->>N: horizontal distance ≤ height / tan(DiveAngleDeg) ⇒ Dive
+  loop every 0.2 s
+    N->>M: Dive — the target's middle, full speed, arrival radius 0 (the flight ends in the meeting, never in an arrival)
+  end
+  M->>I: the swept segment meets the hull (its Top face — the dive comes from above) or a deck above it
+  I-->>N: the drone is spent (dead) · the target dead ⇒ Success
+  N->>N: the battery (EnduranceSeconds since the attack began) ⇒ dive on whatever is below
+```
+
+*What the picture shows that prose hid: the dive is re-aimed every 0.2 s (a target that moves, or backs under a deck, is followed to the
+end — and each re-aim is a new intent on the wire, so not every frame), and the attack never decides that it hit — the Muscle does; a
+deck between the drone and the tank is met first (FPV §6, C2). Who runs it each frame is FPV §4's module graph, unchanged: the behaviour
+on CGF, the flight and the impact on the SimHost.*
+
+| rule | why | rejected |
+|---|---|---|
+| **D-1 Pick**: a flyer whose `FlightParams.DetonatesOnImpact` is set ⇒ **Dive**, before any other row; its mount is its warhead (mount 0) | the drone is the only flyer that IS its weapon (R-3007); the flag, not a mount category, says so | ⛔ a `WeaponCategory` for the warhead — the warhead's mount is a contact charge, not a weapon that fires |
+| **D-2 cruise height**: `AttackHeightAgl` (0 ⇒ **60 m** above the target, FPV §2 `CruiseAltitudeM`); **dive angle** `DiveAngleDeg` (0 ⇒ **60°**): the dive starts at a horizontal distance ≤ height / tan(angle) — 35 m at 60 m | FPV §2's numbers; ≥ 45° gives the Top face (`ArmourHitModel` reads the travel) | ⛔ a dive from the start — a shallow approach meets the FRONT, not the roof |
+| **D-3 the dive point** is the target's middle (`AimPoint.Middle`), re-issued every 0.2 s at full speed, arrival radius 0. ⚠ `RotorcraftModel` caps the descent at `ClimbMps` (8 m/s) and brakes as it closes horizontally, so the dive ENDS near-vertical over the target (the roof) rather than as a straight 60° line | the meeting is the Muscle's swept segment against the hull's band; the middle is inside it from above | ⛔ the ground point under the target — a deck between them is met anyway, and a soft target's band is short |
+| **D-4 search** (a Strike on a point, no target): fly to the point at the cruise height, then circle it (`SearchRadiusM`, 0 ⇒ **150 m**, steered 30° ahead, as the door-gun orbit); every 0.5 s `DroneTargets.Pick` over the drone's OWN memory inside the radius; an Attack on an entity skips the search | FPV §3 *"Search (circle the area) → DroneTargetDecision → Target"* | ⛔ the squad's shared contacts — the drone is not in a squad; its camera is its sensor |
+| **D-5 the pick** = freshness × `AmmoChoice.ExpectedDamage(warhead, target) / target max health` × (a vehicle 1, a person 0.3); live, identified, hostile contacts only | FPV §2's three factors, through the ONE damage rule (R-212 A1) | ⛔ a `UtilityDecisionCatalog` entry — the catalogue scores a UNIT's options per tick over the brain's inputs; here one node ranks its own memory. A static scorer is the same arithmetic with no registry; ⚠ a deviation from FPV §2's *"utility decision"* name, argued here |
+| **D-6 the battery**: `EnduranceSeconds` (0 ⇒ none) after the attack began ⇒ the dive point becomes the ground straight below | FPV §2: *"at EnduranceSeconds it dives on whatever is below, or crashes"* | ⛔ a timer component — R-136, the behaviour's clock |
+| **D-7 the end**: the target dead ⇒ Success · the drone dead (spent) ⇒ the behaviour ends with it · a search with nothing found by the battery ⇒ the battery's dive | B14 for an entity; a drone has one pass | ⛔ "come round" — a spent drone has no second pass |
+
+Rails (`AirAttackNodesTests`, the same stand-in flight): ① an Attack on a tank — Dive picked, the pursuit at 60 m, the dive begun within
+35 m (horizontal), every dive point the tank's middle, the last leg descending ≥ 45° · ② a Strike on a point with a tank and a rifleman
+remembered — the circle, then the TANK picked (D-5), then the dive · ③ the battery — no contact, endurance out ⇒ the dive straight down ·
+④ the target dead ⇒ Success. Demo: `ua-drone-shelter` (Urban Armour §8).
+
 ## 10. Decisions — 🔒 APPROVED `2026-10-14` (R-2015)
 
 | id | decision | rejected |
