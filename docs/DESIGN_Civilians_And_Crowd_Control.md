@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs)
+updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5)
 build-state: DESIGN — the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2.
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-1…B-5).
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thousands of trivial entities (traffic, crowds)"
@@ -322,3 +322,184 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 - Doors do not physically block the kinematic mover; a dtCrowd agent ignores doors (Building_Interiors §3j known limits).
 - After a side flip, the SIDC symbol keeps its TKB affiliation letter and an `IgSymbolOverride` may keep its old style (map tint follows live).
 - `TargetMemory` holds 16 contacts per unit — a soldier facing a 100-person riot remembers the nearest 16.
+
+## 7. Backend detailed designs *(backend, 2026-10-16 — B-3 and B-2 first, as the handoff orders; ⛔ no build until the CV is ruled)*
+
+⭐ Cross-lane: this section is the backend lane's, written into the behaviors-lane design because it owns the programme.
+INVENTORY for this section: codebase-memory CLI `search_graph` (`.*(MarkDirty|SetForce|ForceId).*`, 50 hits read) + grep
+over `Hrot/` `FDP/` for `ForceId =`, `MarkDirty`, `EcsPatchContext`, the TKB id constants; `check_index_coverage` is not
+available through the CLI, so the "no runtime ForceId writer" claim rests on grep and the graph together.
+
+### 7.1 B-3 — the side flip *(CV-4)*
+
+⭐⭐ **Finding: the write path already exists.** `EcsPatchContext.Create(repo, entity)` (`EcsPatchContext.cs:96`) resolves the
+world's component→descriptor map itself (Q59-E), gates a write on the component's authority bit (`:187-189`), and its
+`FlushDirtyMarks()` marks EVERY descriptor covering the written component (`:160-164`). That is the AX-015 fix, used today
+by the attribute patch. ⇒ B-3 is a five-line wrapper over it, not a new dirty mechanism, and FDP code never names
+`dtEntityInfo` (the 2026-08-26 ruling: attributes are network-agnostic).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityAffiliation { <<NEW static, Fdp.Toolkits.Replication>> +Set(repo, entity, ForceId) AffiliationResult }
+  class AffiliationResult { <<NEW enum>> Applied, Unchanged, NotOwner, NoEntityInfo }
+  class EcsPatchContext { <<existing>> +Create(repo, entity) +CanWrite~T~() +GetUnmanagedComponent~T~() +FlushDirtyMarks() }
+  class DescriptorOwnershipMap { <<existing, per world>> GetDescriptorsForComponentId }
+  class EntityInfo { <<existing component>> ForceId }
+  class EntityInfoEgressTranslator { <<existing>> publishes only when ShouldPublish = dirty }
+  class HostileActHandler { <<behaviors CE-2238>> }
+  HostileActHandler ..> EntityAffiliation : on CGF
+  EntityAffiliation ..> EcsPatchContext
+  EcsPatchContext ..> DescriptorOwnershipMap : which descriptors cover EntityInfo
+  EcsPatchContext ..> EntityInfo : write ForceId
+  EntityInfoEgressTranslator ..> EntityInfo : re-send once
+```
+*What the picture shows that prose hid:* nothing new sits between the behaviour and the wire except one call; the only
+new box is the result enum, so a caller can tell "I am not the owner" from "nothing to do".
+
+```mermaid
+sequenceDiagram
+  participant B as CGF behaviour (HostileAct)
+  participant A as EntityAffiliation.Set
+  participant P as EcsPatchContext
+  participant E as EntityInfoEgress (CGF)
+  participant S as SimHost EntityInfoIngress
+  B->>A: Set(civilian, Hostile)
+  A->>P: Create, CanWrite EntityInfo
+  alt CGF owns EntityInfo (creator, R-160)
+    P->>P: ForceId = Hostile, FlushDirtyMarks
+    A-->>B: Applied
+    E->>S: EntityInfo sample, ForceIdentifier Hostile
+    S->>S: apply to the live entity (EntityInfoIngressTranslator.cs:177-193)
+  else another node created it
+    A-->>B: NotOwner
+  end
+```
+*What the picture shows that prose hid:* the `NotOwner` branch — the flip is local only when the brain node is also the
+creator.
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| egress re-sends only on dirty | ✅ `EntityInfoEgressTranslator.cs:121` (`ShouldPublish`) | ✅ §1 row "side on the wire"; AX-015 |
+| one call marks every covering descriptor | ✅ `EcsPatchContext.cs:96, 160-164` | ✅ Q59-E (`EcsPatchContext.cs:31-43` cites it) |
+| `EntityInfo` stays with the creator | ✅ `HrotOwnershipGroups.cs:19` (no group ⇒ creator) | ✅ R-160 |
+| the brain node IS the creator of every civilian | ⛔ **not measured** — true for CGF-created entities; for scenario-loaded civilians the creator is whichever node loads them | ⛔ searched §5a, none found — ⇒ **M-3 below** |
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B3-a the call | `EntityAffiliation.Set` over `EcsPatchContext.Create` | a `SetForce` that calls `SmartEgressUtil.MarkDirty(dtEntityInfo)`: FDP code naming a NED ordinal (Q59-E undid exactly that) · a bare `SetComponent`: AX-015 |
+| B3-b not the owner | return `NotOwner`; the caller (the behaviour) may retry through the existing `UpdateEntityAttributeRequest` (`{"Affiliation": "Hostile"}`), which the owner applies (`UpdateEntityAttributeRequestSystem`) | a new cross-node "flip" message: the attribute request already routes to the owner and acks |
+| B3-c rail | two-node rail: CGF flips, SimHost's `EntityInfo.ForceId` reads Hostile within one publish; red-proof by skipping `FlushDirtyMarks` | — |
+
+**M-3 (measure before CIV-4):** which node creates a scenario-loaded civilian, and therefore owns its `EntityInfo`? If it is
+not CGF, B3-b's request path is the normal case, not the fallback.
+
+### 7.2 B-2 — the civilian catalogue *(CV-1)*
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianTkbCatalog { <<NEW, Hrot.Core.Tkb>> RegisterAll(tkb) }
+  class SecurityForceTkbCatalog { <<NEW, same file or sibling>> shield, baton, launcher men }
+  class HrotEnvironment { <<existing>> RegisterBuiltInTkb — one line each }
+  class UrbanCombatTkbCatalog { <<existing>> 1001 CivilianPedestrian, 1003 CivilianChild REMOVED; 1002 CivilianCar KEPT }
+  class EntityClassTable { <<existing>> +Civilian 3.1.*.2 (HROT) +SecurityForce 3.1.*.3 (HROT) }
+  class TkbTemplate { <<existing>> }
+  class BehaviorProfileDto { <<existing>> BrainTier Hsm, DefaultBehaviorHash CivilianHsm }
+  class CombatPlatformDefDto { <<existing>> Health }
+  class InjuryDefDto { <<existing>> }
+  class BodyZonesDto { <<existing, HL-12>> }
+  class CharacterAnimationDefDto { <<existing>> stand crouch prone }
+  class CarrierDefDto { <<existing>> PersonCarrier }
+  class SensorCapabilitiesDto { <<existing>> hearing 100, vision 30 Low band }
+  HrotEnvironment --> CivilianTkbCatalog
+  HrotEnvironment --> SecurityForceTkbCatalog
+  CivilianTkbCatalog --> TkbTemplate : Adult m/f, Child, Elderly
+  TkbTemplate --> BehaviorProfileDto
+  TkbTemplate --> CombatPlatformDefDto
+  TkbTemplate --> InjuryDefDto
+  TkbTemplate --> BodyZonesDto
+  TkbTemplate --> CharacterAnimationDefDto
+  TkbTemplate --> CarrierDefDto
+  TkbTemplate --> SensorCapabilitiesDto
+  CivilianTkbCatalog ..> EntityClassTable : DIS category 2 ⇒ Civilian
+  SecurityForceTkbCatalog ..> EntityClassTable : DIS category 3 ⇒ SecurityForce
+```
+*What the picture shows that prose hid:* the class a type falls into is decided by its DIS mask, not by a name — so the
+new catalogue must give each type a DIS category the table's new rows match, or the picker, the 3-D model and the
+behaviour lookup (R-280) silently disagree.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B2-a ids | NEW block **1101–1104** (Adult m, Adult f, Child, Elderly) and **1201–1203** (security: shield, baton, launcher); 1001/1003 retired, never reused — measured free: the TKB id constants in 1000–1299 are only 1001–1003 | reuse 1001: live scenarios change meaning under them |
+| B2-b DIS | Kind 3, Domain 1, Category **2** = Civilian (HROT), **3** = SecurityForce (HROT); ⚠ SISO-REF-010's own life-form category numbers not checked — "(HROT)" marks them ours, as `Infantry (HROT)` 3.1.*.1 already is | category 0 (today's civilians): falls only under `LandPerson`, no class of its own |
+| B2-c migration | the 4 scenarios, ~9 tests and map keys 501–505 re-pointed in the same commit; a rail that no scenario/test names 1001/1003 outside HISTORY | a compatibility alias 1001→1101: two ids for one thing |
+| B2-d the HSM name | `DefaultBehaviorHash` = the hash of `CivilianHsm`, which the behaviors lane registers (`CE-2235`); until then the type loads with no behaviour (Tier HSM, nothing bound) | waiting on CE-2235: blocks the perf gate B-4 needs |
+
+### 7.3 B-1 — non-lethal effects *(CV-6)*
+
+⭐⭐ **Finding: the cloud's sight effect is an obstacle prism.** `TerrainMaterial` already carries `SightTransmittance`,
+`ResistanceMmRhaPerMetre`, `SoundAttenuationDb` and `BlocksMovement` (`TerrainMaterials.cs:14-19`), and a `StaticObstacle`
+entity (Material + `ObstacleShape`) becomes a terrain prism through the debounced rebake (`StaticObstacles.cs:17-35`,
+`StaticObstacleBake.cs:51`, P-7a). ⇒ a gas or smoke cloud = an obstacle of material `smoke` (sight 0.15, resistance 0,
+sound 0, `BlocksMovement = false`) — every sight solver sees it with no new LOS code.
+
+```mermaid
+classDiagram
+  direction LR
+  class EffectKind { <<NEW enum>> Kinetic Blunt Irritant Stun Push }
+  class DamageAssessedEvent { <<existing, grows>> +EffectKind +EffectMagnitude }
+  class EntityHitDamage { <<existing wire, grows>> +EffectKind +EffectMagnitude, appended }
+  class HealthApplicationSystem { <<existing, grows>> applies Health AND EffectState on the owner }
+  class EffectState { <<NEW component, Brain group beside Health>> Stunned Irritated KnockedDown, UntilSimTime }
+  class EffectStateTranslators { <<NEW, dtEffectState>> the dtWeaponAmmo shape }
+  class AreaEffectCloud { <<NEW component>> Kind Radius Magnitude }
+  class AreaEffectCloudSystem { <<NEW, SimHost, sibling of AreaEffectSystem>> each tick: people inside get an EffectKind hit }
+  class StaticObstacle { <<existing, P-7a>> Material smoke, ObstacleShape cylinder-ish box }
+  class Lifespan { <<existing>> }
+  class WarheadKind { <<existing, grows>> +Blunt +Irritant +Stun }
+  class AreaEffectSystem { <<existing, one moment>> Irritant or Stun burst spawns a cloud }
+  WarheadKind ..> AreaEffectSystem
+  AreaEffectSystem ..> AreaEffectCloud : spawn on Irritant
+  AreaEffectCloud --> StaticObstacle : sight
+  AreaEffectCloud --> Lifespan : gone after
+  AreaEffectCloudSystem ..> DamageAssessedEvent : EffectKind hit, 0 damage
+  DamageAssessedEvent ..> EntityHitDamage : existing egress
+  EntityHitDamage ..> HealthApplicationSystem
+  HealthApplicationSystem ..> EffectState
+  EffectState ..> EffectStateTranslators
+```
+*What the picture shows that prose hid:* the effect rides the EXISTING damage pipeline to the owner (one event, one wire
+message, one applier) — so an effect lands on the node owning `Health`, the same rule damage already obeys; nothing new
+crosses the wire except two appended fields and the stored state.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B1-a the effect on the wire | append `EffectKind` + `EffectMagnitude` to `DamageAssessedEvent` and `EntityHitDamage` (`FireInteractionMessages.cs:221`) | a second hit message: two appliers racing on one victim |
+| B1-b the state | `EffectState` beside Health in the Brain group, written only by `HealthApplicationSystem`; KnockedDown sets the stance prone; Health is never read to mean stunned (I1) | derive from Health: breaks I1 |
+| B1-c the cloud's sight | a `StaticObstacle` of material `smoke` | a new LOS strategy term: every solver would need it |
+| B1-d the cloud's people effect | `AreaEffectCloudSystem` on the node that resolves area effects (SimHost), ticking at 1 Hz | per-frame: a riot's 100 people × N clouds for nothing |
+
+| the design rests on | code | design |
+|---|---|---|
+| a material can let movement and rounds through | ✅ `TerrainMaterials.cs:14-19` | ✅ Building_Interiors §3c |
+| an obstacle entity becomes a prism after a debounced rebake | ✅ `StaticObstacleBake.cs:37-51` | ✅ P-7a (Peek and fire) |
+| Health is Brain-group, its applier on the owner | ✅ `HrotOwnershipGroups.cs:53`, `HealthApplicationSystem.cs:47` | ✅ CE-523 |
+| a rebake per cloud is cheap enough | ⛔ **not measured** — a navmesh rebake for a non-blocking prism may be wasted work | ⛔ none ⇒ **M-4**: time one cloud's rebake on bt-range; if heavy, skip the navmesh for `BlocksMovement = false` prisms |
+
+### 7.4 B-4 — the perf-gate harness *(CV-10)*
+
+One command (`scripts/perf-civilians.sh <count>`) runs the ClusterRunner `--mode all` headless on test-town with N civilians
+spawned by a generated scenario, reads the scheduler's per-system `SystemProfileData` (`SystemScheduler.cs:21`) through `/diagnostics/architecture` (⚠ its system rows carrying the timing is not yet checked; the profiler panel reads the same data) over 60 s
+of sim time on CGF and SimHost, and prints ms/frame for `BrainTickSystem`, the perception systems and `CarKinematicsSystem`
+at 100 / 300 / 500. ⭐ It reads the existing diagnostics route — no new timing code. ⛔ Not built until B-2 gives it a type
+with a brain.
+
+### 7.5 B-5 — the weapons *(CV-9)*
+
+Data on existing types, no new code beyond B-1: `WarheadKind` Blunt (baton round, stone), Irritant (gas grenade/launcher
+round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions in `MunitionTkbCatalog`, launchers as
+weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
+node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
+
+⭐ All five are DESIGN — nothing is built until the user rules CV-1, CV-4, CV-6, CV-9, CV-10.

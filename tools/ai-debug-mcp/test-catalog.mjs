@@ -62,6 +62,8 @@ const EXPECTED_TOOLS = [
   //   its own MCP endpoint, so these answer for the node you asked, and get_logs finally answers at
   //   all — neither composition root passed the sinks, so it returned [] everywhere.
   'get_architecture_diagnostics',
+  // ⭐ CE-1145 (ui) — the map view's frame rate and camera.
+  'get_render_diagnostics',
   // ⭐⭐ The cluster dump is a SECOND SURFACE on the built dump-diag pipeline (CQRS intent -> per-node
   //   gather -> SMB pull to NAS), ⛔ never a second collection mechanism. Status reads the same
   //   ClusterUiCache the ExCon panel renders.

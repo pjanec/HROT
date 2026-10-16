@@ -108,6 +108,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3174 (C-7) — the ammunition per mount (Brain → every node), for the FPS HUD on any station.
             yield return new EntityWeaponAmmoEgressTranslator(participant);
             yield return new EntityWeaponAmmoIngressTranslator(participant, entityMap);
+            // ⭐ CE-1153 (§8h.6) — the brain's verdict on the operator's last use press (Brain → every node), for the HUD.
+            yield return new EntityOperatorUseStatusEgressTranslator(participant);
+            yield return new EntityOperatorUseStatusIngressTranslator(participant, entityMap);
             // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
             //   (the Muscle → every node).
             yield return new EntityPartDamageEgressTranslator(participant);

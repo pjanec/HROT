@@ -113,6 +113,14 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={string.Join(",", config.RequestedSubsystems)}, domain={config.DomainId}, headless={config.Headless}");
 
+        // ⭐ CE-3218 — a scratch staging tree (the temp dir) keeps only its newest exercise recordings; a deployment's root is left
+        //   alone unless asked (--keep-exercises / FDP_KEEP_EXERCISES). Before anything records, so a new run never loses its own.
+        {
+            var stagingRoot = Fdp.Toolkit.Orchestration.OrchestrationConstants.ResolveStagingRoot();
+            if (Fdp.Toolkit.Orchestration.ExerciseRetention.ResolveKeep(stagingRoot, config.KeepExercises) is { } keep)
+                Fdp.Toolkit.Orchestration.ExerciseRetention.Prune(stagingRoot, keep, Console.WriteLine);
+        }
+
         // ⭐⭐ C1 (Q91 §4-O, R-4009/R-4016) — a single-subsystem node launched with NO id asks the cluster master for one,
         //   BEFORE anything id-dependent is composed. ⭐ Any launch that names its id (-n) keeps today's base + offset exactly;
         //   the orchestrator IS the master, and a multi-subsystem launch hosts its own — both use base 0 when none is given.

@@ -188,6 +188,10 @@ namespace Hrot.Editor.DebugApi
                 CancelSeq = (byte)(Float(body, "cancel") ?? 0f),
                 AmmoSeq = (byte)(Float(body, "ammo") ?? 0f),
                 ShotTarget = long.TryParse(body?["shotTarget"]?.ToString(), out long shotTarget) ? shotTarget : 0L,
+                // ⭐ CE-1151 (§8h U-2) — the use press counter, its verb (0 = the primary) and its target's network id
+                UseSeq = (byte)(Float(body, "use") ?? 0f),
+                UseVerb = (byte)(Float(body, "useVerb") ?? 0f),
+                UseTarget = long.TryParse(body?["useTarget"]?.ToString(), out long useTarget) ? useTarget : 0L,
             };
             if (body?["aim"] is JsonArray aim && aim.Count >= 2)
                 frame.AimPoint = new System.Numerics.Vector3(Float(aim, 0), Float(aim, 1), aim.Count > 2 ? Float(aim, 2) : 0f);

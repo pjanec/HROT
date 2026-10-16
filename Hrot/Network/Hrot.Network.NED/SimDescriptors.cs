@@ -322,6 +322,20 @@ namespace Hrot.NED.Descriptors
         public byte Busy;
     }
 
+    // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by
+    //   the unit. Reliable + TransientLocal + KeepLast 1 (the dtWeaponAmmo shape): STATE, so a lost sample cannot leave the HUD stale.
+    [DdsTopic("EntityOperatorUseStatus")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityOperatorUseStatus
+    {
+        [DdsKey] public long EntityId;
+        public byte UseSeq;
+        public ushort ActionId;
+        public byte Outcome;
+        public byte Reason;
+    }
+
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
     //   (Brain group) → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1, like EntityWeaponAmmo: it changes per hit,
     //   and a late joiner must see a man's wounds.

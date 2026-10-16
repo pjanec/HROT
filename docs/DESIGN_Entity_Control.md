@@ -1157,6 +1157,21 @@ only `Failure`; the rule already knows why an action is unavailable, so `Reason`
 ⚠ **Every map host must receive it** — the IG included. 📌 CE-1139 (`2026-10-16`) measured a shared component that never reached the IG;
 `CE-1153` checks the new descriptor live on the IG the same way, and CE-1147 / CE-1148 (stance unification, retire "pure IG") remove the cause.
 
+### 8h.7 AS-BUILT — the backend half (`CE-1151`, `CE-1152`, `CE-1153`, `CE-1156`, `2026-10-16`, backend)
+
+Built against §8h.2's diagrams; the class names are the diagram's. Where it differs:
+
+| item | as built | deviation, and why |
+|---|---|---|
+| `CE-1151` | `UseSeq`, `UseVerb`, `UseTarget` appended to `OperatorControlFrameEvent` (after `IsRemote`), `OperatorInput`, `ControlFrameInteractionPayload` (after `ShotTarget`); both codec directions; `PossessionSystem`'s copy; the Debug API body (`use`, `useVerb`, `useTarget`, documented on `control_entity`) | — |
+| `CE-1152` | `OperatorUseActions.For(world, actor, target)` (array, and a `Span<UseAction>` overload for the per-frame HUD) + `UseAction` + `UseVerbKind` + `UseReason`, in `Fdp.Toolkits/Behavior/Possession/OperatorUse.cs`. **Params are carried by a WRITER**: `OperatorUseActions.WriteParams(in UseAction, Span<byte>)` packs `OpenDoorParams` / `PickUpParams` / `EmbarkParams` / `DisembarkParams` exactly as each executor reads them. `Embarkation.CanEmbark` is `TryEmbark`'s check (one private `Check`), and `TryEmbark` now only seats what `Check` allowed | ⚠ **a vehicle's reach is a CONSTANT** (`OperatorUseActions.VehicleReach` = default hull 2 + dismount gap 1.5 + slack 1 = 4.5 m), carried in `EmbarkParams.MaxBoardingRange`: `PhysicsCollider` (the hull radius `Embarkation.BoardingRange` reads) is not registered on the CGF brain, so a radius-based reach would differ between station and brain. A large aircraft may need a reach per type — a later item. ⭐ **O-4 as a rule**: a vehicle offers Drive / Pilot (by `Locomotions.IsAircraft`) AND Board; the free one goes first. Carrying a man ⇒ `Put down` is the primary whatever the crosshair rests on (U-6); aboard ⇒ `Get out` is the only action (U-4) |
+| `CE-1153` | `OperatorUseStatus { UseSeq, ActionId, Outcome, Reason }` (component 396, Brain group), `dtOperatorUseStatus` = 141, `EntityOperatorUseStatusEgress/IngressTranslator` (the `dtWeaponAmmo` shape, plus CE-4007's delete-on-wipe), the ownership mapping, `HrotSharedComponentRegistry`, and the pure-IG ingress pack | ⚠ the IG check is by registration and the ingress pack only — not yet seen LIVE on an IG (the cluster run is still owed) |
+| `CE-1152` (Drive) | `Drive`/`Pilot` is available only while **the driver seat itself** is free | 📐 measured by its rail: `Embarkation.FreeSeat(Driver)` falls back to a free passenger seat, so `CanEmbark(Driver)` stays `Applied` after the driver sits — the rule checks the seat's role and reports `SeatTaken` |
+| `CE-1156` | `PossessionMode.Riding = 2`; `PossessionSystem` drops a frame for a unit held in Riding; Fps ↔ Riding on the same station is the existing take-over (the operator behaviour keeps running) | — |
+
+Rails: `InteractionTransportTests.CE3172_PossessControlRelease…` (the three fields cross unchanged), `PossessionReplicationTests.CE1156_…`
+and `.CE1153_…`, `OperatorUseActionsTests` (door, body, vehicle, weapon, params, `CanEmbark` ≡ `TryEmbark`).
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |

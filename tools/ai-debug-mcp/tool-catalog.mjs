@@ -4287,6 +4287,24 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  {
+    "name": "get_render_diagnostics",
+    "group": "Y — node diagnostics",
+    "summary": "⭐ CE-1145 — the map view's frame rate (fps, frame-time mean / p95 / max over ~2 s) and its camera (mode 2D / 3D / FPS, eye, forward, yaw / pitch, distance, height above the ground, viewport).",
+    "http": {
+      "method": "GET",
+      "path": "/diagnostics/render"
+    },
+    "params": [],
+    "returns": "{ fps, frameMsMean, frameMsP95, frameMsMax, frames, windowSeconds, mode, camera{ eye[3], forward[3], yawDeg, pitchDeg, distance, heightAboveGround, viewport[2] } }",
+    "example": {
+      "args": {},
+      "gist": "read the map view's frame rate and camera"
+    },
+    "hint": "Zeros until the window has drawn a frame (a headless host never draws). Example: get_render_diagnostics({})",
+    "manualVerify": false
+  },
+
   // ── Group Z — Entity control (orders) ───────────────────────────────────────
 
   {
@@ -4351,11 +4369,30 @@ export const TOOLS_CATALOG = [
         "type": "array",
         "required": false,
         "description": "[x,y,z] where the station aims, world metres (S4d)"
+      },
+      {
+        "name": "use",
+        "type": "integer",
+        "required": false,
+        "description": "the USE press counter (0-255, wraps): a new value asks the unit's brain to act on useTarget (CE-1151)"
+      },
+      {
+        "name": "useVerb",
+        "type": "integer",
+        "required": false,
+        "description": "which verb of the target's list the use press means (0 = the primary)"
+      },
+      {
+        "name": "useTarget",
+        "type": "integer",
+        "required": false,
+        "description": "network id of what the use press acts on (a door, a man who is down, a vehicle, a weapon)"
       }
     ],
     "returns": "{ networkId, accepted:true, detail:'control' } — 409 when this station does not hold the unit.",
     "notes": [
-      "Frames only drive a unit possessed by THIS node's station (possess_entity first)."
+      "Frames only drive a unit possessed by THIS node's station (possess_entity first).",
+      "A unit held in Riding mode (its human drives a vehicle) takes no frames."
     ],
     "example": {
       "args": {

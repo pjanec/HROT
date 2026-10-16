@@ -71,6 +71,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
         world.RegisterComponent<Fdp.Toolkit.Motion.Descent>();                  // ⭐ airborne B-1 — a man coming down (dtDescent)

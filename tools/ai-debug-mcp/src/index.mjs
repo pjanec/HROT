@@ -1090,6 +1090,18 @@ const TOOLS = [
     },
   },
 
+  // ⭐ CE-1145 (ui) — the map view's frame rate and camera; added to the route docs without a handler (found at the backend catalog regen).
+  {
+    name: 'get_render_diagnostics',
+    description: TOOL_DEFS['get_render_diagnostics'].description,
+    inputSchema: TOOL_DEFS['get_render_diagnostics'].inputSchema,
+    async handler() {
+      try {
+        return toolSuccess(await callApi('GET', '/diagnostics/render'));
+      } catch (err) { return toolError(err.message, err.envelope, 'get_render_diagnostics'); }
+    },
+  },
+
   {
     name: 'get_architecture_diagnostics',
     description: TOOL_DEFS['get_architecture_diagnostics'].description,
