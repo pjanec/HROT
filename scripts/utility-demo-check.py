@@ -1733,9 +1733,9 @@ def run_technical_scoot(c, timeout):
             md = data(call("GET", f"/entities/{atgm}/memory")) or {}
             tst = ((data(call("GET", f"/entities/{tank}/weapons")) or {}).get("status") or {})
             tmd = data(call("GET", f"/entities/{tank}/memory")) or {}
-            print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('entity'), m.get('sees')) for m in (tmd.get('entries') or [])][:3]} · health {health(tank)}")
+            print(f"      TANK @{tick}s weapon {tst.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (tmd.get('slots') or [])][:3]} · health {health(tank)}")
             print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
-                  f" knows {[(m.get('entity'), m.get('sees')) for m in (md.get('entries') or [])][:3]}")
+                  f" knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}")
             for sn in (data(call("GET", f"/entities/{atgm}/sensors")) or {}).get("sensors") or []:
                 ans = sn.get("answer") or {}
                 print("        sensor", {k: sn.get(k) for k in ("kind", "template", "status")},
@@ -1793,8 +1793,11 @@ def run_rpg_window(c, timeout):
             track.append(tuple(round(v, 1) for v in pt[:3]))
         st = ((data(call("GET", f"/entities/{ifv}/weapons")) or {}).get("status") or {})
         md = data(call("GET", f"/entities/{ifv}/memory")) or {}
-        print(f"      @{len(track)}s IFV weapon {st.get('reason')} · knows {[(m.get('entity'), m.get('sees')) for m in (md.get('entries') or [])][:3]}"
+        print(f"      @{len(track)}s IFV weapon {st.get('reason')} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1)) for m in (md.get('slots') or [])][:3]}"
               f" · RPG health {health(rpg)} · IFV health {health(ifv)}")
+        rst = ((data(call("GET", f"/entities/{rpg}/weapons")) or {}).get("status") or {})
+        rmd = data(call("GET", f"/entities/{rpg}/memory")) or {}
+        print(f"        RPG weapon {rst} · knows {[(m.get('networkId'), round(m.get('freshness') or 0, 1), m.get('position') or m.get('pos')) for m in (rmd.get('slots') or [])][:3]}")
         if _dead(ifv) or _dead(rpg):
             break
         time.sleep(1.0)
