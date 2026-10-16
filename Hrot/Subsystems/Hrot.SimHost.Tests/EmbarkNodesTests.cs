@@ -704,5 +704,77 @@ namespace Hrot.SimHost.Tests
             Tick(op, ref ws);
             Assert.Equal(BehaviorConstants.ActionIdDisembark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
         }
+
+        // ── CE-1157 (docs/DESIGN_Entity_Control.md §8h U-4, O-2, O-3, the driving sequence) — drive, ride, get out ────────────────────
+
+        /// <summary>⭐ <c>CE-1157</c> — E on a vehicle boards him in its DRIVER seat; while the station holds him as a rider
+        /// (<c>PossessionMode.Riding</c>: the possession takes his frames away — <c>PossessionReplicationTests.CE1156_…</c>) the operator
+        /// brain holds him still, starts nothing and he stays aboard; back in Fps, E is Get out and he disembarks. The station's hand-over
+        /// is the ui lane's (<c>CE-1158</c>). The station here CONTINUES its frames after the ride; the next rail restarts them.</summary>
+        [Fact]
+        public void CE1157_UseOnAVehicle_DrivesIt_ARiderHoldsStillAboard_AndUseAgain_GetsOut()
+        {
+            var op = Operator(Vector3.Zero);
+            var bmp = Vehicle(new Vector3(2f, 0f, 0f));
+            var seats = new CarrierSeats { SeatCount = 2 };
+            seats.Roles[0] = SeatRole.Driver;
+            seats.Roles[1] = SeatRole.Passenger;
+            _w.AddComponent(bmp, seats);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+
+            Press(op, bmp);
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdEmbark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Dispatch(op, new EmbarkExecutor());
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.Equal((bmp, 0), (_w.GetComponentRO<IsEmbarkedTag>(op).VehicleEntity, (int)_w.GetComponentRO<IsEmbarkedTag>(op).Seat));   // the Driver seat
+
+            // Riding: the station now drives the vehicle; the soldier's frames stop (the possession removes OperatorInput)
+            var lastInput = _w.GetComponentRO<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            _w.RemoveComponent<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+            for (int i = 0; i < 30; i++) Tick(op, ref ws);
+            Assert.Equal(0f, _w.GetComponentRO<ManualDrive>(op).Forward);                         // held still
+            Assert.Equal(0, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);              // started nothing
+            Assert.Equal(bmp, _w.GetComponentRO<IsEmbarkedTag>(op).VehicleEntity);                // still aboard
+
+            // back in Fps (a take-over on the same station): frames again, and E is Get out
+            _w.AddComponent(op, lastInput);
+            Press(op, Entity.Null);
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdDisembark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+            Dispatch(op, new DisembarkExecutor());
+            Tick(op, ref ws);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, StatusOf(op).Outcome);
+            Assert.False(_w.HasComponent<IsEmbarkedTag>(op));                                    // out
+        }
+
+        /// <summary>⭐ <c>CE-1157</c> — a station that RESTARTS its frames after the ride (Seq 1, counters from 0, its Get out press = UseSeq 1,
+        /// the same value as the Drive press) is still acted on. 🔴 Measured red before the fix: the rider's frameless ticks zeroed the last
+        /// frame number, so the restart was not seen and the press read as the Drive press already acted on. ✅ Red-proof: zeroing
+        /// <c>ws.Seq</c> without a frame again ⇒ nothing starts ⇒ red.</summary>
+        [Fact]
+        public void CE1157_AStationThatRestartsItsFramesAfterTheRide_IsStillHeard()
+        {
+            var op = Operator(Vector3.Zero);
+            var bmp = Vehicle(new Vector3(2f, 0f, 0f));
+            var seats = new CarrierSeats { SeatCount = 1 };
+            seats.Roles[0] = SeatRole.Driver;
+            _w.AddComponent(bmp, seats);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            for (int i = 0; i < 5; i++) { _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op).Seq++; Tick(op, ref ws); }
+            Press(op, bmp);                                                                       // UseSeq 1: Drive
+            Tick(op, ref ws);
+            Dispatch(op, new EmbarkExecutor());
+            Tick(op, ref ws);
+            Assert.True(_w.HasComponent<IsEmbarkedTag>(op));
+
+            _w.RemoveComponent<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);              // riding
+            for (int i = 0; i < 10; i++) Tick(op, ref ws);
+
+            _w.AddComponent(op, new Fdp.Toolkit.Behavior.Possession.OperatorInput { Seq = 1, UseSeq = 1 });   // a restarted station's first press
+            Tick(op, ref ws);
+            Assert.Equal(BehaviorConstants.ActionIdDisembark, _w.GetComponentRO<InteractionChannel>(op).ActiveAction);
+        }
     }
 }

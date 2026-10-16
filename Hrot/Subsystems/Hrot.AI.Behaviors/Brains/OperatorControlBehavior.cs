@@ -98,7 +98,10 @@ namespace Hrot.AI.Behaviors.Brains
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
-            ws.Seq = drive.Seq;
+            // ⭐ CE-1157 — no frame (a RIDER: the possession takes his frames while the station drives his vehicle) keeps the last frame
+            //   number, so a station that restarts its frames after the ride (Seq 1 again, counters from 0) still reads as a NEW station and
+            //   resets the press counters; zeroing it swallowed the first press after the ride (its counter equal to the last one acted on)
+            if (drive.Seq != 0) ws.Seq = drive.Seq;
             if (world.HasComponent<ManualDrive>(self)) world.SetComponent(self, drive);
             else world.AddComponent(self, drive);
             OperateWeapon(world, self, ref ws, lastSeq);
