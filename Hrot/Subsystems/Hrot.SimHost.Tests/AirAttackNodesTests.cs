@@ -1154,6 +1154,48 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ §9i ⑤ (CE-2212's live run) — a tank EVADING the drone (Exposure Cycle §8's legs: 40 m away from it, swerving ±35° on
+        /// alternate sides) is still hit: at 7 and 10 m/s, from three points in its leg cycle, the drone comes within 1.5 m of its middle.
+        /// 📐 Measured `2026-10-16`: closest 0.02–0.09 m in all six — so the ~5 m miss seen live is NOT the dive's guidance (the rails fly
+        /// with no network between the brain and the flight). ⚠ Measured: the no-lead mutant leaves THIS rail green (at these speeds the 0.2 s
+        /// re-aim follows the swerve alone; the fleeing rail is the lead's red-proof) — this rail guards the re-aim against a swerving target.
+        /// </summary>
+        [Fact]
+        public void S6e_ADroneDivesOnAnEvadingTank_ZigZagLegs_AndStillHitsIt()
+        {
+            var sb = new System.Text.StringBuilder();
+            bool all = true;
+            int caseNo = 0;
+            foreach (float speed in new[] { 7f, 10f })
+            foreach (float phase in new[] { 0f, 1.5f, 3f })
+            {
+                var o = new Vector3(0f, 5000f * (++caseNo), 0f);
+                var drone = SpawnDrone(o + new Vector3(400f, 0f, 60f));
+                var tank = SpawnGround(o, 1000f, vehicle: true, ForceId.Friend);
+                var p = new AirAttackParams { Target = tank, Point = o };
+                var ws = default(AirAttackState);
+                float best = float.MaxValue; double legT = phase; int side = 0;
+                for (int frame = 0; frame < 60 * 40; frame++)
+                {
+                    legT += Dt;
+                    if (legT >= 40f / speed) { legT = 0; side ^= 1; }
+                    float a = MathF.PI + (side == 0 ? 1f : -1f) * 35f * MathF.PI / 180f;   // away from the drone (+x), swerving
+                    var v = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f) * speed;
+                    _w.GetComponentRW<SimVelocity>(tank).Linear = v;
+                    DroneStep(ref p, ref ws, drone, frame);
+                    _w.GetComponentRW<SimTransform>(tank).Position += v * Dt;
+                    var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                    var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, tank, out _, out _);
+                    best = MathF.Min(best, Vector3.Distance(at, middle));
+                    if (at.Z < 0.5f) break;
+                }
+                sb.Append($"speed {speed} phase {phase}: closest {best:F2} m; ");
+                all &= best < 1.5f;
+            }
+            Assert.True(all, sb.ToString());
+        }
+
+        /// <summary>
         /// ⭐ §9i ② — a drone sent to a POINT searches it and dives on what it remembers there: of a tank (1000 hp — its warhead's 450 is
         /// 0.45 of a kill, a vehicle ×1), a rifleman (100 hp — a whole kill, but a person ×0.3) and its OWN side's tank, it picks the
         /// enemy TANK; a contact outside the search radius is passed over.
