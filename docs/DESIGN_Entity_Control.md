@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend) and the station (§8h.8, ui) built 2026-10-16; the brain half (behaviors) in flight
-current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8 the station; the brain half, CE-1154/1155/1157, in flight)
+build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
+current-answer: §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
 known-rot: ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
@@ -944,7 +944,7 @@ caller that asks `PickFilter.Aim` is the FPS station — every other click still
 | SIGHT is `ManualControlState.Pending = 2` (no new field) | the blackboard keeps its size |
 | the station's `FireMode` property mirrors the rule; a SIGHT press sets no `ShotPending` | the HUD shows LOCKED only for a held shot |
 
-## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — 🔨 BUILDING (`CE-1151`…`CE-1158`: backend §8h.7 and the station §8h.8 built; behaviors' brain half in flight)
+## 8h. S9 DESIGN — the FPS "use" key: act on what the crosshair rests on (`CE-1144`, designed `2026-10-16`, ui) — 🔨 BUILDING (`CE-1151`…`CE-1158`: backend §8h.7, behaviors §8h.8+, the station §8h.9 built)
 
 🔒 **User, `2026-10-16`:** *"There should be a key (or keys) that allows acting on stuff aimed at - opening/closing doors, dragging a body,
 possessing a vehicle (becoming a driver there) or weapon operator if the standalone or vehicle mounted weapon is clicked - this needs bigger
@@ -1044,7 +1044,7 @@ sequenceDiagram
     S->>V: DisembarkEntityCommand
 ```
 
-⭐ **AS-BUILT (`CE-1158`, `2026-10-16`) — the same sequence with the waits the station really makes** (§8h.8). ⛔ The diagram above is
+⭐ **AS-BUILT (`CE-1158`, `2026-10-16`) — the same sequence with the waits the station really makes** (§8h.9). ⛔ The diagram above is
 the design; keep it for the intent, build from this one.
 
 ```mermaid
@@ -1095,7 +1095,7 @@ graph TD
 ```
 
 *Caption:* the dashed edges are the new wiring; ⚠ the red boxes are measured gaps the slices must close — today a manned ZU-23 never
-reaches the operator's weapon keys, and a second `Possess` leaves the station holding two units. ✅ **Both closed by `CE-1158`** (§8h.8):
+reaches the operator's weapon keys, and a second `Possess` leaves the station holding two units. ✅ **Both closed by `CE-1158`** (§8h.9):
 `PossessionStation.Hud.Slots` lists the controlled weapons after the man's own, and `EntityOrders.Possess(unit, Fps)` releases the station's
 other Fps unit.
 
@@ -1204,7 +1204,27 @@ Built against §8h.2's diagrams; the class names are the diagram's. Where it dif
 Rails: `InteractionTransportTests.CE3172_PossessControlRelease…` (the three fields cross unchanged), `PossessionReplicationTests.CE1156_…`
 and `.CE1153_…`, `OperatorUseActionsTests` (door, body, vehicle, weapon, params, `CanEmbark` ≡ `TryEmbark`).
 
-### 8h.8 AS-BUILT — the station (`CE-1158`, `2026-10-16`, ui)
+### 8h.8 AS-BUILT — the behaviors half, S9a (`CE-1154`, `2026-10-16`, behaviors)
+
+Built against §8h.2's class diagram and the door sequence: `OperatorControlBehavior.OperateUse` runs inside the one `ManualControl` node,
+after `OperateWeapon`, in the same shape — a new `UseSeq` ⇒ `OperatorUseActions.For(world, soldier, target)` ⇒ the verb `UseVerb` names ⇒
+the action on the `InteractionChannel` with `OperatorUseActions.WriteParams` ⇒ `OperatorUseStatus`. No new executor, no new channel.
+
+| point | as built | deviation, and why |
+|---|---|---|
+| channel use | the action starts and hands back through the SAME helpers the AI's carry / embark nodes use (`EmbarkNodes.Start` stamps the run's `BehaviorInstanceId`, `OwnsInteraction` reads only OUR action instance, `Release` hands the channel back once the answer is forwarded) | — the DoorNodes rule: a finished action left on the channel would read as the next press's answer |
+| verdict | `Running` when the action starts; `Done` (executor Success) or `Refused` + `Failed` (executor Failure after the start); `Refused` + the RULE's reason when the chosen action is unavailable (out of reach, locked, not down, seat taken) — then nothing starts and nothing walks (U-3) | ⭐ a `UseVerb` past the target's list ⇒ `Refused` + `NothingToDo` (the rule offers nothing at that index) |
+| target | `UseTarget` resolved through the brain's `NetworkEntityMap`; 0 or unknown ⇒ no target — the rule still offers Put down (carrying) and Get out (aboard), so "E again" works wherever the crosshair rests (U-6) | — |
+| repeat press | a press while an earlier use action runs REPLACES it (a new action instance ⇒ the executor starts over) | ⭐ not in §8h.2; the alternative (ignore the press) would swallow the human's intent with no verdict |
+| new station | a frame whose `Seq` goes back resets the use counter to 0, as the trigger's does | — |
+| buffer | the rule's answer goes to a `[ThreadStatic]` `UseAction[MaxActions]` | `UseAction` carries its label (a string), so it cannot be `stackalloc`ed; a press must not allocate |
+
+Rails (red-proved): `EmbarkNodesTests.CE1154_OneUseOpensAClosedDoor_ASecondClosesIt_…`, `.CE1154_OutOfReach_IsRefusedWithItsReason_…`,
+`.CE1154_UseOnAManDown_DragsHim_AndUseAgain_PutsHimDown`, `.CE1154_ANewStationsFirstPress_IsActedOn_…`; across nodes
+`EntityOrdersAcrossNodesTests.CE1154_AUsePressOnTheStation_TogglesADoorThroughTheBrain_…` (SimHost station → CGF brain → the door's
+owner; the verdict on SimHost and on the pure IG — the live IG check `CE-1153` left owed).
+
+### 8h.9 AS-BUILT — the station (`CE-1158`, `2026-10-16`, ui)
 
 Built against §8h.2's diagrams and the [ui handoff](blueprints/batches/HANDOFF_Use_Key_To_UI.md); the driving sequence as built is the
 second sequence diagram in §8h.2. All in `Hrot/Engine/Hrot.Presentation/Map3D/PossessionStation.cs` plus `EntityOrders.Possess(unit, mode)`.
@@ -1220,12 +1240,12 @@ second sequence diagram in §8h.2. All in `Hrot/Engine/Hrot.Presentation/Map3D/P
 | ⑦ orders | `EntityOrders.Possess(unit, mode)`; `Possess(unit)` = Fps (the menu and HTTP call sites unchanged); Fps releases this station's other Fps units, Riding releases nothing; `HeldHere` skips Riding and takes the newest `Epoch` | — |
 | ⑧ help | the keys line ends `E use (hold E: more)` | — |
 
-⚠ **For `CE-1154` (behaviors):** every new possession starts the station's counters at 0 (a new `FpsCameraDriver`), exactly as for
-`ShotSeq`. The brain's "the frame `Seq` went backwards ⇒ reset" rule must reset its last-seen `UseSeq` too, or the first press after a
-hand-over is read as already handled.
+✅ **Joined with `CE-1154` (§8h.8):** every new possession starts the station's counters at 0 (a new `FpsCameraDriver`), exactly as for
+`ShotSeq`; the brain resets its use counter when the frame `Seq` goes back (§8h.8 "new station"), so the first press after a hand-over
+is acted on.
 
 ⚠ **Owed:** the frame screenshots and the live cluster run (open a door, drag, man a ZU-23, drive a BMP and get out, from a CGF and an IG
-station) — they need the brain half (`CE-1154` / `CE-1155` / `CE-1157`), not yet delivered.
+station). The brain half (`CE-1154` / `CE-1155` / `CE-1157`) is now delivered, so both can run.
 
 Rails (`PossessionStationTests`, `CE1158_…`): the tap counts one press with the primary verb and the target · hold-E, 1-4 pick a verb
 not a weapon · the prompt for a door (open, closed, locked, far), a man down and standing, a vehicle (near, far) and a weapon, drawn in its

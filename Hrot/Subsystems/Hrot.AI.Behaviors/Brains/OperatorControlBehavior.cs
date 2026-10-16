@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
@@ -45,6 +46,12 @@ namespace Hrot.AI.Behaviors.Brains
             public System.Numerics.Vector3 PendingPoint;
             /// <summary>⭐ CE-1078 — the weapon action's round count at which the locked shot has left (counted when it was locked).</summary>
             public int Cap;
+            /// <summary>⭐ CE-1154 (DESIGN_Entity_Control §8h U-2) — the use presses already acted on.</summary>
+            public byte UseSeq;
+            /// <summary>⭐ CE-1154 — the interaction action the last use press started (0 = none running).</summary>
+            public ushort UseAction;
+            /// <summary>⭐ CE-1154 — its <see cref="InteractionChannel.ActionInstanceId"/>, so the answer is read only from OUR action.</summary>
+            public uint UseStarted;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -91,11 +98,96 @@ namespace Hrot.AI.Behaviors.Brains
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
-            ws.Seq = drive.Seq;
+            // ⭐ CE-1157 — no frame (a RIDER: the possession takes his frames while the station drives his vehicle) keeps the last frame
+            //   number, so a station that restarts its frames after the ride (Seq 1 again, counters from 0) still reads as a NEW station and
+            //   resets the press counters; zeroing it swallowed the first press after the ride (its counter equal to the last one acted on)
+            if (drive.Seq != 0) ws.Seq = drive.Seq;
             if (world.HasComponent<ManualDrive>(self)) world.SetComponent(self, drive);
             else world.AddComponent(self, drive);
             OperateWeapon(world, self, ref ws, lastSeq);
+            OperateUse(world, self, ref ws, lastSeq);
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1154</c> (📄 docs/DESIGN_Entity_Control.md §8h U-1, U-2, U-6, U-7, §8h.6) — the operator's USE key, the
+        /// <see cref="OperateWeapon"/> shape for the interaction channel: a new <see cref="OperatorInput.UseSeq"/> asks the ONE rule
+        /// (<c>OperatorUseActions.For</c> — the same the station's HUD prompt calls) what the crosshair's target offers, takes the
+        /// verb <see cref="OperatorInput.UseVerb"/> names (0 = the primary) and, if it is available, starts its executor on the
+        /// <see cref="InteractionChannel"/> with the params <see cref="OperatorUseActions.WriteParams"/> packs. The executor keeps the
+        /// reach, the time and the networked command; ⛔ no walk-to (U-3). The verdict goes back to the station as STATE
+        /// (<see cref="OperatorUseStatus"/>, replicated as <c>dtOperatorUseStatus</c>): Running when it starts, Done or Refused + Reason
+        /// when it ends — the reason from the rule when it refuses, <see cref="UseReason.Failed"/> when the executor fails after the start.
+        /// <para>A press while an earlier use action runs replaces it (a new action instance — the executor starts over). A stale frame
+        /// (a new station's <c>Seq</c> going back) resets the counter, as for the trigger.</para>
+        /// </summary>
+        private static unsafe void OperateUse(EntityRepository world, Entity self, ref ManualControlState ws, uint lastSeq)
+        {
+            if (!world.HasComponent<InteractionChannel>(self) || !world.IsComponentTypeRegistered<OperatorInput>()
+                || !world.HasComponent<OperatorInput>(self)) return;
+            var input = world.GetComponentRO<OperatorInput>(self);
+            if (input.Seq < lastSeq) ws.UseSeq = 0;   // a new station's counters start from 0
+
+            // the action our last press started: forward its answer once, then hand the channel back (the DoorNodes rule)
+            if (ws.UseStarted != 0)
+            {
+                if (EmbarkNodes.OwnsInteraction(world, self, ws.UseStarted, ws.UseAction))
+                {
+                    var status = world.GetComponentRO<InteractionChannel>(self).Status;
+                    if (status != NodeStatus.Running)
+                    {
+                        EmbarkNodes.Release(world, self);
+                        WriteUseStatus(world, self, ws.UseSeq, ws.UseAction,
+                            status == NodeStatus.Success ? UseOutcome.Done : UseOutcome.Refused,
+                            status == NodeStatus.Success ? UseReason.Ok : UseReason.Failed);
+                        ws.UseStarted = 0;
+                        ws.UseAction = 0;
+                    }
+                }
+                else { ws.UseStarted = 0; ws.UseAction = 0; }   // someone else took the channel (the possession ended, a new run)
+            }
+
+            if (input.UseSeq == ws.UseSeq) return;
+            ws.UseSeq = input.UseSeq;
+
+            var actions = s_useActions ??= new UseAction[OperatorUseActions.MaxActions];   // a press is rare; no allocation per press
+            int n = OperatorUseActions.For(world, self, UseTargetOf(world, self, input.UseTarget), actions);
+            if (input.UseVerb >= n)
+            {
+                WriteUseStatus(world, self, ws.UseSeq, 0, UseOutcome.Refused, UseReason.NothingToDo);
+                return;
+            }
+            var action = actions[input.UseVerb];
+            if (!action.Available)
+            {
+                WriteUseStatus(world, self, ws.UseSeq, action.ActionId, UseOutcome.Refused, action.Reason);
+                return;
+            }
+            ref var channel = ref world.GetComponentRW<InteractionChannel>(self);
+            EmbarkNodes.Start(world, self, ref channel, action.ActionId);
+            OperatorUseActions.WriteParams(action, MemoryMarshal.CreateSpan(ref channel.Params[0], BehaviorConstants.ActionParamsByteSize));
+            ws.UseStarted = channel.ActionInstanceId;
+            ws.UseAction = action.ActionId;
+            WriteUseStatus(world, self, ws.UseSeq, action.ActionId, UseOutcome.Running, UseReason.Ok);
+        }
+
+        /// <summary>⭐ CE-1154 — the rule's answer buffer (<see cref="UseAction"/> carries its label, so it cannot live on the stack).</summary>
+        [ThreadStatic] private static UseAction[]? s_useActions;
+
+        /// <summary>⭐ CE-1154 — what the use press aimed at (its network id), or null: the rule still offers Put down / Get out then.</summary>
+        private static Entity UseTargetOf(EntityRepository world, Entity self, long networkId)
+        {
+            if (networkId == 0 || !world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()) return Entity.Null;
+            return world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()!.TryGetEntity(networkId, out var e)
+                   && world.IsAlive(e) ? e : Entity.Null;
+        }
+
+        private static void WriteUseStatus(EntityRepository world, Entity self, byte useSeq, ushort actionId, UseOutcome outcome, UseReason reason)
+        {
+            if (!world.IsComponentTypeRegistered<OperatorUseStatus>()) world.RegisterComponent<OperatorUseStatus>();
+            var status = new OperatorUseStatus { UseSeq = useSeq, ActionId = actionId, Outcome = outcome, Reason = reason };
+            if (world.HasComponent<OperatorUseStatus>(self)) world.SetComponent(self, status);
+            else world.AddComponent(self, status);
         }
 
         /// <summary>⭐ <c>CE-3172</c> S4d — seconds between an operator's rounds. ⚠ A constant: the TKB carries no rate of fire yet
@@ -140,14 +232,17 @@ namespace Hrot.AI.Behaviors.Brains
             // a new station's frames start again from 1, and its counters from 0
             if (input.Seq < lastSeq) { ws.ShotSeq = ws.CancelSeq = ws.AmmoSeq = 0; ws.Pending = 0; }
             if (input.CancelSeq != ws.CancelSeq) { ws.CancelSeq = input.CancelSeq; ws.Pending = 0; }
-            var mountDto = CombatTkb.MountOf(world, self, input.Mount);
+            // ⭐ CE-1155 (§8h U-5; Weapon Systems §6 WS-6) — a CONTROLLED index (32+k: the weapon whose gunner seat he holds) names
+            //   that weapon's own mount 0: its type decides the fire mode and the per-press rule, and its WeaponState carries the ammo
+            var (platform, platformMount) = OperatedMount(world, self, input.Mount);
+            var mountDto = CombatTkb.MountOf(world, platform, platformMount);
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
                 // ⭐ CE-1127 (§8g F-1) — a turret, a thrown / arc or a guided weapon LOCKS; a rifle, a mount with no turret, an unguided
                 //   rocket fires by SIGHT (the round goes where the crosshair is when it leaves)
-                var mode = OperatorFireModes.Of(world, self, mountDto,
-                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, self, input.Mount)));
+                var mode = OperatorFireModes.Of(world, platform, mountDto,
+                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, platform, platformMount)));
                 if (mode == OperatorFireMode.Lock)
                 {
                     ws.Pending = 1;
@@ -166,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ammoSteps > 0)
             {
                 ws.AmmoSeq = input.AmmoSeq;
-                var mountEntity = WeaponMountQuery.MountEntity(world, self, input.Mount);
+                var mountEntity = WeaponMountQuery.MountEntity(world, platform, platformMount);
                 if (world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity))
                     AmmoChoice.Cycle(world, mountEntity, ammoSteps, world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity).ReloadSeconds);
             }
@@ -188,6 +283,16 @@ namespace Hrot.AI.Behaviors.Brains
                     Operator = 1, Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = input.AimPoint,
                     CooldownSeconds = OperatorCooldownSeconds,
                 };
+        }
+
+        /// <summary>⭐ <c>CE-1155</c> — the entity and mount index a frame's <c>Mount</c> names: the man's own mount, or — for a controlled
+        /// index (<see cref="WeaponSystems.IsControlledIndex"/>) — the weapon system he controls and ITS mount 0, as
+        /// <c>AimAndFireExecutor</c> resolves it when it fires. A controlled index with no weapon behind it stays on the man.</summary>
+        private static (Entity Platform, int Mount) OperatedMount(EntityRepository world, Entity self, int mount)
+        {
+            if (!WeaponSystems.IsControlledIndex(mount)) return (self, mount);
+            var weapon = WeaponSystems.ControlledAt(world, self, mount);
+            return weapon.IsNull ? (self, mount) : (weapon, 0);
         }
 
         /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>
