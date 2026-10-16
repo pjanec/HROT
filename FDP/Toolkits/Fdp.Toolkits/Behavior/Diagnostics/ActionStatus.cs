@@ -145,13 +145,21 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldMoving         => "hold: moving",
             ActionReason.AwaitingRelease    => "release: waiting for the cue",
             ActionReason.WrongDomain        => "hold: wrong target domain",
+            ActionReason.NotControlled      => "hold: not controlled",       // ⭐ WS-3 — the weapon system
+            ActionReason.NoGunner           => "hold: no gunner",
+            ActionReason.NotDeployed        => "hold: not deployed",
+            ActionReason.AwaitingFireTime   => "laid: waiting for the time",  // ⭐ IF-1
+            ActionReason.OutOfRange         => "hold: out of range",
+            ActionReason.Masked             => "hold: masked",               // ⭐ IF-1, CE-2218 — the terrain stops the round
             _                               => "",
         };
 
         /// <summary>True for the reasons that mean "wants to act and cannot" — the gizmo draws them amber.</summary>
         public static bool IsHold(ActionReason r) => r is ActionReason.HoldNotSeen or ActionReason.HoldFriendlyOnLine
             or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc
-            or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain;
+            or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain
+            or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
+            or ActionReason.Masked;   // ⭐ CE-2218 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

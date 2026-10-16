@@ -249,6 +249,16 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            // ⭐ CE-2218 — hold while the round would stop in the wall in front of the muzzle (LineOfFire.MuzzleMasked): the eye's line
+            //   passed the window, the barrel's does not. Running, no round spent — Masked, so the behaviour may move to a better spot.
+            if (!bomb && world.HasComponent<SimTransform>(p.Target)
+                && LineOfFire.MuzzleMasked(world, platform, platformMount, loadedAmmo, AimPoint.Middle(world, p.Target, out _, out _)))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.Masked, p.Target);
+                return;
+            }
+
             // ⭐ CE-2075 (R-200) — the unit's ROE, enforced ONCE here so no behaviour can forget it. HoldFire never fires;
             //   ReturnFire fires only within ReturnFireWindowSeconds of being hit. Holds like the friendly-line guard (Running, no
             //   round spent), so an ROE change or a fresh hit resumes fire without re-issuing the action.
@@ -403,6 +413,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
             if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
+            if (LineOfFire.MuzzleMasked(world, shooter, mountIndex, loadedAmmo, point)) { Say(world, entity, ActionReason.Masked, p.Target); return; }   // ⭐ CE-2218
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
             world.Bus.Publish(new WeaponFireIntent

@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Physics.Components;
@@ -28,6 +29,39 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Vector3 point)
             => Blocked(world, shooter, Entity.Null, point);
+
+        /// <summary>A round that is not a warhead is held when the terrain stops it this close to the muzzle — the frame he leans out of.</summary>
+        public const float MuzzleClearanceM = 2f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2218</c> — <b>a shooter never fires into the wall in front of his own muzzle.</b> True when the terrain (a wall, a window
+        /// frame, a floor) STOPS the round — by the one penetration rule (<see cref="TerrainPenetration.Carry"/>) — within its danger
+        /// distance of where it leaves (<see cref="ShotOrigin"/>): <see cref="MuzzleClearanceM"/>, or a warhead's blast-injury radius (it would
+        /// burst on him). The eye's line passing the window does not make the barrel's.
+        /// <para>📐 Live <c>ua-rpg-window</c>: an RPG man at an upper window aimed steeply down at an IFV 10 m off; the rocket stopped 5 cm
+        /// from the muzzle, burst, and killed him. ⛔ Not for an ARC (the throw already lobs over what stops it — <c>ThrowArc</c>) and not for
+        /// a bomb; with no terrain, never.</para>
+        /// </summary>
+        public static bool MuzzleMasked(EntityRepository world, Entity shooter, int weaponIndex, long loadedAmmo, Vector3 aim)
+        {
+            if (Fdp.Toolkit.World.WorldQuery.Of(world) is not { } terrain || !world.HasComponent<SimTransform>(shooter)) return false;
+            var mount = CombatTkb.MountOf(world, shooter, weaponIndex);
+            long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
+            var warhead = CombatTkb.WarheadOf(world, ammo);
+            if (warhead is { Indirect: true } || mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb) return false;
+
+            var eye = ShotOrigin.Eye(world, shooter, out _);
+            var origin = ShotOrigin.From(world, shooter, weaponIndex, eye, aim, out _);
+            var line = aim - origin;
+            float length = line.Length();
+            if (length < 1e-3f) return false;
+            float danger = MathF.Max(MuzzleClearanceM, warhead is { HasAreaEffect: true } ? warhead.BlastInjuryRadiusM : 0f);
+            var end = origin + line * (MathF.Min(danger, length) / length);
+
+            var (penetration, _) = CombatTkb.RoundOf(world, mount, ammo);
+            float damage = 1f;
+            return TerrainPenetration.Carry(terrain, origin, end, ref damage, ref penetration, out _);
+        }
 
         private static bool Blocked(EntityRepository world, Entity shooter, Entity target, Vector3 b3)
         {

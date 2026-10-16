@@ -547,6 +547,26 @@ namespace Fdp.Toolkit.Physics.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-2217</c> — a round 30° off the tank's nose that meets the hull is scored on the FRONT arc, as the danger model predicts it
+        /// (<c>ArmorModel.FacingOfArrival</c>: front within 60°): the armour is stated per arc, and the box face it entered (the side plate,
+        /// struck at 60° obliquity) is not the side arc. 70° off the nose is the side. 📐 Swept on the M1 kit at 190 m before the fix:
+        /// predicted Front, entered Side, from 16° to 58° off the nose — the live Javelin rated 0.11 and scored 3000 → 1500 on the side.
+        /// 🔴 Red-proof: <c>arcFaces</c> off in the solver ⇒ Side ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2217_ARound30DegreesOffTheNose_IsScoredOnTheFrontArc_70DegreesOnTheSide()
+        {
+            var tank = SpawnTank();   // at (10, 0), facing +x
+            foreach (var (deg, face) in new[] { (30f, Fdp.Toolkit.Combat.Facing.Front), (70f, Fdp.Toolkit.Combat.Facing.Side) })
+            {
+                float b = deg * MathF.PI / 180f;
+                var from = new Vector3(10f, 0f, 1.0f) + new Vector3(MathF.Cos(b), MathF.Sin(b), 0f) * 30f;
+                var hit = FireRoundWith(null, from, new Vector3(10f, 0f, 1.0f) - (from - new Vector3(10f, 0f, 1.0f)) * 0.2f);
+                Assert.Equal((tank, (byte)face), (hit.HitEntity, hit.Face));
+            }
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3211</c> (S2-7, D-G lifted) — a turret TURNED toward a side shot shows that shot its FRONT; a round dropping onto it meets its
         /// roof (Top); a round just over the turret misses the tank the old height band would have hit.
         /// </summary>

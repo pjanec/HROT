@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (§11 / §11a: weapon systems by part, CE-3214)
+updated: 2026-10-16 (§9b: a vehicle part's face is the armour ARC, CE-2217 — supersedes HL-5 / S2-7 for vehicles)
 build-state: BUILDING — S1a BUILT 2026-10-16 (§7, CE-3209); S1b BUILT 2026-10-16 (§8, CE-3210); S2 (ground vehicles) BUILT 2026-10-16 (§9a, CE-3211); S3 BUILT 2026-10-16 (§10a, CE-3212); S2b (weapon systems) BUILT 2026-10-16 (§11a, CE-3214); S2c (aircraft) BUILT 2026-10-16 (§12a, CE-3215); 🔒 user, 2026-10-15: "approved, write the design" (S1 = people first: "Especially people will benefit from more precise collisions, i need it in slice 1"); ruling R-3010
 current-answer: §2 classes · §3 sequence · §4 modules · §5 decisions · §6 slices and rails · §7 S1a as built · §8 S1b as built · §9 S2 (ground vehicles) design · §9a S2 as built · §10 S3 (fragments per part) · §10a S3 as built · §11 S2b (weapon systems by part) · §11a S2b as built · §12 S2c (aircraft by part) · §12a S2c as built. §1 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: HL-5 and S2-7 below say a VEHICLE part is scored on "the face entered" and that "no armour number moves" — SUPERSEDED for vehicles by §9b (CE-2217): a vehicle part's face is the armour model's arc in the part's frame. People keep HL-5.
 known-conflict: none.
 related-designs:
   - docs/designs/airborne/DESIGN_Airborne_Insertion.md — §9: a descending man (rope, canopy) is still a person target (IsPerson keys on VehicleParams — keep it there, not on Locomotions.Of), collides in his stance pose; canopy and rope are not parts (D-10)
@@ -166,7 +166,7 @@ it, its hits carry no part.*
 | **HL-2** | **three tiers**: ① a cell WALK along the segment, padded by the grid's largest bound radius, no 64 cap ② one bounding SPHERE per type × pose class (each stance; a turret's whole sweep), precomputed ③ the parts | the sphere rejects most candidates in ~20 operations before 12–16 part tests; the walk visits the cells the segment crosses, not a 40 m disc | an axis-aligned box mid-tier (changes with rotation ⇒ per-frame work) · a BVH (rebuilt every frame for movers) · per-frame posed bounds |
 | **HL-3** | ⭐ **part ids are fixed per BODY PLAN** (a byte); a type names its plan in the TKB; several shapes may share one id (a hull of three boxes is Hull). Person ids = the block figure's shared order (0–9) | stable across types and on the wire; the drawing already uses that order | one global enum per type (grows with every type) |
 | **HL-4** | **zones are data**: `BodyZonesDto` (`Combat.BodyZones`) per plan, overridable per type — a zone = a set of part ids + armour per face + damage multiplier + effect + threshold | your "zone = set of bones"; a new type is a TKB entry | zone rules in code |
-| **HL-5** | the face is the one the round ENTERS (the part's side), replacing the arrival-angle rule for a part hit; the angle rule stays for a hit with no part (area effects, a backend hit) | a corner hit or a roof hit is scored right | — |
+| **HL-5** | the face is the one the round ENTERS (the part's side), replacing the arrival-angle rule for a part hit; the angle rule stays for a hit with no part (area effects, a backend hit). ⛔ **SUPERSEDED for VEHICLE parts by §9b (CE-2217)** — people keep it | a corner hit or a roof hit is scored right | — |
 | **HL-6** | ⭐ **`PartDamage`**: one component for people AND vehicles — a damage level 0–255 per part id, written by the `Health` owner (the Brain), replicated beside `EntityDamage`. `Health` stays the overall pool | your "the wounds component and the compartment damage are the same thing"; every reader of `Health` / `Injury` keeps working | a health pool per limb (multiplies state; the four injury states already carry the consequence) · stored derived states (two sources for one fact) |
 | **HL-7** | **consequences are DERIVED** (`Wounds`, like `Injury`, I1): leg zone over threshold ⇒ the wounded speed factor and no running; arm zone ⇒ aim dispersion × factor (Injury States' open "wounded AIM"); head ⇒ its multiplier makes it lethal or incapacitating through `Health`. S2: Mobility zone ⇒ `CanMove` off, Firepower ⇒ `CanShoot` off, Catastrophic ⇒ destroyed (R-263) | every node derives the same answer from replicated levels | — |
 | **HL-8** | ⭐ **`HitMarks`**: a fixed ring (24 slots of PartId · part-local point 3×int16 · face · kind (bullet / fragment / burn / penetration) · sequence), added on the first hit, written by the MUSCLE, replicated like `TurretPose` (BestEffort, TransientLocal, KeepLast 1, on change, once a frame); viewers ACCUMULATE by sequence | your fixed-size, muscle-owned array; part-local so a hole turns with the turret and moves with the arm; a late joiner gets the last 24 | an event stream of hits (unbounded, a late joiner cannot rebuild) · world-space points (break on any articulation) · marks only derived from damage (kept as the fallback when a mark was evicted) |
@@ -312,6 +312,20 @@ two agree only once the howitzer publishes its lay"; backend's P2 lays the gun b
 | **S2-7** | vehicle zones (profiles): Hull ×1 · Turret ×1, Firepower at 160 · Gun ×0.2, Firepower at 32 · RunningGear ×0.3, Mobility at 32 · Engine ×0.8, Mobility at 96. Armour **inherited** (`inheritArmour`): the platform's on the face entered — HL-12 ② | no armour number moves; the turret's own face is the D-G lift | per-zone armour numbers now (no source data — a TKB override can state them) |
 | **S2-8** | the consequences are applied where the capability bits already are: `CombatLife.ApplyHitCapabilities` on the Health owner strips `CanMove` (Mobility) / `CanShoot` (Firepower), like the opt-in `MobilityKill`; destroyed stays Health ≤ 0 | one rule, one place (CE-3092); the bits replicate | a derived read in every dispatcher · a Catastrophic zone (no ammo geometry yet — ⏭ a TKB `Combat.BodyZones` can add one) |
 | **S2-9** | the cell walk's pad grows to `max(grid radius, PersonBody, VehicleBody.MaxBoundRadius)`; the vehicle's bound sphere covers every turret pose (part distance to the pivot + the pivot's distance) | no candidate is lost to a turret swung out past the collider circle | per-pose bounds (work per frame) |
+
+### 9b. A vehicle part's face is the armour ARC — `CE-2217` *(backend, `2026-10-16`; supersedes HL-5 / S2-7 for vehicles)*
+
+📐 **Measured** (the M1 kit, a line from 190 m to its middle, turret 0° and 90°): the face the danger model PREDICTS (`ArmorModel.FacingOfArrival`,
+eye → middle: front within 60°) and the face of the box the round ENTERED disagreed from **16° to 58° off the nose** — Front predicted, Side
+entered. The live `ua-javelin-lock` shot (19° off the nose, rated 0.11, scored 3000 → 1500 on the side) was this, with nobody moving.
+
+| | |
+|---|---|
+| why the entered face was wrong for a vehicle | its armour is stated per ARC (Armour Hit Model D-A): the front value covers ±60°. A shot 30° off the nose enters the side PLATE at 60° obliquity — the box face drops that angle, so S2-7's *"no armour number moves"* was false |
+| ⭐ the rule now | a vehicle part's face is the arc the round ARRIVES from, read in the struck PART's frame (`BodyPartHit.ArcFaceOf`, `Segment(..., arcFaces: true)` in the solver's vehicle branch): Top when it enters the roof or descends ≥ 45°; else < 60° front, > 120° rear, else side. ⇒ a turned turret still shows its front to a side shot (the D-G lift), a roof entry stays Top, and on the hull the score equals the prediction |
+| kept | people's parts: the face entered (a vest has front and back plates) |
+| rejected | ① obliquity on the entered plate (`armour / cos θ`) — a second armour formula beside R-212's per-arc values · ② the predictor reading the boxes — it would agree, and keep the side-plate-without-obliquity error |
+| rail | `RaycastSolverSystemTests.CE2217_ARound30DegreesOffTheNose_IsScoredOnTheFrontArc_70DegreesOnTheSide` (red-proved); the CE-3211 face rails unchanged |
 
 ### 9a. S2 as built — `CE-3211` *(backend, `2026-10-16`)*
 

@@ -592,6 +592,14 @@ namespace Hrot.AI.Behaviors.Brains
             if (!ws.Fire.Threat.IsNull && SightNow.Sees(world, self, ws.Fire.Threat)) ws.LastSeenAt = now;   // the LOCKED target
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool done = channel.ActiveAction == CombatConstants.ActionIdAimAndFire && channel.Status != NodeStatus.Running;
+            // ⭐ CE-2218 — the weapon holds MASKED (its own round would stop in the wall in front of the muzzle — the eye's line passed the
+            //   window, the barrel's does not): this spot cannot shoot that target. Burn it and come down; the next choice moves on.
+            if (MaskedSince(world, self, ws.ExposedAt))
+            {
+                PositionHeat.Add(ref mem, ws.HidePoint, p.BurnHeat, now, Rules(in p), exposure: false);
+                Recover(ref ws, in p, ref mem, self, world, now, false);
+                return;
+            }
             bool firedUpon = FiredUponSince(world, self, ws.ExposedAt);
             if (done || firedUpon || now - ws.ExposedAt >= ExposeFor(in p, world, self) || now - ws.LastSeenAt > p.GraceSeconds)
                 Recover(ref ws, in p, ref mem, self, world, now, firedUpon);
@@ -793,6 +801,16 @@ namespace Hrot.AI.Behaviors.Brains
             || RecentSensesOf.Within(world, self, SensorChange.Hit, p.SuppressedSeconds);
 
         /// <summary>B2 — near-missed or hit since the unit came up.</summary>
+        /// <summary>⭐ <c>CE-2218</c> — the weapon channel said <c>Masked</c> during this exposure (the row is stamped, so a reason left by the
+        /// previous exposure does not count).</summary>
+        internal static bool MaskedSince(EntityRepository world, Entity self, double since)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>()
+                || !world.HasComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(self)) return false;
+            ref readonly var row = ref world.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(self).Weapon;
+            return row.Reason == Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Masked && row.At >= since;
+        }
+
         private static bool FiredUponSince(EntityRepository world, Entity self, double since)
         {
             double window = Now(world) - since + 1e-6;
