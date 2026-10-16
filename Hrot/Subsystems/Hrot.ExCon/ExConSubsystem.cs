@@ -522,7 +522,11 @@ namespace Hrot.ExCon
             _mock = new ExConMock(
                 logic:            logic,
                 configPanel:      new ConfigPanel(iosNodeId),
-                orbatPanel:       new OrbatPanel(orbatCatalog),
+                orbatPanel:       new OrbatPanel(orbatCatalog)
+                {
+                    Tkb        = () => _tkb,
+                    OpenPicker = () => _pickers is { } pickers ? pickers.OpenPicker : null,   // CE-1017 D9
+                },
                 missionPanel:     new MissionPanel(iosNodeId),
                 interactionPanel: interactionPanel,
                 spawnerPanel:     new SpawnerPanel(tkbCatalog)

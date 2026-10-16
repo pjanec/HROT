@@ -86,8 +86,17 @@ public sealed class AddEntityAction
 
     /// <summary>The picker request for a side (or the map graphics when <paramref name="side"/> is null).</summary>
     public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen = null)
+        => BuildRequest(tkb, side, anchorScreen, rootFolder: null);
+
+    /// <summary>
+    /// ⭐ CE-1017 D9 — the same picker rooted at one catalog folder (<paramref name="rootFolder"/>, e.g.
+    /// <see cref="EntityTypeCatalog.UnitsFolder"/> for the ExCon ORBAT's <i>New Unit</i>): only entries under it are offered.
+    /// </summary>
+    public static PickerRequest BuildRequest(ITkbDatabase tkb, eForceIdentifier? side, System.Numerics.Vector2? anchorScreen, string? rootFolder)
     {
         var catalog = EntityTypeCatalog.Build(tkb);
+        if (rootFolder is { Length: > 0 })
+            catalog = catalog.Where(e => e.Category == rootFolder || e.Category.StartsWith(rootFolder + "/", StringComparison.Ordinal)).ToList();
         return new PickerRequest
         {
             ContextKey             = side is null ? "add-entity/graphics" : "add-entity/types",
