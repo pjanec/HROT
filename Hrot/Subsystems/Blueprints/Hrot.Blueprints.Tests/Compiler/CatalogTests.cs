@@ -264,11 +264,13 @@ public sealed class CatalogTests
         var dataPins  = pins.Where(p => !p.IsExec && p.Direction == "In").ToList();
         var dataNames = dataPins.Select(p => p.Name).ToHashSet();
 
-        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte), RouteEntityId (long — CE-2171, the route the motion side resolves).
+        // FollowRouteParams fields: TrajectoryId (int), IsLooped (byte), RouteEntityId (long — CE-2171, the route the motion side resolves),
+        // ReleaseHold (byte — Air Ops slice 3, appended 2026-10-14; this rail still said 3 until CE-1006's suite run found it).
         Assert.Contains("TrajectoryId",  dataNames);
         Assert.Contains("IsLooped",      dataNames);
         Assert.Contains("RouteEntityId", dataNames);
-        Assert.Equal(3, dataPins.Count);
+        Assert.Contains("ReleaseHold",   dataNames);
+        Assert.Equal(4, dataPins.Count);
     }
 
     [Fact]

@@ -228,6 +228,12 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                 "System.Double"  => (object)0.0,
                 "System.Byte"    => (object)(byte)0,
                 "System.UInt32"  => (object)0u,
+                // CE-1006 — the other widths WidenedPinEditor draws.
+                "System.Int64"   => (object)0L,
+                "System.Int16"   => (object)(short)0,
+                "System.SByte"   => (object)(sbyte)0,
+                "System.UInt16"  => (object)(ushort)0,
+                "System.UInt64"  => (object)0ul,
                 "System.String"           => (object)"",
                 "Fdp.Core.FixedString32"  => (object)"",
                 "Fdp.Core.FixedString64"  => (object)"",
@@ -255,6 +261,11 @@ internal sealed class BlueprintPinDefaultValue : IPinDefaultValue
                                     out var d) ? d : 0.0,
             "System.Byte"    => byte.TryParse(rawValue,   out var by) ? by  : (byte)0,
             "System.UInt32"  => uint.TryParse(rawValue,   out var u)  ? u   : 0u,
+            "System.Int64"   => long.TryParse(rawValue,   out var l)  ? l   : 0L,
+            "System.Int16"   => short.TryParse(rawValue,  out var sh) ? sh  : (short)0,
+            "System.SByte"   => sbyte.TryParse(rawValue,  out var sb) ? sb  : (sbyte)0,
+            "System.UInt16"  => ushort.TryParse(rawValue, out var us) ? us  : (ushort)0,
+            "System.UInt64"  => ulong.TryParse(rawValue,  out var ul) ? ul  : 0ul,
             // FIX-B: Vector types — parse the InvariantCulture bracket format [x, y, z, …].
             // The old culture-dependent <x  y  z> form from value.ToString() is also tolerated
             // via the same float-parse path (whitespace is consumed by TryParse).
