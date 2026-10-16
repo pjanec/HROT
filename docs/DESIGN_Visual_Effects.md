@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: smoke drifts on the real wind instead of W3's fixed breeze
   - designs/audio/DESIGN_FPS_Audio.md — the SOUND twin of this pattern: sound types in the TKB (SoundTkbCatalog 7201+), the munition → sound set with a calibre default, from the same fire / detonation events (AU-5)
   - designs/brain-split/BS-1-DESIGN.md — OWNS the fire event these effects are made from; §5.4b (CE-1111, R-1002) gives it the fired round, origin, velocity and quantity, and carries flare / chaff releases
   - DESIGN_Injury_States.md — OWNS the injury states (CE-2155); an incapacitated figure is a later presentation item

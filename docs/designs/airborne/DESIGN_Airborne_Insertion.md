@@ -8,6 +8,7 @@ known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
   SIMULATES a rope or parachute descent (D-8); the ui lane amends §6m when slice 1 lands.
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — OWNS the weather: supersedes §7d D-13 (the wind reaches every node on the replicated World Environment); the parachute reads its wind PROFILE
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — owns LocomotionClass, IMotionModel, MotionModelTable and the domain modules; this adds two classes (Rope, Parachute) and two models
   - docs/designs/air-attack/DESIGN_Air_Operations.md — owns the helicopter's route, holds and phases (B1, B8 air assault = SOP rows, §7c a killed aircraft); this adds the Rope / Drop holds and the Roping / Dropping phases
   - docs/DESIGN_Entity_Interactions.md — §7 owns embarkation (Embarkation, EmbarkationSystem, the dismount point); this adds the DOOR exit into a descent
@@ -634,7 +635,7 @@ sequenceDiagram
 | ⭐ **`CE-2210` (`2026-10-16`) — the pilot crosses to the Muscle DESCENDING.** 📐 Measured on two real nodes (CGF creates, SimHost takes the motion grant): position ✅ and velocity ✅ crossed; the **descent never did** — `EntityDescentEgressTranslator` scanned **Active** entities only, and the creator owns his Muscle group only while he is **Constructing** (it yields it before he turns Active, Ownership Groups D-7) ⇒ nobody ever sent it, SimHost moved him as a Pedestrian (velocity 0, on the terrain), and that grounded position replicated back to CGF (the z ≈ 0 behaviors saw there). Fixed: the egress scans **every lifecycle**, as `GeoSpatialEgressTranslator` does. And the Health owner (the Brain) does not own the JET's motion, so its `SimVelocity` stood still there — the seat and the speed now come from `ReplicatedMotion.Of` (CE-2173) | `EntityDescentTranslators.cs`, `EjectionSystem.cs` | `SplitAuthoritySpawnTests.BrainCreatesAManComingDown_TheMuscleFliesHim` (IT-SA-4, two nodes) · `DescentReplicationTests.CE2210_*` · `EjectionSystemTests.CE2210_*` |
 | ⚠ the rule it teaches | a component in a group the creator GRANTS AWAY is the creator's to publish only while the entity is Constructing ⇒ its egress must not be Active-only. Swept `2026-10-16`: of the 8 authority-gated egresses without a lifecycle filter, only the descent and the hit marks carry a Muscle-group component, and hit marks are empty at birth; the other six are Brain group (kept by the creator — a few frames' delay at most) | — |
 
-#### D-13 — how the scenario's wind reaches every node *(open — lean ③, user to approve)*
+#### D-13 — how the scenario's wind reaches every node ⛔ *SUPERSEDED `2026-10-16` by [Weather and Time](../weather/DESIGN_Weather_And_Time.md) (R-3012): the wind is regional weather on replicated scenario ENTITIES; the options below are history*
 
 | measured | code | design basis |
 |---|---|---|

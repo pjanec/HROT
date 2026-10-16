@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — S2 gives thermal and hearing the weather and the time of day (row F's "not asked")
   - docs/designs/audio/DESIGN_FPS_Audio.md — PLAYS sound to the FPS operator; reuses this file's AcousticSignatureDto ranges and SoundSourceClass as its audible ranges and movement-sound classes (AU-4), so the operator hears what the AI hears
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — the Rotor sound class (7) and an airborne flyer audible at any speed
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — adds a rotor sound class so a vehicle can hear an FPV drone (M7)

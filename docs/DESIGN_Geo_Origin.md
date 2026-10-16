@@ -7,6 +7,7 @@ stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the cl
 known-rot: none
 known-conflict: none
 related-designs:
+  - docs/designs/weather/DESIGN_Weather_And_Time.md — the sun position reads this file's geographic transform (latitude / longitude of a point)
   - DESIGN_Terrain_Zones_And_Assets.md — owns the terrain asset and TerrainResidency's prepare/commit; this adds an origin to the asset and one line to Commit.
   - DESIGN_Cluster_Load_Phase.md — owns the cluster-wide load transaction the terrain step runs in; it is what makes every node switch origin together.
   - DESIGN_Terrain_World.md — terrain coordinates are local metres (X east, Y north, Z up); the origin is what ties them to lat/lon.

@@ -1110,7 +1110,7 @@ The Orchestrator has no ECS, but it still participates in scenario save/load. It
 its own `ClusterSlave` instance and registers a `GlobalContextDsmHandler`:
 
 - **Save path** (`SerializeLocal`): serializes global context (simulation start wall
-  ticks, global weather descriptor, scene identifier) to
+  ticks, global weather descriptor ⛔ *(SUPERSEDED `2026-10-16`: weather is scenario entities — docs/designs/weather/DESIGN_Weather_And_Time.md)*, scene identifier) to
   `C:\FDP_Temp\<ExerciseId>\Orchestrator.json`. Returns the path as a UNC manifest entry.
 - **Load path** (`CommitState(LoadingLive|LoadingEdit)`): parses the pre-fetched
   `Orchestrator.json`, writes `GlobalTime` epoch into `MasterTimeController.SeedState()`,
