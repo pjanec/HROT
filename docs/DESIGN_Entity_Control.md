@@ -1244,8 +1244,13 @@ second sequence diagram in §8h.2. All in `Hrot/Engine/Hrot.Presentation/Map3D/P
 `ShotSeq`; the brain resets its use counter when the frame `Seq` goes back (§8h.8 "new station"), so the first press after a hand-over
 is acted on.
 
-⚠ **Owed:** the frame screenshots and the live cluster run (open a door, drag, man a ZU-23, drive a BMP and get out, from a CGF and an IG
-station). The brain half (`CE-1154` / `CE-1155` / `CE-1157`) is now delivered, so both can run.
+⭐ **Screenshots** (`Map3DFrameRail.CE1158_V_…`, Xvfb): [prompt](assets/map-3d/fps-use-1-prompt.png) ·
+[greyed, too far](assets/map-3d/fps-use-2-greyed.png) · [hold-E list](assets/map-3d/fps-use-3-list.png) ·
+[verdict](assets/map-3d/fps-use-4-verdict.png).
+
+⚠ **Owed:** the live cluster run (open a door, drag, man a ZU-23, drive a BMP and get out, from a CGF and an IG station). The brain half
+(`CE-1154` / `CE-1155` / `CE-1157`) is delivered; behaviors' `EntityOrdersAcrossNodesTests.CE1154_…` already shows a station press toggling a
+door through the CGF brain with the verdict on SimHost and the pure IG.
 
 Rails (`PossessionStationTests`, `CE1158_…`): the tap counts one press with the primary verb and the target · hold-E, 1-4 pick a verb
 not a weapon · the prompt for a door (open, closed, locked, far), a man down and standing, a vehicle (near, far) and a weapon, drawn in its

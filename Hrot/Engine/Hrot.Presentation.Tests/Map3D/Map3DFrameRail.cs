@@ -1133,6 +1133,150 @@ public sealed class Map3DFrameRail
         Assert.Equal(new[] { "HEALTH 74/100", "> 1 WEAPON  112/150  [22]", "  2 WEAPON  3/4" }, lines[..3]);
     }
 
+    /// <summary>A picker answering one network id under the crosshair (the rail chooses what the operator looks at).</summary>
+    private sealed class LookingAt : IPicker3D
+    {
+        public long Id;
+        public PickFilter Kind => PickFilter.EntityParts;
+        public bool TryPick(Vector3 origin, Vector3 direction, float maxDistance, out PickResult hit)
+        {
+            hit = new PickResult(origin + direction * 2f, PickKind.Entity, 2f, Id);
+            return Id != 0;
+        }
+    }
+
+    /// <summary>The keys and mouse of one frame.</summary>
+    private sealed class FrameInput : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public readonly System.Collections.Generic.HashSet<int> Down = new(), Pressed = new();
+        public Vector2 MousePosition { get; set; } = new(640, 400);
+        public Vector2 MouseDelta { get; set; }
+        public float MouseWheelMove { get; set; }
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => Pressed.Contains((int)k);
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => Down.Contains((int)k);
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+        public void SetCursorLocked(bool locked) { }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1158 (V) (docs/DESIGN_Entity_Control.md §8h.9) — the FPS use key on screen: a rifleman this station holds looks at a man who is
+    /// down. ① the PROMPT under the crosshair (<c>E  Drag</c>), ② the same man farther off, GREYED with its reason (<c>too far</c>), ③ holding
+    /// <c>E</c> opens the LIST (Drag · Carry), ④ the brain's VERDICT for our press (<c>Drag: done</c>). Screenshots:
+    /// <c>fps-use-1-prompt.png</c> … <c>fps-use-4-verdict.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1158_V_TheUseKey_PromptGreyedListAndVerdict()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        void Reg<T>() where T : unmanaged { if (!world.IsComponentTypeRegistered<T>()) world.RegisterComponent<T>(); }
+        Reg<SimTransform>(); Reg<TkbIdentity>(); Reg<StanceIntent>(); Reg<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+        Reg<Fdp.Toolkit.Combat.Components.WeaponAmmo>(); Reg<Fdp.Toolkit.Combat.Components.Health>();
+        Reg<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); Reg<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
+        Reg<Fdp.Toolkit.Behavior.Components.CarrierStations>(); Reg<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
+        Reg<Fdp.Toolkit.Behavior.Components.PersonCarrier>(); Reg<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+        Reg<Fdp.Toolkit.Behavior.Components.IsAssistingTag>(); Reg<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        Reg<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); Reg<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        Reg<Fdp.Toolkit.Combat.WeaponSystemState>(); Reg<Fdp.Toolkit.Terrain.DoorState>(); Reg<Fdp.Toolkit.Motion.Locomotion>();
+        Reg<Fdp.Core.CommandHierarchy.UnitEntity>(); Reg<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        var rifleman = tkb.GetByType(TkbEntityTypes.Infantry_Rifleman);
+        var query = WorldQuery.Of(world)!;
+        var stand = FindOpenArea(query, FindOpenGround(terrain, query), 6f);
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        world.SetSingletonManaged(map);
+
+        Entity Man(Vector2 at, float health, long net, StanceId stance)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(at.X, at.Y, query.GroundHeightAt(at.X, at.Y)), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(e, new StanceIntent { TargetStance = stance });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.ActorCapabilityState
+            {
+                Capabilities = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
+                             | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanInteract,
+            });
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(world, e, rifleman);
+            new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator().Inject(world, e, rifleman);
+            map.Register(net, e);
+            return e;
+        }
+        var me = Man(stand, 100f, 1001L, StanceId.Standing);   // he faces east (+X)
+        Man(stand + new Vector2(1.0f, 0.2f), 10f, 1002L, StanceId.Prone);   // a man down, in reach
+        Man(stand + new Vector2(6f, -0.4f), 10f, 1003L, StanceId.Prone);   // another, out of reach
+        world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
+        {
+            StationNodeId = 0, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
+        });
+
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => ArticulationPose.Neutral);
+        canvas.AddLayer(bodies);
+        var sw = new MapViewSwitch(canvas, two, new MapCamera3D { ViewportOverride = new Vector2(1280, 800) });
+        sw.Camera3D.GroundHeight = (x, y) => query.GroundHeightAt(x, y);
+        var looking = new LookingAt();
+        sw.Camera3D.Pickers.Add(looking);
+        var station = new PossessionStation(sw, () => world, bodies);
+        canvas.AddLayer(station);
+        station.Update(1f / 30f);
+        Assert.True(station.InFps);
+        var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+
+        string[] Shot(string name, FrameInput input, long lookAt, float dt = 1f / 30f)
+        {
+            looking.Id = lookAt;
+            station.Update(dt);
+            sw.Camera3D.Update(1f / 30f);
+            sw.Camera3D.HandleInput(input);
+            world.Bus.SwapBuffers();
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            frame.Screenshot(Path.Combine(shots, name));
+            return driver.UseLines(world).Select(l => l.Text).ToArray();
+        }
+        var look = new FrameInput { MouseDelta = new Vector2(0f, 120f) };   // look down at him
+        Assert.Equal(new[] { "E  Drag" }, Shot("fps-use-1-prompt.png", look, 1002L));
+        Assert.Equal(new[] { "E  Drag (too far)" }, Shot("fps-use-2-greyed.png", new FrameInput(), 1003L));
+
+        var press = new FrameInput();
+        press.Pressed.Add((int)KeyboardKey.E); press.Down.Add((int)KeyboardKey.E);
+        Shot("fps-use-0-pressed.png", press, 1002L);
+        var hold = new FrameInput();
+        hold.Down.Add((int)KeyboardKey.E);
+        Assert.Equal(new[] { "> 1  Drag", "  2  Carry" }, Shot("fps-use-3-list.png", hold, 1002L, FpsCameraDriver.HoldSeconds + 0.05f));
+
+        Shot("fps-use-3b-released.png", new FrameInput(), 1002L);   // let go: the press of Drag is sent
+        Assert.Equal(1, driver.UseSeq);
+        world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.OperatorUseStatus
+        {
+            UseSeq = 1, Outcome = Fdp.Toolkit.Behavior.Possession.UseOutcome.Done, ActionId = 9,
+        });
+        Assert.Equal(new[] { "E  Drag", "Drag: done" }, Shot("fps-use-4-verdict.png", new FrameInput(), 1002L));
+        File.Delete(Path.Combine(shots, "fps-use-0-pressed.png"));
+        File.Delete(Path.Combine(shots, "fps-use-3b-released.png"));
+    }
+
     /// <summary>The point nearest <paramref name="from"/> with a clear square of ground ±<paramref name="half"/> metres around it.</summary>
     private static Vector2 FindOpenArea(IWorldQuery query, Vector2 from, float half)
     {
