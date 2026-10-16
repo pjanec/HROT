@@ -672,7 +672,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-2230</c> H-5 — a wave's members share ONE go time, set past the slowest one's drive to its hide, so the pair crests
-        /// together (🔒 R-2022: <i>"another pair comes up the hill"</i>). 📐 Live without it: 12–20 s apart.
+        /// together (🔒 R-2022: <i>"another pair comes up the hill"</i>). 📐 Live without it: 12–20 s apart. And the hide is the tank's
+        /// own spot on the baseline — 📐 live, the drive along the baseline to a far slot cost a 10–15 s turn-around.
         /// </summary>
         [Fact]
         public void CE2230_H5_AWavesOrders_ShareOneGoTime_PastTheSlowestDriveToItsHide()
@@ -682,8 +683,8 @@ namespace Hrot.SimHost.Tests
             var commander = repo.CreateEntity();
             var near = repo.CreateEntity();
             var far = repo.CreateEntity();
-            repo.AddComponent(near, new SimTransform { Position = new Vector3(0f, 50f, 0f), Rotation = Quaternion.Identity });
-            repo.AddComponent(far, new SimTransform { Position = new Vector3(-120f, 50f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(near, new SimTransform { Position = new Vector3(12f, 53f, 0f), Rotation = Quaternion.Identity });   // on the baseline
+            repo.AddComponent(far, new SimTransform { Position = new Vector3(-150f, 50f, 0f), Rotation = Quaternion.Identity });  // far off it
             AddRoster(repo, commander, new[] { near, far });   // two ⇒ one wave, both go
 
             ref var s = ref GetHeavyState(repo, commander);
@@ -710,6 +711,12 @@ namespace Hrot.SimHost.Tests
                     slowest = Math.Max(slowest, HillAttackCommanderNodes.HideDriveSeconds(repo, who, run.BaselineX, run.BaselineY));
                 Assert.True(slowest > 10.0, $"the far tank's drive to its hide is long ({slowest:F1} s)");
                 Assert.True(orders[0].Run.GoAt >= 100.0 + slowest, $"go at {orders[0].Run.GoAt:F1} — after the slowest arrival ({100.0 + slowest:F1})");
+                // ⭐ the hide is the tank's OWN spot on the baseline (no drive along it first); off the baseline it is the slot
+                var mine = orders.Find(o => o.Who == near).Run;
+                Assert.Equal((12f, 53f), (mine.BaselineX, mine.BaselineY));
+                var theirs = orders.Find(o => o.Who == far).Run;
+                Assert.Equal(50f, theirs.BaselineY);
+                Assert.InRange(theirs.BaselineX, 0f, 90f);
             }
             finally
             {

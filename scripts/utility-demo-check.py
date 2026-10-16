@@ -1977,7 +1977,7 @@ def run_tank_ammo(c, timeout):
 #   its firing slots; each tank creeps up its lane, STOPS the first tick it sees its target (hull-down: R-246), fires ONE round, reverses
 #   into its baseline slot; the other pair goes; they alternate until both T-72s are dead.
 #   ① every shot is fired from south of the crest (hull-down, never over the top) · ② one round per exposure · ③ never more than a pair
-#   up at once · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
+#   up at once (③b and a pair comes up TOGETHER — H-5) · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
 HILL_CREST_Y, HILL_UP_Y, HILL_HOME_Y = 210.0, 170.0, 160.0
 
 
@@ -2047,7 +2047,13 @@ def run_hill_attack(c, timeout):
                 up_at.setdefault(tk, set()).add(name.get(t))
     crowd = max((len(v) for v in up_at.values()), default=0)
     c.ok(crowd <= 2, f"③ at most a pair on the slope at once — most at once {crowd}")
-    # ④ every exposure ends back home, reversing: while falling back the nose still points north (yaw within 60 deg of +Y)
+    # ③b (CE-2230 H-5, R-2022 "another pair comes up the hill") — the pair crests TOGETHER: an exposure's start has a partner's
+    #    within 6 s (a wave whose partner is dead or had no slot goes alone)
+    starts = sorted((a, name.get(t)) for t in tanks for (a, _) in exp[t])
+    paired = [(a, n) for (a, n) in starts if any(n2 != n and abs(a2 - a) <= 6 for (a2, n2) in starts)]
+    print("    exposure starts:", starts)
+    c.ok(crowd == 2 and len(paired) * 2 >= len(starts), f"③b the pairs crest together — {len(paired)} of {len(starts)} exposures with a partner within 6 s")
+    # ④ every exposure ends back home, reversing: while falling back the nose still points north-ish (within 90 deg of +Y: the rear never faces the enemy)
     backs = []
     for t in tanks:
         rows = track[t]
@@ -2055,7 +2061,7 @@ def run_hill_attack(c, timeout):
             after = [r for r in rows if r[0] > b]
             home = next((r for r in after if r[2] <= HILL_HOME_Y), None)
             down = [r for r in after if home is None or r[0] <= home[0]]
-            nose_north = all(abs(math.remainder(r[3] - math.pi / 2, 2 * math.pi)) < math.radians(60) for r in down) if down else None
+            nose_north = all(abs(math.remainder(r[3] - math.pi / 2, 2 * math.pi)) < math.radians(90) for r in down) if down else None   # never the rear to the enemy (a diagonal reverse home turns the nose off north)
             backs.append((name.get(t), a, home is not None, nose_north))
     finished = [b for b in backs if b[1] < tick - 30]   # an exposure in the last 30 s may still be backing down
     c.ok(bool(finished) and all(h and n for (_, _, h, n) in finished), f"④ every tank backs into its slot, nose north — {backs}")

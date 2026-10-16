@@ -448,6 +448,11 @@ namespace Hrot.AI.Behaviors.Brains
                 float bt = s.TotalSlots > 1 ? (float)baselineSlot / (s.TotalSlots - 1) : 0.5f;
                 float bx = p.BaselineStartX + (p.BaselineEndX - p.BaselineStartX) * bt;
                 float by = p.BaselineStartY + (p.BaselineEndY - p.BaselineStartY) * bt;
+                // ⭐⭐ CE-2230 H-5 — the HIDE is where the tank already stands on the baseline (its own cover), not the slot nearest its
+                //   random firing slot. 📐 Live: driving up to 80 m along the baseline to that slot, a tank arrived facing the wrong way
+                //   and spent 10–15 s turning, so its pair mate went alone. From its own spot it goes out diagonally to its lane and
+                //   reverses straight back. The slot bookkeeping (masks) is unchanged; a tank off the baseline still gets the slot.
+                if (OnTheBaseline(world, sub, in p, out var here)) { bx = here.X; by = here.Y; }
 
                 // Write SoA tracker entry.
                 int idx = s.ActiveAttackerCount;
@@ -524,6 +529,22 @@ namespace Hrot.AI.Behaviors.Brains
             var at = world.GetComponentRO<SimTransform>(tank).Position;
             float d = MathF.Sqrt((at.X - hideX) * (at.X - hideX) + (at.Y - hideY) * (at.Y - hideY));
             return d / HillAttackTankNodes.ReverseSpeed * 1.33;
+        }
+
+        /// <summary>⭐ CE-2230 H-5 — how far off the baseline a tank still counts as standing on it (m).</summary>
+        public const float OnBaselineMetres = 25f;
+
+        /// <summary>⭐ CE-2230 H-5 — the tank's ground position, when it stands within <see cref="OnBaselineMetres"/> of the baseline.</summary>
+        internal static bool OnTheBaseline(EntityRepository world, Entity tank, in PlatoonHillAttackParams p, out Vector2 here)
+        {
+            here = default;
+            if (!world.HasComponent<SimTransform>(tank)) return false;
+            var at = world.GetComponentRO<SimTransform>(tank).Position;
+            here = new Vector2(at.X, at.Y);
+            var a = new Vector2(p.BaselineStartX, p.BaselineStartY);
+            var ab = new Vector2(p.BaselineEndX, p.BaselineEndY) - a;
+            float t = ab.LengthSquared() > 1e-6f ? Math.Clamp(Vector2.Dot(here - a, ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+            return Vector2.Distance(here, a + ab * t) <= OnBaselineMetres;
         }
 
         /// <summary>The cycle's clock (<c>GlobalTime.TotalTime</c>) — the go time is compared against it there.</summary>

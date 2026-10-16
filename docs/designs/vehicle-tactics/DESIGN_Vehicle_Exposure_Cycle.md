@@ -387,8 +387,10 @@ from a line of sight, beyond the Kornet's minimum.
 "hidden from every threat, near self"; `FindVehicleFiringPoint` then searches only a ~25 m ring round that hide. In a town the nearest hide is often
 deep in a corner whose every line to the target crosses the same block (runs 3, 8, 9). CE-2229 makes the vehicle LEAVE such a hide, but the next
 nearest hide is usually as blind. ⭐ Lean: anchor the search the other way — find where the target can be SEEN first (a donut round self, wider than
-25 m), then the nearest hide within a short drive of that point; ⚠ the hill attack's rework (`CE-2230`, *"stop as soon as they see the targets"*)
-needs the same "nearest point that sees it" query, so it is designed there once, for both.
+25 m), then the nearest hide within a short drive of that point; ⛔ SUPERSEDED `2026-10-16`: *"the hill attack's rework (`CE-2230`) needs the same query, so it is designed there once, for both."* ⭐ As built,
+`CE-2230` answered the OPEN-GROUND case without a query — the cycle's LANE mode (a given hide, a drive along the attack line that stops the
+first tick the target is SEEN, [hill-attack DESIGN §0](../hill-attack/DESIGN.md)); the URBAN hide choice stays open as `CE-2232`
+(lean: score the hide query by whether its firing-point ring reaches the threat).
 
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the

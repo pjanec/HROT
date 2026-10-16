@@ -35,7 +35,7 @@ descriptor's `NodeId`. Both are cluster node ids, but no test pins that they are
 |---|---|---|---|
 | T-1 the feature's suite + the new rail | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter "FullyQualifiedName~Possession"` | 4 / 0 (3 existing + `CE2231_TheHoldingNodeDeparts_ItsUnitIsReleased_AndItsTaskResumes_AnotherNodesUnitIsKept`) | yes, after building the TEST project |
 | red-proof | the arm keyed on `gone.NodeId + 100000` (compiles; never matches) | ✅ RED (1 failed) — reverted | built |
-| SimHost suite | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build` | SIMHOST_RESULT | yes |
+| SimHost suite | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build` | 1491 / 0 / 6 skipped (after the ui + backend merges, on the final tree) | yes |
 | tracker | `python3 scripts/tracker-counts.py --check` | OK | — |
 
 Ids allocated: `CE-2231`. The tree is clean after the runs.
