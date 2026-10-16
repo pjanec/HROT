@@ -51,6 +51,7 @@ namespace Fdp.Toolkit.Squad.Systems
         // ── ① the answers ──
         private static void Apply(EntityRepository repo, float now)
         {
+            Span<DangerAreaDescriptor> previous = stackalloc DangerAreaDescriptor[8];   // CE-2224 — the answer being replaced
             foreach (var evt in repo.Bus.ReadManaged<DangerAreaResultEvent>())
             {
                 var child = evt.Observer.IsNull ? Resolve(repo, evt) : evt.Observer;
@@ -64,6 +65,8 @@ namespace Fdp.Toolkit.Squad.Systems
                     ? repo.GetComponentRO<DangerAreaSensor>(child).Settings.Kinds : DangerAreaKinds.Crossings;
                 ref var buffer = ref repo.GetComponentRW<DangerAreaCognitiveBuffer>(child);
                 var span = buffer.GetSpanRW();
+                int had = Math.Min(buffer.Count, span.Length);
+                span.Slice(0, had).CopyTo(previous);
                 int count = Math.Min(evt.Count, evt.Areas.Length);
                 int n = 0;
                 for (int i = 0; i < count && n < span.Length; i++)
@@ -74,6 +77,7 @@ namespace Fdp.Toolkit.Squad.Systems
                     n++;
                 }
                 buffer.Count = n;
+                DangerAreaCognitiveBuffer.KeepHandles(previous.Slice(0, had), span.Slice(0, n));   // CE-2224
                 buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
                 buffer.LastUpdateTimeSeconds = now;   // Q4 — what BecomesStale reads
             }
