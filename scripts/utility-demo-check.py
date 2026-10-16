@@ -2179,27 +2179,33 @@ def run_drone_shelter(c, timeout):
         return
     h0 = {t: health(t) for t in (deck_tank, open_tank)}
     call("POST", "/sim/play", {})
-    timeline, next_sample, under_at = [], 0.0, None
+    timeline, next_sample, under_at, spent_a = [], 0.0, None, None
     end = time.time() + timeout + 60
     while time.time() < end:
         t = sim_time() or 0.0
         pa = position(deck_tank)
         if under_at is None and pa and 240 < pa[0] < 290 and 40 < pa[1] < 80:
             under_at = t
+        if spent_a is None and (health(drone_a) or 0) <= 0:
+            spent_a = (t, position(deck_tank))
         if time.time() >= next_sample:
             next_sample = time.time() + 1.0
+            beh = [((data(call("GET", f"/entities/{e}/state")) or {}).get("behavior") or {}).get("name") for e in (deck_tank, open_tank)]
             timeline.append((round(t, 1), *[tuple(round(v) for v in position(e)) if position(e) else None for e in (drone_a, deck_tank, drone_b, open_tank)],
-                             health(deck_tank), health(open_tank)))
+                             health(deck_tank), health(open_tank), *beh))
         if (health(drone_a) or 0) <= 0 and (health(drone_b) or 0) <= 0:
             time.sleep(2)
             break
         time.sleep(0.25)
-    for row in timeline[:80]:
+    for row in timeline[:150]:
         print("      drone @", row)
     pa = position(deck_tank)
     c.ok(under_at is not None, f"① the tank by the deck backs under it (x 240–290, y 40–80) — at {under_at}, now {pa}")
     c.ok((health(drone_a) or 0) <= 0, f"① its drone is spent — health {health(drone_a)}")
-    c.ok((health(deck_tank) or 0) >= (h0[deck_tank] or 0) * 0.9, f"① ★ the deck took the warhead — the tank {h0[deck_tank]} → {health(deck_tank)}")
+    sp = spent_a[1] if spent_a else None
+    under = sp is not None and 240 < sp[0] < 290 and 40 < sp[1] < 80
+    c.ok(under and (health(deck_tank) or 0) >= (h0[deck_tank] or 0) * 0.9,
+         f"① ★ the deck took the warhead — the tank under it when its drone was spent ({sp}), {h0[deck_tank]} → {health(deck_tank)}")
     c.ok((health(drone_b) or 0) <= 0, f"② the drone on the tank in the open is spent — health {health(drone_b)}")
     c.ok((health(open_tank) or 0) < (h0[open_tank] or 0), f"② ★ the tank in the open is hit from above — {h0[open_tank]} → {health(open_tank)}")
 
