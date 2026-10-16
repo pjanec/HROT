@@ -984,6 +984,12 @@ width is not honoured yet). · An area's FILL under a roof still drapes to the g
 is not built — named in the tracker.
 **Gates:** `Map3DGizmoTests` 10/10 · `AreaAuthoringArmTests` (+ the M22 rail) · frame rail shot ⑦ `map3d-7-gizmos.png`.
 
+⭐ **CE-1160 (`2026-10-16`) — a dashed path draws at most `GizmoRenderer3D.MaxDashesPerPath` (1 024) dashes; a longer one gets longer
+dashes.** 📐 Measured: a selected tank's EQS search ring (12 km radius) is ~3 600 lines from most cameras, but the dash length is taken
+from the zoom at the path's MIDDLE point, so with the camera near that point 8 px became a few centimetres and one ring drew 101 232
+lines. Rail `Map3DGizmoTests.CE1160_AHugeDashedRing_IsCapped_WhereverTheCameraIs`. ⚠ Not shown to be the user's multi-second freeze on
+selection (not reproduced in four scenarios, see the tracker row).
+
 ### 6f. S4 — AS-BUILT `2026-10-11` (the world by surface and material, things come alive)
 
 ```mermaid

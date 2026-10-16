@@ -1080,5 +1080,19 @@ gizmo manager runs after the projectors), so a full frame lost exactly the primi
 - *Emitting the mask first (a frame header)* — saves the mask but not the menus and the tool bindings, which come from many gizmos.
 - *Filtering in each producer only* — every new producer would have to remember; the buffer rule covers all of them.
 
+**⭐ CE-1160 AS-BUILT `2026-10-16` (ui) — selection and the entity menu never depend on a layer toggle.** 🔒 User: *"If i click Entity OFF,
+i am no longer able to open menu by right clicking the entity, green selection stop showing … I need the entity selection and right click
+work always independently of what i pick in the debug layers menu."* 🔴 The rule above refused the entity PICK BOXES: they are invisible
+layer-0 boxes (layer 0 so a tool handle on a higher layer still wins the pick — the hit-test ranks by layer), and the terminal's
+hit-test reads whatever the frame holds, so with *Entities* off it found nothing. The selection ring sat on layer 0 too.
+
+| ⭐ rule | why |
+|---|---|
+| a **pick target** — a `Box2D` with an anchor id, transparent outline AND fill (`DebugPrimitiveBuffer.IsPickTarget`; `EmitPickBox`, `MakePickSegment`) — is never refused by layer and never evicted for a protected primitive | it is drawn by nobody, so the mask has nothing to hide; a visible box on a hidden layer is still refused |
+| the selection ring is on `DebugTraceLayers.Selection` = 14, the first bit no toggle owns (`LayerControlDto.FirstUntoggledLayer`) | always drawn; it carries no anchor id, so it never competes in the hit-test |
+
+*Rejected:* moving the pick boxes to an always-on layer — the hit-test ranks by layer, so an entity box would beat a tool handle above it.
+📐 Rails: `DebugPrimitiveBufferLayerTests.CE1160_*`, `LayerControlGizmoTests` `GZH011_Tests.CE1160_*`.
+
 📐 Rails: `Fdp.Diagnostics.Contracts.Tests/DebugPrimitiveBufferLayerTests` ×4 · `RtsCommandToolTests.CE1075_*` (a full frame still
 carries the armed tool's capture binding). 📄 [`DESIGN_Map_3D_Mode.md` §6l](../../DESIGN_Map_3D_Mode.md) (the measurement that found it).

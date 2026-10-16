@@ -25,6 +25,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ CE-1065 — the spatial hash's tiles (<c>SpatialGridGizmo</c>): hundreds of long lines over the whole map. Off by
         /// default; before, only the Entities layer could hide it.</summary>
         public const byte SpatialGrid = 13;
+        /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): the first bit no layer toggle owns
+        /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. 🔒 User, 2026-10-16: <i>"I need the entity selection and right
+        /// click work always independently of what i pick in the debug layers menu."</i> It used to sit on layer 0 with the entity symbols,
+        /// and turning <c>Entities</c> off hid it.</summary>
+        public const byte Selection = 14;
     }
 }
 
