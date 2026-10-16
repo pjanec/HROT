@@ -13,7 +13,7 @@ related-designs:
 
 # HANDOFF — behaviors → backend: a hull ORBITS a point inside its turning circle (CE-2206)
 
-**Dispatched at the commit that adds this file** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
+**Dispatched at `2237eab42`** (behaviors). Your scope is frozen at that sha; nothing here stops an item.
 
 ## The measurement (live `ua-javelin-lock`, test-town, `2026-10-16`)
 
