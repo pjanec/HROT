@@ -373,6 +373,15 @@ namespace Hrot.AI.Behaviors.Brains
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;
             bool overTime = now - ws.ExposedAt >= p.ExposeSeconds;
             bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat);
+            // ⭐ CE-2218 (backend's handoff: "a shooter held Masked should move") — the gun holds MASKED: its round would stop in the
+            //   wall or bank in front of the muzzle, so this firing point cannot shoot that target. Burn it and go; the next choice
+            //   moves on. The one reader is PeekAndFire's (a stamped reason from THIS exposure only).
+            if (!guiding && PeekAndFireNodes.MaskedSince(world, self, ws.ExposedAt))
+            {
+                PositionHeat.Add(ref mem, ws.FiringPoint, Rules(in p).BurnHeat, now, Rules(in p), exposure: false);
+                Withdraw(ref ws, in p, ref mem, self, world, now);
+                return;
+            }
             // Guiding — a command missile needs its gunner: stay until it lands, unless hit
             if (hit || (!guiding && (done || overBudget || overTime || launch)))
                 Withdraw(ref ws, in p, ref mem, self, world, now);

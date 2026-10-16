@@ -155,12 +155,17 @@ namespace Hrot.SimHost.Tests
                     _fired = 0;
                     AimedAt.Add(Unsafe.As<byte, AimAndFireParams>(ref ch.Params[0]).Target);
                 }
-                Repo.GetComponentRW<ActionStatus>(Self).Weapon.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
+                ref var row = ref Repo.GetComponentRW<ActionStatus>(Self).Weapon;
+                if (Masked) { row.Reason = ActionReason.Masked; row.At = Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
+                row.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
                 if (Guiding) return;   // a round in flight: the next is not granted
                 _fired++;
                 AimedRounds++;
                 if (rounds > 0 && _fired >= rounds) ch.Status = NodeStatus.Success;
             }
+
+            /// <summary>⭐ CE-2218 — the weapon holds Masked (its round would stop in front of the muzzle).</summary>
+            public bool Masked;
 
             public bool Firing
             {
@@ -286,6 +291,29 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, m.Count);
             Assert.Equal(FiringA, new Vector3(m.X[0], m.Y[0], m.Z[0]));   // the FIRING point heats: that is where he saw me
             Assert.Equal(1, m.Uses[0]);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2218</c> (backend's handoff: "a shooter held <c>Masked</c> should move") — at a firing point whose gun line runs into a
+        /// wall or bank the weapon holds <c>Masked</c>: the exposure ends at once, the firing point is BURNED (it cannot shoot that target
+        /// from there), and the next exposure asks for another. 🔴 Red-proof: without the node's masked check it stays out for the whole
+        /// exposure and the point is only heated once.
+        /// </summary>
+        [Fact]
+        public void CE2218_AMaskedGun_BurnsTheFiringPoint_AndGoesBackIn()
+        {
+            var d = new Duel(Tank() with { ExposeSeconds = 20f });
+            d.ToHide(HideA);
+            int roundsBefore = d.AimedRounds;   // the drive in may already have fired (CE-2219)
+            d.Masked = true;
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
+            double out_ = d.Time;
+            Assert.NotEqual(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Withdrawing, 3));
+            Assert.True(d.Time - out_ < 2.0, $"a masked gun goes back in at once ({d.Time - out_:0.0} s out)");
+            Assert.Equal(roundsBefore, d.AimedRounds);   // nothing spent out there
+            var m = d.Memory;
+            Assert.True(m.Heat[0] >= VehicleFightFromCoverNodes.Rules(Tank()).BurnHeat, $"the firing point is burned (heat {m.Heat[0]:0.##})");
         }
 
         /// <summary>

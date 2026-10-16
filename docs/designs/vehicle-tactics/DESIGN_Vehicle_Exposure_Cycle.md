@@ -340,6 +340,15 @@ target expiring from memory, which ends the designation, is how `TopThreat` (CE-
 long hidden standoff reads it as "the order lapsed". `ThreatDanger.ToMe` reads the same `TopAttackFits` the launch
 does (backend aligned it in CE-2201).
 
+⏸ **Update, after backend's CE-2217 (`2026-10-16`) — ① PARKED on `CE-2222` (backend):** backend measured ② live 2/2 on the
+HULL FRONT (the face the danger model predicts). ① still loses the lock race, and that is now RIGHT by the model: A, ~190 m off and ~19°
+off the nose, fires DIRECT (front armour, `ToMe` 0.11), so the tank has nothing to hide from. 📐 Why it is direct: `GuidedRoundSystem.TopAttackFits`
+(30 °/s turn at 140 m/s ⇒ a 267 m turn radius, 30° climb, 60° dive) fits the Javelin's top attack only from **~610 m**, while its TKB says
+`TopAttackMinRangeM = 150` — a real Javelin top-attacks from ~150 m. ⇒ ⭐ the demo is not re-placed to 610 m (beyond test-town's blocks and
+the soldier's 150 m sight); `CE-2222` asks backend to make the profile fit from `TopAttackMinRangeM`, after which A at 190 m dives on the
+roof, the tank rates it dangerous and ① is the real test again. ⭐ **And `Masked`** (`CE-2221`): an exposure whose gun holds `Masked`
+(backend's `CE-2218` muzzle-line hold) burns its firing point and withdraws — Peek and Fire §10.10's answer, one reader.
+
 ⏸ **Update, after CE-2215/2216 (`2026-10-16`):** ① now runs end to end — A sees the tank on its drive out, the tank sees A, the tank
 fires back — ⛔ and still loses the lock race. 📐 Probed: the tank rates A at danger **0.11** (A is ~19° off the nose ⇒ the eye→hull line
 reads FRONT, and the direct Javelin barely beats the front's CE armour). 0.11 < `AtDangerMin` ⇒ A does not bound the budget, which is the

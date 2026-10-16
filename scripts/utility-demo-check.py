@@ -2303,7 +2303,9 @@ def run_eject(c, timeout):
     c.ok(pilot is not None, "① one Pilot (206) spawned")
     if pilot is None:
         return
-    c.ok(canopy_at is not None and canopy_at - spawned_at <= 3.5, f"② the canopy open by ~3 s — {None if canopy_at is None else round(canopy_at - spawned_at, 2)} s")
+    # ⚠ read from the brain node's REPLICATED copy at sub-second polling: the model opens it 3 s after its stamp
+    #   (DescentModelsTests.B7_*); backend measured 3.96 s live over HTTP (HANDOFF_Backend_To_Behaviors_Live_Rerun_Results) ⇒ allow 4.5 s
+    c.ok(canopy_at is not None and canopy_at - spawned_at <= 4.5, f"② the canopy open by ~3 s (≤ 4.5 s seen over the wire) — {None if canopy_at is None else round(canopy_at - spawned_at, 2)} s")
     jp = position(jet)
     c.ok((health(jet) or 0) <= 0 and jp is not None and jp[2] < 20, f"③ the jet is down — health {health(jet)}, at {jp}")
     pp = position(pilot)
