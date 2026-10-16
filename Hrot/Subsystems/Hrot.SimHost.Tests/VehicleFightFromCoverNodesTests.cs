@@ -282,6 +282,21 @@ namespace Hrot.SimHost.Tests
         /// short of the lane start — and fires from there (hull-down: only the turret clears the crest, R-246). 📌 The node it replaces
         /// looked only once near the slot. 🔒 R-2022. 🔴 Red-proof: check the sight only while creeping and it drives on past x = 20.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-2230</c> H-5 — the WAVE's go time: in its hide well before, the hull does not drive out before <c>HoldUntil</c> (the
+        /// commander's one go time for the pair), and then goes at once. 🔴 Red-proof: drop the hold and it leaves at the hide timer (~1 s).
+        /// </summary>
+        [Fact]
+        public void CE2230_H5_TheHullWaitsInItsHide_UntilTheWavesGoTime()
+        {
+            var d = HillDuel(seesFromX: 1000f);
+            d.P.HoldUntil = 8.0;
+            Assert.Equal(VehiclePhase.Hidden, d.RunUntil(VehiclePhase.Hidden, 5));
+            Assert.True(d.Time < 3.0, $"in the hide at {d.Time:F1} s");
+            Assert.Equal(VehiclePhase.Exposing, d.RunUntil(VehiclePhase.Exposing, 10));
+            Assert.InRange(d.Time, 8.0, 8.3);   // out at the go time, not at the hide timer
+        }
+
         [Fact]
         public void CE2230_TheLane_StopsTheFirstTickItSeesItsTarget_ApproachIncluded()
         {

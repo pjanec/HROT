@@ -188,8 +188,9 @@ namespace Hrot.AI.Behaviors.Brains
     ///   <item>Attack direction: <c>AttackDirX, AttackDirY</c> (8 bytes) at offset 16.</item>
     ///   <item>Kinematic limits: <c>ApproachSpeed, CreepSpeed</c> (8 bytes) at offset 24.</item>
     ///   <item>Assigned target: <c>TargetNetworkId</c> (long, 8 bytes) at offset 32.</item>
+    ///   <item>The wave's go time: <c>GoAt</c> (double, 8 bytes) at offset 40 (CE-2230 H-5).</item>
     /// </list>
-    /// Total = 40 bytes. ⭐ CE-2230 — the run is the vehicle exposure cycle's lane (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>):
+    /// Total = 48 bytes. ⭐ CE-2230 — the run is the vehicle exposure cycle's lane (<see cref="HillAttackTankNodes.ResolveHullDownAttackRun"/>):
     /// one round per run is the cycle's own count (R-2022). ⛔ HISTORY: <c>MaxRounds</c> / <c>RoundsFired</c> / <c>LastObservedAmmo</c> were
     /// the retired fire node's ammo-diff counter.
     /// </summary>
@@ -227,6 +228,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// Never stores a local generational entity handle (would become stale across frames).
         /// </summary>
         public long TargetNetworkId;     // 8, offset 32 (8-byte aligned)
-        // Total: 40 bytes
+
+        /// <summary>
+        /// ⭐ CE-2230 H-5 — the WAVE's go time (simulation seconds; 0 = go when ready): every tank of a wave waits in its hide until
+        /// then, so the pair crests together (🔒 R-2022: "another pair comes up the hill"). The commander sets it to the slowest
+        /// member's estimated arrival at its hide.
+        /// </summary>
+        public double GoAt;              // 8, offset 40
+        // Total: 48 bytes
     }
 }

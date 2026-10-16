@@ -670,6 +670,53 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2230</c> H-5 — a wave's members share ONE go time, set past the slowest one's drive to its hide, so the pair crests
+        /// together (🔒 R-2022: <i>"another pair comes up the hill"</i>). 📐 Live without it: 12–20 s apart.
+        /// </summary>
+        [Fact]
+        public void CE2230_H5_AWavesOrders_ShareOneGoTime_PastTheSlowestDriveToItsHide()
+        {
+            using var repo = CreateWorld();
+            repo.SetSingleton(new GlobalTime { TotalTime = 100.0 });
+            var commander = repo.CreateEntity();
+            var near = repo.CreateEntity();
+            var far = repo.CreateEntity();
+            repo.AddComponent(near, new SimTransform { Position = new Vector3(0f, 50f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(far, new SimTransform { Position = new Vector3(-120f, 50f, 0f), Rotation = Quaternion.Identity });
+            AddRoster(repo, commander, new[] { near, far });   // two ⇒ one wave, both go
+
+            ref var s = ref GetHeavyState(repo, commander);
+            s.TotalSlots = 4; s.CurrentWave = 0; s.CachedEqsRequestId = -1;
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 90f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = 50f, BaselineEndX = 90f, BaselineEndY = 50f,
+            };
+            try
+            {
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                repo.Bus.SwapBuffers();
+                var orders = new System.Collections.Generic.List<(Entity Who, HullDownAttackParams Run)>();
+                foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                    if (ev.IntentId == "HullDownAttack")
+                        orders.Add((ev.Entity, JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                            Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)));
+
+                Assert.Equal(2, orders.Count);
+                Assert.Equal(orders[0].Run.GoAt, orders[1].Run.GoAt);           // one go time for the wave
+                double slowest = 0;
+                foreach (var (who, run) in orders)
+                    slowest = Math.Max(slowest, HillAttackCommanderNodes.HideDriveSeconds(repo, who, run.BaselineX, run.BaselineY));
+                Assert.True(slowest > 10.0, $"the far tank's drive to its hide is long ({slowest:F1} s)");
+                Assert.True(orders[0].Run.GoAt >= 100.0 + slowest, $"go at {orders[0].Run.GoAt:F1} — after the slowest arrival ({100.0 + slowest:F1})");
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
         /// <summary>SC-HA012-2: With roster.Count <= 3, all alive tanks dispatched
         /// regardless of parity.</summary>
         [Fact]

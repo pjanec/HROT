@@ -57,12 +57,13 @@ namespace Hrot.SimHost.Tests
         /// <c>LocomotionChannel.Params</c> 32-byte fixed buffer.
         /// </summary>
         [Fact]
-        public unsafe void HullDownAttackParams_Is40Bytes()
+        public unsafe void HullDownAttackParams_Is48Bytes()
         {
-            // 8 floats + TargetNetworkId (long, at offset 32) = 40 bytes. ⭐ CE-2230: back from 56 — MaxRounds, RoundsFired and
-            // LastObservedAmmo went with the bespoke fire node; the run fires ONE round (R-2022) through the weapon brain.
-            Assert.Equal(40, sizeof(HullDownAttackParams));
+            // 8 floats + TargetNetworkId (long, at offset 32) + GoAt (double, at 40, CE-2230 H-5) = 48 bytes. ⭐ CE-2230: MaxRounds,
+            // RoundsFired and LastObservedAmmo went with the bespoke fire node; the run fires ONE round (R-2022) through the weapon brain.
+            Assert.Equal(48, sizeof(HullDownAttackParams));
             Assert.Equal(32, (int)Marshal.OffsetOf<HullDownAttackParams>(nameof(HullDownAttackParams.TargetNetworkId)));
+            Assert.Equal(40, (int)Marshal.OffsetOf<HullDownAttackParams>(nameof(HullDownAttackParams.GoAt)));
         }
 
         /// <summary>

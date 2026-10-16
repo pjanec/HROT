@@ -69,6 +69,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ApproachSpeed = authored.ApproachSpeed,
                 CreepSpeed = authored.CreepSpeed,
                 DesignatePacked = target,
+                HoldUntil = authored.GoAt,                                // ⭐ H-5 — the wave leaves its hides together
             };
         }
     }

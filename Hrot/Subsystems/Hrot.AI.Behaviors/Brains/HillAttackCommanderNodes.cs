@@ -384,6 +384,11 @@ namespace Hrot.AI.Behaviors.Brains
             int* avail = stackalloc int[16];
 
             int activeTankIndexInWave = 0;
+            // ⭐ CE-2230 H-5 — the wave's orders are held until every member is known, so they share ONE go time (below)
+            var orders = new HullDownAttackParams[8];
+            var whom = stackalloc Entity[8];
+            int orderCount = 0;
+            double slowest = 0d;
 
             for (int i = 0; i < rosterCount && s.ActiveAttackerCount < 8; i++)
             {
@@ -475,13 +480,25 @@ namespace Hrot.AI.Behaviors.Brains
                     CreepSpeed = 5f,   // ⭐ CE-2230 — one round per run is the tank's own doctrine now (R-2022)
                 };
 
+                orders[orderCount] = dto;
+                whom[orderCount++] = sub;
+                slowest = Math.Max(slowest, HideDriveSeconds(world, sub, bx, by));
+            }
+
+            // ⭐⭐ CE-2230 H-5 — ONE go time for the wave: the slowest member's drive to its hide (each first drives along the baseline to
+            //   the slot nearest its random firing slot, CE-202's scatter) plus the settle. 📐 Live without it: the pair crested 12–20 s
+            //   apart, never together (🔒 R-2022: "another pair comes up the hill and does the same procedure").
+            double goAt = orderCount > 1 ? Clock(world) + slowest + WaveSettleSeconds : 0d;
+            for (int k = 0; k < orderCount; k++)
+            {
+                orders[k].GoAt = goAt;
                 string json = JsonSerializer.Serialize(
-                    dto,
+                    orders[k],
                     Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
                 world.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
-                    Entity     = sub,
+                    Entity     = whom[k],
                     IntentId   = "HullDownAttack",
                     JsonParams = json,
                     Origin     = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,   // ⭐ CE-3034 — a commander (R-193)
@@ -495,6 +512,23 @@ namespace Hrot.AI.Behaviors.Brains
                 BehaviorLog.Debug(self, world, "Wave dispatched. Wave=" + dispatchWave + " attackers=" + s.ActiveAttackerCount + " targets=" + targetCount + " nextWave=" + s.CurrentWave + ".");
             return NodeStatus.Success;
         }
+
+        /// <summary>⭐ CE-2230 H-5 — the settle after the slowest arrival before the wave goes (s): the hull stops, the gun lays.</summary>
+        public const double WaveSettleSeconds = 2.0;
+
+        /// <summary>⭐ CE-2230 H-5 — a member's estimated drive to its hide (s): the ground distance at the run's hide speed
+        /// (<see cref="HillAttackTankNodes.ReverseSpeed"/>), with a third for the start, the turns and the stop.</summary>
+        internal static double HideDriveSeconds(EntityRepository world, Entity tank, float hideX, float hideY)
+        {
+            if (!world.HasComponent<SimTransform>(tank)) return 0d;
+            var at = world.GetComponentRO<SimTransform>(tank).Position;
+            float d = MathF.Sqrt((at.X - hideX) * (at.X - hideX) + (at.Y - hideY) * (at.Y - hideY));
+            return d / HillAttackTankNodes.ReverseSpeed * 1.33;
+        }
+
+        /// <summary>The cycle's clock (<c>GlobalTime.TotalTime</c>) — the go time is compared against it there.</summary>
+        private static double Clock(EntityRepository world)
+            => world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
 
         // ── Phase 4.5: Wave completion node ───────────────────────────────────────
 

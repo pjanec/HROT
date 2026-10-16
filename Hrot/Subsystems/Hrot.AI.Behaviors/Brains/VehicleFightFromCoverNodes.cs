@@ -86,6 +86,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// lives, so the threat ranking puts it first, and entered in memory once, so the unit tracks it from behind its cover
         /// (<see cref="PostureNodes.Designate"/>). Once it is down the ranking picks the next.</summary>
         public long DesignatePacked;
+        /// <summary>⭐ CE-2230 H-5 — no drive out of the hide before this simulation time (s; 0 = none): a commander's go time, so the
+        /// members of a wave leave their hides together.</summary>
+        public double HoldUntil;
     }
 
     /// <summary>⭐ <c>CE-2165</c> V4 — the node's working state: scratch, lost on every exit; what outlives an exit is in <see cref="FiringPositionMemory"/>.</summary>
@@ -355,7 +358,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             if (ws.ExposuresHere >= p.ExposuresPerPosition) { ws.Phase = VehiclePhase.Choose; return; }   // used up: to another hide
             if (!AimAndFireExecutor.RoePermitsFire(world, self) || Reloading(world, self) || UnderFire(world, self, now - 3.0)) return;
-            if (now < ws.PhaseUntil) return;
+            if (now < ws.PhaseUntil || now < p.HoldUntil) return;   // ⭐ CE-2230 H-5 — and not before the wave's go time
 
             if (Lane(in p))
             {

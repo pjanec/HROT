@@ -102,11 +102,11 @@ sequenceDiagram
   participant N as VehicleFightFromCover (lane)
   participant L as LocomotionMoveTo
   participant F as PostureNodes.Fire / weapon brain
-  C->>T: HullDownAttack {slot, baseline, dir, target}
+  C->>T: HullDownAttack {slot, baseline, dir, target, goAt} — one goAt for the whole wave (H-5)
   T->>N: ResolveHullDownAttackRun: payload → lane params (one round, one exposure, reverse)
   N->>N: Designate(DesignatePacked): ranked first, entered in memory
   N->>N: Choose: hide = the given baseline slot (no hide query)
-  N->>L: drive to the hide · Hidden (gun tracking the reported target)
+  N->>L: drive to the hide · Hidden (gun tracking the reported target) until goAt — the pair leaves together
   N->>L: Exposing: approach the lane start, then creep along dir
   loop every tick of the creep
     N->>N: SightNow.Sees(locked target)? (any body point clear)
