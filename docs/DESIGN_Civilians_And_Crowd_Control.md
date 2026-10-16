@@ -658,7 +658,7 @@ and the dashed B-1 edge is the one path where a backend change would draw wrongl
 | a police officer draws as a civilian today | ✅ `VisualFamily.cs:104` | ✅ R-280 (one class table) says the class decides |
 | the 2-D outline never reads the side | ✅ `EntityPresentationGizmoShared.cs:272` | ✅ Symbology §2 defect A, §3.1 the fix (CE-125) |
 | the IG override outranks a live flip | ✅ `StyleResolutionSystem.cs:110-131` | ⛔ searched Symbology §3.8.9 / §0, nothing rules precedence against a live flip |
-| who publishes `IgSymbolOverride.StyleSetId` (U2-b's blast radius) | ⛔ **not measured** | ⛔ not searched — ⇒ **measure before building U2-b**; if exercise control sets it deliberately, U2-b becomes "a flip after the override wins" |
+| who publishes `IgSymbolOverride.StyleSetId` (U2-b's blast radius) | ✅ **measured `2026-10-16`: two DELIBERATE producers** — the IG's mini-ExCon panel (`MiniExConPanelState.cs:118-120`, an operator picks the affiliation) and the external `MapEntitySymbol` topic (`MapEntitySymbolIngressTranslator.cs:78,105`) | ⛔ not searched — ⇒ 🔴 **U2-b's lean is WITHDRAWN**: an operator's override is an intent, so it keeps winning; a live flip shows wherever no override was set (§8.6) |
 | a `smoke` prism would draw solid | ✅ `TerrainWorldMesh.cs:48,128-133` | ✅ B1-c (§7.3) — the clash is between two correct designs |
 | nothing marks cowering on the wire | ✅ B-1's `EffectState` fields (§7.3) | ✅ §2.1 draws the edge — the field is missing, not the intent |
 
@@ -674,3 +674,18 @@ and the dashed B-1 edge is the one path where a backend change would draw wrongl
 U-5 (crowd overlay) stays LATER as the handoff leans, with no id until behaviors' `CE-2237` exists.
 ⚠ **Findings for the backend lane** (U1-b, U3-b, U4-b, U4-c) are sent in
 [`HANDOFF_Ui_To_Backend_Civilians_Findings.md`](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md).
+
+### 8.6 AS-BUILT — U-1 and U-2 (`CE-1162`, `CE-1163`, `2026-10-16`, ui)
+
+| decision | as built | deviation, and why |
+|---|---|---|
+| U1-a | `VisualFamilies.PersonKitOf(t)` walks the class chain: `SecurityForce` ⇒ `PersonKit.Security`, `Infantry` ⇒ `Soldier`, else `Civilian`; `TypeLook.Kit`; `IsSoldier` (the rifle) = a soldier, or an officer whose type has a weapon suite | ⚠ a security-force officer draws **unarmed** today: backend's `CivilianTkbCatalog` gives the 1201–1203 types no weapons yet (B-5) |
+| U1-a (outfit) | `Outfits.For(…, kit)` — Security wears `Outfits.PoliceUniform` (navy), trousers darker, no camouflage whatever his side, the helmet of the uniformed | — |
+| U1-b | ⏳ not built: no elderly look until a TKB age carrier exists (finding F-4) | — |
+| U1-c | nothing to build: the picker folders come from backend's rows; backend's own `EntityTypeCatalogTests` rows cover it | — |
+| U2-a | `AffiliationColors` (Hrot.Common): `For(view, entity)` = the `ResolvedStyle` tint, else the live `EntityInfo.ForceId` from `ResolvedStyleConstants`, else `NoSide` (the old cyan); `EntityPresentationGizmo` passes it to `DrawSemanticShape(…, colour)` on every host; `SidePalette` (the card) and `EntityPlacementGizmo`'s private palette now read the same table | ⚠ the card frame's colours change to the authoritative table (pure blue / red / green): Symbology §3.2 names that table, and two palettes would disagree |
+| U2-b | 🔴 **withdrawn** — `IgSymbolOverride.StyleSetId` keeps winning on the IG (it is an operator's or the exercise's deliberate choice, §8.4's measured row) | the lean assumed nobody set it on purpose; measured, two producers do |
+| U2-c | no 3-D change (as leaned) | — |
+
+Rails: `EntityPresentationGizmoTests.CE1163_…` ×3 (the live side and its flip, a resolved tint wins, one palette) · `Map3DTests.CE1162_…`
+(the kit from the class; police uniform on every side; civilians in clothes; every infantryman still a soldier).

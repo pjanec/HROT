@@ -37,6 +37,12 @@ public enum VisualFamily : byte
 }
 
 /// <summary>
+/// ⭐ CE-1162 (civilian U-1, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U1-a) — how a PERSON is dressed and armed, from his CLASS
+/// (R-280, the one table): a soldier (Infantry), a security-force officer (SecurityForce), or anyone else in clothes.
+/// </summary>
+public enum PersonKit : byte { Civilian = 0, Soldier, Security }
+
+/// <summary>
 /// ⭐ CE-1033 S1 — THE one answer to "what kind of thing is this type" (<c>docs/DESIGN_Map_3D_Mode.md</c> §3.5, M7), extracted
 /// from <c>EntityTypeCatalog.FallbackIconName</c> so the Add Entity icons and the 3-D shape kits cannot disagree. Keyed on
 /// what the type IS — its DIS type, or being a composite — so a TKB without art still gets a meaningful picture.
@@ -100,6 +106,28 @@ public static class VisualFamilies
         _ => null,
     };
 
-    /// <summary>True for a soldier (DIS life form, category 1) — the person kit then carries a rifle.</summary>
-    public static bool IsSoldier(TkbTemplate t) => t.DisType.Kind == 3 && t.DisType.Category == 1;
+    /// <summary>
+    /// ⭐ CE-1162 (§8 U1-a) — a person's kit from the most specific class in his chain that names one: <c>SecurityForce</c> ⇒ police,
+    /// <c>Infantry</c> ⇒ soldier, else clothes. ⛔ SUPERSEDED: a hard-coded <c>DIS Category == 1</c>, which drew a police officer
+    /// (category 3, CE-3220) in civilian clothes.
+    /// </summary>
+    public static PersonKit PersonKitOf(TkbTemplate t)
+    {
+        var chain = EntityClassTable.Default.Chain(t.DisType);
+        for (int i = chain.Count - 1; i >= 0; i--)
+        {
+            if (chain[i].Name == "SecurityForce") return PersonKit.Security;
+            if (chain[i].Name == "Infantry") return PersonKit.Soldier;
+        }
+        return PersonKit.Civilian;
+    }
+
+    /// <summary>True when the person kit carries a rifle: a soldier, or a security-force officer whose type has a weapon (B-5 gives
+    /// shield and baton men their own later). ⭐ CE-1162 — from the class, not a DIS category.</summary>
+    public static bool IsSoldier(TkbTemplate t) => PersonKitOf(t) switch
+    {
+        PersonKit.Soldier => true,
+        PersonKit.Security => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()?.Mounts.Count > 0,
+        _ => false,
+    };
 }

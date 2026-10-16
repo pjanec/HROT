@@ -308,13 +308,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             return ForceId.Neutral;
         }
 
-        private static Rgba32 GetAffiliationColor(ForceId affiliation) =>
-            affiliation switch
-            {
-                ForceId.Friend  => new Rgba32(0, 0, 255, 255),
-                ForceId.Hostile => Rgba32.Red,
-                ForceId.Neutral => Rgba32.Green,
-                _               => Rgba32.White,
-            };
+        /// <summary>⭐ CE-1163 (Symbology §3.2) — the second side palette folded into the one table: the ghost and the placed entity match.</summary>
+        private static Rgba32 GetAffiliationColor(ForceId affiliation) => Hrot.Common.Diagnostics.Gizmos.AffiliationColors.Of(affiliation);
     }
 }
