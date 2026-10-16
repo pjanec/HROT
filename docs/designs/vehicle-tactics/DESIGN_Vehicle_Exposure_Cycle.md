@@ -510,7 +510,7 @@ Rails: `ThreatEvaluationSystemTests.V8_AHeardDrone_Raises_AirThreat` · `V8_ASee
 `BasicVehicleSopTests` (2: registered + idles · the rows in order) · ✅ `AimAndFireExecutorTests.V8_AnHmg_FiresAtASeenDrone_ATankGun_IsOutOfArc`
 (backend, handoff 2 C4 — the weapon-brain half: a drone 40 m up, 30 m out (~52°) — the technical's pintle HMG (−10…+70°) is granted and fires 5 rounds; the M1's
 gun (−10…+20°) ends its task `OutOfArc` and fires none; green without a code change; the behaviour half is
-`ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater`). ⛔ Not built: the demo `ua-drone-shelter`.
+`ShelterFromAirNodesTests.V8_ASeenDrone_IsFiredAt_AndAnOutOfArcFailure_IsRetriedLater`). ⭐ The demo `ua-drone-shelter`: ✅ **LIVE PASS `2026-10-16` (`scripts/utility-demo-check.py ua-drone-shelter --launch`, two runs): ① the tank by the deck backs under Garage Deck 1 (~10.5 s after the drone is heard), the drone's dive meets the slab, the tank is untouched (3000 → 3000); ② the tank in the open, evading, is hit from above (3000 → 2550).** Three defects found on the way and fixed: CE-2212 (the shelter query was reset every perception update), CE-2213 (the strike overshot an evading tank — and the rails' stand-in flight had hidden it), CE-2214 (a low deck let the hull's grown band poke through the slab).
 
 ## 9. Who runs it
 

@@ -1219,7 +1219,7 @@ door-gun rounds hit (median 2.7 m), the truck dies.
 | the Orbit Truck carries **8 000** health | ⭐ a demo setting, not a model: at 100 the run-in's first 30 rounds killed it before the orbit; at 3 000 it died before the gunner was shot |
 | the reversal turn cuts inside the circle (224 m on ≈ 360 m) at ≥ 21 m/s | a 180° turn at speed; the check skips the 10 s after the gunner falls for the band, as for the turn sign. ⚠ The orbit settles ≈ 40 m inside `OrbitRadiusM` — the 30° lead point's chord |
 
-### 9i. Slice 6e (behaviors) — Dive: the FPV drone searches, picks, pursues and dives on the roof — build-state: BUILT `2026-10-16` (rails; live in `ua-drone-shelter`)
+### 9i. Slice 6e (behaviors) — Dive: the FPV drone searches, picks, pursues and dives on the roof — build-state: BUILT `2026-10-16` (rails; ✅ live PASS in `ua-drone-shelter`, two runs, after CE-2212/2213/2214)
 
 Builds §7's row *"drone (FPV) · its warhead ⇒ Dive (FPV §3's sequence; B5)"* — the Brain half of [FPV Drone](../vehicle-tactics/DESIGN_FPV_Drone.md)
 §2/§3, whose Muscle half (flight, impact, sound) backend built (FPV §6). It unblocks the demo `ua-drone-shelter`
