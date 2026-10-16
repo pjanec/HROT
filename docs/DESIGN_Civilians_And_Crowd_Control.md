@@ -1,12 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs)
+updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-3, B-2)
 build-state: DESIGN — the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2.
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-3, B-2).
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thousands of trivial entities (traffic, crowds)"
@@ -322,3 +322,118 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 - Doors do not physically block the kinematic mover; a dtCrowd agent ignores doors (Building_Interiors §3j known limits).
 - After a side flip, the SIDC symbol keeps its TKB affiliation letter and an `IgSymbolOverride` may keep its old style (map tint follows live).
 - `TargetMemory` holds 16 contacts per unit — a soldier facing a 100-person riot remembers the nearest 16.
+
+## 7. Backend detailed designs *(backend, 2026-10-16 — B-3 and B-2 first, as the handoff orders; ⛔ no build until the CV is ruled)*
+
+⭐ Cross-lane: this section is the backend lane's, written into the behaviors-lane design because it owns the programme.
+INVENTORY for this section: codebase-memory CLI `search_graph` (`.*(MarkDirty|SetForce|ForceId).*`, 50 hits read) + grep
+over `Hrot/` `FDP/` for `ForceId =`, `MarkDirty`, `EcsPatchContext`, the TKB id constants; `check_index_coverage` is not
+available through the CLI, so the "no runtime ForceId writer" claim rests on grep and the graph together.
+
+### 7.1 B-3 — the side flip *(CV-4)*
+
+⭐⭐ **Finding: the write path already exists.** `EcsPatchContext.Create(repo, entity)` (`EcsPatchContext.cs:96`) resolves the
+world's component→descriptor map itself (Q59-E), gates a write on the component's authority bit (`:187-189`), and its
+`FlushDirtyMarks()` marks EVERY descriptor covering the written component (`:160-164`). That is the AX-015 fix, used today
+by the attribute patch. ⇒ B-3 is a five-line wrapper over it, not a new dirty mechanism, and FDP code never names
+`dtEntityInfo` (the 2026-08-26 ruling: attributes are network-agnostic).
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityAffiliation { <<NEW static, Fdp.Toolkits.Replication>> +Set(repo, entity, ForceId) AffiliationResult }
+  class AffiliationResult { <<NEW enum>> Applied, Unchanged, NotOwner, NoEntityInfo }
+  class EcsPatchContext { <<existing>> +Create(repo, entity) +CanWrite~T~() +GetUnmanagedComponent~T~() +FlushDirtyMarks() }
+  class DescriptorOwnershipMap { <<existing, per world>> GetDescriptorsForComponentId }
+  class EntityInfo { <<existing component>> ForceId }
+  class EntityInfoEgressTranslator { <<existing>> publishes only when ShouldPublish = dirty }
+  class HostileActHandler { <<behaviors CE-2238>> }
+  HostileActHandler ..> EntityAffiliation : on CGF
+  EntityAffiliation ..> EcsPatchContext
+  EcsPatchContext ..> DescriptorOwnershipMap : which descriptors cover EntityInfo
+  EcsPatchContext ..> EntityInfo : write ForceId
+  EntityInfoEgressTranslator ..> EntityInfo : re-send once
+```
+*What the picture shows that prose hid:* nothing new sits between the behaviour and the wire except one call; the only
+new box is the result enum, so a caller can tell "I am not the owner" from "nothing to do".
+
+```mermaid
+sequenceDiagram
+  participant B as CGF behaviour (HostileAct)
+  participant A as EntityAffiliation.Set
+  participant P as EcsPatchContext
+  participant E as EntityInfoEgress (CGF)
+  participant S as SimHost EntityInfoIngress
+  B->>A: Set(civilian, Hostile)
+  A->>P: Create, CanWrite EntityInfo
+  alt CGF owns EntityInfo (creator, R-160)
+    P->>P: ForceId = Hostile, FlushDirtyMarks
+    A-->>B: Applied
+    E->>S: EntityInfo sample, ForceIdentifier Hostile
+    S->>S: apply to the live entity (EntityInfoIngressTranslator.cs:177-193)
+  else another node created it
+    A-->>B: NotOwner
+  end
+```
+*What the picture shows that prose hid:* the `NotOwner` branch — the flip is local only when the brain node is also the
+creator.
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| egress re-sends only on dirty | ✅ `EntityInfoEgressTranslator.cs:121` (`ShouldPublish`) | ✅ §1 row "side on the wire"; AX-015 |
+| one call marks every covering descriptor | ✅ `EcsPatchContext.cs:96, 160-164` | ✅ Q59-E (`EcsPatchContext.cs:31-43` cites it) |
+| `EntityInfo` stays with the creator | ✅ `HrotOwnershipGroups.cs:19` (no group ⇒ creator) | ✅ R-160 |
+| the brain node IS the creator of every civilian | ⛔ **not measured** — true for CGF-created entities; for scenario-loaded civilians the creator is whichever node loads them | ⛔ searched §5a, none found — ⇒ **M-3 below** |
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B3-a the call | `EntityAffiliation.Set` over `EcsPatchContext.Create` | a `SetForce` that calls `SmartEgressUtil.MarkDirty(dtEntityInfo)`: FDP code naming a NED ordinal (Q59-E undid exactly that) · a bare `SetComponent`: AX-015 |
+| B3-b not the owner | return `NotOwner`; the caller (the behaviour) may retry through the existing `UpdateEntityAttributeRequest` (`{"Affiliation": "Hostile"}`), which the owner applies (`UpdateEntityAttributeRequestSystem`) | a new cross-node "flip" message: the attribute request already routes to the owner and acks |
+| B3-c rail | two-node rail: CGF flips, SimHost's `EntityInfo.ForceId` reads Hostile within one publish; red-proof by skipping `FlushDirtyMarks` | — |
+
+**M-3 (measure before CIV-4):** which node creates a scenario-loaded civilian, and therefore owns its `EntityInfo`? If it is
+not CGF, B3-b's request path is the normal case, not the fallback.
+
+### 7.2 B-2 — the civilian catalogue *(CV-1)*
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianTkbCatalog { <<NEW, Hrot.Core.Tkb>> RegisterAll(tkb) }
+  class SecurityForceTkbCatalog { <<NEW, same file or sibling>> shield, baton, launcher men }
+  class HrotEnvironment { <<existing>> RegisterBuiltInTkb — one line each }
+  class UrbanCombatTkbCatalog { <<existing>> 1001 CivilianPedestrian, 1003 CivilianChild REMOVED; 1002 CivilianCar KEPT }
+  class EntityClassTable { <<existing>> +Civilian 3.1.*.2 (HROT) +SecurityForce 3.1.*.3 (HROT) }
+  class TkbTemplate { <<existing>> }
+  class BehaviorProfileDto { <<existing>> BrainTier Hsm, DefaultBehaviorHash CivilianHsm }
+  class CombatPlatformDefDto { <<existing>> Health }
+  class InjuryDefDto { <<existing>> }
+  class BodyZonesDto { <<existing, HL-12>> }
+  class CharacterAnimationDefDto { <<existing>> stand crouch prone }
+  class CarrierDefDto { <<existing>> PersonCarrier }
+  class SensorCapabilitiesDto { <<existing>> hearing 100, vision 30 Low band }
+  HrotEnvironment --> CivilianTkbCatalog
+  HrotEnvironment --> SecurityForceTkbCatalog
+  CivilianTkbCatalog --> TkbTemplate : Adult m/f, Child, Elderly
+  TkbTemplate --> BehaviorProfileDto
+  TkbTemplate --> CombatPlatformDefDto
+  TkbTemplate --> InjuryDefDto
+  TkbTemplate --> BodyZonesDto
+  TkbTemplate --> CharacterAnimationDefDto
+  TkbTemplate --> CarrierDefDto
+  TkbTemplate --> SensorCapabilitiesDto
+  CivilianTkbCatalog ..> EntityClassTable : DIS category 2 ⇒ Civilian
+  SecurityForceTkbCatalog ..> EntityClassTable : DIS category 3 ⇒ SecurityForce
+```
+*What the picture shows that prose hid:* the class a type falls into is decided by its DIS mask, not by a name — so the
+new catalogue must give each type a DIS category the table's new rows match, or the picker, the 3-D model and the
+behaviour lookup (R-280) silently disagree.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| B2-a ids | NEW block **1101–1104** (Adult m, Adult f, Child, Elderly) and **1201–1203** (security: shield, baton, launcher); 1001/1003 retired, never reused — measured free: the TKB id constants in 1000–1299 are only 1001–1003 | reuse 1001: live scenarios change meaning under them |
+| B2-b DIS | Kind 3, Domain 1, Category **2** = Civilian (HROT), **3** = SecurityForce (HROT); ⚠ SISO-REF-010's own life-form category numbers not checked — "(HROT)" marks them ours, as `Infantry (HROT)` 3.1.*.1 already is | category 0 (today's civilians): falls only under `LandPerson`, no class of its own |
+| B2-c migration | the 4 scenarios, ~9 tests and map keys 501–505 re-pointed in the same commit; a rail that no scenario/test names 1001/1003 outside HISTORY | a compatibility alias 1001→1101: two ids for one thing |
+| B2-d the HSM name | `DefaultBehaviorHash` = the hash of `CivilianHsm`, which the behaviors lane registers (`CE-2235`); until then the type loads with no behaviour (Tier HSM, nothing bound) | waiting on CE-2235: blocks the perf gate B-4 needs |
+
+⏳ **B-1, B-4, B-5** follow in the next pass (B-1 before B-5, per the handoff).
