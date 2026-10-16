@@ -1856,7 +1856,8 @@ def run_rpg_window(c, timeout):
 
 
 # ── ua-weapon-systems (Weapon Systems §10, WS-6) — a sentry gun holds a gate, a soldier sets up an M2, a soldier picks up a Javelin ─────
-#   basic-desert, three vignettes on one field. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 250 m:
+#   basic-desert (x, y 0…600 — ⚠ y −4 is off the map: an M2 at y 0 put its boarding point there and every walk to it failed
+#   FailedUnreachable), three vignettes south of the y 210 ridge. ① "Sentry Gun" (608, automatic) on WeaponSystemHold; an "Intruder" walks at it from 90 m:
 #   the gun fires on its own and hurts him. ② "M2 Gunner" on SetUpWeapon with a STOWED "M2 HMG" 8 m off: he walks to it, takes its
 #   Gunner seat, and it is Deployed (DeploySeconds 20). ③ "Javelin Man" on CarryWeapon with a stowed "Javelin" 8 m off: he carries it.
 def run_weapon_systems(c, timeout):
