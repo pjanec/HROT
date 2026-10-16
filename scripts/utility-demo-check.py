@@ -1760,6 +1760,50 @@ def run_technical_scoot(c, timeout):
     print(f"    health: tank {health(tank)} · ATGM technical {health(atgm)} · HMG technical {health(hmg)}")
 
 
+# ── ua-rpg-window (Urban Armour V6; Exposure Cycle §7 — the AT side is a composition, no new node) — an RPG ambush from a window ──────
+#   bt-range: an IFV (Bradley, 80 mm side) on BasicVehicleSop in the street south of House A, 23 m off; an RPG man (Insurgent 2003) at
+#   House A's upper window on WindowDuel shape A (PeekAndFire: prone under the sill, up to fire, another window after a few exposures),
+#   knowing where the IFV is. ① the RPG fires at the IFV and hurts it · ② it fires from two windows (≥ 3 m apart) · ③ the IFV fires back.
+def run_rpg_window(c, timeout):
+    ids = ids_by_name()
+    ifv, rpg = ids.get("IFV"), ids.get("RPG Man")
+    if not c.ok(None not in (ifv, rpg), "the IFV and the RPG man are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    shots, track = {}, []
+    end = time.time() + timeout + 60
+    while time.time() < end:
+        for x in _if_shots_all():
+            shots[x.get("seq")] = x
+        pt = position(rpg)
+        if pt:
+            track.append(tuple(round(v, 1) for v in pt[:3]))
+        if _dead(ifv) or _dead(rpg):
+            break
+        time.sleep(1.0)
+    name = {v: k for k, v in ids.items()}
+    xs = sorted(shots.values(), key=lambda x: x.get("seq") or 0)
+    print("    shots by shooter:", dict(__import__("collections").Counter(name.get(x.get("shooter"), x.get("shooter")) for x in xs)))
+    mine = [x for x in xs if x.get("shooter") == rpg]
+    for x in mine[:6]:
+        print("      RPG", {k: x.get(k) for k in ("muzzle", "outcome", "hitFace", "penetration")})
+    stops = []
+    for q in track:
+        if not stops or sum((a - b) ** 2 for a, b in zip(q, stops[-1])) ** 0.5 > 1.5:
+            stops.append(q)
+    print(f"    RPG man path (1.5 m steps): {stops[:20]}")
+    pts = []
+    for x in mine:
+        m = x.get("muzzle")
+        if m and all(((m[0] - q[0]) ** 2 + (m[1] - q[1]) ** 2) ** 0.5 > 3 for q in pts):
+            pts.append((round(m[0], 1), round(m[1], 1)))
+    c.ok(len(mine) >= 1 and _hurt(ifv, 50), f"① the RPG fires at the IFV and hurts it — {len(mine)} rocket(s), IFV health {health(ifv)}")
+    c.ok(len(pts) >= 2, f"② the RPG fires from two windows — {pts}")
+    back = [x for x in xs if x.get("shooter") == ifv]
+    c.ok(len(back) >= 1, f"③ the IFV fires back — {len(back)} round(s), at {sorted({name.get(x.get('target'), x.get('target')) for x in back}, key=str)}")
+    print(f"    health: IFV {health(ifv)} · RPG man {health(rpg)}")
+
+
 # ── ua-tank-ammo (Urban Armour V7; Missiles & Ammo M8 — the weapon brain picks the round by the target) ────────────────────────────
 #   basic-desert: one M1 (APFSDS / HEAT-MP / HE loadout) on BasicVehicleSop, north of the ridge (⚠ south of it, at y 80, the crest at
 #   y 210 hid every target and it never fired), against an enemy T-72 (240 m), an HMG technical (230 m) and two riflemen (230 m,
@@ -2242,6 +2286,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-tank-corner": run_tank_corner,
              "ua-javelin-lock": run_javelin_lock,
              "ua-technical-scoot": run_technical_scoot,
+             "ua-rpg-window": run_rpg_window,
              "ua-ifv-standoff": run_ifv_standoff,
              "ua-tank-ammo": run_tank_ammo,
              # ⭐ CE-2176 IF-4 — mortars, artillery and the forward observer (Indirect Fire §6)
