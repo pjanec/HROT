@@ -1080,7 +1080,7 @@ raising the door / embark commands itself* — it would skip the executors' reac
 target* — takes the body away from the operator · *a driver / gunner split now* — crew is abstract by design (B5) · *the brain moving
 possession on boarding* — the soldier and the vehicle may live on two brain nodes.
 
-### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs [backend](blueprints/batches/HANDOFF_Use_Key_To_Backend.md) · [behaviors](blueprints/batches/HANDOFF_Use_Key_To_Behaviors.md))
+### 8h.4 Items — one per lane-sized piece (`2026-10-16`; handoffs [backend](blueprints/batches/HANDOFF_Use_Key_To_Backend.md) · [behaviors](blueprints/batches/HANDOFF_Use_Key_To_Behaviors.md) · [ui](blueprints/batches/HANDOFF_Use_Key_To_UI.md))
 
 | id | slice | builds | lane | needs |
 |---|---|---|---|---|
