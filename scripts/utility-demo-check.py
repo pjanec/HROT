@@ -2169,6 +2169,41 @@ def run_eject(c, timeout):
     c.ok(pp2 is not None and flat(pp, pp2) < 2.0, f"④ ★ and stays down — moved {flat(pp, pp2) if pp2 else None} m in 6 s; behaviour {(st.get('behavior') or {}).get('name')}, stance {st.get('stance')}")
 
 
+def run_drone_shelter(c, timeout):
+    """⭐ ua-drone-shelter (Urban Armour §8; Air Ops §9i Dive; Exposure Cycle §8 ShelterFromAir) — two FPV drones on two M1s: the tank by
+    the garage deck hears the rotors and backs under it, so its drone's dive meets the slab; the tank in the open is hit from above."""
+    ids = ids_by_name()
+    deck_tank, open_tank = ids.get("Tank by the deck"), ids.get("Tank in the open")
+    drone_a, drone_b = ids.get("Drone A"), ids.get("Drone B")
+    if not c.ok(None not in (deck_tank, open_tank, drone_a, drone_b), "the two tanks and the two drones are loaded"):
+        return
+    h0 = {t: health(t) for t in (deck_tank, open_tank)}
+    call("POST", "/sim/play", {})
+    timeline, next_sample, under_at = [], 0.0, None
+    end = time.time() + timeout + 60
+    while time.time() < end:
+        t = sim_time() or 0.0
+        pa = position(deck_tank)
+        if under_at is None and pa and 240 < pa[0] < 290 and 40 < pa[1] < 80:
+            under_at = t
+        if time.time() >= next_sample:
+            next_sample = time.time() + 1.0
+            timeline.append((round(t, 1), *[tuple(round(v) for v in position(e)) if position(e) else None for e in (drone_a, deck_tank, drone_b, open_tank)],
+                             health(deck_tank), health(open_tank)))
+        if (health(drone_a) or 0) <= 0 and (health(drone_b) or 0) <= 0:
+            time.sleep(2)
+            break
+        time.sleep(0.25)
+    for row in timeline[:80]:
+        print("      drone @", row)
+    pa = position(deck_tank)
+    c.ok(under_at is not None, f"① the tank by the deck backs under it (x 240–290, y 40–80) — at {under_at}, now {pa}")
+    c.ok((health(drone_a) or 0) <= 0, f"① its drone is spent — health {health(drone_a)}")
+    c.ok((health(deck_tank) or 0) >= (h0[deck_tank] or 0) * 0.9, f"① ★ the deck took the warhead — the tank {h0[deck_tank]} → {health(deck_tank)}")
+    c.ok((health(drone_b) or 0) <= 0, f"② the drone on the tank in the open is spent — health {health(drone_b)}")
+    c.ok((health(open_tank) or 0) < (h0[open_tank] or 0), f"② ★ the tank in the open is hit from above — {h0[open_tank]} → {health(open_tank)}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
@@ -2208,7 +2243,7 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "ua-eject": run_eject}
+             "ua-eject": run_eject, "ua-drone-shelter": run_drone_shelter}
 
 
 def main():

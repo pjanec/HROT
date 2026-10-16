@@ -1,0 +1,139 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "a2220000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9101
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank by the deck",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2220000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          520,
+          60
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9102
+      },
+      "TkbIdentity": {
+        "TkbType": 403
+      },
+      "EntityInfo": {
+        "Name": "Drone A",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": "{\"Target\":9101}",
+        "Origin": "Superior"
+      }
+    },
+    "a2220000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          150,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9103
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank in the open",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": "{}",
+        "Origin": "Superior"
+      }
+    },
+    "a2220000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          150,
+          520,
+          60
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "NetworkIdentity": {
+        "Value": 9104
+      },
+      "TkbIdentity": {
+        "TkbType": 403
+      },
+      "EntityInfo": {
+        "Name": "Drone B",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": "{\"Target\":9103}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}
