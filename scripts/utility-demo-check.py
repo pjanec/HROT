@@ -1718,7 +1718,7 @@ def run_technical_scoot(c, timeout):
     if not c.ok(None not in (tank, atgm, hmg), "the tank and both technicals are loaded"):
         return
     call("POST", "/sim/play", {})
-    shots, track = {}, {atgm: [], hmg: []}
+    shots, track, tick = {}, {atgm: [], hmg: []}, 0
     end = time.time() + timeout + 150
     while time.time() < end:
         for x in _if_shots_all():
@@ -1727,6 +1727,16 @@ def run_technical_scoot(c, timeout):
             pt = position(t)
             if pt:
                 track[t].append(tuple(round(v) for v in pt[:2]))
+        tick += 1
+        if tick % 10 == 0:   # what the ATGM technical's sensors answer and why its weapon holds, every ~10 s
+            st = ((data(call("GET", f"/entities/{atgm}/weapons")) or {}).get("status") or {})
+            md = data(call("GET", f"/entities/{atgm}/memory")) or {}
+            print(f"      ATGM @{tick}s at {track[atgm][-1] if track[atgm] else None} weapon {st.get('reason')} {st.get('progress')}/{st.get('needed')}"
+                  f" knows {[(m.get('entity'), m.get('sees')) for m in (md.get('entries') or [])][:3]}")
+            for sn in (data(call("GET", f"/entities/{atgm}/sensors")) or {}).get("sensors") or []:
+                ans = sn.get("answer") or {}
+                print("        sensor", {k: sn.get(k) for k in ("kind", "template", "status")},
+                      {k: (v if not isinstance(v, list) else v[:3]) for k, v in ans.items()} if isinstance(ans, dict) else ans)
         if _dead(atgm) and _dead(hmg):
             break
         time.sleep(1.0)
