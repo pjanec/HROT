@@ -48,6 +48,10 @@ namespace Fhsm.Compiler
 
             // 4. Flatten regions
             result.Regions = FlattenRegions(graph);
+
+            // 4b. ⭐ CE-1005 — each state's owning region slot, in the SAME order FlattenRegions numbers the slots, so the kernel can
+            //     exit and enter by slot (a transition into a parallel state starts every region; leaving one exits every region).
+            AssignRegionSlots(graph, result.States);
             
             // 5. Separate global transitions
             result.GlobalTransitions = FlattenGlobalTransitions(graph, actionTable, guardTable);
@@ -363,14 +367,45 @@ namespace Fhsm.Compiler
         /// region holding a sequence (Worker → Done) into one region per state, all running at once.
         /// </summary>
         internal static IEnumerable<StateNode> RegionInitials(StateNode parallel)
+            => RegionGroups(parallel).Select(region => region.FirstOrDefault(c => c.IsInitial) ?? region[0]);
+
+        /// <summary>A parallel state's regions, each as its member children, in slot order: the declared regions by index, then
+        /// one region per child that declares none. ⭐ The one grouping — <see cref="RegionInitials"/> and the slot numbering
+        /// (<see cref="AssignRegionSlots"/>) both read it, so a state's slot and its region's initial cannot disagree.</summary>
+        internal static IEnumerable<IReadOnlyList<StateNode>> RegionGroups(StateNode parallel)
         {
             var declared = parallel.Children.Where(c => c.RegionIndex.HasValue)
                                             .GroupBy(c => c.RegionIndex!.Value)
                                             .OrderBy(g => g.Key);
             foreach (var region in declared)
-                yield return region.FirstOrDefault(c => c.IsInitial) ?? region.First();
+                yield return region.ToList();
             foreach (var single in parallel.Children.Where(c => !c.RegionIndex.HasValue))
-                yield return single;
+                yield return new[] { single };
+        }
+
+        /// <summary>⭐ CE-1005 — <see cref="StateDef.RegionSlot"/>: slot 0 is the root region; each parallel state's regions take the
+        /// next slots in FlatIndex order (exactly <see cref="FlattenRegions"/>'s order). A state belongs to the region of its nearest
+        /// ancestor-or-self that is a member of one; a state under no parallel state is slot 0.</summary>
+        private static void AssignRegionSlots(StateMachineGraph graph, StateDef[] states)
+        {
+            var slotOfMember = new Dictionary<StateNode, int>();
+            int slot = graph.RootState != null ? 1 : 0;
+            foreach (var pState in graph.States.Values.Where(s => s.IsParallel).OrderBy(s => s.FlatIndex))
+                foreach (var region in RegionGroups(pState))
+                {
+                    foreach (var member in region) slotOfMember[member] = slot;
+                    slot++;
+                }
+
+            foreach (var node in graph.States.Values)
+            {
+                int owner = 0;
+                for (var n = node; n != null; n = n.Parent)
+                    if (slotOfMember.TryGetValue(n, out owner)) break;
+                if (owner > byte.MaxValue)
+                    throw new InvalidOperationException($"State '{node.Name}' is in region slot {owner}; a machine may have at most 255 region slots.");
+                states[node.FlatIndex].RegionSlot = (byte)owner;
+            }
         }
 
         private static RegionDef[] FlattenRegions(StateMachineGraph graph)
