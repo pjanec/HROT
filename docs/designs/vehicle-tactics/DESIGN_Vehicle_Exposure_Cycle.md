@@ -373,6 +373,14 @@ curving after the reversing tank, the tank turning, or the body-part face).
 ⇒ Next step, not taken: print the technicals' firing-point sensor answers (as `ua-javelin-lock` does) and place each hide one block-corner
 from a line of sight, beyond the Kornet's minimum.
 
+⏸ **Update `2026-10-16` (behaviors, after CE-2224…CE-2228) — the ATGM half works; the HMG half is open:**
+
+| run | what happened | where it went |
+|---|---|---|
+| 4 | the ATGM technical moved to **(185, 295)** — its line to the tank at (200, 120) runs down the street gap (x 170–230), ~176 m, past the Kornet's 100 m | ✅ it fires; the tank's first round goes at it (②); in one run it scooted, in the next the tank killed it (hull, gunner and Kornet at 0 HP) ~2 s after its first missile |
+| 4 | the check's ① required the ATGM technical to drive ≥ 5 m after its shot | ⭐ checker: a technical the tank kills after its shot has done its part — the row above names that ending |
+| 4–7 | ⛔ the HMG technical drives to (285, 230) by 30 s and stays there 100 s, its weapon `Aiming` with no sight (progress 0 / needed 0), never out to a firing point. It shot from (263, 226) when the ATGM technical was still hidden | ⏳ **open**: the HMG's phase is not on the debug API; lean: the tank now turns north to the ATGM first and the HMG's `ToMe` budget never clears — measure the node state next |
+
 ⭐ **`ua-tank-ammo` PASS 2 / 2 — but the soft targets survive** (`2026-10-16`): an M1 north of the ridge against an idle T-72, an HMG technical and two
 advancing riflemen. The weapon brain picks the round by the target (M8): APFSDS (650) at the T-72 (3 / 3 hits, killed); HE / HEAT (50 / 600) at the
 technical and the men. ⛔ Those rounds fly through a soft body and burst 230 m beyond it — **CE-2203** (backend). One of the M1's own rounds hit
