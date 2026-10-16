@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-16
 build-state: BUILDING — B-1…B-4 BUILT 2026-10-16 (as-built §7a), B-5 BUILT but the scenario wind (§7b D-13, open), B-6 BUILT (§7c), B-7…B-9 BUILT (§7d) — §3 APPROVED 2026-10-15 (R-1003); slice 3 DESIGN
-current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
+current-answer: §1 the diagrams, §3 the decisions (approved), §5 the descent models, §6.1–§6.6 the drills' design (H-1/H-3, behaviors), §7 the slices per lane, §7a the as-built of B-1…B-4 and §7b of B-5 (win over §1/§5 where they differ), §8 the three demos, §9 hit by part during a descent.
 stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Map_3D_Mode.md §6m C-4 rejects "a jump in the simulation" — this design keeps that for a short hop (≤ 3 m) and
@@ -268,6 +268,176 @@ incapacitates (the existing injury path).
 | **release point** (pure helper) | where along the DZ leg to start the stick: upwind of P by the drift during descent (round: w, height, `Wind`; ram-air: within glide reach) | `Wind` (D-6) |
 | **`ParachuteDescent`** (individual) | writes the landing point as his `NavigationIntent`; nothing else — the model steers | `NavigationIntent` (Autonomous) |
 | **`AssembleAfterDrop`** (squad) | rally at the assembly point (the order's, else the DZ centre); the leader counts heads; the squad resumes its mission | group machinery (orders, formation) |
+
+⚠ The table above is the approved sketch (R-1003). §6.1–§6.6 below is the design detail (H-1, H-3 — behaviors, `2026-10-16`) and wins where
+they differ: ⛔ the `ParachuteDescent` row is SUPERSEDED by D-18 (the landing point rides the exit decision).
+
+### 6.0 INVENTORY (codebase-memory CLI, re-indexed `2026-10-16`; + grep)
+
+| query | total | what it found that this design builds on |
+|---|---|---|
+| `search_graph name_pattern=.*Descent.*` | 65 | `Descent` (+ `Target`, replicated by `EntityDescent` — `TargetX/Y/Z`), `DescentRules` (`DoorPoint`, `HighestSurface`, `TryAnchor`), `Descents.Start`, `DescentLandingSystem`, `ReleasePoint` (in `DescentModels.cs`) |
+| `.*AirHold.*` | 3 | `AirHolds` — `CarrierOf`, `AnyOnRopes`, `ShouldRelease` (the Rope hold waits for the last man `Landed`) |
+| `.*Dismount.*` | 33 | `SquadDismountPlay : ISquadPlay`, `SquadDismountManeuver` (kind 10), `SquadManeuverRunner.Dismount`, `SquadSopConditions.CarrierUnloading` |
+| `.*Eject.*` | 69 | `BehaviorConstants.ActionIdEject` (11), `EjectionDto`, the report's `EjectExecutor`; `ActionIdEjectPassengers` (unrelated) |
+| `.*Parachut.*` | 13 | `ParachuteModel` (`Of`, `Defaults`), `ParachuteDto`, `LocomotionClass.Parachute`, `NedTkbBuilder.WithParachute` |
+| `^NavigationIntent$`, `^LocomotionMoveTo$`, `^DisembarkExecutor$`, `^DisembarkNodeParams$` | 2 / 1 / 1 / 1 | the move path a jumper's landing point might have taken (D-18 rejects it), and the exit path it takes instead |
+| grep `Descent` in `Fdp.Toolkits/Navigation/` | **0** | ⛔ no ground-navigation system skips a descent — `NavigationIntentBridgeSystem` registers any `PathToPoint` with the infantry crowd (D-18) |
+| grep `DefaultBehaviorHash =` / `DefaultSop =` in production | **0 / 0** | ⚠ a SPAWNED unit's first behaviour from its type is plumbed (`BehaviorTkbTranslator`) but used by no type yet (D-23) |
+| `ManeuverKind = ` in `Squad/Maneuvers` | 14 | kinds 1…14 taken ⇒ the new drills take **15, 16, 17** |
+
+### 6.1 Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class SquadManeuverRunner { <<existing>> Tick Issue Dismount(order) CHANGED }
+    class ISquadPlay { <<existing seam>> Start Update Outcome OrderFor }
+    class MemberOrder { <<existing>> Kind Point +Exit +AnchorIndex NEW }
+    class MemberOrderKind { <<existing>> Hold..FireAtPoint=7 +Stay=8 NEW }
+    class SquadFastRopePlay { <<NEW kind 15>> Roping, Securing }
+    class SquadAirborneExitPlay { <<NEW kind 16, the jumpmaster>> Jumping, Assembling }
+    class AssembleAfterDropPlay { <<NEW kind 17>> Assembling }
+    class AirborneDrill { <<NEW static>> RopeCount NextOnRope Leg StickPoints RingSpot Landed }
+    class SquadSopConditions { <<existing>> CarrierUnloading +CarrierRoping +CarrierDropping NEW }
+    class BasicSquadSop { <<existing asset>> +2 rows NEW }
+    class DisembarkBehavior { <<existing>> Params NoParams to DisembarkParamsJsonDto CHANGED }
+    class DisembarkNodeParams { <<existing>> Started +Exit +AnchorIndex +Landing NEW }
+    class DisembarkParams { <<NEW Toolkits, the channel's params>> Exit AnchorIndex Landing }
+    class DisembarkExecutor { <<existing>> reads DisembarkParams CHANGED }
+    class DisembarkEntityCommand { <<existing>> Exit AnchorIndex +Target NEW }
+    class StartDescentCommand { <<existing>> Exit AnchorIndex +Target NEW }
+    class Embarkation { <<existing>> Disembark(+target) ExitIntoDescent(+target) }
+    class Descents { <<existing>> Start(+target) writes Descent.Target }
+    class ReleasePoint { <<existing>> For(point, height, chute, wind, v) }
+    class AirHolds { <<existing>> CarrierOf AnyOnRopes }
+    class EjectBehavior { <<NEW library, aircraft>> Eject node, action 11 }
+    class EvadeAndSignalBehavior { <<NEW library, person>> wait Descent gone, away, cover, prone, hold }
+    SquadFastRopePlay ..|> ISquadPlay
+    SquadAirborneExitPlay ..|> ISquadPlay
+    AssembleAfterDropPlay ..|> ISquadPlay
+    SquadFastRopePlay ..> AirborneDrill
+    SquadAirborneExitPlay ..> AirborneDrill
+    AssembleAfterDropPlay ..> AirborneDrill
+    AirborneDrill ..> ReleasePoint
+    AirborneDrill ..> AirHolds
+    SquadManeuverRunner ..> MemberOrder
+    SquadManeuverRunner ..> DisembarkBehavior : Disembark with exit, anchor, landing
+    DisembarkBehavior ..> DisembarkNodeParams
+    DisembarkNodeParams ..> DisembarkParams : written into channel.Params
+    DisembarkExecutor ..> DisembarkParams : reads
+    DisembarkExecutor ..> DisembarkEntityCommand : raises
+    DisembarkEntityCommand ..> Embarkation : the carrier's owner applies
+    Embarkation ..> StartDescentCommand : another node owns his position
+    Embarkation ..> Descents
+    Descents ..> Descent : Target = the landing point
+    BasicSquadSop ..> SquadSopConditions
+```
+
+*Caption:* what the picture shows that the §6 table hid — the jumper's landing point has **one writer, set once, at the jumpmaster's
+decision**, and it rides the SAME path the exit kind already rides (order → `Disembark` → channel params → command → `Descents.Start`), so
+the Muscle that owns his position writes `Descent.Target`. Every NEW field is APPENDED (R-169). No new system: three plays over the
+existing runner and one helper class.
+
+### 6.2 Who runs it each frame
+
+```mermaid
+graph TD
+    subgraph Brain - the squad leader's node
+      SOP[BasicSquadSop rows NEW<br/>CarrierRoping / CarrierDropping] -->|React, Contact| FR[SquadFastRope]
+      SOP -->|React, Contact| AE[SquadAirborneExit]
+      FR --> RUN[SquadManeuverRunner.Tick<br/>BrainTickSystem]
+      AE --> RUN
+      AS[AssembleAfterDrop<br/>a mission task] --> RUN
+      RUN -->|Disembark exit + anchor + landing| MAN[the man's Disembark<br/>DisembarkExecutor]
+      RUN -->|Watch at his spot| CP[the man's CombatPosture]
+    end
+    subgraph Brain - the carrier's node
+      CNode[CgfNodes route node] --> AH[AirHolds.ShouldRelease<br/>existing]
+    end
+    subgraph Muscle - the carrier's owner and the man's
+      MAN -.DisembarkEntityCommand + Target.-> ES[EmbarkationSystem]
+      ES --> DS[Descents.Start<br/>Descent.Target]
+      DS --> AMS[AirMotionSystem<br/>RopeSlide / Parachute]
+    end
+    subgraph Brain - the pilot's node
+      EJ[Eject, a mission task on the jet] -->|action 11| EX[EjectExecutor existing]
+      EV[EvadeAndSignal<br/>the pilot type's default] --> MV[LocomotionMoveTo / EQS]
+    end
+```
+
+*Caption:* every drill is ticked by the existing `BrainTickSystem` through `SquadManeuverRunner.Tick` — no new system; the only
+cross-node edge is the existing interaction transport. ⚠ The pilot is SPAWNED, so nothing scenario-authored gives him a behaviour — his
+TYPE must (D-23).
+
+### 6.3 The fast rope
+
+```mermaid
+sequenceDiagram
+    participant H as UH-60 (Rope hold)
+    participant L as squad leader (SquadFastRope)
+    participant M as man k (Disembark)
+    participant E as EmbarkationSystem / RopeSlideModel
+    H->>H: phase Roping (12 m above the roof)
+    L->>L: SOP row CarrierRoping: React SquadFastRope
+    loop every tick (Update)
+      L->>L: per rope r: is its last man 3 m down, Landed or gone? then the next aboard man on r
+      L->>M: Disembark(exit RopeDown, anchor r)  [re-issue]
+      M->>E: DisembarkEntityCommand(RopeDown, r)
+      E->>E: Descent FastRope: Exit, Grip, Slide, Brake, Landed, removed after 1 s
+      L->>L: a man whose Descent is gone: Watch at his RingSpot on the roof  [re-issue]
+    end
+    L->>L: nobody aboard, nobody on a rope, everyone at his spot: Success, the task resumes
+    H->>H: AirHolds.ShouldRelease: nobody aboard nor on a rope: the hold ends
+```
+
+### 6.4 The stick
+
+```mermaid
+sequenceDiagram
+    participant H as UH-60 (Drop leg)
+    participant J as jumpmaster (SquadAirborneExit)
+    participant M as man i (Disembark)
+    participant P as ParachuteModel (his Muscle)
+    H->>H: past the Drop waypoint W0: phase Dropping, toward W1
+    J->>J: first tick: the leg W0 to W1 at the carrier's speed v, P_i = W0 + track (s0 + i v 1 s), s0 puts R_0 on the leg
+    loop Jumping
+      J->>J: the carrier past R_i = ReleasePoint.For(P_i) and 1 s since the last man
+      J->>M: Disembark(exit JumpOut, door i mod 2, landing P_i)
+      M->>P: Descent{StaticLine or FreeFall, Target P_i}
+    end
+    J->>J: nobody aboard: phase Assembling
+    loop Assembling
+      P->>P: canopy, slips / glides to P_i, Landed, harness off, Descent removed
+      J->>M: a man whose Descent is gone: Watch at his RingSpot round the rally point
+    end
+    J->>J: everyone within 5 m of his spot (or 300 s): Success
+```
+
+### 6.5 Decisions (behaviors, `2026-10-16`)
+
+| # | decision | lean (built) | rejected — one line each |
+|---|---|---|---|
+| **D-18** | how a jumper's landing point reaches his parachute | **on the exit decision**: `MemberOrder.Point` → `DisembarkParamsJsonDto.Landing` → `DisembarkParams` → `DisembarkEntityCommand.Target` → `StartDescentCommand.Target` → `Descents.Start` writes `Descent.Target` (replicated) | `ParachuteDescent` writing `NavigationIntent` — a `PathToPoint` on a man in the air is registered with the infantry crowd (`NavigationIntentBridgeSystem`, no Descent filter, §6.0) · the Brain writing `Descent.Target` — it is Muscle state (B-4) |
+| **D-19** | pacing (the next man on a rope; one jumper per second) | the play's PARAMS hold per-member state (`fixed` arrays — the `BatteryFireParams` precedent); `Update` sets `Reissue` when a man's turn comes or he lands; a man waiting aboard or coming down gets **`MemberOrderKind.Stay`** (nothing is published — he keeps what he does) | a CombatPosture for a man aboard / on a rope — it would pull him out of his ride and is meaningless in the air · one Disembark to every man at once (SquadDismount) — no pacing |
+| **D-20** | the security ring on a roof | `AirborneDrill.RingSpot(centre, k, n)`: radius 5 m, shrunk to 3 m then 1.5 m until `HighestSurface` at the spot AND at the midpoint is the centre's surface ± 0.5 m (a man is never sent off the ledge — CE-3145); a spot that never fits is the centre | the dismount column (`DismountPoint`) — beside a hull, not on a roof · an EQS query — one per man, slower, and the roof test is the whole requirement |
+| **D-21** | where the stick lands | the DZ is the Drop LEG as B-3 built it (the Drop waypoint W0 to the next waypoint W1; no W1 ⇒ the carrier's heading): landing points one second of flight apart along it, the first placed so its release point is already on the leg; a free-fall team (ram-air) lands in a 5 m ring round the leg's first point instead | an authored DZ point on the order — the SOP's React row carries no params, and the route already says where the leg is |
+| **D-22** | `AssembleAfterDrop` | the LAST PHASE of both drills (one helper, `RingSpot` round the rally point = the stick's middle landing point / the rope point) AND a standalone squad behaviour (kind 17, a mission task: the rally point as its param) | a third SOP row — "landed and not yet assembled" has no squad edge to key on |
+| **D-23** | how the spawned pilot gets `EvadeAndSignal` | the pilot TYPE (206)'s behaviour profile names it — whichever of `DefaultSop` / `DefaultBehaviorHash` the ingress honours on a SPAWNED entity (⛔ unmeasured — both are plumbed, neither is used yet; measured at build) | an SOP row in the infantry `BasicSop` — every soldier would carry a pilot's drill |
+| **D-24** | `Eject` | a library behaviour for an AIRCRAFT: one node starting interaction action 11 (`EjectExecutor`) and forwarding its answer; the timer is the mission's (`TimerElapsed` on the task) | the node raising `EjectRequestEvent` itself — the executor already does, on the Brain (backend D-14) |
+| **D-25** | `EvadeAndSignal` | waits while he has a `Descent` (and the harness time); then a point 120 m from the nearest REMEMBERED live enemy (straight away from him; none ⇒ where he is) through the plain move, then `FindSafeRetreatPoint` (existing, hidden from every known threat) round it, then prone and hold (Running for ever). The beacon / rescue stays Air Ops §4c / §9 | a new EQS template — the existing retreat template already hides from every known threat |
+
+### 6.6 The rails (★ = the handoff's acceptance)
+
+| rail | proves |
+|---|---|
+| ★ `SquadFastRope`: 8 men, 2 ropes — never two on one rope closer than 3 m, all Landed ≤ 15 s, each at a distinct ring spot ON the roof | H-1 rope |
+| `RingSpot` on a 10 × 10 m roof never lands off it; on open ground it is the 5 m ring | D-20 |
+| ★ `SquadAirborneExit`: a stick of 8 from 400 m — one per second, alternate doors, each `Descent.Target` = his point along the leg, then assembled | H-1 stick |
+| the exit plumbing: `Disembark{JumpOut, door 1, landing P}` ⇒ `DisembarkEntityCommand.Target = P` ⇒ `Descent.Target = P` (one node and across the transport's codecs) | D-18 |
+| `CarrierRoping` / `CarrierDropping` true only for a member aboard a carrier in that phase | the SOP rows |
+| ★ `EvadeAndSignal`: the landed pilot ends ≥ 100 m from the nearest known enemy, prone, still Running | H-3 |
+| `Eject` starts action 11 once and answers Success when the executor does | H-3 |
 
 ## 7. Slices
 
