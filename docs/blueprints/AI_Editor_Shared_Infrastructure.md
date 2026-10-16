@@ -973,6 +973,118 @@ and calls this resolver per reference. ⛔ The WALK is subsystem-specific and st
 DECISION is shared. 📄 `BTree_Editor_NodeEditor_Host_Design.md` and
 `HSM_Editor_NodeEditor_Host_Design.md` own their walkers.
 
+### 7.1b ⭐⭐ THE SEARCHABLE CHOICE FIELD — **every inspector choice opens the ONE picker** *(`CE-1008`, `2026-10-16`, ui)*
+
+> 🔒 **User (`2026-10-06`, CE-1008):** *"want the general picker window used for opening assets, with incremental search; the C# method
+> picker ideally as an FQN-segment tree."* · `docs/blueprints/NodeEdit/C-picker.md`: *"The picker is one widget … implemented once and
+> parameterized; do not write separate popups per use case."*
+
+📐 **INVENTORY, `2026-10-16`** *(codebase-memory CLI `search_graph` `.*Picker.*` Class — **114** symbols, paginated; grep on every combo;
+corpus sweep of `docs/` + `.dev/`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | today | where |
+|---|---|---|
+| the binding drawer (BTree + HSM): method · blueprint · variable · working state | ⛔ plain combos, no search | `ActionBindingDrawer.cs:159` (`Combo`, called :71/:81/:112/:124) |
+| HSM state · event · sync group | ⛔ plain combos | `HsmPickerDrawers.cs:70` (`HsmPickerHelper.RenderCombo`), `:161`, `:214` |
+| asset picker · SOP behaviour picker | ⛔ plain combos | `AiAssetPickerDrawer.cs:70`, `AiBehaviorPickerDrawer.cs:37` |
+| ⭐ the ONE searchable picker | `PickerWindow` — a floating window, search focused on open, fuzzy over `Category/Name` + keywords, Tree layout from `Category` split on `/`, favourites, recents; the pick comes back by CALLBACK, later | `NodeEditor.UI/Picker/PickerWindow.cs`, `PickerRegistry.OpenPicker` (`PickerRegistry.cs:85`) |
+| ⭐ a shell registry drawn every frame, on both authoring hosts | `_shellPickers` | `EditorSubsystem.cs:558`, `CgfSubsystem.cs:136` |
+| ⭐ precedent: a field that opens the picker and takes the pick on a later frame | the entity field's `List…` (`MapPickBroker`, keyed by JSON path) | `ComponentEditDrawer.cs:341-353`, `MapPickBroker.cs:56,95` |
+| the drawers' wiring | rebuilt per active document; the services record carries **no picker** | `AiFacetPickerBinder.cs:72`, `AiFacetPickerServices` |
+
+#### Classes
+
+```mermaid
+classDiagram
+    direction LR
+    class PickerRegistry { <<EXISTS NodeEditor.UI>> +OpenPicker(PickerRequest, Action~PickerResult~) }
+    class PickerWindow { <<EXISTS>> floating, incremental fuzzy search, Tree layout }
+    class PickerField { <<NEW AiShared/Inspector>> -opener -pending by EditNode + field id
+        +Draw(id, node, current, choices, out picked) bool }
+    class PickerChoice { <<NEW record>> Value, Label, Category, Keywords }
+    class PickerChoices { <<NEW static>> +Methods(fqns, label) · +Flat(values, label) }
+    class AiFacetPickerServices { <<EXISTS, grows>> +OpenPicker }
+    class AiFacetPickerBinder { <<EXISTS>> Rebuild(active, services) }
+    class BTreePickerDrawerFactory { <<EXISTS, grows>> BuildDrawers(..., openPicker) }
+    class HsmPickerDrawerFactory { <<EXISTS, grows>> BuildDrawers(..., openPicker) }
+    class ActionBindingDrawer { <<EXISTS>> method, blueprint, variable, working state }
+    class HsmPickerHelper { <<EXISTS>> state, event }
+    class AiAssetPickerDrawer { <<EXISTS>> }
+    class AiBehaviorPickerDrawer { <<EXISTS>> }
+    AiFacetPickerBinder --> BTreePickerDrawerFactory : services.OpenPicker
+    AiFacetPickerBinder --> HsmPickerDrawerFactory : services.OpenPicker
+    BTreePickerDrawerFactory ..> PickerField : one per document
+    HsmPickerDrawerFactory ..> PickerField : one per document
+    ActionBindingDrawer --> PickerField
+    HsmPickerHelper --> PickerField
+    AiAssetPickerDrawer --> PickerField
+    AiBehaviorPickerDrawer --> PickerField
+    PickerField ..> PickerChoices
+    PickerChoices ..> PickerChoice
+    PickerField --> PickerRegistry : opener
+    PickerRegistry --> PickerWindow
+```
+
+*What the picture shows that prose hid:* the only new type with behaviour is `PickerField`, and it hangs off what exists on both ends — the
+shell registry every host already draws, and the six drawers that already hold the lists. ⛔ No new window, no second search.
+
+#### Sequence — a pick lands on a LATER frame, on the node it was made for
+
+```mermaid
+sequenceDiagram
+    participant I as Inspector (DrawInput, every frame)
+    participant F as PickerField
+    participant R as PickerRegistry / PickerWindow
+    I->>F: Draw(field, node, current, choices)
+    F-->>I: a button showing the current label
+    Note over I,F: the user clicks it
+    F->>R: OpenPicker(request: entries + (none), initial = current, Tree when any has a category)
+    Note over R: the user types, the list narrows, the user picks
+    R-->>F: callback: pending[node, field] = value
+    I->>F: Draw(...) on the next frame
+    F-->>I: picked = value, changed (the drawer writes it as before)
+```
+
+*What the picture shows that prose hid:* the pick is CONSUMED by the drawer on its next frame, so every drawer's existing write path
+(`PickMethod`, `value = name`) is unchanged — and a pick is keyed by the `EditNode` object, which the `EditSession` keeps for one selection
+and replaces on the next, so a pick finished after the operator selected another node is dropped, never written to the wrong one.
+
+#### Modules — who calls it each frame
+
+```mermaid
+graph TD
+    EH[EditorSubsystem] -->|owns, DrawFrame each frame| SP[_shellPickers PickerRegistry]
+    CH[CgfSubsystem] -->|owns, DrawFrame each frame| SP2[_shellPickers PickerRegistry]
+    EH -->|on document activation| B[AiFacetPickerBinder.Rebuild]
+    CH -->|AfterRetarget| B
+    B -->|services.OpenPicker| BF[BTree / HSM drawer factories]
+    BF --> PF[PickerField, one per document]
+    INS[NodeProperties inspector, each frame] --> DR[the six drawers] --> PF
+    PF -->|OpenPicker| SP
+    classDef dead fill:#fdd,stroke:#c00
+    GAP[services carry no picker today: every field is a combo]:::dead
+    GAP -.-> B
+```
+
+*Caption:* both hosts already draw a shell picker registry every frame; the red box is the one missing edge.
+
+#### Decisions — leans
+
+| # | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **P-1** | ONE helper, `PickerField`, reusing `PickerWindow` through the host's shell `PickerRegistry` | an ImGui filter box inside the combo: a second picker widget (C-picker, ruling 9) · `AssetPickerModal`: a modal over the whole browser, assets only |
+| **P-2** | the pick is held by `(EditNode, field id)` and consumed on the drawer's next frame | key by JSON path (`MapPickBroker`): a pick finished after selecting another node lands on that node's same field |
+| **P-3** | no opener ⇒ today's combo (tests, lightweight hosts); both production hosts PASS it, checked by a forwarding rail on the constructed drawers (the silent-default rule) | make the opener required: every rail and test host would need a fake registry |
+| **P-4** | a C# method's entry: `Category` = its namespace and type joined with `/`, `Name` = the method, `Keywords` = the full FQN, `Description` = the C#/Blueprint label; Tree layout with single-child folders folded; `(none)` is the first entry | flat FQN list: the FQN tree is what the user asked for · per-segment tab completion: a NodeEdit addition, the user said "maybe" — not v1 |
+| **P-5** | v1 covers the binding drawer (4 fields), HSM state and event, the asset and the SOP-behaviour pickers; the sync-group combo (a handful of numbers) and the ~25 Blueprint node-drawer combos stay, recorded | convert every combo in the editor at once: the Blueprint node drawers are a different surface (graph nodes), a separate item |
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| `PickerWindow` works off the canvas | ✅ `SpawnerPanel.cs:107`, `AssetPickerLauncher.cs:71-96`, `EntityListSource.Opener` use it from panels | ✅ C-picker.md: one widget for every pick |
+| both hosts draw a shell registry every frame | ✅ `EditorSubsystem.cs:3021`, `CgfSubsystem.cs:1858` | ✅ `ASSET-PICKER-UX-DESIGN.md`: adopt NodeEdit's picker |
+| an `EditNode` lives for one selection | ✅ `EditSession` keeps its document until a structural change (`EditSession.cs:16,53-57`) | ⛔ searched, no design states it — measured only |
+| the BTree method LIST is the right list | ⛔ **not measured** — it is the behaviour registry's names (`BTreePickerDrawers.cs:42`), not the `[BTreeAction]` exporter's | ⛔ not this item's question (it is search, not list contents) — recorded as an open measurement for the behaviors lane |
+
 ### 7.2 Per-subsystem graph model
 
 Each subsystem implements `IGraphModel` over its in-memory editor model. The implementation is a thin projection:
