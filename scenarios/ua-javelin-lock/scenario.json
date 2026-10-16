@@ -38,7 +38,17 @@
         "Max": 3000
       },
       "TargetMemory": {
-        "Entries": []
+        "Entries": [
+          {
+            "Entity": "a2200d00-0000-4000-8000-000000000002",
+            "PosX": 200,
+            "PosY": 200,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
       },
       "Sop": {
         "Name": "BasicVehicleSop",
@@ -49,8 +59,8 @@
     "a2200d00-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          100,
-          225,
+          200,
+          200,
           0
         ],
         "Rotation": [
@@ -79,7 +89,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8601}",
+        "Params": "{\"target\": 8601, \"advance\": {\"Objective\": [200, 200, 0], \"Speed\": 1, \"ArrivalRadius\": 3}}",
         "Origin": "Superior"
       }
     },
