@@ -4,7 +4,7 @@ updated: 2026-10-16
 build-state: READY-TO-BUILD — 🔒 user, 2026-10-16: W-1, W-2, the clock (C-1…C-4), humidity and precipitation approved ("approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"); ruling R-3012. Programme CE-3216.
 current-answer: §1 the model · §2 the diagrams · §3 decisions · §4 the derived quantities · §5 slices and rails. §0 is the measured ground.
 stale-below: nothing.
-known-rot: none.
+known-rot: §3 C-1 and C-2 (the save rewriting the clock to "UTC at save", the owner re-anchoring a target UTC) — SUPERSEDED the same day by the user's W-8: the clock is an AUTHORED scenario start time, saved as is, and a runtime change sets a new start time.
 known-conflict: docs/designs/cgf-1/CGF-1-DESIGN.md (~line 1113) — the Orchestrator writes a "global weather descriptor" to Orchestrator.json and publishes it on OrchestratorContextTopic. Never built (the save arm was retired, CE-278); SUPERSEDED by §1 here — weather is scenario ENTITIES, not orchestrator context.
 related-designs:
   - docs/designs/tkb-1/DESIGN.md — the "should every entity have a SimTransform?" analysis (2026-09-13): a positionless entity is safe as long as it carries NO SimTransform; this file builds the first one
@@ -29,7 +29,9 @@ applies the region setting) so the transition from global weather into regional 
 entity (singleton, global, replicated) definig what UTC time there is relative to simulation clock. so current day time = currentSimTime
 + Offstet. This entity needs to be saved to scenario and needs to be changeable at runtime and replicated to other nodes."* ·
 *"approved, write the weather design with W-1 W-2 too, humidity and precipitation of course yes, no day rate"* · *"does it make sense to
-combine them into one single entity which has weather component and scenario time component?"* — ⭐ yes (§3 W-0).
+combine them into one single entity which has weather component and scenario time component?"* — ⭐ yes (§3 W-0). · *"scenario clock must be
+editable independently (details panel of the scenario which shows when empty map place is clicked - same as now), never filled automatically
+from current wall clock utc time at time of saving the scenario. Runtime change just sets new value of this "scenario start  time"."* (§3 W-8)
 
 ## 0. INVENTORY — what exists (measured `2026-10-16`, codebase-memory CLI + grep)
 
@@ -64,7 +66,7 @@ classDiagram
     class WorldEnvironment { <<NEW TKB type, no SimTransform, one per scenario>> }
     class WeatherRegion { <<NEW TKB type, an area>> }
     class EditablePolyline { <<existing>> the area's points }
-    class ScenarioClock { <<NEW component, dtScenarioClock>> long UtcTicksAtSimZero; short DisplayUtcOffsetMinutes }
+    class ScenarioClock { <<NEW component, dtScenarioClock>> long StartUtcTicks; short DisplayUtcOffsetMinutes }
     class WeatherConditions { <<NEW component, dtWeather>> ground temperature, lapse rate, sea-level pressure, humidity; Wind[8]; CloudLayer[4]; visibility, fog top; precipitation kind and rate; FeatherM }
     class WindLevel { altitude MSL; direction from; speed; gust }
     class CloudLayer { base MSL; thickness; cover in eighths; kind }
@@ -82,12 +84,12 @@ classDiagram
     WeatherConditions *-- WindLevel
     WeatherConditions *-- CloudLayer
     WeatherField ..> WeatherConditions : blends
-    WeatherField ..> ScenarioClock : Utc = ticks + sim time
+    WeatherField ..> ScenarioClock : Utc = start + sim time
     WeatherField ..> GlobalTime
     WeatherField ..> SolarPosition
     WeatherField ..> WGS84Transform
     WeatherField --> WeatherSample
-    UpdateEntityAttributeRequestSystem ..> ScenarioClock : set time
+    UpdateEntityAttributeRequestSystem ..> ScenarioClock : set a new start time
     Wind ..> WeatherField : replaced by
 ```
 
@@ -105,9 +107,9 @@ sequenceDiagram
     participant U as a consumer (parachute, sensor, renderer)
     L->>C: the scenario's World Environment, Weather Regions (a default World Environment when it has none, C-3)
     C->>N: replicated: ScenarioClock, WeatherConditions, the regions' polylines
-    Note over N: the clock's ticks set at load = saved UTC minus sim time after load (C-1)
-    O->>A: UpdateEntityAttributeCommand: target UTC (or a weather edit)
-    A->>A: ticks = target UTC minus ITS sim time (C-2)
+    Note over N: the scenario start time is loaded as authored, never rewritten (W-8)
+    O->>A: UpdateEntityAttributeCommand: a new scenario start time (or a weather edit)
+    A->>A: applies the value as sent (W-8)
     A->>N: the clock (or the weather) replicates
     U->>N: WeatherField.At(point)
     N->>N: blend the regions into the global weather (W-1, W-2), then derive the sample (section 4)
@@ -159,10 +161,11 @@ singleton is drawn dead: S1 moves its two readers onto `WeatherField`.
 | **W-1** | ⭐ a region's weight at a point: `t = |p − c| / |b − c|` along the ray from the centroid `c` through `p` to the polygon's boundary `b`; `w = smoothstep(1 − t)` — 1 at the centroid, 0 at the edge; an optional per-region `FeatherM` carries the fade past the edge | a circle round the centroid — ignores the shape (a long valley region bleeds sideways) · a hard edge — not smooth |
 | **W-2** | ⭐ overlapping regions ADD; the global weather fills what is left to 1 (`g = max(0, 1 − Σw)`); past 1 the regions normalise among themselves. Scalars blend linearly; WIND blends as a vector, never as an angle; a CATEGORY (cloud kind, precipitation kind) takes the strongest contributor | averaging directions (350° and 10° would make 180°) |
 | **W-3** | wind levels and cloud bases in metres above sea level (aviation practice); fog top above ground; below the lowest wind level the wind falls off logarithmically to the ground | mixing references per field |
-| **W-4** | the clock: `UTC = UtcTicksAtSimZero + sim time` — pause, time acceleration, rewind and replay follow the cluster clock for free; ⛔ **no day rate** (user) | a free-running wall clock — diverges on pause, replay and rewind |
-| **C-1** | the SAVE carries **UTC at the moment of saving**; the load sets the ticks = that UTC − the sim time after load — right whether the load restores sim time (an exercise) or starts at 0 (an authored scenario) | saving the raw offset — wrong on one of the two loads |
-| **C-2** | a runtime change carries the TARGET UTC (or a delta); the OWNER computes the ticks against its own sim time, then replicates | computing the offset on the requesting node — off by the request's travel and the sim time meanwhile |
-| **C-3** | exactly one World Environment: a scenario with none gets a DEFAULT one at load (so it is always there to change, and is saved next time); a second is ignored with a warning (the first kept) | creating it only on the first edit — nothing to edit in the editor's inspector before then |
+| **W-4** | the clock: `UTC = scenario start time + sim time` — pause, time acceleration, rewind and replay follow the cluster clock for free; ⛔ **no day rate** (user) | a free-running wall clock — diverges on pause, replay and rewind |
+| ~~**C-1**~~ | ⛔ SUPERSEDED by W-8 — ~~the save carries UTC at the moment of saving and the load re-anchors~~ | — |
+| ~~**C-2**~~ | ⛔ SUPERSEDED by W-8 — ~~a runtime change carries a target UTC and the owner re-anchors~~ | — |
+| **W-8** | ⭐ the clock's value IS the **scenario start time**: authored in the scenario's Details view (the one the Details panel shows when an empty map spot is clicked), saved exactly as authored — ⛔ never filled from the wall clock or rewritten at save; a runtime change sets a new start time, applied as sent. ⇒ an exercise load that resumes sim time T shows start + T (a continuation), an authored scenario at sim 0 shows its start | rewriting the clock at save (C-1) — the scenario would drift every time it is saved · a target-UTC request (C-2) — not what the operator edits |
+| **C-3** | exactly one World Environment: a scenario with none gets a DEFAULT one at load — ⭐ a FIXED built-in start time and the built-in weather, ⛔ never the wall clock (W-8) — so it is always there to change, and is saved next time; a second is ignored with a warning (the first kept) | creating it only on the first edit — nothing to edit in the editor's inspector before then |
 | **C-4** | ⭐ the FIRST rail of S1: a positionless entity created on one node, edited at runtime, read on another — nothing has ever replicated an entity with no `SimTransform` | building the weather first and finding the gap at the end |
 | **W-5** | the existing `Wind` singleton is RETIRED: the parachute model and the airborne drills read `WeatherField` (a real wind PROFILE at their height) | two ways to read wind (ruling 9) |
 | **W-6** | the entities are owned by their creator (the Brain that loads the scenario) — one descriptor each, the Brain group | the CGF-1 orchestrator topic — a second channel for one thing |
@@ -172,7 +175,7 @@ singleton is drawn dead: S1 moves its two readers onto `WeatherField`.
 
 | quantity | rule | why this rule |
 |---|---|---|
-| UTC | `UtcTicksAtSimZero + GlobalTime.TotalTime` | W-4 |
+| UTC | `StartUtcTicks + GlobalTime.TotalTime` | W-4, W-8 |
 | sun elevation, azimuth | the NOAA solar-position algorithm from UTC and the point's latitude / longitude (`ToGeodetic`) | the standard; no time zone needed |
 | irradiance at the ground | `1361 · sin(elevation) · τ` (clear-sky transmittance τ ≈ 0.75) × cloud factor `1 − 0.75·(octas/8)^3.4` (Kasten–Czeplak) | the cloud cut is the published fit |
 | ground air temperature | the authored DAILY MEAN + a closed-form diurnal swing: amplitude ±6 K clear … ±2 K overcast (scaled by the cloud factor), the peak ~2–3 h after solar noon, a cooler clear night; no integrated state | deterministic, replay-safe, every node equal |
@@ -188,8 +191,8 @@ singleton is drawn dead: S1 moves its two readers onto `WeatherField`.
 
 | slice | lane | builds | ★ acceptance |
 |---|---|---|---|
-| **S1-0** | backend | ⭐ C-4 first: the World Environment type with `ScenarioClock` only — created on CGF, edited at runtime, read on SimHost | two-node rail: the clock arrives, an edit replicates, UTC agrees on both nodes within one frame |
-| **S1** | backend | `WeatherConditions` + `dtWeather`, the Weather Region type, `WeatherField` (§4), C-1 save/load, C-3 default, the editor's inspector for both, the area tool's "weather region" kind, W-5 (the parachute and the drills on the wind profile, `Wind` retired) | rails: a region's weight is 1 at its centroid, 0 at its edge and smooth between; two overlapping regions and the global fill; wind blends as a vector across north; the clock across save → exercise load and save → scenario load; the parachute drifts on the wind at its height |
+| **S1-0** | backend + ui | ⭐ C-4 first: the World Environment type with `ScenarioClock` only — created on CGF, edited at runtime, read on SimHost | two-node rail: the clock arrives, an edit replicates, UTC agrees on both nodes within one frame; ⭐ ui: the scenario start time in the scenario's Details view (W-8) |
+| **S1** | backend | `WeatherConditions` + `dtWeather`, the Weather Region type, `WeatherField` (§4), W-8 save/load as authored, C-3 default, the editor's inspector for both, the area tool's "weather region" kind, W-5 (the parachute and the drills on the wind profile, `Wind` retired) | rails: a region's weight is 1 at its centroid, 0 at its edge and smooth between; two overlapping regions and the global fill; wind blends as a vector across north; the start time saved and loaded exactly as authored, and a runtime edit replicated; the parachute drifts on the wind at its height |
 | **S2** | backend | perception: vision range by visibility and light level (night), thermal contrast from the temperature model (crossover), hearing by wind | rails in the sensors' suites |
 | **S3** | ui | the 3D map: sun direction and sky colour, fog from the extinction, cloud layers; smoke drifts on the wind | frame rails + screenshots |
 | **S4** | backend + ui | air density for aircraft and long-range ballistics; wind drift on rounds; ambient audio from wind and time of day | — |
