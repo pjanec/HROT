@@ -2276,6 +2276,10 @@ def run_air_rescue(c, timeout):
     if not c.ok(None not in (heli, sq, pilot) and None not in men, "the UH-60, the squad, its five men and the downed pilot are loaded"):
         return
     lz = (190.0, 340.0)
+    # ⭐ IsEmbarkedTag.Vehicle reads as an ENTITY ref ("[0, v1]"), not a network id — take the helicopter's from a man aboard at start
+    ref = next((_aboard(m) for m in men if _aboard(m)), None)
+    if not c.ok(ref is not None and all(_aboard(m) == ref for m in men), f"all five start aboard the UH-60 ({ref})"):
+        return
     call("POST", "/sim/play", {})
     landed_at, out_at, taken_at, taker, loaded_at, back_at, left_at = None, None, None, None, None, None, None
     timeline, next_sample = [], 0.0
@@ -2291,16 +2295,16 @@ def run_air_rescue(c, timeout):
             out_at = t
         if taken_at is None and on and on in men:
             taken_at, taker = t, on
-        if loaded_at is None and on == heli:
+        if loaded_at is None and on == ref:
             loaded_at = t
-        if back_at is None and out_at is not None and all(_aboard(m) == heli for m in men):
+        if back_at is None and out_at is not None and all(_aboard(m) == ref for m in men):
             back_at = t
         if back_at is not None and left_at is None and hp and flat(hp, lz) > 30.0:
             left_at = t
         if time.time() >= next_sample:
             next_sample = time.time() + 2.0
             timeline.append((round(t, 1), ph, tuple(round(v) for v in hp) if hp else None,
-                             sum(1 for m in men if _aboard(m) == heli), ("heli" if on == heli else ("carried" if on else "ground")), health(pilot)))
+                             sum(1 for m in men if _aboard(m) == ref), ("heli" if on == ref else ("carried" if on else "ground")), health(pilot)))
         if left_at is not None:
             break
         time.sleep(0.25)
