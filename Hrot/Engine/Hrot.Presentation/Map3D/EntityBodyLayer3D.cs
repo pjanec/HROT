@@ -208,7 +208,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             var kitToBody = geometry == null
                 ? Matrix4x4.Identity
                 : Matrix4x4.CreateTranslation(geometry.BodyCentreX, geometry.BodyCentreY, geometry.BodyCentreZ - size.Z / 2f);
-            int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet) : 0;   // ⭐ CE-1098 (§6p)
+            int stains = look.Family == VisualFamily.Person ? Bloodied(world, e, hasNet, parts, size) : 0;   // ⭐ CE-1098 (§6p)
             // ⭐ CE-1099 (§6q) — what he wears: each part's colour and the outfit's details, from his seed
             Outfit? outfit = null;
             var headFace = FaceOn.Front;
@@ -268,7 +268,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                 for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
                     if (_stains[k].Part == pi)
                     {
-                        Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Fresh ? BloodFresh : BloodDark),
+                        Raylib.DrawMesh(_cube, shader.Tinted(_stains[k].Char ? Charred : _stains[k].Fresh ? BloodFresh : BloodDark),
                                         HrotToRaylib.ModelFromHrot(BlockFigure.StainDetail(_stains[k], placed)));
                         StainsDrawn++;
                     }
@@ -1020,8 +1020,10 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — this man's blood spots, into <see cref="_stains"/>: as many as his lost health
     /// earns (<see cref="BlockFigure.StainCount"/>), seeded by his network id so every node draws the same spots in the same places
     /// (the entity's index where he has none). Returns the count.</summary>
-    private int Bloodied(EntityRepository world, Entity e, bool hasNet)
+    private int Bloodied(EntityRepository world, Entity e, bool hasNet, KitPart[] parts, Vector3 size)
     {
+        // ⭐ CE-1122 (§6y) — where he was really hit: the replicated marks, on their parts (the seeded spots below are the fallback)
+        if (MarkStains(world, e, parts, size, _stains) is int marks and > 0) return marks;
         if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
             || !world.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e)) return 0;
         ref readonly var hp = ref world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e);
@@ -1033,7 +1035,24 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         return n;
     }
 
-    private readonly List<Stain> _stains = new(BlockFigure.MaxStains);
+    private readonly List<Stain> _stains = new(Fdp.Toolkit.Physics.BodyParts.HitMarks.Capacity);
+
+    /// <summary>⭐ CE-1122 (§6y HM-1, HM-2) — <paramref name="e"/>'s replicated <c>HitMarks</c> as stains on <paramref name="parts"/> (a figure
+    /// of <paramref name="size"/>), oldest first, the three newest fresh; 0 when he has none.</summary>
+    public static int MarkStains(EntityRepository world, Entity e, KitPart[] parts, Vector3 size, List<Stain> into)
+    {
+        into.Clear();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Physics.BodyParts.HitMarks>() || !world.HasComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>(e)) return 0;
+        ref readonly var marks = ref world.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.HitMarks>(e);
+        int last = marks.NextSeq;
+        for (int seq = Math.Max(0, last - Fdp.Toolkit.Physics.BodyParts.HitMarks.Capacity); seq < last; seq++)
+        {
+            if (!marks.TryGet(seq, out byte part, out var local, out _, out var kind)) continue;
+            if (part >= Fdp.Toolkit.Physics.BodyParts.PersonPart.Count || part >= parts.Length) continue;
+            into.Add(BlockFigure.MarkStain(part, local, kind, fresh: seq >= last - 3, parts[part].Extent * size));
+        }
+        return into.Count;
+    }
 
     /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
     private static long SeedOf(EntityRepository world, Entity e, bool hasNet)
@@ -1057,6 +1076,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
 
     /// <summary>⭐ CE-1098 (§6p B-4) — blood: a fresh red and a dried, darker one.</summary>
     public static readonly Color BloodFresh = new(186, 24, 20, 255), BloodDark = new(128, 16, 14, 255);
+
+    /// <summary>⭐ CE-1122 (§6y HM-2) — a burn mark.</summary>
+    public static readonly Color Charred = new(34, 28, 24, 255);
 
     /// <summary>⭐ CE-1104 (§6t T-b2) — a stretcher's canvas.</summary>
     public static readonly Color Canvas = new(122, 116, 84, 255);

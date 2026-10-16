@@ -33,7 +33,7 @@ public readonly record struct FacePart(Vector3 Centre, Vector3 Extent, FaceShade
 
 /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p) — one blood spot: a flat box in figure part <paramref name="Part"/>'s unit frame
 /// (the shared part order), on one of its sides; <paramref name="Fresh"/> brighter red, else darker.</summary>
-public readonly record struct Stain(int Part, Vector3 Centre, Vector3 Extent, bool Fresh);
+public readonly record struct Stain(int Part, Vector3 Centre, Vector3 Extent, bool Fresh, bool Char = false);
 
 /// <summary>
 /// ⭐ CE-1033 — which articulated assembly a part belongs to. A <see cref="Turret"/> part turns with the turret's azimuth about the
@@ -612,6 +612,37 @@ public static partial class BlockFigure
                 2 => (new Vector3(a, b, Proud), new Vector3(w, h, Thin)),
                 _ => (new Vector3(a, b, -Proud), new Vector3(w, h, Thin)),
             };
+    }
+
+    /// <summary>⭐ CE-1122 (docs/DESIGN_Map_3D_Mode.md §6y HM-2) — a mark's size across (m): a bullet's blood, a fragment's, a burn's char.</summary>
+    public const float BulletMarkM = 0.09f, FragmentMarkM = 0.06f, BurnMarkM = 0.16f;
+
+    /// <summary>
+    /// ⭐ CE-1122 (§6y HM-1, HM-2; hit location HL-8) — a replicated hit mark as a stain on its part: <paramref name="local"/> is the point in
+    /// the hit box's unit frame (−0.5 … 0.5, on the face it entered — the axis nearest ±0.5); the stain lies flat on that face, just proud of
+    /// it, and is <see cref="BulletMarkM"/> / <see cref="FragmentMarkM"/> / <see cref="BurnMarkM"/> across in METRES on a part
+    /// <paramref name="partMetres"/> big (so a spot on a forearm is round, not stretched along it).
+    /// </summary>
+    public static Stain MarkStain(int part, Vector3 local, Fdp.Toolkit.Physics.BodyParts.HitMarkKind kind, bool fresh, Vector3 partMetres)
+    {
+        int axis = MathF.Abs(local.X) >= MathF.Abs(local.Y) && MathF.Abs(local.X) >= MathF.Abs(local.Z) ? 0 : MathF.Abs(local.Y) >= MathF.Abs(local.Z) ? 1 : 2;
+        float across = kind switch
+        {
+            Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Burn => BurnMarkM,
+            Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment => FragmentMarkM,
+            _ => BulletMarkM,
+        };
+        float U(float metres) => metres > 1e-4f ? Math.Clamp(across / metres, 0.05f, 0.9f) : 0.5f;
+        var extent = new Vector3(U(partMetres.X), U(partMetres.Y), U(partMetres.Z));
+        var centre = local;
+        const float Proud = 0.51f, Thin = 0.03f;
+        switch (axis)
+        {
+            case 0: centre.X = MathF.CopySign(Proud, local.X); extent.X = Thin; break;
+            case 1: centre.Y = MathF.CopySign(Proud, local.Y); extent.Y = Thin; break;
+            default: centre.Z = MathF.CopySign(Proud, local.Z); extent.Z = Thin; break;
+        }
+        return new Stain(part, centre, extent, fresh, kind == Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Burn);
     }
 
     /// <summary>⭐ CE-1098 — where spot <paramref name="st"/> is drawn: a unit box sized and placed in its part's frame, carried by that part's

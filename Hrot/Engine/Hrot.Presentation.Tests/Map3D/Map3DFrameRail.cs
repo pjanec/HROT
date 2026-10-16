@@ -1725,6 +1725,69 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-1122 (docs/DESIGN_Map_3D_Mode.md §6y) — blood where he was hit: a soldier hit in the chest, the left upper arm and the right
+    /// shin; one hit in the side with a fragment; one burned on the back; a dead man with his marks where he fell. Screenshot <c>hit-marks.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE1122_V_BloodWhereHeWasHit()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        int marks = 0;
+        void Man(float dx, float health, params (byte Part, Vector3 At, Fdp.Toolkit.Physics.BodyParts.HitMarkKind Kind)[] hits)
+        {
+            var m = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y;
+            world.AddComponent(m, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI * 0.5f) });   // facing north, toward the camera
+            world.AddComponent(m, new TkbIdentity { TkbType = TkbEntityTypes.Infantry_Rifleman });
+            world.AddComponent(m, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = health, Max = 100f });
+            var hm = new Fdp.Toolkit.Physics.BodyParts.HitMarks();
+            foreach (var h in hits) hm.Add(h.Part, h.At, 0, h.Kind);
+            world.AddComponent(m, hm);
+            marks += hits.Length;
+        }
+        var bullet = Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet;
+        Man(-1.6f, 40f, (4, new Vector3(0.5f, 0.15f, 0.1f), bullet), (6, new Vector3(0.1f, 0.5f, 0f), bullet), (3, new Vector3(0.1f, 0f, 0.5f), bullet));
+        Man(0f, 70f, (4, new Vector3(0.1f, -0.5f, 0.0f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment), (5, new Vector3(0.5f, 0.2f, -0.2f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment));
+        Man(1.6f, 60f, (4, new Vector3(-0.5f, 0f, 0.2f), Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Burn), (4, new Vector3(0.5f, -0.1f, -0.25f), bullet));
+        Man(3.4f, 0f, (4, new Vector3(0.5f, 0.0f, 0.15f), bullet), (0, new Vector3(0.1f, 0f, 0.5f), bullet));   // dead: his marks where he fell
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 0.9f, spot.Y, ground + 0.9f), 5.5f, MathF.PI * 1.5f, -0.22f);   // from the north, the men facing it
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "hit-marks.png"));
+        Assert.Equal(marks, bodies.StainsDrawn);   // every mark drawn on its part; none from the seeded fallback
+    }
+
+    /// <summary>
     /// ⭐ CE-1119 (docs/DESIGN_Map_3D_Mode.md §6w) — airborne: a doors-off UH-60 hovering 12 m up, ROPING, two SF men on its ropes; a stick of
     /// paratroopers in every phase (the exit tuck, a free-fall arch, a canopy opening, round canopies — one banked —, a ram-air wing banked
     /// in a spiral, the flare, the landing roll, sitting up landed). Then the hold ends: the ropes are cut and lie where they fell, and a man

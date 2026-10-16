@@ -2452,6 +2452,63 @@ unit carries a `WeaponPosture` (`BehaviorTkbTranslator.cs:144-146`), so an M109 
 Rails `MenuOrdersTests.FX1_*` and `IF2_ABatteryAndAnSpGun_*` (the form, measured); red-proved by five breaks. ⚠ Not screenshotted: the marks
 are ordinary gizmo spheres and lines, drawn in 2-D and draped in 3-D by the existing renderers (§6e).
 
+### 6y. CE-1122 — blood where he was hit: the replicated hit marks drawn on the part (hit location S1c) — DESIGN + AS-BUILT `2026-10-16` (ui)
+
+📄 Owning design: [Body Parts and Hit Location](designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md) HL-8 and slice **S1c** (ui). Backend's
+S1b (CE-3210) built `HitMarks`. This supersedes §6p's *"the real hit point is a follow-up if backend ever puts it on the hit message"*.
+
+**INVENTORY** (grep + graph):
+
+| the design rests on | code — how it is | design basis |
+|---|---|---|
+| every node gets the last 24 marks of a body: part id, a part-local point, the face, the kind, a sequence | ✅ `HitMarks` (`Physics/BodyParts/BodyPartComponents.cs:55`), `dtHitMarks` translators (`EntityBodyPartTranslators.cs`) | HL-8 |
+| the point is in the hit BOX's unit frame (−0.5 … 0.5 per axis), on the face it entered | ✅ `BodyPartHit.Segment` (`BodyPartHit.cs:53`) | HL-2 |
+| a person's part ids are the drawn figure's part order (thighs, shins, torso, head, upper arms, forearms) | ✅ `PersonPart` 0–9 (`BodyParts.cs:19`) = `BlockFigure`'s shared order | HL-1 |
+| the sim's boxes ARE the drawn parts (11 poses, generated from the figure) | ✅ `PersonBodyParityTests` | HL-1 |
+| a stain is a flat box in its part's unit frame, carried by the part's own transform | ✅ `BlockFigure.StainDetail`, `EntityBodyLayer3D.Bloodied` | §6p |
+
+```mermaid
+classDiagram
+    direction LR
+    class HitMarks { <<existing, replicated>> NextSeq · TryGet(seq): part, local, face, kind }
+    class BlockFigure { <<existing, grows>> StainOf(seed, k) · + MarkStain(part, local, kind, fresh, partMetres) }
+    class Stain { <<existing, grows>> Part Centre Extent Fresh · + Char }
+    class EntityBodyLayer3D { <<existing>> Bloodied: the marks, else the seeded spots }
+    EntityBodyLayer3D ..> HitMarks : the last 24
+    EntityBodyLayer3D ..> BlockFigure
+    BlockFigure --> Stain
+```
+
+```mermaid
+sequenceDiagram
+    participant M as Muscle (hit resolution)
+    participant W as HitMarks (replicated)
+    participant L as EntityBodyLayer3D (every node)
+    M->>W: Add(part, unit point, face, kind) on each hit
+    L->>W: the marks it holds, oldest first
+    L->>L: MarkStain: flat on the face the point is on, sized in metres by kind
+    L->>L: drawn on the part, so it moves with the arm, falls with the body
+    Note over L: no marks yet (a hit from before marks, a dead man loaded) - the seeded spots by health, as before
+```
+
+| decision | rule |
+|---|---|
+| **HM-1 where** | the mark's part is the drawn part of the same index; the point stays where it is on the box, pushed just proud of the face it lies on (the axis at ±0.5) |
+| **HM-2 what** | a bullet: a blood spot 9 cm across; a fragment: 6 cm; a burn: a 16 cm char patch (near-black); the three newest are fresh red, older ones darker — sizes in METRES, so a spot on a forearm is not stretched along it |
+| **HM-3 fallback** | a man with no marks but lost health keeps §6p's seeded spots |
+| **HM-4 the geometry source** | ⛔ NOT switched: `BlockFigure` stays the source and the sim's table is generated from it (HL-1's interim, kept) — the drawn figure has ~20 more poses (seated, carried, the descents) than the sim's 11, so reading the 11 from `PersonBody` would split one description in two |
+
+**Rejected — one line each:** *accumulating marks past the ring's 24* — a man with 24 hits is a casualty, and a late joiner sees only the
+24 anyway, so two viewers would draw different men; *a hole as well as the blood* — at block-figure scale a hole and its blood are one dark
+spot.
+
+**As-built `2026-10-16`** — matches the diagrams: `BlockFigure.MarkStain` + `Stain.Char`, `EntityBodyLayer3D.Bloodied` reads `HitMarks` first
+(the parts and the figure's size give each part's metres). Rails `Map3DTests.CE1122_*`; frame rail `Map3DFrameRail.CE1122_V` (`hit-marks.png`).
+
+![](assets/map-3d/hit-marks.png)
+
+*Three hit men and a dead one, facing the camera: a chest, upper-arm and shin hit; a fragment in the side and the face; a bullet in the chest of a man burned on his back; the dead man's marks where he fell.*
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
