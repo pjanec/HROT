@@ -174,8 +174,9 @@ namespace Hrot.AI.Behaviors.Brains
             return e;
         }
 
-        /// <summary>⭐ CE-2230 — the lane defaults (the hill attack's: approach 15, creep 5, overshoot 50 m — CE-174) · within this of the
-        /// lane start the approach becomes the creep (m).</summary>
+        /// <summary>⭐ CE-2230 — the lane defaults (the hill attack's: approach 15, creep 5, overshoot 50 m — CE-174) · how far past the cap
+        /// the creep's move point lies (m). ⛔ It was also "within this of the lane start the approach becomes the creep" — superseded by
+        /// H-6: the creep starts AT the lane start.</summary>
         public const float LaneApproachSpeed = 15f, LaneCreepSpeed = 5f, LaneMaxOvershootMetres = 50f, LaneCreepFromMetres = 15f;
 
         /// <summary>⭐ CE-2230 — a lane exposure (<see cref="VehicleFightFromCoverParams.LaneDir"/> ≠ 0).</summary>
@@ -458,11 +459,14 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;   // no sight within the cap — the target is not there to be seen from this lane
             }
             var status = LocomotionMoveTo.Status(world, self);
-            bool nearStart = past >= 0f || Vector2.Distance(at, p.LaneStart) <= LaneCreepFromMetres;
-            if (ws.Creeping == 0 && (nearStart || status == NodeStatus.Success))
+            // ⭐ CE-2230 H-6 — the creep starts AT the lane start and runs ON the lane line. 📐 Live: started 15 m short of it, on the
+            //   diagonal from the hide, and continued straight from there, a tank crested up to ~10 m beside its commanded point — so
+            //   the commander's "away from where the last pair fired" did not hold on the ground.
+            bool atStart = Vector2.Distance(at, p.LaneStart) <= ArrivalRadius;
+            if (ws.Creeping == 0 && (atStart || status == NodeStatus.Success))
             {
-                ws.Creeping = 1;   // the creep: a point well past the cap, so the cap — or a sight — ends it, never an arrival
-                var ahead = at + dir * (p.MaxOvershootMetres + LaneCreepFromMetres + 10f);
+                ws.Creeping = 1;   // the creep: a point on the lane well past the cap, so the cap — or a sight — ends it, never an arrival
+                var ahead = p.LaneStart + dir * (Math.Max(past, 0f) + p.MaxOvershootMetres + LaneCreepFromMetres + 10f);
                 ws.Moving = (byte)(LocomotionMoveTo.Issue(world, self, new Vector3(ahead.X, ahead.Y, 0f), p.CreepSpeed, ArrivalRadius,
                                                           onSurface: true) ? 1 : 0);
                 return ws.Moving == 1 ? NodeStatus.Running : NodeStatus.Failure;

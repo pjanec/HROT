@@ -109,6 +109,8 @@ namespace Hrot.AI.Behaviors.Brains
             s.BaselineReservedMask = 0;
             s.ActiveAttackerCount = 0;
             s.CurrentWave         = 0;
+            s.LastFireCount       = 0;
+            s.PrevFireCount       = 0;
             s.CachedEqsRequestId  = -1;
             s.EqsRequestTime      = 0f;
             if (BehaviorLog.IsDebugEnabled)
@@ -389,6 +391,15 @@ namespace Hrot.AI.Behaviors.Brains
             var whom = stackalloc Entity[8];
             int orderCount = 0;
             double slowest = 0d;
+            // ⭐ CE-2230 H-6 — where the last TWO waves came up (metres along the line), and this wave's picks so far
+            float lineLength = Vector2.Distance(new Vector2(p.StartX, p.StartY), new Vector2(p.EndX, p.EndY));
+            var avoid = stackalloc float[24];
+            var weight = stackalloc float[24];
+            int avoidCount = 0;
+            for (int k = 0; k < s.LastFireCount && k < 8; k++) { weight[avoidCount] = 1f; avoid[avoidCount++] = s.LastFireAlong[k]; }
+            for (int k = 0; k < s.PrevFireCount && k < 8; k++) { weight[avoidCount] = PrevWaveWeight; avoid[avoidCount++] = s.PrevFireAlong[k]; }
+            var picked = stackalloc float[8];
+            int pickedCount = 0;
 
             for (int i = 0; i < rosterCount && s.ActiveAttackerCount < 8; i++)
             {
@@ -401,7 +412,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
 
                 int availCount = 0;
-                ushort blockedMask = (ushort)(s.BurnedSlotsMask | s.WaveUsedSlotsMask);
+                // ⭐ CE-2230 H-6 — a pair needs distinct POINTS, not distinct slots: the mate's point is avoided by PickFiringPoint.
+                //   📐 Live: with the mate's slot blocked, after a wave at both ends of a 3-slot line the second tank was left only slots
+                //   beside the last pair's points (5.3 m). Only a slot where a tank died stays out.
+                ushort blockedMask = s.BurnedSlotsMask;
                 for (int j = 0; j < s.TotalSlots; j++)
                 {
                     if ((blockedMask & (1 << j)) == 0) avail[availCount++] = j;
@@ -420,10 +434,16 @@ namespace Hrot.AI.Behaviors.Brains
                 //    the deterministic form since architect Q#8-C mandated it. This is the oracle
                 //    adopting it, not a new invention.
                 var slotRng = SimRng.FromSim((int)sub.Index, s.CurrentWave, world.SimulationTime);
-                int firingSlot = avail[slotRng.NextInt(0, availCount)];
+                // ⭐⭐ CE-2230 H-6 — never come up where the last pair did: the point is a free slot plus a random shift along the line,
+                //   the best of a few draws by its distance from every point of the previous wave (and this wave's own). 🔒 User,
+                //   2026-10-16: "the new tank pair appears at a different location than the previous one, so the enemy cannot aim and
+                //   wait for the tank to reappear at the same place."
+                int firingSlot = PickFiringPoint(ref slotRng, avail, availCount, s.TotalSlots, lineLength, avoid, weight, avoidCount, out float ft);
+                weight[avoidCount] = 1f;
+                avoid[avoidCount++] = ft * lineLength;
+                picked[pickedCount++] = ft * lineLength;
 
-                // Interpolate firing-slot world position.
-                float ft = s.TotalSlots > 1 ? (float)firingSlot / (s.TotalSlots - 1) : 0.5f;
+                // Interpolate firing-point world position.
                 float fx = p.StartX + (p.EndX - p.StartX) * ft;
                 float fy = p.StartY + (p.EndY - p.StartY) * ft;
 
@@ -494,6 +514,13 @@ namespace Hrot.AI.Behaviors.Brains
             //   the slot nearest its random firing slot, CE-202's scatter) plus the settle. 📐 Live without it: the pair crested 12–20 s
             //   apart, never together (🔒 R-2022: "another pair comes up the hill and does the same procedure").
             double goAt = orderCount > 1 ? Clock(world) + slowest + WaveSettleSeconds : 0d;
+            if (pickedCount > 0)   // ⭐ H-6 — this wave becomes the one the next must avoid; the last becomes the one before
+            {
+                s.PrevFireCount = s.LastFireCount;
+                for (int k = 0; k < 8; k++) s.PrevFireAlong[k] = s.LastFireAlong[k];
+                s.LastFireCount = (byte)pickedCount;
+                for (int k = 0; k < pickedCount; k++) s.LastFireAlong[k] = picked[k];
+            }
             for (int k = 0; k < orderCount; k++)
             {
                 orders[k].GoAt = goAt;
@@ -530,6 +557,79 @@ namespace Hrot.AI.Behaviors.Brains
             float d = MathF.Sqrt((at.X - hideX) * (at.X - hideX) + (at.Y - hideY) * (at.Y - hideY));
             return d / HillAttackTankNodes.ReverseSpeed * 1.33;
         }
+
+        /// <summary>⭐ CE-2230 H-6 — candidate points per free slot, spread across its shift range.</summary>
+        public const int FiringPointCandidatesPerSlot = 9;
+
+        /// <summary>⭐ CE-2230 H-6 — a candidate's shift along the line, as a fraction of the slot pitch (±): a reused slot is still a new spot.</summary>
+        public const float SlotShiftFraction = 0.4f;
+
+        /// <summary>⭐ CE-2230 H-6 — the pick is random among the candidates at least this fraction as far from the points to avoid as the
+        /// farthest one — unpredictable, never close.</summary>
+        public const float NearBestFraction = 0.75f;
+
+        /// <summary>⭐ CE-2230 H-6 — how much the wave BEFORE the last counts (a distance to its points is read as this × closer): the last
+        /// pair and the mate are the hard rule (R-2023), the one before shapes the pick. 📐 Live, on a 70 m line: at full weight, four
+        /// earlier points plus the mate left ~8 m for everyone.</summary>
+        public const float PrevWaveWeight = 1.5f;
+
+        /// <summary>⭐ CE-2230 H-6 — a pick is never closer than this (m) to a point to avoid, when the line has room for it at all.</summary>
+        public const float MinApartMetres = 12f;
+
+        /// <summary>
+        /// ⭐ CE-2230 H-6 — a firing point: across every free slot, candidates spread over ± <see cref="SlotShiftFraction"/> of the slot pitch
+        /// (each with a small random jitter) are scored by their distance (m, along the line) from every point in <paramref name="avoid"/>
+        /// in two tiers: ① only candidates at least <see cref="MinApartMetres"/> (or the best the line allows) from the FULL-weight points —
+        /// the previous wave's and this wave's own — survive (the rule, R-2023); ② among them, distance from every point with the wave
+        /// before at <c>weight</c> (<see cref="PrevWaveWeight"/>) decides, one drawn at random among the near-best (<see cref="NearBestFraction"/>).
+        /// 📐 A best-of-12 RANDOM draw was tried first and its rail caught it landing 7.2 m from the last pair's point; one weighted score
+        /// for both waves then let the last pair slip to 8.8 m — hence the two tiers. Returns the slot (the
+        /// bookkeeping masks key on it) and the point as a fraction of the line in <paramref name="t"/>. Deterministic in
+        /// <paramref name="rng"/> (CE-202).
+        /// </summary>
+        internal static unsafe int PickFiringPoint(ref SimRng rng, int* avail, int availCount, int totalSlots, float lineLength,
+                                                   float* avoid, float* weight, int avoidCount, out float t)
+        {
+            float pitch = totalSlots > 1 ? 1f / (totalSlots - 1) : 0f;
+            int n = Math.Min(availCount, 16) * FiringPointCandidatesPerSlot;
+            var candT = stackalloc float[n];
+            var candSlot = stackalloc int[n];
+            var candHard = stackalloc float[n];   // to the full-weight points: the last pair and the mate — the rule (R-2023)
+            var candSoft = stackalloc float[n];   // to every point, the wave before at its weight — the preference
+            float bestHard = float.MinValue;
+            int c = 0;
+            for (int a = 0; a < availCount && a < 16; a++)
+                for (int k = 0; k < FiringPointCandidatesPerSlot; k++)
+                {
+                    float u = FiringPointCandidatesPerSlot > 1 ? (float)k / (FiringPointCandidatesPerSlot - 1) * 2f - 1f : 0f;
+                    float jitter = (rng.NextSingle() * 2f - 1f) * 0.05f * pitch;
+                    float ct = Math.Clamp(SlotT(avail[a], totalSlots) + u * SlotShiftFraction * pitch + jitter, 0f, 1f);
+                    float hard = float.MaxValue, soft = float.MaxValue;
+                    for (int m = 0; m < avoidCount; m++)
+                    {
+                        float d = Math.Abs(ct * lineLength - avoid[m]);
+                        soft = Math.Min(soft, d * weight[m]);
+                        if (weight[m] <= 1f) hard = Math.Min(hard, d);
+                    }
+                    candT[c] = ct; candSlot[c] = avail[a]; candHard[c] = hard; candSoft[c] = soft; c++;
+                    if (hard > bestHard) bestHard = hard;
+                }
+            // ① the rule: keep only candidates clear of the last pair and the mate (MinApartMetres, or the best the line allows)
+            float hardFloor = bestHard == float.MaxValue ? float.MaxValue : Math.Min(bestHard, MinApartMetres);
+            float bestSoft = float.MinValue;
+            for (int k = 0; k < c; k++) if (candHard[k] >= hardFloor && candSoft[k] > bestSoft) bestSoft = candSoft[k];
+            // ② the preference, among those: random within the near-best by distance from everything (the wave before weighted)
+            float softFloor = bestSoft == float.MaxValue ? float.MaxValue : Math.Max(bestSoft * NearBestFraction, Math.Min(bestSoft, MinApartMetres));
+            int good = 0;
+            for (int k = 0; k < c; k++) if (candHard[k] >= hardFloor && candSoft[k] >= softFloor) good++;
+            int pick = rng.NextInt(0, Math.Max(1, good));
+            for (int k = 0; k < c; k++)
+                if (candHard[k] >= hardFloor && candSoft[k] >= softFloor && pick-- == 0) { t = candT[k]; return candSlot[k]; }
+            t = candT[0];
+            return candSlot[0];
+        }
+
+        private static float SlotT(int slot, int totalSlots) => totalSlots > 1 ? (float)slot / (totalSlots - 1) : 0.5f;
 
         /// <summary>⭐ CE-2230 H-5 — how far off the baseline a tank still counts as standing on it (m).</summary>
         public const float OnBaselineMetres = 25f;

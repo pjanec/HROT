@@ -1977,7 +1977,7 @@ def run_tank_ammo(c, timeout):
 #   its firing slots; each tank creeps up its lane, STOPS the first tick it sees its target (hull-down: R-246), fires ONE round, reverses
 #   into its baseline slot; the other pair goes; they alternate until both T-72s are dead.
 #   ① every shot is fired from south of the crest (hull-down, never over the top) · ② one round per exposure · ③ never more than a pair
-#   up at once (③b and a pair comes up TOGETHER — H-5) · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
+#   up at once (③b and a pair comes up TOGETHER — H-5) · ⑥ a pair never comes up where the last one fired (H-6) · ④ every tank that went up came back down REVERSING (nose still north) · ⑤ both T-72s die.
 HILL_CREST_Y, HILL_UP_Y, HILL_HOME_Y = 210.0, 170.0, 160.0
 
 
@@ -2065,6 +2065,28 @@ def run_hill_attack(c, timeout):
             backs.append((name.get(t), a, home is not None, nose_north))
     finished = [b for b in backs if b[1] < tick - 30]   # an exposure in the last 30 s may still be backing down
     c.ok(bool(finished) and all(h and n for (_, _, h, n) in finished), f"④ every tank backs into its slot, nose north — {backs}")
+    # ⑥ (CE-2230 H-6, R-2023 — user 2026-10-16: "the new tank pair appears at a different location than the previous one") — where
+    #    each exposure CRESTED (x at its highest point, fired or not), grouped into waves by start (within 6 s), each wave against the
+    #    TWO waves before it (📐 a pair once came back to its own spot two waves later, the wave between having fired nothing)
+    crests = []
+    for t in tanks:
+        for (a, b) in exp[t]:
+            span = [r for r in track[t] if a <= r[0] <= b]
+            if span:
+                crests.append((a, round(max(span, key=lambda r: r[2])[1], 1)))
+    crests.sort()
+    waves_x = []
+    for a, x in crests:
+        if not waves_x or a - waves_x[-1][0] > 6:
+            waves_x.append([a, []])
+        waves_x[-1][1].append(x)
+    near = lambda k, j: min(abs(a - b) for a in waves_x[k][1] for b in waves_x[j][1])
+    last = [near(k, k - 1) for k in range(1, len(waves_x))]
+    before = [near(k, k - 2) for k in range(2, len(waves_x))]
+    print("    crest points by wave (x):", [w[1] for w in waves_x], "· nearest to the last pair:", [round(g, 1) for g in last],
+          "· to the pair before:", [round(g, 1) for g in before])
+    c.ok(len(waves_x) >= 2 and all(g >= 8 for g in last) and all(g >= 5 for g in before),
+         f"⑥ each pair comes up away from where the last pair did (≥ 8 m; the one before ≥ 5 m) — {[round(g, 1) for g in last]} / {[round(g, 1) for g in before]}")
     c.ok(all(_dead(e) for e in enemies), f"⑤ both T-72s are dead — health {[health(e) for e in enemies]} · tanks {[health(t) for t in tanks]}")
 
 

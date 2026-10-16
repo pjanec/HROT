@@ -724,6 +724,103 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2230</c> H-6 — 🔒 user, 2026-10-16: <i>"the new tank pair appears at a different location than the previous one, so the
+        /// enemy cannot aim and wait for the tank to reappear at the same place."</i> Forty waves of a pair on the demo's 86 m line (four
+        /// slots): every firing point is at least 10 m along the line from every point of the wave before (the rule), and 6 m from the wave
+        /// before that (the preference). The cramped 3-slot case is <c>CE2230_H6_AfterAPairAtBothEnds…</c>. 🔴 Red-proof: forget the previous wave and points repeat.
+        /// </summary>
+        /// <summary>⭐ CE-2230 H-6 — the case that went wrong live: the last pair fired at BOTH ends of a 3-slot line. Through the real
+        /// dispatcher, over 40 sim times, the new pair still finds two points ≥ 10 m from those and from each other. 🔴 Red-proof: block the
+        /// mate's SLOT again (a pair needs distinct points, not slots) and the second point lands beside an end.</summary>
+        [Fact]
+        public unsafe void CE2230_H6_AfterAPairAtBothEnds_TheNextPairStillFindsNewGround()
+        {
+            using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var subs = new Entity[2];
+            for (int i = 0; i < 2; i++) subs[i] = repo.CreateEntity();
+            AddRoster(repo, commander, subs);   // two ⇒ both go every wave
+            ref var s = ref GetHeavyState(repo, commander);
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 70f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = -40f, BaselineEndX = 70f, BaselineEndY = -40f,
+            };
+            try
+            {
+                for (int run = 0; run < 40; run++)
+                {
+                    s.TotalSlots = 3; s.CurrentWave = 0; s.CachedEqsRequestId = -1; s.ActiveAttackerCount = 0; s.BurnedSlotsMask = 0;
+                    s.LastFireCount = 2; s.LastFireAlong[0] = 6.4f; s.LastFireAlong[1] = 63f; s.PrevFireCount = 0;
+                    repo.SetSimulationTime(5f + run * 3.1f);
+                    HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                    repo.Bus.SwapBuffers();
+                    var xs = new System.Collections.Generic.List<float>();
+                    foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                        if (ev.IntentId == "HullDownAttack")
+                            xs.Add(JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).SlotX);
+                    Assert.Equal(2, xs.Count);
+                    foreach (var x in xs)
+                        foreach (var last in new[] { 6.4f, 63f })
+                            Assert.True(Math.Abs(x - last) >= 10f, $"run {run}: {x:F1} m is {Math.Abs(x - last):F1} m from the last pair's {last} m");
+                    Assert.True(Math.Abs(xs[0] - xs[1]) >= 10f, $"run {run}: the pair's own points {xs[0]:F1} / {xs[1]:F1}");
+                }
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
+        [Fact]
+        public void CE2230_H6_ANewPair_NeverComesUpWhereTheLastPairDid()
+        {
+            using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var subs = new Entity[4];
+            for (int i = 0; i < 4; i++) subs[i] = repo.CreateEntity();
+            AddRoster(repo, commander, subs);
+            ref var s = ref GetHeavyState(repo, commander);
+            s.TotalSlots = 4; s.CurrentWave = 0; s.CachedEqsRequestId = -1;   // the demo's line: 86 m at 20 m spacing
+            var p = new PlatoonHillAttackParams
+            {
+                StartX = 0f, StartY = 0f, EndX = 86f, EndY = 0f,
+                BaselineStartX = 0f, BaselineStartY = -40f, BaselineEndX = 86f, BaselineEndY = -40f,
+            };
+            try
+            {
+                float[]? previous = null, before = null;
+                for (int wave = 0; wave < 40; wave++)
+                {
+                    repo.SetSimulationTime(10f + wave * 23.7f);
+                    HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref s, commander, repo);
+                    repo.Bus.SwapBuffers();
+                    var xs = new System.Collections.Generic.List<float>();
+                    foreach (var ev in repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                        if (ev.IntentId == "HullDownAttack")
+                            xs.Add(JsonSerializer.Deserialize<HullDownAttackParams>(ev.JsonParams!,
+                                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed).SlotX);
+                    Assert.Equal(2, xs.Count);
+                    Assert.True(Math.Abs(xs[0] - xs[1]) >= 10f, $"wave {wave}: the pair's own points {xs[0]:F1} / {xs[1]:F1}");
+                    // the last pair: the hard rule (≥ 10 m) · the pair before it: weighted, still never on top of it (≥ 6 m)
+                    foreach (var (earlier, min) in new[] { (previous, 10f), (before, 6f) })
+                        if (earlier != null)
+                            foreach (var x in xs)
+                                foreach (var px in earlier)
+                                    Assert.True(Math.Abs(x - px) >= min, $"wave {wave}: {x:F1} m is {Math.Abs(x - px):F1} m from an earlier pair's {px:F1} m (min {min})");
+                    before = previous;
+                    previous = xs.ToArray();
+                    s.ActiveAttackerCount = 0;   // the wave ran
+                }
+            }
+            finally
+            {
+                DisposeEqsSingletons(repo);
+            }
+        }
+
         /// <summary>SC-HA012-2: With roster.Count <= 3, all alive tanks dispatched
         /// regardless of parity.</summary>
         [Fact]

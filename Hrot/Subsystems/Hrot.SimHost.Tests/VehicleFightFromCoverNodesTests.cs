@@ -287,6 +287,22 @@ namespace Hrot.SimHost.Tests
         /// commander's one go time for the pair), and then goes at once. 🔴 Red-proof: drop the hold and it leaves at the hide timer (~1 s).
         /// </summary>
         [Fact]
+        public void CE2230_H6_FromAHideBesideTheLane_TheHullCrestsOnTheLane_NotBesideIt()
+        {
+            // ⭐ CE-2230 H-6 — the hide 20 m beside the lane: the approach is a diagonal, but the creep runs ON the lane, so the hull is
+            //   where the commander put it when it first sees (live: up to ~10 m off, which undid "away from the last pair").
+            //   🔴 Red-proof: start the creep 15 m short, straight on from the diagonal, and the hull stops ~6 m beside the lane.
+            var hill = Hill();
+            hill.GivenHide = new Vector2(0f, 20f);
+            var d = new Duel(hill, seen: false) { Drives = true, SeesFromX = 60f };
+            d.Repo.SetComponent(d.Self, new SimTransform { Position = new Vector3(0f, 20f, 0f), Rotation = Quaternion.Identity });
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 40));
+            var at = d.Repo.GetComponentRO<SimTransform>(d.Self).Position;
+            Assert.InRange(at.X, 60f, 61.5f);
+            Assert.InRange(at.Y, -1.5f, 1.5f);
+        }
+
+        [Fact]
         public void CE2230_H5_TheHullWaitsInItsHide_UntilTheWavesGoTime()
         {
             var d = HillDuel(seesFromX: 1000f);
