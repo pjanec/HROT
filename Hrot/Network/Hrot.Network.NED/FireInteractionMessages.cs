@@ -230,5 +230,11 @@ namespace Hrot.NED.Messages
         /// <c>PersonPart</c>); ⭐ 0 = none (an area effect, a vehicle until S2) — so a sender that never sets it reads as "no part", not
         /// as part 0.</summary>
         public byte BodyPart;
+
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6 — APPENDED) — the hit's effect kind (<c>EffectKind</c>; 0 = kinetic, damage only).</summary>
+        public byte EffectKind;
+
+        /// <summary>⭐ <c>CE-3219</c> — how long the effect lasts (s).</summary>
+        public float EffectSeconds;
     }
 }

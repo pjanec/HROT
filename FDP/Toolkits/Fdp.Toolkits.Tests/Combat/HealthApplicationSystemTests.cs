@@ -431,5 +431,46 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(afterHeavy.HasFlag(ActorCapabilities.CanMove), "below the threshold the mobility kill applies");
             Assert.True(afterHeavy.HasFlag(ActorCapabilities.CanShoot), "a mobility kill never strips CanShoot");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3219</c> (civilians B-1, CV-6 ⓑ; DESIGN_Civilians_And_Crowd_Control §7.3) — a blunt hit knocks the man down for its duration
+        /// with his health barely moved; the effect is STORED (never derived from Health, rule I1); a second, shorter hit never shortens it;
+        /// a kinetic hit stores nothing; a non-owner stores nothing either.
+        /// </summary>
+        [Fact]
+        public void CE3219_ABluntHit_StoresKnockedDown_HealthBarelyMoves_AndAShorterHitNeverShortensIt()
+        {
+            _world.RegisterComponent<EffectState>();
+            _world.SetSingleton(new GlobalTime { TotalTime = 100d });
+            var man = SpawnTarget(currentHealth: 100f);
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 2f, Effect = HitEffect.Blunt, EffectSeconds = 6f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+
+            Assert.Equal(98f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Equal(106d, _world.GetComponentRO<EffectState>(man).KnockedDownUntil);
+            Assert.True(Effects.IsKnockedDown(_world, man));
+            Assert.False(Effects.IsStunned(_world, man));
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 0f, Effect = HitEffect.Push, EffectSeconds = 1f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.Equal(106d, _world.GetComponentRO<EffectState>(man).KnockedDownUntil);
+
+            _world.SetSingleton(new GlobalTime { TotalTime = 107d });
+            Assert.False(Effects.IsKnockedDown(_world, man));
+
+            var other = SpawnTarget(currentHealth: 100f);
+            PublishEvent(other, 10f);
+            _sys.Execute(_world, 0f);
+            Assert.False(_world.HasComponent<EffectState>(other));
+
+            var replica = SpawnTarget(currentHealth: 100f, authoritative: false);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = replica, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = 5f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.False(_world.HasComponent<EffectState>(replica));
+        }
     }
 }

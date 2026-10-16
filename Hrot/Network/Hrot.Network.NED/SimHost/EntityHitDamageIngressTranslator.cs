@@ -100,6 +100,8 @@ namespace Hrot.Network.NED.SimHost
                 TotalDamage = msg.TotalDamage,
                 HasBodyPart = (byte)(msg.BodyPart != 0 ? 1 : 0),   // ⭐ CE-3210 — the wire carries id + 1, 0 = none
                 BodyPart    = msg.BodyPart != 0 ? (byte)(msg.BodyPart - 1) : Fdp.Toolkit.Physics.BodyParts.PersonPart.None,
+                Effect        = (Fdp.Toolkit.Combat.HitEffect)msg.EffectKind,   // ⭐ CE-3219
+                EffectSeconds = msg.EffectSeconds,
                 IsRemote    = true,
             });
         }

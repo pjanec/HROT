@@ -336,6 +336,19 @@ namespace Hrot.NED.Descriptors
         public byte Reason;
     }
 
+    // ⭐ CE-3219 (civilians B-1, CV-6; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3) — a person's stored non-lethal effects (sim seconds),
+    //   Brain → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1: STATE, like dtOperatorUseStatus.
+    [DdsTopic("EntityEffectState")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityEffectState
+    {
+        [DdsKey] public long EntityId;
+        public double StunnedUntil;
+        public double IrritatedUntil;
+        public double KnockedDownUntil;
+    }
+
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
     //   (Brain group) → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1, like EntityWeaponAmmo: it changes per hit,
     //   and a late joiner must see a man's wounds.

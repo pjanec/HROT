@@ -16,6 +16,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         Fragmentation = 2,
         /// <summary>Shaped charge (HEAT/HEDP): the jet is the direct hit; a small blast and fragments around it.</summary>
         ShapedCharge = 3,
+        /// <summary>⭐ <c>CE-3219</c> (civilians B-1, CV-6 ⓓ) — non-lethal blunt: a baton round, a stone; the hit knocks the man down.</summary>
+        Blunt = 4,
+        /// <summary>⭐ <c>CE-3219</c> — an irritant (tear gas): its burst leaves a cloud that irritates those inside.</summary>
+        Irritant = 5,
+        /// <summary>⭐ <c>CE-3219</c> — a stun grenade: one stun hit to everyone in its radius.</summary>
+        Stun = 6,
     }
 
     /// <summary>When a warhead detonates. v1: impact and time (W-4); airburst is later.</summary>
