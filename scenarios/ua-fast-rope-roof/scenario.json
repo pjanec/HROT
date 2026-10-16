@@ -420,6 +420,9 @@
       "NetworkIdentity": {
         "Value": 8802
       },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
       "EntityInfo": {
         "Name": "Rope route",
         "ForceId": "Friend"

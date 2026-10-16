@@ -73,6 +73,9 @@
       "NetworkIdentity": {
         "Value": 9002
       },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
       "EntityInfo": {
         "Name": "A-10 route",
         "ForceId": "Friend"

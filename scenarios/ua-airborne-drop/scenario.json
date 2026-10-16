@@ -420,6 +420,9 @@
       "NetworkIdentity": {
         "Value": 8902
       },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
       "EntityInfo": {
         "Name": "Drop route",
         "ForceId": "Friend"
