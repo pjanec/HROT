@@ -12,8 +12,8 @@
     "a2200d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          250,
-          70,
+          251,
+          110,
           0
         ],
         "Rotation": [
@@ -79,7 +79,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": "{\"target\": 8601, \"assault\": true}",
+        "Params": "{\"target\": 8601}",
         "Origin": "Superior"
       }
     },

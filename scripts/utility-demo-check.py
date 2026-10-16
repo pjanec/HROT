@@ -1641,7 +1641,10 @@ def run_ifv_standoff(c, timeout):
 #   test-town, two vignettes. A Javelin locks in 4 s of continuous sight (the clock restarts on lost sight). ① "Tank Cycling" on
 #   BasicVehicleSop: its exposure budget is AimBudgetFactor × the quickest dangerous threat's aim time, so it is back in cover before
 #   "Javelin A" (attack order on it) completes a lock. ② "Tank Open", idle in the open 230 m from "Javelin B": locked and hit — DIRECT at
-#   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across).
+#   this range (CE-2201: the top attack only fits beyond ~607 m; test-town is 400 m across). ⚠ The cycling tank starts IN its hide
+#   (251, 110): started at (250, 70) in Javelin A's view, it was locked and hit while driving to the hide (40 m at 5 m/s, ~8 s) — the
+#   budget then held its first real exposure to ~2 s (lock 1.6 / 4 s). Javelin A holds (no assault): on an assault order it walked
+#   inside its 65 m minimum range.
 def run_javelin_lock(c, timeout):
     ids = ids_by_name()
     cyc, opn, ja, jb = ids.get("Tank Cycling"), ids.get("Tank Open"), ids.get("Javelin A"), ids.get("Javelin B")
