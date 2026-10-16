@@ -719,3 +719,11 @@ so a knocked-down man lies like a man down at full health and stands when it run
 `Downed` for the incapacitated, not a second pose path in `FigurePose`). `EffectStateGizmo` (Hrot.Common, auto-discovered, Labels layer)
 writes `DOWN · STUNNED · GASSED` under him in 2-D (U3-c). ⏳ **Cower is not built**: `EffectState` has no Cowering yet (finding F-3).
 Rail `Map3DTests.CE1164_…`, red-proved (both halves).
+
+**U-4 (`CE-1165`) part built `2026-10-16` — U4-b, ahead of B-1's cloud:** `TerrainWorldMesh.IsVolumeEffect(prism)` (a material with
+`SightTransmittance > 0` and `BlocksMovement = false`) keeps such a prism out of the mesh — so it neither renders as a block nor enters the
+navmesh (it blocks nothing; this also answers backend's M-4 for walk-through prisms) — and `TerrainWorldGizmo` skips it in 2-D. Sight still
+reads the prism (B1-c unchanged). ⚠ Cross-lane: `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs` (backend's area), render/navmesh input only.
+Today's see-through materials (glass, hedge, chain-link) all block movement ⇒ nothing existing changes. Rail
+`TerrainWorldTests.CE1165_…`, red-proved. ⏳ U4-a (the cloud drawn in `EffectLayer`) waits on `AreaEffectCloud`.
+
