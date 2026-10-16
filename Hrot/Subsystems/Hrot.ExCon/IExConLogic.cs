@@ -75,6 +75,8 @@ public interface IExConLogic
     /// string or omit to use the IG default style.
     /// </param>
     void StartAreaAuthoringMode(string styleOverrideJson = "");
+    /// <summary>⭐ CE-1161 — area authoring born as <paramref name="tkbType"/> (0 = the tactical area).</summary>
+    void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "");
 
     /// <summary>
     /// ⭐⭐ <c>E5</c> — activates TERRAIN-ZONE authoring on the map host. Same

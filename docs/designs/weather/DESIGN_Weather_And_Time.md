@@ -257,3 +257,123 @@ carries the global weather to SimHost on `dtWeather`.
 
 **Rails:** `WeatherFieldTests.Clouds_*` (the bands; shade below, inside, not above a deck; the deck in the sample) ·
 `WeatherRegionBlendTests.Clouds_TheDeckIsTheStrongerWeathers_TheCoverIsBlended`.
+
+## 7. The editor half — the scenario's start time and weather in Details; the Weather Region tool (ui, `CE-1161`) — ✅ BUILT `2026-10-16` (§7.4)
+
+📨 [HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time](../../blueprints/batches/HANDOFF_Backend_To_Ui_Weather_And_Scenario_Time.md) U1–U4
+(+ [CE-3217](../../blueprints/Blueprint_Issues_Tracker.md)). The ui lane designs and builds it; the engine half is §6.
+
+### 7.1 INVENTORY (measured `2026-10-16`, grep + reads; the codebase-memory graph indexed this session)
+
+| the design rests on | code — how it IS | design basis |
+|---|---|---|
+| the map-background context exists but nobody raises it or registers its view | `SelectionOrigin.MapBackground` (`SelectionOrigin.cs:64`), `ZonesDetailsViewDescriptor.Applies` (`ZonesDetailsView.cs:135`); no `IZoneRowRenderer` implementation; `EditorSubsystem` registers Components / Mission / AI / … only (`:3433`) | Terrain Zones E3/U5 |
+| an empty map click — 2-D and 3-D — already reaches the host as `OnSelectionChanged(Entity.Null)`; the editor does not listen | `SelectionInteractionSystem.cs:263, :301`; `MapInteractionContext.OnMapSelectionChanged` (`:156`), set by the IG only | UXI-11 S-4 |
+| the focus latch is a LEVEL and stays put; entity views key on `ctx.Entities` | `EditorSelectionStore.NotifySurfaceFocused` (`:216`); `DetailsViewPredicates.ExactlyOneEntity` | the Details panel's routing (L6) |
+| the inspector draws every component of ANY entity, fixed buffers included | `EntityInspectorPanel.DrawComponentsFor(session, entity)` (used by `ScenarioComponentsViewDescriptor`); `ReflectionEditDocumentBuilder` `FixedBuffer` arm (`:155`) | §6 L6.3 |
+| ⚠ `EntityAttributeChangeRequests.TryPublishJsonPatch` only PUBLISHES; the networkless editor has no consumer | `OfflineNetworkFactory.CreateSimHostAttributeUpdateSystems` returns empty (`:47`); `UpdateEntityAttributeRequestSystem` only via `NedNetworkFactory` (`:164`) | ⛔ the handoff's "applies directly on the owner" does not hold offline |
+| the owner writes directly — the established rule | `MapCameraLayer.cs:190` (`HasAuthority`, CE-1047) | CE-1047 |
+| an area is born as any TKB type through ONE arm; the zone does it for 8804 | `ScenarioSpawnAdapter.ArmAreaAuthoring(long)` (`:322`), `AreaAuthoringArm` builds the `SpawnEntityCommand` (`:133`); `ExConLogic.StartZoneAuthoringMode` sends `tkbType` | Terrain Zones §2.1 (TkbType is THE discriminator) |
+
+### 7.2 Diagrams
+
+```mermaid
+classDiagram
+    direction LR
+    class SelectionInteractionSystem { <<existing>> OnSelectionChanged(Entity.Null) on an empty click }
+    class EditorSubsystem { <<existing, grows>> OnMapSelectionChanged → NotifySurfaceFocused(MapBackground) · registers the two views }
+    class EditorSelectionStore { <<existing>> FocusedSurface }
+    class MapBackgroundViews { <<new>> Applies = focus MapBackground AND no entity selected }
+    class ScenarioEnvironmentView { <<new, Hrot.Editor>> start time + offset · the World Environment's components }
+    class ScenarioClockEdit { <<new, Hrot.Presentation>> Read · SetStartUtc · SetOffset — direct when authority, else the JSON patch }
+    class ZonesDetailsView { <<existing>> }
+    class ImGuiZoneRowRenderer { <<new>> IZoneRowRenderer }
+    class EntityInspectorPanel { <<existing>> DrawComponentsFor(session, entity) }
+    class PlacementToolRegistry { <<existing, grows>> + Weather Region row (Area kind, TkbType 8811) }
+    class ISpawnController { <<existing, grows>> + StartAreaAuthoringMode(tkbType, style) overload }
+    class AreaAuthoringArm { <<existing, grows>> + born components by type: WeatherRegion → WeatherConditions.Standard }
+    SelectionInteractionSystem ..> EditorSubsystem : callback
+    EditorSubsystem --> EditorSelectionStore
+    ScenarioEnvironmentView ..|> MapBackgroundViews
+    ZonesDetailsView ..|> MapBackgroundViews
+    ScenarioEnvironmentView --> ScenarioClockEdit
+    ScenarioEnvironmentView --> EntityInspectorPanel
+    ZonesDetailsView --> ImGuiZoneRowRenderer
+    PlacementToolRegistry ..> ISpawnController
+    ISpawnController ..> AreaAuthoringArm
+```
+
+*What the picture shows that prose hid:* nothing new edits the weather — the Scenario view hands the World Environment to the inspector
+the Components view already uses; the only new logic is the clock edit and one "born with" table on the area arm.
+
+```mermaid
+sequenceDiagram
+    participant U as user
+    participant M as map (SelectionInteractionSystem)
+    participant E as EditorSubsystem
+    participant S as EditorSelectionStore
+    participant D as Details (Scenario workspace)
+    participant C as ScenarioClockEdit
+    U->>M: click on empty map
+    M->>E: OnSelectionChanged(Entity.Null)
+    E->>S: NotifySurfaceFocused(MapBackground)
+    S-->>D: focus MapBackground, no entity selected
+    D->>D: Scenario view (rank 10) and Zones view (rank 15) apply
+    U->>D: start time 2025-10-01 05:30 UTC
+    D->>C: SetStartUtc(world, env, utc)
+    alt this node has authority (always in the networkless editor)
+        C->>C: SetComponent ScenarioClock, saved as authored (W-8)
+    else another node owns the World Environment
+        C->>C: TryPublishJsonPatch ScenarioStartUtcTicks to the owner
+    end
+```
+
+```mermaid
+graph TD
+    SIS[SelectionInteractionSystem, every map host] -->|OnMapSelectionChanged, Editor only| ED[EditorSubsystem]
+    ED -->|NotifySurfaceFocused| ST[EditorSelectionStore]
+    DW[DetailsWindow scenario_details, draws each frame] --> SV[ScenarioEnvironmentView]
+    DW --> ZV[ZonesDetailsView]
+    SV --> INS[EntityInspectorPanel, the borrowed one]
+    PICK[Add Entity picker / Spawner] --> PTR[PlacementToolRegistry.Arm]
+    PTR --> SA[ScenarioSpawnAdapter.ArmAreaAuthoring 8811]
+    PTR --> EX[ExConLogic CMD_START_AUTHORING tkbType 8811]
+    SA --> AAA[AreaAuthoringArm: + WeatherConditions.Standard]
+    EX -.->|map host| AAA
+```
+
+*Caption:* the Details panel exists only in the Editor, so the map-background focus is wired there alone; the Weather Region tool goes through
+the shared registry and arm, so every host that draws areas draws weather regions.
+
+### 7.3 Decisions — leans (frame from the handoff; ui details)
+
+| # | decision | lean |
+|---|---|---|
+| **E-1** | when do the map-background views show? | focus MapBackground AND no entity selected — the latch is a level, so an entity click must win without a second focus value |
+| **E-2** | how does the start time get written? | ⭐ directly when this node has authority over the World Environment, else the JSON patch to its owner (the measured gap above). ⛔ Never the wall clock (W-8) |
+| **E-3** | the global weather editor | ⭐ the existing inspector on the World Environment (`DrawComponentsFor`) — U4 needs nothing new: fixed buffers already edit. A friendlier form waits for a user ask |
+| **E-4** | the Weather Region tool | ⭐ an `Area`-kind registry row with its TKB type; an overload `StartAreaAuthoringMode(long tkbType, string style = "")` (0 = the tactical area) — one arm, one parameter; ⛔ not a method per kind. ~~an optional `tkbType` on the existing method~~ SUPERSEDED in the build: Moq setups call `StartAreaAuthoringMode(It.IsAny<string>())`, and an expression tree cannot omit an optional argument |
+| **E-5** | born components | ⭐ `AreaAuthoringArm` adds what a type must be born with (a Weather Region: `WeatherConditions.Standard`) — the one place every host's area commit passes |
+
+**Rejected — one line each:** *raising MapBackground on every frame with no selection* — the Zones view would replace the AI views the user
+was reading · *a dedicated weather form now* — duplicates the inspector · *a `StartWeatherRegionAuthoringMode`* — a method per kind on an
+interface with eight implementers · *adding WeatherConditions in the spawn system* — every type rule would leak into the generic spawner.
+
+### 7.4 As built `2026-10-16` (`CE-1161`; demo `CE-1159`)
+
+| piece | where |
+|---|---|
+| the shared predicate "map background AND no entity" | `DetailsViewPredicates.MapBackgroundWithNothingSelected`; `ZonesDetailsViewDescriptor.Applies` now uses it |
+| the empty-click focus | `EditorSubsystem.OnMapSelectionChanged` → `MapInteractionContext.OnMapSelectionChanged` (the Editor only — the one host with a Details panel) |
+| the Scenario view (rank 10) and the Zones view (rank 15, `ImGuiZoneRowRenderer`; Load = the map's own `GlobalActionIds.LoadZone` action) | `Hrot.Editor/Scenario/ScenarioEnvironmentView.cs`; registered beside the Components view |
+| the clock edit (direct when authority, else the JSON patch) | `Hrot.Presentation/Weather/ScenarioClockEdit.cs` |
+| the Weather Region tool | `PlacementToolRegistry` row (Area, 8811) → `ISpawnController.StartAreaAuthoringMode(long, string)` (`ScenarioSpawnAdapter` arms with the pending type; `ExConLogic` sends it in `CMD_START_AUTHORING`, its zone arm now calls the same method) → `AreaAuthoringArm.BornWith` adds `WeatherConditions.Standard` |
+| the demo | `scenarios/ua-weather-regions` — basic-desert, 19:05 UTC (dusk at the terrain's Berlin origin, display +120), a fog bank at x 140–360 and an overcast region at x 290–510 overlapping in the middle, an IFV and a rifleman west of both |
+
+**Rails:** `ScenarioClockEditTests` ×3 · `AreaAuthoringArmTests.CE1161_*` · `EntityTypeCatalogTests.CE1017_Arm_AGraphic_*` (+ Weather
+Region) · `TheZonesViewIsOfferedOnTheMapBackgroundTests.CE1161_*` · `TheScenarioEnvironmentViewTests` ×4 (the production catalogue, the
+predicate, the typed start time, the empty click) · `WeatherRegionsDemoTests.CE1159_*` (the file through the PRODUCTION serializer:
+both regions outlined, dusk, clear / fog / blended). Each red-proved.
+⚠ **Not built:** a friendlier weather form (E-3: the inspector edits it today); the 3-D frame screenshots inside each region (the demo
+is ready for them; left for the user's live look).
+

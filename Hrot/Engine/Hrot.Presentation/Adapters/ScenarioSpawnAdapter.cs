@@ -57,6 +57,9 @@ namespace Hrot.UI.Common.Adapters
         //    press after an ORBAT create would silently re-apply that unit's affiliation JSON.
         private string? _pendingPropertiesJson;
         private string  _pendingStyleJson = string.Empty;
+        // ⭐ CE-1161 (Weather and Time §7 E-4) — the TKB type the next area tool activation births (a Weather Region, 8811); the plain
+        //   StartAreaAuthoringMode resets it to the tactical area.
+        private long    _pendingAreaTkbType = TkbEntityTypes.TacGraphic_Area;
 
         /// <summary>
         /// The TKB entity type most recently passed to <see cref="StartPlacementMode"/>.
@@ -109,7 +112,7 @@ namespace Hrot.UI.Common.Adapters
                     "Draw Area",
                     Hrot.ScenarioEditor.Tools.ToolModality.Modal,
                     Hrot.ScenarioEditor.Tools.ToolArbiter.Global),
-                _ => ArmAreaAuthoring());
+                _ => ArmAreaAuthoring(_pendingAreaTkbType));
 
             _tools?.Register(
                 new Hrot.ScenarioEditor.Tools.ToolDescriptor(
@@ -282,8 +285,13 @@ namespace Hrot.UI.Common.Adapters
         /// and optional <see cref="MapOverlayStyle"/>.
         /// </remarks>
         public void StartAreaAuthoringMode(string styleOverrideJson = "")
+            => StartAreaAuthoringMode(TkbEntityTypes.TacGraphic_Area, styleOverrideJson);
+
+        /// <inheritdoc/>
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "")
         {
             _pendingStyleJson = styleOverrideJson;
+            _pendingAreaTkbType = tkbType == 0 ? TkbEntityTypes.TacGraphic_Area : tkbType;
 
             // ⭐⭐⭐ UXI-07 step 4a — see StartPlacementMode. ⭐ Area/route bring their OWN tool ids
             //   (PlaceArea/PlaceRoute) because nothing else registers them, and §4.9 ④ measured that
@@ -294,7 +302,7 @@ namespace Hrot.UI.Common.Adapters
                 return;
             }
 
-            ArmAreaAuthoring();
+            ArmAreaAuthoring(_pendingAreaTkbType);
         }
 
         /// <summary>

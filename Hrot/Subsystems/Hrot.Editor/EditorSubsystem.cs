@@ -1986,6 +1986,10 @@ namespace Hrot.Editor
                     //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
                     // 🔒 R-67 — this caller HOLDS the cell, so it PASSES it.
                     AiEntitySelection = e => _sharedEntitySelection.Selected = e,
+                    // ⭐ CE-1161 (CE-3217; Weather and Time §7) — an EMPTY-map click (2-D or 3-D) hands Details the map background,
+                    //   so the Scenario and Zones views show. ⛔ An entity click leaves the latch alone: those views also need "no entity
+                    //   selected" (DetailsViewPredicates.MapBackgroundWithNothingSelected).
+                    OnMapSelectionChanged = OnMapSelectionChanged,
                     // ⭐ UXI-11 — the pack builds the gesture system, so it needs the marquee state.
                     RubberBand = _rubberBandState ??= new Hrot.ScenarioEditor.Gizmos.RubberBandState(),
                     IsSelectedPredicate = static (view, entity) =>
@@ -3436,6 +3440,20 @@ namespace Hrot.Editor
                     // ⭐ Re-asked every frame: the repository adapter is null until a scenario is open,
                     //   and it is REPLACED on reload — ⛔ caching it would pin a dead World.
                     session: () => _fdpRepoAdapter));
+
+            // ⭐⭐ CE-1161 (CE-3217; Weather and Time §7) — the MAP-BACKGROUND views: the Scenario view (start time; the global weather
+            //   drawn by the SAME borrowed inspector as the Components view) and the Zones view (built by BP-542, never registered).
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.Scenario.ScenarioEnvironmentViewDescriptor.For(
+                    world:          () => _world,
+                    session:        () => _fdpRepoAdapter,
+                    drawComponents: (s, e) => _fdpEntityInspector?.DrawComponentsFor(s, e)));
+            _scenarioWorkspace.DetailsViews.Add(
+                Hrot.Editor.AiShared.Shell.ZonesDetailsViewDescriptor.For(
+                    rows:     () => Hrot.Presentation.Zones.ZoneStatusReader.Read(_world!),
+                    // ⭐ The context menu's own "Load zone" action — one path, not a copy of it.
+                    loadZone: id => LoadZoneById(id),
+                    renderer: new Hrot.Editor.Scenario.ImGuiZoneRowRenderer()));
 
             // ⭐⭐⭐ L6.4 — THE MISSION PLAN VIEW. 📄 §6 L6 stage 5.
             // ⛔⛔ Its OWN MissionPanel, unlike the borrowed entity inspector above — 📐 Update()
@@ -5657,6 +5675,23 @@ namespace Hrot.Editor
 #pragma warning disable CS0067
             public event Action? Changed;
 #pragma warning restore CS0067
+        }
+
+        /// <summary>⭐ CE-1161 (CE-3217) — the map's selection callback: an EMPTY click (2-D or 3-D, <c>Entity.Null</c>) hands Details the map
+        /// background. ⛔ An entity click changes nothing here (the views also need "no entity selected").</summary>
+        internal void OnMapSelectionChanged(Entity picked, System.Numerics.Vector3 at)
+        {
+            if (picked.IsNull) _aiEditorSelectionStore.NotifySurfaceFocused(Hrot.Editor.AiShared.Selection.SelectionOrigin.MapBackground);
+        }
+
+        /// <summary>⭐ CE-1161 (CE-3217) — the Zones view's Load: the zone row's network id, run through the map's own "Load zone" action
+        /// (the context menu's), so there is one load path.</summary>
+        private void LoadZoneById(string zoneId)
+        {
+            if (_world == null || !long.TryParse(zoneId, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long id)) return;
+            var zone = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(_world, id);
+            if (zone.IsNull) return;
+            if (_editorMapInteraction?.Actions.TryGetHandler(GlobalActionIds.LoadZone, out var load) == true) load(_world, zone);
         }
     }
 }

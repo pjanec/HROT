@@ -25,6 +25,7 @@ public sealed class AddEntityActionTests
         public readonly List<string> Calls = new();
         public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null) => Calls.Add($"point {tkbType} {initialPropertiesJson}");
         public void StartAreaAuthoringMode(string styleOverrideJson = "") => Calls.Add("area");
+        public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "") => Calls.Add($"area:{tkbType}");
         public void StartRouteAuthoringMode() => Calls.Add("route");
         public void StartZoneAuthoringMode(string styleOverrideJson = "") => Calls.Add("zone");
     }

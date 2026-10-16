@@ -31,6 +31,24 @@ public sealed class TheZonesViewIsOfferedOnTheMapBackgroundTests
         IReadOnlyList<Entity> IEntitySelectionSource.Selected() => Array.Empty<Entity>();
     }
 
+    private sealed class OneEntity : IEntitySelectionSource
+    {
+        private readonly IReadOnlyList<Entity> _one = new[] { new Entity(3, 1) };
+        IReadOnlyList<Entity> IEntitySelectionSource.Selected() => _one;
+    }
+
+    /// <summary>⭐ CE-1161 (Weather and Time §7 E-1) — the focus latch is a level an entity click does not move: once a unit is picked
+    /// its own views win, so the map-background views step aside.</summary>
+    [Fact]
+    public void CE1161_WithAnEntitySelected_TheZonesViewStepsAside_EvenThoughTheBackgroundHoldsFocus()
+    {
+        var store = new EditorSelectionStore();
+        store.NotifySurfaceFocused(SelectionOrigin.MapBackground);
+        var picked = DetailsContextBuilder.Build(store, "Scenario", VariableRunState.Planning, new OneEntity());
+        Assert.False(ZonesDetailsViewDescriptor.Applies(picked));
+        Assert.True(ZonesDetailsViewDescriptor.Applies(ContextFocusedOn(SelectionOrigin.MapBackground)));
+    }
+
     /// <summary>A context whose focused surface is whatever a case names, built the production way.</summary>
     private static DetailsContext ContextFocusedOn(SelectionOrigin origin)
     {
