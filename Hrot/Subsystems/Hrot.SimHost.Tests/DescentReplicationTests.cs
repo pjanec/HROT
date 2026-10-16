@@ -70,5 +70,24 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(LocomotionClass.Pedestrian, Locomotions.Of(replica, man));
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-2210</c> — a man CREATED coming down (the ejected pilot) is published while he is still CONSTRUCTING: the creator owns his
+        /// descent only then (it yields its Muscle group before he turns Active, Ownership Groups D-7), so an Active-only scan sent nothing,
+        /// ever, and the node taking his position got a Pedestrian. 🔴 Red-proof: without <c>WithLifecycle(All)</c> nothing is sent.
+        /// </summary>
+        [Fact]
+        public void CE2210_AManCreatedComingDown_IsPublishedWhileConstructing()
+        {
+            var (owner, man, _, _) = Node(61L, 62L);
+            using (owner)
+            {
+                owner.SetLifecycleState(man, EntityLifecycle.Constructing);
+                owner.AddComponent(man, new Descent { Kind = DescentKind.Ejection, Phase = DescentPhase.Exit, Canopy = CanopyKind.Round });
+                var egress = new EntityDescentEgressTranslator(participant: null);
+                egress.ScanAndPublish(owner);
+                Assert.Equal(1, egress.SentSampleCount);
+            }
+        }
     }
 }
