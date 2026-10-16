@@ -193,6 +193,50 @@ public sealed class OrbatPanel
     /// Ôćĺ <c>CreateEntityAck</c> arrives Ôćĺ ExCon logs the new ID and auto-selects
     /// the entity.</para>
     /// </summary>
+    /// <summary>⭐ <c>CE-1017</c> D9 — the host's TKB, for the type picker (with <see cref="OpenPicker"/>: <i>New Unit…</i> opens the
+    /// picker rooted at the catalog's Units folder instead of the flat combo). 📄 docs/DESIGN_Add_Entity_Picker.md D9.</summary>
+    public Func<Fdp.Interfaces.ITkbDatabase?>? Tkb { get; init; }
+
+    /// <summary>The host's <c>PickerRegistry.OpenPicker</c>, resolved at call time; null ⇒ the flat combo.</summary>
+    public Func<Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>?>? OpenPicker { get; init; }
+
+    /// <summary>True when <i>New Unit…</i> opens the picker.</summary>
+    public bool HasPicker => Tkb?.Invoke() is not null && OpenPicker?.Invoke() is not null;
+
+    /// <summary>The unit type <i>New Unit…</i> places.</summary>
+    public long SelectedType => _selectedType;
+
+    /// <summary>
+    /// ⭐ CE-1017 D9 — <i>New Unit…</i> with a picker: the Add Entity picker rooted at the Units folder; a pick becomes the selected
+    /// type and arms the placement tool at once (the same arm as <see cref="HandleNewUnitClick"/>). False when no picker is available.
+    /// </summary>
+    public bool HandleChooseUnit(IExConLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+        var tkb = Tkb?.Invoke();
+        var open = OpenPicker?.Invoke();
+        if (tkb is null || open is null) return false;
+
+        var request = Hrot.UI.Common.AddEntity.AddEntityAction.BuildRequest(tkb, eForceIdentifier.FORCE_FRIENDLY, null,
+            Hrot.UI.Common.AddEntity.EntityTypeCatalog.UnitsFolder);
+        open(new NodeEditor.UI.Picker.PickerRequest
+        {
+            ContextKey             = "add-entity/units",
+            Title                  = "New Unit",
+            Layout                 = request.Layout,
+            ItemsProvider          = request.ItemsProvider,
+            FoldSingleChildFolders = true,
+            ShowPreview            = true,
+            InitialSelectionId     = _selectedType == 0 ? null : _selectedType.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }, result =>
+        {
+            if (result.First?.Tag is not Hrot.UI.Common.AddEntity.EntityTypeEntry e) return;
+            _selectedType = e.TkbType;
+            HandleNewUnitClick(logic);
+        });
+        return true;
+    }
+
     public void HandleNewUnitClick(IExConLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
@@ -347,6 +391,15 @@ public sealed class OrbatPanel
         }
 
         ImGui.Separator();
+
+        // ⭐ CE-1017 D9 — with a picker, New Unit… opens it (rooted at Units) and the pick arms the tool; the combo is the fallback.
+        if (HasPicker)
+        {
+            if (ImGui.Button("New Unit...")) HandleChooseUnit(logic);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Choose a unit type, then click on the map to place it");
+            return;
+        }
 
         // Render the Combo Box for Unit selection
         if (_catalog.Count > 0)

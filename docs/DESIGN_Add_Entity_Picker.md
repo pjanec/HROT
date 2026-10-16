@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — ONE entity-authoring wiring on Editor, CGF, SimHost, IG)
+updated: 2026-10-16 (ExCon ORBAT New Unit picker built, §5 S4 table); 2026-10-07 (rev 7 — explicit wire fields + the in-process shapes, §2e; S0–S5 as built, §5 — ONE entity-authoring wiring on Editor, CGF, SimHost, IG)
 build-state: BUILT — all slices on Editor, CGF, SimHost and IG; Stride mode 2 deferred (CE-1030). Approved by the user 2026-10-07 (all leans, §2–§2c); CE-1031 is the terrain owner's follow-up
 current-answer: §2 decisions (rev 2) AS AMENDED BY §2a (rev 3) AND §2b (rev 4) AND §2c (rev 5) AND §2d (rev 6) AND §2e (rev 7); the later section wins where they differ · §3 diagrams · §5 slices
 stale-below: "## ⛔ HISTORY" — the rev-1 leans D4/D5/D6/D9 (create at the clicked point, Shift = tool, force-only
@@ -632,8 +632,8 @@ graph TD
 | lists | `ScenarioSpawnerCatalog` (hand-written, 14) is **deleted**; Editor and CGF take `EntityTypeCatalog.SpawnerEntries(tkb)`; ExCon's own 9-entry literal (cross-lane edit, backend's file) is replaced the same way, and its ORBAT unit list is the catalog's `Units` folder |
 | ExCon TKB | ⚠ ExCon holds no cluster TKB, so it lists `HrotEnvironment.CreateTkb()` — the built-in default a node boots with. A TKB file loaded into the cluster later is NOT reflected in ExCon's picker |
 | IG Mini ExCon | `SetPicker(tkb, openPicker)` + a *Choose…* button beside the raw type number; the pick SETS the type (this panel spawns at coordinates — it arms no tool). ⚠ Bug fixed on the way: its Affiliation combo listed *Unknown/Friend/Hostile/Neutral* over `ForceId` (Neutral=0, Friend=1, Hostile=2), so "Unknown" was Neutral and "Neutral" wrote 3 |
-| ⏳ ExCon ORBAT *New Unit* | keeps its combo (now TKB-built); the picker there is not wired |
-| rails | `SpawnerPanelPickerTests` (3) · `MiniExConPanelPickerTests` (2) · `TheScenarioWindowsAreSharedTests.TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb` |
+| ExCon ORBAT *New Unit* *(built `2026-10-16`, ui)* | optional `Tkb` + `OpenPicker` like the spawner: *New Unit…* opens the picker **rooted at `Units`** (`AddEntityAction.BuildRequest(…, rootFolder)` — only entries under the folder are offered), friendly, and a pick selects the type and arms the placement tool at once; the combo is the fallback. ~~keeps its combo; the picker there is not wired~~ (superseded) |
+| rails | `SpawnerPanelPickerTests` (3) · `MiniExConPanelPickerTests` (2) · `OrbatPanelPickerTests` (2) · `TheScenarioWindowsAreSharedTests.TheEditorAndCgfTakeTheirSpawnerCatalogFromTheTkb` |
 
 ### ✅ S5 as built — entity icons *(ui, `2026-10-07`)*
 
