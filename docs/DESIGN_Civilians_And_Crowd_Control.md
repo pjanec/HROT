@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -80,6 +80,7 @@ related-designs:
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
 | **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
 | **R-2024** | ✅ **CV-13, CV-13a, CV-14 approved as written** (§4) — gestures and drawn props, hands up holds fire, the security forces provoke a crowd |
+| **R-2027** | ✅ **AW-21** (§5h) — status for combatants (an enemy combatant is engaged as today, unless out of the fight), conduct (AW-15…AW-20) for civilians of any side and the neutral or unknown |
 | **R-2026** | ✅ **the armed-people review, AW-15…AW-20** (§5h) — armed judged per observer by appearance and identification range; drawing is not a hostile act, aiming and firing at the forces are; direction of fire; self-defence over the force level; lethality by reach (knives, Molotovs, vehicles); a neutral in the line holds the shot. AW-1 and AW-3 superseded |
 | **R-2025** | ✅ **armed people AW-1…AW-14** (§5h) — armed = a visible usable lethal weapon; issued weapons built-in (a pistol too), handed-over ones entities; hands, carry stations with a hidden one, held items; stones and canisters picked up and thrown; posture grades the ladder; insurgents and charges |
 
@@ -839,7 +840,7 @@ his fist up.
 ⚠ **Known limits:** ① protesters do not FACE the point (no facing request for a standing man — §5f ③); ② anger stays 0 until `CE-2238`/`CE-2241`
 add producers; ③ a protest point inside a solid building leaves its ring spots unreachable on that side — author it in the street.
 
-## 5h. Armed people — what a man holds, what others can see *(behaviors, 2026-10-17; build-state: READY-TO-BUILD; ✅ RULED R-2025, amended R-2026)*
+## 5h. Armed people — what a man holds, what others can see *(behaviors, 2026-10-17; build-state: READY-TO-BUILD; ✅ RULED R-2025, amended R-2026, R-2027)*
 
 🔒 **User, verbatim (`2026-10-17`, one exchange, each step approved in turn):**
 - *"Both concepts sound reasonable. Just the condition for armed or unarmed need to be a little bit more complex."*
@@ -850,6 +851,9 @@ add producers; ③ a protest point inside a solid building leaves its ring spots
 - After a critical review against real incidents (misidentification, legally armed civilians, celebratory fire, self-defence, knives and
   Molotovs, crowds as shields): *"approved, fold 1-6 into the design with your leans"* ⇒ **R-2026**, AW-15…AW-20 below; AW-1 and AW-3 are
   SUPERSEDED (their old text kept in their rows, struck through).
+- On whether the complex rules are for civilians only (*"for soldiers and military is much simpler, because every enemy soldier who is
+  armed, no matter where his weapon is drawn, unless he surrenders, needs to be considered hostile"*): *"approved, add AW-21 to the
+  design"* ⇒ **R-2027**, AW-21.
 
 INVENTORY *(codebase-memory MCP `search_graph` + grep, 2026-10-17; `check_index_coverage` not run)*:
 
@@ -942,6 +946,11 @@ is why it is the hostile act (CV-4)".
 
 ```mermaid
 graph TD
+  S{AW-21: an enemy COMBATANT - Hostile and not of the Civilian class?} --> ST[engaged on STATUS - armed, a full threat, wherever his weapon is]
+  ST --> OUT{out of the fight? laid down and hands up, or wounded out}
+  OUT --> NOT[not a target]
+  OUT --> NL
+  S --> Q
   Q{what can THIS observer identify on him, at his range, light and optics?} --> A[an item that LOOKS lethal - a rifle, a pistol, a toy gun, a knife within reach]
   Q --> U[something he cannot identify - a long object, a small object in the hand]
   Q --> D[only items that look non-lethal - stones, a canister]
@@ -961,7 +970,8 @@ graph TD
   NL --> HOLD[hold the shot]
   NL --> FIRE[fire]
 ```
-*What the picture shows that prose hid:* the question is what the OBSERVER can identify, so the same man is "armed" to a soldier 20 m
+*What the picture shows that prose hid:* ⭐ *(R-2027)* the first question is STATUS — an enemy combatant is engaged as today, by
+status, and everything below it is for civilians of any side and the neutral or unknown; the second question is what the OBSERVER can identify, so the same man is "armed" to a soldier 20 m
 away and "carrying something" to one 200 m away in the dark — and a toy gun is engaged like a rifle, which is the training outcome
 (R-2026); armed is never enough to fire — intent decides, and only a hostile act (or self-defence, which overrides the force level) gives
 Lethal; every shot first asks whether a neutral is in the line or the spread. Hands up is NOT a branch — a man with his hands up is still
@@ -1053,6 +1063,7 @@ intents, posture, entity creation); and every node can answer `IsArmed` itself, 
 | **AW-18** *(R-2026)* | **self-defence overrides the unit's `ForceLevel`**: a weapon aimed at us, or fire at us, allows Lethal even to a NonLethal police line | the cap always binding: no ROE card denies self-defence |
 | **AW-19** *(R-2026)* | **lethality is an item's REACH, not "firearms and explosives"**: a knife or machete is lethal within its reach (~2 m, and an attacker closes 7 m in under 2 s), a Molotov is lethal, a stone non-lethal; a **vehicle driven at people** is a hostile act | firearms only: knife attacks at checkpoints and Molotovs (deadly force under most ROE) read as unarmed |
 | **AW-20** *(R-2026)* | **a neutral in the line of fire or within the weapon's spread HOLDS the shot** — beside `LineOfFire.BlockedByFriendly`, which today holds only for the shooter's own force (`LineOfFire.cs:71-81`, measured) | collateral left for later: an armed man in a crowd is lethal-permitted the moment he is identified (human shields, fire from inside protests) |
+| **AW-21** *(R-2027)* | **STATUS for combatants, CONDUCT for civilians**: an enemy COMBATANT (Hostile and not of the `Civilian` class — soldiers, the open `Insurgent`, enemy crews) is engaged on STATUS: armed by status, a full threat wherever his weapon is, unless out of the fight (laid down and hands up, AW-5; wounded out, `ThreatDanger.IsOutOfTheFight`). AW-15…AW-20 apply ONLY to the `Civilian` class (of any side, a Hostile-flipped rioter included) and to neutral or unknown targets — so the military fight, its ranking and the Sentry threshold are unchanged. ⚠ Simplification: the law targets a civilian who takes part only "for such time" as he does; the flip is sticky for the exercise (CV-4) | per-observer judgement for combatants too: an unseen enemy rifleman becomes "unidentified, warn first", which no military ROE does · Hostile = status target: a rioter who threw one stone becomes as targetable as an enemy rifleman |
 | **AW-14** | **the hands hold everyday things too**: a replicated HELD-ITEM byte (None, Weapon, Throwable, Phone, Binoculars; "Weapon" means `WeaponPosture.ActiveMount`, never a copy); phone and binoculars are POCKET ITEMS, type data, never entities; binoculars lengthen vision and narrow it while held; a phone is a D4 cue and an IED's remote trigger | phones and binoculars as entities: the pistol's cost times every civilian |
 
 ⭐ **Owners and order.** Backend (frame [HANDOFF_Behaviors_To_Backend_Armed_People.md](blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md)):
@@ -1062,8 +1073,9 @@ RoundPickUp on SimHost + stone sources + landed stones lingering (AW-8), the clo
 conceal / pick up / throw / detonate, the covert trigger, riot), `CE-2239` (the ladder's posture rows), `CE-2241` (hands up). Ui: the held
 item, the laid-down weapon and the bending pose on the figure.
 
-⭐ **R-2026 owners:** backend — `Appearance` on every item's TKB data, `Armament.Judge` per observer with the identification range (B-7 is
-amended, [NOTE](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Amended.md)); behaviors — the intent rows, self-defence and the
+⭐ **R-2026 / R-2027 owners:** backend — `Appearance` on every item's TKB data, `Armament.Judge` per observer with the identification range,
+and the status rule for combatants in front of it (B-7 is amended, [NOTE](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Amended.md),
+[NOTE 2](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Status.md)); behaviors — the intent rows, self-defence and the
 neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the hostile act moved from the draw to the aim/fire/attack
 (`CE-2238`).
 
