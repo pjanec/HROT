@@ -2240,6 +2240,29 @@ of sim time on CGF and SimHost, and prints ms/frame for `BrainTickSystem`, the p
 at 100 / 300 / 500. ⭐ It reads the existing diagnostics route — no new timing code. ⛔ Not built until B-2 gives it a type
 with a brain.
 
+#### 7.4a AS-BUILT `CE-3222` *(2026-10-17)* — the harness, and what it measured
+
+| built | where |
+|---|---|
+| ⚠ **deviation:** the route did NOT carry timing (it serialised each system's name only) — it now adds `executions`, `avgMs`, `recentAvgMs`, `maxMs`, `errors` from the scheduler's own `SystemProfileData`. Still no new timing code | `DebugApiService.Diagnostics.cs`, route doc |
+| ⚠ **deviation:** a Python harness, not a shell script — it reuses `utility-demo-check.py`'s launch / load / call helpers. `python3 scripts/perf-civilians.py 100 300 500 [--seconds 60] [--budget-ms N]`: generates `scenarios/perf-civ-N/` (gitignored, removed after), CIV-1 types on a jittered grid over test-town, a fresh `--mode all` per count; prints the crowd-scaling systems, each subsystem's top 8 and sum, and the frames run | `scripts/perf-civilians.py` |
+
+📐 **Measured** (`--mode all`, one process runs CGF, SimHost and IG in turn; ms/frame, recent average):
+
+| | 100 | 300 | ×3 civilians ⇒ |
+|---|---|---|---|
+| CGF all systems | 54.9 | 138.8 | ×2.5 |
+| SimHost all systems | 54.2 | 157.4 | ×2.9 |
+| `BrainTickSystem` | 1.70 | 4.79 | ×2.8 — linear |
+| `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame) |
+| `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ `CE-3241` |
+| `CrowdSystem` (CGF, behaviors) | 0.45 | 3.06 | ×6.8 ⇒ behaviors note |
+| `RecorderTickSystem` CGF / SimHost / IG | 25.0 / 22.1 / 15.5 | 29.4 / 24.6 / 16.8 | flat but the biggest ⇒ `CE-3243` |
+| frames in 60 s of sim | 690 | 382 | |
+
+⛔ **500 did not load:** not settled in the load route's 30 s (1059 entities) ⇒ `CE-3242`. ⚠ **No budget is set yet** — the
+harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
+
 ### 7.5 B-5 — the weapons *(CV-9)*
 
 Data on existing types, no new code beyond B-1: `WarheadKind` Blunt (baton round, stone), Irritant (gas grenade/launcher
