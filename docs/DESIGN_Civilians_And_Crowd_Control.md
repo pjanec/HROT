@@ -1,18 +1,17 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
 known-rot: none.
-known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thousands of trivial entities (traffic, crowds)"
-  at Tier 0 (a plain C# system); the user's ruling D3 / R-263 makes civilians HSMs. This design follows R-263; the
-  tutorial row is not reconciled yet. ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
+known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says
+  Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
@@ -48,6 +47,7 @@ related-designs:
   - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md — ui's four findings on §7 (F-1…F-4).
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — B-6, the replicated Gesture component (CV-13).
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md — U-6, the gesture poses and the placard on a pole (CV-13).
+  - docs/blueprints/batches/NOTE_Behaviors_To_Backend_CivilianHsm_Landed.md — CE-2235 landed; B-4 (the perf harness) may go.
 -->
 
 # DESIGN — **civilians and crowd control** *(the CIV programme)*
@@ -191,7 +191,7 @@ stateDiagram-v2
   Riot --> Panic : fear beats anger
   Panic --> Shelter : an enterable building is reachable
   Panic --> Cower : under fire, no shelter reachable
-  Cower --> Panic : fire stops
+  Cower --> Alarmed : fear falls below panic
   Shelter --> Inside : through the door
   Inside --> [*] : hide time over, entity deleted
   Routine --> Casualty : wounded
@@ -204,7 +204,9 @@ stateDiagram-v2
 
 *What the picture shows that prose hid:* panic never ends in open-ended running — every panic path drains into Shelter
 (and deletion) or Cower (R-4035); and the only edges INTO violence go through the crowd (Protest → Riot) or a weapon, so a
-lone frightened civilian never attacks.
+lone frightened civilian never attacks. ⚠ **As built (`CE-2236`, §5e):** Cower's exit is **Alarmed** once fear falls below
+`PanicAt` — ⛔ SUPERSEDED: *"Cower → Panic : fire stops"*, which re-asks the shelter query that just answered none and loops
+Panic ⇄ Cower while he is still frightened.
 
 ### 2.3 Sequence — a shot, a panicking civilian, a building, gone
 
@@ -383,12 +385,12 @@ shot" could mean "not seen").
 
 | slice | demo | terrain · cast | ⭐ PASS = all of | state |
 |---|---|---|---|---|
-| **CIV-0** `CE-2233` | **`ua-civ-neutral-gate`** | test-town · a rifleman (Friend, CombatPosture); an unarmed Neutral civilian; an ARMED Neutral nearest of all; a Hostile farther | ① he remembers both neutrals · ② the Hostile dies · ③ neither neutral loses health, sampled all run · ④ the neutrals rank at score 0 · ⑤ with only neutrals left, no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged, the civilian still unhurt | ✅ built (twin `PostureScenarioTests.CE2233_CivNeutralGate_…`) |
+| **CIV-0** `CE-2233` | **`ua-civ-neutral-gate`** | test-town · a rifleman (Friend) on a MISSION — CombatPosture → Sentry (MinDanger 0.5) → CombatPosture; an unarmed Neutral civilian; an ARMED Neutral nearest of all; a Hostile farther | ⓪ the cast stands where the scenario put it (else `CE-2242`, not CIV-0) · ① he remembers both neutrals · ② the Hostile is put out of the fight · ③ neither neutral loses health, sampled all run · ④ the neutrals rank at score 0 · ⑤ his fire stops, then no round for 8 s, and his weapon's target is never a neutral (sampled) · ⑥ the armed neutral's side flips to Hostile (`/attribute`, the owner's write path) ⇒ he is engaged, the civilian still unhurt | ✅ **live 3/3 `2026-10-17`** · twin `PostureScenarioTests.CE2233_CivNeutralGate_…` · 📐 it found the 5th CIV-0 layer (the threat edges, §5b) |
 | CIV-0 | `ua-threat-ranking` *(migrated)* | test-town · its civilian is Neutral | the neutral civilian scores 0 and is never the ranking's winner | ✅ |
-| **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town · 6 civilians of the new types (1101–1104) at their routine points; a soldier who fires a burst at a target 40 m from two of them, 150 m from the rest | ① all 6 start in `Routine` · ② within 2 s of the first shot, every civilian within hearing (100 m) is `Alarmed`, every one beyond stays `Routine` · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40) ⇒ `Casualty`, stops moving, and stays there | ⏳ with CE-2235 |
+| **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town (⚠ 0–400 m; keep off the Pond) · 6 civilians of the new types (1101–1104) at their homes; a rifleman fighting a Hostile, two civilians 35–40 m from him, four 150+ m from both shooters | ① all 6 start in `Routine` (from the type's default), and the far ones walk · ② within 2.5 s of the first shot both near ones are `Alarmed`, no far one ever is (sampled) · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40 on CGF, the owner) ⇒ `Casualty`, stops moving, and stays there | ✅ **live 11/11 `2026-10-17`** (alarmed 1.7 s after the first shot; 4/4 far ones walked) · run 1 found its own cast off the navmesh — test-town is 0–400 m, two stood in the Pond (fixed) · twin `PostureScenarioTests.CE2235_CivRoutineAlarm_…` |
 | CIV-1 | **`ua-civ-crowd-300`** *(perf gate, CV-10)* | test-town · 300 civilians, mixed variants, routine points spread over the town | ① all 300 run a behaviour · ② over 60 s, CGF frame time p95 ≤ the budget backend's `scripts/perf-civilians.sh` measures against (B-4) · ③ brain tick per civilian reported | ⏳ CE-2235 + B-4 |
-| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ⏳ |
-| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ⏳ |
+| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ✅ live 14/15 `2026-10-17` (all 4 in through A's front door, hid 19.0–21.1 s, gone on every node); the 1 fail was the check's 0.25 s poll missing a few-frame `Panic` — check fixed to accept Panic-or-beyond, ⏳ not re-run |
+| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ✅ live 11/11 `2026-10-17` |
 | **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · 12 civilians within 80 m of an incident (a casualty on the street) | ① one `Crowd` entity forms holding ≥ 8 of them · ② their mean distance to the focus falls below 15 m within 60 s | ⏳ |
 | CIV-3 | **`ua-civ-contagion`** | test-town · a crowd of 15 spread over 150 m; a blast at one end (heard by the near half only) | ① the near half panics · ② fear then reaches members who did NOT hear it (beyond 100 m): ≥ 3 of them panic via the crowd, not via hearing | ⏳ |
 | **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
@@ -403,6 +405,242 @@ shot" could mean "not seen").
 ⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
 `wait_for(condition, timeout)` with the condition printed on failure, and every "never" is SAMPLED over the whole run (a minimum, not
 an end state).
+
+## 5d. CIV-1 behaviour — `CivilianHsm` slice 1: Routine, Alarmed, Casualty *(behaviors, `CE-2235`, 2026-10-17)*
+
+INVENTORY *(codebase-memory CLI `search_graph` + grep, one Explore sweep; `check_index_coverage` not available through the CLI)*: hand-built
+HSMs are `[HsmDefinition(Curated)]` graphs (`CuratedMachines.cs`, `ClassOrderBehaviors.cs`) bound through `HsmFluentBindingExtensions`;
+hearing reaches a brain as `SoundContactEvent` → `TargetMemory.HearContact` (`ThreatEvaluationSystem.cs:69`, `PerceptionComponents.cs:282`)
+— ⚠ a sound near an IDENTIFIED contact only refreshes that slot, so memory cannot say "heard now"; moves are `LocomotionMoveTo.Issue/Stop`,
+stances `StanceRequest.Set`, wounds `Injury.StateOf` (fraction below the type's `WoundedBelow`, 0.6); no civilian AI, no fear component
+existed (§1).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianState { <<NEW, Fdp.Toolkits, brain-local, id 399>> Fear Anger Attitude Mode Home LastFrightAt }
+  class CivilianMind { <<NEW>> Ensure SetMode FearOf ModeOf }
+  class CivilianFearSystem { <<NEW, CGF Simulation>> heard sounds + near miss/hit raise fear, then the fade }
+  class CivilianFear { <<NEW>> Impulse(class, distance) DecayPerSecond }
+  class CivilianBehavior { <<NEW, Hrot.AI.Behaviors>> CivilianHsm graph, Resolve, Routine Alarmed Casualty, guards }
+  class CivilianParamsJsonDto { <<NEW, Hrot.Core>> WanderRadius WalkSpeed Pause AlarmAt CalmBelow }
+  class CivilianTkbCatalog { <<existing, backend>> 1101-1104 DefaultBehaviorHash = CivilianHsm }
+  class SoundContactEvent { <<existing>> Observer X Y SourceClass }
+  class SensorChangedEvent { <<existing>> NearMiss Hit }
+  class LocomotionMoveTo { <<existing>> Issue Stop Status }
+  class StanceRequest { <<existing>> Set }
+  class Injury { <<existing>> StateOf }
+  class SimRng { <<existing>> FromSim }
+  CivilianFearSystem ..> SoundContactEvent : reads, grouped by listener
+  CivilianFearSystem ..> SensorChangedEvent : reads
+  CivilianFearSystem ..> CivilianFear
+  CivilianFearSystem --> CivilianState : writes Fear
+  CivilianBehavior ..> CivilianMind : Ensure, SetMode, FearOf
+  CivilianMind --> CivilianState
+  CivilianBehavior ..> LocomotionMoveTo
+  CivilianBehavior ..> StanceRequest
+  CivilianBehavior ..> Injury : Wounded guard
+  CivilianBehavior ..> SimRng : wander spot, linger time
+  CivilianBehavior ..> CivilianParamsJsonDto : resolver
+  CivilianTkbCatalog ..> CivilianBehavior : starts it by default
+```
+*What the picture shows that prose hid:* fear has ONE writer (the system) and the HSM only READS it — so the crowd's contagion
+(`CE-2237`) is a second writer of the same field, not a second fear model; and the mode is written by the HSM's own state, so a reader
+that is not the HSM never needs its metadata.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Alarmed : Fear >= AlarmAt (0.3)
+  Alarmed --> Routine : Fear < CalmBelow (0.1)
+  Routine --> Casualty : wounded (priority)
+  Alarmed --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* the slice-1 subset of §2.2 — Casualty has no exit, and the wounded edge outranks the fear edge
+from both states, so a frightened wounded man lies down instead of crouching.
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (shooter)
+  participant SN as CGF hearing sensor
+  participant FS as CivilianFearSystem
+  participant CS as CivilianState
+  participant HSM as CivilianHsm (BrainTickSystem)
+  SH-->>SN: weapon fire, a SmallArms sound
+  SN->>FS: SoundContactEvent (Observer = the civilian)
+  FS->>CS: Fear += Impulse(class, distance)
+  HSM->>CS: polled guard reads Fear >= AlarmAt
+  HSM->>HSM: Routine exit (stop), Alarmed (crouch)
+  loop every frame, nothing new heard
+    FS->>CS: Fear -= 0.05 per s
+  end
+  HSM->>HSM: Fear < CalmBelow, Alarmed exit (stand), Routine (walk on)
+```
+*What the picture shows that prose hid:* the alarm's length is the FADE, not a timer in the machine — a burst that frightened him more
+keeps him down longer, and a second shot while he is alarmed extends it without any transition.
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brain node)"]
+    TE[CgfThreatEvaluationSystem] --> FS[CivilianFearSystem]
+    FS --> BT[BrainTickSystem]
+    BT --> HSM[CivilianHsm per civilian]
+    TKB[BehaviorTkbTranslator] -->|DefaultBehaviorHash| HSM
+    REG[CognitiveComponentRegistry] -.registers.- CS[CivilianState]
+  end
+  subgraph SimHost
+    MV[CarKinematicsSystem HumanGait] 
+  end
+  HSM -->|LocomotionChannel MoveTo| MV
+  subgraph Other["SimHost, IG, maps"]
+    NONE[CivilianState absent: brain-local]
+  end
+  style NONE fill:#f66,color:#000
+```
+*What the picture shows that prose hid:* `CgfLogicPack` puts `CivilianFearSystem` in its Simulation list right after threat evaluation
+and before the cognitive runtime (the brain tick), so a fright is read the same frame; the red box — no other node has `CivilianState`,
+so anything another node needs (the cower pose, the side) travels in its own replicated component, never here.
+
+| decision | ⭐ as built | rejected — one line each |
+|---|---|---|
+| who integrates fear | ⭐ one CGF system, one pass over the frame's `SoundContactEvent`s | a node in the HSM: civilians × events per frame (300 × a burst's samples) · reading `TargetMemory`: it cannot tell "heard now" for an identified contact (§5d inventory) |
+| where fear lives | ⭐ `CivilianState` (id 399), brain-local, registered with the cognitive components, never saved | in the HSM block: the crowd (CE-2237) and a live check could not read it |
+| who adds it | ⭐ the HSM, on its first tick (`CivilianMind.Ensure`, home = where he stands) | the TKB translator: any person may be given `CivilianHsm`, and only a running one needs a mind |
+| the mode | ⭐ each state's activity writes `CivilianState.Mode` | the HSM trace's leaf names: the trace must be armed per entity and the leaves are ids |
+| wounded | ⭐ `Injury.StateOf != Ok` (the type's thresholds: below 60 %) | "health below max": a scratch would make a casualty |
+| the routine | ⭐ wander about home (radius 12 m, 1.4 m/s, linger 3–10 s, `SimRng` per man and leg) | authored routine points: no demo needs them yet — a later round-out |
+
+⚠ **Known limits (slice 1):** ① *seeing* a casualty does not frighten (§2.2's "saw a casualty") — a Neutral observer drops Neutral
+targets in vision (`VisionBroadphase.cs:79`), so the crowd hint (`CE-2237`) carries it. ② Fear's impulses and fade are constants of
+`CivilianFear`, the same for every man — attitude-scaled nerve comes with `CE-2238`. ③ A casualty stays one; a casualty's rescue is not
+civilian behaviour.
+
+## 5e. CIV-2 behaviour — Panic, Shelter, Inside, Cower *(behaviors, `CE-2236`, 2026-10-17)*
+
+INVENTORY *(codebase-memory CLI `search_graph` + grep; `check_index_coverage` not available through the CLI)*: EQS templates are
+`[EqsTemplate]` static classes (`VehicleTemplates.cs` — ⚠ the existing **`FindShelter`** finds OVERHEAD cover on a grid for the drone
+shelter, V8b: it does not know doors or footprints, so it cannot answer "a house I can walk into"); point generators derive from
+`PointPatternGenerator` (`PointPatternGenerators.cs`); a behaviour owns a sensor through `PostureNodes.Keep/Drop`; doors are
+`TerrainWorld.Doors`/`Panels` with live state in `DoorStates.Of` and the mover opens a closed door itself (`DoorPassageSystem`, §5a M-2);
+a person is deleted on every node by `DestroyEntityCommand` (§5a M-1); cowering is `Effects.SetCowering` (backend F-3, §7).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianBehavior { <<grows>> + Panic Shelter Inside Cower, guards Panicked BelowPanic ShelterFound NoShelter InsideNow ShelterFailed }
+  class PanicState { <<NEW, in the block>> Sensor Since Answered Found Moving Arrived Failed Deleted Shelter HideUntil }
+  class CivilianState { <<grows>> + FrightFrom HasFrightFrom }
+  class CivilianFearSystem { <<grows>> records where the frightening sound came from }
+  class FindEnterableShelter { <<NEW EQS template, Fdp.Toolkits>> }
+  class EnterableDoorGenerator { <<NEW>> one point InsetMetres inside per exterior ground door not Locked }
+  class InsideTest { <<NEW EQS filter>> IsInside(world, p) — a non-solid footprint }
+  class NavmeshReachableTest { <<existing>> a Locked door is a wall }
+  class PathCostScoreTest { <<existing>> }
+  class PostureNodes { <<existing>> Keep Drop }
+  class DoorStates { <<existing>> Of }
+  class DoorPassageSystem { <<existing, SimHost>> opens a closed door on the path }
+  class Effects { <<existing, backend F-3>> SetCowering }
+  class DestroyEntityCommand { <<existing>> }
+  CivilianBehavior --> PanicState
+  CivilianBehavior ..> PostureNodes : Keep the shelter sensor in Panic
+  PostureNodes ..> FindEnterableShelter
+  FindEnterableShelter --> EnterableDoorGenerator
+  FindEnterableShelter --> InsideTest
+  FindEnterableShelter --> NavmeshReachableTest
+  FindEnterableShelter --> PathCostScoreTest
+  EnterableDoorGenerator ..> DoorStates : skips Locked
+  CivilianBehavior ..> InsideTest : IsIndoors on the run in
+  CivilianBehavior ..> Effects : Cower sets, its exit clears
+  CivilianBehavior ..> DestroyEntityCommand : Inside, after the hide time
+  CivilianFearSystem --> CivilianState : FrightFrom
+  CivilianBehavior ..> CivilianState : Panic flees from FrightFrom
+  DoorPassageSystem ..> DoorStates : Open
+```
+*What the picture shows that prose hid:* ONE new template of three new pieces, the rest reused — the door rule ("if the doors can be
+opened") lives in TWO existing places and nowhere new: the generator skips a Locked door, and the reachability test treats it as a wall;
+nothing in the HSM knows doors, and `InsideTest.IsInside` is the same question for the query and for the run in.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Alarmed : Fear >= AlarmAt (0.3)
+  Alarmed --> Routine : Fear < CalmBelow (0.1)
+  Alarmed --> Panic : Fear >= PanicAt (0.6)
+  Panic --> Shelter : the query found a way in
+  Panic --> Cower : none, or no answer in 3 s
+  Shelter --> Inside : arrived, or inside the footprint
+  Shelter --> Cower : the way failed
+  Cower --> Alarmed : Fear < PanicAt
+  Inside --> [*] : hide time over, deleted
+  Routine --> Casualty : wounded (priority)
+  Alarmed --> Casualty : wounded (priority)
+  Panic --> Casualty : wounded (priority)
+  Shelter --> Casualty : wounded (priority)
+  Cower --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* every panic drains — into Inside (and deletion) or Cower, never open-ended running (R-4035);
+Cower's exit is Alarmed, not Panic (§2.2 SUPERSEDED there): re-panicking would re-ask a query that just answered none; Inside alone has
+no wounded edge, because a man inside is about to vanish and nothing outside can hurt him.
+
+```mermaid
+sequenceDiagram
+  participant FS as CivilianFearSystem
+  participant HSM as CivilianHsm (CGF)
+  participant EQ as EQS FindEnterableShelter
+  participant MV as SimHost mover
+  participant D as DoorPassageSystem
+  participant N as every node
+  FS->>FS: heard shots, Fear past PanicAt, FrightFrom = the sound
+  HSM->>HSM: Alarmed, then Panic: stand, flee 20 m from FrightFrom
+  HSM->>EQ: Keep sensor (search 80 m)
+  EQ-->>HSM: best point inside, reachable through a door not Locked
+  HSM->>MV: MoveTo the point at 3.5 m/s (Shelter)
+  MV->>D: a closed door on the path
+  D-->>MV: Open
+  MV-->>HSM: arrived (or IsIndoors)
+  HSM->>HSM: Inside, hide time drawn in [HideMin, HideMax]
+  HSM->>N: DestroyEntityCommand, once
+```
+*What the picture shows that prose hid:* the flee and the query run TOGETHER — he is already running away while EQS answers, and the
+answer replaces the flee's move; a query that never answers (no terrain, a node without EQS) costs ShelterWaitSeconds and ends in
+Cower, not a stuck Panic.
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brain node)"]
+    FS[CivilianFearSystem] --> BT[BrainTickSystem]
+    BT --> HSM[CivilianHsm]
+    HSM -->|Keep| EQS[EqsSolverSystem FindEnterableShelter]
+    EQS -->|EqsCognitiveBuffer| HSM
+    HSM -->|SetCowering| ES[EffectState]
+    HSM -->|DestroyEntityCommand| SP[NetworkSpawning]
+  end
+  subgraph SimHost
+    MV[CarKinematicsSystem + DoorPassageSystem]
+    PR[EngineBackedPathResponseSystem]
+  end
+  HSM -->|NavigationIntent PathToPoint| MV
+  PR -->|refuses a path for a stopped move| MV
+  ES -->|dtEffectState| ALL[SimHost, IG, maps: Cower pose]
+  SP -->|delete on the wire| ALL
+```
+*What the picture shows that prose hid:* the one cross-lane fix of this slice sits on SimHost — `EngineBackedPathResponseSystem` drove
+EVERY reachable path answer, so a path planned for a move that was then STOPPED revived it (measured: a casualty crawling 2 m along
+the walk he was shot out of, CIV-1's ④); it now refuses one whose intent is the explicit stop (`CE-2245`).
+
+| decision | ⭐ as built | rejected — one line each |
+|---|---|---|
+| where he hides | ⭐ a NEW template `FindEnterableShelter`: a point 2 m inside each exterior ground-storey door not Locked, indoors, reachable, nearest | the existing `FindShelter`: overhead cover on a grid, blind to doors and footprints · the door CENTRE: on the threshold, half outside |
+| the lock rule | ⭐ the generator skips Locked (`DoorStates`) and reachability treats it as a wall — both existing | a door check in the HSM: a third place for one rule |
+| the run | ⭐ flee 20 m from `FrightFrom` while the query runs, then MoveTo the answer at 3.5 m/s, upright | wait still for the answer: a man frozen under fire · `FallBack`: a soldier's node, needs a threat contact he does not have |
+| no answer | ⭐ Cower after `ShelterWaitSeconds` (3 s) | wait forever: no terrain ⇒ a stuck Panic |
+| inside | ⭐ hide `[HideMin, HideMax]` (60–180 s, `SimRng`), then ONE `DestroyEntityCommand` | `PhysicalPresence.IsHidden`: keeps him alive for nothing (CV-7) |
+| Cower's exit | ⭐ Alarmed once Fear < PanicAt | §2.2's Cower → Panic: re-asks a query that answered none, loops Panic ⇄ Cower |
+| the stopped-move fix | ⭐ `EngineBackedPathResponseSystem` skips a path whose entity's intent is `None` (cross-lane, backend file; the handle stays registered) | correlate request ids: PlanRoute already asks with intent `None` and documents that it "does not start corridor-following" — the same rule fixes it |
+
+⚠ **Known limits (slice 2):** ① only bt-range's houses are enterable (§6); on test-town every panic ends in Cower. ② The shelter is the
+first answer — a door locked AFTER the answer makes the run fail and he cowers, he does not re-query. ③ `Inside` deletes him from
+`SimulationTime`; a paused sim holds him inside. ④ Upper storeys are not candidates (ground floor only).
 
 ## 6. Known limits
 
@@ -997,26 +1235,30 @@ U-5 (crowd overlay) stays LATER as the handoff leans, with no id until behaviors
 ⚠ **Findings for the backend lane** (U1-b, U3-b, U4-b, U4-c) are sent in
 [`HANDOFF_Ui_To_Backend_Civilians_Findings.md`](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md).
 
-### 8.6 AS-BUILT — U-1 and U-2 (`CE-1162`, `CE-1163`, `2026-10-16`, ui)
+### 8.6 AS-BUILT — U-1 and U-2 (`CE-1162`, `CE-1163`, `2026-10-16`, ui; elderly + cower + B-5 arming `2026-10-17`)
 
 | decision | as built | deviation, and why |
 |---|---|---|
-| U1-a | `VisualFamilies.PersonKitOf(t)` walks the class chain: `SecurityForce` ⇒ `PersonKit.Security`, `Infantry` ⇒ `Soldier`, else `Civilian`; `TypeLook.Kit`; `IsSoldier` (the rifle) = a soldier, or an officer whose type has a weapon suite | ⚠ a security-force officer draws **unarmed** today: backend's `CivilianTkbCatalog` gives the 1201–1203 types no weapons yet (B-5) |
+| U1-a | `VisualFamilies.PersonKitOf(t)` walks the class chain: `SecurityForce` ⇒ `PersonKit.Security`, `Infantry` ⇒ `Soldier`, else `Civilian`; `TypeLook.Kit`; `IsSoldier` (the rifle) = a soldier, or an officer whose type has a **held** weapon — a mount whose `Category` is not `Grenade` | ⚠ **corrected `2026-10-17`** after backend's B-5 loadouts: the shield and baton men carry only stun grenades (thrown, not held) ⇒ unarmed; the launcher man's baton launcher (`SmallArms`) ⇒ armed. ⛔ SUPERSEDED: *"an officer whose type has a weapon suite"* — it armed every officer once B-5 landed |
 | U1-a (outfit) | `Outfits.For(…, kit)` — Security wears `Outfits.PoliceUniform` (navy), trousers darker, no camouflage whatever his side, the helmet of the uniformed | — |
-| U1-b | ⏳ not built: no elderly look until a TKB age carrier exists (finding F-4) | — |
+| U1-b | ✅ `2026-10-17`: `TypeLook.Elderly` = a person whose type's `PersonDto.Age` is `Elderly` (backend F-4); `Outfits.For(…, kit, elderly)` dresses an elderly civilian adult in grey/white hair (a man often balding), a muted top, trousers or a long skirt — never shorts | — (⛔ SUPERSEDED: *"not built until a TKB age carrier exists"*) |
 | U1-c | nothing to build: the picker folders come from backend's rows; backend's own `EntityTypeCatalogTests` rows cover it | — |
 | U2-a | `AffiliationColors` (Hrot.Common): `For(view, entity)` = the `ResolvedStyle` tint, else the live `EntityInfo.ForceId` from `ResolvedStyleConstants`, else `NoSide` (the old cyan); `EntityPresentationGizmo` passes it to `DrawSemanticShape(…, colour)` on every host; `SidePalette` (the card) and `EntityPlacementGizmo`'s private palette now read the same table | ⚠ the card frame's colours change to the authoritative table (pure blue / red / green): Symbology §3.2 names that table, and two palettes would disagree |
 | U2-b | 🔴 **withdrawn** — `IgSymbolOverride.StyleSetId` keeps winning on the IG (it is an operator's or the exercise's deliberate choice, §8.4's measured row) | the lean assumed nobody set it on purpose; measured, two producers do |
 | U2-c | no 3-D change (as leaned) | — |
 
 Rails: `EntityPresentationGizmoTests.CE1163_…` ×3 (the live side and its flip, a resolved tint wins, one palette) · `Map3DTests.CE1162_…`
-(the kit from the class; police uniform on every side; civilians in clothes; every infantryman still a soldier).
+(the kit from the class; police uniform on every side; civilians in clothes; every infantryman still a soldier; a grenade-only officer
+unarmed, the launcher man armed) and `CE1162_AnElderlyType_…` (grey hair, no shorts, on 40 seeds).
 
 **U-3 (`CE-1164`, `2026-10-16`) as built:** `Carriage.Of` returns `Downed` when `Effects.IsKnockedDown` (backend's `EffectState`, CE-3219) —
 so a knocked-down man lies like a man down at full health and stands when it runs out (U3-a, through the carriage that already picks
 `Downed` for the incapacitated, not a second pose path in `FigurePose`). `EffectStateGizmo` (Hrot.Common, auto-discovered, Labels layer)
-writes `DOWN · STUNNED · GASSED` under him in 2-D (U3-c). ⏳ **Cower is not built**: `EffectState` has no Cowering yet (finding F-3).
-Rail `Map3DTests.CE1164_…`, red-proved (both halves).
+writes `DOWN · STUNNED · GASSED · COWERING` under him in 2-D (U3-c). ✅ **Cower built `2026-10-17`** on backend's F-3
+(`EffectState.Cowering`): `EntityBodyLayer3D.Cowers(world, e, soldier)` (an unarmed man with `Effects.IsCowering`) makes `FigurePose`
+return `BlockFigure.Cower` — the crouched body with both forearms over the head — after the death fall and before the stance; a soldier
+never cowers in the drawing; the knock-down (a carriage) still wins. Rails `Map3DTests.CE1164_AKnockedDownMan_…` and
+`CE1164_ACoweringCivilian_…`, red-proved.
 
 **U-4 (`CE-1165`) part built `2026-10-16` — U4-b, ahead of B-1's cloud:** `TerrainWorldMesh.IsVolumeEffect(prism)` (a material with
 `SightTransmittance > 0` and `BlocksMovement = false`) keeps such a prism out of the mesh — so it neither renders as a block nor enters the
@@ -1025,3 +1267,95 @@ reads the prism (B1-c unchanged). ⚠ Cross-lane: `Fdp.Toolkits/Terrain/TerrainW
 Today's see-through materials (glass, hedge, chain-link) all block movement ⇒ nothing existing changes. Rail
 `TerrainWorldTests.CE1165_…`, red-proved. ⏳ U4-a (the cloud drawn in `EffectLayer`) waits on `AreaEffectCloud`.
 
+
+### 8.7 U-6 — gestures and the placard *(ui, `2026-10-17`; frame [HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md), CV-13 R-2024; item `CE-1166`)*
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*Gesture.*` (40 results) and `.*Placard.*|.*Sign.*Pole.*` (0) + grep
+`Arms(` in `ShapeKit.cs`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | exists | where |
+|---|---|---|
+| a body-gesture anything | ⛔ **none** — all 40 `Gesture` hits are EDITOR input gestures (variable edit, watch pinning) | — |
+| backend's `Gesture` component (B-6) | ⏳ **not built** at `ui@21a0e3498` (frame dispatched to backend the same day) | — |
+| arm overrides on a figure | `BlockFigure.CarrierArms` (C-1), `HandleArms` (T-b3), `AtWeapon` (N-2), `Shouldered` (N-4), `Cower` (U-3) — each replaces the four arm parts at `TorsoIndex+2…+5` and slings a soldier's rifle at `WeaponIndex` | `ShapeKit.cs:1055,1081,1104`, `ShapeKit.cs:873` |
+| where an override is applied | `EntityBodyLayer3D.Burdened` (standing only; carriage arms) after `FigurePose` | `EntityBodyLayer3D.cs:660-680` |
+| 2-D state text | `StanceGizmo`; `EffectStateGizmo` (U-3c, DOWN · STUNNED · GASSED · COWERING) | `EffectStateGizmo.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class Gesture { <<backend B-6, NOT YET BUILT>> None HandsUp FistRaised HoldSign Waving Throwing }
+  class ArmGesture { <<NEW, ui>> the same six names, byte for byte }
+  class BlockFigure { <<existing, grows>> +GestureArms(parts, ArmGesture, crouched, soldier) KitPart[] ; +Placard KitPart[] }
+  class EntityBodyLayer3D { <<existing, grows>> Gestured(world, e, parts) after Burdened }
+  class EffectStateGizmo { <<existing, grows>> + HANDS UP / PROTEST text }
+  class CarrierArms { <<existing>> the precedent: replace the four arm parts }
+  EntityBodyLayer3D --> BlockFigure : GestureArms
+  EntityBodyLayer3D ..> Gesture : reads (when B-6 lands)
+  Gesture ..> ArmGesture : cast, a rail pins the names
+  BlockFigure ..> CarrierArms : same shape
+  EffectStateGizmo ..> Gesture : reads (when B-6 lands)
+```
+*Caption:* what the picture shows that prose hid — the drawing vocabulary (`ArmGesture`) is ui's own and is built now; the ONLY edge that
+waits on backend is the read of `Gesture`, and a rail pins the two enums' names so the cast cannot drift.
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D (every map host, each frame)
+  participant F as FigurePose
+  participant B as Burdened
+  participant G as Gestured
+  participant K as BlockFigure
+  L->>F: parts for the stance (dead fall, cower win first)
+  L->>B: carriage arms (a carrier does not gesture)
+  L->>G: free, standing or crouched, alive, not cowering
+  G->>G: ArmGesture from Gesture (None draws nothing new)
+  G->>K: GestureArms(parts, g, crouched, soldier)
+  K-->>L: the four arm parts replaced, rifle slung, HoldSign adds the pole and the board
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack, every map host] --> BODY[EntityBodyLayer3D.Draw each frame]
+  BODY --> FP[FigurePose]
+  BODY --> BUR[Burdened]
+  BODY --> GES[Gestured NEW]
+  SGS[StatelessGizmoSystem, every host] --> ESG[EffectStateGizmo]
+  B6[backend B-6 Gesture component]:::wait -.->|not built: Gestured reads None| GES
+  B6 -.-> ESG
+  classDef wait fill:#ffd,stroke:#aa0
+```
+*Caption:* both readers are already called each frame on every map host; the yellow box is the one input that does not exist yet — until it
+does, `Gestured` sees `None` and the figure is unchanged.
+
+| # | decision | lean | rejected |
+|---|---|---|---|
+| **U6-a** | where the override applies | `Gestured` right after `Burdened`: standing AND crouched (the shoulders follow `CrouchDrop`); NOT prone, dead, cowering, knocked down or carrying (those already own the arms — the frame's "EffectState wins") | inside `FigurePose`: it returns before carriage, so a carrier would wave · prone too: a prone man's arms are under him |
+| **U6-b** | the vocabulary | ui's `ArmGesture` enum with backend's six names; the wiring is a byte cast and a rail asserts `Enum.GetNames` equal | switch on backend's type directly: blocks the whole build on B-6 · a pose per stance: six × three tables |
+| **U6-c** | the shapes | HandsUp — both arms straight up, open · FistRaised — right arm up, the left hanging · HoldSign — both hands up on a pole in front of the face, a board above the head · Waving — right arm up and out, the forearm tilted · Throwing — the wind-up: right hand back above the shoulder, left arm forward; all static (the brain cycles them, the frame says so) | animated waving: the brain toggles it, and an animation per gesture is a second clock |
+| **U6-d** | the placard | two appended parts (a `Metal`-role pole and a `Canvas`-role board), appended AFTER every indexed part so no index moves | a prop entity: fenced off by the frame |
+| **U6-e** | 2-D | `EffectStateGizmo` adds `HANDS UP` (HandsUp) and `PROTEST` (FistRaised, HoldSign, Waving, Throwing) to its one line | a second gizmo: two lines under one man |
+| **U6-f** | a soldier | the gesture still draws (a surrendering soldier raises his hands); his rifle is slung like a carrier's | skip soldiers: CV-13a's surrender is about armed men |
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| an arm override replaces four parts at `TorsoIndex+2` | ✅ `ShapeKit.cs:1081-1094` (`CarrierArms`) | ✅ §8.4 U3-a names the arm-override precedent |
+| a carrier never reaches `Gestured` with free arms | ✅ `Burdened` sets carrier arms first (`EntityBodyLayer3D.cs:666`) | ✅ frame: "EffectState wins over a gesture" (cowering / down) |
+| appending parts moves no index | ✅ `HeadIndex 5`, `TorsoIndex 4`, `WeaponIndex 10` are all below the arm block's end | ⛔ searched, none found |
+| backend's enum names are the frame's six | ⛔ **assumed until B-6 lands** — the names rail fails the build the day they differ | ✅ CV-13 §4 lists the six |
+
+#### 8.7a AS-BUILT — the poses, then the wiring on B-6 (`CE-1166`, `2026-10-17`, ui)
+
+| decision | as built | still to do |
+|---|---|---|
+| U6-b | `BlockFigure.ArmGesture` — the six names of CV-13; ✅ `2026-10-17` the byte cast from backend's `GestureKind` (B-6, `CE-3224`) and the names rail `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` | — |
+| U6-c | `BlockFigure.GestureArms(parts, gesture, crouched, soldier)` — the five shapes as leaned, static; only the four arm parts at `TorsoIndex+2…+5` change; a soldier's rifle slung (the carrier's sling, shifted by the crouch) | — |
+| U6-d | `BlockFigure.Placard(drop)` — the pole (`Metal`) and the board (`Canvas`), appended after every indexed part (`PlacardParts` = 2) | — |
+| U6-a | ✅ `2026-10-17` — `EntityBodyLayer3D.Gestured(world, e, soldier, carriage, parts)` after `Burdened` and the shouldered launcher: `Gestures.Of` → `GestureArms` for a FREE (carriage `Free`, wounded included), living, not-cowering man, standing or crouched | the `ua-civ-protest` look on a live cluster (behaviors' CE-2240 writes it) |
+| U6-e | ✅ `2026-10-17` — `EffectStateGizmo.Text` adds `HANDS UP` / `PROTEST` (`GestureWord`) after the effects; ⚠ **deviation:** a `[GizmoProjector]` runs only for entities that HAVE its component, so a protester with no `EffectState` never reached the effect gizmo ⇒ a small `GestureGizmo` (`[GizmoProjector(typeof(Gesture))]`) draws the SAME line when there is no `EffectState` (never two lines; one text rule) | — |
+
+No deviation from §8.7's leans. Rails `Map3DTests.CE1166_EachGesture_ChangesOnlyTheArms` (×5, standing and crouched, the placard above the
+head, the soldier's rifle slung) and `CE1166_TheShapes_ReadAsTheGesture` (hands up = two hands above the head, a fist = one, the wind-up's
+hand behind the shoulder), red-proved with three switches (no override · hands up drawn as a fist · no placard). ⭐ `2026-10-17`, on
+B-6: `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` (red-proved by an extra enum member) and
+`CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine` (red-proved: no `Gestured`, no word).

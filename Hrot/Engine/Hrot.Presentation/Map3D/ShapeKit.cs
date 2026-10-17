@@ -864,6 +864,20 @@ public static partial class BlockFigure
 
     private static readonly KitPart[] Standing = [.. StandingBody, .. CivilianArms(Vector3.Zero, swing: true)];
     private static readonly KitPart[] Crouched = [.. CrouchedBody, .. CivilianArms(CrouchDrop, swing: false)];
+
+    /// <summary>
+    /// ⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a) — COWERING: crouched low, both forearms up over the
+    /// head (elbows forward, hands on top of it) — what a civilian under fire with nowhere to go does (the CivilianHsm's Cower state,
+    /// <c>EffectState.Cowering</c>).
+    /// </summary>
+    public static readonly KitPart[] Cower = [.. CrouchedBody, .. CowerArms()];
+
+    private static KitPart[] CowerArms()
+    {
+        var l = StandShoulderL + CrouchDrop; var r = StandShoulderR + CrouchDrop;
+        return [.. Arm(l, l + new Vector3(0.22f, 0.07f, 0.10f), l + new Vector3(0.10f, -0.13f, 0.34f), PartRole.Hull),
+                .. Arm(r, r + new Vector3(0.22f, -0.07f, 0.10f), r + new Vector3(0.10f, 0.13f, 0.34f), PartRole.Hull)];
+    }
     private static readonly KitPart[] Prone = [.. ProneBody, .. ProneArms(false)];
     private static readonly KitPart[] ProneArmed = [.. ProneBody, .. ProneArms(true)];
     private static readonly KitPart[][] StandingArmed =
@@ -1078,6 +1092,56 @@ public static partial class BlockFigure
             parts[TorsoIndex + 6] = Limb(new(-0.16f, 0.22f, 1.55f), new(-0.14f, -0.24f, 0.85f), 0.05f, 0.08f, ColourRole.Metal);   // slung
         return parts;
     }
+
+    /// <summary>
+    /// ⭐ CE-1166 (civilian U-6, docs/DESIGN_Civilians_And_Crowd_Control.md §8.7 U6-c) — what a man's ARMS show (CV-13, R-2024): the
+    /// drawing's own names for backend's replicated <c>Gesture</c> (B-6), the same six, byte for byte (U6-b).
+    /// </summary>
+    public enum ArmGesture : byte { None, HandsUp, FistRaised, HoldSign, Waving, Throwing }
+
+    /// <summary>⭐ CE-1166 (U6-d) — the placard's pole and board, appended after every indexed part (no index moves).</summary>
+    public const int PlacardParts = 2;
+
+    /// <summary>
+    /// ⭐ CE-1166 (§8.7 U6-a, U6-c) — the ARMS of a standing or crouched figure showing <paramref name="gesture"/>, the shape of
+    /// <see cref="CarrierArms"/>: only the four arm parts change (the legs keep their gait), a soldier's rifle is slung across his back, and
+    /// <see cref="ArmGesture.HoldSign"/> appends a pole held in both hands with a board above his head. Static: the brain cycles a
+    /// gesture, the drawing does not animate it. <see cref="ArmGesture.None"/> returns the figure as it is.
+    /// </summary>
+    public static KitPart[] GestureArms(KitPart[] parts, ArmGesture gesture, bool crouched, bool soldier)
+    {
+        if (gesture == ArmGesture.None || parts.Length < TorsoIndex + 2 + 4) return parts;
+        var drop = crouched ? CrouchDrop : Vector3.Zero;
+        var l = StandShoulderL + drop; var r = StandShoulderR + drop;
+        var hangL = Arm(l, l + new Vector3(0f, 0.02f, -0.30f), l + new Vector3(0.02f, 0.02f, -0.60f), PartRole.Hull);
+        var hangR = Arm(r, r + new Vector3(0f, -0.02f, -0.30f), r + new Vector3(0.02f, -0.02f, -0.60f), PartRole.Hull);
+        KitPart[] arms = gesture switch
+        {
+            // both arms straight up, a little apart: "don't shoot"
+            ArmGesture.HandsUp => [.. Arm(l, l + new Vector3(0.02f, 0.06f, 0.30f), l + new Vector3(0.04f, 0.10f, 0.60f), PartRole.Hull),
+                                   .. Arm(r, r + new Vector3(0.02f, -0.06f, 0.30f), r + new Vector3(0.04f, -0.10f, 0.60f), PartRole.Hull)],
+            // the right fist punched up, the left arm hanging
+            ArmGesture.FistRaised => [.. hangL, .. Arm(r, r + new Vector3(0.04f, -0.04f, 0.30f), r + new Vector3(0.06f, -0.02f, 0.60f), PartRole.Hull)],
+            // both hands on the pole in front of his face, one above the other
+            ArmGesture.HoldSign => [.. Arm(l, l + new Vector3(0.22f, 0.08f, -0.10f), new Vector3(0.32f, 0.02f, 1.30f) + drop, PartRole.Hull),
+                                    .. Arm(r, r + new Vector3(0.24f, -0.08f, 0.08f), new Vector3(0.34f, -0.02f, 1.62f) + drop, PartRole.Hull)],
+            // the right arm up and out, the forearm tilted outward
+            ArmGesture.Waving => [.. hangL, .. Arm(r, r + new Vector3(0.02f, -0.24f, 0.16f), r + new Vector3(0.04f, -0.36f, 0.44f), PartRole.Hull)],
+            // the wind-up: the throwing hand back above the shoulder, the other arm forward toward the target
+            _ => [.. Arm(l, l + new Vector3(0.28f, 0.02f, -0.04f), l + new Vector3(0.56f, -0.02f, 0.02f), PartRole.Hull),
+                  .. Arm(r, r + new Vector3(-0.22f, -0.06f, 0.10f), r + new Vector3(-0.30f, -0.04f, 0.38f), PartRole.Hull)],
+        };
+        var shaped = (KitPart[])parts.Clone();
+        for (int i = 0; i < 4; i++) shaped[TorsoIndex + 2 + i] = arms[i];
+        if (soldier && shaped.Length > WeaponIndex)
+            shaped[WeaponIndex] = Limb(new Vector3(-0.16f, 0.22f, 1.55f) + drop, new Vector3(-0.14f, -0.24f, 0.85f) + drop, 0.05f, 0.08f, ColourRole.Metal);   // slung
+        return gesture == ArmGesture.HoldSign ? [.. shaped, .. Placard(drop)] : shaped;
+    }
+
+    /// <summary>⭐ CE-1166 (U6-d) — the protest sign: a pole through both hands (from below the low hand to above the head) and a board on top.</summary>
+    public static KitPart[] Placard(Vector3 drop)
+        => [Limb(new Vector3(0.33f, 0f, 1.05f) + drop, new Vector3(0.35f, 0f, 2.05f) + drop, 0.04f, 0.04f, ColourRole.Metal),
+            P(0.36f + drop.X, 0f, 2.25f + drop.Z, 0.03f, 0.70f, 0.45f, ColourRole.Canvas)];
 
     /// <summary>⭐ CE-1085 … CE-1090 — a soldier's weapon part in the shared order (after the four leg parts, torso, head and four arm parts).</summary>
     public const int WeaponIndex = TorsoIndex + 6;

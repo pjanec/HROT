@@ -55,7 +55,7 @@ re-implementing anything.
 
 ```mermaid
 graph TD
-  Q0{"Thousands of trivial entities<br/>(traffic, crowds)?"} -->|yes| T0["Tier 0: a plain C# system<br/>(no asset at all)"]
+  Q0{"Thousands of trivial entities<br/>that only MOVE (traffic)?"} -->|yes| T0["Tier 0: a plain C# system<br/>(no asset at all)"]
   Q0 -->|no| Q1{"Is the behaviour a SEQUENCE of steps<br/>or a loop with priorities?"}
   Q1 -->|"yes — do A, then B; or<br/>'best of these, re-checked'"| BT["BTree"]
   Q1 -->|"no — it SWITCHES between modes<br/>on events"| Q2{"Few, fixed modes;<br/>event-driven; hot path?"}
@@ -70,6 +70,10 @@ graph TD
 | **HSM** | **reactive** behaviour that switches between a small, fixed set of modes on events (escort, patrol loop, posture switching) | event-driven, does not poll, zero allocation; pays off for **switching**, not for one loop (AI_DEV_GUIDE "Choose FastHSM when"; EQS-consuming §4.2) · `Sensor.Acquired / Lost / Hit / …` arrive as HSM events | a single loop — two states + transitions is more structure than it needs |
 | **Blueprint** | **orchestration and wiring**: run other behaviours as tasks, react to a value / event / EQS answer (`When`), mission plans as graphs, designer-tunable flows | visual, data-driven; `ScoreDecision`, `Behaviour Task Start`, per-kind sensor nodes ([Decision Layer §3.3d](DESIGN_Decision_Layer.md)) | the step itself is algorithmic — the same cover loop is ~15 wired nodes (~700 lines) vs ~80 lines of C# (EQS-consuming §4.2) |
 | **shared C# node** | a reusable *capability* (a manoeuvre, a sensor-keeping step, a check) | written once, bound by all three hosts; testable with a plain unit rail | you only need to arrange existing nodes — use a host |
+
+⚠ **Civilians are NOT Tier 0** *(R-263, `CE-2235`)*: a civilian switches MODES — routine, alarm, panic, shelter, riot — so each runs
+one `CivilianHsm` ([Civilians §5d](DESIGN_Civilians_And_Crowd_Control.md)), budgeted at ~300 per CGF (CV-10). Tier 0 stays for entities
+that only move (traffic).
 
 ⭐ **Lean for a new tactical behaviour:** a **BTree** around shared nodes. Reach for an **HSM** when you find
 yourself modelling *modes* that events switch between, and a **blueprint** when the job is *orchestrating*

@@ -963,6 +963,11 @@ namespace Fdp.Core
         /// <c>dtGesture</c> (143).</summary>
         public const int Gesture = 398;
 
+        /// <summary><c>CivilianState</c> — ⭐ CE-2235 (civilians CIV-1, CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d): a civilian's
+        /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
+        /// saved). ⚠ 399 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int CivilianState = 399;
+
         /// <summary><c>AreaEffectCloud</c> — ⭐ CE-3219 part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b): a
         /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).
         /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is taken by test-only components (Fdp.Core.Tests).</summary>

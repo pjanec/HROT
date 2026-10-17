@@ -40,9 +40,11 @@ public sealed class BTreePickerDrawerTests
             Guid.NewGuid(), blob.TreeName, "/t.cs", false, "", "");
 
     /// <summary>⭐ <c>CE-417</c> slice 4b — the method list and the variable list now come from the ONE binding drawer the
-    /// production factory registers; the BTree host supplies only its method list (the behavior registry).</summary>
-    private static ActionBindingSources Sources(BehaviorRegistry registry, BehaviorTreeAsset? asset = null)
-        => ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(asset ?? MakeAsset(EmptyBlob()), registry)
+    /// production factory registers. ⭐ <c>CE-1167</c> — the BTree host's method list is the exporter's BTree methods of the slot's kind
+    /// (it was the behaviour registry's NAMES, which are not methods).</summary>
+    private static ActionBindingSources Sources(BehaviorRegistry registry, BehaviorTreeAsset? asset = null,
+                                                IActionSchemaExporter? exporter = null)
+        => ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(asset ?? MakeAsset(EmptyBlob()), registry, exporter)
                [typeof(BehaviorActionBindingFacet)]).Sources;
 
     private static void RegisterName(BehaviorRegistry registry, string name, int id)
@@ -55,40 +57,105 @@ public sealed class BTreePickerDrawerTests
         registry.Register(id, name, def);
     }
 
+    private static ActionSchemaEntry Entry(string fqn, ActionHosting hosting, bool condition = false)
+        => new(fqn, typeof(int), hosting, BlackboardAccess.ReadWrite, IsCondition: condition);
+
     // ── the method list (was BehaviorHashPickerDrawer) ─────────────────────────
 
+    /// <summary>⭐ <c>CE-1167</c> (AI_Editor_Shared_Infrastructure §7.1c G-5) — an action slot lists the exporter's BTree ACTIONS, a
+    /// condition slot its BTree CONDITIONS; an HSM-only method and a behaviour's registered NAME are never offered (a stored binding is a
+    /// C# method FQN — a behaviour name is a value the build cannot resolve).</summary>
     [Fact]
-    public void FieldPicker_BehaviorHash_ListsRegistryNames()
+    public void CE1167_TheMethodList_IsTheExportersBTreeMethods_OfTheSlotsKind_NotBehaviourNames()
+    {
+        var registry = new BehaviorRegistry();
+        RegisterName(registry, "SomeBehaviour", 1);
+        var exporter = new PickerStubExporter(
+            Entry("Ns.Class.RunAway", ActionHosting.BTree),
+            Entry("Ns.Class.Patrol",  ActionHosting.BTree),
+            Entry("Ns.Class.Ready",   ActionHosting.BTree, condition: true),
+            Entry("Ns.Hsm.OnlyHsm",   ActionHosting.Hsm | ActionHosting.HsmActivity));
+
+        var sources = Sources(registry, exporter: exporter);
+
+        sources.GetMethods(BindingSlotKind.Action).Should().Equal("Ns.Class.Patrol", "Ns.Class.RunAway");
+        sources.GetMethods(BindingSlotKind.Guard).Should().Equal("Ns.Class.Ready");
+    }
+
+    /// <summary>⭐ <c>CE-1167</c> — the asset's OWN bound names stay in the list even when the exporter no longer has them (a dangling
+    /// binding is shown, not hidden) — the HSM's rule, now the one shared function.</summary>
+    [Fact]
+    public void CE1167_TheAssetsOwnMethods_StayListed_EvenWhenNoLongerExported()
+    {
+        var exporter = new PickerStubExporter(Entry("Ns.Class.Patrol", ActionHosting.BTree));
+        var own = new Hrot.Editor.AiShared.BehaviorActionBinding?[] { new() { MethodFqn = "Gone.Class.Removed" }, null };
+
+        ActionBindingMethods.For(exporter, ActionHosting.BTree, condition: false, own)
+            .Should().BeEquivalentTo("Ns.Class.Patrol", "Gone.Class.Removed");
+    }
+
+    [Fact]
+    public void FieldPicker_MethodList_NoExporter_ReturnsEmpty()
     {
         var registry = new BehaviorRegistry();
         RegisterName(registry, "Ns.Class.RunAway", 1);
-        RegisterName(registry, "Ns.Class.Patrol",  2);
-
-        var items    = Sources(registry).GetMethods(BindingSlotKind.Action);
-
-        items.Should().Contain("Ns.Class.RunAway");
-        items.Should().Contain("Ns.Class.Patrol");
-        items.Should().HaveCount(2);
-    }
-
-    [Fact]
-    public void FieldPicker_BehaviorHash_EmptyRegistry_ReturnsEmpty()
-    {
-        var registry = new BehaviorRegistry();
         Sources(registry).GetMethods(BindingSlotKind.Guard).Should().BeEmpty();
+        Sources(registry).GetMethods(BindingSlotKind.Action).Should().BeEmpty();
     }
 
     [Fact]
-    public void FieldPicker_BehaviorHash_ItemsSorted()
+    public void FieldPicker_MethodList_ItemsSorted()
     {
-        var registry = new BehaviorRegistry();
-        RegisterName(registry, "Z.Method", 3);
-        RegisterName(registry, "A.Method", 1);
-        RegisterName(registry, "M.Method", 2);
+        var exporter = new PickerStubExporter(
+            Entry("Z.Method", ActionHosting.BTree), Entry("A.Method", ActionHosting.BTree), Entry("M.Method", ActionHosting.BTree));
 
-        var items    = Sources(registry).GetMethods(BindingSlotKind.Action);
+        var items = Sources(new BehaviorRegistry(), exporter: exporter).GetMethods(BindingSlotKind.Action);
 
         items.Should().BeInAscendingOrder("items must be sorted alphabetically");
+    }
+
+    /// <summary>A C# method for the CE-1011 rail to go to (its source is this file, through the test assembly's PDB).</summary>
+    internal static void ADefinedAction() { }
+
+    /// <summary>⭐ <c>CE-1011</c> (AI_Editor_Shared_Infrastructure §7.1c G-2, G-3) — the bound method's source is found through the
+    /// exporter's reflected method and opened at its line; an unknown method, or no exporter, has none and opens nothing.</summary>
+    [Fact]
+    public void CE1011_GoToDefinition_FindsTheBoundMethodsSource_AndOpensItAtItsLine()
+    {
+        string fqn = $"{typeof(BTreePickerDrawerTests).FullName}.{nameof(ADefinedAction)}";
+        var exporter = new PickerStubExporter(Entry(fqn, ActionHosting.BTree) with
+        {
+            Method = typeof(BTreePickerDrawerTests).GetMethod(nameof(ADefinedAction),
+                                                              System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic),
+        });
+        var sources = Sources(new BehaviorRegistry(), exporter: exporter);
+        var opened = new List<(string File, int Line)>();
+        sources.OpenSource = (file, line) => { opened.Add((file, line)); return true; };
+
+        var at = sources.SourceOf(fqn);
+        at.Should().NotBeNull();
+        at!.Value.File.Should().EndWith("BTreePickerDrawerTests.cs");
+        System.IO.File.ReadAllLines(at.Value.File)[at.Value.Line - 1].Should().Contain(nameof(ADefinedAction));
+        sources.GoToDefinition(fqn).Should().BeTrue();
+        opened.Should().Equal((at.Value.File, at.Value.Line));
+
+        sources.SourceOf("No.Such.Method").Should().BeNull();
+        sources.GoToDefinition("No.Such.Method").Should().BeFalse();
+        Sources(new BehaviorRegistry()).SourceOf(fqn).Should().BeNull();   // no exporter
+        opened.Should().HaveCount(1);
+    }
+
+    /// <summary>⭐ <c>CE-1011</c> (G-2) — the REAL exporter keeps the method it scanned on every entry, so every listed method can be
+    /// gone to (no second FQN resolver).</summary>
+    [Fact]
+    public void CE1011_TheExporter_KeepsEachEntrysMethod()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        exporter.All.Should().NotBeEmpty();
+        exporter.All.Should().OnlyContain(kv => kv.Value.Method != null
+                                                && kv.Key.EndsWith("." + kv.Value.Method.Name, StringComparison.Ordinal));
     }
 
     // ── the variable list (was BlackboardFieldPickerDrawer) ────────────────────
@@ -192,4 +259,22 @@ public sealed class BTreePickerDrawerTests
             clrType:  typeof(string),
             metadata: meta);
     }
+}
+
+/// <summary>⭐ CE-1167 — a fixed exporter for the method-list rails.</summary>
+file sealed class PickerStubExporter : IActionSchemaExporter
+{
+    private readonly Dictionary<string, ActionSchemaEntry> _map;
+
+    public IReadOnlyDictionary<string, ActionSchemaEntry> All => _map;
+    public event Action? Changed { add { } remove { } }
+
+    public PickerStubExporter(params ActionSchemaEntry[] entries)
+    {
+        _map = new Dictionary<string, ActionSchemaEntry>(StringComparer.Ordinal);
+        foreach (var e in entries) _map[e.Fqn] = e;
+    }
+
+    public ActionSchemaEntry? Lookup(string fqn) => _map.GetValueOrDefault(fqn);
+    public void Rebuild() { }
 }

@@ -225,6 +225,9 @@ namespace Hrot.CGF
             //   declared in every host's plan (like UnitHierarchy).
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
+            // ⭐ CE-2235 (docs/DESIGN_Civilians_And_Crowd_Control.md §5d) — every civilian's fear from what he heard this frame, before
+            //   the brain tick, so his CivilianHsm reads this frame's fright.
+            simList.Add(new Fdp.Toolkit.Civilians.CivilianFearSystem());
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
             // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft: SensorChange.MissileWarning + details.
