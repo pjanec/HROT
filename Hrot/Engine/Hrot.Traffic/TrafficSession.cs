@@ -1,6 +1,7 @@
 using CycloneDDS.Runtime;
 using Fdp.Toolkit.Traffic;
 using Sim.LiveCity;
+using Sim.Pedestrians.Lod;
 using Sim.Replication;
 using Sim.Replication.Dds;
 
@@ -21,7 +22,10 @@ public sealed record TrafficServeOptions(Func<long> NextNetworkId, DdsParticipan
 /// allocator (H5); SUMO's clock STARTS at the cluster time the session starts (H6), so every sample on every wire is stamped in cluster
 /// time; the car types are the TKB's (H9, each carrying its TKB type on the spawn record, H7); and when the node has a participant the
 /// same steps are TEED to SumoSharp's DDS sink keyed by this node (H8) while its own mirror reads the in-memory wire (N7).</para>
-/// <para>⭐ <see cref="LiveCitySim"/> in <see cref="PedNavMode.RouteGraph"/> mode (the whole net, R-4040), pedestrians off (their slice), and
+/// <para>⭐ AQ93 §15 K1/K2 — pedestrians walk when the demand asks for them (<see cref="TrafficDemand.TargetPedestrians"/>, 0 = off), each
+/// named by the cluster's allocator as cars are (SumoSharp H14 <c>PedIdProvider</c>: a pedestrian's name IS its network id), their
+/// lifecycle on the wire and teed to DDS beside the cars; <see cref="Convert"/> gives frightened ones up (K4/K5).</para>
+/// <para>⭐ <see cref="LiveCitySim"/> in <see cref="PedNavMode.RouteGraph"/> mode (the whole net, R-4040), and
 /// <see cref="LiveCitySim.SelfPumpVehicleBus"/> false so the main thread alone drains the in-memory wire.</para>
 /// <para>⛔ <b>Threads.</b> <see cref="StepTo"/> runs on the stepping module's thread; <see cref="Source"/> is pumped and read on the main
 /// thread. <see cref="Dispose"/> and <see cref="StepTo"/> share a gate.</para>
@@ -33,6 +37,7 @@ public sealed class TrafficSession : IDisposable
 
     private readonly LiveCitySim _sim;
     private readonly DdsReplicationSink? _dds;
+    private readonly DdsPedReplicationSink? _ddsPeds;
     private readonly object _gate = new();
     private bool _disposed;
 
@@ -42,6 +47,7 @@ public sealed class TrafficSession : IDisposable
     {
         Key = key;
         var demand = key.Demand;
+        bool peds = demand.TargetPedestrians > 0;
         var cfg = new LiveCityConfig
         {
             DatasetDir = key.Folder,
@@ -50,8 +56,11 @@ public sealed class TrafficSession : IDisposable
             CarTargetConcurrent = Math.Max(0, demand.TargetCars),
             CarRngSeed = 0x243F6A8885A308D3UL ^ demand.Seed,
             Dt = demand.StepSeconds > 0f ? demand.StepSeconds : TrafficDemand.Default.StepSeconds,
-            PedPopulationCap = 0,
-            PedSpawnRatePerSecond = 0.0,
+            PedPopulationCap = peds ? demand.TargetPedestrians : 0,
+            PedSpawnRatePerSecond = peds ? PedSpawnRate(demand.TargetPedestrians) : 0.0,
+            // ⭐ K2 (H14) — named by the cluster's allocator; float64 start times, because cluster time is large (N3)
+            PedIdProvider = peds ? () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture) : null,
+            PedWireFloat64StartTimes = true,
             StartTime = startTime,
             VehicleIdProvider = () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture),
             VehicleTypes = types.Count == 0 ? null : types.Select(t => new LiveCityVehicleType(
@@ -59,8 +68,10 @@ public sealed class TrafficSession : IDisposable
                 ExternalType: t.TkbType, Color: 0u)).ToList(),
         };
         _dds = options.Participant is { } p ? new DdsReplicationSink(p, options.Source) : null;
-        _sim = new LiveCitySim(cfg, recordVehSink: _dds) { SelfPumpVehicleBus = false };
-        _sim.SetPedDensity(0, 0.0);
+        _ddsPeds = peds && options.Participant is { } pp ? new DdsPedReplicationSink(pp, options.Source, float64StartTimes: true) : null;
+        _sim = new LiveCitySim(cfg, recordVehSink: _dds, recordPedSink: _ddsPeds) { SelfPumpVehicleBus = false };
+        if (!peds) _sim.SetPedDensity(0, 0.0);
+        Pedestrians = new PedRemoteReconstructor(_sim.PedSource);
         StartTime = startTime;
         Volatile.Write(ref _time, startTime);
     }
@@ -73,6 +84,41 @@ public sealed class TrafficSession : IDisposable
 
     /// <summary>The car wire, in cluster time. ⛔ Main thread only: <see cref="IReplicationSource.Pump"/> and every read.</summary>
     public IReplicationSource Source => _sim.VehicleSource;
+
+    /// <summary>⭐ AQ93 §15 K3 — the pedestrian wire, read back through SumoSharp's own reconstructor. ⛔ Main thread only:
+    /// <see cref="PedRemoteReconstructor.Pump"/> and every read.</summary>
+    public PedRemoteReconstructor Pedestrians { get; }
+
+    /// <summary>SumoSharp's spawn rate for a population (its own scaling: 8/s per 160 walkers, never below 8/s).</summary>
+    public static double PedSpawnRate(int population) => 8.0 * Math.Max(1.0, population / 160.0);
+
+    /// <summary>Pedestrians given up so far (<see cref="Convert"/>), against <see cref="TrafficDemand.ConversionCap"/> (K6).</summary>
+    public int Converted { get; private set; }
+
+    private readonly List<string> _near = new();
+
+    /// <summary>⭐ AQ93 §15 K4/K5/K6 — removes from SUMO the pedestrians within <paramref name="incident"/>'s radius (H14 S1: each
+    /// Despawn rides the wire at once, so every mirror drops it) while under the cap, and APPENDS what each was to
+    /// <paramref name="into"/>. ⛔ Stepping thread, between steps.</summary>
+    /// <returns>How many were given up.</returns>
+    public int Convert(in TrafficIncident incident, List<TrafficConversion> into)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return 0;
+            int cap = Key.Demand.ConversionCap, n = 0;
+            if (Converted >= cap || _sim.PedestriansWithin(incident.NetX, incident.NetY, incident.Radius, _near) == 0) return 0;
+            foreach (var name in _near)
+            {
+                if (Converted >= cap) break;
+                if (!_sim.RemovePedestrian(name, out var st)) continue;
+                into.Add(new TrafficConversion(name, st.X, st.Y, st.Z, st.Heading, incident.At));
+                Converted++;
+                n++;
+            }
+            return n;
+        }
+    }
 
     /// <summary>The net's lane shapes, for dead reckoning on the receiving side.</summary>
     public Sim.Core.NetworkLaneSource Lanes => _sim.LocalLanes;
@@ -194,6 +240,7 @@ public sealed class TrafficSession : IDisposable
             _disposed = true;
             _sim.Dispose();
             _dds?.Dispose();
+            _ddsPeds?.Dispose();
         }
     }
 }

@@ -36,6 +36,11 @@ public sealed class TrafficReplicas
     public const float Hysteresis = 50f;
 
     private const float CarHeight = 1.5f;
+    private const float PedRadius = 0.3f, PedHeight = 1.75f;
+
+    /// <summary>⭐ AQ93 §15 K3 — a pedestrian replica's type: the civilian family's adult (the civilian a conversion makes is typed by
+    /// its id, <see cref="TrafficPanicSystem.TypeOf"/>; the replica is the same person before he has a brain).</summary>
+    public const long PedestrianType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale;
 
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap? _entityMap;
@@ -44,6 +49,10 @@ public sealed class TrafficReplicas
     private readonly List<Vector2> _anchors = new();
     private readonly HashSet<(int, VehicleHandle)> _seen = new();
     private readonly List<(int, VehicleHandle)> _drop = new();
+    private readonly Dictionary<(int Owner, long NetworkId), Entity> _peds = new();
+    private readonly HashSet<(int, long)> _pedSeen = new();
+    private readonly List<(int, long)> _pedDrop = new();
+    private readonly HashSet<long> _released = new();
 
     /// <param name="entityMap">The node's network entity map (null in a world with no network layer, e.g. a rail).</param>
     public TrafficReplicas(EntityRepository world, NetworkEntityMap? entityMap, int localNodeId)
@@ -56,6 +65,21 @@ public sealed class TrafficReplicas
     /// <summary>The live replicas, by (sender, SUMO car).</summary>
     public IReadOnlyDictionary<(int Owner, VehicleHandle Handle), Entity> Replicas => _replicas;
 
+    /// <summary>⭐ AQ93 §15 K3 — the live pedestrian replicas, by (sender, network id).</summary>
+    public IReadOnlyDictionary<(int Owner, long NetworkId), Entity> Pedestrians => _peds;
+
+    /// <summary>Is this pedestrian a replica now (the entity layer draws it)?</summary>
+    public bool IsPedReplica(TrafficPedPose ped) => _peds.ContainsKey((ped.Owner, ped.NetworkId));
+
+    /// <summary>⭐ AQ93 §15 K5 — the pedestrian <paramref name="networkId"/> is becoming OUR civilian: its replica goes now (so the id is
+    /// free when he is registered) and is not re-made while SUMO still shows the pedestrian.</summary>
+    public void Release(long networkId)
+    {
+        _released.Add(networkId);
+        foreach (var kv in _peds.ToArray())
+            if (kv.Key.NetworkId == networkId) DestroyPed(kv.Key, kv.Value);
+    }
+
     /// <summary>Is this car a replica now (so a car layer skips drawing it: the entity layer draws it)?</summary>
     public bool IsReplica(TrafficCarPose car) => _replicas.ContainsKey((car.Owner, car.Handle));
 
@@ -66,8 +90,9 @@ public sealed class TrafficReplicas
     /// <summary>Is this car drawn by the entity layer (a replica, or a shadow whose body is the entity)?</summary>
     public bool IsEntity(TrafficCarPose car) => IsShadow(car) || IsReplica(car);
 
-    /// <summary>Applies one frame: creates, poses and destroys replicas against <paramref name="cars"/>.</summary>
-    public void Update(IReadOnlyList<TrafficCarPose> cars)
+    /// <summary>Applies one frame: creates, poses and destroys replicas against <paramref name="cars"/> and
+    /// <paramref name="pedestrians"/>.</summary>
+    public void Update(IReadOnlyList<TrafficCarPose> cars, IReadOnlyList<TrafficPedPose>? pedestrians = null)
     {
         CollectAnchors();
         _seen.Clear();
@@ -94,6 +119,80 @@ public sealed class TrafficReplicas
         foreach (var kv in _replicas)
             if (!_seen.Contains(kv.Key) || !_world.IsAlive(kv.Value)) _drop.Add(kv.Key);
         foreach (var k in _drop) Destroy(k, _replicas[k]);
+        UpdatePedestrians(pedestrians ?? Array.Empty<TrafficPedPose>(), enter2, leave2);
+    }
+
+    // ⭐ §15 K3 — the SAME vicinity rule for pedestrians (R-4041): an entity within Radius of one of our bodies, kept to Radius + Hysteresis.
+    private void UpdatePedestrians(IReadOnlyList<TrafficPedPose> peds, float enter2, float leave2)
+    {
+        _pedSeen.Clear();
+        foreach (var ped in peds)
+        {
+            var key = (ped.Owner, ped.NetworkId);
+            _pedSeen.Add(key);
+            if (ped.NetworkId == 0 || _released.Contains(ped.NetworkId)) continue;
+            float d2 = NearestAnchor2(new Vector2(ped.X, ped.Y));
+            bool have = _peds.TryGetValue(key, out var e) && _world.IsAlive(e);
+            if (have)
+            {
+                if (d2 > leave2) { DestroyPed(key, e); continue; }
+                _world.SetComponent(e, Transform(ped));
+            }
+            else if (d2 <= enter2 && (_entityMap is null || !_entityMap.TryGetEntity(ped.NetworkId, out _)))   // ⛔ never over a live id
+            {
+                _peds[key] = CreatePed(ped);
+            }
+        }
+        _pedDrop.Clear();
+        foreach (var kv in _peds)
+            if (!_pedSeen.Contains(kv.Key) || !_world.IsAlive(kv.Value)) _pedDrop.Add(kv.Key);
+        foreach (var k in _pedDrop) DestroyPed(k, _peds[k]);
+        _released.RemoveWhere(id => !Seen(id));   // SUMO no longer shows it: the release is done
+    }
+
+    private bool Seen(long id)
+    {
+        foreach (var (_, n) in _pedSeen) if (n == id) return true;
+        return false;
+    }
+
+    private Entity CreatePed(in TrafficPedPose ped)
+    {
+        var e = _world.CreateEntity();
+        _world.AddComponent(e, new NetworkIdentity(ped.NetworkId));
+        _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: ped.Owner, localNodeId: _localNodeId));
+        _world.AddComponent(e, new TkbIdentity { TkbType = PedestrianType });
+        _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
+        _world.AddComponent(e, new TrafficCar { VehicleIndex = 0, Kind = TrafficCar.KindPedestrian });
+        _world.AddComponent(e, new ScenarioIgnoreTag());
+        _world.AddComponent(e, new EntityInfo { Name = new FixedString64("SUMO ped " + ped.Name), ForceId = ForceId.Neutral });
+        _world.AddComponent(e, new PhysicsCollider
+        {
+            Radius = PedRadius,
+            Height = PedHeight,
+            CollisionLayer = Fdp.Toolkit.Physics.PhysicsConstants.EntityCollisionLayer,
+        });
+        _world.AddComponent(e, Transform(ped));
+        _entityMap?.Register(ped.NetworkId, e);
+        return e;
+    }
+
+    private static SimTransform Transform(in TrafficPedPose ped)
+        => new() { Position = new Vector3(ped.X, ped.Y, ped.Z), Rotation = SimMath.FromYaw(ped.YawRad) };
+
+    private void DestroyPed((int, long) key, Entity e)
+    {
+        if (_world.IsAlive(e))
+        {
+            if (_entityMap is not null && _world.HasComponent<NetworkIdentity>(e)
+                && _entityMap.TryGetEntity(key.Item2, out var mapped) && mapped == e)
+            {
+                uint frame = _world.HasSingleton<GlobalTime>() ? (uint)_world.GetSingleton<GlobalTime>().FrameNumber : 0u;
+                _entityMap.Unregister(key.Item2, frame);
+            }
+            _world.DestroyEntity(e);
+        }
+        _peds.Remove(key);
     }
 
     /// <summary>Destroys every replica (the wire went away, the net or the demand changed).</summary>
@@ -101,6 +200,9 @@ public sealed class TrafficReplicas
     {
         foreach (var kv in _replicas.ToArray()) Destroy(kv.Key, kv.Value);
         _replicas.Clear();
+        foreach (var kv in _peds.ToArray()) DestroyPed(kv.Key, kv.Value);
+        _peds.Clear();
+        _released.Clear();
     }
 
     private void CollectAnchors()

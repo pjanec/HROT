@@ -68,6 +68,11 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     private readonly NetworkEntityMap? _entityMap;
     private readonly int _localNodeId;
     private readonly List<TrafficCarPose> _cars = new();
+    private readonly List<TrafficPedPose> _peds = new();
+    private readonly Dictionary<(int Owner, uint Source), TrafficPedMirror> _pedMirrors = new();
+    private readonly List<(int, uint)> _stalePedMirrors = new();
+    private readonly HashSet<(int, uint)> _livePedMirrors = new();
+    private DdsMultiSourcePedSubscriber? _pedDds;
     private readonly Dictionary<(int Owner, uint Source), TrafficMirror> _mirrors = new();
     private readonly HashSet<(int, uint)> _liveMirrors = new();
     private readonly List<(int, uint)> _staleMirrors = new();
@@ -112,6 +117,9 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     /// <summary>The cars of the last frame, every sender's, in terrain-local metres (for the car layer and rails).</summary>
     public IReadOnlyList<TrafficCarPose> Cars => _cars;
 
+    /// <summary>⭐ AQ93 §15 K3 — the pedestrians of the last frame, every sender's, terrain-local.</summary>
+    public IReadOnlyList<TrafficPedPose> Pedestrians => _peds;
+
     /// <summary>The replica book (null until the first frame).</summary>
     public TrafficReplicas? Replicas => _replicas;
 
@@ -144,7 +152,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
                 step = demand.StepSeconds > 0f ? demand.StepSeconds : step;
                 var key = new TrafficSessionKey(net.Path, Path.GetDirectoryName(net.Path) ?? ".", net.NetHash, demand, _generation);
                 if (!Equals(_runtime.Requested, key)) _runtime.Request(key, TrafficVehicleCatalog.From(TkbOf(world)));
-                _runtime.TopUpIds(demand.TargetCars);   // N2 — the allocator is main-thread only
+                _runtime.TopUpIds(demand.TargetCars + Math.Max(0, demand.TargetPedestrians));   // N2/K2 — the allocator is main-thread only
                 _runtime.SetTarget(key, now);
                 own = _runtime.Current;
                 if (own is not null && now < own.Time - 2.0 * own.StepSeconds - 1.0)   // the clock jumped back: restart SUMO
@@ -162,13 +170,16 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         // ── mirror every wire (N5/N6) ─────────────────────────────────────────────────────────────
         double at = now - step;
         bool resolve = at != _lastResolved;   // paused ⇒ the same instant ⇒ the same poses; the reconstructor is never fed a zero step
-        if (resolve) _cars.Clear();
+        if (resolve) { _cars.Clear(); _peds.Clear(); }
         _liveMirrors.Clear();
+        _livePedMirrors.Clear();
         _lights = EmptyLights;
         if (own is not null)
         {
             own.Source.Pump();
             Mirror(_localNodeId, (uint)_localNodeId, own.Source, own.Lanes, at, resolve);
+            own.Pedestrians.Pump(now);
+            MirrorPeds(_localNodeId, (uint)_localNodeId, own.Pedestrians, at, resolve);
         }
         if (_participant is not null)
         {
@@ -181,13 +192,24 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
                 int owner = _dds.SenderAppInstanceOf(src) ?? (int)src;
                 Mirror(owner, src, source, _netLanes!, at, resolve);
             }
+            // ⭐ §15 K3 — every traffic node's pedestrians (SumoSharp H14: one reconstructor per sender, sim-time poses)
+            _pedDds ??= new DdsMultiSourcePedSubscriber(_participant, SilentSourceSeconds, () => _wireNow);
+            _pedDds.Pump();
+            foreach (var (src, peds) in _pedDds.Sources)
+            {
+                if (_runtime is not null && src == (uint)_localNodeId) continue;
+                MirrorPeds(_pedDds.SenderAppInstanceOf(src) ?? (int)src, src, peds, at, resolve);
+            }
         }
         _staleMirrors.Clear();
         foreach (var k in _mirrors.Keys) if (!_liveMirrors.Contains(k)) _staleMirrors.Add(k);
         foreach (var k in _staleMirrors) _mirrors.Remove(k);
+        _stalePedMirrors.Clear();
+        foreach (var k in _pedMirrors.Keys) if (!_livePedMirrors.Contains(k)) _stalePedMirrors.Add(k);
+        foreach (var k in _stalePedMirrors) _pedMirrors.Remove(k);
         if (resolve) _lastResolved = at;
 
-        _replicas!.Update(_cars);
+        _replicas!.Update(_cars, _peds);
         Publish(world);
     }
 
@@ -200,12 +222,22 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (_lights.Count == 0) _lights = source.TlStateByLane;
     }
 
+    private void MirrorPeds(int owner, uint src, Sim.Pedestrians.Lod.PedRemoteReconstructor peds, double at, bool resolve)
+    {
+        var k = (owner, src);
+        _livePedMirrors.Add(k);
+        if (!_pedMirrors.TryGetValue(k, out var mirror)) _pedMirrors[k] = mirror = new TrafficPedMirror(_net!.Placement, owner);
+        if (resolve) mirror.Resolve(peds, at, _peds);
+    }
+
     private void Stop(EntityRepository world)
     {
         _runtime?.Request(null);
         _adopted = null;
         _mirrors.Clear();
+        _pedMirrors.Clear();
         _cars.Clear();
+        _peds.Clear();
         _replicas?.Clear();
         _lastResolved = double.NaN;
         _net = null;
@@ -220,7 +252,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (_frame is null || !ReferenceEquals(_frame.Lights, _lights))
         {
             var replicas = _replicas!;
-            _frame = new TrafficFrame(_cars, replicas.IsEntity, _lights);
+            _frame = new TrafficFrame(_cars, replicas.IsEntity, _lights, _peds, replicas.IsPedReplica);
             world.RegisterManagedComponent<TrafficFrame>();
             world.SetSingletonManaged(_frame);
         }

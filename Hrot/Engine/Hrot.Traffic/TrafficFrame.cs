@@ -12,12 +12,21 @@ namespace Hrot.Traffic;
 [ComponentId(GlobalComponentIds.TrafficFrame)]
 public sealed class TrafficFrame
 {
-    public TrafficFrame(IReadOnlyList<TrafficCarPose> cars, Func<TrafficCarPose, bool> isEntity, IReadOnlyDictionary<int, byte> lights)
+    public TrafficFrame(IReadOnlyList<TrafficCarPose> cars, Func<TrafficCarPose, bool> isEntity, IReadOnlyDictionary<int, byte> lights,
+                        IReadOnlyList<TrafficPedPose>? pedestrians = null, Func<TrafficPedPose, bool>? isPedEntity = null)
     {
         Cars = cars; IsEntity = isEntity; Lights = lights;
+        Pedestrians = pedestrians ?? Array.Empty<TrafficPedPose>();
+        IsPedEntity = isPedEntity ?? (_ => false);
     }
 
     public IReadOnlyList<TrafficCarPose> Cars { get; }
+
+    /// <summary>⭐ AQ93 §15 K3 — every sender's pedestrians this frame, terrain-local.</summary>
+    public IReadOnlyList<TrafficPedPose> Pedestrians { get; }
+
+    /// <summary>True for a pedestrian that is a replica entity this frame.</summary>
+    public Func<TrafficPedPose, bool> IsPedEntity { get; }
 
     /// <summary>True for a car that is a replica entity this frame.</summary>
     public Func<TrafficCarPose, bool> IsEntity { get; }

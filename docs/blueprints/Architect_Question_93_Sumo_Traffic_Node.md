@@ -4,7 +4,7 @@ updated: 2026-10-17
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
   slice 2 (the networked pack + the traffic node, §12) BUILT 2026-10-17: §12.1 is its as-built; the rest of §6 is DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
-current-answer: §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §15.7 (slice 5a/5b AS BUILT — pedestrians, panic, conversion) · §14.6 (slice 4) · §13.7 (slice 3) · §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimHost, CGF and IG compose the mirror since slice 2 (§12.1);
@@ -427,7 +427,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT + live — §14.6 (SumoSharp H13) |
-| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ⭐ DESIGN §15 (5a waits for SumoSharp H14, upstream) |
+| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ✅ 5a/5b BUILT §15.7 (SumoSharp H14) · 5c (hits) next |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
 ## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
@@ -1181,7 +1181,7 @@ Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived 
 | live | demo-city: a vehicle handed over arrives at its destination on SUMO roads, is taken back (`KinematicsMode.None`, `Arrived`), and its `PrimaryOwnerId` never changes |
 
 
-## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(DESIGN 2026-10-17 — build-state: DESIGN)*
+## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(2026-10-17 — build-state: BUILT for 5a/5b, §15.7; 5c DESIGN)*
 
 ### 15.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
 
@@ -1267,9 +1267,77 @@ graph TD
 
 | step | content | waits for |
 |---|---|---|
-| **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | H14 (upstream, in progress) |
-| **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | 5a |
+| **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | ✅ BUILT (§15.7) on SumoSharp H14 `13f70db` |
+| **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | ✅ BUILT (§15.7) |
 | **5c** | K7: hits on SUMO cars and pedestrians | 5b |
+
+### 15.7 AS BUILT — 5a and 5b *(2026-10-17, CE-4024)*
+
+```mermaid
+sequenceDiagram
+  participant SH as Shooter's node
+  participant M as Traffic node, main thread
+  participant S as Traffic node, stepping thread
+  participant LC as LiveCitySim (H14)
+  participant B as Brain node (CGF, or the editor alone)
+  participant N as Every node's mirror
+  SH->>M: WeaponFireNotification (Origin) or DetonationNotification (Hit), NED
+  M->>M: TrafficPanicSystem: one incident per 5 m per frame, radius from TrafficDemand
+  M->>S: TrafficRuntime.ReportIncident (queue)
+  S->>LC: PedestriansWithin, then RemovePedestrian while under ConversionCap
+  LC-->>N: ped Despawn on the wire at once (even paused)
+  S->>M: TrafficConversion queue (name, state, fright point)
+  M->>M: TrafficReplicas.Release(id), its own replica goes first
+  M->>B: EntityCreationRequest: owner 0, PreAllocatedNetworkId = name, type by id, transient, attributes Heading Fear FrightFrom
+  B->>B: CreateEntityRequestSystem applies the attributes: CivilianState born with Fear 1 and FrightFrom
+  B-->>N: our civilian, the same network id, his CivilianHsm goes Alarmed then Panic
+```
+*What the picture shows that prose hid: the removal is on the STEPPING thread (H14 S1 runs between steps), so the main thread only
+queues incidents and drains conversions; and the fright reaches the brain as ATTRIBUTES, because the request wire has no slot for a
+brain-local component.*
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficSession { <<grown>> peds on from TargetPedestrians, PedIdProvider = allocator, DDS ped tee, +Pedestrians, +Convert(), +Converted }
+  class TrafficRuntime { <<grown>> +ReportIncident() +TakeConversions() }
+  class TrafficPanicSystem { <<NEW>> incidents to requests }
+  class TrafficPedMirror { <<NEW>> one sender's peds, yaw from motion }
+  class TrafficPedPose { <<NEW record>> Owner NetworkId Name X Y Z YawRad }
+  class TrafficReplicas { <<grown>> +Pedestrians +IsPedReplica() +Release() }
+  class TrafficFrame { <<grown>> +Pedestrians +IsPedEntity }
+  class TrafficCar { <<grown>> +Kind car or pedestrian }
+  class CivilianFrightAttributeInstaller { <<NEW, FDP>> Fear FrightFrom.X/Y/Z, BrainLocal }
+  class AttributeVocabulary { <<existing, grows 4 rows>> }
+  TrafficPanicSystem --> TrafficRuntime
+  TrafficPanicSystem --> TrafficReplicas : Release
+  TrafficRuntime --> TrafficSession : Convert
+  TrafficMirrorSystem --> TrafficPedMirror
+  TrafficPedMirror ..> TrafficPedPose
+  TrafficReplicas ..> TrafficCar
+  TrafficFrame ..> TrafficPedPose
+  AttributeVocabulary ..> CivilianFrightAttributeInstaller
+```
+
+| deviation from §15.2 | why (measured) |
+|---|---|
+| ⚠ **K5's fear rides as ATTRIBUTES, not an initial `CivilianState`** — `Fear`, `FrightFrom.X/Y/Z` (`AttributeIds` 30–33) in `AttributeVocabulary`, marked `BrainLocal` | the wire request carries only the anchor transform and a few descriptors (`CreateEntityRequestDescriptorBuilder.Build`); `CivilianState` is brain-local, so in a cluster it would have vanished on the way to CGF. `CreateEntityRequestSystem` applies `InitialAttributesJson` and `ListPatchContext` creates the missing component. The coverage rail asks no translator to cover a `BrainLocal` component |
+| ⚠ **K3: pedestrian poses are a SEPARATE list** (`TrafficPedPose`, `TrafficFrame.Pedestrians`); the replica book and the vicinity rule are the same class | the car consumers (`TrafficLayer3D`, the follow system, the 2-D layer) read `Cars` as cars; one list would have handed every one of them pedestrians. `TrafficCar.Kind` marks a pedestrian ENTITY |
+| ⚠ **K5's type is by id** (`TrafficPanicSystem.TypeOf`: 4 men, 4 women, 1 child, 1 elderly in 10); the replica is `1101` | SumoSharp's pedestrians carry no age or sex |
+| ⭐ **the request is transient, `InitType.None`**; the traffic node's own replica goes first (`Release`), the rest on the Despawn | a person SUMO walked is never the scenario's; `NetworkEntityMap.Register` throws on a live id |
+| ⭐ **incidents of one frame closer than 5 m merge** (`MergeMetres`) | a burst of fire is one fright, not one stepping-thread pass per round |
+| ⭐ **demo-city asks for 160 pedestrians** (SumoSharp's own default population) | K1 |
+
+| known gap | |
+|---|---|
+| the 3-D map draws no NON-entity pedestrian (only replicas, as civilians) | `TrafficLayer3D` draws cars; the 2-D map draws a dot per pedestrian |
+| the civilian is born at rest (the removal's velocity is not carried) | no creation attribute for a velocity |
+| above the cap a frightened pedestrian stays in SUMO, calm (§8 P7's second half — its SUMO flee) | deferred |
+
+Rails: `PedestriansPanicIntoCiviliansTests` (5: walkers named by our allocator and civilian replicas near a body; a shot gives them up
+as terrified-civilian requests keeping their ids, and they leave the wire; the cap; a released replica is not remade; the attributes),
+`TheFourRoutingTablesAgreeTests` (+4 vocabulary cases, a creation request's fright bears a mind in panic), `TheDescriptorMapIsWiredTests`
+(brain-local components exempt). Traffic 53/53.
 
 
 ## 7. ⛔ HISTORY

@@ -122,6 +122,25 @@ public static class AttributeCompilerFactory
                 (ref Fdp.Toolkit.Weather.ScenarioClock c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.DisplayUtcOffsetMinutes = (short)r.GetInt32(),
                 kind: KindOf("ScenarioUtcOffsetMinutes"));
 
+        // ── CivilianState — ⭐ CE-4024 (AQ93 §15 K5): a fright, so a converted SUMO pedestrian is born in panic ───────────
+        builder
+            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+                "Fear",
+                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFear(ref c, r.GetDouble()),
+                kind: KindOf("Fear"))
+            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+                "FrightFrom.X",
+                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 0, r.GetDouble()),
+                kind: KindOf("FrightFrom.X"))
+            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+                "FrightFrom.Y",
+                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 1, r.GetDouble()),
+                kind: KindOf("FrightFrom.Y"))
+            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+                "FrightFrom.Z",
+                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 2, r.GetDouble()),
+                kind: KindOf("FrightFrom.Z"));
+
         return builder.Build();
     }
 
@@ -184,7 +203,8 @@ public static class AttributeCompilerFactory
             //    SimTransformBridgeSystem.HeadingDegToRotation takes. ⇒ ⭐ heading works on a host with no
             //    geo transform, and gating it behind one would refuse rotation for no reason.
             .AddInstaller(new SimTransformHeadingInstaller())
-            .AddInstaller(new ScenarioClockAttributeInstaller());   // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
+            .AddInstaller(new ScenarioClockAttributeInstaller())    // ⭐ CE-3216 S1-0 — the scenario start time (no geo transform needed)
+            .AddInstaller(new CivilianFrightAttributeInstaller());  // ⭐ CE-4024 — a civilian's fright (AQ93 §15 K5)
 
         if (geoTransform != null)
             builder.AddInstaller(new SimTransformAttributeInstaller(geoTransform));

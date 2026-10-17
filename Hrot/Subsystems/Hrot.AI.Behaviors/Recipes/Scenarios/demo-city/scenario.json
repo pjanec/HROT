@@ -19,7 +19,8 @@
       "TrafficDemand": {
         "TargetCars": 200,
         "Seed": 1,
-        "StepSeconds": 0.5
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 160
       }
     },
     "a9930000-0000-4000-8000-000000000002": {
