@@ -720,13 +720,24 @@ public sealed class PostureScenarioTests : IDisposable
             return false;
         }
 
-        int held = 0, rounds = 0, throughCivilian = 0;
+        int held = 0, rounds = 0, throughCivilian = 0, onLineFrames = 0, frame = 0;
+        var reasons = new System.Collections.Generic.Dictionary<ActionReason, int>();
         var hurt = new System.Collections.Generic.HashSet<string>();
         int last = Ammo();
         bool onLineBefore = CivilianOnTheLine();
         void Sample()
         {
-            if (cgf.HasComponent<ActionStatus>(rifle) && cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason == ActionReason.HoldNeutralOnLine) held++;
+            frame++;
+            if (cgf.HasComponent<ActionStatus>(rifle))
+            {
+                var why = cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason;
+                if (onLineBefore) reasons[why] = reasons.TryGetValue(why, out int k) ? k + 1 : 1;
+                if (why == ActionReason.HoldNeutralOnLine) held++;
+            }
+            if (onLineBefore) onLineFrames++;
+            if (frame % 120 == 0)
+                _out.WriteLine($"f{frame} onLine={onLineBefore} reason={(cgf.HasComponent<ActionStatus>(rifle) ? cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason : ActionReason.None)} ammo={Ammo()} "
+                    + string.Join(" ", civs.Select(c => cgf.IsAlive(c) ? $"({cgf.GetComponent<SimTransform>(c).Position.X:F0},{cgf.GetComponent<SimTransform>(c).Position.Y:F1})" : "-")));
             int now = Ammo();
             if (now >= 0 && last >= 0 && now < last)
             {
@@ -738,7 +749,8 @@ public sealed class PostureScenarioTests : IDisposable
                 if (Hp(civs[i]) is var h && h >= 0f && h < 100f) hurt.Add(names[i]);
             onLineBefore = cgf.IsAlive(insurgent) && CivilianOnTheLine();
         }
-        string State() => $"held {held} frames, rounds {rounds}, through a civilian {throughCivilian}, insurgent hp {Hp(insurgent)}, "
+        string State() => $"held {held} frames, rounds {rounds}, through a civilian {throughCivilian}, on the line {onLineFrames} frames "
+                          + $"(his reasons then: {string.Join(",", reasons.Select(kv => $"{kv.Key}={kv.Value}"))}), insurgent hp {Hp(insurgent)}, "
                           + $"hurt [{string.Join(",", hurt)}], civilians hp [{string.Join(",", civs.Select(Hp))}]";
 
         bool down = harness.PumpUntil(() => { Sample(); return Hp(insurgent) <= 0f; }, timeoutFrames: 9000);   // 150 s

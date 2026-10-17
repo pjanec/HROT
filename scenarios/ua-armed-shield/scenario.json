@@ -114,12 +114,43 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "MissionPlan": {
+                "PlanData": {
+                    "activeTaskId": "00000000-0000-0000-0000-000000000000",
+                    "tasks": [
+                        {
+                            "taskId": "c2470001-0000-4000-8000-000000000201",
+                            "executingEngine": "",
+                            "behaviorName": "MoveToLocation",
+                            "behaviorParams": "{\"x\":130,\"y\":200,\"speed\":0.8,\"arrivalRadius\":1}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        },
+                        {
+                            "taskId": "c2470001-0000-4000-8000-000000000202",
+                            "executingEngine": "",
+                            "behaviorName": "MoveToLocation",
+                            "behaviorParams": "{\"x\":130,\"y\":220,\"speed\":1,\"arrivalRadius\":1}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
             }
         },
         "c2470001-0000-4000-8000-000000000011": {
             "SimTransform": {
                 "Position": [
-                    64,
+                    56,
                     200,
                     0
                 ],
@@ -146,13 +177,18 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         },
         "c2470001-0000-4000-8000-000000000012": {
             "SimTransform": {
                 "Position": [
-                    72,
-                    200.3,
+                    64,
+                    200,
                     0
                 ],
                 "Rotation": [
@@ -178,13 +214,18 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         },
         "c2470001-0000-4000-8000-000000000013": {
             "SimTransform": {
                 "Position": [
-                    80,
-                    199.7,
+                    72,
+                    200,
                     0
                 ],
                 "Rotation": [
@@ -210,12 +251,17 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         },
         "c2470001-0000-4000-8000-000000000014": {
             "SimTransform": {
                 "Position": [
-                    88,
+                    80,
                     200,
                     0
                 ],
@@ -242,13 +288,18 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         },
         "c2470001-0000-4000-8000-000000000015": {
             "SimTransform": {
                 "Position": [
-                    101,
-                    203,
+                    88,
+                    200,
                     0
                 ],
                 "Rotation": [
@@ -274,13 +325,18 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         },
         "c2470001-0000-4000-8000-000000000016": {
             "SimTransform": {
                 "Position": [
-                    101,
-                    197,
+                    96,
+                    200,
                     0
                 ],
                 "Rotation": [
@@ -306,6 +362,11 @@
             },
             "TargetMemory": {
                 "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"WanderRadius\":0.1,\"PauseMinSeconds\":30,\"PauseMaxSeconds\":60}",
+                "Origin": "Superior"
             }
         }
     }
