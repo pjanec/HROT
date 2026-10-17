@@ -220,7 +220,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (_frame is null || !ReferenceEquals(_frame.Lights, _lights))
         {
             var replicas = _replicas!;
-            _frame = new TrafficFrame(_cars, replicas.IsReplica, _lights);
+            _frame = new TrafficFrame(_cars, replicas.IsEntity, _lights);
             world.RegisterManagedComponent<TrafficFrame>();
             world.SetSingletonManaged(_frame);
         }

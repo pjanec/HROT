@@ -59,6 +59,13 @@ public sealed class TrafficReplicas
     /// <summary>Is this car a replica now (so a car layer skips drawing it: the entity layer draws it)?</summary>
     public bool IsReplica(TrafficCarPose car) => _replicas.ContainsKey((car.Owner, car.Handle));
 
+    /// <summary>⭐ AQ93 §14 G6 — a SUMO shadow of one of our handed-over vehicles (<c>hrot:&lt;networkId&gt;</c>): never a replica, never drawn
+    /// as a car — the body it drives is the entity.</summary>
+    public static bool IsShadow(TrafficCarPose car) => car.Id is { } id && id.StartsWith(TrafficShadowFollowSystem.ShadowPrefix, StringComparison.Ordinal);
+
+    /// <summary>Is this car drawn by the entity layer (a replica, or a shadow whose body is the entity)?</summary>
+    public bool IsEntity(TrafficCarPose car) => IsShadow(car) || IsReplica(car);
+
     /// <summary>Applies one frame: creates, poses and destroys replicas against <paramref name="cars"/>.</summary>
     public void Update(IReadOnlyList<TrafficCarPose> cars)
     {
@@ -77,7 +84,7 @@ public sealed class TrafficReplicas
                 if (d2 > leave2) { Destroy(key, e); continue; }
                 Pose(e, car);
             }
-            else if (d2 <= enter2 && car.NetworkId != 0)
+            else if (d2 <= enter2 && car.NetworkId != 0 && !IsShadow(car))   // ⭐ §14 G6 — a shadow car's body IS the entity
             {
                 _replicas[key] = Create(car);
             }

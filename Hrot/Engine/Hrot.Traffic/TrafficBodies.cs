@@ -65,6 +65,7 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
         {
             if (routed && world.HasComponent<ReplicationRoute>(e)) continue;   // a SUMO car's replica: SUMO already has it
             if (KindOf(Locomotions.Of(world, e)) is not { } kind) continue;
+            if (HandedToSumo(world, e)) continue;   // ⭐ §14 G6 — SUMO drives it already: its shadow would brake behind itself
             var p = world.GetComponentRO<SimTransform>(e).Position;
             var v = velocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
             float length, width;
@@ -80,6 +81,14 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
         }
         return into.ToArray();
     }
+
+    /// <summary>⭐ AQ93 §14 G6 — a body handed to SUMO: its intent is <c>Traffic</c> (what the serving node sees) or its kinematics are
+    /// (on the node that moves it).</summary>
+    public static bool HandedToSumo(EntityRepository world, Entity e)
+        => (world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>() && world.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e)
+            && world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(e).Mode == Fdp.Toolkit.Navigation.NavigationMode.Traffic)
+           || (world.IsComponentTypeRegistered<CarKinem.Core.NavState>() && world.HasComponent<CarKinem.Core.NavState>(e)
+               && world.GetComponentRO<CarKinem.Core.NavState>(e).Mode == CarKinem.Core.KinematicsMode.Traffic);
 
     /// <summary>§13 F2/F3 — the body class → what SUMO is told; null ⇒ nothing.</summary>
     public static TrafficBodyKind? KindOf(LocomotionClass c) => c switch

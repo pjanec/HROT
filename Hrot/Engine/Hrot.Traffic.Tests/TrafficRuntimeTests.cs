@@ -344,7 +344,7 @@ public sealed class TrafficRuntimeTests
         return world;
     }
 
-    private static void RegisterReplicaComponents(EntityRepository world)
+    internal static void RegisterReplicaComponents(EntityRepository world)
     {
         world.RegisterComponent<SimTransform>();
         world.RegisterComponent<PhysicsCollider>();
