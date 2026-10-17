@@ -426,7 +426,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
-| 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT — §14.6 (SumoSharp H13); ⏳ live check |
+| 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT + live — §14.6 (SumoSharp H13) |
 | 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
@@ -1085,7 +1085,7 @@ Rails: upstream `HrotExternalBodyTests` (7, two of them inverse-proven by detach
 | live | demo-city: a SUMO car brakes behind our vehicle parked on its lane (its speed drops to ~0 behind it) |
 
 
-## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILT, ⏳ live; §3.3 is its sequence; §14.6 the as-built)*
+## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILT, ✅ live; §3.3 is its sequence; §14.6 the as-built)*
 
 ### 14.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
 
@@ -1169,7 +1169,9 @@ spawn); ownership never moves.
 | G1 trigger | ✅ the operator's way in: a MOVE order with `roadUse: "InTraffic"` (`RoadUse.InTraffic` = 5, in the intent's road-use flag bits) — `MoveToExecutor` asks `NavigationMode.Traffic` instead of a path; the order completes on `Arrived` like any move. Rail `MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan` |
 | G5 slack | ⭐ `ArrivalSlackMetres` = 25 m, measured: a shadow that arrived is last seen ~14 m short (H13 ends it ≤ one step before the point, the mirror resolves one step behind the clock) — the first 15 m was too tight |
 
-Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica) · `AVehicleHandedToSumoArrivesTests` (demo-city: the shadow drives a route a SUMO car drove and vanishes at the destination; revoking it takes it back) · upstream `HrotExternalVehicleTests` (4). ⏳ live: a vehicle in the editor / cluster handed over and taken back.
+Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica) · `AVehicleHandedToSumoArrivesTests` (demo-city: the shadow drives a route a SUMO car drove and vanishes at the destination; revoking it takes it back) · upstream `HrotExternalVehicleTests` (4).
+
+✅ **Live 2026-10-17** (editor, demo-city, `scripts/sumo-accept-slice4.py`): a `BoxTruck` spawned on a lane, ordered `move` with `roadUse: InTraffic` 416 m away (straight line) — SUMO drove it on ITS roads (north, a wait at a junction, west, 500 m south, east, ~600 m in 82 s), it stopped **11 m** from the destination, `KinematicsMode` went back to `None`, the order `succeeded`, and its `PrimaryOwnerId` never changed. ⚠ The script's first cut took a 6 s standstill (a red light) for the end — it now waits for the order to finish.
 
 ### 14.5 Acceptance
 
