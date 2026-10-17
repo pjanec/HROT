@@ -447,11 +447,13 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual("Surrender", w.State());
             Assert.NotEqual(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
 
-            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Aimed;   // covered again ...
-            for (int i = 0; i < 30; i++) w.Tick();
-            Assert.Equal("Surrender", w.State());
-            w.Repo.GetComponentRW<Health>(w.Unit).Current = 40f;                      // ... and wounded: the wound wins
-            for (int i = 0; i < 4; i++) w.Tick();
+            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Aimed;   // covered again AND wounded, the same tick:
+            w.Repo.GetComponentRW<Health>(w.Unit).Current = 40f;                      // both ways out are open — the wound wins:
+            for (int i = 0; i < 4; i++)                                               // he never passes through Surrender on the way
+            {
+                w.Tick();
+                Assert.NotEqual("Surrender", w.State());
+            }
             Assert.Equal("Casualty", w.State());
         }
 

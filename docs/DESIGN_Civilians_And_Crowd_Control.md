@@ -1389,6 +1389,101 @@ the cooldown; calm ⇒ Protest, still Hostile) and `CE2238_ARioter_StrikesOnlyTh
 Each rail red under its mutant (5: the flip written to `Name`, a knocked-down man struck, the riot guard `>`, any side struck, the anger rate 0.05). Demo `ua-civ-melee` (§5c): twin `PostureScenarioTests.CE2238_CivMelee_…` green (15 s: Riot, knocked down on CGF/SimHost/IG, Hostile on
 all three, one strike, no flip before the blow); live check `run_civ_melee` — see §5c.
 
+### 5i.2 CIV-4 behaviour, part 2 — the stone *(behaviors, `CE-2238` part 2, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** The riot's ranged act, now that backend landed the HANDS (B-8, §7.9a) and the STONE SOURCE (B-13, §7.10a): a rioter
+fills his hands at a stone source and throws at the forces from range; the first stone is his hostile act (the same `HostileActs.Commit`
+as the blow). Demo `ua-civ-riot-stone` (§5c). ⛔ Not here: picking a LYING stone up (`RoundPickUp`, a later step), a live grenade or a
+canister in hand (AW-9, B-14), the crowd's many throwers and the perf gate (CE-3222).
+
+**INVENTORY** *(2026-10-17, grep + reads — the throw path is one call deep, so the call sites ARE the set)*:
+
+| question | measured | where |
+|---|---|---|
+| how a behaviour throws | write `FireAtPointParams { Point, Rounds, Mount, CooldownSeconds }` onto the unit's `WeaponChannel` with `ActionIdFireAtPoint` — the `SuppressBehavior` precedent; the executor throws the LOADED round of that mount on its arc (H-5) | `SuppressBehavior.cs:85-89`, `FireAtPointExecutor` |
+| which mount is the hands | `PersonHands.MountIndex(world, man)` | `PersonHands.cs:57` |
+| what he holds | `PersonHands.Rounds(world, man, ammo)` · `Holding(world, man, each)` · `HoldsLethal` | `PersonHands.cs:155-210` |
+| filling his hands | `ItemSources.Refill(world, man)` — tops up to the source's `UpTo` (5) when he stands inside one; nothing to ask | `ItemSources.cs:44` |
+| does a civilian have a weapon channel | ✅ every brain-tier unit gets `WeaponChannel` + `WeaponPosture` | `BehaviorTkbTranslator.cs:140-145` |
+| the stone | TKB 6038, `Indirect` (H-6), lies 60 s | `MunitionTkbCatalog.cs:123, 384` |
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianHsm { <<existing, grows>> Riot: + the throw arm, + the bend at a source }
+  class RiotState { <<existing, grows>> + NextThrowAt · BendUntil }
+  class Stones { <<NEW static, Hrot.AI.Behaviors>> InHand(world, man) · Throw(world, man, at) }
+  class PersonHands { <<backend B-8>> MountIndex · Rounds · Holding · HoldsLethal }
+  class ItemSources { <<backend B-13>> Refill(world, man) }
+  class WeaponChannel { <<existing>> ActionIdFireAtPoint }
+  class FireAtPointExecutor { <<existing>> throws the loaded round on its arc }
+  class HostileActs { <<existing, §5i>> Commit }
+  CivilianHsm ..> Stones
+  CivilianHsm ..> ItemSources : at a source, hands empty
+  CivilianHsm ..> HostileActs : the first stone
+  Stones ..> PersonHands
+  Stones ..> WeaponChannel : FireAtPoint, Rounds 1, the hands
+  WeaponChannel ..> FireAtPointExecutor
+```
+*What the picture shows that prose hid:* the throw is ONE channel write on the path backend already made carry the loaded round — the
+slice adds a thin helper and an arm in the Riot activity; no new firing path, no new component.
+
+```mermaid
+stateDiagram-v2
+  state Riot {
+    [*] --> Choose
+    Choose --> Bend : hands empty and in a source
+    Bend --> Choose : 1.5 s, hands filled
+    Choose --> Throw : stones in hand, target 4 to 20 m
+    Throw --> Choose : cooldown 3 s
+    Choose --> Close : target beyond 20 m, or no stones
+    Close --> Strike : within 1.5 m, no stones
+    Strike --> Choose : cooldown
+  }
+```
+*What the picture shows that prose hid:* the stone is preferred whenever he has one and the target is in range; the fist is what he does
+with empty hands — and a rioter in a source never walks off empty-handed, he bends first.
+
+```mermaid
+sequenceDiagram
+  participant R as rioter CivilianHsm (CGF)
+  participant I as ItemSources
+  participant H as PersonHands
+  participant F as FireAtPointExecutor (CGF)
+  participant S as SimHost FireProcessing
+  R->>I: Refill after the 1.5 s bend (in a source)
+  I->>H: Give(stone, up to 5)
+  R->>F: WeaponChannel FireAtPoint at the policeman, Rounds 1, the hands mount
+  F->>S: WeaponFireIntent, the stone, on the arc
+  R->>R: HostileActs.Commit (the first throw)
+  S-->>R: the stone lands, lies 60 s (every node sees it)
+```
+*What the picture shows that prose hid:* the act is committed when he THROWS, not when the stone lands or hits — the trainee sees the
+side flip the moment the arm comes over, which is what an observer would judge.
+
+```mermaid
+graph TD
+  CGF[CGF node] --> BT[BrainTickSystem]
+  BT --> HSM[rioter CivilianHsm: Riot]
+  HSM --> ST[Stones.Throw: WeaponChannel write]
+  CGF --> EX[weapon executors: FireAtPointExecutor]
+  EX --> SH[SimHost: FireProcessing, the stone flies]
+  HSM --> IS[ItemSources.Refill]
+```
+*What the picture shows that prose hid:* nothing is registered — the executor that runs a soldier's grenade throw runs the rioter's stone.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| stone or fist | ⭐ a stone whenever he holds one and the target is 4–20 m away; the fist only with empty hands (or inside 4 m) | fist first: a rioter with a stone walks into a baton |
+| where he aims | ⭐ the target's feet (`SimTransform.Position`); the executor's arc does the rest | lead the target: a policeman in a line barely moves |
+| how often | ⭐ one stone every 3 s (`ThrowCooldownSeconds`), `Rounds = 1` per write | a burst: a hand throws one |
+| filling | ⭐ in a source with empty hands: crouch 1.5 s (`StanceRequest`), then `Refill` | walk to the nearest source: a riot that leaves its line to fetch stones is a later behaviour |
+| the act | ⭐ the first THROW commits it (`HostileActs.Commit`, once) | on the hit: a stone that misses is still an attack (AW-16) |
+| the throwers' arms | ⭐ the gesture stays `FistRaised`; the throw shows through the executor's `Throwing` status | a Throwing gesture byte per throw: the figure already reads the weapon status |
+
+⚠ **Known limits:** ① no lying-stone pick-up yet (`RoundPickUp.Ask` — next step); ② one target at a time, the nearest; ③ a thrown
+stone never hits a neutral on purpose — the executor's neutral exemption for an arcing round (H-5) means he may hit one by accident.
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
