@@ -351,6 +351,34 @@ escalation ladder, `CE-2239`, decides whether an order may). ③ A grenade or an
 it (collateral is `CE-2239`'s). ④ Scenario sweep (2026-10-17): of 315 typed scenario entities only 4 are Neutral / unset — two vans and two
 weather regions, none a combatant.
 
+## 5c. Demo scenarios — one per feature, each a TEST *(behaviors, 2026-10-17; user: "a demo scenario for each civilian feature, with a clear success condition so it is usable as a test")*
+
+⭐ **The rule:** a civilian slice is not done until its demo PASSES. Each demo is ① a `scenarios/<name>/scenario.json`, ② a live check
+`python3 scripts/utility-demo-check.py --launch <name>` (a fresh cluster, asserting — the acceptance), and ③ an in-process twin in
+`Hrot.ClusterRunner.Integration.Tests` (the CI gate; shipped-scenario twins live in `PostureScenarioTests`). A PASS line names what it
+proves; ⭐ every demo also asserts the **precondition that makes the pass meaningful** (e.g. "he SEES the neutral" — otherwise "not
+shot" could mean "not seen").
+
+| slice | demo | terrain · cast | ⭐ PASS = all of | state |
+|---|---|---|---|---|
+| **CIV-0** `CE-2233` | **`ua-civ-neutral-gate`** | test-town · a rifleman (Friend, CombatPosture); an unarmed Neutral civilian; an ARMED Neutral nearest of all; a Hostile farther | ① he remembers both neutrals · ② the Hostile dies · ③ neither neutral loses health, sampled all run · ④ the neutrals rank at score 0 · ⑤ with only neutrals left, no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged, the civilian still unhurt | ✅ built (twin `PostureScenarioTests.CE2233_CivNeutralGate_…`) |
+| CIV-0 | `ua-threat-ranking` *(migrated)* | test-town · its civilian is Neutral | the neutral civilian scores 0 and is never the ranking's winner | ✅ |
+| **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town · 6 civilians of the new types (1101–1104) at their routine points; a soldier who fires a burst at a target 40 m from two of them, 150 m from the rest | ① all 6 start in `Routine` · ② within 2 s of the first shot, every civilian within hearing (100 m) is `Alarmed`, every one beyond stays `Routine` · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40) ⇒ `Casualty`, stops moving, and stays there | ⏳ with CE-2235 |
+| CIV-1 | **`ua-civ-crowd-300`** *(perf gate, CV-10)* | test-town · 300 civilians, mixed variants, routine points spread over the town | ① all 300 run a behaviour · ② over 60 s, CGF frame time p95 ≤ the budget backend's `scripts/perf-civilians.sh` measures against (B-4) · ③ brain tick per civilian reported | ⏳ CE-2235 + B-4 |
+| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ⏳ |
+| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ⏳ |
+| **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · 12 civilians within 80 m of an incident (a casualty on the street) | ① one `Crowd` entity forms holding ≥ 8 of them · ② their mean distance to the focus falls below 15 m within 60 s | ⏳ |
+| CIV-3 | **`ua-civ-contagion`** | test-town · a crowd of 15 spread over 150 m; a blast at one end (heard by the near half only) | ① the near half panics · ② fear then reaches members who did NOT hear it (beyond 100 m): ≥ 3 of them panic via the crowd, not via hearing | ⏳ |
+| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
+| CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
+| **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
+| CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
+| CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
+
+⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
+`wait_for(condition, timeout)` with the condition printed on failure, and every "never" is SAMPLED over the whole run (a minimum, not
+an end state).
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
