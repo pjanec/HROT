@@ -191,6 +191,23 @@ public sealed class SharedApplicationBootstrapperTests
         Assert.Contains("NodeCapabilityWalk.Register", ex.ToString());
     }
 
+    private sealed class NeedyCapability : INodeCapability
+    {
+        public string Key => "cap:test-needy";
+        public IReadOnlyList<string> Needs { get; } = new[] { "res:test-undeclared" };
+    }
+
+    /// <summary>⭐ CE-4013 D10 — the base checks, for EVERY host, that its declared resources equal what its capabilities need.</summary>
+    [Fact]
+    public void CE4013_ACapabilityNeedingAnUndeclaredResource_FailsAtBoot()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var sut = new TestBootstrapper(factory) { TestCapabilities = new INodeCapability[] { new NeedyCapability() } };
+
+        var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
+        Assert.Contains("DeclaredResourceKeys must match", ex.ToString());
+    }
+
     /// <summary>
     /// Mock factory that returns a non-null INedReplicationModule so that
     /// Phase 6a+ (NedReplication registration) is exercised in headless tests.

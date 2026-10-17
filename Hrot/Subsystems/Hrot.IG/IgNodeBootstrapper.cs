@@ -110,12 +110,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <summary>Migration services bundle. Valid after BootstrapNode() returns.</summary>
     public MigrationServices? MigrationServices { get; private set; }
 
-    /// <summary>
-    /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
-    /// IgApplication sets this to register gizmo modules, event-history capture systems, and
-    /// other systems that must be part of the initialized kernel topology.
-    /// </summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     internal IgNodeBootstrapper(
         INetworkFactory? networkFactory,
@@ -266,26 +260,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
         var capabilities = plan.Resolve(composed);
 
-        // ⭐⭐ CE-199 — the resource half is no longer refused here; it simply has nothing to do.
-        //
-        // ⛔ HISTORY: this block used to THROW if any provider resolved, for two reasons that were both
-        //    true — IG resolves its plan LAZILY (no HrotNodeContext), and NodeBootValues refused writes
-        //    outside a declaring boot step. The base now owns a `node-resources` step, so reason ② is
-        //    gone for every host; reason ① is why IG still declares its keys from the role alone.
-        //
-        // ⭐ Today the presentation capability declares no Needs, so DeclaredResourceKeys returns empty
-        //    and the node allocates nothing — which is the correct answer, not a gap. ⚠ The moment an IG
-        //    capability gains a Need, this assertion is what makes the omission loud instead of silent.
-        var declared = new SortedSet<string>(DeclaredResourceKeys(composed), System.StringComparer.Ordinal);
-        var needed   = new SortedSet<string>(System.StringComparer.Ordinal);
-        foreach (INodeResourceProvider provider in plan.RequiredResources(composed))
-            needed.Add(provider.Key);
-
-        if (!needed.SetEquals(declared))
-            throw new InvalidOperationException(
-                $"IG role {composed} declares resources [{string.Join(", ", declared)}] but its composed " +
-                $"capabilities need [{string.Join(", ", needed)}]. Add the key to DeclaredResourceKeys so " +
-                "the node-resources boot step allocates it — see CE-199.");
+        // ⭐ CE-199 / CE-4013 D10 — the declared-vs-needed resource cross-check is the base's `capabilities` step now (every host).
+        plan.RequiredResources(composed);   // a selected Need with no provider throws, naming it
 
         return capabilities;
     }
@@ -600,7 +576,4 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
     // ── Phase 6d: Application-level systems ──────────────────────────────────
 
-    /// <inheritdoc/>
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 }

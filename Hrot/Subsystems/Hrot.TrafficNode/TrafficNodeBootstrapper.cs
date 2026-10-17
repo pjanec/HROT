@@ -48,8 +48,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
     /// <summary>The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.</summary>
     public HrotNodeContext Context { get; private set; } = default!;
 
-    /// <summary>Optional phase-6d callback (diagnostics, test systems).</summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     // UNIFY: identical to StrideNodeBootstrapper.cs:149-167 — capture config/role, patch the SlaveTranslator NodeBootstrapper built.
     public new HrotNodeContext BootstrapNode(HrotNodeConfig config, NodeRole role, INetworkFactory? networkFactory)
@@ -159,8 +157,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         configuredFactory?.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
     }
 
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 
     // ── The shared pieces, one per method ─────────────────────────────────────
 
@@ -169,10 +165,8 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
     {
         var plan = CoreInfrastructureCapabilities.LiveSimulationPlan(Role)
             .Capability(Role, Traffic);
-        // No capability here needs a node resource, so the declared set (none) must stay equal to the resolved one.
-        if (plan.RequiredResources(role).Count != 0)
-            throw new InvalidOperationException(
-                $"Traffic node role {role} composed capabilities that need node resources; declare them in DeclaredResourceKeys.");
+        // The declared-vs-needed resource check is the base's (CE-4013 D10); a Need with no provider throws here, naming it.
+        plan.RequiredResources(role);
         return plan.Resolve(role);
     }
 

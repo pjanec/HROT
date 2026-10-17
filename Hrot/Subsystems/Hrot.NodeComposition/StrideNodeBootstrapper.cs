@@ -105,11 +105,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </summary>
     public TogglablePostSimulationGroup PostSimGroup { get; private set; } = default!;
 
-    /// <summary>
-    /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
-    /// Used to register diagnostic capture systems and other application-level systems.
-    /// </summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     /// <summary>
     /// Producer buffer: local ECS systems write gizmos here each frame, then
@@ -208,9 +203,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         Context?.Participant?.Dispose();
     }
 
-    /// <inheritdoc/>
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 
     // ── Abstract hook implementations ─────────────────────────────────────────
 
