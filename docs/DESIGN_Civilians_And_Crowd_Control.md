@@ -1425,19 +1425,19 @@ every witness's `TargetMemory` lives.
 | **KC-2** | ⭐ the WITNESSES are every unit on the actor's brain node whose memory holds him IDENTIFIED and perceived within 1 s of the act | a line-of-sight test at the act: duplicates the sensors that already decided what each unit perceives |
 | **KC-3** | ⭐ the SQUAD knows it by reading the mates' lists (`UnitSubordinate.Commander` → `UnitRoster`), never by copying | a flag through `SquadPerceptionMergeSystem`'s pool: bounded to 16 pooled contacts, lost when he leaves the pool, on the merge cadence |
 | **KC-4** | ⭐ to an observer who KNOWS, a civilian reads on what he CARRIES — `LethalInHand` (a hidden rifle counts: they saw it) ⇒ IdentifiedLethal, else Nothing; the conduct path is skipped | `ArmedByStatus`: a hidden weapon arms nobody by sight ⇒ he escapes the very patrol that watched him hide it |
-| **KC-5** | ⭐ `HostileActKind` defined now in `HostileActs` (the enum §7.16 draws); `Commit(repo, actor, kind)` takes it with NO default; a Lethal act marks the witnesses even after an earlier non-lethal one (HA-2's upgrade) | wait for B-16: the knowledge is brain-local; only the replicated kind is backend's · an optional `kind`: a caller that knows the kind must pass it (the silent-default rule) |
+| **KC-5** | ⭐ the kind decides: a Lethal act marks the witnesses EVERY time, even after an earlier non-lethal one (HA-2's upgrade). ⚠ *As built:* backend's B-16 (`CE-3238`) landed the same day with `HostileActKind`, the replicated `HostileAct` and the upgrade-aware `Commit` (its `kind` defaults to NonLethal, every behaviors caller passes it) — behaviors' part is the ONE line in `Commit` that calls `MarkWitnesses`. ⛔ SUPERSEDED: "`HostileActKind` defined by behaviors, `Commit` with no default" | wait for B-16: the knowledge is brain-local · mark only on the first act: a stone-thrower who later fires would never be marked |
 
 ⚠ **Known limits:** ① heard-only witnesses (an anonymous acoustic contact) learn nothing — there is no identity to mark; ② the knowledge is
 not on the wire (another node's brain has its own); ③ "for such time" stays simplified — sticky for the exercise (AW-22).
 
 ⭐ **As built `2026-10-17`** *(matches the four diagrams; two facts the design did not state)*: `KnownCombatants` (`Combat/KnownCombatants.cs`),
-`TargetMemory.KnownCombatantIds[8]`, `HostileActKind` + `Commit(repo, actor, kind)` (`Civilians/HostileActs.cs`), `Armament.Judge` +
+`TargetMemory.KnownCombatantIds[8]`, the `MarkWitnesses` line in backend's B-16 `HostileActs.Commit` (KC-5), `Armament.Judge` +
 `AsKnown`. ⭐ **① a COMMANDER reads his own roster** — he has no `UnitSubordinate`, so the first build missed him (a rail caught it);
 `Knows` takes the observer himself as the commander when he answers to nobody. ⭐ **② the neutral gate comes first** — `ThreatDanger.Of`
 returns 0 for a Neutral before `Judge` is asked (CE-2233), so the knowledge matters once the act has flipped him Hostile (CV-4), which it
 always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluationSystem` stamps). Rails: `ArmamentTests.CE2238_…` ×3 —
 red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
-witness window · a known man always lethal). Note to backend: [`NOTE_Behaviors_To_Backend_HostileActKind.md`](blueprints/batches/NOTE_Behaviors_To_Backend_HostileActKind.md).
+witness window · a known man always lethal).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
@@ -1677,6 +1677,98 @@ stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he 
 `PostureScenarioTests.CE2238_RiotStone_…` green (25 s, after the `CanShoot` fix: he filled at the source; 6 throws, 6 stones spent — weapon status `Turning` then `Firing`;
 the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
 at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
+
+## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** CV-8's second half: a unit's ROE carries a FORCE LEVEL {Warn, NonLethal, Lethal} that caps what its weapons may fire, with
+AW-18's self-defence over it; and CV-11's police, who today have no brain at all, get one: they hold a line and use their non-lethal
+weapons on Hostile people. Demo `ua-civ-police-line` (§5c). ⏳ Not here: the ladder's intent rows (AW-10, B2), `Lethal also needs the
+target armed or a lethal act` (B2 with the identification rows), a squad Line formation (CE-2124).
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*Roe.*`, `.*WeaponChoice.*`, `.*ForceLevel.*|.*NonLethal.*` ⇒ no force
+level exists; an Explore sweep for the police half; grep for every call site; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the ROE | `Roe {Fire, Reactions, SetBy, ReturnFireWindowSeconds}` — JSON-carried in the brain intent and the scenario save (no wire change, CE-2095's recipe: 11 files) | `Behavior/Components/Roe.cs`; commit `2d85ef59f` |
+| where the ROE is enforced | ONCE per path: `AimAndFireExecutor.RoePermitsFire` (`:35`) inside its gate, and `FireAtPointExecutor`'s hold (`:246`) | `Combat/Executors/*` |
+| the last gate before a round | `AimAndFireExecutor.HoldOf` — the neutral (CE-2233), hands up (CV-13a), domain, min range… | `AimAndFireExecutor.cs:585` |
+| what chooses the weapon | `WeaponChoice.Choose` → `WeaponSelectionDecision`; the candidates are filtered in `UtilityScorer` (hands H-4, laid down B-10) | `Utility/Core/UtilityScorer.cs:294-330` |
+| lethal or not | `ItemAppearances.FiresLethal(world, mount)` (a mount whose rounds are all Blunt/Irritant/Stun/Smoke is not) | `Combat/Armament.cs:136` |
+| self-defence signals | fired upon = `RecentSensesOf.Within(Hit|NearMiss, window)` (the ReturnFire rule); aimed at = the target's replicated `WeaponPosture {Aimed, Target = me}` | `AimAndFireExecutor.cs:42`; `WeaponPosture` |
+| the police | types 1201 shield, 1202 baton, 1203 launcher — class `SecurityForce` 3.1.*.3, ONLY non-lethal mounts (stun 6037, gas 6039, the 40 mm baton round 6036 on 1203); no default behaviour; in every scenario a brainless Friend | `Hrot.Core/Tkb/CivilianTkbCatalog.cs:51-104` |
+| a police behaviour | ⛔ none (searched PoliceLine, HoldTheLine, RiotControl, Cordon, SecurityForce, Police) | Explore sweep, 2026-10-17 |
+| the baton | `Melee.Strike` — Blunt, knocks down 3 s; called only by the rioter; nothing checks who strikes | `Combat/Melee.cs:42` |
+| what a non-lethal hit does to a civilian | a baton round hurts ⇒ `Hit` ⇒ fear +1.0 ⇒ Panic (`CivilianFearSystem.cs:84`); ⚠ a stun grenade or gas does NO damage and is not heard ⇒ no fear, so a riot under gas does not break | `CivilianFearSystem.cs:83-84`, `AreaEffectSystem.cs:221`, `AreaEffectCloudSystem.cs:116` |
+| ⚠ "an unordered soldier does not engage an unarmed Hostile" (§5h.4) | no danger threshold exists on that path (`HaveLiveTarget`, `TopThreat`, `HoldOf` all pass him) — the measurement stands, its cause is not found (a candidate: the unauthored `Objective` (0,0,0) ending AdvanceAndAttack, `PostureNodes.cs:263-269`) | not load-bearing here — the police get their own behaviour |
+
+```mermaid
+classDiagram
+  direction LR
+  class Roe { <<existing, grows>> + ForceLevel (last) }
+  class RoeForceLevel { <<NEW enum>> ForceUnset · Warn · NonLethal · Lethal }
+  class ForceLevels { <<NEW, Fdp.Toolkits/Combat>> Of(view, unit) · Permits(world, unit, target, ammo) · SelfDefence(world, unit, target) }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldForceLevel }
+  class FireAtPointExecutor { <<existing>> its hold: + HoldForceLevel }
+  class UtilityScorer { <<existing>> WeaponSelection: a mount above the cap is no candidate }
+  class BehaviorProfileDto { <<existing, grows>> + DefaultRoeForceLevel }
+  class HoldTheLine { <<NEW library behaviour, Hrot.AI.Behaviors>> hold, face, non-lethal fire, the baton in reach }
+  class CivilianFearSystem { <<existing, grows>> + a stun or a gas cloud frightens }
+  Roe --> RoeForceLevel
+  ForceLevels ..> Roe
+  AimAndFireExecutor ..> ForceLevels
+  FireAtPointExecutor ..> ForceLevels
+  UtilityScorer ..> ForceLevels
+  HoldTheLine ..> AimAndFireExecutor : AimAndFire MountAuto
+  HoldTheLine ..> Melee : Strike in reach
+```
+*What the picture shows that prose hid:* the cap is ONE reader (`ForceLevels.Permits`) asked at the two places a round can leave and at
+the one place a weapon is chosen — so no behaviour, a police line's or a soldier's, can forget it; and the police behaviour itself
+contains no force rule at all.
+
+```mermaid
+sequenceDiagram
+  participant R as rioter (CGF)
+  participant P as policeman HoldTheLine (CGF)
+  participant W as WeaponChoice
+  participant X as AimAndFireExecutor
+  R->>R: throws a stone, Hostile (§5i)
+  P->>P: the nearest Hostile in reach
+  P->>W: AimAndFire MountAuto
+  W->>W: candidates above NonLethal dropped (a rifle, if he had one)
+  W-->>X: the baton launcher
+  X->>X: HoldOf: ForceLevels.Permits(baton round) yes
+  X-->>R: a baton round: Hit, fear +1, Panic
+  R->>P: closes to 1.5 m
+  P->>R: Melee.Strike (the baton)
+  Note over P,X: an aimed rifle at him (AW-18) lifts the cap: SelfDefence
+```
+*What the picture shows that prose hid:* the choice and the gate ask the same question, so a unit whose only weapon is lethal holds
+(`HoldForceLevel`) instead of firing — and self-defence is asked at the gate, per shot, not decided once by the behaviour.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HTL[policeman: HoldTheLine]
+  HTL --> AF[WeaponChannel: AimAndFire]
+  HTL --> ML[Melee.Strike]
+  WD[WeaponDispatcherSystem — CGF] --> X[AimAndFireExecutor.HoldOf + ForceLevels]
+  WD --> FP[FireAtPointExecutor hold + ForceLevels]
+  CF[CivilianFearSystem — CGF] --> FE[reads Effects: stunned or irritated]
+```
+*Caption:* nothing new is registered or scheduled: the cap runs inside the two existing executors, the fear inside the existing fear
+system, the police brain in the brain tick.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **FL-1** | ⭐ `Roe.ForceLevel` {ForceUnset 0, Warn 1, NonLethal 2, Lethal 3} — ordered most restrictive first, like `RoeFire`; **unset ⇒ Lethal** (today's behaviour); the field LAST; CE-2095's recipe end to end (SetRoeEvent, RoeSystem, TKB `DefaultRoeForceLevel`, the JSON intent/save, hand-over, materialisation); the security types default **NonLethal** | a separate component: the ROE already owns "what may I fire" and its plumbing · a per-weapon flag: CV-8 rejects weapon-per-target hard-coding |
+| **FL-2** | ⭐ enforced ONCE per path, at the gate: `HoldOf` and `FireAtPoint`'s hold ask `ForceLevels.Permits(world, unit, target, ammo)` ⇒ `HoldForceLevel` — Warn ⇒ no round at all; NonLethal ⇒ no lethal round; Lethal ⇒ anything | in each behaviour: the next behaviour forgets it (why the ROE is enforced in the executor, CE-2075) |
+| **FL-3** | ⭐ AW-18 SELF-DEFENCE lifts the cap to Lethal: the target AIMS at me (`WeaponPosture` Aimed, Target = me) or I was HIT or near-missed within the ROE's ReturnFire window | the cap always binding: no ROE card denies self-defence (AW-18) · any armed target lifts it: that is the ladder's intent row (B2), not self-defence |
+| **FL-4** | ⭐ the weapon CHOICE drops a mount above the cap (the `UtilityScorer` candidate filter, beside H-4 and B-10), so a unit with a non-lethal weapon uses it rather than holding | only the gate: a soldier with a rifle and a baton launcher would pick the rifle and hold forever |
+| **FL-5** | ⭐ the police brain is a NEW library behaviour **`HoldTheLine {Facing, Reach, Hold}`**: stay at the post (or within `Hold` m of it), face `Facing`, engage the nearest Hostile within `Reach` with `AimAndFire MountAuto`, strike with the baton (`Melee`) within 1.5 m; the security types run it by default | `CombatPosture`: it advances, takes cover and flees — a police line does none · a squad formation now: CE-2124 owns the Line formation |
+| **FL-6** | ⭐ a civilian who is STUNNED or IRRITATED is frightened as if hit (`CivilianFearSystem` reads `Effects`, a one-off impulse per new effect) — so gas and a stun grenade break a riot as the design intends | leave it: the demo's "the riot breaks up" would rest on the baton round alone, and tear gas would do nothing to a crowd |
+
+**Slices:** ① FL-1 (the field, defaults, rails) · ② FL-2/3/4 (the cap, self-defence, the choice; rails red under mutants) · ③ FL-5/6
+(HoldTheLine, the fear) · ④ `ua-civ-police-line` + its twin.
 
 ## 6. Known limits
 

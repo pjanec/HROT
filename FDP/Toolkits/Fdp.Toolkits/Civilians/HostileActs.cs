@@ -8,9 +8,8 @@ using Fdp.Toolkit.Replication.Patching;
 namespace Fdp.Toolkit.Civilians
 {
     /// <summary>
-    /// ⭐ <c>CE-2238</c> part 3 (AW-22; §5h.6 KC-5, §7.16 HA-1) — what kind of hostile act: a LETHAL one (a shot at the forces, a knife, a
-    /// Molotov, a charge) makes him a known combatant to its witnesses; a non-lethal one (a stone, a blow) only flips his side. ⭐ <c>CE-3238</c>
-    /// (B-16) — ordered: the replicated <see cref="HostileAct"/> only ever UPGRADES (<see cref="NonLethal"/> → <see cref="Lethal"/>), never down.
+    /// ⭐ <c>CE-3238</c> (civilians B-16, AW-22 — R-2028; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16 HA-1) — how grave a man's hostile
+    /// act was. Ordered: an act only ever UPGRADES (<see cref="NonLethal"/> → <see cref="Lethal"/>), never down.
     /// </summary>
     public enum HostileActKind : byte
     {
@@ -51,13 +50,14 @@ namespace Fdp.Toolkit.Civilians
         /// Records <paramref name="actor"/>'s hostile act of <paramref name="kind"/> and flips him Hostile, on the node that owns his brain.
         /// The first act stamps the time; a graver one later UPGRADES the kind (the time stays); a lesser one changes nothing. The side flips
         /// once — never when he is Hostile already. True when anything changed (the act recorded or upgraded, or the flip asked for); false
-        /// when he is gone, <paramref name="kind"/> is None, or this act is no graver than his last. ⭐ <c>CE-2238</c> part 3 (behaviors) — a
-        /// LETHAL act also makes him a known combatant to every unit that witnessed it (<see cref="Fdp.Toolkit.Combat.KnownCombatants.MarkWitnesses"/>,
-        /// AW-22) — every time, so a stone-thrower who later fires is still marked.
+        /// when he is gone, <paramref name="kind"/> is None, or this act is no graver than his last. <paramref name="kind"/> defaults to
+        /// <see cref="HostileActKind.NonLethal"/> — a blow, a stone.
         /// </summary>
-        public static bool Commit(EntityRepository repo, Entity actor, HostileActKind kind)
+        public static bool Commit(EntityRepository repo, Entity actor, HostileActKind kind = HostileActKind.NonLethal)
         {
             if (!repo.IsAlive(actor) || kind == HostileActKind.None) return false;
+            // ⭐ CE-2238 part 3 (AW-22, §5h.6 KC-2/KC-5) — a LETHAL act makes him a known combatant to every unit that witnessed it, EVERY
+            //   time (a stone-thrower who later fires is marked even though his first act stamped him already)
             if (kind == HostileActKind.Lethal) Fdp.Toolkit.Combat.KnownCombatants.MarkWitnesses(repo, actor);
             bool first = !Committed(repo, actor);
             bool changed = false;
