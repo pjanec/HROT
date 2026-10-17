@@ -30,6 +30,7 @@ related-designs:
   - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — "SimTransform.Position.Z is
     authoritative"; relief is what makes that true outdoors.
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §11.1/§11.2 (V7/V8): the SUMO net's ambient ground lattice that §8 here proposes as the height fallback outside the terrain.
+  - docs/DESIGN_Terrain_World.md — §9 (lean): sparse terrain — insets + a declared OUTER ground whose source may be flat, a coarse grid or the SUMO lattice; generalises §8 here beyond SUMO.
 -->
 
 # DESIGN — terrain height (removing the flat ground)
@@ -424,8 +425,10 @@ library and its optimized raycasts and similar capabilities?"*
 | ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |
 
 
-## 8. The ambient ground OUTSIDE the terrain — **heights from a SUMO net** *(lean, `2026-10-17`, not ruled)*
+## 8. The ambient ground OUTSIDE the terrain — **heights from a SUMO net** *(✅ A1–A4 APPROVED `2026-10-17`, R-4050; generalised beyond SUMO by `DESIGN_Terrain_World.md` §9 S1, a lean)*
 
+> 🔒 **User, `2026-10-17`:** *"A1 to A4 approved."*
+>
 > 🔒 **User, `2026-10-17`:** *"what would it take to use these outer areas, at least for hate queries? allowing our characters
 > and vehicles to drive off-road in the outer areas, as well as the aircraft that are shot down to fall on dead artificial
 > surface. I expect the road network to be larger than our terrain, so this is a cheap way how to create some kind of artificial

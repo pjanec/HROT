@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-03; open: CE-3010, CE-3027 hull clearance; CE-3017 + CE-3018 + CE-3025 + CE-3026 closed 2026-10-03; live-run results in §8) — Q81 §0 APPROVED (R-181); §7.1 W2–W8 RULED (R-182); §7.2 W1/W9/W10/W11 APPROVED 2026-10-03 (R-183); §7.3 W12–W14 decided by the backend lane under the user's 'go autonomously'.
 updated: 2026-10-08
-current-answer: §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
+current-answer: §9 (lean, 2026-10-17) SPARSE TERRAIN — several high-resolution insets over a declared low-resolution OUTER ground · §2 the file format, §3 the classes, §4 the sequences, §5 the module diagram (incl. the dead edges), §6a the allocation contract (R-220), §7 the rulings, §7.3 terrain delivery + the picker, §8 the slice plan.
 stale-below: nothing quotable — §7's HISTORY row block records the first-draft leans the user overturned.
 known-rot: the single GroundZ (§2 `hrot.groundZ`, §3 `TerrainWorld.GroundZ`) is a TEMPORARY simplification (R-248, 2026-10-10) — see DESIGN_Terrain_Height.md. AS-BUILT folded 2026-10-03 (slice steps 0–3): W5/W6/W7/W8/W9/W11 rows carry 'As built' notes; the deviations are W8 (no GroundFollow), W9 (rebase, not resize — §4.4, CE-3018), W11 (folded into CE-3010) and the editor solver (CE-3017).
 known-conflict: docs/DESIGN_Cluster_Load_Phase.md §4.1a and Hrot.Core RoleLoadRequirements give terrain to MuscleGround + NavigationSolver only; §5 here makes the terrain WORLD universal (every ECS node, like the knowledge base) and keeps only the navmesh bake role-derived. RESOLVED 2026-10-03: Cluster_Load_Phase §4.1a and Node_Roles §3.2 updated for the universal world part; INavmeshProvider is Z-up in code (CE-3011) and Navigation_Design_v2_0.md carries a Z-up supersession note.
@@ -33,6 +33,7 @@ related-designs:
   - docs/designs/anim-ctrl/AnimationControl_BrainMuscle_MiniDesign_v0_3.md — owns StanceIntent/StanceStatus, which W5's posture-driven eye height reads.
   - docs/DESIGN_Map_3D_Mode.md — the map's 3-D mode: renders this world lit and colour-shaded, adding an OPTIONAL per-triangle tag output to TerrainWorldMesh (navmesh output unchanged). (DESIGN_Godot_3D_Viewer.md, DEFERRED, held the earlier Godot plan.)
   - blueprints/Architect_Question_93_Sumo_Traffic_Node.md — the SUMO net rides the terrain folder (R-4021); every node parses it once for the traffic layer and dead reckoning.
+  - DESIGN_Terrain_Height.md — §8 (R-4050) the height fallback outside the terrain that §9 S1/S3 here generalise (outer ground source: flat, coarse grid or SUMO lattice).
 -->
 
 # DESIGN — **the terrain world** *(SimHost's test terrain: one file, one model, every query derived)*
@@ -621,3 +622,63 @@ Y-up provider contract"* · W8 *"move the IG ground-clamp pipeline to SimHost"* 
 ⚠ Each step names its feature suites first (T-1): `TerrainLoadStepTests`, `TerrainDefinitionTests`,
 `RouteTrajectorySyncSystemTests` (its fixtures feed Y-up today — they pin the bug), `PathfindingSolverSystemTests`,
 `NavmeshWalkIntegrationTests` (after the move), the perception suites, and the cluster integration rail for nav.
+
+
+## 9. ⭐ SPARSE TERRAIN — **high-resolution insets over a low-resolution outer ground** *(lean, `2026-10-17`, not ruled)*
+
+> 🔒 **User, `2026-10-17`:** *"the artificial terrain around our terrain area is a good idea anyway, even if there is no sumo
+> road network. Maybe we could somehow define this outer area size into our terrain […] could our terrain be sparse, meaning
+> that only some rectangular areas, multiple of them, even far from each other, could be used, each having its own nav mesh?
+> […] Originally, each terrain zone was coming with its own terrain definition, which is very close to the idea I am just
+> talking about. But a sparse terrain definition would make it happen in a general way, so the terrain can span whatever big
+> area and just some part of it would be high resolution inset."*
+
+📐 **Measured — what is dense today, and what is already sparse:**
+
+| part | today | sparse? |
+|---|---|---|
+| world features (buildings, walls, surfaces, doors) | GeoJSON in local metres (§2) — features may sit anywhere | ✅ already: nothing requires them to be near each other |
+| the ground | ONE height grid (`hrot.heightGrid`, ESRI ASCII, one rectangle) or one flat `groundZ`; outside it the edge holds (`TerrainHeightGrid.cs:45-49`) | ⛔ one rectangle |
+| the world's extent | ONE `bounds` rectangle (`hrot.bounds`, §2; or the features' box + 50 m, `TerrainWorldParser.cs:36,263`) | ⛔ one rectangle |
+| the render mesh and the navmesh | built over `BoundsMin`..`BoundsMax` (`TerrainWorldMesh.cs:25,67`) and baked from that mesh (`RecastNavmeshBaker.cs:214`) — tiled at 24 m (Nav v2 §14 P2) | ⛔ cost grows with the ONE rectangle: two insets 50 km apart would bake every empty tile between them |
+| who depends on the model | **55** production files name `TerrainWorld`; **31** read the world through `IWorldQuery` | ⇒ keep ONE `TerrainWorld` model; change what is inside it |
+| the zone precursor | `mgmt-1` §11: a zone = *"a named high-resolution area"* whose high-res terrain + navmesh load through `PrepareZone`/`CommitZone`; tiles are FAKED by ruling (Terrain_Zones §6) | the dormant form of exactly this idea |
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainDefinition { <<existing, grows>> +Insets +Outer +RoadNetworks }
+  class TerrainInset { <<NEW>> +Name +Bounds +HeightGrid or GroundZ +NavmeshBounds }
+  class OuterGround { <<NEW>> +Extent +Source flat or coarse grid or SUMO lattice }
+  class TerrainWorld { <<existing, ONE model, grows>> +Insets +Outer +GroundHeightAt composes }
+  class TerrainWorldMesh { <<existing, changes>> builds per inset }
+  class RecastNavmeshBaker { <<existing, changes>> bakes per inset bounds }
+  class FidelityZones { <<DESIGN Terrain_Zones 11>> each inset is an implicit zone }
+  class RoutePlanner { <<existing, changes>> straight open-ground legs between insets (Terrain_Height 8 A2) }
+  TerrainDefinition --> TerrainInset : 1..n
+  TerrainDefinition --> OuterGround : 0..1
+  TerrainWorld --> TerrainInset
+  TerrainWorld --> OuterGround
+  TerrainWorldMesh ..> TerrainInset
+  RecastNavmeshBaker ..> TerrainInset
+  FidelityZones ..> TerrainInset
+  RoutePlanner ..> TerrainWorld
+```
+
+*What the picture shows that prose hid:* sparseness lives INSIDE the one `TerrainWorld` the 55 consumers already hold —
+only the three dense parts (ground, extent, mesh/navmesh) learn about insets; features, cover, LOS and the 31
+`IWorldQuery` readers do not change; and between insets the outer ground and straight legs (Terrain_Height §8) carry
+everything.
+
+| id | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **S1** the outer ground (no SUMO needed) | `terrain.json` gains an **`outer`** block: its extent (a margin or a rectangle) and its source — `flat` (a height), a **coarse height grid** file, or the **SUMO net's lattice** (AQ93 V8) — feeding the SAME height fallback as Terrain_Height §8 A1; the SUMO lattice becomes one source among three | SUMO as the only outer source: a terrain without a net would keep the infinite edge |
+| **S2** insets | `terrain.json` lists **`insets[]`**, each a rectangle with its own height grid (or flat height) and its own navmesh bounds; the world file keeps ALL features (they are already location-free); a terrain with no `insets` is ONE inset = today's file, so every shipped terrain is unchanged | one `TerrainWorld` per inset: 55 consumers would have to pick one · one big height grid with no-data holes: still one dense rectangle in memory |
+| **S3** ground query | `GroundHeightAt` / `SurfaceZ` / the ground trace pick the inset containing the point, else the outer ground (A1), with a blended seam at every inset edge (as V8-c) | — |
+| **S4** mesh and navmesh | the render mesh and the navmesh are built PER INSET bounds (Recast tiles only where insets are); between insets units move on straight open-ground legs (A2) | one navmesh over the union rectangle: bakes every empty tile between far insets |
+| **S5** fidelity | each inset is an **implicit fidelity zone** (Terrain_Zones §11, R-4042); scenario zones may add more | declaring zones twice for the same area |
+| **S6** loading | slice 1 loads every inset at terrain load; streaming insets on demand is the zone 2PC (`PrepareZone`/`CommitZone`, mgmt-1 §11) — later, not now | building streaming first: no inset exists yet to stream |
+| **S7** precision | positions stay float local metres from the terrain origin: ~4 mm at 50 km, ~6 cm at 1 000 km — insets within a few hundred km of the origin need nothing new | double-precision positions: a cross-engine change for a precision nobody needs yet |
+
+⭐ **Size of the change:** moderate, not a rewrite — `TerrainDefinition` + its parser, `TerrainWorld`'s ground and extent,
+the mesh builder, the navmesh bake loop, the route planner's open-ground leg, and the map's terrain layer drawing per inset.
