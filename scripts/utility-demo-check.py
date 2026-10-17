@@ -2654,13 +2654,33 @@ def run_civ_neutral_gate(c, timeout):
     c.ok(low[armed] == full[armed], f"③ the ARMED neutral is never hit: {full[armed]} → lowest {low[armed]}")
     c.ok(ranked_seen and zero_scores, f"④ the neutrals are ranked and score 0 (ranked: {ranked_seen})")
 
+    # ⑤ measured live 2026-10-17: the burst at the falling Hostile runs on for a few rounds after he drops below the threshold — so
+    #   SETTLE first (ammo unchanged for 3 s), then nothing for 8 s; and his weapon's target is never a neutral, sampled all along.
+    targets = set()
+
+    def weapon_target():
+        t = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("target")
+        if t is not None:
+            targets.add(t)
+
+    last = {"a": ammo(rifle)[0], "t": time.time()}
+
+    def settled():
+        sample(); weapon_target()
+        a = ammo(rifle)[0]
+        if a != last["a"]:
+            last["a"], last["t"] = a, time.time()
+        return time.time() - last["t"] >= 3
+
+    c.ok(wait_for(settled, 30) is not None, f"⑤ his fire stops once the Hostile is down (rounds now {ammo(rifle)[0]})")
     a0, _ = ammo(rifle)
     t_end = time.time() + 8
     while time.time() < t_end:
-        sample()
+        sample(); weapon_target()
         time.sleep(0.5)
     a1, _ = ammo(rifle)
     c.ok(a0 is not None and a0 == a1, f"⑤ with only neutrals left he fires nothing for 8 s (rounds {a0} → {a1})")
+    c.ok(not (targets & {civ, armed}), f"⑤ his weapon never takes a neutral as its target (targets seen: {sorted(targets)})")
     c.ok(low[civ] == full[civ] and low[armed] == full[armed], "⑤ …and both neutrals are still unhurt")
 
     # ⑥ through the ONE write path that reaches the owner and the wire (EntityWriteRouter, CE-3221) — ⛔ not /component: that is a
