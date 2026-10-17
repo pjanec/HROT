@@ -881,6 +881,7 @@ public sealed class PostureScenarioTests : IDisposable
         var dead = new System.Collections.Generic.HashSet<string>();
         var reasons = new System.Collections.Generic.HashSet<string>();
         double? hitAt = null;
+        float hpAtFirstLethal = 100f;
         string NameOf(Entity e) => e.IsNull ? "-" : cgf.GetComponentRO<EntityInfo>(e).Name.ToString();
         void Sample()
         {
@@ -911,7 +912,9 @@ public sealed class PostureScenarioTests : IDisposable
                 }
             foreach (var (e, n) in civs.Zip(civNames).Concat(police.Zip(policeNames)))
                 if (cgf.HasComponent<Health>(e) && cgf.GetComponentRO<Health>(e).Current <= 0f) dead.Add(n);
-            if (hitAt == null && cgf.GetComponentRO<Health>(gunman).Current < 100f) hitAt = cgf.SimulationTime;
+            float hp = cgf.GetComponentRO<Health>(gunman).Current;
+            if (lethalAtHim == 0) hpAtFirstLethal = hp;                             // ③ counts only a hit from the first rifle round on
+            else if (hitAt == null && hp < hpAtFirstLethal) hitAt = cgf.SimulationTime;
         }
         string State() => $"riot {riot}, drawn {drawn}, warned at ease {warnedAtEase}, rounds at him at ease {roundsAtHimAtEase}, lethal at him {lethalAtHim}, " +
                           $"lethal elsewhere [{string.Join(",", lethalElsewhere)}], hit at {hitAt}, gunman health {cgf.GetComponentRO<Health>(gunman).Current} " +
@@ -924,7 +927,7 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(warnedAtEase, $"① drawn and at ease, he is warned; {State()}");
         Assert.True(roundsAtHimAtEase == 0, $"① …and no round goes at him while his rifle is at ease; {State()}");
         Assert.True(lethalAtHim > 0 && lethalElsewhere.Count == 0, $"② every lethal round goes at the gunman; {State()}");
-        Assert.True(hitAt != null, $"③ the gunman is hit; {State()}");
+        Assert.True(hitAt != null, $"③ the gunman is hit by it; {State()}");
         Assert.True(effected.Count > 0, $"④ a rioter gets non-lethal force; {State()}");
         Assert.Empty(dead);                                                         // ④ no unarmed rioter (nor policeman) dies
     }
@@ -953,6 +956,7 @@ public sealed class PostureScenarioTests : IDisposable
         var effected = new System.Collections.Generic.HashSet<string>();
         var dead = new System.Collections.Generic.HashSet<string>();
         double? hitAt = null;
+        float hpAtFirstLethal = 100f;
         void Sample()
         {
             double fxNow = HitModel.Now(cgf);
@@ -972,7 +976,9 @@ public sealed class PostureScenarioTests : IDisposable
                 }
                 if (cgf.GetComponentRO<Health>(civs[i]).Current <= 0f) dead.Add(civNames[i]);
             }
-            if (hitAt == null && cgf.GetComponentRO<Health>(gunman).Current < 100f) hitAt = cgf.SimulationTime;
+            float hp = cgf.GetComponentRO<Health>(gunman).Current;
+            if (atHim == 0) hpAtFirstLethal = hp;                                   // ② counts only a hit from the first rifle round on
+            else if (hitAt == null && hp < hpAtFirstLethal) hitAt = cgf.SimulationTime;
         }
         string State() => $"at him {atHim}, elsewhere [{string.Join(",", elsewhere)}], hit at {hitAt}, gunman health {cgf.GetComponentRO<Health>(gunman).Current}, " +
                           $"act {Fdp.Toolkit.Civilians.HostileActs.Of(cgf, gunman)}, effected [{string.Join(",", effected)}], dead [{string.Join(",", dead)}], " +
