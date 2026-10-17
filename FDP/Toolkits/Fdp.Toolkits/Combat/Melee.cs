@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Combat
             repo.Bus.Publish(new DamageAssessedEvent
             {
                 HitEntity = victim, TotalDamage = damage, Effect = HitEffect.Blunt, EffectSeconds = knockdownSeconds,
+                Source = striker,   // ⭐ CE-3237 (B-15, DS-1)
             });
             Strikes++;
             return true;

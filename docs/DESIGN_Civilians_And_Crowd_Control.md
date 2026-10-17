@@ -1425,19 +1425,19 @@ every witness's `TargetMemory` lives.
 | **KC-2** | ⭐ the WITNESSES are every unit on the actor's brain node whose memory holds him IDENTIFIED and perceived within 1 s of the act | a line-of-sight test at the act: duplicates the sensors that already decided what each unit perceives |
 | **KC-3** | ⭐ the SQUAD knows it by reading the mates' lists (`UnitSubordinate.Commander` → `UnitRoster`), never by copying | a flag through `SquadPerceptionMergeSystem`'s pool: bounded to 16 pooled contacts, lost when he leaves the pool, on the merge cadence |
 | **KC-4** | ⭐ to an observer who KNOWS, a civilian reads on what he CARRIES — `LethalInHand` (a hidden rifle counts: they saw it) ⇒ IdentifiedLethal, else Nothing; the conduct path is skipped | `ArmedByStatus`: a hidden weapon arms nobody by sight ⇒ he escapes the very patrol that watched him hide it |
-| **KC-5** | ⭐ `HostileActKind` defined now in `HostileActs` (the enum §7.16 draws); `Commit(repo, actor, kind)` takes it with NO default; a Lethal act marks the witnesses even after an earlier non-lethal one (HA-2's upgrade) | wait for B-16: the knowledge is brain-local; only the replicated kind is backend's · an optional `kind`: a caller that knows the kind must pass it (the silent-default rule) |
+| **KC-5** | ⭐ the kind decides: a Lethal act marks the witnesses EVERY time, even after an earlier non-lethal one (HA-2's upgrade). ⚠ *As built:* backend's B-16 (`CE-3238`) landed the same day with `HostileActKind`, the replicated `HostileAct` and the upgrade-aware `Commit` (its `kind` defaults to NonLethal, every behaviors caller passes it) — behaviors' part is the ONE line in `Commit` that calls `MarkWitnesses`. ⛔ SUPERSEDED: "`HostileActKind` defined by behaviors, `Commit` with no default" | wait for B-16: the knowledge is brain-local · mark only on the first act: a stone-thrower who later fires would never be marked |
 
 ⚠ **Known limits:** ① heard-only witnesses (an anonymous acoustic contact) learn nothing — there is no identity to mark; ② the knowledge is
 not on the wire (another node's brain has its own); ③ "for such time" stays simplified — sticky for the exercise (AW-22).
 
 ⭐ **As built `2026-10-17`** *(matches the four diagrams; two facts the design did not state)*: `KnownCombatants` (`Combat/KnownCombatants.cs`),
-`TargetMemory.KnownCombatantIds[8]`, `HostileActKind` + `Commit(repo, actor, kind)` (`Civilians/HostileActs.cs`), `Armament.Judge` +
+`TargetMemory.KnownCombatantIds[8]`, the `MarkWitnesses` line in backend's B-16 `HostileActs.Commit` (KC-5), `Armament.Judge` +
 `AsKnown`. ⭐ **① a COMMANDER reads his own roster** — he has no `UnitSubordinate`, so the first build missed him (a rail caught it);
 `Knows` takes the observer himself as the commander when he answers to nobody. ⭐ **② the neutral gate comes first** — `ThreatDanger.Of`
 returns 0 for a Neutral before `Judge` is asked (CE-2233), so the knowledge matters once the act has flipped him Hostile (CV-4), which it
 always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluationSystem` stamps). Rails: `ArmamentTests.CE2238_…` ×3 —
 red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
-witness window · a known man always lethal). Note to backend: [`NOTE_Behaviors_To_Backend_HostileActKind.md`](blueprints/batches/NOTE_Behaviors_To_Backend_HostileActKind.md).
+witness window · a known man always lethal).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
@@ -2039,7 +2039,7 @@ too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as dra
 `NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
 like any area round — the effects layer draws what it draws for one (ui's to decide).
 
-#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
+#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: READY-TO-BUILD — §7.3d-B)*
 
 🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
 gas) so the gas is something like a dangerous area to be avoided by not stepping into and rather taking cover farther from its current or
@@ -2084,6 +2084,47 @@ replicates (the danger-area result, `EffectState`). No navmesh change.
 | a gassed man | no cover search; escape blind | a normal cover search: he cannot see (user) |
 
 ⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
+
+##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: READY-TO-BUILD)
+
+📐 Measured at `backend@1ba6e036d`: `DangerAlongRouteClassifier.Classify` is a pure function of (route, road graph, terrain, cover) and
+returns 0 at once when the node has NO road graph (`:50`) — and `DangerAlongRouteSolve.Solve` too (`:43`); the Brain's
+`DangerAreaSensorSystem` keeps only the kinds a sensor asked for (`:74`) and re-rates every area every tick from the unit's memory,
+overwriting `ThreatRating` (`:116`); `DangerAreaKindsOf.Wants` stops at `CrestLine`; `DangerAreaKinds` is a byte with bits 1–3 used.
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF) — DangerAreaSensorSystem
+  participant S as SimHost — EqsSolverSystem
+  participant V as DangerAlongRouteSolve
+  participant C as DangerAlongRouteClassifier
+  S->>V: Solve(sensor) — the route, as before
+  V->>V: GasFootprints.Of(repo, T) — every TearGas cloud now, and its centre moved by WindAt·T (not while it sits on its canister)
+  V->>C: Classify(route, roads, terrain, cover, corridor, gas, areas)
+  C->>C: a run of route samples inside a footprint = one GasCloud area (handles before / after it) · areas sorted by DistanceAlongRoute
+  S-->>B: DangerAreaResultEvent (unchanged wire)
+  B->>B: Wants(Kinds, GasCloud) · rate it 1 — the gas IS the threat
+```
+
+```mermaid
+graph TD
+  ES[EqsSolverSystem — SimHost, every solve] --> V[DangerAlongRouteSolve.Solve]
+  V --> GF[GasFootprints.Of — NEW, reads AreaEffectCloud + WeatherField.WindAt]
+  V --> C[DangerAlongRouteClassifier.Classify — grows a gas pass]
+  DS[DangerAreaSensorSystem — Brain, every tick] --> W[DangerAreaKindsOf.Wants — + GasCloud]
+  DS --> R[Rate — GasCloud ⇒ 1]
+```
+*What the pictures show that prose hid:* nothing new is scheduled and nothing new crosses the wire — the gas pass rides the solve that
+already runs, and a node with no road graph must still answer for gas (today it answers nothing).
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **G-1** | `DangerAreaKind.GasCloud = 6`, `DangerAreaKinds.GasCloud = 1 << 6`; `Wants` accepts kinds up to `GasCloud`; never in the v1 default (`Crossings`) | in the default: a squad that never asked would stop at gas it has no reaction for |
+| **G-2** | **the footprint** = a capsule from the cloud's centre now to its centre moved by `WindAt × 15 s` (no drift while it sits on its canister), radius + 2 m; only `TearGas` (smoke is cover, §7.3d) | the cylinder now: the cloud drifts onto the chosen cover |
+| **G-3** | **the area** = the run of route samples inside any footprint: Center at its middle, ExtentsXY from the run, handles `StandOff` before / after — the detour points; `FeatureId` from the cloud's network id, stable while it drifts | one area per cloud regardless of the route: the reaction needs where the ROUTE enters it |
+| **G-4** | **no road graph ⇒ gas still answers** (the road passes skip; the gas pass runs) | keep the early return: gas on a roadless map would be invisible |
+| **G-5** | **the Brain rates a GasCloud 1** (the gas is the threat, whoever sees it) so `AreaThreatened` fires | 0 like every unseen area: no edge, a behaviour would have to poll the kind |
+| **G-6** | the result is in route order — the gas pass may overlap a crossing, so the written areas are sorted by `DistanceAlongRoute` | emit order: a long gas run ending after a crossing would sit behind it |
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
@@ -2980,7 +3021,7 @@ and `…_AVentingCanistersBurst_AsksForACloud_…` · `RoundPickUpTests.CE3236_A
 `InteractionTransportTests.CE3235_APickUpAskAndItsGrant_…`, `BodyPartReplicationTests.CE3219_ACloud_…` (each gained the new field).
 11 red-proofs, each red.
 
-### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: BUILT — as-built §7.16a (B-15) and §7.16b (B-16))*
 
 INVENTORY *(grep at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*HostileAct.*` → `HostileActs` only)*:
 
@@ -3038,6 +3079,32 @@ graph TD
 | **DS-2** | **`EntityHitDamage.SourceEntityId`** (appended; 0 = unknown), mapped through the entity map both ways | sending the source only for lethal damage: AW-23 counts friendly hits of every kind |
 | **HA-1** | **`HostileAct { SinceSimTime, Kind }`** — its own component (404), Brain group, `dtHostileAct` (145), the `Gesture` wiring | a field on `CivilianState`: behaviors' brain-local struct, not on the wire |
 | **HA-2** | **`HostileActs.Commit(repo, actor, kind)`** — stamps once, UPGRADES Non-lethal → Lethal (never down), keeps `CivilianState.HostileActAt` in step, flips the side once (as before) | a second writer per kind: the one write path stays one |
+
+#### 7.16a AS-BUILT `CE-3237` (B-15) *(2026-10-17)* — built as DS-1/DS-2 draw it
+
+| producer | `Source` | where |
+|---|---|---|
+| the hit | the detonation's `Shooter` — the entity that FIRED: a person, a vehicle, or a weapon system (`WeaponSystems.ControllerOf` names who works it; the reader resolves, the event does not) | `DamageCalculationSystem` |
+| the burst — whole body, per part, blast, stun | the detonation's `Shooter` | `AreaEffectSystem.Assess` (4 sites) |
+| a melee blow | the striker | `Melee.Strike` |
+| a cloud, a canister in hand, a drone's crash, an ejection | `Null` — unknown | unchanged |
+| the wire | `EntityHitDamage.SourceEntityId` (APPENDED, 0 = unknown): egress maps `Source` through the entity map (unmapped ⇒ 0); ingress maps it back (0, or an id this node does not know ⇒ `Null`; the damage still applies) | `DamageAssessedEgressTranslator`, `EntityHitDamageIngressTranslator` |
+
+⭐ A thrown-back grenade names the man who threw it back (the round's shooter is whoever fired it last). `DamageAssessedEvent` grew 24 → 32
+bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.CE3237_…`, `DamageAssessedEgressTranslatorTests.CE3237_…`,
+`EntityHitDamageIngressTranslatorTests.CE3237_…` — red-proved: the hit, the blow, a burst's per-part damage, the egress, the ingress. ⚠ The burst's WHOLE-BODY publish (a target with no body plan — a vehicle) is not railed: a soldier always takes the per-part split, so removing its `Source` stays green.
+
+#### 7.16b AS-BUILT `CE-3238` (B-16) *(2026-10-17)* — built as HA-1/HA-2 draw it
+
+| built | where |
+|---|---|
+| `HostileAct { double SinceSimTime; HostileActKind Kind }` (`None · NonLethal · Lethal`), component **404**, `NoScenario` (recorded, never authored), Brain group | `Civilians/HostileActs.cs`, `HrotOwnershipGroups` |
+| `HostileActs.Commit(repo, actor, kind)` — the first act stamps the time and flips the side once (the one write path, as before); a graver one UPGRADES the kind and keeps the time; a lesser one changes nothing (returns false). `Commit(repo, actor)` = `NonLethal` (a blow, a stone — what behaviors' callers commit today). `CivilianState.HostileActAt` kept in step | same |
+| `HostileActs.Of(view, actor)` the kind on any node · `Committed` true from the replicated component OR the brain's own stamp | same |
+| `dtHostileAct` **145**, topic `EntityHostileAct { EntityId, SinceSimTime, Kind }` (Reliable, TransientLocal, KeepLast 1), egress on change from the `dtHostileAct` owner, ingress skips the recorded owner — the `dtGesture` shape, in the shared pack | `EntityHostileActTranslators.cs`, `SharedTranslatorPack` |
+
+Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
+and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

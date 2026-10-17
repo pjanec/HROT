@@ -381,6 +381,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);    // sticky (CV-4)
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3238</c> (civilians B-16, HA-2; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16) — the act is the replicated
+        /// <see cref="HostileAct"/>: the first stamps its time and flips his side once; a graver one UPGRADES the kind (the time stays); a
+        /// lesser one changes nothing; a man another node made act reads committed here from that component alone.
+        /// ✅ Red-proofs: <c>Commit</c> without the upgrade ⇒ NonLethal stays ⇒ red; <c>Commit</c> overwriting the kind ⇒ a stone after the
+        /// shot downgrades it ⇒ red; <c>Committed</c> without the component ⇒ the replicated actor reads innocent ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3238_TheHostileAct_IsReplicated_ItUpgradesNeverDown_AndFlipsOnce()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);   // this node owns his record ⇒ the flip is Direct
+            Assert.True(CivilianMind.Ensure(w.Repo, w.Unit));
+            Assert.Equal(HostileActKind.None, HostileActs.Of(w.Repo, w.Unit));
+            Assert.False(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.None));
+
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit));                                          // a blow / a stone: non-lethal
+            var first = w.Repo.GetComponentRO<HostileAct>(w.Unit);
+            Assert.Equal(HostileActKind.NonLethal, first.Kind);
+            Assert.True(first.SinceSimTime > 0);
+            Assert.True(w.Repo.GetComponentRO<CivilianState>(w.Unit).HostileActAt > 0);                 // the brain's own stamp, in step
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
+
+            for (int i = 0; i < 10; i++) w.Tick();
+            Assert.False(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));               // no graver: nothing changes
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.Lethal));                   // a shot: upgraded
+            Assert.Equal((first.SinceSimTime, HostileActKind.Lethal),
+                (w.Repo.GetComponentRO<HostileAct>(w.Unit).SinceSimTime, w.Repo.GetComponentRO<HostileAct>(w.Unit).Kind));
+            Assert.False(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));               // never down
+            Assert.Equal(HostileActKind.Lethal, HostileActs.Of(w.Repo, w.Unit));
+
+            var replica = w.Repo.CreateEntity();                                                      // his act, arrived from another node
+            w.Repo.AddComponent(replica, new HostileAct { SinceSimTime = 1.0, Kind = HostileActKind.Lethal });
+            Assert.True(HostileActs.Committed(w.Repo, replica));
+        }
+
         /// <summary>⭐ <c>CE-2238</c> — a rioter strikes only the FORCES: no forces person within reach ⇒ he stands, fist raised, and strikes
         /// nobody — not a neutral bystander, not a Friend civilian, not a man already down.</summary>
         [Fact]

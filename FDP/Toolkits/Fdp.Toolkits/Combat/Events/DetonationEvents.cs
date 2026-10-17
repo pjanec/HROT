@@ -47,5 +47,10 @@ namespace Fdp.Toolkit.Combat.Events
 
         /// <summary>⭐ <c>CE-3219</c> — how long <see cref="Effect"/> lasts (s); the Health owner stores it in <see cref="EffectState"/>.</summary>
         public float EffectSeconds;
+
+        /// <summary>⭐ <c>CE-3237</c> (civilians B-15, AW-23 — APPENDED; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16 DS-1) — who caused it,
+        /// where the producer knows: the round's shooter (a person, a vehicle, or a weapon system — <c>WeaponSystems.ControllerOf</c> names
+        /// who works it), a melee striker. <see cref="Entity.Null"/> = unknown (a cloud, a canister in hand, a crash, an ejection).</summary>
+        public Entity Source;
     }
 }

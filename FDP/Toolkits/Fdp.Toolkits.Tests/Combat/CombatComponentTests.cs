@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(typeof(DamageAssessedEvent).IsValueType);
             // Marshalled layout: Entity(8) + float(4) + bool(4, marshalled as a Win32 BOOL) + HasBodyPart(1) + BodyPart(1) (CE-3210)
             // + Effect(1, CE-3219) + pad(1) + EffectSeconds(4, CE-3219) = 24 bytes.
-            Assert.Equal(24, Marshal.SizeOf<DamageAssessedEvent>());
+            Assert.Equal(32, Marshal.SizeOf<DamageAssessedEvent>());   // ⭐ CE-3237 (B-15) — + Source (Entity, 8)
         }
     }
 }

@@ -24,6 +24,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
@@ -124,6 +125,29 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45L, default));
+        }
+
+        /// <summary>⭐ <c>CE-3238</c> (civilians B-16, §7.16 HA-1) — a man's hostile act reaches the other node with its kind and its time, and
+        /// an UPGRADE (non-lethal → lethal) is a change the egress publishes. ✅ Red-proof: the ingress dropping the kind ⇒ None ⇒ red.</summary>
+        [Fact]
+        public void CE3238_HostileAct_ReachesTheOtherNode_AndAnUpgradeIsAChange()
+        {
+            var shot = new Fdp.Toolkit.Civilians.HostileAct { SinceSimTime = 12.5, Kind = Fdp.Toolkit.Civilians.HostileActKind.Lethal };
+            var sample = EntityHostileActEgressTranslator.ToSample(46L, shot);
+
+            var (node, unit, map) = Node(46L);
+            using (node)
+            {
+                var ingress = new EntityHostileActIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.Lethal, Fdp.Toolkit.Civilians.HostileActs.Of(node, unit));
+                Assert.Equal(12.5, node.GetComponentRO<Fdp.Toolkit.Civilians.HostileAct>(unit).SinceSimTime);
+                Assert.True(Fdp.Toolkit.Civilians.HostileActs.Committed(node, unit));
+            }
+
+            Assert.NotEqual(sample, EntityHostileActEgressTranslator.ToSample(46L, shot with { Kind = Fdp.Toolkit.Civilians.HostileActKind.NonLethal }));
         }
 
         /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and

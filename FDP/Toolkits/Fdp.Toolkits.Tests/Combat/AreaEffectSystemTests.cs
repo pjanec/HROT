@@ -131,6 +131,27 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(new Vector3(1, 6, 0), p.At);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-1) — every damage event a burst makes names who FIRED it (the notification's shooter);
+        /// a burst with no shooter says unknown. ✅ Red-proof: the whole-body publish without <c>Source</c> ⇒ Null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_ABurst_NamesWhoFiredIt()
+        {
+            var thrower = Soldier(-30, 0);
+            var near = Soldier(3, 0);
+            _w.Bus.Publish(new DetonationNotification { Shooter = thrower, HitX = 0f, HitY = 0f, HitZ = 0.1f, Ammo = Grenade });
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var onNear = _w.Bus.Read<DamageAssessedEvent>().ToArray().Where(d => d.HitEntity == near).ToArray();
+            Assert.NotEmpty(onNear);
+            Assert.All(onNear, d => Assert.Equal(thrower, d.Source));
+
+            var (_, _) = Burst(Grenade, new Vector3(0, 0, 0.1f), near);   // no shooter
+            Assert.All(_w.Bus.Read<DamageAssessedEvent>().ToArray(), d => Assert.True(d.Source.IsNull));
+        }
+
         // ── W-6′ — a vehicle between the burst and a soldier stops the fragments ────────────
 
         [Fact]

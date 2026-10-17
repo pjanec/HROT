@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — behaviors → backend: a NOTE (an enum B-16 should reuse, and why it exists before B-16).
+state: SUPERSEDED — B-16 (CE-3238) landed the same day with its own HostileActKind; behaviors merged onto it (one MarkWitnesses line in Commit). Nothing is asked of backend.
 updated: 2026-10-17
 current-answer: the whole file.
 stale-below: nothing.
@@ -9,6 +9,9 @@ related-designs:
   - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h.6 OWNS the known combatant (behaviors); §7.16 OWNS B-16, the replicated HostileAct (backend).
   - docs/blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Combatants.md — the note that framed B-15 / B-16.
 -->
+
+> ⛔ **SUPERSEDED `2026-10-17`** — backend's B-16 landed first. Behaviors dropped its duplicate enum at the merge and kept only the
+> `KnownCombatants.MarkWitnesses` call inside your `Commit` (design §5h.6 KC-5). ⭐ **Nothing is asked of you.**
 
 # NOTE — behaviors → backend: `HostileActKind` exists now; B-16 should reuse it *(CE-2238 part 3, CE-3238)*
 

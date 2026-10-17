@@ -106,6 +106,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Combat.HitEffect.Kinetic, e[0].Effect);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3237</c> (civilians B-15, DS-2) — the source arrives as this node's entity; 0, or an id this node does not know, is
+        /// unknown (Null) — the damage itself still applies. ✅ Red-proof: the ingress without the source ⇒ Null for the shooter ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3237_TheSourceArrives_AsThisNodesEntity_UnknownIsNull()
+        {
+            var translator = BuildTranslator();
+            var victim = _world.CreateEntity();
+            var shooter = _world.CreateEntity();
+            _entityMap.Register(8L, victim);
+            _entityMap.Register(42L, shooter);
+
+            var known = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, SourceEntityId = 42L };
+            var e = ProcessAndFlush(translator, in known);
+            Assert.Equal(shooter, e[0].Source);
+
+            var notHere = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f, SourceEntityId = 99L };
+            e = ProcessAndFlush(translator, in notHere);
+            Assert.Equal((Entity.Null, 2f), (e[0].Source, e[0].TotalDamage));
+
+            var none = new EntityHitDamage { HitEntityId = 8L, TotalDamage = 2f };
+            e = ProcessAndFlush(translator, in none);
+            Assert.True(e[0].Source.IsNull);
+        }
+
         // ── SC-2: Unknown entity → skipped ────────────────────────────────────
 
         [Fact]
