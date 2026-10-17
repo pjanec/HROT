@@ -989,7 +989,9 @@ system picks". Reverted; the cloud asks with THE creation request (`CE-3228`).
 needs a terrain). The canister is data only: no launcher loads it yet (which round a launcher fires is the weapon brain's choice —
 behaviors). The drift is written by the cloud's primary owner. ⭐ A cloud's TKB type is bare, so no role group applies (R-175) and its
 position is never granted away — the default processor that creates it drifts it. ⚠ Not railed across nodes: the cross-node rail checks
-creation, ownership and the end, not the drift (`AreaEffectCloudTests` rails the drift on one node).
+creation, ownership and the end, not the drift (`AreaEffectCloudTests` rails the drift on one node). ⭐ A cloud asked for on a node that
+is not the default processor crosses the wire inside the forwarded request (`dtAreaEffectCloud` in the request's descriptor union —
+Entity Creation §3.4d ③); it is created `AllPeers` there (the request's `InitType` does not travel).
 
 #### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
 

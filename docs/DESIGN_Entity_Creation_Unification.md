@@ -1190,6 +1190,15 @@ cannot be asked that: a request sits in the write buffer until the frame's swap 
 `Bus.IsRegisteredManaged<EntityCreationRequest>()` — what the queue singleton's presence used to say (a world with no shared registry and
 no pack); under strict registration an unguarded publish there would throw.
 
+**③ the WIRE form did not carry what the local form carries.** 📐 Found by `EntityOrdersAcrossNodesTests.CE3219_…` (no cloud on any
+node): a request forwarded to the default processor crosses DDS as `CreateEntityRequest`, whose `EntityDescriptorUnion` held only the
+master, the world position, an overlay polyline and a route — the cloud component was dropped, and the creator would have built a bare
+type-7202 entity nothing ever ends. ⭐ Fixed the way the overlay and route already ride: a `dtAreaEffectCloud` union case, written by
+`CreateEntityRequestDescriptorBuilder` and decoded by `DescriptorMapper.MapToComponents` (one sample↔component mapping, shared with the
+cloud's own translators). Rail `NedEntityCreationRequestEgressRails.CE3228_ACloud_SurvivesTheWireRoundTrip` (red-proved). ⚠ **Still true,
+stated:** any OTHER component an author puts in `InitialComponents` is dropped when its request is forwarded — the union is a closed list,
+so a new forwarded component needs its own case (the `InitType` does not travel either: a forwarded request is created `AllPeers`).
+
 ⭐ **Strict registration measured:** `FdpAutoSerializer.EnsureCompiled<EntityCreationRequest>()` succeeds (the `List<object>` and the
 dictionary of tuples included) — `EntityCreationRequestSourceTests.BusSource_TheRequestCompilesUnderStrictRegistration`.
 

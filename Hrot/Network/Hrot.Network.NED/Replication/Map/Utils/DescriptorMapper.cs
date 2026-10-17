@@ -97,6 +97,10 @@ namespace Hrot.Map.Common.Replication.Utils
                     case EDescriptorType.dtEntityMaster:
                         break;
 
+                    case EDescriptorType.dtAreaEffectCloud:   // ⭐ CE-3228 — a forwarded request carries its cloud
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
+                        break;
+
                     case EDescriptorType.dtEntityInfo:
                         result.Add(new Fdp.Core.EntityInfo
                         {
@@ -277,6 +281,10 @@ namespace Hrot.Map.Common.Replication.Utils
                 switch (d._d)
                 {
                     case EDescriptorType.dtEntityMaster:
+                        break;
+
+                    case EDescriptorType.dtAreaEffectCloud:   // ⭐ CE-3228 — a forwarded request carries its cloud
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
                         break;
 
                     case EDescriptorType.dtEntityInfo:

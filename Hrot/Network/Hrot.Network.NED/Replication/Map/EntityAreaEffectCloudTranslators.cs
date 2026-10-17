@@ -113,12 +113,15 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new AreaEffectCloud
-            {
-                Kind = (CloudKind)d.Kind, Radius = d.Radius, Height = d.Height, SightTransmittance = d.SightTransmittance,
-                IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = d.BornAtSimSeconds, Seconds = d.Seconds,
-            });
+            cmd.AddComponent(unit, FromSample(in d));
         }
+
+        /// <summary>⭐ The one sample → component mapping (this ingress, and a forwarded creation request — <c>CE-3228</c>).</summary>
+        internal static AreaEffectCloud FromSample(in EntityAreaEffectCloud d) => new()
+        {
+            Kind = (CloudKind)d.Kind, Radius = d.Radius, Height = d.Height, SightTransmittance = d.SightTransmittance,
+            IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = d.BornAtSimSeconds, Seconds = d.Seconds,
+        };
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

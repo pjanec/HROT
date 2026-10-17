@@ -148,5 +148,10 @@ namespace Hrot.NED.Descriptors
         [DdsCase(EDescriptorType.dtMapRoute)]
         public MapRoute MapRoute;
 
+        // ⭐ CE-3228 / CE-3219 part 3 — a gas / smoke cloud asked for on one node and created on another (owner 0 ⇒ the default
+        //   processor): the forwarded request must carry the cloud, or the creator builds a bare type-7202 entity nothing ends.
+        [DdsCase(EDescriptorType.dtAreaEffectCloud)]
+        public EntityAreaEffectCloud AreaEffectCloud;
+
     }
 }
