@@ -247,6 +247,23 @@ namespace Hrot.Map.Common.Tests
             }
         }
             /// <summary>
+        /// ⭐ <c>CE-3234</c> (B-12, HI-3) — POCKET ITEMS on the built-in catalogue: every civilian and the insurgent carry a phone, the mortar team
+        /// binoculars, and no soldier type carries either. ✅ Red-proof: the civilians' <c>PocketItemsDto</c> dropped ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3234_CiviliansAndTheInsurgentCarryAPhone_TheMortarTeamBinoculars()
+        {
+            var db = BuiltIn();
+            PocketItemsDto? Pockets(long type) => db.GetByType(type)!.GetDescriptor<PocketItemsDto>();
+            foreach (var civ in new long[] { CivilianTkbCatalog.TkbCivilianAdultMale, CivilianTkbCatalog.TkbCivilianAdultFemale,
+                                             CivilianTkbCatalog.TkbCivilianChild, CivilianTkbCatalog.TkbCivilianElderly, UrbanCombatTkbCatalog.TkbInsurgent })
+                Assert.Equal((true, false), (Pockets(civ)!.Phone, Pockets(civ)!.Binoculars));
+            Assert.Equal((false, true), (Pockets(UrbanCombatTkbCatalog.TkbMortarTeam)!.Phone, Pockets(UrbanCombatTkbCatalog.TkbMortarTeam)!.Binoculars));
+            foreach (var soldier in new long[] { UrbanCombatTkbCatalog.TkbInfantrySoldier, UrbanCombatTkbCatalog.TkbGrenadier })
+                Assert.Null(Pockets(soldier));
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3231</c> (B-9, AW-4; DESIGN_Civilians_And_Crowd_Control §7.12 PI-1/PI-2/PI-3) — on the BUILT-IN catalogue the InfantrySoldier
         /// and the Grenadier carry ONE pistol each, AFTER their other mounts (the grenade stays mount 1), firing the 9 mm round, looking like a
         /// pistol, reaching less than the rifle; no other urban-combat type gains one. ✅ Red-proof: <c>Pistol()</c> dropped from the

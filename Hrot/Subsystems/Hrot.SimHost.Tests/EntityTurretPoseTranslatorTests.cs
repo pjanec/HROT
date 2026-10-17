@@ -167,7 +167,7 @@ namespace Hrot.SimHost.Tests
             brain.AddComponent(brainTurret, new WeaponTask { Mode = WeaponTaskMode.Track, Target = brainTarget, Epoch = 3, Arc = ArcPreference.High });
             Assert.True(brainMap.TryGetEntity(6300L, out var brainHull));
             Assert.True(muscleMap.TryGetEntity(6300L, out var muscleHull));
-            brain.AddComponent(brainHull, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = brainTarget, ActiveMount = 33 });
+            brain.AddComponent(brainHull, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = brainTarget, ActiveMount = 33, HeldItem = HeldItemKind.Binoculars });
             var postureOut = new EntityWeaponPostureEgressTranslator(participant, brainMap);
             var postureIn = new EntityWeaponPostureIngressTranslator(participant, muscleMap);
 
@@ -183,6 +183,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3u, muscle.GetComponentRO<WeaponTask>(muscleTurret).Epoch);
             Assert.Equal(ArcPreference.High, muscle.GetComponentRO<WeaponTask>(muscleTurret).Arc);   // ⭐ ui P2
             Assert.Equal((byte)33, muscle.GetComponentRO<WeaponPosture>(muscleHull).ActiveMount);    // ⭐ ui P4
+            Assert.Equal(HeldItemKind.Binoculars, muscle.GetComponentRO<WeaponPosture>(muscleHull).HeldItem);   // ⭐ CE-3234 (B-12, HI-1)
             Assert.Equal(muscleTarget, muscle.GetComponentRO<WeaponPosture>(muscleHull).Target);
 
             new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem().Execute(muscle, 1f / 60f);

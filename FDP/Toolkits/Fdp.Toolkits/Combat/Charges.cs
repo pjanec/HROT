@@ -38,10 +38,14 @@ namespace Fdp.Toolkit.Combat
             => world.IsAlive(thing) && world.IsComponentTypeRegistered<WeaponSystemParams>() && world.HasComponent<WeaponSystemParams>(thing)
                && world.GetComponentRO<WeaponSystemParams>(thing).Charge != 0;
 
-        /// <summary>Ask the charge's position owner to set it off (in one world <see cref="ChargeSystem"/> does so next frame).</summary>
+        /// <summary>
+        /// Ask the charge's position owner to set it off (in one world <see cref="ChargeSystem"/> does so next frame). ⭐ <c>CE-3234</c> (B-12,
+        /// HI-6) — a man who does not carry it sets it off by PHONE: false unless he holds one; his own vest, or no one (a timer), needs none.
+        /// </summary>
         public static bool Ask(EntityRepository world, Entity charge, Entity by)
         {
             if (!world.Bus.IsRegistered<DetonateChargeEvent>() || charge.IsNull) return false;
+            if (!by.IsNull && CarrierOf(world, charge) != by && HeldItems.Of(world, by) != HeldItemKind.Phone) return false;
             world.Bus.Publish(new DetonateChargeEvent { Charge = charge, By = by });
             return true;
         }

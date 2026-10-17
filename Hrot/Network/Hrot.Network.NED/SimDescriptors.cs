@@ -274,6 +274,8 @@ namespace Hrot.NED.Descriptors
         public float PointZ;
         /// <summary>⭐ ui handoff P4 (W-13e) — the mount the weapon brain fires with (APPENDED, R-169).</summary>
         public byte ActiveMount;
+        /// <summary>⭐ CE-3234 (civilians B-12, HI-1) — <c>HeldItemKind</c>: what is in his hand (APPENDED, R-169).</summary>
+        public byte HeldItem;
     }
 
     // ⭐ CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c, M-1) — an operator's motion axes for a body in Manual, Brain → the Muscle,

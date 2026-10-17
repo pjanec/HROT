@@ -1,12 +1,12 @@
 <!--STATUS
-state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol, B-11 carry stations and the charge landed; CE-3239 found on the way).
+state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol, B-11 carry stations and the charge, B-12 the held item landed; CE-3239 found on the way).
 updated: 2026-10-17
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.13 / §7.13a / §7.13b OWN B-11 (stations, pick-up weapons, the charge); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.13 / §7.13a / §7.13b OWN B-11 (stations, pick-up weapons, the charge); §7.14 / §7.14a OWN B-12 (the held item); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md — your frame (B-7…B-14).
 -->
 
@@ -50,6 +50,18 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 | charge **618** · `Charges.Ask(world, charge, by)` (any node, I-1 kind 12) · `Charges.Detonate(world, charge, by)` (its position owner) | a vest worn HIDDEN, a charge placed on the ground, or loaded in the civilian car 1002's boot (`TryEmbark(world, charge, car)` fills the boot). It is never fired; set off, it bursts WHERE IT STANDS — worn, at the man; in the car, at the car — as one 8 kg detonation named after `by`, and is gone |
 
 ⚠ The bomber's own death is the blast's business (it bursts at him) — nothing extra to do. The ui draws Back (slung) and Hidden (not drawn); until they do, every carried weapon is drawn in his hands.
+
+**⑦ B-12 — what is in his hand** ([CE-3234](../Blueprint_Issues_Tracker.md), at `backend@B12SHA`; design [§7.14 / §7.14a](../../DESIGN_Civilians_And_Crowd_Control.md)).
+
+| what you can call | what it does |
+|---|---|
+| `HeldItems.Set(world, man, kind)` (brain node) · `HeldItems.Of(view, man)` (any node) | `HeldItemKind` None · Weapon · Throwable · Phone · Binoculars. It is a byte on `WeaponPosture` beside `ActiveMount` (so "Weapon" IS the active mount) and crosses on `dtWeaponPosture`. `Set` refuses a phone or binoculars his type does not carry, a throwable with no hands, a weapon with none. Lowering the weapon (`WeaponPostureOf.Idle`) keeps it |
+| pocket items (type data, `PocketItemsDto`) | a **phone** on every civilian 1101–1104 and the insurgent 2003; **binoculars** on the mortar team 2005. ⚠ The officer 201 has no template, so no binoculars yet |
+| binoculars up | his visual sensor reaches ×2 in a 10° cone, and he identifies ×4 further (`SeeingConditions.Of`) — put them down to see around him again |
+| a phone in hand | an observer SEES it (`Armament.Judge`: a small object — Unidentified far off, Nothing near, never lethal): your D4 cue |
+| ⚠ `Charges.Ask(world, charge, by)` | a man who does NOT carry the charge (a remote IED) must hold a phone, else it returns false; his own vest and `by = null` (a timer) need none |
+
+⚠ Nothing in the brains sets the held item yet — the frame left it to you (`ua-armed-status`, the spotter, the bomber).
 
 **Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
 (Stone Source). **Next free:** CE-3240.

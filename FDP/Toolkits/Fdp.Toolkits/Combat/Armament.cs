@@ -44,13 +44,15 @@ namespace Fdp.Toolkit.Combat
         /// <summary>
         /// The conditions for <paramref name="observer"/> looking at <paramref name="man"/>: the weather AT the man
         /// (<see cref="Fdp.Toolkit.Weather.WeatherField.At(EntityRepository, Vector3)"/>), or a clear day when the world has no World
-        /// Environment; optics 1 until the held item exists (B-12, <c>CE-3234</c>).
+        /// Environment; ⭐ <c>CE-3234</c> (B-12, HI-4) — the observer's optics from what he holds (<see cref="HeldItems.IdentificationOptics"/>).
         /// </summary>
         public static SeeingConditions Of(EntityRepository world, Entity observer, Entity man)
         {
-            if (!Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _) || !world.HasComponent<SimTransform>(man)) return ClearDay;
+            float optics = HeldItems.IdentificationOptics(world, observer);
+            if (!Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _) || !world.HasComponent<SimTransform>(man))
+                return new SeeingConditions(1f, float.PositiveInfinity, optics);
             var w = Fdp.Toolkit.Weather.WeatherField.At(world, world.GetComponentRO<SimTransform>(man).Position);
-            return new SeeingConditions(w.RelativeLight, w.VisibilityM, 1f);
+            return new SeeingConditions(w.RelativeLight, w.VisibilityM, optics);
         }
     }
 
@@ -289,6 +291,9 @@ namespace Fdp.Toolkit.Combat
                 if (CombatTkb.MountOf(world, w, 0) is { } mount)
                     best = Max(best, OfItem(ItemAppearances.Of(world, mount), distance, seeing));
             }
+            // ⭐ CE-3234 (B-12, HI-5) — a phone or binoculars in his hand is a small thing an observer sees (AW-14: the phone is a D4 cue)
+            if (best < ArmedJudgement.IdentifiedLethal && HeldItems.Shows(world, man, out var held))
+                best = Max(best, OfItem(held, distance, seeing));
             return best;
         }
 

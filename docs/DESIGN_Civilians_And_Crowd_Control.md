@@ -917,7 +917,7 @@ classDiagram
   class HandsLoadout { <<existing AmmoLoadout on the hands mount>> stones, a picked-up canister or grenade }
   class CarryStations { <<existing seats, grows>> Hands · Back · Hidden (Concealed) }
   class WeaponSystemEntity { <<existing>> + pick-up Rifle, Pistol · + ExplosiveCharge }
-  class HeldItem { <<NEW replicated byte, the Gesture shape>> None Weapon Throwable Phone Binoculars }
+  class HeldItem { <<as built §7.14 HI-1 - a byte on WeaponPosture beside ActiveMount>> None Weapon Throwable Phone Binoculars }
   class PocketItems { <<NEW type data>> phone, binoculars — never entities }
   class WeaponPosture { <<existing, replicated>> AtEase Ready Aimed · Target · ActiveMount }
   class LandedRound { <<existing>> a round lying where it landed }
@@ -2699,7 +2699,7 @@ the type-catalogue golden gains 618; `LR1_EveryBuiltInMount…` lists 6043 among
 8 red-proofs, each red: no charge check · no `CanFire` gate · no ownership check · the boot not concealed (fixture and catalogue) · no hidden-station
 fallback · the library entry renamed · the codec out of `All`.
 
-### 7.14 B-12 — what is in his hand: `HeldItem` + pocket items *(AW-14 — R-2025; `CE-3234`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+### 7.14 B-12 — what is in his hand: `HeldItem` + pocket items *(AW-14 — R-2025; `CE-3234`; backend, `2026-10-17`; build-state: BUILT — as-built §7.14a)*
 
 INVENTORY *(codebase-memory CLI `search_graph` `.*HeldItem.*` / `.*Binocular.*` / `.*Pocket.*` → 0 each, grep agrees; reads at `backend@aa2e2eb62`;
 `check_index_coverage` not available through the CLI)*:
@@ -2765,10 +2765,29 @@ graph TD
 |---|---|---|
 | **HI-1** | **`HeldItem` is a byte APPENDED to `WeaponPosture` and its topic** — beside `ActiveMount`, same group, same owner, same units | a Gesture-shaped own component (the frame's sketch): a second id, topic and two translators for one byte that lives where `ActiveMount` already crosses |
 | **HI-2** | **one writer, `HeldItems.Set`**, on the brain owner; it refuses Phone / Binoculars unless his type has them (`PocketItemsDto`), and Weapon / Throwable unless he has a mount; lowering the weapon (`WeaponPostureOf.Idle`) does NOT clear it | the dispatcher setting it from the weapon action: a phone or binoculars is no weapon action |
-| **HI-3** | **pocket items are TYPE DATA** (`PocketItemsDto { Phone, Binoculars }`), never entities (AW-14): phone on every civilian 1101–1104, binoculars on the officer 201 and the urban mortar team | an item entity per pocket: AW-14's rejected row |
+| **HI-3** | **pocket items are TYPE DATA** (`PocketItemsDto { Phone, Binoculars }`), never entities (AW-14): a phone on every civilian 1101–1104 and the insurgent 2003 (his charge's trigger), binoculars on the urban mortar team 2005 (⚠ the officer 201 has no template to carry them) | an item entity per pocket: AW-14's rejected row |
 | **HI-4** | **binoculars up: vision range × 2 and its field of view 10°** (the visual sensor only), **identification optics × 4** — constants on `HeldItems` | a per-type magnification field: one model is enough until a type needs another |
 | **HI-5** | **a held phone or binoculars is an item `Judge` sees**: `SmallObject`, 0.15 m, non-lethal — far off it is Unidentified (danger as unarmed, A-6), near it is Nothing | invisible: AW-14 calls the phone a D4 cue, so an observer must be able to see it |
 | **HI-6** | **`Charges.Ask` by a man who does not carry the charge needs a phone in his hand** (the remote trigger); his own vest, a timer (`by` null) need none | no gate: then a remote bomber needs nothing in hand and nobody can read him as about to set it off |
+
+#### 7.14a AS-BUILT `CE-3234` B-12 *(2026-10-17)* — built as §7.14 draws it
+
+| built | where |
+|---|---|
+| `HeldItemKind` + `WeaponPosture.HeldItem` (appended); `EntityWeaponPosture.HeldItem` (appended) carried by both posture translators | `WeaponPosture.cs`, `SimDescriptors.cs`, `EntityWeaponPosture{Egress,Ingress}Translator.cs` |
+| `HeldItems` — `Set` (refuses what he has not got), `Has`, `Of`, `BinocularsUp`, `IdentificationOptics`, `Shows`; constants ×2 range, 10° FOV, ×4 optics | `Combat/HeldItems.cs` |
+| `PocketItemsDto` (`Body.PocketItems`): a phone on civilians 1101–1104 and the insurgent 2003, binoculars on the mortar team 2005 | `Tkb/Domain/PocketItemsDto.cs`, `CivilianTkbCatalog.cs`, `UrbanCombatTkbCatalog.cs` |
+| readers: `VisualPerception.Optics` (binoculars up), `SeeingConditions.Of` (optics), `Armament.Judge` conduct path (a held phone / binoculars), `Charges.Ask` (a remote bomber needs a phone) | `VisualPerception.cs`, `Armament.cs`, `Charges.cs` |
+
+No deviation from §7.14 except HI-3's officer: type 201 has no template, so no binoculars on it (found while building; the ExCon note at
+`ExConSubsystem.cs:488` already records the missing template). ⚠ Also measured: `SeeingConditions.Of` without a World Environment now
+returns a clear day WITH the observer's optics (it returned `ClearDay`, optics 1, before).
+
+Rails: `HeldItemsTests` (he holds only what his type carries; binoculars ×2 range, 10° cone, identify a pistol at 200 m; a held phone is
+Unidentified at 100 m, Nothing at 10 m) · `ChargesTests.CE3234_ARemoteBomber_NeedsAPhoneInHisHand_…` ·
+`EntityTurretPoseTranslatorTests` (the held item crosses with the posture) · `NonLethalMunitionTests.CE3234_…` (who carries what).
+7 red-proofs, each red: `Set` without `Has` · `Optics` without binoculars · optics 1 · `Judge` without the held item · `Ask` without the
+phone gate · egress without the field · the civilians' pockets dropped.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

@@ -59,6 +59,18 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// the sensor carries no visual record), else its capability's current visual record.</summary>
         internal static bool Optics(ISimulationView view, Entity sensor, Entity unit, out float range, out float fovCos)
         {
+            if (!NakedEyeOptics(view, sensor, unit, out range, out fovCos)) return false;
+            // ⭐ CE-3234 (civilians B-12, HI-4) — binoculars up: further and narrower (vision only; a thermal sight keeps its own)
+            if (Fdp.Toolkit.Combat.HeldItems.BinocularsUp(view, unit))
+            {
+                range *= Fdp.Toolkit.Combat.HeldItems.BinocularsRangeFactor;
+                fovCos = MathF.Max(fovCos, MathF.Cos(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees * 0.5f * MathF.PI / 180f));
+            }
+            return true;
+        }
+
+        private static bool NakedEyeOptics(ISimulationView view, Entity sensor, Entity unit, out float range, out float fovCos)
+        {
             bool useCapability = !(view.HasComponent<SensorTag>(sensor) && view.GetComponentRO<SensorTag>(sensor).Implicit == 1)
                 && view.HasManagedComponent<SensorCapability>(sensor)
                 && view.GetManagedComponentRO<SensorCapability>(sensor).Current.Visual != null;

@@ -59,6 +59,7 @@ namespace Hrot.Core.Tkb
             UrbanCombatTkbCatalog.Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = DisCategoryCivilian });
             Person(t, height, radius, runSpeed);
             t.AddDescriptor(new PersonDto { Age = age, Sex = sex });   // ⭐ F-4 (design §7.6) — the outfits read who the person is
+            t.AddDescriptor(new PocketItemsDto { Phone = true });      // ⭐ CE-3234 (B-12, HI-3) — a phone in his pocket (AW-14)
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
                                                     CanMove = true, CanInteract = true,   // no weapon: picks one up (PersonCarrier)
                                                     // ⭐ CE-2238 part 2 (behaviors, cross-lane; design §5i.2a) — his HANDS (B-8) throw through the weapon

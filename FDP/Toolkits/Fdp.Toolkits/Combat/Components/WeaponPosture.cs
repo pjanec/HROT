@@ -34,5 +34,23 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the mount the weapon brain is firing / about to fire: the unit's mount
         /// index (0 = its primary, 1… its own mounts, 32 + k a weapon system it controls). Kept when the weapon is lowered; sent.</summary>
         public byte ActiveMount;
+        /// <summary>⭐ <c>CE-3234</c> (civilians B-12, AW-14; docs/DESIGN_Civilians_And_Crowd_Control.md §7.14 HI-1) — what is in his hand:
+        /// Weapon / Throwable = the <see cref="ActiveMount"/> held up (never a copy of it), Phone / Binoculars = a pocket item. Written only
+        /// through <c>HeldItems.Set</c>; kept when the weapon is lowered; sent (APPENDED).</summary>
+        public HeldItemKind HeldItem;
+    }
+
+    /// <summary>⭐ <c>CE-3234</c> (B-12, AW-14) — what a person holds in his hand.</summary>
+    public enum HeldItemKind : byte
+    {
+        None = 0,
+        /// <summary>The weapon on <see cref="WeaponPosture.ActiveMount"/>.</summary>
+        Weapon = 1,
+        /// <summary>A thing to throw — the hands mount (a stone, a grenade) on <see cref="WeaponPosture.ActiveMount"/>.</summary>
+        Throwable = 2,
+        /// <summary>A phone (a pocket item): a cue to an observer, and a remote charge's trigger.</summary>
+        Phone = 3,
+        /// <summary>Binoculars (a pocket item): he sees further and narrower while they are up.</summary>
+        Binoculars = 4,
     }
 }

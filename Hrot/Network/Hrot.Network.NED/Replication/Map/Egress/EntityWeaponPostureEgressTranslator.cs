@@ -59,6 +59,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     EntityId = netId, Kind = (byte)posture.Kind, TargetNetworkId = targetNet,
                     PointX = posture.Point.X, PointY = posture.Point.Y, PointZ = posture.Point.Z,
                     ActiveMount = posture.ActiveMount,   // ⭐ ui P4
+                    HeldItem = (byte)posture.HeldItem,   // ⭐ CE-3234 (B-12, HI-1)
                 };
                 if (_last.TryGetValue(netId, out var prev) && prev.Equals(sample)) continue;
                 _last[netId] = sample;

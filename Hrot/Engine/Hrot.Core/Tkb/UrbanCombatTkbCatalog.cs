@@ -263,6 +263,7 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
                 t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = MortarBombs, MuzzleVelocity = MortarMuzzleVelocity, Range = MortarRange, AmmoGuid = MunitionTkbCatalog.Tkb81mmMortarHe } } });
+                t.AddDescriptor(new PocketItemsDto { Binoculars = true });   // ⭐ CE-3234 (B-12, HI-3) — the crew watches its fall of shot
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange));
                 t.AddDescriptor(BuildMannequinAnimationDef());
@@ -281,6 +282,7 @@ namespace Hrot.Core.Tkb
             {
                 var t = new TkbTemplate("Insurgent", TkbInsurgent);
                 Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 (B-12, HI-3/HI-6) — a phone: his charge's remote trigger
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
                 t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors

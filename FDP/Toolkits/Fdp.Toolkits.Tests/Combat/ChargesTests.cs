@@ -50,11 +50,13 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterManagedComponent<DescriptorOwnership>();
+            _world.RegisterComponent<WeaponPosture>();
             _world.RegisterEvent<DetonationNotification>();
             _world.RegisterEvent<DetonateChargeEvent>();
 
             var man = new TkbTemplate("Bomber", ManType);
             man.AddDescriptor(CarrierDefDto.PersonCarrier());
+            man.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 — his remote trigger
             _db.Register(man);
             var charge = new TkbTemplate("Charge", ChargeType);
             charge.AddDescriptor(new WeaponSystemDto { Portable = WeaponPortability.OneMan, Charge = true,
@@ -184,6 +186,27 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.False(Armament.ArmedByStatus(_world, car));
             Assert.Equal(0, WeaponSystems.PrimaryMount(_world, car, out _));
             Assert.True(WeaponSystems.WeaponOf(_world, car).IsNull);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3234</c> (B-12, HI-6) — a man sets off a charge he does not carry only with a PHONE in his hand; his own vest needs none.
+        /// ✅ Red-proof: <c>Ask</c> without the phone gate ⇒ the empty-handed man's ask goes out ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3234_ARemoteBomber_NeedsAPhoneInHisHand_HisOwnVestDoesNot()
+        {
+            var bomber = Spawn(ManType, new Vector3(50f, 0f, 0f));
+            _world.AddComponent(bomber, new WeaponPosture());
+            var ied = Spawn(ChargeType, Vector3.Zero);
+            Assert.False(Charges.Ask(_world, ied, bomber));
+            Assert.True(HeldItems.Set(_world, bomber, HeldItemKind.Phone));
+            Assert.True(Charges.Ask(_world, ied, bomber));
+
+            var wearer = Spawn(ManType, new Vector3(10f, 0f, 0f));
+            _world.AddComponent(wearer, new WeaponPosture());
+            var vest = Spawn(ChargeType, Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, vest, wearer));
+            Assert.True(Charges.Ask(_world, vest, wearer));   // his own: no phone needed
         }
     }
 }
