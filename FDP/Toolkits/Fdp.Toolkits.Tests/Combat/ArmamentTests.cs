@@ -366,6 +366,11 @@ namespace Fdp.Toolkit.Tests.Combat
 
             var soldier = Man(RiflemanType, new Vector3(30f, 0f, 0f), ForceId.Hostile);
             Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, soldier, lethal: true));         // status
+            var unarmedEnemy = _world.Repo.CreateEntity();                                                // a Hostile of no Civilian class, nothing in hand
+            _world.Repo.AddComponent(unarmedEnemy, new SimTransform { Position = new Vector3(35f, 0f, 0f), Rotation = Quaternion.Identity });
+            _world.Repo.AddComponent(unarmedEnemy, new EntityInfo { ForceId = ForceId.Hostile });
+            Assert.Equal(ArmedJudgement.Nothing, Armament.Judge(_world.Repo, stranger, unarmedEnemy, Day));
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, unarmedEnemy, lethal: true));    // a combatant: status, never the conduct hold (AW-24)
 
             var aiming = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Hostile, civilian: true);  // 150 m: his pistol unidentified
             Assert.False(ForceLevels.ConductPermits(_world.Repo, stranger, aiming, lethal: true));
