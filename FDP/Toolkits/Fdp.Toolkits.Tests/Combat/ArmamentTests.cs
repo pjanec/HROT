@@ -229,5 +229,98 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(ItemLook.SmallObject, stone.Look); Assert.False(stone.Lethal);
             Assert.Equal(ItemLook.None, ItemAppearances.Of(_world.Repo, new WeaponMountDto { Category = WeaponCategory.Countermeasure }).Look);
         }
+
+        // ── ⭐ CE-2238 part 3 (AW-22, R-2028; §5h.6) — the KNOWN combatant, per unit ──────────────────────────────────────────────────
+
+        /// <summary>A unit with a memory that perceived <paramref name="contact"/> <paramref name="ticksAgo"/> ticks ago.</summary>
+        private unsafe Entity Watcher(Vector3 at, Entity contact, uint ticksAgo)
+        {
+            var e = Observer();
+            _world.Repo.GetComponentRW<SimTransform>(e).Position = at;
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+            if (!contact.IsNull)
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)contact.PackedValue, 150f, 0f, 1f,
+                    _world.Repo.SimulationTick - ticksAgo, Fdp.Toolkit.Perception.Components.SensorModality.Visual);
+            _world.Repo.AddComponent(e, mem);
+            return e;
+        }
+
+        private void Squad(Entity commander, params Entity[] members)
+        {
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            foreach (var m in members)
+            {
+                roster.SubordinateEntities[roster.Count++] = m;
+                _world.Repo.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            }
+            _world.Repo.AddComponent(commander, roster);
+        }
+
+        /// <summary>⭐ KC-2/KC-3/KC-4 — a civilian 150 m off with a pistol (by day it identifies at 60 m ⇒ Unidentified to everyone) commits a
+        /// LETHAL act: the rifleman who SAW it (perceived 10 ticks ago) and his squad-mate (who never saw the man) now read him
+        /// IdentifiedLethal; a patrol that last saw him 10 s ago, and a stranger, still see a civilian. ✅ Red-proof: the Knows line dropped
+        /// from Judge ⇒ the witness reads Unidentified ⇒ red; the squad read dropped from Knows ⇒ the mate reads Unidentified ⇒ red.</summary>
+        [Fact]
+        public void CE2238_ALethalAct_MakesHimKnown_ToItsWitnessAndHisSquad_NotToAStalePatrolOrAStranger()
+        {
+            for (int i = 0; i < 1000; i++) _world.Repo.Tick();
+            var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var witness = Watcher(Vector3.Zero, civ, ticksAgo: 10);
+            var mate = Watcher(new Vector3(0f, 5f, 0f), Entity.Null, 0);
+            var leader = Watcher(new Vector3(0f, -5f, 0f), Entity.Null, 0);
+            Squad(leader, witness, mate);
+            var stale = Watcher(new Vector3(0f, 10f, 0f), civ, ticksAgo: 600);
+            var stranger = Watcher(new Vector3(0f, 15f, 0f), Entity.Null, 0);
+            foreach (var o in new[] { witness, mate, stale, stranger })
+                Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world.Repo, o, civ, Day));
+
+            Assert.Equal(1, KnownCombatants.MarkWitnesses(_world.Repo, civ));
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, witness, civ, Day));
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, mate, civ, Day));    // his squad, through the mate's list
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, leader, civ, Day));
+            Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world.Repo, stale, civ, Day));       // saw him 10 s ago, not the act
+            Assert.Equal(ArmedJudgement.Unidentified, Armament.Judge(_world.Repo, stranger, civ, Day));
+            Assert.Equal(1f, ThreatDanger.Of(_world.Repo, witness, civ));                                   // the one production reader
+        }
+
+        /// <summary>⭐ KC-1 — the knowledge is STICKY: the witness forgets the contact (out of sight long enough) and still knows him; a
+        /// known combatant with nothing lethal on him reads Nothing (no rifle to fear), and the list keeps the newest
+        /// <see cref="KnownCombatants.Max"/>. ✅ Red-proof: the knowledge kept in the slot (cleared by Forget) ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE2238_AKnownCombatant_StaysKnownAfterHisContactIsForgotten_AndReadsOnWhatHeCarries()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var phone = Man(PhoneCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var witness = Watcher(Vector3.Zero, civ, ticksAgo: 0);
+            Assert.True(KnownCombatants.Mark(_world.Repo, witness, civ));
+            Assert.True(KnownCombatants.Mark(_world.Repo, witness, phone));
+            ref var mem = ref _world.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(witness);
+            Fdp.Toolkit.Perception.Components.TargetMemory.Forget(ref mem, 0);
+            Assert.Equal(0, mem.Count);
+            Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, witness, civ, Day));
+            Assert.Equal(ArmedJudgement.Nothing, Armament.Judge(_world.Repo, witness, phone, Day));       // a phone is nothing lethal
+
+            for (int i = 0; i < KnownCombatants.Max; i++)
+                KnownCombatants.Mark(_world.Repo, witness, Man(PhoneCivType, new Vector3(30f + i, 0f, 0f), ForceId.Neutral, civilian: true));
+            Assert.False(KnownCombatants.Knows(_world.Repo, witness, civ));                                // the oldest went
+            Assert.Equal(KnownCombatants.Max, (int)_world.Repo.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(witness).KnownCombatantCount);
+        }
+
+        /// <summary>⭐ KC-5 — the act's KIND decides: a NON-lethal act (a stone) marks nobody; a LETHAL one by the same man marks his witness
+        /// even though he already committed an act (HA-2's upgrade). ✅ Red-proof: MarkWitnesses moved inside Commit's first-time guard ⇒ red.</summary>
+        [Fact]
+        public void CE2238_OnlyALethalAct_MarksTheWitnesses_EvenAfterANonLethalOne()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            var civ = Man(StonesCivType, new Vector3(150f, 0f, 0f), ForceId.Neutral, civilian: true);
+            _world.Repo.AddComponent(civ, new Fdp.Toolkit.Civilians.CivilianState());
+            var witness = Watcher(Vector3.Zero, civ, ticksAgo: 0);
+            Fdp.Toolkit.Civilians.HostileActs.Commit(_world.Repo, civ, Fdp.Toolkit.Civilians.HostileActKind.NonLethal);
+            Assert.False(KnownCombatants.Knows(_world.Repo, witness, civ));
+            Fdp.Toolkit.Civilians.HostileActs.Commit(_world.Repo, civ, Fdp.Toolkit.Civilians.HostileActKind.Lethal);
+            Assert.True(KnownCombatants.Knows(_world.Repo, witness, civ));
+        }
     }
 }

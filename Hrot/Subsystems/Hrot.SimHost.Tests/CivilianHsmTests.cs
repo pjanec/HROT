@@ -533,7 +533,7 @@ namespace Hrot.SimHost.Tests
             w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Instigator\":true}");
             for (int i = 0; i < 8; i++) w.Tick();
             Assert.Equal("Riot", w.State());
-            Assert.True(HostileActs.Commit(w.Repo, w.Unit));                         // his blow (as §5i lands it)
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));                         // his blow (as §5i lands it)
             Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
 
             var rifle = Covering(w, new Vector3(140, 230, 0), w.Unit);
@@ -581,7 +581,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Protest", w.State());                                       // covered, but he did nothing
 
             w.Repo.GetComponentRW<EntityInfo>(rifle).ForceId = ForceId.Hostile;      // a gunman, not the forces
-            Assert.True(HostileActs.Commit(w.Repo, w.Unit));
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));
             for (int i = 0; i < 60; i++) w.Tick();
             Assert.NotEqual("Surrender", w.State());
             Assert.NotEqual(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
