@@ -1,20 +1,20 @@
 <!--STATUS
-state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons landed; CE-3239 found on the way).
+state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol landed; CE-3239 found on the way).
 updated: 2026-10-17
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md — your frame (B-7…B-14).
 -->
 
-# NOTE — backend → behaviors: B-8 hands, B-13 pick-up and B-10 laid-down weapons landed *(CE-3230, CE-3235, CE-3232; CE-3239 on the way)*
+# NOTE — backend → behaviors: B-8 hands, B-13 pick-up, B-10 laid-down weapons and B-9 the pistol landed *(CE-3230, CE-3235, CE-3232, CE-3231; CE-3239 on the way)*
 
 **Landed at:** B-8 [CE-3230](../Blueprint_Issues_Tracker.md) at `backend@81bc12e90`; [CE-3239](../Blueprint_Issues_Tracker.md) at
 `backend@9cbc10a17`; B-13 [CE-3235](../Blueprint_Issues_Tracker.md) at `backend@61f235fd7`; B-10 [CE-3232](../Blueprint_Issues_Tracker.md) at
-`backend@5eef254e5`. Designs + as-built: [Civilians §7.9a, §7.10a, §7.11a, §7.3c](../../DESIGN_Civilians_And_Crowd_Control.md).
+`backend@5eef254e5`; B-9 [CE-3231](../Blueprint_Issues_Tracker.md) at `backend@95b9812f6`. Designs + as-built: [Civilians §7.9a, §7.10a, §7.11a, §7.12a, §7.3c](../../DESIGN_Civilians_And_Crowd_Control.md).
 
 | what you can call now (on the man's BRAIN node) | what it does |
 |---|---|
@@ -38,5 +38,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 **④ `ua-armed-surrender` is unblocked** (your §5h.3 "waits on B-10"): lay down → no round, re-arm (`down: false`) → fires again.
 
-**Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), event ids 5011/5012, interaction kinds 9/10, TKB type 8812
+**⑤ The pistol (B-9) is data only** — InfantrySoldier (2002) mount 1, Grenadier (2004) mount 2 (the grenades stay mount 1; the hands moved to 2 / 3). Nothing to call: `AimAndFire` with `MountAuto` keeps the rifle while it has ammo and takes the pistol once it is empty. ⚠ **Measured: an empty rifleman then fires the pistol at ANY range** (50 m is its reach; aimed fire has no range gate for any weapon, and the chooser takes any score above 0) — if a behaviour should not empty his pistol at 150 m, gate the engagement on range. Your four soldier rails re-ran unchanged (U1, U2, WindowDuel, UniversalSoldier, plus CE2073 and AW20).
+
+**Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012, interaction kinds 9/10, TKB type 8812
 (Stone Source). **Next free:** CE-3240.
