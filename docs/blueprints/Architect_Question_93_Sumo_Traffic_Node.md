@@ -420,7 +420,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | slice | content | state |
 |---|---|---|
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
-| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | target §3.1–§3.4 |
+| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT — §12.1/§12.2; five-process run §12.3 (cars flow, one id and owner per car; ⚠ live acceptance only partly run) |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | |
 | 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
