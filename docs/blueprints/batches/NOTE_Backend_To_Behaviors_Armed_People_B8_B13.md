@@ -73,7 +73,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 ⚠ An AIRBURST (a gas grenade whose fuze runs out in flight) still makes a free cloud and nothing to pick up.
 
-**⑨ B-15 — who caused the damage** ([CE-3237](../Blueprint_Issues_Tracker.md), at `backend@B15SHA`; design [§7.16a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-23 (a player's friendly hits) has its input.**
+**⑨ B-15 — who caused the damage** ([CE-3237](../Blueprint_Issues_Tracker.md), at `backend@01ac526c3`; design [§7.16a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-23 (a player's friendly hits) has its input.**
 
 | what you read | what it holds |
 |---|---|
