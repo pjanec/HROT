@@ -61,6 +61,9 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(new PersonDto { Age = age, Sex = sex });   // ⭐ F-4 (design §7.6) — the outfits read who the person is
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
                                                     CanMove = true, CanInteract = true,   // no weapon: picks one up (PersonCarrier)
+                                                    // ⭐ CE-2238 part 2 (behaviors, cross-lane; design §5i.2a) — his HANDS (B-8) throw through the weapon
+                                                    //    channel, which the dispatcher fails without CanShoot; it gives him no weapon (H-3 reads the hands)
+                                                    CanShoot = true,
                                                     // ⭐ CE-2235 (behaviors, the cross-lane edit backend OK'd; design §5d) — his one behaviour
                                                     DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CivilianHsm) });
             // the class template (bodies.json "Soldier") gives a helmet and a vest; a civilian wears neither

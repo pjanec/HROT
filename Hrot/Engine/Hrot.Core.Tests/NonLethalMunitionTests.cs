@@ -53,6 +53,24 @@ namespace Hrot.Map.Common.Tests
             Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStunGrenade).Warhead!.Indirect);
         }
 
+        /// <summary>⭐ <c>CE-2238</c> part 2 (behaviors; DESIGN_Civilians_And_Crowd_Control §5i.2a) — every built-in person with a BRAIN may act
+        /// through his weapon channel (<c>CanShoot</c>): the hands throw is a FireAtPoint the weapon dispatcher FAILS without it. 📌 Measured
+        /// live: civilians lacked it, so a rioter's stone never left his hand. ✅ Red-proof: the civilians' <c>CanShoot</c> dropped ⇒ red.</summary>
+        [Fact]
+        public void CE2238_EveryBuiltInPersonWithABrain_MayActThroughHisWeaponChannel_SoHisHandsCanThrow()
+        {
+            var db = BuiltIn();
+            int checkedPersons = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<VehicleParametersDto>()?.VehicleClass != global::CarKinem.Core.VehicleClass.Pedestrian) continue;
+                if (t.GetDescriptor<BehaviorProfileDto>() is not { BrainTier: > 0 } profile) continue;
+                checkedPersons++;
+                Assert.True(profile.CanShoot, $"{t.Name}: a person with a brain whose hands could never throw (CanShoot off)");
+            }
+            Assert.True(checkedPersons > 10, $"only {checkedPersons} person types with a brain found");
+        }
+
         /// <summary>
         /// ⭐ <c>CE-3235</c> (B-13, §7.10 PU-2/PU-3) — on the BUILT-IN catalogue the hand items are the thrown rounds and the canister; each
         /// has a LOOK (so a lying one replicates to the brain's node); only the stone lies a minute. ✅ Red-proof: the HandItems attach dropped
