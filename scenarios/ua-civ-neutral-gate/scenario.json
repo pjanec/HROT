@@ -40,7 +40,12 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Behavior": {
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Superior"
+      },
+      "Sop": {
         "Name": "BasicInfantrySop",
         "Params": "{}",
         "Origin": "Superior"
