@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -9,7 +9,7 @@ build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…C
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
 current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §5f CIV-3 crowds (CE-2237) · §5g the protest (CE-2240) · §5h armed people (R-2025) · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
-known-rot: none.
+known-rot: §4 CV-4's "draw a weapon" as a hostile act — amended in place (R-2026, §5h AW-16).
 known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
@@ -80,6 +80,7 @@ related-designs:
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
 | **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
 | **R-2024** | ✅ **CV-13, CV-13a, CV-14 approved as written** (§4) — gestures and drawn props, hands up holds fire, the security forces provoke a crowd |
+| **R-2026** | ✅ **the armed-people review, AW-15…AW-20** (§5h) — armed judged per observer by appearance and identification range; drawing is not a hostile act, aiming and firing at the forces are; direction of fire; self-defence over the force level; lethality by reach (knives, Molotovs, vehicles); a neutral in the line holds the shot. AW-1 and AW-3 superseded |
 | **R-2025** | ✅ **armed people AW-1…AW-14** (§5h) — armed = a visible usable lethal weapon; issued weapons built-in (a pistol too), handed-over ones entities; hands, carry stations with a hidden one, held items; stones and canisters picked up and thrown; posture grades the ladder; insurgents and charges |
 
 🔒 **User, verbatim (`2026-10-17`):**
@@ -311,7 +312,7 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **CV-1** | the new types | ONE civilian family in a new catalogue (`CivilianTkbCatalog`): Adult (m/f), Child, Elderly variants, NEW type ids (1001/1003 retired, not reused); `BrainTier = Hsm`, `DefaultBehaviorHash = CivilianHsm`, `CombatPlatformDefDto` (Health), `InjuryDefDto`, `BodyZonesDto` (HL-12), `CharacterAnimationDefDto` (stand/crouch/prone), `PersonCarrier` (can pick up a weapon or a stone), footsteps; outfits kept (CE-1099); `CivilianCar` stays until SUMO; ⭐ *(behaviors, 2026-10-16)* **a `Civilian` and a `SecurityForce` class in `EntityClassTable`** (R-280: the picker folder, the 3-D model and the behaviour lookup must agree on what the new types are) | a type per state (`PanickedCivilian`, `Rioter`…): re-create on every mood change · patching 1001: keeps ids whose meaning changes under live scenarios | 4 scenarios + ~12 code files + ~9 tests migrate; map keys 501–505 re-pointed |
 | **CV-2** | sensors | hearing 100 m (shots, blasts, footsteps) + **short vision 30 m, Low priority band, 1 Hz refresh**; crowd awareness comes from the CrowdSystem, not per-person vision — a Neutral observer drops Neutral targets anyway (`VisionBroadphase.cs:79`) | 360° full vision: ~76 ms at 500 units · hearing only (AQ93 P5): a rioter could not see the police line it attacks | perception budget — measured in CIV-1's perf gate |
 | **CV-3** | the behaviour host | **one `CivilianHsm`** per civilian (R-263), the states of §2.2; reads `CivilianState` (fear, anger, attitude), `EffectState` and crowd hints | BTree per civilian: R-263 rules HSM · Tier-0 C# system (tutorial §2): cannot express the modes | behaviors lane |
-| **CV-4** | attitude and side | hidden attitude in `CivilianState` (brain only); a **hostile act** (throw, melee, fire, draw a weapon) stamps replicated `HostileAct` and the creator (CGF, owner of `EntityInfo`) flips `ForceId` Neutral → Hostile — sticky for the exercise in slice 1; ⭐ *(behaviors, 2026-10-16)* **the flip goes through ONE engine write path that also marks `dtEntityInfo` dirty** (§1: otherwise only CGF sees it), pinned by a two-node rail; an armed hostile civilian uses separable weapons (`PickUp`, `FireWhileCarried`) | flipping on attitude alone: omniscient detection (D4) · building G11 perceived-side first: large and not needed for this | `EntityInfo` writer on CGF; map symbol letter may stay stale (known limit) |
+| **CV-4** | attitude and side | hidden attitude in `CivilianState` (brain only); a **hostile act** (throw, melee, fire, ~~draw a weapon~~ — ⭐ *amended 2026-10-17, R-2026 §5h AW-16: drawing makes him armed, intent unknown; the act is aiming at or firing at the forces, attacking, a vehicle driven at them*) stamps replicated `HostileAct` and the creator (CGF, owner of `EntityInfo`) flips `ForceId` Neutral → Hostile — sticky for the exercise in slice 1; ⭐ *(behaviors, 2026-10-16)* **the flip goes through ONE engine write path that also marks `dtEntityInfo` dirty** (§1: otherwise only CGF sees it), pinned by a two-node rail; an armed hostile civilian uses separable weapons (`PickUp`, `FireWhileCarried`) | flipping on attitude alone: omniscient detection (D4) · building G11 perceived-side first: large and not needed for this | `EntityInfo` writer on CGF; map symbol letter may stay stale (known limit) |
 | **CV-5** | crowds | a **bodiless `Crowd` entity** (no `UnitRoster` — 16-member cap) and a CGF `CrowdSystem`: membership by proximity, mood (mean fear/anger), **contagion** of fear/anger by distance, gathering point, focus (a building, a police line), instigators (ASY-5) who raise anger; members read it through `CivilianState` | a squad per crowd: 16 members, and catalogue T3 says a crowd is uncommanded · per-person perception for contagion: civilians do not see each other | behaviors lane + one new system |
 | **CV-6** | non-lethal effects | ⓐ `DamageAssessedEvent`/`EntityHitDamage` grow an **`EffectKind`** (Kinetic, Blunt, Irritant, Stun, Push) + magnitude; ⓑ a **stored `EffectState`** (Stunned, Irritated, KnockedDown, Until) on the victim — the case I1 names; ⓒ a persistent **`AreaEffectCloud`** entity (tear gas, smoke, later fire) on `Lifespan`, its system applying effects each tick and reducing LOS transmittance; ⓓ new `WarheadKind`s Blunt, Irritant, Stun | deriving stun from Health: breaks I1 · a cosmetic smoke effect: does not affect sight or people | engine (backend lane): damage path, AreaEffectSystem sibling, LOS strategy |
 | **CV-7** | shelter and vanish | EQS **`FindEnterableShelter`**: generator over doors of non-solid buildings (not Locked in `DoorStates`), a point inside the footprint (**new `InsideTest`** = `PolygonMath.Contains` + storey), door-aware `PathCost`; the mover opens closed doors itself; inside ⇒ wait a **hide time** (scenario parameter, e.g. 60–180 s, randomised), then the brain issues `DestroyEntityCommand`; no reachable building ⇒ `FallBack` away, Cower under fire | open-ended fleeing (rejected by the user) · `PhysicalPresence.IsHidden` inside: keeps entities alive for nothing | EQS + one HSM state; test terrain bt-range |
@@ -838,7 +839,7 @@ his fist up.
 ⚠ **Known limits:** ① protesters do not FACE the point (no facing request for a standing man — §5f ③); ② anger stays 0 until `CE-2238`/`CE-2241`
 add producers; ③ a protest point inside a solid building leaves its ring spots unreachable on that side — author it in the street.
 
-## 5h. Armed people — what a man holds, what others can see *(behaviors, 2026-10-17; build-state: READY-TO-BUILD; ✅ RULED R-2025)*
+## 5h. Armed people — what a man holds, what others can see *(behaviors, 2026-10-17; build-state: READY-TO-BUILD; ✅ RULED R-2025, amended R-2026)*
 
 🔒 **User, verbatim (`2026-10-17`, one exchange, each step approved in turn):**
 - *"Both concepts sound reasonable. Just the condition for armed or unarmed need to be a little bit more complex."*
@@ -846,6 +847,9 @@ add producers; ③ a protest point inside a solid building leaves its ring spots
 - *"Is there any threat level evaluated based on whether the weapon is drawn or just at ease?"* → *"Yes sounds good."*
 - *"Is the bomb attached also considered a carried weapon? Bomb can be hidden."* → *"Approved."*
 - *"The hand mount should be usable also for normal civilian stuff, not just weapons, like a mobile phone or maybe a binocular."* · *"we should not make it a separate entity, because there could be many soldiers who just carry it but never use it. The same like with their ordinary main weapon."* → *"approved, write it into the design"*
+- After a critical review against real incidents (misidentification, legally armed civilians, celebratory fire, self-defence, knives and
+  Molotovs, crowds as shields): *"approved, fold 1-6 into the design with your leans"* ⇒ **R-2026**, AW-15…AW-20 below; AW-1 and AW-3 are
+  SUPERSEDED (their old text kept in their rows, struck through).
 
 INVENTORY *(codebase-memory MCP `search_graph` + grep, 2026-10-17; `check_index_coverage` not run)*:
 
@@ -867,7 +871,10 @@ INVENTORY *(codebase-memory MCP `search_graph` + grep, 2026-10-17; `check_index_
 ```mermaid
 classDiagram
   direction LR
-  class Armament { <<NEW static, Fdp.Toolkits/Combat>> IsArmed(view, man) the ONE rule · LethalInHand(view, man) }
+  class Armament { <<NEW static, Fdp.Toolkits/Combat>> Judge(view, observer, man) IdentifiedLethal or Unidentified or Nothing · LethalInHand(view, man) truth }
+  class Appearance { <<NEW TKB data per item>> LooksLike Rifle Pistol LongObject SmallObject None · Size m · Lethality Reach }
+  class Identification { <<NEW>> range from Size x light x optics (binoculars, night sight) }
+  class NeutralInLine { <<NEW, beside LineOfFire.BlockedByFriendly>> a neutral on the line or in the spread holds the shot }
   class ThreatDanger { <<existing>> armed = 1 now via Armament }
   class WeaponOf { <<existing>> the primary weapon }
   class DispenserOnly { <<existing>> }
@@ -886,6 +893,8 @@ classDiagram
   class EscalationLadder { <<CE-2239>> reads posture: at ease Warn · ready NonLethal · aimed Lethal }
   class SuspicionSensor { <<D4, later>> observable cues, never ground truth }
   Armament ..> WeaponOf
+  Armament ..> Appearance : what it looks like, not what it is
+  Armament ..> Identification : per observer
   Armament ..> DispenserOnly
   Armament ..> LaidDown
   Armament ..> CarryStations : a Hidden station is invisible
@@ -902,10 +911,13 @@ classDiagram
   AreaEffectCloud ..> LandedRound : Source
   EscalationLadder ..> WeaponPosture
   EscalationLadder ..> Armament
+  EscalationLadder ..> NeutralInLine : before any shot
   SuspicionSensor ..> HeldItem : phoning is a cue
 ```
 *What the picture shows that prose hid:* every source of danger — a built-in rifle, a carried launcher, a stone in the hand, a hidden vest —
-ends in ONE function, so the 27 readers change their call, not their meaning; and the picture has TWO kinds of object only: TYPE DATA for
+ends in ONE function, so the 27 readers change their call, not their meaning; ⭐ *(R-2026)* that function judges what the OBSERVER can
+identify (an item's `Appearance` at his range, light and optics), never what the man really holds — a phone at 150 m is "something", a
+toy gun is a rifle; and the picture has TWO kinds of object only: TYPE DATA for
 what a man is issued (rifle, pistol, hands, phone, binoculars — free until used) and ENTITIES for what changes hands (a picked-up rifle, a
 launcher, a charge) or flies (rounds).
 
@@ -916,7 +928,7 @@ stateDiagram-v2
   Hands --> Back : stow (visible)
   Hands --> Hidden : conceal
   Back --> Hands : draw
-  Hidden --> Hands : draw (a hostile act for a lethal weapon)
+  Hidden --> Hands : draw (armed, intent unknown)
   Hands --> Ground : put down, or lay down (surrender)
   Hands --> Flight : throw (a round off the hands mount)
   Flight --> Ground : lands
@@ -924,31 +936,37 @@ stateDiagram-v2
   Hands --> Burst : a held grenade goes off
 ```
 *What the picture shows that prose hid:* concealment is a PLACE, not a property of the thing — the same pistol is visible in the hands or on
-the belt and invisible under the coat; and "drawing" is the one edge that turns a hidden lethal weapon into a visible one, which is why it is
-the hostile act (CV-4).
+the belt and invisible under the coat; and "drawing" is the one edge that turns a hidden lethal weapon into a visible one — ⭐ *(R-2026)* which makes him
+ARMED, INTENT UNKNOWN, not Hostile: the hostile act is pointing it at the forces, firing at them, or attacking (AW-16). ⛔ SUPERSEDED: "which
+is why it is the hostile act (CV-4)".
 
 ```mermaid
 graph TD
-  Q{what can an observer see on him?} --> A[a lethal built-in mount, not laid down]
-  Q --> B[a lethal carried weapon in Hands or Back]
-  Q --> C[a lethal round in the hands loadout - a live grenade]
-  Q --> D[only non-lethal - stones, canister, baton-round launcher, dispensers]
-  Q --> E[only a Hidden station - concealed pistol, a vest]
-  Q --> F[nothing]
-  A --> ARMED[ARMED]
-  B --> ARMED
-  C --> ARMED
+  Q{what can THIS observer identify on him, at his range, light and optics?} --> A[an item that LOOKS lethal - a rifle, a pistol, a toy gun, a knife within reach]
+  Q --> U[something he cannot identify - a long object, a small object in the hand]
+  Q --> D[only items that look non-lethal - stones, a canister]
+  Q --> E[nothing visible - a Hidden station, a vest]
+  A --> ID[IDENTIFIED LETHAL - armed]
+  U --> UNK[UNIDENTIFIED - warn and confirm, never fire on this alone]
   D --> UN[UNARMED - non-lethal force only]
-  E --> UN2[UNARMED and, until he acts, neutral - only D4's suspicion sensor may flag him]
-  F --> UN
-  ARMED --> L{his posture, CV-8 ladder}
-  L --> W[at ease: Warn]
-  L --> N[ready: NonLethal, Lethal after an ignored warning]
-  L --> LL[aimed at us, or he fired: Lethal]
+  E --> UN2[UNARMED and neutral until he acts - only D4's suspicion sensor may flag him]
+  ID --> I{his intent}
+  I --> AE[weapon at ease, or just drawn: intent unknown - Warn, demand]
+  I --> RD[weapon ready and an ignored warning: NonLethal, then Lethal]
+  I --> HA[a HOSTILE ACT: aimed at us, fired at us or near us, attacking, a vehicle driven at us: Lethal]
+  I --> AIR[fired into the air: intent unknown - Warn]
+  HA --> SD[self-defence: Lethal even above the unit's ForceLevel]
+  RD --> NL{a neutral in the line or the spread?}
+  SD --> NL
+  NL --> HOLD[hold the shot]
+  NL --> FIRE[fire]
 ```
-*What the picture shows that prose hid:* hands up is NOT a branch — a man with his hands up is still armed if he holds a weapon, and fire is
-held by CV-13a, not by this rule (a feint must not erase the threat); and posture grades only the security forces' LADDER, never the general
-danger, so a military fight (an at-ease enemy rifleman is a full threat) is unchanged.
+*What the picture shows that prose hid:* the question is what the OBSERVER can identify, so the same man is "armed" to a soldier 20 m
+away and "carrying something" to one 200 m away in the dark — and a toy gun is engaged like a rifle, which is the training outcome
+(R-2026); armed is never enough to fire — intent decides, and only a hostile act (or self-defence, which overrides the force level) gives
+Lethal; every shot first asks whether a neutral is in the line or the spread. Hands up is NOT a branch — a man with his hands up is still
+armed if he holds a weapon, and fire is held by CV-13a (a feint must not erase the threat); and posture and intent grade only the security
+forces' LADDER, never the general danger, so a military fight (an at-ease enemy rifleman is a full threat) is unchanged.
 
 ```mermaid
 sequenceDiagram
@@ -980,12 +998,14 @@ sequenceDiagram
   N-->>S: a neutral unarmed civilian (side Neutral, nothing visible)
   I->>I: his trigger (an order, a time, a target in reach): ArmedHostile
   I->>N: draw: the pistol to Hands, HeldItem Weapon, posture Ready
-  I->>N: the hostile act: side flips to Hostile (EntityWriteRouter)
-  N-->>S: armed, Hostile, posture Ready then Aimed
-  S->>S: Armament.IsArmed and the ladder allow Lethal
+  N-->>S: identified lethal (in range), intent unknown: Warn, demand
+  I->>N: aims at the soldier: the hostile act, side flips to Hostile (EntityWriteRouter)
+  N-->>S: armed, Hostile, posture Aimed at him
+  S->>S: the ladder allows Lethal (self-defence), no neutral in the line: fire
 ```
 *What the picture shows that prose hid:* there is no "insurgent" detector anywhere — the soldier reacts only to what crossed the wire (side,
-posture, what is in the man's hands), exactly as for anyone else.
+posture, what is in the man's hands), exactly as for anyone else; ⭐ *(R-2026)* the draw alone buys the insurgent a warning, not a bullet —
+the soldier fires when the man AIMS, which is the moment real ROE allows it. ⛔ SUPERSEDED: the side flipped on the draw.
 
 ```mermaid
 graph TD
@@ -1014,9 +1034,9 @@ intents, posture, entity creation); and every node can answer `IsArmed` itself, 
 
 | id | ✅ ruled (R-2025) | rejected — one line each |
 |---|---|---|
-| **AW-1** | **armed = an observer can see a usable LETHAL weapon on him**: a built-in lethal mount not laid down · a lethal carried weapon in Hands or Back · a lethal round in the hands loadout. ONE function (`Armament`), called by the 27 readers through `WeaponOf` | "any `WeaponState` = armed": a stone-thrower justifies lethal force, a concealed rifle is seen by all |
+| ~~**AW-1**~~ | ⛔ **SUPERSEDED by AW-15 (R-2026)** — *was:* **armed = an observer can see a usable LETHAL weapon on him**: a built-in lethal mount not laid down · a lethal carried weapon in Hands or Back · a lethal round in the hands loadout. ONE function (`Armament`), called by the 27 readers through `WeaponOf` | "any `WeaponState` = armed": a stone-thrower justifies lethal force, a concealed rifle is seen by all |
 | **AW-2** | **non-lethal only arms nobody** (stones, canister, baton-round launcher, stun grenades, dispensers) | — |
-| **AW-3** | **a Hidden station is invisible**; drawing a lethal weapon from it is the hostile act (CV-4) | concealment through the side flip alone: `WeaponOf` reads ground truth |
+| **AW-3** | **a Hidden station is invisible** · ⛔ **the rest SUPERSEDED by AW-16 (R-2026)** — *was:* "drawing a lethal weapon from it is the hostile act (CV-4)" | concealment through the side flip alone: `WeaponOf` reads ground truth |
 | **AW-4** | **issued weapons stay built-in type data — the rifle AND a new PISTOL mount**; the weapon brain switches by itself (`WeaponChoice`) | an entity per issued weapon: W-A — "an entity per rifle would multiply entities and wire for nothing" |
 | **AW-5** | **surrender = a LAID-DOWN flag** on every built-in mount (cannot fire, reads unarmed); **handover** later: laying a weapon down spawns a pick-up weapon entity and empties the mount — only for the weapon actually picked up | hands up = unarmed: a feint erases the threat (CV-13a holds fire without changing what he is) |
 | **AW-6** | **pick-up rifle and pistol weapon-system types** (one man, fire while carried) for anything that changes hands — a covert insurgent's, a dropped soldier's | — |
@@ -1027,6 +1047,12 @@ intents, posture, entity creation); and every node can answer `IsArmed` itself, 
 | **AW-11** | **insurgents**: OPEN = the existing combatant type (unchanged); COVERT = a civilian, Hostile at heart, a pick-up weapon Hidden, `ArmedHostile` reusing the soldiers' fighting behaviours | a covert insurgent TYPE: a type per role (CV-1) |
 | **AW-12** | **an explosive CHARGE is one weapon-system type in three placements**: worn Hidden (suicide vest — never "drawn", only D4's suspicion sensor may flag him, a search reveals it), placed (IED, its trigger holder controls it), a vehicle station (VBIED); it bursts at its controller's position | a bomber type with a built-in charge: cannot be planted or put in a car |
 | **AW-13** | **worn = carried in a HIDDEN station** — a person gets a few stations (Hands, Back, Hidden) instead of one; concealment belongs to the STATION | a separate "worn" concept: a second mechanism for one idea |
+| **AW-15** *(R-2026)* | **armed is judged PER OBSERVER, by what he can IDENTIFY**: every item carries an `Appearance` (looks like Rifle / Pistol / LongObject / SmallObject / None, a size, its lethality and reach) and an identification range from its size × light × optics (binoculars, night sights lengthen it). Three answers: **identified lethal** · **unidentified** (warn and confirm, never fire on it alone) · **nothing**. A toy or replica gun LOOKS like a rifle and may be engaged — the training outcome | ground truth of what he holds: no misidentification can ever happen, and those are the cases a trainee is assessed on (the 2007 Baghdad cameras, toy-gun shootings, the 2005 London man taken for a bomber) |
+| **AW-16** *(R-2026)* | **drawing is NOT a hostile act**: drawn ⇒ armed, intent unknown (Warn, demand). The **hostile act** — and the side flip (CV-4, amended) — is pointing at the forces, firing at them, attacking, or driving a vehicle at them | the draw as the act: in many theatres households, farmers, guards and plain-clothes police carry openly — it punishes the normal |
+| **AW-17** *(R-2026)* | **direction matters**: fired AT us, or rounds landing near us (`NearMiss`) ⇒ Lethal; fired into the air ⇒ intent unknown (Warn) | "he fired ⇒ Lethal": celebratory fire at weddings and funerals has caused tragic engagements |
+| **AW-18** *(R-2026)* | **self-defence overrides the unit's `ForceLevel`**: a weapon aimed at us, or fire at us, allows Lethal even to a NonLethal police line | the cap always binding: no ROE card denies self-defence |
+| **AW-19** *(R-2026)* | **lethality is an item's REACH, not "firearms and explosives"**: a knife or machete is lethal within its reach (~2 m, and an attacker closes 7 m in under 2 s), a Molotov is lethal, a stone non-lethal; a **vehicle driven at people** is a hostile act | firearms only: knife attacks at checkpoints and Molotovs (deadly force under most ROE) read as unarmed |
+| **AW-20** *(R-2026)* | **a neutral in the line of fire or within the weapon's spread HOLDS the shot** — beside `LineOfFire.BlockedByFriendly`, which today holds only for the shooter's own force (`LineOfFire.cs:71-81`, measured) | collateral left for later: an armed man in a crowd is lethal-permitted the moment he is identified (human shields, fire from inside protests) |
 | **AW-14** | **the hands hold everyday things too**: a replicated HELD-ITEM byte (None, Weapon, Throwable, Phone, Binoculars; "Weapon" means `WeaponPosture.ActiveMount`, never a copy); phone and binoculars are POCKET ITEMS, type data, never entities; binoculars lengthen vision and narrow it while held; a phone is a D4 cue and an IED's remote trigger | phones and binoculars as entities: the pistol's cost times every civilian |
 
 ⭐ **Owners and order.** Backend (frame [HANDOFF_Behaviors_To_Backend_Armed_People.md](blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md)):
@@ -1036,8 +1062,16 @@ RoundPickUp on SimHost + stone sources + landed stones lingering (AW-8), the clo
 conceal / pick up / throw / detonate, the covert trigger, riot), `CE-2239` (the ladder's posture rows), `CE-2241` (hands up). Ui: the held
 item, the laid-down weapon and the bending pose on the figure.
 
+⭐ **R-2026 owners:** backend — `Appearance` on every item's TKB data, `Armament.Judge` per observer with the identification range (B-7 is
+amended, [NOTE](blueprints/batches/NOTE_Behaviors_To_Backend_Armed_People_Amended.md)); behaviors — the intent rows, self-defence and the
+neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the hostile act moved from the draw to the aim/fire/attack
+(`CE-2238`).
+
 ⚠ **Known limits (ruled later, not now):** ① one item in Hands at a time; ② a dead bomber's charge stays live only once a dead-man setting
-exists; ③ a search that reveals a Hidden station is the checkpoint slice (SQD-13); ④ the D4 suspicion sensor is its own item.
+exists; ③ a search that reveals a Hidden station is the checkpoint slice (SQD-13); ④ the D4 suspicion sensor is its own item; ⑤ *(from the
+review, each its own later item)* Friend → Hostile and disguise (insider attacks, stolen uniforms); a killed soldier's weapon left to pick
+up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
+the warning-shot step and time to comply; snatching a soldier's weapon.
 
 ## 6. Known limits
 
