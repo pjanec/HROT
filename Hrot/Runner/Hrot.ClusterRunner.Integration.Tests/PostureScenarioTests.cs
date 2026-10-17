@@ -791,6 +791,72 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2239</c> A6 (CV-8, CV-11; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5j) — <c>ua-civ-police-line</c> in-process (the
+    /// live check's twin): three policemen on their DEFAULT behaviour (HoldTheLine, NonLethal), a rifleman given HoldTheLine under a
+    /// NonLethal ROE, an instigator and four protesters around a stone source. Sampled every frame on CGF: ⓪ the riot starts · ① only
+    /// non-lethal force — the rifleman's weapon status is <c>HoldForceLevel</c> at least once and his rifle spends no round, and the police
+    /// use force · ② a rioter is stunned, irritated or knocked down · ③ the riot breaks up: after force, no civilian riots for 10 s ·
+    /// ④ nobody dies.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2239_PoliceLine_OnlyNonLethalForce_ARioterIsStunnedOrDown_TheRiotBreaksUp_NobodyDies()
+    {
+        using var harness = await StartShippedScenario("ua-civ-police-line");
+        var cgf = harness.Cgf!.World!;
+        var policeNames = new[] { "Police shield", "Police baton", "Police launcher" };
+        var civNames = new[] { "Instigator", "Protester 1", "Protester 2", "Protester 3", "Protester 4" };
+        Assert.True(harness.PumpUntil(() => policeNames.Concat(civNames).Append("Rifleman").All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var police = policeNames.Select(n => ByName(cgf, n)).ToArray();
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var rifle = ByName(cgf, "Rifleman");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponentRO<WeaponState>(e).Ammo : -1;
+        var p0 = police.Select(Ammo).ToArray();
+        int r0 = Ammo(rifle);
+        bool riot = false;
+        int held = 0;
+        double? forcedAt = null, calmSince = null;
+        var effected = new System.Collections.Generic.HashSet<string>();
+        var dead = new System.Collections.Generic.HashSet<string>();
+        var reasons = new System.Collections.Generic.HashSet<string>();
+        bool Rioting(Entity c) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c) == Fdp.Toolkit.Civilians.CivilianMode.Riot;
+        void Sample()
+        {
+            double now = cgf.SimulationTime, fxNow = HitModel.Now(cgf);
+            if (civs.Any(Rioting)) riot = true;
+            if (cgf.HasComponent<ActionStatus>(rifle))
+            {
+                var reason = cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason;
+                reasons.Add(reason.ToString());
+                if (reason == ActionReason.HoldForceLevel) held++;
+            }
+            for (int i = 0; i < civs.Length; i++)
+                if (cgf.HasComponent<EffectState>(civs[i]))
+                {
+                    var fx = cgf.GetComponentRO<EffectState>(civs[i]);
+                    if (fx.StunnedUntil > fxNow || fx.IrritatedUntil > fxNow || fx.KnockedDownUntil > fxNow) effected.Add(civNames[i]);
+                }
+            foreach (var (e, n) in civs.Zip(civNames).Concat(police.Zip(policeNames)).Append((rifle, "Rifleman")))
+                if (cgf.HasComponent<Health>(e) && cgf.GetComponentRO<Health>(e).Current <= 0f) dead.Add(n);
+            if (forcedAt == null && (effected.Count > 0 || police.Select(Ammo).Zip(p0).Any(a => a.First >= 0 && a.First < a.Second))) forcedAt = now;
+            if (forcedAt != null) calmSince = civs.Any(Rioting) ? null : calmSince ?? now;
+        }
+        string State() => $"riot {riot}, forced at {forcedAt}, held {held}, rifle ammo {r0}->{Ammo(rifle)}, effected [{string.Join(",", effected)}], " +
+                          $"dead [{string.Join(",", dead)}], modes [{string.Join(",", civs.Select(c => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c)))}], " +
+                          $"police ammo [{string.Join(",", police.Select(Ammo))}], rifle reasons [{string.Join(",", reasons)}]";
+
+        harness.PumpUntil(() => { Sample(); return calmSince != null && cgf.SimulationTime - calmSince >= 10.0; }, timeoutFrames: 9000);
+        _out.WriteLine(State());
+        Assert.True(riot, $"⓪ the riot starts; {State()}");
+        Assert.True(forcedAt != null, $"① the police use force; {State()}");
+        Assert.True(held > 0, $"① the rifleman holds his rifle under the NonLethal cap ('hold: force level'); {State()}");
+        Assert.Equal(r0, Ammo(rifle));                                            // ① …and spends no round
+        Assert.True(effected.Count > 0, $"② a rioter is stunned, irritated or knocked down; {State()}");
+        Assert.True(calmSince != null && cgf.SimulationTime - calmSince >= 10.0, $"③ the riot breaks up: no civilian riots for 10 s; {State()}");
+        Assert.Empty(dead);                                                        // ④ nobody dies
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
     /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
     /// ① his hands are up on CGF, SimHost and IG · ② the rifleman's weapon status is <c>HoldSurrender</c> at least once · ③ from the first

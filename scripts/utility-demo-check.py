@@ -3187,6 +3187,68 @@ def run_civ_surrender(c, timeout):
     c.ok(side() in ("Hostile", 2), f"⑤ his side stays Hostile ({side()})")
 
 
+# ── CE-2239 A6 CV-8/CV-11 — the force level and the police line (Civilians §5c, §5j) ──────────────────────────────────────
+
+def run_civ_police_line(c, timeout):
+    """test-town: three policemen (shield, baton, launcher) placed with NO task — so on their default, HoldTheLine under a NonLethal ROE —
+    and a rifleman given HoldTheLine under a NonLethal ROE, 12 m from an instigator and four protesters around a stone source.
+    ⓪ the riot starts · ① ONLY non-lethal force: the rifleman is seen holding ('hold: force level') and spends no round, and the police
+    use force (a mount's ammo drops) · ② a rioter is stunned, irritated or knocked down · ③ the riot breaks up: after force, no civilian
+    riots for 10 s · ④ nobody dies. The twin (PostureScenarioTests.CE2239_PoliceLine_…) checks every frame."""
+    ids = ids_by_name()
+    police = [ids.get(n) for n in ("Police shield", "Police baton", "Police launcher")]
+    rifle = ids.get("Rifleman")
+    civs = [ids.get(n) for n in ("Instigator", "Protester 1", "Protester 2", "Protester 3", "Protester 4")]
+    if not c.ok(None not in police + civs and rifle is not None, "three policemen, the rifleman and five civilians are loaded"):
+        return
+    p0 = [(ammo(n) or (None,))[0] for n in police]
+    r0 = (ammo(rifle) or (None,))[0]
+    held, effected, dead, rioted, forced = [0], set(), set(), set(), [None]
+
+    def watch():
+        t = sim_time() or 0.0
+        reason = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("reason") or ""
+        if reason == "hold: force level":
+            held[0] += 1
+        for n in civs:
+            fx = (comps(n) or {}).get("EffectState") or {}
+            if any((fx.get(k) or 0) > t for k in ("StunnedUntil", "IrritatedUntil", "KnockedDownUntil")):
+                effected.add(n)
+        for n in civs + police + [rifle]:
+            h = health(n)
+            if h is not None and h <= 0:
+                dead.add(n)
+        if forced[0] is None and (effected or any(a0 is not None and (a := (ammo(n) or (None,))[0]) is not None and a < a0
+                                                  for n, a0 in zip(police, p0))):
+            forced[0] = t
+        return False
+    call("POST", "/sim/play", {})
+    riot = wait_for(lambda: (watch(), any(civ_mode(n) == "Riot" and not rioted.add(n) for n in civs))[1], 40, every=0.25)
+    c.ok(riot is not None, f"⓪ the riot starts ({[civ_mode(n) for n in civs]})")
+    wait_for(lambda: (watch(), forced[0] is not None)[1], timeout + 60, every=0.25)
+    c.ok(forced[0] is not None, f"① the police use force (at {forced[0]})")
+    c.ok(held[0] > 0, f"① the rifleman in the line holds his rifle under the cap ({held[0]} samples 'hold: force level')")
+
+    def calm_for(seconds):
+        start = [None]
+
+        def pred():
+            watch()
+            t = sim_time() or 0.0
+            if any(civ_mode(n) == "Riot" for n in civs):
+                start[0] = None
+                return False
+            start[0] = start[0] if start[0] is not None else t
+            return t - start[0] >= seconds
+        return pred
+    calm = wait_for(calm_for(10.0), timeout + 90, every=0.5)
+    c.ok(effected, f"② a rioter is stunned, irritated or knocked down ({sorted(effected)})")
+    c.ok(calm is not None, f"③ the riot breaks up: no civilian riots for 10 s ({[civ_mode(n) for n in civs]})")
+    r1 = (ammo(rifle) or (None,))[0]
+    c.ok(r0 is not None and r1 == r0, f"① the rifleman spends no round ({r0} → {r1})")
+    c.ok(not dead, f"④ nobody dies ({sorted(dead)})")
+
+
 def laid_down_on(perspective, nid):
     """Has `perspective`'s node his weapons laid down — the replicated WeaponAmmo bit (B-10), or the brain's own mask."""
     cs = comps_on(perspective, nid) or {}
@@ -3253,6 +3315,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-surrender": run_civ_surrender,
              # ⭐ CE-2241 ① AW-5/AW-21 — a soldier lays his rifle down, hands up, then the feint (Civilians §5c, §5h.5)
              "ua-armed-surrender": run_armed_surrender,
+             # ⭐ CE-2239 A6 CV-8/CV-11 — the force level and the police line (Civilians §5c, §5j)
+             "ua-civ-police-line": run_civ_police_line,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
