@@ -501,5 +501,44 @@ namespace Hrot.SimHost.Tests
             var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.RestationEvent>().ToArray());
             Assert.Equal((ownersMan, ownersPistol, (byte)3, true), (arrived.Man, arrived.Thing, arrived.Seat, arrived.IsRemote));
         }
+            /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, §7.13 ST-8) — a charge set off from the trigger holder's node crosses as the
+        /// <c>DetonateCharge</c> case (target = the charge, actor = who) to its position owner and arrives as the same event, marked remote.
+        /// ✅ Red-proof: <c>DetonateCharge</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE3233_ADetonateCharge_CrossesAsItsUnionCase_ToThePositionOwner()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Combat.DetonateChargeEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsVest = brain.CreateEntity(), brainsMan = brain.CreateEntity();
+            Entity ownersVest = owner.CreateEntity(), ownersMan = owner.CreateEntity();
+            brainMap.Register(800L, brainsVest); brainMap.Register(801L, brainsMan);
+            ownerMap.Register(800L, ownersVest); ownerMap.Register(801L, ownersMan);
+            // the vest's position is owned elsewhere: the brain's node has a replica
+            brain.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>();
+            brain.AddComponent(brainsVest, new Fdp.Toolkit.Replication.Components.NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = brainsVest, By = brainsMan });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            var sent = Assert.Single(writer.Written);
+            Assert.Equal((EInteractionKind.DetonateCharge, 800L, 801L), (sent.Payload.Kind, sent.TargetId, sent.ActorId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, ownerMap).ProcessSample(in sent, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var arrived = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Combat.DetonateChargeEvent>().ToArray());
+            Assert.Equal((ownersVest, ownersMan, true), (arrived.Charge, arrived.By, arrived.IsRemote));
+        }
     }
 }

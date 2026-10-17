@@ -27,6 +27,7 @@
     "23mm HEI": {"type": "he", "calibreMm": 23, "massG": 190, "velocity": 970, "explosiveKg": 0.013},
     "23mm API": {"type": "ap", "calibreMm": 23, "massG": 190, "velocity": 970},
     "Stinger warhead": {"type": "frag", "calibreMm": 70, "massG": 3000, "velocity": 700, "explosiveKg": 1.0},
-    "Igla warhead": {"type": "frag", "calibreMm": 72, "massG": 1270, "velocity": 570, "explosiveKg": 0.39}
+    "Igla warhead": {"type": "frag", "calibreMm": 72, "massG": 1270, "velocity": 570, "explosiveKg": 0.39},
+    "8 kg demolition charge": {"type": "frag", "calibreMm": 0, "massG": 12000, "velocity": 1, "explosiveKg": 8.0}
   }
 }

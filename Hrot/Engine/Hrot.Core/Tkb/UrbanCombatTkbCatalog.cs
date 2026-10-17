@@ -171,7 +171,11 @@ namespace Hrot.Core.Tkb
                 var t = new TkbTemplate("CivilianCar", TkbCivilianCar);
                 Master(t, "CivilianCar", new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
                 t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.5f });
-                t.AddDescriptor(CarrierDefDto.PassengerSeats(4));   // ⭐ CE-2151 (R-2009) — a car seats four beside its (abstract) driver
+                var car = CarrierDefDto.PassengerSeats(4);   // ⭐ CE-2151 (R-2009) — a car seats four beside its (abstract) driver
+                // ⭐ CE-3233 (civilians B-11b, AW-12, §7.13 ST-9) — and its BOOT: one cargo station, stowed and concealed (a car bomb's load
+                //   is seen by nobody and fired by nobody), appended after the seats
+                car.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false });
+                t.AddDescriptor(car);
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));

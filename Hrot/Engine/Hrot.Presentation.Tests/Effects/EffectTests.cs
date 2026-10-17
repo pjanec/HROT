@@ -711,7 +711,8 @@ public sealed class EffectTests
                                             MunitionTkbCatalog.TkbStingerMissile, MunitionTkbCatalog.TkbIglaMissile,   // ⭐ CE-2187 — the MANPADS' proximity-fused warheads (new types on new mounts): no number moved
                                             MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
                                             MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade,     // ⭐ CE-3223
-                                            MunitionTkbCatalog.TkbTearGasGrenade };   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
+                                            MunitionTkbCatalog.TkbTearGasGrenade,
+                                            MunitionTkbCatalog.TkbExplosiveCharge };   // ⭐ CE-3233 B-11b — the charge 618's 8 kg round (a new type on a new mount)   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {

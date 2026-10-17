@@ -67,6 +67,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-3233</c> (B-11) — <c>RestationEvent</c>: put a carried thing in another of the man's stations (draw / stow / conceal).</summary>
         public const int RestationEventId = 5013;
 
+        /// <summary>⭐ <c>CE-3233</c> (B-11b) — <c>DetonateChargeEvent</c>: set an explosive charge off where it stands.</summary>
+        public const int DetonateChargeEventId = 5014;
+
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;

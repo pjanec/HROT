@@ -257,8 +257,19 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new Fdp.Toolkit.Behavior.RestationEvent { Man = target, Thing = actor, Seat = p.Restation.Seat, IsRemote = true });
 
+        /// <summary>⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off: to the node that owns its position (it bursts where it stands).</summary>
+        public static readonly IInteractionCodec DetonateCharge = new InteractionCodec<Fdp.Toolkit.Combat.DetonateChargeEvent>(
+            EInteractionKind.DetonateCharge,
+            target:      static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.Charge,
+            actor:       static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.By,
+            isRemote:    static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, charge) => Fdp.Toolkit.Behavior.Embarkation.OwnsPosition(repo, charge),
+            toPayload:   static (in Fdp.Toolkit.Combat.DetonateChargeEvent e) => new InteractionPayload { DetonateCharge = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Combat.DetonateChargeEvent { Charge = target, By = actor, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge };
     }
 
     /// <summary>

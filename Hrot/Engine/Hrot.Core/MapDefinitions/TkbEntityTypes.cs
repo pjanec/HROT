@@ -50,6 +50,9 @@ namespace Hrot.Map.Common
         public const long WeaponSystem_PickUpRifle = 616;
         /// <summary>⭐ CE-3233 (B-11, ST-7) — a PICK-UP pistol (it looks like one).</summary>
         public const long WeaponSystem_PickUpPistol = 617;
+        /// <summary>⭐ CE-3233 (B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE: worn in a hidden station, placed, or in a car's cargo
+        /// station; never fired, only set off where it stands.</summary>
+        public const long WeaponSystem_ExplosiveCharge = 618;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

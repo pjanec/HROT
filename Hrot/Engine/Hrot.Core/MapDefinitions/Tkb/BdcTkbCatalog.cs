@@ -347,6 +347,14 @@ namespace Hrot.Map.Definitions.Tkb
                     MuzzleVelocity = 360f, FireOnMove = true, Category = WeaponCategory.SmallArms, Look = ItemLook.Pistol,
                     AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbPistol9mm },
                 turret: null, new(0.02f, 0f, 5f));
+            // ⭐ CE-3233 (B-11b, AW-12, §7.13 ST-8) — the EXPLOSIVE CHARGE: one man carries it (worn hidden), it lies where it is placed, or
+            //   it rides a vehicle's cargo station; a CHARGE never fires — Charges.Detonate sets it off where it stands.
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_ExplosiveCharge, "Explosive charge", 10,
+                new WeaponSystemDto { Portable = WeaponPortability.OneMan, MountKinds = MountKinds.Ground | MountKinds.Carried | MountKinds.Cargo,
+                                      Charge = true, CarrySpeedFactor = 0.9f, DeploySeconds = 0f, PackSeconds = 0f },
+                new WeaponMount { WeaponType = "explosive_charge", Ammunition = 1, Category = WeaponCategory.Grenade,
+                    AmmoTkb = Hrot.Core.Tkb.MunitionTkbCatalog.TkbExplosiveCharge },
+                turret: null, new(0.05f, 0f, 20f));
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_Zu23, "ZU-23-2", 7, heavy with { DeploySeconds = 30f, PackSeconds = 20f, CarrySpeedFactor = 0.3f },
                 new WeaponMount { WeaponType = "2A14_23mm", Ammunition = 100, Range = 2500, RateOfFire = 400,
                     DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.Zu23ApiLibraryName),

@@ -65,6 +65,9 @@ namespace Fdp.Toolkit.Combat
         {
             reason = WeaponHold.None;
             if (IsBroken(world, weapon)) { reason = WeaponHold.Destroyed; return false; }
+            // ⭐ CE-3233 (B-11b, ST-8) — a CHARGE is detonated (Charges.Detonate), never fired
+            if (world.IsComponentTypeRegistered<WeaponSystemParams>() && world.HasComponent<WeaponSystemParams>(weapon)
+                && world.GetComponentRO<WeaponSystemParams>(weapon).Charge != 0) { reason = WeaponHold.NotDeployed; return false; }
             var controller = ControllerOf(world, weapon);
             if (controller.IsNull) { reason = WeaponHold.NoController; return false; }
             bool carried = false;

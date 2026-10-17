@@ -1,12 +1,12 @@
 <!--STATUS
-state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol landed; CE-3239 found on the way).
+state: LIVE — backend → behaviors: a NOTE (B-8 hands, B-13 pick-up and stone sources, B-10 laid-down weapons, B-9 the pistol, B-11 carry stations and the charge landed; CE-3239 found on the way).
 updated: 2026-10-17
 current-answer: the whole file.
 stale-below: nothing.
 known-rot: none.
 known-conflict: none.
 related-designs:
-  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.9 / §7.9a OWN B-8 (the hands); §7.10 / §7.10a OWN B-13 (pick-up, stone sources, a lying stone); §7.11 / §7.11a OWN B-10 (laid-down weapons); §7.12 / §7.12a OWN B-9 (the pistol); §7.13 / §7.13a / §7.13b OWN B-11 (stations, pick-up weapons, the charge); §7.3c CE-3239; §5h AW-7…AW-9 their rulings.
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md — your frame (B-7…B-14).
 -->
 
@@ -40,5 +40,16 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 **⑤ The pistol (B-9) is data only** — InfantrySoldier (2002) mount 1, Grenadier (2004) mount 2 (the grenades stay mount 1; the hands moved to 2 / 3). Nothing to call: `AimAndFire` with `MountAuto` keeps the rifle while it has ammo and takes the pistol once it is empty. ⚠ **Measured: an empty rifleman then fires the pistol at ANY range** (50 m is its reach; aimed fire has no range gate for any weapon, and the chooser takes any score above 0) — if a behaviour should not empty his pistol at 150 m, gate the engagement on range. Your four soldier rails re-ran unchanged (U1, U2, WindowDuel, UniversalSoldier, plus CE2073 and AW20).
 
-**Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012, interaction kinds 9/10, TKB type 8812
+**⑥ B-11 — carry stations and the charge** ([CE-3233](../Blueprint_Issues_Tracker.md), B-11a at `backend@fdffec282`, B-11b at `backend@B11BSHA`; design [§7.13a/§7.13b](../../DESIGN_Civilians_And_Crowd_Control.md)). Every person now has seats 1 HANDS, 2 BACK (stowed), 3 HIDDEN (stowed + concealed).
+
+| what you can call | what it does |
+|---|---|
+| `CarryStations.Hands / Back / Hidden(view, man)` · `SeatOf(view, thing, out carrier)` · `IsStowed` · `IsConcealed` | the seat indices and where a carried thing sits — read on any node |
+| `CarryStations.Move(world, man, thing, seat)` (on the man's list owner) · `CarryStations.Ask(world, man, thing, seat)` (any node, I-1 kind 11) | DRAW (→ Hands), SLING (→ Back), HIDE (→ Hidden). A stowed weapon cannot fire; a slung one still reads ARMED to observers, a hidden one arms nobody (status, conduct) — but `Armament.LethalInHand` still counts it: he knows he has it |
+| pick-up rifle **616**, pistol **617** | weapon systems a man carries and fires (`Embarkation.TryEmbark(world, weapon, man)` → his hands, then his back; never hidden unasked) |
+| charge **618** · `Charges.Ask(world, charge, by)` (any node, I-1 kind 12) · `Charges.Detonate(world, charge, by)` (its position owner) | a vest worn HIDDEN, a charge placed on the ground, or loaded in the civilian car 1002's boot (`TryEmbark(world, charge, car)` fills the boot). It is never fired; set off, it bursts WHERE IT STANDS — worn, at the man; in the car, at the car — as one 8 kg detonation named after `by`, and is gone |
+
+⚠ The bomber's own death is the blast's business (it bursts at him) — nothing extra to do. The ui draws Back (slung) and Hidden (not drawn); until they do, every carried weapon is drawn in his hands.
+
+**Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
 (Stone Source). **Next free:** CE-3240.

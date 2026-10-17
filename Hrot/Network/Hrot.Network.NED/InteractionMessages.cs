@@ -29,6 +29,8 @@ namespace Hrot.NED.Messages
         // ⭐ CE-3233 (civilians B-11, §7.13 ST-4) — put a carried thing in another of the man's stations (target = the man, actor = the
         //   thing; applied by the node that owns his passenger list).
         Restation       = 11,
+        // ⭐ CE-3233 (B-11b, §7.13 ST-8) — set a charge off (target = the charge, actor = who; applied by its position owner).
+        DetonateCharge  = 12,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -156,6 +158,14 @@ namespace Hrot.NED.Messages
         public byte Seat;
     }
 
+    /// <summary>⭐ CE-3233 — the <see cref="EInteractionKind.DetonateCharge"/> case (target = the charge, actor = who): nothing more.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct DetonateChargeInteractionPayload
+    {
+        public byte Reserved;
+    }
+
     /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -221,6 +231,9 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.Restation)]
         public RestationInteractionPayload Restation;   // ⭐ CE-3233
+
+        [DdsCase(EInteractionKind.DetonateCharge)]
+        public DetonateChargeInteractionPayload DetonateCharge;   // ⭐ CE-3233 (B-11b)
     }
 
     /// <summary>

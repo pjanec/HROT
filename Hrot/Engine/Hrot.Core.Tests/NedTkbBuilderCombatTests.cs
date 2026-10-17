@@ -207,6 +207,35 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐ <c>CE-3233</c> (civilians B-11b, AW-12; §7.13 ST-8/ST-9) — the EXPLOSIVE CHARGE (618) is a charge (never fired) that goes worn,
+        /// placed or in a boot; its round (6043) takes its warhead from the library's "8 kg demolition charge" (8 kg: a wider blast than a grenade's);
+        /// the civilian car (1002) has one concealed, stowed boot after its four seats. ✅ Red-proof: the library entry renamed ⇒ no warhead ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3233_TheCharge_IsDetonatedOnly_ItsWarheadIsTheLibrarys_AndTheCarHasABoot()
+        {
+            var db = BuildDatabase();
+            var ws = db.GetByType(TkbEntityTypes.WeaponSystem_ExplosiveCharge)!.GetDescriptor<WeaponSystemDto>()!;
+            Assert.True(ws.Charge);
+            Assert.Equal(MountKinds.Ground | MountKinds.Carried | MountKinds.Cargo, ws.MountKinds);
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbExplosiveCharge,
+                db.GetByType(TkbEntityTypes.WeaponSystem_ExplosiveCharge)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].AmmoGuid);
+
+            var full = new TkbDatabase();
+            Hrot.Map.Common.HrotEnvironment.RegisterBuiltInTkb(full);
+            var charge = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(full, Hrot.Core.Tkb.MunitionTkbCatalog.TkbExplosiveCharge).Warhead;
+            var grenade = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(full, Hrot.Core.Tkb.MunitionTkbCatalog.TkbM67Grenade).Warhead;
+            Assert.NotNull(charge);
+            Assert.True(charge!.BlastLethalRadiusM > grenade!.BlastLethalRadiusM);
+
+            var car = full.GetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar)!.GetDescriptor<CarrierDefDto>()!;
+            var boot = car.Seats[^1];
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Station, MountKinds.Cargo, true, true, (bool?)false),
+                         (boot.Role, boot.Accepts, boot.Stowed, boot.Concealed, boot.Exposed));
+            Assert.Equal(5, car.Seats.Count);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3233</c> (civilians B-11, AW-6; DESIGN_Civilians_And_Crowd_Control §7.13 ST-7) — the PICK-UP rifle and pistol fire the built-in
         /// soldier's rounds at their STATED muzzle speeds (the range fallback would fly them at 150 / 25 m/s), and the pistol LOOKS like one
         /// (B-7's identification reads it); the rifle looks like a rifle by its category. ✅ Red-proof: the builder ignoring

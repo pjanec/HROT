@@ -29,12 +29,14 @@ namespace Fdp.Toolkit.Combat
         public float PackSeconds;
         /// <summary><see cref="MountKinds"/>.</summary>
         public byte MountKinds;
+        /// <summary>⭐ <c>CE-3233</c> (B-11b) — 1 for an explosive charge: detonated, never fired.</summary>
+        public byte Charge;
 
         public static WeaponSystemParams From(WeaponSystemDto d) => new()
         {
             NeedsOperator = (byte)(d.NeedsOperator ? 1 : 0), Portable = (byte)d.Portable, CarrySpeedFactor = d.CarrySpeedFactor,
             FireWhileCarried = (byte)(d.FireWhileCarried ? 1 : 0), DeploySeconds = d.DeploySeconds, PackSeconds = d.PackSeconds,
-            MountKinds = (byte)d.MountKinds,
+            MountKinds = (byte)d.MountKinds, Charge = (byte)(d.Charge ? 1 : 0),
         };
     }
 

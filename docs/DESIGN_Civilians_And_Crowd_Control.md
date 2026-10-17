@@ -2473,7 +2473,7 @@ rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, 
 `CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
 the correction.
 
-### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: BUILDING — B-11a BUILT (§7.13a), B-11b the charge next)*
+### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: BUILT — as-built §7.13a (B-11a) and §7.13b (B-11b))*
 
 INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-memory CLI only — `check_index_coverage` not run)*:
 
@@ -2586,6 +2586,101 @@ Rails: `PersonCarrierTests.CE3233_APersonHasHandsBackAndHidden_…` (hands, then
 `InteractionTransportTests.CE3233_ARestation_…` · `NedTkbBuilderCombatTests.CE3233_ThePickUpRifleAndPistol_…` and the WS-4 catalogue table
 (+ 616, 617). Pins moved for the deliberate change: the soldier has 4 seats (`TheProfile_IsStampedFromTheType`), the MANPADS gunner's launcher
 is checked at seat 1 (`CE2187_…`).
+
+#### 7.13b AS-BUILT `CE-3233` B-11b *(2026-10-17)* — the explosive charge and the car's boot
+
+| built | where |
+|---|---|
+| `WeaponSystemDto.Charge` + `MountKinds.Cargo = 16` (appended); `WeaponSystemParams.Charge` (type fact, not on the wire) | `WeaponSystemDto.cs`, `WeaponSystemComponents.cs` |
+| `WeaponSystems.CanFire`: a charge ⇒ `NotDeployed` — it is never fired | `WeaponSystems.cs` |
+| `Charges` — `IsCharge`, `Ask`, `Detonate` (on the POSITION owner: mount 0's round as one `DetonationNotification` where it stands, shooter = who set it off, else its carrier, else itself; out of the carrier's list where this node owns it; destroyed); `DetonateChargeEvent` (5014); `ChargeSystem` in the `Interactions` capability | `Combat/Charges.cs`, `CoreInfrastructureCapabilities.cs` |
+| I-1 kind 12 **`DetonateCharge`** (target the charge, actor who set it off; owner = `OwnsPosition`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
+| charge **618** (one man, Ground \| Carried \| Cargo, breakable) and its round **6043** "8 kg demolition charge" — its warhead from the reference library's entry of that name (`explosiveKg 8`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `MunitionTkbCatalog.cs`, `ammo.json` |
+| the civilian car **1002**: a fifth seat, a cargo station — stowed, concealed, not exposed (the boot) | `UrbanCombatTkbCatalog.cs` |
+
+⚠ **Deviation from ST-3, and why:** `FreeStation` skips a concealed station only while an OPEN station on the type takes the thing (a man's hands,
+his back). Where only a concealed one does — the boot is the car's only cargo station — boarding fills it; else a car bomb could never be loaded.
+The man is unchanged: hands, then back, and `Full` after (never hidden unasked).
+⚠ **The round's name differs from the type's:** TKB names are case-insensitive and one table, so the round is "8 kg demolition charge", not
+"explosive charge". ③ above is settled: `CE-3220` part 2 retires 1001/1003 only, so the boot goes on **1002**.
+
+Rails: `ChargesTests` — a vest worn hidden arms nobody, fires nothing, set off bursts AT the man and is gone · only the position owner sets
+one off, only a charge (a real rifle refused) · a charge on a truck's OPEN station is still no weapon its crew fires · a car bomb rides in the boot, the car unarmed · `InteractionTransportTests.CE3233_ADetonateCharge_…` ·
+`NedTkbBuilderCombatTests.CE3233_TheCharge_IsDetonatedOnly_…` (its blast wider than the M67's; the boot is the car's last seat). Pin moved:
+the type-catalogue golden gains 618; `LR1_EveryBuiltInMount…` lists 6043 among the rounds with a warhead (a new type on a new mount).
+8 red-proofs, each red: no charge check · no `CanFire` gate · no ownership check · the boot not concealed (fixture and catalogue) · no hidden-station
+fallback · the library entry renamed · the codec out of `All`.
+
+### 7.14 B-12 — what is in his hand: `HeldItem` + pocket items *(AW-14 — R-2025; `CE-3234`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+
+INVENTORY *(codebase-memory CLI `search_graph` `.*HeldItem.*` / `.*Binocular.*` / `.*Pocket.*` → 0 each, grep agrees; reads at `backend@aa2e2eb62`;
+`check_index_coverage` not available through the CLI)*:
+
+| question | measured | where |
+|---|---|---|
+| the frame's model: a `Gesture`-shaped byte | `Gesture` = own component 398 + `dtGesture` 143 + 2 translators + Brain-group bit | `Gestures.cs`, `EntityGestureTranslators.cs` (B-6) |
+| where `ActiveMount` lives ("Weapon" means it) | ⭐ **`WeaponPosture.ActiveMount`** — Brain group, `dtWeaponPosture` 127, on EVERY behaving unit (civilians too: `BehaviorTkbTranslator` adds it beside the weapon channel); ingress rebuilds the struct field by field | `WeaponPosture.cs:36`, `BehaviorTkbTranslator.cs:144`, `EntityWeaponPosture*Translator.cs` |
+| where vision's range and field of view are read | ONE place: `VisualPerception.Optics` (the receptor, or the sensor's capability record), on the EQS solver node | `VisualPerception.cs:60-80` |
+| identification optics | `SeeingConditions.Optics` — `Of` hard-codes 1 "until B-12" | `Armament.cs:49-54` |
+| what a man shows | `Armament.Judge` reads built-in mounts, the hands, controlled weapon systems — never a non-weapon thing | `Armament.cs:266-330` |
+| ids | component 404, descriptor 145 free on every lane — ⛔ **not needed** (below) | `GlobalComponentIds.cs`, `AllDescriptors.cs` on 4 lanes |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponPosture { <<existing, Brain group, dtWeaponPosture>> Kind · Target · Point · ActiveMount · + HeldItem (APPENDED) }
+  class EntityWeaponPosture { <<existing topic>> … ActiveMount · + HeldItem (APPENDED, R-169) }
+  class HeldItemKind { <<NEW enum>> None · Weapon · Throwable · Phone · Binoculars }
+  class HeldItems { <<NEW static>> Set(world, man, kind) · Of(view, man) · Optics(view, man) · BinocularsRangeFactor 2 · BinocularsFovDegrees 10 · BinocularsOptics 4 }
+  class PocketItemsDto { <<NEW type data>> Phone · Binoculars }
+  class VisualPerception { <<existing>> Optics: × range, narrowed FOV while binoculars are up }
+  class SeeingConditions { <<CE-3229>> Of: optics from HeldItems }
+  class Armament { <<CE-3229>> Judge: a held phone / binoculars is a small non-lethal item }
+  class Charges { <<B-11b>> Ask by a man who does not carry it ⇒ he holds a phone }
+  HeldItems ..> WeaponPosture : writes / reads HeldItem
+  HeldItems ..> PocketItemsDto : refuses what he has not got
+  EntityWeaponPosture ..> WeaponPosture : replicated
+  VisualPerception ..> HeldItems
+  SeeingConditions ..> HeldItems
+  Armament ..> HeldItems
+  Charges ..> HeldItems
+```
+
+*What the picture shows that prose hid:* **the held item sits BESIDE `ActiveMount` on a component that already reaches every node** —
+"Weapon means the active mount" is then true by construction, and no new id, topic or translator is spent.
+
+```mermaid
+sequenceDiagram
+  participant B as brain (CGF)
+  participant W as WeaponPosture (brain owner)
+  participant N as every node
+  participant S as EQS solver (vision)
+  B->>W: HeldItems.Set(man, Binoculars)  (type has them)
+  W-->>N: dtWeaponPosture … HeldItem = 4
+  S->>S: VisualPerception.Optics — range × 2, FOV 10°
+  N->>N: SeeingConditions.Of — optics 4
+  B->>W: HeldItems.Set(man, Phone)
+  B->>B: Charges.Ask(charge, man) — allowed (a phone in hand)
+```
+
+```mermaid
+graph TD
+  BT[BehaviorTkbTranslator — every node at spawn] --> WP[WeaponPosture]
+  EG[EntityWeaponPosture egress — brain owner, every frame] --> WIRE[dtWeaponPosture]
+  WIRE --> IN[ingress — every other node]
+  SOLVER[EqsSolverSystem — the perception node] --> OPT[VisualPerception.Optics reads HeldItem]
+```
+
+*Caption:* every edge exists today; B-12 adds a field to one and a reader to another.
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **HI-1** | **`HeldItem` is a byte APPENDED to `WeaponPosture` and its topic** — beside `ActiveMount`, same group, same owner, same units | a Gesture-shaped own component (the frame's sketch): a second id, topic and two translators for one byte that lives where `ActiveMount` already crosses |
+| **HI-2** | **one writer, `HeldItems.Set`**, on the brain owner; it refuses Phone / Binoculars unless his type has them (`PocketItemsDto`), and Weapon / Throwable unless he has a mount; lowering the weapon (`WeaponPostureOf.Idle`) does NOT clear it | the dispatcher setting it from the weapon action: a phone or binoculars is no weapon action |
+| **HI-3** | **pocket items are TYPE DATA** (`PocketItemsDto { Phone, Binoculars }`), never entities (AW-14): phone on every civilian 1101–1104, binoculars on the officer 201 and the urban mortar team | an item entity per pocket: AW-14's rejected row |
+| **HI-4** | **binoculars up: vision range × 2 and its field of view 10°** (the visual sensor only), **identification optics × 4** — constants on `HeldItems` | a per-type magnification field: one model is enough until a type needs another |
+| **HI-5** | **a held phone or binoculars is an item `Judge` sees**: `SmallObject`, 0.15 m, non-lethal — far off it is Unidentified (danger as unarmed, A-6), near it is Nothing | invisible: AW-14 calls the phone a D4 cue, so an observer must be able to see it |
+| **HI-6** | **`Charges.Ask` by a man who does not carry the charge needs a phone in his hand** (the remote trigger); his own vest, a timer (`by` null) need none | no gate: then a remote bomber needs nothing in hand and nobody can read him as about to set it off |
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

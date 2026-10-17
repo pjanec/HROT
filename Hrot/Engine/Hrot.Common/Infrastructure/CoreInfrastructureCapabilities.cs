@@ -140,13 +140,14 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.RoundPickUpSystem     _pickUp    = new();   // ⭐ CE-3235 — the round's flier grants, the brain owner receives
         private readonly Fdp.Toolkit.Combat.Systems.HandsFuzeSystem       _handsFuze = new();   // ⭐ CE-3235 — a live round burns in the hand
         private readonly Fdp.Toolkit.Behavior.CarryStationSystem          _stations  = new();   // ⭐ CE-3233 — draw / stow / conceal on the list owner
+        private readonly Fdp.Toolkit.Combat.ChargeSystem                  _charges   = new();   // ⭐ CE-3233 (B-11b) — a charge set off on its position owner
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -165,6 +166,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_pickUp);
             simulation.Add(_handsFuze);
             simulation.Add(_stations);
+            simulation.Add(_charges);
         }
     }
 }
