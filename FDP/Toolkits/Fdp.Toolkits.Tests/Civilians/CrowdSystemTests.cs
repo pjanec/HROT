@@ -126,7 +126,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             for (int i = 0; i < 40; i++) Frame(w, crowds);   // 4 s
 
             Assert.True(Mind(w, near).Fear > 0.6f, $"he caught it — past panic: {Mind(w, near).Fear}");
-            Assert.True(Mind(w, near).Fear <= CrowdRules.ContagionShare + 1e-4f, $"never above 0.9 of his source: {Mind(w, near).Fear}");
+            Assert.True(Mind(w, near).Fear <= 0.9f + 1e-4f, $"never above 0.9 of his source (design §5f — a literal, so a changed share reddens it): {Mind(w, near).Fear}");
             Assert.Equal(0.0, Mind(w, near).HeardAt);
             Assert.Equal(1, Mind(w, near).HasFrightFrom);
             Assert.Equal(new Vector3(-50, 0, 0), Mind(w, near).FrightFrom);   // he runs from where the others run from

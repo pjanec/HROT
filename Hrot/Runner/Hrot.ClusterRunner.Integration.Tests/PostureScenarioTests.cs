@@ -667,8 +667,12 @@ public sealed class PostureScenarioTests : IDisposable
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
         int a0 = Ammo();
         Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"① the rifleman opens fire at the west end; {State()}");
-        harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 2400);   // 40 s
-        _out.WriteLine(State());
+        for (int f = 0; f < 2400; f += 60)   // 40 s, logged each second: who caught it, from whom, in which crowd
+        {
+            harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 60);
+            _out.WriteLine($"t+{f / 60}s " + State() + " crowds [" + string.Join(",", civs.Select(e => cgf.IsAlive(e) ? Mind(e).CrowdId : -1)) + "]"
+                           + " x [" + string.Join(",", civs.Select(e => cgf.IsAlive(e) ? (int)cgf.GetComponent<SimTransform>(e).Position.X : -1)) + "]");
+        }
 
         var deaf = civs.Where(e => !heard.Contains(e)).ToArray();
         Assert.True(heard.Count >= 5, $"① the near ones hear it ({heard.Count} of 15); {State()}");

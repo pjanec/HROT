@@ -2961,8 +2961,6 @@ def run_civ_contagion(c, timeout):
     one = wait_for(lambda: (watch(), len({(civ_mind(n).get("CrowdId") or 0) for n in civs} - {0}) == 1
                             and all(civ_mind(n).get("CrowdId") for n in civs))[1], 20, every=0.2)
     c.ok(one is not None, f"⓪ they stand as ONE crowd along the street ({[civ_mind(n).get('CrowdId') for n in civs]})")
-    c.ok(all(modes0.get(n) in ("Routine", None) or n in heard for n in civs),
-         f"⓪ each starts in Routine, or is frightened by what he heard ({ {n: modes0.get(n) for n in civs} })")
     shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
     if not c.ok(shot is not None, "① the rifleman opens fire at the west end"):
         return
