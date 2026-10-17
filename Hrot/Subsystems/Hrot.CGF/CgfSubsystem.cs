@@ -975,6 +975,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
             .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars from every traffic node, mirrored (vicinity replicas the brains see); idle without a net.
+            .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
             .Resolve(CgfSubsystem.DefaultRole);
 
         foreach (INodeCapability capability in _capabilities)

@@ -96,8 +96,7 @@ public class EditorCapabilitiesTests : IDisposable
     /// <summary>⭐ AQ93 R-4047 — the default arm's SUMO pack, over a residency of its own (nothing loads in these rails).</summary>
     private Hrot.Traffic.TrafficPack Traffic()
     {
-        var pack = new Hrot.Traffic.TrafficPack(new Hrot.Map.Common.Services.TerrainResidency(
-            System.IO.Path.GetTempPath(), new CarKinem.Road.RoadNetworkHolder()));
+        var pack = Hrot.Traffic.TrafficPack.Serving();
         Track(pack);
         return pack;
     }

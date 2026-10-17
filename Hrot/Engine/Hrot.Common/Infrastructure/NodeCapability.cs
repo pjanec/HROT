@@ -42,6 +42,9 @@ public static class CapabilityKeys
     /// <summary>⭐ AQ93 — SUMO traffic (<c>Hrot.Traffic.TrafficPack</c>): stepping, the mirror, the vicinity replicas.</summary>
     public const string Traffic = "cap:traffic";
 
+    /// <summary>⭐ AQ93 §12 N6 — SUMO traffic MIRRORED from the traffic nodes (every map and sim host that does not run SUMO).</summary>
+    public const string TrafficMirror = "cap:traffic-mirror";
+
     /// <summary>
     /// Commander/subordinate hierarchy maintenance — <c>CE-221</c>.
     ///

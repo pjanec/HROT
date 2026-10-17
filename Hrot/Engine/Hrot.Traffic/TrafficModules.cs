@@ -1,7 +1,14 @@
+using CycloneDDS.Runtime;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Traffic;
-using Fdp.Toolkit.NetworkSpawning;
+using NetworkLaneSource = Sim.Core.NetworkLaneSource;
+using ILaneShapeSource = Sim.Core.ILaneShapeSource;
+using Sim.Replication;
+using Sim.Replication.Dds;
 
 namespace Hrot.Traffic;
 
@@ -27,67 +34,64 @@ public sealed class TrafficSteppingModule : IEcsModule
 }
 
 /// <summary>
-/// ⭐ AQ93 R-4020 / R-4038 — the MAIN-thread half: <see cref="TrafficMirrorSystem"/> in the Input phase (cars are in place before the
-/// simulation reads the world, like any network ingress).
-/// </summary>
-public sealed class TrafficMirrorModule : IEcsModule
-{
-    public TrafficMirrorModule(TrafficMirrorSystem system) => System = system ?? throw new ArgumentNullException(nameof(system));
-
-    public TrafficMirrorSystem System { get; }
-
-    public string Name => "TrafficMirror";
-
-    public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-
-    public void RegisterSystems(ISystemRegistry registry) => registry.RegisterSystem(System);
-
-    public void Tick(ISimulationView view, float deltaTime) { }
-}
-
-/// <summary>
-/// ⭐ AQ93 — each frame on the main thread: decide whether SUMO runs (🔒 R-4047: only when the terrain has a net AND the scenario has
-/// a <see cref="TrafficDemand"/>), hand the stepping thread its target on the editor's clock (pause ⇒ the target holds ⇒ SUMO
-/// holds), pump SUMO's wire, dead-reckon every car (<see cref="TrafficMirror"/>) and keep the vicinity replicas
-/// (<see cref="TrafficReplicas"/>).
+/// ⭐ AQ93 — each frame on the main thread, in the INPUT phase (cars are in place before the simulation reads the world, like any
+/// network ingress), on EVERY node that composes traffic (§12 N6): mirror every SUMO wire this node can see — its
+/// own session's in-memory wire when it SERVES traffic (N7), and every other traffic node's DDS wire, one per sender (H8, R-4055) — at
+/// the SAME cluster instant (N3); keep the vicinity replicas (R-4041), each owned by its sender (N5); publish the frame for the maps.
 /// </summary>
 /// <remarks>
-/// ⭐ SUMO time = the HROT clock minus the clock reading when this session was adopted. A clock that jumps BACK (a rewind) restarts
-/// SUMO: it cannot run backwards, and fresh background traffic is the honest answer. ⭐ Cars are resolved one SUMO step behind the
-/// newest sample (the playout delay), so the dead reckoning interpolates between the two samples that bracket the instant.
+/// <para>⭐ <b>Serving</b> (a node built with a <see cref="TrafficRuntime"/>): it runs SUMO for a traffic-settings entity whose
+/// <c>dtTrafficDemand</c> it OWNS — the Traffic ownership group its creating Brain granted it (S2, push-only G-6), or the whole entity on
+/// a single-node host (the editor) — and only while the terrain has a SUMO net (🔒 R-4047). The target is the cluster clock: a paused
+/// cluster holds SUMO. A clock that jumps BACK (a rewind) restarts SUMO: it cannot run backwards.</para>
+/// <para>⭐ Cars are resolved one SUMO step behind the clock (the playout delay, the settings' <c>StepSeconds</c>), so the dead reckoning
+/// interpolates between the two samples that bracket the instant.</para>
 /// </remarks>
-[UpdateInPhase(SystemPhase.Input)]
+[UpdateInPhase(Fdp.ModuleHost.Abstractions.SystemPhase.Input)]
 public sealed class TrafficMirrorSystem : IEcsModuleSystem
 {
-    private readonly TrafficRuntime _runtime;
-    private readonly INetworkIdAllocator? _ids;
+    /// <summary>⭐ AQ93 §12 N4 — <c>EDescriptorType.dtTrafficDemand</c> (Hrot.Network.NED); a rail pins the two equal.</summary>
+    public const long TrafficDemandDescriptor = 160;
+
+    private readonly TrafficRuntime? _runtime;
+    private readonly DdsParticipant? _participant;
+    private readonly NetworkEntityMap? _entityMap;
     private readonly int _localNodeId;
     private readonly List<TrafficCarPose> _cars = new();
+    private readonly Dictionary<(int Owner, uint Source), TrafficMirror> _mirrors = new();
+    private readonly HashSet<(int, uint)> _liveMirrors = new();
+    private readonly List<(int, uint)> _staleMirrors = new();
     private TrafficReplicas? _replicas;
     private EntityRepository? _replicaWorld;
-    private TrafficMirror? _mirror;
+    private DdsMultiSourceSubscriber? _dds;
+    private TrafficNetCache? _net;
+    private NetworkLaneSource? _netLanes;
     private TrafficSession? _adopted;
-    private double _origin;
+    private IReadOnlyDictionary<int, byte> _lights = EmptyLights;
     private double _lastResolved = double.NaN;
     private int _generation;
+    private TrafficFrame? _frame;
+    private static readonly Dictionary<int, byte> EmptyLights = new();
 
-    public TrafficMirrorSystem(TrafficRuntime runtime, INetworkIdAllocator? ids, int localNodeId)
+    /// <param name="runtime">Non-null on a node that SERVES traffic (the traffic node, the editor).</param>
+    /// <param name="participant">The node's DDS participant: null ⇒ no other node's traffic is mirrored (the networkless editor).</param>
+    /// <param name="entityMap">The node's network entity map, so a replica answers to its network id.</param>
+    public TrafficMirrorSystem(TrafficRuntime? runtime, DdsParticipant? participant, NetworkEntityMap? entityMap, int localNodeId)
     {
-        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
-        _ids = ids;
+        _runtime = runtime;
+        _participant = participant;
+        _entityMap = entityMap;
         _localNodeId = localNodeId;
     }
 
-    /// <summary>The cars of the last frame, in terrain-local metres (for the car layer and rails).</summary>
+    /// <summary>The cars of the last frame, every sender's, in terrain-local metres (for the car layer and rails).</summary>
     public IReadOnlyList<TrafficCarPose> Cars => _cars;
 
     /// <summary>The replica book (null until the first frame).</summary>
     public TrafficReplicas? Replicas => _replicas;
 
-    /// <summary>SUMO's traffic-light state per lane handle, from the wire (empty before SUMO runs).</summary>
-    public IReadOnlyDictionary<int, byte> TlStateByLane
-        => (IReadOnlyDictionary<int, byte>?)_adopted?.Source.TlStateByLane ?? EmptyTl;
-    private static readonly Dictionary<int, byte> EmptyTl = new();
+    /// <summary>The senders mirrored last frame: (owner node, wire source).</summary>
+    public IReadOnlyCollection<(int Owner, uint Source)> Senders => _mirrors.Keys;
 
     public void Execute(ISimulationView view, float deltaTime)
     {
@@ -96,88 +100,128 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         if (!ReferenceEquals(world, _replicaWorld))
         {
             _replicas?.Clear();
-            _replicas = new TrafficReplicas(world, _ids, _localNodeId);
+            _replicas = new TrafficReplicas(world, _entityMap, _localNodeId);
             _replicaWorld = world;
         }
 
         var net = TrafficNetCache.Of(world);
-        if (net is null || !TryDemand(world, out var demand))
-        {
-            Stop();
-            return;
-        }
-
-        var key = new TrafficSessionKey(net.Path, Path.GetDirectoryName(net.Path) ?? ".", net.NetHash, demand, _generation);
-        _runtime.Request(key);
+        if (net is null) { Stop(world); return; }
+        if (!ReferenceEquals(net, _net)) { Stop(world); _net = net; _netLanes = new NetworkLaneSource(net.Model); }
         double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0.0;
+        float step = TrafficDemand.Default.StepSeconds;
 
-        var session = _runtime.Current;
-        if (session is null) { _cars.Clear(); _replicas!.Update(_cars); return; }   // the stepping thread is still building it
-        if (!ReferenceEquals(session, _adopted))
+        // ── serve (N1/N7) ─────────────────────────────────────────────────────────────────────────
+        TrafficSession? own = null;
+        if (_runtime is not null)
         {
-            _adopted = session;
-            _origin = now;
-            _mirror = new TrafficMirror(net.Placement);
-            _lastResolved = double.NaN;
-            _replicas!.Clear();
-            _frame = null;
+            if (TryServedDemand(world, out var demand))
+            {
+                step = demand.StepSeconds > 0f ? demand.StepSeconds : step;
+                var key = new TrafficSessionKey(net.Path, Path.GetDirectoryName(net.Path) ?? ".", net.NetHash, demand, _generation);
+                _runtime.Request(key, TrafficVehicleCatalog.From(TkbOf(world)));
+                _runtime.SetTarget(key, now);
+                own = _runtime.Current;
+                if (own is not null && now < own.Time - 2.0 * own.StepSeconds - 1.0)   // the clock jumped back: restart SUMO
+                {
+                    _generation++;
+                    own = null;
+                }
+            }
+            else _runtime.Request(null);
         }
+        if (!ReferenceEquals(own, _adopted)) { _adopted = own; _lastResolved = double.NaN; }
+        if (step == TrafficDemand.Default.StepSeconds && TryAnyDemand(world, out var anyDemand) && anyDemand.StepSeconds > 0f)
+            step = anyDemand.StepSeconds;
 
-        double sumoNow = now - _origin;
-        if (sumoNow < session.Time - 2.0 * session.StepSeconds - 1.0)   // the clock jumped back: restart SUMO
+        // ── mirror every wire (N5/N6) ─────────────────────────────────────────────────────────────
+        double at = now - step;
+        bool resolve = at != _lastResolved;   // paused ⇒ the same instant ⇒ the same poses; the reconstructor is never fed a zero step
+        if (resolve) _cars.Clear();
+        _liveMirrors.Clear();
+        _lights = EmptyLights;
+        if (own is not null)
         {
-            _generation++;
-            _cars.Clear();
-            _replicas!.Clear();
-            return;
+            own.Source.Pump();
+            Mirror(_localNodeId, (uint)_localNodeId, own.Source, own.Lanes, at, resolve);
         }
-        _runtime.SetTarget(session.Key, sumoNow);
+        if (_participant is not null)
+        {
+            _dds ??= new DdsMultiSourceSubscriber(_participant, stampWithSimTime: true);
+            _dds.Pump();
+            foreach (var (src, source) in _dds.Sources)
+            {
+                if (_runtime is not null && src == (uint)_localNodeId) continue;   // our own steps, already read in memory (N7)
+                int owner = _dds.SenderAppInstanceOf(src) ?? (int)src;
+                Mirror(owner, src, source, _netLanes!, at, resolve);
+            }
+        }
+        _staleMirrors.Clear();
+        foreach (var k in _mirrors.Keys) if (!_liveMirrors.Contains(k)) _staleMirrors.Add(k);
+        foreach (var k in _staleMirrors) _mirrors.Remove(k);
+        if (resolve) _lastResolved = at;
 
-        session.Source.Pump();
-        double at = sumoNow - session.StepSeconds;
-        if (at != _lastResolved)   // paused ⇒ the same instant ⇒ the same poses; the reconstructor is never fed a zero step
-        {
-            _mirror!.Resolve(session.Source, session.Lanes, at, _cars);
-            _lastResolved = at;
-        }
         _replicas!.Update(_cars);
-        Publish(world, session.Source.TlStateByLane);
+        Publish(world);
     }
 
-    private void Stop()
+    private void Mirror(int owner, uint src, IReplicationSource source, ILaneShapeSource lanes, double at, bool resolve)
     {
-        _runtime.Request(null);
+        var k = (owner, src);
+        _liveMirrors.Add(k);
+        if (!_mirrors.TryGetValue(k, out var mirror)) _mirrors[k] = mirror = new TrafficMirror(_net!.Placement, owner);
+        if (resolve) mirror.Resolve(source, lanes, at, _cars);
+        if (_lights.Count == 0) _lights = source.TlStateByLane;
+    }
+
+    private void Stop(EntityRepository world)
+    {
+        _runtime?.Request(null);
         _adopted = null;
-        _mirror = null;
+        _mirrors.Clear();
         _cars.Clear();
         _replicas?.Clear();
-        if (_replicaWorld is { } w && w.HasSingletonManaged<TrafficFrame>()) w.SetSingletonManaged<TrafficFrame>(null!);
+        _lastResolved = double.NaN;
+        _net = null;
+        _netLanes = null;
+        if (world.HasSingletonManaged<TrafficFrame>()) world.SetSingletonManaged<TrafficFrame>(null!);
         _frame = null;
     }
 
-    private TrafficFrame? _frame;
-
-    // ⭐ One frame object per session: the car list and the light table are the live collections, so a map reads THIS frame's.
-    private void Publish(EntityRepository world, IReadOnlyDictionary<int, byte> lights)
+    // ⭐ One frame object: the car list is the live collection, re-published when the light table changes.
+    private void Publish(EntityRepository world)
     {
-        if (_frame is null || !ReferenceEquals(_frame.Lights, lights))
+        if (_frame is null || !ReferenceEquals(_frame.Lights, _lights))
         {
             var replicas = _replicas!;
-            _frame = new TrafficFrame(_cars, replicas.IsReplica, lights);
+            _frame = new TrafficFrame(_cars, replicas.IsReplica, _lights);
             world.RegisterManagedComponent<TrafficFrame>();
             world.SetSingletonManaged(_frame);
         }
     }
 
-    private static bool TryDemand(EntityRepository world, out TrafficDemand demand)
+    /// <summary>S2 — a traffic-settings entity this node SERVES: it owns the entity's <c>dtTrafficDemand</c>.</summary>
+    private static bool TryServedDemand(EntityRepository world, out TrafficDemand demand)
     {
         demand = default;
         if (!world.IsComponentTypeRegistered<TrafficDemand>()) return false;
+        long key = OwnershipExtensions.PackKey(TrafficDemandDescriptor, 0);
         foreach (var e in world.Query().With<TrafficDemand>().Build())
         {
+            if (!world.HasAuthority(e, key)) continue;
             demand = world.GetComponentRO<TrafficDemand>(e);
             return true;
         }
         return false;
     }
+
+    private static bool TryAnyDemand(EntityRepository world, out TrafficDemand demand)
+    {
+        demand = default;
+        if (!world.IsComponentTypeRegistered<TrafficDemand>()) return false;
+        foreach (var e in world.Query().With<TrafficDemand>().Build()) { demand = world.GetComponentRO<TrafficDemand>(e); return true; }
+        return false;
+    }
+
+    private static ITkbDatabase? TkbOf(EntityRepository world)
+        => world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
 }

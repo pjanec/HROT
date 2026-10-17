@@ -333,7 +333,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
             .Capability(NodeRole.MuscleGround,     new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last.
-            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability());
+            .Capability(NodeRole.MuscleGround,     new Hrot.SimHost.AnimationMuscleCapability())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored, so rounds, sensors and avoidance see them; idle without a net.
+            .Capability(NodeRole.MuscleGround,     Hrot.Traffic.TrafficPack.Mirroring());
 
         // ⭐⭐⭐ B4b step 3 — THE NODE COMPOSES BY ITS DECLARED ROLE, not by a hard-coded constant.
         //

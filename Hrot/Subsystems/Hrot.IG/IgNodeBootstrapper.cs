@@ -281,7 +281,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions());
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored for the map (the road layer and the car layer read its frame); idle without a net.
+            .Capability(NodeRole.Map2D, Hrot.Traffic.TrafficPack.Mirroring());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
         //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,

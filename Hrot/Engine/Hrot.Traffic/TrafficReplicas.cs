@@ -1,9 +1,8 @@
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Physics.Components;
-using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Scenario;
 using Hrot.Map.Common;
 using VehicleHandle = Sim.Core.VehicleHandle;
@@ -11,19 +10,22 @@ using VehicleHandle = Sim.Core.VehicleHandle;
 namespace Hrot.Traffic;
 
 /// <summary>
-/// ⭐ AQ93 R-4038 / R-4041 / R-4043 (the vicinity half) — turns the SUMO cars near HROT into real ENTITIES: a car within
+/// ⭐ AQ93 R-4038 / R-4041 / R-4043 (the vicinity half), §12 N2/N5/T1/T2 — turns the SUMO cars near HROT into real ENTITIES: a car within
 /// <see cref="Radius"/> of any HROT body becomes a replica (so raycasts, EQS, sensors and blasts see it), stays one until it is past
-/// <see cref="Radius"/> + <see cref="Hysteresis"/>, and is destroyed then or when SUMO retires the car. Cars further out are drawn
-/// but are not entities.
+/// <see cref="Radius"/> + <see cref="Hysteresis"/>, and is destroyed then or when SUMO retires the car. Cars further out are drawn but
+/// are not entities.
 /// </summary>
 /// <remarks>
-/// <para>⭐ A replica is an ordinary networked entity — a network id from the cluster's allocator (R-4029), owned by the node that
-/// hosts SUMO (R-4038), Neutral — on the <see cref="ReplicationRoute.SumoSharp"/> route, so NED never publishes it (EM-4): every
-/// other node gets the car from SUMO's own wire and dead-reckons it itself (R-4020). It carries
+/// <para>⭐ Every node applies the SAME rule to the SAME wire and gets the SAME entity: its network id is the car's SUMO vehicle id,
+/// allocated by the traffic node when SUMO spawned it (N2); its owner is the node that SENT it (N5) — so the traffic node's own replica
+/// is owned and every other node's is a replica of it; its TKB type rides the spawn record (T1; the inert "SUMO car" type only when the
+/// sender mapped none); its colour, when the sender gave one, is <see cref="EntityAppearance"/> (T2 — otherwise the map's per-car paint,
+/// seeded by the network id, is the same on every node). It is registered in the node's <see cref="NetworkEntityMap"/>, so a hit
+/// addressed to its network id finds it.</para>
+/// <para>⭐ It is on the <see cref="ReplicationRoute.SumoSharp"/> route, so NED never publishes it (EM-4), and carries
 /// <see cref="ScenarioIgnoreTag"/>: the car is SUMO's, never the scenario's.</para>
-/// <para>⭐ An ANCHOR is an HROT body — <c>SimTransform</c> + <c>PhysicsCollider</c> on the default route — so a map graphic (an area,
-/// a route) never pulls cars in, and a replica never anchors another.</para>
-/// <para>⭐ Its collider is the car's own footprint (the circle the raycast broad phase and the radius search use), 1.5 m tall.</para>
+/// <para>⭐ An ANCHOR is an HROT body — <c>SimTransform</c> + <c>PhysicsCollider</c> on the default route — so a map graphic never pulls
+/// cars in, and a replica never anchors another.</para>
 /// </remarks>
 public sealed class TrafficReplicas
 {
@@ -36,27 +38,26 @@ public sealed class TrafficReplicas
     private const float CarHeight = 1.5f;
 
     private readonly EntityRepository _world;
-    private readonly INetworkIdAllocator? _ids;
+    private readonly NetworkEntityMap? _entityMap;
     private readonly int _localNodeId;
-    private readonly Dictionary<VehicleHandle, Entity> _replicas = new();
+    private readonly Dictionary<(int Owner, VehicleHandle Handle), Entity> _replicas = new();
     private readonly List<Vector2> _anchors = new();
-    private readonly HashSet<VehicleHandle> _seen = new();
-    private readonly List<VehicleHandle> _drop = new();
-    private long _localIds = -1;
+    private readonly HashSet<(int, VehicleHandle)> _seen = new();
+    private readonly List<(int, VehicleHandle)> _drop = new();
 
-    /// <param name="ids">The cluster's id allocator; null (a test world) ⇒ local negative ids.</param>
-    public TrafficReplicas(EntityRepository world, INetworkIdAllocator? ids, int localNodeId)
+    /// <param name="entityMap">The node's network entity map (null in a world with no network layer, e.g. a rail).</param>
+    public TrafficReplicas(EntityRepository world, NetworkEntityMap? entityMap, int localNodeId)
     {
         _world = world ?? throw new ArgumentNullException(nameof(world));
-        _ids = ids;
+        _entityMap = entityMap;
         _localNodeId = localNodeId;
     }
 
-    /// <summary>The live replicas, by SUMO car.</summary>
-    public IReadOnlyDictionary<VehicleHandle, Entity> Replicas => _replicas;
+    /// <summary>The live replicas, by (sender, SUMO car).</summary>
+    public IReadOnlyDictionary<(int Owner, VehicleHandle Handle), Entity> Replicas => _replicas;
 
     /// <summary>Is this car a replica now (so a car layer skips drawing it: the entity layer draws it)?</summary>
-    public bool IsReplica(VehicleHandle handle) => _replicas.ContainsKey(handle);
+    public bool IsReplica(TrafficCarPose car) => _replicas.ContainsKey((car.Owner, car.Handle));
 
     /// <summary>Applies one frame: creates, poses and destroys replicas against <paramref name="cars"/>.</summary>
     public void Update(IReadOnlyList<TrafficCarPose> cars)
@@ -67,31 +68,31 @@ public sealed class TrafficReplicas
 
         foreach (var car in cars)
         {
-            _seen.Add(car.Handle);
+            var key = (car.Owner, car.Handle);
+            _seen.Add(key);
             float d2 = NearestAnchor2(new Vector2(car.X, car.Y));
-            bool have = _replicas.TryGetValue(car.Handle, out var e) && _world.IsAlive(e);
+            bool have = _replicas.TryGetValue(key, out var e) && _world.IsAlive(e);
             if (have)
             {
-                if (d2 > leave2) { Destroy(car.Handle, e); continue; }
+                if (d2 > leave2) { Destroy(key, e); continue; }
                 Pose(e, car);
             }
-            else if (d2 <= enter2)
+            else if (d2 <= enter2 && car.NetworkId != 0)
             {
-                _replicas[car.Handle] = Create(car);
+                _replicas[key] = Create(car);
             }
         }
 
         _drop.Clear();
         foreach (var kv in _replicas)
             if (!_seen.Contains(kv.Key) || !_world.IsAlive(kv.Value)) _drop.Add(kv.Key);
-        foreach (var h in _drop) Destroy(h, _replicas[h]);
+        foreach (var k in _drop) Destroy(k, _replicas[k]);
     }
 
-    /// <summary>Destroys every replica (the session ended, the net or the demand went away).</summary>
+    /// <summary>Destroys every replica (the wire went away, the net or the demand changed).</summary>
     public void Clear()
     {
-        foreach (var kv in _replicas)
-            if (_world.IsAlive(kv.Value)) _world.DestroyEntity(kv.Value);
+        foreach (var kv in _replicas.ToArray()) Destroy(kv.Key, kv.Value);
         _replicas.Clear();
     }
 
@@ -117,14 +118,15 @@ public sealed class TrafficReplicas
     private Entity Create(in TrafficCarPose car)
     {
         var e = _world.CreateEntity();
-        long netId = _ids?.AllocateId() ?? _localIds--;
-        _world.AddComponent(e, new NetworkIdentity(netId));
-        _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: _localNodeId, localNodeId: _localNodeId));
-        _world.AddComponent(e, new TkbIdentity { TkbType = TkbEntityTypes.TrafficCar });
+        _world.AddComponent(e, new NetworkIdentity(car.NetworkId));
+        _world.AddComponent(e, new NetworkAuthority(primaryOwnerId: car.Owner, localNodeId: _localNodeId));
+        _world.AddComponent(e, new TkbIdentity { TkbType = car.TkbType != 0 ? car.TkbType : TkbEntityTypes.TrafficCar });
         _world.AddComponent(e, new ReplicationRoute(ReplicationRoute.SumoSharp));
         _world.AddComponent(e, new TrafficCar { VehicleIndex = car.Handle.Index, Generation = car.Handle.Generation });
         _world.AddComponent(e, new ScenarioIgnoreTag());
         _world.AddComponent(e, new EntityInfo { Name = new FixedString64("SUMO " + car.Id), ForceId = ForceId.Neutral });
+        if (car.Color != 0 && _world.IsComponentTypeRegistered<EntityAppearance>())
+            _world.AddComponent(e, EntityAppearance.Of((byte)(car.Color >> 16), (byte)(car.Color >> 8), (byte)car.Color));
         _world.AddComponent(e, new PhysicsCollider
         {
             Radius = 0.5f * MathF.Max(car.Length, car.Width),
@@ -132,6 +134,7 @@ public sealed class TrafficReplicas
             CollisionLayer = Fdp.Toolkit.Physics.PhysicsConstants.EntityCollisionLayer,
         });
         _world.AddComponent(e, Transform(car));
+        _entityMap?.Register(car.NetworkId, e);
         return e;
     }
 
@@ -140,9 +143,17 @@ public sealed class TrafficReplicas
     private static SimTransform Transform(in TrafficCarPose car)
         => new() { Position = new Vector3(car.X, car.Y, car.Z), Rotation = SimMath.FromYaw(car.YawRad) };
 
-    private void Destroy(VehicleHandle handle, Entity e)
+    private void Destroy((int, VehicleHandle) key, Entity e)
     {
-        if (_world.IsAlive(e)) _world.DestroyEntity(e);
-        _replicas.Remove(handle);
+        if (_world.IsAlive(e))
+        {
+            if (_entityMap is not null && _world.HasComponent<NetworkIdentity>(e))
+            {
+                uint frame = _world.HasSingleton<GlobalTime>() ? (uint)_world.GetSingleton<GlobalTime>().FrameNumber : 0u;
+                _entityMap.Unregister(_world.GetComponentRO<NetworkIdentity>(e).Value, frame);
+            }
+            _world.DestroyEntity(e);
+        }
+        _replicas.Remove(key);
     }
 }

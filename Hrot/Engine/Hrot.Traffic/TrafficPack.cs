@@ -6,41 +6,73 @@ using Hrot.Map.Common.Services;
 namespace Hrot.Traffic;
 
 /// <summary>
-/// ⭐ AQ93 EM-1 (R-4045) / R-4047 — SUMO traffic as ONE node capability, composed by any host that should run it: the editor first
-/// (embedded, networkless), a dedicated traffic node later (<see cref="NodeRole.Traffic"/>, R-4022). It attaches the SUMO-net loader
-/// to the host's terrain residency (the net rides the terrain, R-4021) and registers the two traffic modules. Idle unless the
-/// terrain has a net AND the scenario has the traffic entity: then zero SUMO work per frame.
+/// ⭐ AQ93 EM-1 (R-4045), §12 N1/N6/N8 (R-4054, R-4056) — SUMO traffic as ONE node capability, in two shapes:
+/// <list type="bullet">
+///   <item><see cref="Serving"/> — the node RUNS SUMO for the traffic settings it is granted (the dedicated <c>--mode traffic</c> node, and
+///   the networkless editor, which is its own traffic node), tees its cars to DDS when it has a participant, AND mirrors every wire.</item>
+///   <item><see cref="Mirroring"/> — every other map or sim host (SimHost, CGF, IG, Player): mirrors every traffic node's wire, so its
+///   sensors, rounds and maps see the cars.</item>
+/// </list>
+/// Both make every terrain residency of the process load the SUMO net (the net rides the terrain, R-4021) and are idle without a net.
 /// </summary>
 public sealed class TrafficPack : INodeCapability, IDisposable
 {
-    private readonly TerrainResidency _residency;
+    private readonly bool _serves;
 
-    /// <param name="residency">The host's terrain residency; the net loader is attached to it once, here.</param>
-    public TrafficPack(TerrainResidency residency)
+    /// <summary>The key the SUMO-net loader registers under (<see cref="TerrainResidency.RegisterContentLoader"/>).</summary>
+    public const string NetLoaderKey = "sumo-net";
+
+    private TrafficPack(bool serves)
     {
-        _residency = residency ?? throw new ArgumentNullException(nameof(residency));
-        _residency.AttachContent(new SumoNetTerrainLoader());
+        _serves = serves;
+        // ⭐ N6 / R-4021 — every residency in this process loads the terrain's SUMO net from its next terrain on, whenever the host
+        //   built it (each host builds its residency after its plan, deep in its own orchestration code).
+        TerrainResidency.RegisterContentLoader(NetLoaderKey, () => new SumoNetTerrainLoader());
     }
 
-    public string Key => CapabilityKeys.Traffic;
+    /// <summary>A node that runs SUMO (role <c>Traffic</c>).</summary>
+    public static TrafficPack Serving() => new(serves: true);
+
+    /// <summary>A node that only mirrors other nodes' SUMO.</summary>
+    public static TrafficPack Mirroring() => new(serves: false);
+
+    public bool Serves => _serves;
+
+    public string Key => _serves ? CapabilityKeys.Traffic : CapabilityKeys.TrafficMirror;
 
     public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
-    /// <summary>The thread hand-off (null before <see cref="Register"/>).</summary>
+    /// <summary>The thread hand-off (null on a mirroring node, and before <see cref="Register"/>).</summary>
     public TrafficRuntime? Runtime { get; private set; }
 
-    /// <summary>The main-thread mirror (null before <see cref="Register"/>): cars, replicas, light states.</summary>
+    /// <summary>The main-thread mirror (null before <see cref="Register"/>): cars, replicas, senders.</summary>
     public TrafficMirrorSystem? Mirror { get; private set; }
 
-    public void Register(HrotNodeContext context, NodeBootValues values)
+    /// <summary>
+    /// ⭐ The ONE hook every host calls (editor, SimHost, CGF, IG — measured: CGF and IG never call <c>Register</c>, and IG resolves its
+    /// plan before it has a context): the mirror joins the INPUT phase, and a serving node's stepping module is registered on the
+    /// node's kernel from the same context.
+    /// </summary>
+    public void PopulateSystems(HrotNodeContext context, List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> input,
+                                List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> simulation,
+                                List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> postSimulation)
     {
         if (context is null) throw new ArgumentNullException(nameof(context));
+        if (Mirror is not null) throw new InvalidOperationException("TrafficPack is composed once per node.");
         context.World.RegisterComponent<ReplicationRoute>();
         context.World.RegisterComponent<TrafficCar>();
-        Runtime = new TrafficRuntime();
-        Mirror = new TrafficMirrorSystem(Runtime, context.IdAllocator, context.NodeId);
-        context.Kernel.RegisterModule(new TrafficMirrorModule(Mirror));
-        context.Kernel.RegisterModule(new TrafficSteppingModule(Runtime));
+        if (_serves)
+        {
+            long local = 0;
+            var ids = context.IdAllocator;
+            Runtime = new TrafficRuntime(new TrafficServeOptions(
+                NextNetworkId: ids is not null ? ids.AllocateId : () => Interlocked.Decrement(ref local),
+                Participant: context.Participant,
+                Source: (uint)context.NodeId));
+            context.Kernel.RegisterModule(new TrafficSteppingModule(Runtime));
+        }
+        Mirror = new TrafficMirrorSystem(Runtime, context.Participant, context.EntityMap, context.NodeId);
+        input.Add(Mirror);
     }
 
     public void Dispose() => Runtime?.Dispose();

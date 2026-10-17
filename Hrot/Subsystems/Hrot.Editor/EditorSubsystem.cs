@@ -1647,7 +1647,7 @@ namespace Hrot.Editor
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
                 ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, _navSolverCapability!,
-                    _trafficPack = new Hrot.Traffic.TrafficPack(TerrainResidency!))   // ⭐ AQ93 R-4047 — the net rides THIS residency
+                    _trafficPack = Hrot.Traffic.TrafficPack.Serving())   // ⭐ AQ93 R-4047 — the editor is its own traffic node
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
