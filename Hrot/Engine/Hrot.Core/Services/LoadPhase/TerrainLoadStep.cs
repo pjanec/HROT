@@ -44,11 +44,24 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     public bool PreparesOffFrameThread => true;
 
     /// <inheritdoc/>
-    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    /// <remarks>⭐⭐ <c>CE-2242</c> — the geo origin goes in before the (off-thread, ~0.5 s) navmesh bake, because faster
+    /// nodes commit and replicate their entities in meanwhile. Only on an empty world (world boundary, catch-up): there
+    /// nothing was placed under the old origin. Any other load keeps the origin change inside <see cref="Commit"/>.</remarks>
+    public void BeforePrepare(LoadPhaseContext context, EntityRepository? world)
     {
-        string? requested = !string.IsNullOrWhiteSpace(context.TerrainName)
+        if (!context.IsWorldBoundary && !context.IsCatchUp) return;
+        _residency.ApplyOriginAhead(world, RequestedName(context));
+    }
+
+    private string? RequestedName(LoadPhaseContext context)
+        => !string.IsNullOrWhiteSpace(context.TerrainName)
             ? context.TerrainName
             : ScenarioTerrainName.Read(_stagingRoot);
+
+    /// <inheritdoc/>
+    public Task PrepareAsync(LoadPhaseContext context, CancellationToken ct)
+    {
+        string? requested = RequestedName(context);
 
         // ⭐⭐⭐ L8 — the bounded wait that used to stand here is GONE: this step no longer runs until the
         //    distribution of the scenario has been acknowledged by every node, so the definition is either

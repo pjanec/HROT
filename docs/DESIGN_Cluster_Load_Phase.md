@@ -214,6 +214,7 @@ classDiagram
   }
   class ILoadPhaseStep {
     <<interface, new>>
+    +BeforePrepare(context, world) « CE-2242: frame thread, before any prepare »
     +PrepareAsync(LoadPhasePayload) Task
     +Commit(EntityRepository)
   }
@@ -241,6 +242,8 @@ classDiagram
   ScenarioLoadStep ..> TerrainResidency : calls (zones)
   LoadPhaseChain ..> LoadPhasePayload : reads
 ```
+
+⭐ `CE-2242` (`2026-10-17`): a node's commit is not a cluster barrier — a faster node commits and replicates in while a slower one still prepares (the navmesh bake). `BeforePrepare` is the frame-thread hook for what must be in place before that happens; the terrain step sets the geo origin there on an empty world ([Geo Origin §4 ⑨](DESIGN_Geo_Origin.md)).
 
 *What the picture shows that the prose hid: terrain residency is a **service with several callers**, not a
 cluster step. The step is one caller; the future operator-driven preload is another; a standby unload is a
