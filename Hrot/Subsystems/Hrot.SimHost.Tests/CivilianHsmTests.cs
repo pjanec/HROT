@@ -555,7 +555,47 @@ namespace Hrot.SimHost.Tests
         {
             var e = Policeman(w, at);
             w.Repo.AddComponent(e, new WeaponPosture { Kind = kind, Target = target });
+            if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>();
+            w.Repo.AddComponent(e, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // ⭐ CE-2239 — a rifle in hand (no TKB ⇒ a weapon is lethal)
             return e;
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> (§5j.1) — a COVERING weapon is a lethal one: a rioter who struck (Hostile) with a policeman's BATON
+        /// LAUNCHER aimed at him does not raise his hands (the line's force must still be able to break the riot); a rifle aimed at him
+        /// does. ✅ Red-proof: the <c>LethalInHand</c> line removed from <c>Covering.By</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2239_ABatonLauncherAimedAtHim_DoesNotCoverHim_ARifleDoes()
+        {
+            var w = new World();
+            foreach (var reg in new System.Action[]
+            {
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponMountInfo>()) w.Repo.RegisterComponent<WeaponMountInfo>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<AmmoLoadout>()) w.Repo.RegisterComponent<AmmoLoadout>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) w.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
+            }) reg();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Map.Common.HrotEnvironment.RegisterBuiltInTkb(db);
+            w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));
+
+            var cop = Policeman(w, new Vector3(140, 230, 0));
+            w.Repo.AddComponent(cop, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher });
+            Assert.True(db.TryGetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, out var t));
+            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, cop, t!);
+            w.Repo.AddComponent(cop, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = w.Unit });
+            Assert.False(Fdp.Toolkit.Combat.Armament.LethalInHand(w.Repo, cop));
+            for (int i = 0; i < 60; i++) w.Tick();
+            Assert.NotEqual("Surrender", w.State());
+            Assert.True(Fdp.Toolkit.Combat.Covering.By(w.Repo, w.Unit).IsNull);
+
+            Covering(w, new Vector3(150, 200, 0), w.Unit);   // a rifle
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
         }
 
         /// <summary>⭐ <c>CE-2241</c> ① (§5h.3, CV-13a) — a rioter who struck a policeman (Hostile) is covered by a rifleman: he stops and

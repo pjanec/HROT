@@ -105,49 +105,6 @@
                 "Entries": []
             }
         },
-        "c2390004-0000-4000-8000-000000000004": {
-            "SimTransform": {
-                "Position": [
-                    95,
-                    207,
-                    0
-                ],
-                "Rotation": [
-                    0,
-                    0,
-                    0,
-                    1
-                ]
-            },
-            "Health": {
-                "Current": 100,
-                "Max": 100
-            },
-            "NetworkIdentity": {
-                "Value": 9934
-            },
-            "TkbIdentity": {
-                "TkbType": 2002
-            },
-            "EntityInfo": {
-                "Name": "Rifleman",
-                "ForceId": "Friend"
-            },
-            "TargetMemory": {
-                "Entries": []
-            },
-            "Roe": {
-                "Fire": "FireAtWill",
-                "Reactions": "StayOnTask",
-                "SetBy": "Superior",
-                "ForceLevel": "NonLethal"
-            },
-            "Behavior": {
-                "Name": "HoldTheLine",
-                "Params": "{}",
-                "Origin": "Superior"
-            }
-        },
         "c2390004-0000-4000-8000-000000000005": {
             "SimTransform": {
                 "Position": [
