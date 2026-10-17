@@ -22,6 +22,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (NotAUnit.Is(view, entity)) return;   // ⭐ CE-1165 — a cloud, a round, the camera have no heading to show
             ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             var pos = tf.Position;
             var q   = tf.Rotation;

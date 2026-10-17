@@ -2905,6 +2905,38 @@ public sealed class Map3DTests
         Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
     }
 
+    /// <summary>⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8 U4-f) — a gas / smoke CLOUD is drawn by the
+    /// effect layer, never as a unit: no 3-D body (TKB 7202), and the one "not a unit" rule (<c>NotAUnit</c>) keeps the 2-D symbol, anchor
+    /// and pick box away — the same entity without its cloud component draws as an ordinary unit.</summary>
+    [Fact]
+    public void CE1165_ACloudIsNotAUnit_NoBody_NoSymbol()
+    {
+        var bodies = new EntityBodyLayer3D(() => null, () => null);
+        Assert.Equal(VisualFamily.Unit, bodies.LookOf(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, null).Family);   // no body, not pickable
+
+        using var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+        w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, new SimTransform { Position = new Vector3(5f, 5f, 0f), Rotation = Quaternion.Identity });
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4712));
+        w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.AreaEffectCloudTkb.Type });
+        w.AddComponent(e, new Fdp.Toolkit.Combat.AreaEffectCloud { Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 8f, Height = 4f, Seconds = 60f });
+        Assert.True(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, e));
+
+        var draw = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo().Draw(w, e, draw);
+        Assert.Equal(0, draw.GetFrame().Length);
+
+        w.RemoveComponent<Fdp.Toolkit.Combat.AreaEffectCloud>(e);   // the same entity as a unit: it draws
+        Assert.False(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, e));
+        var unit = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        new Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmo().Draw(w, e, unit);
+        Assert.NotEqual(0, unit.GetFrame().Length);
+    }
+
     // ── WL-1 — the drawn turret follows its part's TurretPose (docs/DESIGN_Weapon_Layers.md W-9, §3.11 M23) ──
 
     /// <summary>⭐ WL-1 — the 3-D map poses a kit from turret 0's <c>TurretPose</c>, read LIVE (a turn shows the next frame with no

@@ -2345,3 +2345,97 @@ head, the soldier's rifle slung) and `CE1166_TheShapes_ReadAsTheGesture` (hands 
 hand behind the shoulder), red-proved with three switches (no override · hands up drawn as a fist · no placard). ⭐ `2026-10-17`, on
 B-6: `CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte` (red-proved by an extra enum member) and
 `CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine` (red-proved: no `Gestured`, no word).
+
+### 8.8 U4-a — the cloud drawn *(ui, `2026-10-17`; on backend's [NOTE](blueprints/batches/NOTE_Backend_To_Ui_AreaEffectCloud.md), `CE-3219` part 3 as built in §7.3c; item `CE-1165`)*
+
+⛔ **SUPERSEDES §8.4 U4-a's "fading over `Lifespan`"** — the cloud carries no `Lifespan` (§7.3b: `LifespanSystem` would delete it on every
+node); it fades on `AreaEffectCloud.Fraction(now)` and its density is `TransmittanceAt(now)`.
+
+**INVENTORY** *(2026-10-17; grep over every `[GizmoProjector]` keyed on `SimTransform` / `NetworkIdentity` / `TkbIdentity`, the body layer's
+no-body rule and `EffectLayer`'s query — the codebase-memory server did not connect this session, so no `search_graph` sweep:
+⚠ the list below is a grep result, not a graph enumeration)*:
+
+| surface | today, for a cloud entity (TKB 7202, `SimTransform`, `NetworkIdentity`, `AreaEffectCloud`, no `EntityInfo`) | where |
+|---|---|---|
+| `EffectLayer` | ⛔ draws nothing — its query is `Lifespan` + `TkbIdentity` + `SimTransform`; the cloud has no `Lifespan` | `EffectLayer.cs:69-73` |
+| 3-D body | 🔴 **an unknown BOX** — the no-body rule lists effects, the map camera, munitions and doors, not 7202 | `EntityBodyLayer3D.cs:1185` |
+| 2-D symbol, anchor, pick box | 🔴 **drawn as a unit** — the skips are the map camera, a `LightweightRound`, an enclosed passenger | `EntityPresentationGizmo.cs:98-106` |
+| 2-D label | 🔴 drawn | `EntityEditorLabelGizmo.cs:40-42` |
+| heading arrow | 🔴 drawn (projects every `SimTransform`) | `EntityRotationGizmo.cs:11` |
+| entity card | — not drawn (needs `EntityInfo`, which only a presentation descriptor adds — `PresentationTkbTranslator.cs:76`) | — |
+| the precedent for puffs | the chaff cloud (`EffectKind.Chaff`): hashed puffs per seed, stateless | `EffectLayer.cs:185-193` |
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectCloud { <<backend, replicated 401>> Kind Radius Height Fraction(now) TransmittanceAt(now) }
+  class EffectLayer { <<existing, grows>> +ResolveClouds() List~CloudLook~ · 2-D disc + rim · 3-D puffs filling the cylinder }
+  class CloudLook { <<NEW record>> Centre Radius Height Kind Density Seed }
+  class NotAUnit { <<NEW, Hrot.Common>> +Is(view, entity) map camera, round, cloud }
+  class EntityPresentationGizmo { <<existing>> skips NotAUnit }
+  class EntityEditorLabelGizmo { <<existing>> skips NotAUnit }
+  class EntityRotationGizmo { <<existing>> skips NotAUnit }
+  class EntityBodyLayer3D { <<existing>> no body for TKB 7202 }
+  EffectLayer ..> AreaEffectCloud : reads each frame
+  EffectLayer --> CloudLook
+  EntityPresentationGizmo ..> NotAUnit
+  EntityEditorLabelGizmo ..> NotAUnit
+  EntityRotationGizmo ..> NotAUnit
+  NotAUnit ..> AreaEffectCloud
+```
+*Caption:* what the picture shows that prose hid — drawing the cloud is one box; the other four are the places that would ALSO draw it as a
+unit, and one predicate replaces the copies of "is this a unit?" those gizmos carry today.
+
+```mermaid
+sequenceDiagram
+  participant M as map host frame
+  participant E as EffectLayer
+  participant W as world view
+  M->>E: Draw (2-D) or Draw3D
+  E->>W: query AreaEffectCloud + SimTransform
+  W-->>E: each cloud and its position (drifted by its owner, replicated)
+  E->>E: CloudLook: density = (1 - TransmittanceAt(now)) x fade, colour by Kind
+  E-->>M: 2-D disc of Radius and a rim, 3-D puffs filling Radius x Height
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers, every map host] --> EFX[EffectLayer each frame: the cloud]
+  MIP --> BODY[EntityBodyLayer3D: no body for 7202]
+  SGS[StatelessGizmoSystem, every host] --> EPG[EntityPresentationGizmo]
+  SGS --> LBL[EntityEditorLabelGizmo]
+  SGS --> ROT[EntityRotationGizmo]
+  EPG --> NAU[NotAUnit]
+  LBL --> NAU
+  ROT --> NAU
+  CGF[CGF owner: AreaEffectCloudSystem drifts it once a second] -.->|replicated transform| EFX
+```
+*Caption:* every reader is already called each frame on every map host; the cloud's motion arrives as its ordinary replicated transform.
+
+| # | decision | lean | rejected |
+|---|---|---|---|
+| **U4-a′** | where | `EffectLayer` gets a second, small query (`AreaEffectCloud` + `SimTransform`) and `ResolveClouds()` (railable without GL), drawn under the other effects | a gizmo: `EffectLayer` is "no gizmos (U2)" · folding it into the `Lifespan` path: the cloud has no `Lifespan` |
+| **U4-e** | the look | 2-D: a filled disc of `Radius` and a thin rim, alpha = density; 3-D: puffs filling the cylinder (hashed per entity, slow bob), the chaff precedent; tear gas off-white with a yellow cast, smoke grey; density = `1 − TransmittanceAt(now)`, faded over the last tenth of its life | a cylinder mesh: a hard-edged can, not a cloud |
+| **U4-f** | not a unit | one predicate `NotAUnit.Is(view, entity)` — the map camera, a replicated round, a cloud — used by the outline/pick, label and heading gizmos; the body layer's no-body rule adds TKB 7202 | a check per gizmo: three more copies of a rule already copied twice |
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the cloud reaches every map host | ✅ shared translator pack, `EntityOrdersAcrossNodesTests.CE3219_…` (SimHost and IG replicas) | ✅ §7.3b: "every node reads it … and draws it" |
+| `EffectLayer` misses it today | ✅ `EffectLayer.cs:69-73` (`Lifespan` in the query) | ✅ backend's note: "fade on `Fraction(now)` instead" |
+| the cloud has no `EntityInfo` (so no card) | ✅ only the presentation descriptor adds one (`PresentationTkbTranslator.cs:76`); 7202 carries `TkbMasterDto` only (`AreaEffectCloudTkb.cs`) | ⛔ searched, none found |
+| a round's and the camera's skips are the same rule | ✅ `EntityPresentationGizmo.cs:98-102` | ✅ R-260 (camera), R-271 (round): "not a thing on the map" |
+
+#### 8.8a AS-BUILT — the cloud drawn (`CE-1165` U4-a, `2026-10-17`, ui) — as §8.8 draws it
+
+| decision | as built |
+|---|---|
+| U4-a′ | `EffectLayer.ResolveClouds()` (its own `AreaEffectCloud` + `SimTransform` query) → `CloudLook` (centre, radius, height, kind, density = `1 − TransmittanceAt(now)`, seed, age); a cloud past its time or fully thinned is skipped; `CloudsDrawn` counts them |
+| U4-e | 2-D: drawn FIRST (under every other effect) as a filled disc of `Radius` at 0.55 × density and a 1.5-pixel rim; 3-D: `CloudPuffs` — 8…36 puffs by size, hashed per entity, spread evenly over the disc and bobbing slowly between a fifth and four fifths of the height, every puff inside the cylinder, each at 0.32 × density; tear gas `(236,232,196)`, smoke `(168,168,166)` |
+| U4-f | `NotAUnit.Is(view, entity)` (Hrot.Common) — the map camera, a replicated round, a cloud — replaces `EntityPresentationGizmo`'s two copies and is used by `EntityEditorLabelGizmo` and `EntityRotationGizmo`; `EntityBodyLayer3D.LookOf` gives TKB 7202 no body |
+
+Rails: `EffectTests.CE1165_ACloud_IsDrawnWhereItIs_AsDenseAsItLooks_UntilItsTimeIsUp` (where it is after a drift, the density now and in
+its last third, gone at its time, puffs inside the cylinder and repeatable) · `Map3DTests.CE1165_ACloudIsNotAUnit_NoBody_NoSymbol` (no
+body; no 2-D symbol — and the same entity without the cloud draws one) · frame rail `Map3DFrameRail.CE1165_V_GasAndSmokeClouds`
+(screenshots [`cloud-1-3d.png`](assets/map-3d/cloud-1-3d.png), [`cloud-2-map2d.png`](assets/map-3d/cloud-2-map2d.png) — looked at: the puffs stand on the ground and leave the civilians visible; in 2-D the civilians have symbols, the clouds none). Red-proved: no cloud resolved · no thinning · the cloud counted as a unit.
+⚠ Not checked live on a cluster: the cross-node replication is backend's rail (`EntityOrdersAcrossNodesTests.CE3219_…`); this item reads
+whatever the view holds.

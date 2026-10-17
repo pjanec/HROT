@@ -1183,7 +1183,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         // ⭐ LR-3 — nor has a built-in MUNITION type (a round), on a host whose TKB lacks it (the replay browser).
         // ⭐ CE-1068 — nor has a DOOR a shape kit: it is drawn as its leaf (DoorLeaf3D), and where no terrain places it, not at all.
         if (Hrot.Core.Tkb.EffectTkbCatalog.BuiltIn.ContainsKey(tkbType) || Hrot.Core.Tkb.MapCameraTkb.Is(tkbType)
-            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType) || tkbType == Hrot.Map.Common.TkbEntityTypes.Door)
+            || Hrot.Core.Tkb.MunitionTkbCatalog.IsBuiltIn(tkbType) || tkbType == Hrot.Map.Common.TkbEntityTypes.Door
+            || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType))   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
