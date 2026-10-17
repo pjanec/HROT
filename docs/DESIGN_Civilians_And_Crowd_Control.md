@@ -420,7 +420,7 @@ shot" could mean "not seen").
 | ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · ⭐ *as built:* a civilian draws a pick-up rifle and AIMS at patrol A from behind a row of civilians (the act — no round: both sides are held by the row), conceals it, walks along the line and then off it; patrol B (another unit, 170 m off at the act) comes up | ① patrol A knows him, holds while a civilian is in the line, fires once it is clear — the rifle still hidden · ② patrol B holds (`HoldConduct`), 0 rounds | ✅ §5h.7b — live 5/5 (A fired with the rifle hidden, 150 → 149; B 150 → 150), twin green |
 | ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ✅ §5i.3a — live 6/6 (the cloud 12.9 m from the police, the new one 0.1 m), twin green |
 | ARMED AW-23 · B-15, CE-2238 | **`ua-player-fratricide`** | test-town · a first-person player in a squad shoots two friends; a second run, one accidental wound | ① flipped Hostile on every node · ② the friendly AI engage him · ③ the instructor event names both victims · ④ the one-wound run flags nothing | ⏳ |
-| ARMED AW-12 · B-11, CE-2238 | **`ua-armed-bomber`** | test-town · a civilian with a Hidden charge walks into a crowd and sets it off | ① never armed to any observer before the blast (sampled) · ② the casualties match the warhead's numbers | ⏳ |
+| ARMED AW-12 · B-11, CE-2238 | **`ua-armed-bomber`** | test-town · a civilian with a Hidden charge walks into a crowd and sets it off | ① never armed to any observer before the blast (sampled) · ② the casualties match the warhead's numbers | ✅ §5l.1 — ⭐ *as built:* a rifleman 30 m off, ten civilians in a ring, the bomber walks in (`MoveToLocation` → `DetonateCharge {Seconds 1}`) · live 5/5, twin green · ⛔ `CE-2247`: the spent vest's replicas stay live on CGF and IG |
 | CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
 
 ⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
@@ -2163,7 +2163,7 @@ keeps a Hostile item on purpose, to prove the line's guard.
 | twins `PostureScenarioTests.CE2239_Escalation_…` · `_EscalationWarn_…` · `_SelfDefence_…` · `_Celebration_…` · `_PoliceLine_…` | ✅ all five green; neighbours `CE2238_GasThrowback`, `RiotStone`, `CE2238_*` green |
 | live checks `utility-demo-check.py --launch` | ✅ `ua-civ-escalation` 6/6 (warned at ease, rifle silent; 1 rifle round, at him; hit at 12.8 s; rioters stunned, none dead) · `ua-civ-escalation-warn` 6/6 (no round, no blow, the cue, 22 'hold: warning' samples) · `ua-armed-self-defence` 4/4 (2 rounds at him, hit at 12.7 s) · `ua-armed-celebration` 5/5 (warned, 0 rounds during the volley, fired on once he aimed at 19.7 s, guests unhurt) |
 
-## 5l. B5 — the bomber sets off his worn charge *(behaviors, `CE-2238` part 5 / handoff B5, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5l. B5 — the bomber sets off his worn charge *(behaviors, `CE-2238` part 5 / handoff B5, 2026-10-17; build-state: BUILT — §5l.1)*
 
 ⭐ **Scope.** AW-12's worn charge, the BEHAVIOUR half: a person who carries a charge (B-11b, built — `Charges`, TKB 618) walks where his plan
 sends him and sets it off. Demo `ua-armed-bomber` (§5c). ⏳ Not here: D4's suspicion sensor (what gives a bomber away), a search, the
@@ -2224,6 +2224,19 @@ graph TD
 | **BM-1** | ⭐ a library behaviour `DetonateCharge {Seconds}`: he stands still `Seconds` (0 = at once), then asks the FIRST charge he carries (any station) with `by` = himself; Success once asked; Failure when he carries none | a bomber HSM: a mission plan already composes "walk there, then set it off" · `Detonate` directly: only the position owner may burst it |
 | **BM-2** | ⭐ the charge stays HIDDEN until it goes off — never drawn, so `Armament.Judge` reads him Nothing to every observer (AW-12) | a "drawn" vest: AW-12 says never drawn |
 | **BM-3** | ⭐ no reaction of his own to being shot first (a dead-man switch is §5h's later knob) | — |
+
+### 5l.1 As built *(2026-10-17)*
+
+⭐ The diagrams above hold as drawn: `DetonateChargeBehavior` (`Brains/DetonateChargeBehavior.cs`) + `DetonateChargeParamsJsonDto`
+(`BehaviorNames.DetonateCharge`) — still for `Seconds`, then `Charges.Ask(first charge he carries, by himself)`; Success once asked,
+Failure with no charge. No deviation.
+
+| proof | result |
+|---|---|
+| rails `DetonateChargeBehaviorTests` ×2 (in `StationWeaponBehaviorTests.cs`, its `World` shared) | ✅; **mutants 3/3 killed** — the `Seconds` hold · `by` himself · Failure with no charge |
+| twin `PostureScenarioTests.CE2238_Bomber_…` | ✅ green (47 s): never judged armed by the rifleman or a civilian, 0 rounds, every civilian within 5 m dead, one at 10.4 m wounded, nobody beyond the radii hurt |
+| live `ua-armed-bomber` | ✅ 5/5 — Neutral and 0 rounds until the blast; the vest bursts at 37.7 s, he is dead; everyone within 3 m hurt; the rifleman at 31 m unhurt |
+| ⛔ finding `CE-2247` (backend) | 2 s after the burst the position owner (SimHost) has the spent vest GONE, but CGF and IG still hold it as a LIVE charge — `Charges.End` promises every replica goes. Rail `CE2247_Bomber_TheSpentVest_LeavesEveryNode`, skipped until fixed; [note](blueprints/batches/NOTE_Behaviors_To_Backend_SpentChargeReplicas.md) |
 
 ## 6. Known limits
 
