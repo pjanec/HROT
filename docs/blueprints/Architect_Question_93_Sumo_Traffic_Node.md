@@ -56,6 +56,7 @@ related-designs:
 - *"And the first thing to build later is the embedded sumo sharp module inside the editor, . But of course, being ready for creating a new networked node with traffic role. Also, the sumo sharp module is not necessary if the scenario or the terrain doesn't contain sumo sharp network  or scenario settings."*
 - *"Well, maybe there is one more alternatively, depending on how big the SumoSharp project is. We could treat it in a similar manner like B-trees or HSM, And simply copy its sources, the parts that matter, into the extdeps folder of the HROT"*
 - *"Sumo Sharp itself works quite well, so by vendoring it into the external dependencies folder I meant taking just the sources that are already proven working, so we do not need to develop Sumo Sharp on there and run their tests, just make the sources that hrot needs  available as part of Hrot repository, so we can very easily switch to previous version using Git and so on."*
+- *"Good! The sumo network visualization in the viewer now uses some approximation of the terrain that sits in between the roads, so the scene doesn't look empty and has a feeling of some solid terrain, not just roads flying in the air. This can be used as well in our 3D map, but I am not sure if this is fine with the areas where our terrain is built and is overlapping with the roadmap. In such areas, this 'ambient terrain surface' feature will need to be turned off, most likely."*
 - *"When rendering the sources, there is no need to have an off switch anymore because the sources are always available. What about the rendering part of the road network that is now living in the … citylib, Is that something that can be generalized a little bit? So it's not usable just as part of Godot?"*
 - *"EM-1 to EM-5 approved. The converted civilian should be created by usual request to a brain node, which is as now sent as local FDP bus event, so there is no change if the CGF is running on different node or inside the editor. The ignoring of publishing sumo entities over the network should not be something sumo specific. This concept needs to be generalized, meaning that some entities, even if owned, will use different network publishing mechanism, different from the usual NED one. Regarding the threading, the Sumo uses quite optimized multi-threaded techniques, so please check how this could be made working inside the editor as well. So only the stepping from the editor will be done from the main thread, but inside the Sumo this could be done in whatever optimized way."*
 - *"This concise summary is worth writing to the design as is i guess. Sumo node might keep a full copy of hrot entities in its ecs as this is a natural conswquence of code unification and reuse and the cost is basically just memory on the sumo node. Pls lets think about how to make the sumo integratable to the networkless editor in similar way as any other parts are. This is mandatory, sumo should not be just a separate networked node, i want it to be embeddable."*
@@ -585,6 +586,38 @@ The Stride host and a future production engine take the same triangles.
 | copying CityLib's code into HROT | a second copy of the same geometry rules (V3: the vendored code is read-only) |
 | keeping the Godot axes and swapping back in HROT | two swaps that cancel, on every vertex, for every host |
 | drawing roads as per-frame gizmo triangles | tens of thousands of static triangles re-sent every frame; the terrain already proved the build-once mesh path |
+
+### 11.2 V8 — the **ambient terrain surface** between the roads, and where it must give way to ours *(lean, 2026-10-17)*
+
+📐 **Measured (upstream commit `65a9d80`):** the viewer's ground is `CityLib.TerrainField` — a corner lattice (40 m cells,
+capped at 512 corners per axis so a 350 km net stays bounded) whose heights are **measured at lane vertices** (`Lane.ShapeZ`)
+and **flood-filled + smoothed** in between (two Jacobi passes on filled corners, measured corners pinned); a flat net bakes
+to one height. On top: a draped reference grid (`GroundGridBuilder`) and tinted district polygons (`ZoneGroundBuilder`).
+⚠ If the viewer has moved on since `65a9d80`, this section describes that commit.
+
+```mermaid
+graph TD
+  NET["SUMO net (lane z)"] --> TF["ambient ground lattice (TerrainField, moved into Sim.Scene with V7)"]
+  OUR["our terrain footprint: the height grid's extent, else the world file's BoundsMin/BoundsMax (TerrainWorld.cs:91-92)"] --> MASK["mask: drop every ambient cell that overlaps the footprint"]
+  TF --> MASK
+  MASK --> SEAM["seam ring: the last ambient cells outside the footprint blend their height to our ground at the edge"]
+  SEAM --> LAYER["road layer draws it as kind 'ambient ground' - RENDER ONLY"]
+```
+
+*What the picture shows that prose hid:* our terrain always wins where it exists, and the ambient ground is cut at CELL
+granularity by the footprint the terrain already declares — no new terrain data; and the ambient ground feeds ONLY the
+road layer, never the world query, so nothing simulates on it.
+
+| | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **V8-a** what it is | the ambient ground is RENDER-ONLY geometry produced with the roads (V7), kind *ambient ground*; it never enters `IWorldQuery`, physics, line of sight or the navmesh (R-252: our engine interfaces may not depend on a stand-in surface) — fine because nothing of ours operates outside our terrain (R-4040) | making it a second terrain: two grounds that disagree under every unit |
+| **V8-b** where it is drawn | everywhere the net reaches EXCEPT our terrain's footprint — the height grid's extent when the terrain has one, else the world file's bounds; cells overlapping the footprint are dropped (automatic, no setting) | drawing it everywhere: it z-fights or floats against our terrain · a hand-drawn mask per terrain: data nobody will maintain |
+| **V8-c** the seam | the outermost ring of ambient cells blends its height to our ground at the footprint edge (`GroundHeightAt` there), so the border is a slope, not a step or a gap | a hard cut: a visible cliff wherever lane z and our grid disagree |
+| **V8-d** a user toggle | a map display option to hide it (like other map layers), default on | — |
+
+⚠ Known limit, unchanged: INSIDE our terrain the roads still sit at SUMO's z (R-4025) — where the net's z was not built
+from our height grid, a road can hover over or sink into our ground. The ambient ground does not fix that; a net whose z
+matches the terrain does.
 
 ## 7. ⛔ HISTORY
 
