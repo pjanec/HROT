@@ -1341,6 +1341,8 @@ mean harmless"*). · Changing the EQS LoS gate (it means "known recently", and t
 
 ✅ **`CE-3080` FIXED `2026-10-06` (R-214):** `ThreatDanger.Of` returns 0 for a KILLED unit (`ThreatDanger.IsDead`: Health ≤ 0, entity kept) — once, for every threat reader. ⛔ SUPERSEDED: *"a KILLED unit still reads as armed, danger 1"* (the gap as found).
 
+✅ **`CE-2233` BUILT `2026-10-17` (CIV-0, the civilians' safety gate — [Civilians CV-8](DESIGN_Civilians_And_Crowd_Control.md), R-3013):** `ThreatDanger.Of` also returns 0 for a NEUTRAL (`ThreatDanger.IsNeutral`: the target's `EntityInfo.ForceId` is Neutral, read LIVE; ⚠ no `EntityInfo` = not neutral, Neutral being the enum's zero). Danger 0 alone does NOT keep a neutral out of the pick — `EqsTacticsNodes.TopThreat` takes the ranking's top even at score 0 (the CE-2202 shape) — so the pick skips it too (`Engageable` = in the fight AND not neutral), and the weapon brain holds before any AI round at one (`AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldNeutral`, both paths; an operator's fire is not held). Neutrals STAY in memory (a police line must see a crowd).
+
 **INVENTORY** *(measured `2026-10-05`)*: the readers of `TargetMemory` scores are in §6.1 of `DESIGN_Thermal_And_Acoustic_Sensing.md`
 (grep of `EntityIds[` and of every file naming `TargetMemory`; the graph's `search_code` returned 0 for the pattern). The
 inputs that read them: `StandardInputs.ContactThreatLevel` / `HaveLiveTarget` / `EnemyStrengthRatio`,
