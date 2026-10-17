@@ -347,6 +347,7 @@ namespace Hrot.NED.Descriptors
         public double StunnedUntil;
         public double IrritatedUntil;
         public double KnockedDownUntil;
+        public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner

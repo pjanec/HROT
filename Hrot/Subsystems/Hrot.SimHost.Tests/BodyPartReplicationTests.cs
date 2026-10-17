@@ -22,6 +22,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<NetworkIdentity>();
             w.RegisterComponent<PartDamage>();
             w.RegisterComponent<HitMarks>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -79,6 +80,27 @@ namespace Hrot.SimHost.Tests
                     Assert.Equal(l0, l1);
                 }
             }
+        }
+
+        /// <summary>⭐ <c>CE-3219</c> + ui finding F-3 (civilians design §7.6) — a person's effects, the behaviour's cower mode included,
+        /// reach the other node whole; the owner publishes again when only the mode changes.</summary>
+        [Fact]
+        public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
+        {
+            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = 12.5, IrritatedUntil = 3, KnockedDownUntil = 7.25, Cowering = 1 };
+            var sample = EntityEffectStateEgressTranslator.ToSample(44L, effects);
+
+            var (node, unit, map) = Node(44L);
+            using (node)
+            {
+                var ingress = new EntityEffectStateIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(effects, node.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(unit));
+            }
+
+            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44L, effects with { Cowering = 0 }));
         }
 
         [Fact]
