@@ -729,6 +729,68 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 2 (docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5i.2) — <c>ua-civ-riot-stone</c> in-process (the live
+    /// check's twin): an instigator and two protesters inside a stone source, a policeman 12 m off. Sampled every frame on CGF: ⓪ the
+    /// instigator riots · ① he fills his hands at the source (stones in hand) · ② he throws (a FireAtPoint from his hands mount) · ③ the
+    /// side follows the ACT, never anger: on CGF no protester is Hostile who has not thrown, and every thrower is Hostile on CGF, SimHost and
+    /// IG within 2 s of his first stone.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_RiotStone_TheInstigatorFillsHisHandsThrows_AndOnlyThrowersTurnHostile_OnEveryNode()
+    {
+        using var harness = await StartShippedScenario("ua-civ-riot-stone");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var names = new[] { "Instigator", "Protester 1", "Protester 2" };
+        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        var inst = ByName(cgf, "Instigator");
+        const long Stone = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone;
+        bool riot = false, filled = false;
+        int throws = 0, peak = 0, spent = 0;
+        var reasons = new System.Collections.Generic.HashSet<string>();
+        uint lastThrow = 0;
+        var firstThrowAt = new System.Collections.Generic.Dictionary<string, double>();
+        var hostileEverywhereAt = new System.Collections.Generic.Dictionary<string, double>();
+        string? hostileWithoutAct = null;
+        void Sample()
+        {
+            double now = cgf.SimulationTime;
+            if (Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, inst) == Fdp.Toolkit.Civilians.CivilianMode.Riot) riot = true;
+            int inHand = PersonHands.Rounds(cgf, inst, Stone);
+            if (inHand > 0) filled = true;
+            if (inHand < peak) spent += peak - inHand;
+            peak = inHand;
+            if (cgf.HasComponent<ActionStatus>(inst)) reasons.Add(cgf.GetComponent<ActionStatus>(inst).Weapon.Reason.ToString());
+            ref readonly var ch = ref cgf.GetComponentRO<WeaponChannel>(inst);
+            if (ch.ActiveAction == CombatConstants.ActionIdFireAtPoint && ch.ActionInstanceId != lastThrow) { throws++; lastThrow = ch.ActionInstanceId; }
+            foreach (var n in names)
+            {
+                var c = ByName(cgf, n);
+                bool acted = Fdp.Toolkit.Civilians.HostileActs.Committed(cgf, c);
+                if (acted && !firstThrowAt.ContainsKey(n)) firstThrowAt[n] = now;
+                if (cgf.GetComponentRO<EntityInfo>(c).ForceId == ForceId.Hostile && !acted) hostileWithoutAct ??= $"{n} at {now:F1}";
+                bool everywhere = new[] { cgf, sim, ig }.All(w => !ByName(w, n).IsNull && w.GetComponentRO<EntityInfo>(ByName(w, n)).ForceId == ForceId.Hostile);
+                if (everywhere && !hostileEverywhereAt.ContainsKey(n)) hostileEverywhereAt[n] = now;
+            }
+        }
+        string State() => $"riot {riot}, filled {filled}, throws {throws}, spent {spent}, hands {PersonHands.Rounds(cgf, inst, Stone)}, reasons [{string.Join(",", reasons)}], " +
+                          $"acted [{string.Join(",", firstThrowAt.Select(k => $"{k.Key}@{k.Value:F1}"))}], " +
+                          $"hostile-everywhere [{string.Join(",", hostileEverywhereAt.Select(k => $"{k.Key}@{k.Value:F1}"))}]";
+
+        harness.PumpUntil(() => { Sample(); return throws >= 2 && hostileEverywhereAt.ContainsKey("Instigator") && cgf.SimulationTime > 20; }, timeoutFrames: 3600);
+        _out.WriteLine(State());
+        Assert.True(riot, $"⓪ the instigator riots; {State()}");
+        Assert.True(filled, $"① he fills his hands at the stone source; {State()}");
+        Assert.True(throws >= 1, $"② he throws; {State()}");
+        Assert.True(spent >= 1, $"② …and a stone actually leaves his hands (the executor spends it); {State()}");
+        Assert.Null(hostileWithoutAct);                                           // ③ the side follows the act, never the anger
+        foreach (var (n, at) in firstThrowAt)
+            Assert.True(hostileEverywhereAt.TryGetValue(n, out var h) && h - at <= 2.0, $"③ {n} Hostile on every node within 2 s of his act; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
     /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
     /// ① his hands are up on CGF, SimHost and IG · ② the rifleman's weapon status is <c>HoldSurrender</c> at least once · ③ from the first

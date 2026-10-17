@@ -404,6 +404,115 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ForceId.Neutral, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
         }
 
+        private const long StoneAmmo = 9590, GrenadeAmmo = 9591, CivilianType = 9501;
+
+        /// <summary>⭐ <c>CE-2238</c> part 2 — gives the unit the HANDS production gives every person (backend B-8): a pedestrian TKB type
+        /// run through <c>PersonHands.EnsureOnPersons</c>, injected by <c>CombatTkbTranslator</c>; plus <paramref name="stones"/> stones.</summary>
+        private static void Hands(World w, int stones)
+        {
+            foreach (var reg in new System.Action[]
+            {
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponMountInfo>()) w.Repo.RegisterComponent<WeaponMountInfo>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<AmmoLoadout>()) w.Repo.RegisterComponent<AmmoLoadout>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) w.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponChannel>()) w.Repo.RegisterComponent<WeaponChannel>(); },
+            }) reg();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var civ = new Fdp.Interfaces.TkbTemplate("Civilian", CivilianType);
+            civ.AddDescriptor(new VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Pedestrian });
+            db.Register(civ);
+            var stone = new Fdp.Interfaces.TkbTemplate("Stone", StoneAmmo);
+            stone.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true });
+            db.Register(stone);
+            var grenade = new Fdp.Interfaces.TkbTemplate("Grenade", GrenadeAmmo);
+            grenade.AddDescriptor(new WarheadDto { Kind = WarheadKind.Fragmentation, Indirect = true });
+            db.Register(grenade);
+            PersonHands.EnsureOnPersons(db);
+            w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = CivilianType });
+            if (!w.Repo.HasComponent<WeaponChannel>(w.Unit)) w.Repo.AddComponent(w.Unit, new WeaponChannel());
+            db.TryGetByType(CivilianType, out var t);
+            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, w.Unit, t!);
+            if (stones > 0) Assert.True(PersonHands.Give(w.Repo, w.Unit, StoneAmmo, stones));
+        }
+
+        private static unsafe Fdp.Toolkit.Combat.Executors.FireAtPointParams ThrowParams(World w)
+            => *(Fdp.Toolkit.Combat.Executors.FireAtPointParams*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit).Params[0]);
+
+        /// <summary>⭐ <c>CE-2238</c> part 2 (§5i.2) — a rioter with stones in his hands, a policeman 12 m off: he stands and THROWS — one
+        /// FireAtPoint from his hands mount at the policeman's feet — and that first stone is his hostile act (Hostile); the next stone only
+        /// after 3 s; no fist while he has stones and the range is right; out of stones, he closes and strikes.</summary>
+        [Fact]
+        public void CE2238_ARioterWithStones_ThrowsFromRange_OnePerThreeSeconds_TheFirstIsHisAct_ThenUsesHisFistWhenOut()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            Hands(w, 2);
+            var police = Policeman(w, new Vector3(112, 200, 0));
+            int strikes = Melee.Strikes;
+            w.Start("{\"Protest\":true,\"ProtestAt\":[100,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+
+            ref var channel = ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit);
+            Assert.Equal(CombatConstants.ActionIdFireAtPoint, channel.ActiveAction);
+            var thrown = ThrowParams(w);
+            Assert.Equal(PersonHands.MountIndex(w.Repo, w.Unit), thrown.Mount);
+            Assert.Equal(1, thrown.Rounds);
+            Assert.True(Vector2.Distance(new Vector2(thrown.Point.X, thrown.Point.Y), new Vector2(112, 200)) < 0.01f, $"at the policeman: {thrown.Point}");
+            Assert.True(HostileActs.Committed(w.Repo, w.Unit));
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);   // the stone is the act
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);            // he stands to throw
+            uint first = channel.ActionInstanceId;
+
+            for (int i = 0; i < (int)(CivilianBehavior.ThrowCooldownSeconds / 0.016f) - 10; i++) w.Tick();
+            Assert.Equal(first, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActionInstanceId);   // not before 3 s
+            for (int i = 0; i < 20; i++) w.Tick();
+            Assert.NotEqual(first, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActionInstanceId); // the second stone
+            Assert.Equal(strikes, Melee.Strikes);                                                 // no fist while he has stones
+
+            PersonHands.Take(w.Repo, w.Unit, StoneAmmo, PersonHands.Rounds(w.Repo, w.Unit, StoneAmmo));   // out of stones (the executor spends them on CGF)
+            for (int i = 0; i < 70; i++) w.Tick();
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);                // he closes ...
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(111, 200, 0);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(strikes + 1, Melee.Strikes);                                             // ... and strikes
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 2 — a stone only where it reaches and is right: beyond 20 m he closes first; inside 4 m he uses his
+        /// fist; a LIVE GRENADE in his hands is not a stone (AW-9: the armed path) — he does not throw it.</summary>
+        [Fact]
+        public void CE2238_NoStoneBeyond20m_NorInside4m_AndALiveGrenadeIsNotAStone()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            Hands(w, 5);
+            var police = Policeman(w, new Vector3(126, 200, 0));                       // 26 m
+            w.Start("{\"Protest\":true,\"ProtestAt\":[100,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+            Assert.NotEqual(CombatConstants.ActionIdFireAtPoint, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);   // too far: he closes
+
+            w.Repo.GetComponentRW<SimTransform>(police).Position = new Vector3(102, 200, 0);   // 2 m
+            int strikes = Melee.Strikes;
+            for (int i = 0; i < 80; i++) w.Tick();
+            Assert.NotEqual(CombatConstants.ActionIdFireAtPoint, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(101, 200, 0);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(strikes + 1, Melee.Strikes);                                   // inside 4 m: the fist
+
+            PersonHands.Take(w.Repo, w.Unit, StoneAmmo, 5);
+            Assert.True(PersonHands.Give(w.Repo, w.Unit, GrenadeAmmo, 1));
+            w.Repo.GetComponentRW<SimTransform>(police).Position = new Vector3(112, 200, 0);   // 12 m again
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(100, 200, 0);
+            for (int i = 0; i < 300; i++) w.Tick();
+            Assert.NotEqual(CombatConstants.ActionIdFireAtPoint, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);
+        }
+
         /// <summary>A forces rifleman at <paramref name="at"/> whose weapon posture is <paramref name="kind"/> at <paramref name="target"/>.</summary>
         private static Entity Covering(World w, Vector3 at, Entity target, WeaponPostureKind kind = WeaponPostureKind.Aimed)
         {
@@ -447,11 +556,13 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual("Surrender", w.State());
             Assert.NotEqual(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
 
-            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Aimed;   // covered again ...
-            for (int i = 0; i < 30; i++) w.Tick();
-            Assert.Equal("Surrender", w.State());
-            w.Repo.GetComponentRW<Health>(w.Unit).Current = 40f;                      // ... and wounded: the wound wins
-            for (int i = 0; i < 4; i++) w.Tick();
+            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Aimed;   // covered again AND wounded, the same tick:
+            w.Repo.GetComponentRW<Health>(w.Unit).Current = 40f;                      // both ways out are open — the wound wins:
+            for (int i = 0; i < 4; i++)                                               // he never passes through Surrender on the way
+            {
+                w.Tick();
+                Assert.NotEqual("Surrender", w.State());
+            }
             Assert.Equal("Casualty", w.State());
         }
 

@@ -70,6 +70,12 @@ namespace Hrot.AI.Behaviors.Brains
         public const float RiotSpeed = 2.5f;
         /// <summary>How often a rioter looks again for the nearest forces person, s.</summary>
         public const float RiotLookSeconds = 1f;
+        /// <summary>⭐ <c>CE-2238</c> part 2 (§5i.2) — a stone is thrown at a forces person between these ranges (m); closer, he uses his fist.</summary>
+        public const float ThrowMinMetres = 4f, ThrowMaxMetres = 20f;
+        /// <summary>⭐ <c>CE-2238</c> part 2 — one stone every this many seconds.</summary>
+        public const float ThrowCooldownSeconds = 3f;
+        /// <summary>⭐ <c>CE-2238</c> part 2 — the bend for stones at a stone source (s), crouched (AW-8's 1.5 s).</summary>
+        public const float BendSeconds = 1.5f;
         /// <summary>⭐ <c>CE-2241</c> ① — a surrendered man lowers his hands after this long with nobody covering him (s).</summary>
         public const float SurrenderHoldSeconds = 5f;
 
@@ -96,6 +102,8 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Moving;
             public Vector3 Goal;
             public double NextLookAt, NextStrikeAt;
+            public double NextThrowAt;   // ⭐ CE-2238 part 2
+            public double BendUntil;     // ⭐ CE-2238 part 2 — 0 = not bending
         }
 
         /// <summary>⭐ <c>CE-2241</c> ① — when someone last covered him (sim seconds).</summary>
@@ -542,9 +550,36 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Target = NearestForces(world, self, RiotReachMetres);
                 ws.NextLookAt = now + RiotLookSeconds;
             }
+            // ⭐ CE-2238 part 2 (§5i.2) — empty hands in a stone source: bend for stones first
+            if (ws.BendUntil > 0)
+            {
+                if (now < ws.BendUntil) return NodeStatus.Running;
+                ws.BendUntil = 0;
+                ItemSources.Refill(world, self);
+                StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);
+            }
+            else if (!Stones.InHand(world, self) && CanFill(world, self))
+            {
+                if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                StanceRequest.Set(world, self, StanceId.Crouched, CrouchSeconds);
+                ws.BendUntil = now + BendSeconds;
+                return NodeStatus.Running;
+            }
             if (ws.Target.IsNull)
             {
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                return NodeStatus.Running;
+            }
+            var target = world.GetComponentRO<SimTransform>(ws.Target).Position;
+            float range = Vector2.Distance(new Vector2(target.X, target.Y), new Vector2(world.GetComponentRO<SimTransform>(self).Position.X, world.GetComponentRO<SimTransform>(self).Position.Y));
+            if (range >= ThrowMinMetres && range <= ThrowMaxMetres && Stones.InHand(world, self))
+            {
+                if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                if (now >= ws.NextThrowAt && Stones.Throw(world, self, target))
+                {
+                    HostileActs.Commit(world, self);   // the first stone is his act, as the blow is
+                    ws.NextThrowAt = now + ThrowCooldownSeconds;
+                }
                 return NodeStatus.Running;
             }
             if (Melee.InReach(world, self, ws.Target))
@@ -568,6 +603,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Riot(ref CivilianParams p, ref RiotState ws, Entity self, EntityRepository world)
         {
             LocomotionMoveTo.Stop(world, self);
+            if (ws.BendUntil > 0) StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);   // left mid-bend: he stands up
             Gestures.Set(world, self, GestureKind.None);
             ws = default;
         }
@@ -614,6 +650,12 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return found;
         }
+
+        /// <summary>⭐ <c>CE-2238</c> part 2 — he stands in a stone source and his hands have room for what it gives.</summary>
+        private static bool CanFill(EntityRepository world, Entity self)
+            => world.HasComponent<SimTransform>(self)
+               && ItemSources.At(world, world.GetComponentRO<SimTransform>(self).Position, out var source, out _)
+               && PersonHands.HasRoom(world, self, source.Ammo);
 
         /// <summary>Alive, with health left, and not out of the fight.</summary>
         private static bool Standing(EntityRepository world, Entity e)

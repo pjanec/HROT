@@ -1,0 +1,202 @@
+{
+    "$meta": {
+        "docType": "Hrot.Scenario",
+        "schemaVersion": 1
+    },
+    "header": {
+        "subsystemType": "Hrot.Scenario",
+        "schemaVersion": "1.0",
+        "terrainName": "test-town"
+    },
+    "entities": {
+        "c2382001-0000-4000-8000-000000000001": {
+            "SimTransform": {
+                "Position": [
+                    96,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9911
+            },
+            "TkbIdentity": {
+                "TkbType": 1202
+            },
+            "EntityInfo": {
+                "Name": "Policeman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            }
+        },
+        "c2382001-0000-4000-8000-000000000002": {
+            "SimTransform": {
+                "Position": [
+                    108,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9912
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Instigator",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+                "Origin": "Superior"
+            }
+        },
+        "c2382001-0000-4000-8000-000000000003": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    203,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9913
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Protester 1",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[110,203,0]}",
+                "Origin": "Superior"
+            }
+        },
+        "c2382001-0000-4000-8000-000000000004": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    197,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9914
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Protester 2",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[110,197,0]}",
+                "Origin": "Superior"
+            }
+        },
+        "c2382001-0000-4000-8000-000000000009": {
+            "EditablePolyline": {
+                "Points": [
+                    {
+                        "X": -6,
+                        "Y": -6
+                    },
+                    {
+                        "X": -6,
+                        "Y": 6
+                    },
+                    {
+                        "X": 6,
+                        "Y": 6
+                    },
+                    {
+                        "X": 6,
+                        "Y": -6
+                    }
+                ],
+                "Version": 0
+            },
+            "SimTransform": {
+                "Position": [
+                    109,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "NetworkIdentity": {
+                "Value": 9919
+            },
+            "TkbIdentity": {
+                "TkbType": 8812
+            },
+            "EntityInfo": {
+                "Name": "Stone source",
+                "ForceId": "Neutral"
+            }
+        }
+    }
+}
