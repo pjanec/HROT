@@ -1238,10 +1238,7 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = _node.EntityMap;
             _entityMap = entityMap;
-            _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
-            // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
-            // publish it so the editor's behavior preview/activation resolves geo-aware params correctly.
-            _world.SetSingletonManaged<IGeographicTransform>(geoTransform);
+            // Behavior resolvers read the entity map and the geo transform from world singletons. ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
@@ -1419,7 +1416,7 @@ namespace Hrot.Editor
             //   UrbanCombat templates for EVERY host, so calling it again would THROW —
             //   TkbDatabase.Register rejects a duplicate name or type.
             //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
-            if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
+            // ⭐ CE-4013 D4 — the world's ITkbDatabase is this same context catalogue, published by HrotNodeBuilder.
             // ⭐⭐⭐ CE-203 `E2` — THE SHARED ALLOCATOR, NOT A THIRD COPY OF IT.
             //
             // 📐 There were THREE `SequentialIdAllocator` classes in the tree: `Hrot.Core.Network`'s (the

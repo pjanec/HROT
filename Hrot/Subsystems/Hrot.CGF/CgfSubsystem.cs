@@ -734,28 +734,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Build();
 
         _entityMap = _context.EntityMap;
-        _context.World.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
-        // Behavior resolvers (Phase 2b) reach the geographic transform through this world singleton
-        // rather than a registration-time closure, so the CGF node — where the PlatoonHillAttack
-        // commander and its vehicles activate — must publish it here (mirrors SimHostApp). Without it
-        // geo-aware params (hill/baseline positions) resolve to 0,0,0.
-        if (_context.GeoTransform != null)
-            _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
-
-        // ⭐⭐⭐ CE-111 — THE TKB CATALOG AS A WORLD SINGLETON, and this is the same omission the comment
-        //    directly above documents for the geo transform: CGF held the dependency and never published it.
-        // 📐 Measured 2026-08-28: SimHostNodeBootstrapper:179 and IgNodeBootstrapper:133 both register it;
-        //    CGF passed `_context.TkbDb` straight to CreateEntityRequestSystem and NetworkSpawningSystem
-        //    (line ~650/~659) and registered NOTHING ⇒ every consumer that resolves it FROM THE WORLD found
-        //    nothing and degraded SILENTLY, because all of them guard with HasSingletonManaged:
-        //      · DisEntityTypeTranslator:38    — DIS entity types not translated on CGF
-        //      · EntityPresentationGizmoShared:60 — the map's per-entity presentation falls back
-        // ⚠ Both are `if (has) …` with no else, so there was no log line and no failure — 📌 the shape
-        //   ruling 53 exists to catch, and a direct `cgf==editor` violation.
-        // ⛔ NOT a fix for the empty /tkb answer (that was CE-110's silent default); this is the production
-        //   half found while measuring it, and the two are independent.
-        if (_context.TkbDb != null)
-            _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
+        // ⭐ CE-4013 D4/D5 — the entity map, the geo transform (behaviour resolvers: hill/baseline positions) and the TKB (CE-111: DIS
+        //   types, the map's presentation) are world singletons on every node, published by HrotNodeBuilder; this host used to repeat all three.
 
         CgfComponentRegistry.RegisterAll(_context.World);
                 v.Set("node-config", nodeConfig);

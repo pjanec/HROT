@@ -189,8 +189,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterDomainComponents(EntityRepository world)
     {
-        var tkb = HrotEnvironment.CreateTkb();
-        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        // ⛔ CE-4013 D4 — this host published a FRESH catalogue here, so its world read a different TKB than the one its load step fills
+        //   (context.TkbDb). HrotNodeBuilder now publishes the context's, on every node.
 
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and

@@ -385,6 +385,9 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
             scenarioSerializer:  serializer,
             localTempRoot:       _savedConfig.LocalTempRoot,
+            // ⭐ CE-4013 D4 — this caller HAS the node's catalogue: without it the knowledge-base step loaded the scenario's TKB into a
+            //   throwaway (NodeBootstrapper's `tkbDb ?? CreateTkb()`), so the node's spawning never saw it.
+            tkbDb:               context.TkbDb,
             simGroup:            simGroup,
             postSimGroup:        postSimGroup,
             lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,

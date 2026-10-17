@@ -114,7 +114,8 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        PublishNodeSingletons(context);   // ⭐ CE-4013 — the capabilities' systems are added by the base, right after this hook
+        // ⭐ CE-4013 — nothing of its own: the capabilities' systems are added by the base, right after this hook, and the node's TKB and
+        //   entity map are world singletons from HrotNodeBuilder (D4/D5).
     }
 
     // UNIFY: identical to StrideNodeBootstrapper.cs:380-411, plus tkbDb (the silent-default rule: this caller HAS the node's catalogue,
@@ -173,16 +174,6 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
             throw new InvalidOperationException(
                 $"Traffic node role {role} composed capabilities that need node resources; declare them in DeclaredResourceKeys.");
         return plan.Resolve(role);
-    }
-
-    // UNIFY: identical to the node-singleton publication of SimHostNodeBootstrapper.cs:268 (TKB), SimHostApp.cs:566 and
-    //   CgfSubsystem.cs:734 (entity map), CgfSubsystem.cs:754-755 (TKB). The mirror reads the vehicle catalogue from the world's
-    //   ITkbDatabase (TrafficMirrorSystem.TkbOf), and the load-phase world boundary resolves the entity map from the world.
-    private static void PublishNodeSingletons(HrotNodeContext context)
-    {
-        if (context.TkbDb != null)
-            context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(context.TkbDb);
-        context.World.SetSingletonManaged(context.EntityMap);
     }
 
     // UNIFY: identical to StrideNodeBootstrapper.cs:459-525 (same pack fields and schedule as IgNodeBootstrapper.cs:516-593 and

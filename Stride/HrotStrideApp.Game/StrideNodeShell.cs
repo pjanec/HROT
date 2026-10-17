@@ -298,11 +298,7 @@ public sealed class StrideNodeShell : IDisposable, Hrot.Presentation.DebugApi.IP
         //
         // ⭐ Published from Context.GeoTransform, the instance HrotNodeBuilder made for this node
         //    (:237), so the singleton and the node agree by construction.
-        if (Context.GeoTransform != null)
-            Context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(Context.GeoTransform);
-        else
-            Log.Warn("[StrideNodeShell] CE-257: the node context carries no GeoTransform, so none was " +
-                     "published. Attribute interpretation will degrade to null and geo routes to 0N 0E.");
+        // ⭐ CE-4013 D5 — HrotNodeBuilder now publishes it on every node (and the TKB and entity map with it); not repeated here.
 
         StrideNedRenderDescriptors.Apply(Context.TkbDb);
 

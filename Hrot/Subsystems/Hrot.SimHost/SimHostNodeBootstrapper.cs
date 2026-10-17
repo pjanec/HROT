@@ -259,7 +259,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     protected override void RegisterDomainComponents(EntityRepository world)
     {
         SimHostComponentRegistry.RegisterAll(world);
-        world.SetSingletonManaged<ITkbDatabase>(_tkbDb!);  // TKB-015
+        // TKB-015 — the world's ITkbDatabase is the context's (_tkbDb); HrotNodeBuilder publishes it (CE-4013 D4).
     }
 
     /// <inheritdoc/>
