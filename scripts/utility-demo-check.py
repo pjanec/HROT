@@ -2697,7 +2697,7 @@ def run_civ_neutral_gate(c, timeout):
 # ── CE-2235 CIV-1 — the civilian's routine, alarm and casualty (Civilians §5c, §5d) ───────────────────────────────────
 
 _CIV_MODES = {0: "None", 1: "Routine", 2: "Alarmed", 3: "Panic", 4: "Shelter", 5: "Inside", 6: "Cower", 7: "Casualty",
-              8: "Protest", 9: "Riot", 10: "Dispersing", 11: "ArmedHostile"}
+              8: "Protest", 9: "Riot", 10: "Dispersing", 11: "ArmedHostile", 12: "Gather"}
 
 
 def civ_mode(nid):
@@ -2892,6 +2892,134 @@ def run_civ_cower(c, timeout):
         c.ok(not any(cowering_on(host, n) for n in civs), f"② …and Cowering is cleared on {host}")
 
 
+# ── CE-2237 CIV-3 — crowds: onlookers gather, fear spreads (Civilians §5c, §5f) ────────────────────────────────────────
+
+def civ_mind(nid):
+    """The civilian's CivilianState as the brain (CGF) holds it — brain-local, never replicated."""
+    return (comps_on("CGF", nid) or {}).get("CivilianState") or {}
+
+
+def run_civ_gathering(c, timeout):
+    ids = ids_by_name()
+    casualty = ids.get("Casualty")
+    onlookers = [ids.get(f"Onlooker {i}") for i in range(1, 13)]
+    if not c.ok(None not in [casualty] + onlookers, "the casualty and 12 onlookers are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    cas = wait_for(lambda: civ_mode(casualty) == "Casualty", 30)
+    c.ok(cas is not None, f"⓪ the hurt civilian (health 40) is a Casualty — the incident ({civ_mode(casualty)})")
+    focus = position(casualty)
+    t0 = sim_time() or 0.0
+    gathered = set()
+
+    def mean_dist():
+        ds = [flat(p, focus) for n in onlookers if (p := position(n))]
+        return sum(ds) / len(ds) if ds else 1e9
+
+    def watch():
+        for n in onlookers:
+            if civ_mode(n) == "Gather":
+                gathered.add(n)
+        return mean_dist() < 15.0
+    close = wait_for(watch, 90, every=0.5)
+    t_close = (sim_time() or 0.0) - t0
+    c.ok(len(gathered) == len(onlookers), f"① every onlooker (30–60 m out, calm) is drawn to it — Gather ({len(gathered)} of 12)")
+    c.ok(close is not None and t_close <= 60.0, f"② their mean distance to the casualty falls below 15 m within 60 s "
+                                                 f"({mean_dist():.1f} m at {t_close:.0f} s)")
+    # ⭐ the mean falls under 15 m while the 60 m ones are still walking (measured: 25 s) — let the last ones arrive first
+    arrived = wait_for(lambda: all((p := position(n)) and flat(p, focus) <= 11.0 for n in onlookers), 60, every=0.5)
+    c.ok(arrived is not None, "④ every onlooker arrives (within 11 m of him)")
+    minds = {n: civ_mind(n) for n in onlookers}
+    crowd_ids = [m.get("CrowdId") or 0 for m in minds.values()]
+    best = max(set(crowd_ids), key=crowd_ids.count)
+    c.ok(best != 0 and crowd_ids.count(best) >= 8, f"③ one crowd holds at least 8 of them (crowd ids {crowd_ids})")
+    ring = [round(flat(position(n), focus), 1) for n in onlookers if position(n)]
+    c.ok(all(2.5 <= r <= 11.0 for r in ring), f"④ …standing round it on a ring, not on top of him ({sorted(ring)} m)")
+
+
+def run_civ_contagion(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 16)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 15 civilians are loaded"):
+        return
+    frightened = ("Panic", "Shelter", "Inside", "Cower")
+    heard, panicked, modes0 = set(), set(), {}
+
+    def watch():
+        for n in civs:
+            m = civ_mind(n)
+            if (m.get("HeardAt") or 0) > 0:
+                heard.add(n)
+            mode = civ_mode(n)
+            modes0.setdefault(n, mode)
+            if mode in frightened:
+                panicked.add(n)
+        return False
+    a0 = (ammo(rifle) or (None,))[0]   # ⭐ before play: the fight is over in seconds, faster than one sweep of 15 civilians
+    call("POST", "/sim/play", {})
+    one = wait_for(lambda: (watch(), len({(civ_mind(n).get("CrowdId") or 0) for n in civs} - {0}) == 1
+                            and all(civ_mind(n).get("CrowdId") for n in civs))[1], 20, every=0.2)
+    c.ok(one is not None, f"⓪ they stand as ONE crowd along the street ({[civ_mind(n).get('CrowdId') for n in civs]})")
+    c.ok(all(modes0.get(n) in ("Routine", None) or n in heard for n in civs),
+         f"⓪ each starts in Routine, or is frightened by what he heard ({ {n: modes0.get(n) for n in civs} })")
+    shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
+    if not c.ok(shot is not None, "① the rifleman opens fire at the west end"):
+        return
+    wait_for(watch, 40, every=0.25)
+    deaf = [n for n in civs if n not in heard]
+    c.ok(len(heard) >= 5, f"① the near ones hear it ({len(heard)} of 15 heard: {sorted(heard)})")
+    c.ok(len(deaf) >= 4, f"⓪ the far ones (100+ m from the fire) hear nothing ({len(deaf)} never heard: {deaf})")
+    caught = [n for n in deaf if n in panicked]
+    c.ok(len(caught) >= 3, f"② fear reaches the ones who heard nothing: ≥ 3 of them panic, from the crowd ({caught}; "
+                           f"modes now { {n: civ_mode(n) for n in deaf} })")
+
+
+# ── CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g) ─────────────────────────────────────────────────
+
+_GESTURES = {0: "None", 1: "HandsUp", 2: "FistRaised", 3: "HoldSign", 4: "Waving", 5: "Throwing"}
+
+
+def gesture_on(perspective, nid):
+    g = ((comps_on(perspective, nid) or {}).get("Gesture") or {}).get("Kind")
+    return _GESTURES.get(g, g) if isinstance(g, int) else (g or "None")
+
+
+def run_civ_protest(c, timeout):
+    ids = ids_by_name()
+    civs = [ids.get(f"Protester {i}") for i in range(1, 13)]
+    if not c.ok(None not in civs, "12 protesters are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    t0 = sim_time() or 0.0
+    seen = {h: {"FistRaised": set(), "HoldSign": set()} for h in ("CGF", "SimHost", "IG")}
+    bad = set()
+
+    def watch():
+        for n in civs:
+            m = civ_mode(n)
+            if m == "Riot":
+                bad.add((n, "Riot"))
+            side = (comps(n).get("EntityInfo") or {}).get("ForceId")
+            if side not in (None, "Neutral", 0):
+                bad.add((n, f"side {side}"))
+            for h in seen:
+                g = gesture_on(h, n)
+                if g in seen[h]:
+                    seen[h][g].add(n)
+        return False
+    protest = wait_for(lambda: (watch(), all(civ_mode(n) == "Protest" for n in civs))[1], 30, every=0.5)
+    c.ok(protest is not None, f"① the crowd reaches Protest ({[civ_mode(n) for n in civs]})")
+    wait_for(lambda: (watch(), (sim_time() or 0.0) - t0 >= 120.0)[1], 400, every=0.5)
+    crowd = [civ_mind(n).get("CrowdId") or 0 for n in civs]
+    best = max(set(crowd) - {0}, key=crowd.count, default=0)
+    c.ok(best != 0 and crowd.count(best) >= 10, f"① …standing as one crowd round the point ({crowd})")
+    for h in seen:
+        c.ok(len(seen[h]["FistRaised"]) >= 3 and len(seen[h]["HoldSign"]) >= 3,
+             f"② on {h} members show FistRaised ({len(seen[h]['FistRaised'])}) and HoldSign ({len(seen[h]['HoldSign'])}) — ≥ 3 of each")
+    c.ok(not bad, f"③ in 120 s nobody turns Hostile and nobody riots ({sorted(bad)})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -2899,6 +3027,10 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-routine-alarm": run_civ_routine_alarm,
              # ⭐ CE-2236 CIV-2 — panic, shelter and cower (Civilians §5c, §5e)
              "ua-civ-shelter": run_civ_shelter, "ua-civ-cower": run_civ_cower,
+             # ⭐ CE-2237 CIV-3 — crowds: onlookers gather, fear spreads (Civilians §5c, §5f)
+             "ua-civ-gathering": run_civ_gathering, "ua-civ-contagion": run_civ_contagion,
+             # ⭐ CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g)
+             "ua-civ-protest": run_civ_protest,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

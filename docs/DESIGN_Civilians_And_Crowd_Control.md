@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §5f CIV-3 crowds (CE-2237) · §5g the protest (CE-2240) · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
 known-rot: none.
 known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says
@@ -389,15 +389,15 @@ shot" could mean "not seen").
 | CIV-0 | `ua-threat-ranking` *(migrated)* | test-town · its civilian is Neutral | the neutral civilian scores 0 and is never the ranking's winner | ✅ |
 | **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town (⚠ 0–400 m; keep off the Pond) · 6 civilians of the new types (1101–1104) at their homes; a rifleman fighting a Hostile, two civilians 35–40 m from him, four 150+ m from both shooters | ① all 6 start in `Routine` (from the type's default), and the far ones walk · ② within 2.5 s of the first shot both near ones are `Alarmed`, no far one ever is (sampled) · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40 on CGF, the owner) ⇒ `Casualty`, stops moving, and stays there | ✅ **live 11/11 `2026-10-17`** (alarmed 1.7 s after the first shot; 4/4 far ones walked) · run 1 found its own cast off the navmesh — test-town is 0–400 m, two stood in the Pond (fixed) · twin `PostureScenarioTests.CE2235_CivRoutineAlarm_…` |
 | CIV-1 | **`ua-civ-crowd-300`** *(perf gate, CV-10)* | test-town · 300 civilians, mixed variants, routine points spread over the town | ① all 300 run a behaviour · ② over 60 s, CGF frame time p95 ≤ the budget backend's `scripts/perf-civilians.sh` measures against (B-4) · ③ brain tick per civilian reported | ⏳ CE-2235 + B-4 |
-| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ✅ live 14/15 `2026-10-17` (all 4 in through A's front door, hid 19.0–21.1 s, gone on every node); the 1 fail was the check's 0.25 s poll missing a few-frame `Panic` — check fixed to accept Panic-or-beyond, ⏳ not re-run |
-| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ✅ live 11/11 `2026-10-17` |
-| **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · 12 civilians within 80 m of an incident (a casualty on the street) | ① one `Crowd` entity forms holding ≥ 8 of them · ② their mean distance to the focus falls below 15 m within 60 s | ⏳ |
-| CIV-3 | **`ua-civ-contagion`** | test-town · a crowd of 15 spread over 150 m; a blast at one end (heard by the near half only) | ① the near half panics · ② fear then reaches members who did NOT hear it (beyond 100 m): ≥ 3 of them panic via the crowd, not via hearing | ⏳ |
+| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ✅ **live 15/15 `2026-10-17`** (re-run after the check's fix: all 4 in through A's front door, hid 19.3–21.0 s, gone on CGF, SimHost and IG) · ⛔ SUPERSEDED: 14/15, the check's 0.25 s poll missing a few-frame `Panic` · twin `PostureScenarioTests.CE2236_CivShelter_…` ✅ (samples every frame, so it asserts `Panic` itself; door Open on all three nodes) |
+| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ✅ live 11/11 `2026-10-17` · twin `PostureScenarioTests.CE2236_CivCower_…` ✅ (also asserts each passed through `Panic` and left Cower for Alarmed, never back to Panic) |
+| **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · a hurt civilian (health 40) at the crossroads (200, 200); 12 calm civilians 30–60 m up the four streets | ⓪ the hurt one is a `Casualty` · ① every onlooker enters `Gather` · ② their mean distance to him falls below 15 m within 60 s · ③ one crowd holds ≥ 8 of them · ④ every one arrives and stands on a ring 2.5–11 m round him | ⏳ live run 1: 5/6 — ② at 25 s; ④ was measured while the 60 m ones still walked (check fixed: waits for all to arrive) · twin `PostureScenarioTests.CE2237_CivGathering_…` ✅ (12/12 Gather, 4.0–11.0 m, one crowd, mean < 15 m at 24.5 s) |
+| CIV-3 | **`ua-civ-contagion`** | test-town · 15 civilians 8 m apart along the street, 30–142 m from a firefight (a rifleman and a hostile) at its west end · ⚠ *deviation:* small-arms fire, not a blast — no scenario-scriptable blast exists; the hearing edge (100 m) splits the crowd the same way | ⓪ ONE crowd · ① ≥ 5 hear it (`HeardAt`) · ⓪ ≥ 4 never hear anything · ② ≥ 3 of those who never heard panic, from the crowd | ⏳ live run 1 measured nothing: the fight was over before the check's first sample (check fixed: samples from play) · twin `PostureScenarioTests.CE2237_CivContagion_…` ✅ (samples `HeardAt` and `Panic` every frame) |
 | **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
 | CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
-| **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · a protest crowd of 12 at a building, an instigator-free crowd, NO security forces | ① the crowd reaches `Protest` · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ |
+| **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
 | **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
 | **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · a rifleman (Friend); a Hostile armed rioter who drops his weapon and raises his hands mid-fight | ① he is engaged while armed and fighting · ② from the frame his `Gesture` is HandsUp, no round is fired at him for 10 s, his side stays Hostile · ③ hands down + armed again ⇒ he is engaged again | ⏳ |
 | CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
@@ -641,6 +641,198 @@ the walk he was shot out of, CIV-1's ④); it now refuses one whose intent is th
 ⚠ **Known limits (slice 2):** ① only bt-range's houses are enterable (§6); on test-town every panic ends in Cower. ② The shelter is the
 first answer — a door locked AFTER the answer makes the run fail and he cowers, he does not re-query. ③ `Inside` deletes him from
 `SimulationTime`; a paused sim holds him inside. ④ Upper storeys are not candidates (ground floor only).
+
+## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: READY-TO-BUILD)*
+
+INVENTORY *(codebase-memory CLI, re-indexed 2026-10-17 after the backend/ui merges; `check_index_coverage` not available through the CLI)*:
+`search_graph .*Crowd.* Class` = **18**, every one a dtCrowd MOVEMENT agent (`CrowdAgent`, `CrowdMotorIntent`, `IDtCrowdProvider`,
+`CrowdAgentUpdateSystem`…, Stride-only and capped at 128, §2.5's red box) — none is a group of civilians; `.*(Gather|Onlook|Incident|Contagion|Mood).* Class`
+= **0**. A brain-local entity that is never saved already exists as a pattern: `EqsChildSensor.Ensure` (`repo.CreateEntity` +
+`DerivedParts.MarkNotSaved`, CE-3045). `CivilianState` already carries `Anger` and `Attitude` (unused), §2.1 already names a `CrowdId` on it.
+Component id **400** is free on `behaviors`, `backend` and `ui` (grep of `GlobalComponentIds.cs` on all three, 2026-10-17).
+
+⭐ **Scope** *(this slice)*: the crowd itself (membership, mood, focus), onlookers gathering at an incident, and fear spreading through a
+crowd. ⛔ Moved out, each to the slice that first has a consumer: **Protest** and its gestures → `CE-2240`; **anger and instigators** (ASY-5)
+→ `CE-2238` (anger has no reader before Riot); the security forces' provocation → `CE-2241`. `Crowd.MeanAnger` is computed now so those
+slices only add producers.
+
+```mermaid
+classDiagram
+  direction LR
+  class Crowd { <<NEW component, Fdp.Toolkits/Civilians, id 400, brain-local, never saved>> Id Count Centroid MeanFear MeanAnger Focus HasFocus FormedAt }
+  class CrowdSystem { <<NEW, CGF Simulation>> incidents, attraction, membership, mood, contagion }
+  class CrowdRules { <<NEW static>> LinkMetres MinMembers AttractMetres RingMetres ContagionMetres ContagionShare ContagionRate }
+  class CivilianState { <<grows>> + CrowdId Focus HasFocus HeardAt }
+  class CivilianMode { <<grows>> + Gather = 12 }
+  class CivilianBehavior { <<grows>> + Gather state, guards Attracted NotAttracted }
+  class GatherState { <<NEW, in the block>> Moving Arrived Target FocusAt }
+  class CivilianFearSystem { <<grows>> stamps HeardAt }
+  class Injury { <<existing>> StateOf }
+  class DerivedParts { <<existing>> MarkNotSaved }
+  class LocomotionMoveTo { <<existing>> Issue Stop Status }
+  CrowdSystem ..> CrowdRules
+  CrowdSystem ..> Injury : an incident is a person not Ok
+  CrowdSystem --> CivilianState : writes CrowdId, Focus, Fear (contagion)
+  CrowdSystem --> Crowd : creates, updates, destroys
+  CrowdSystem ..> DerivedParts : a crowd entity is never saved
+  CivilianBehavior --> GatherState
+  CivilianBehavior ..> CivilianState : reads Focus
+  CivilianBehavior ..> LocomotionMoveTo : walks to a ring point
+  CivilianFearSystem --> CivilianState : HeardAt
+```
+*What the picture shows that prose hid:* fear still has ONE model — contagion is a second WRITER of the same `Fear` field (§5d's caption
+predicted it), so the HSM's thresholds, the fade and the panic path are untouched; and the crowd is DERIVED every frame from where the
+civilians stand, so a crowd entity is a read-out with an id, never a second place membership is decided.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Gather : an incident within AttractMetres (Focus set)
+  Gather --> Routine : the focus is gone
+  Gather --> Alarmed : Fear >= AlarmAt
+  Routine --> Alarmed : Fear >= AlarmAt
+  Gather --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* gathering is entered only from Routine — a frightened man never walks TOWARDS an incident — and
+fear outranks curiosity from both states; the rest of §5e's machine is unchanged.
+
+```mermaid
+sequenceDiagram
+  participant CS as CrowdSystem (CGF)
+  participant M as a calm civilian's CivilianState
+  participant HSM as his CivilianHsm
+  participant MV as SimHost mover
+  CS->>CS: incidents = persons whose Injury is not Ok
+  CS->>M: Focus = the nearest incident within 80 m (Routine or Gather only)
+  HSM->>M: polled guard reads HasFocus
+  HSM->>HSM: Routine exit (stop), Gather
+  HSM->>MV: MoveTo a point on a ring 4 to 9 m round the focus, walking
+  loop every frame
+    CS->>CS: link civilians within LinkMetres, components of MinMembers or more
+    CS->>M: CrowdId of his component (kept from the last frame by majority)
+    CS->>CS: Crowd entity per id: centroid, mean fear and anger, focus
+  end
+```
+*What the picture shows that prose hid:* nobody tells a civilian to join a crowd — each walks to the SAME focus, and walking there is what
+makes them one crowd; the id survives because a component inherits the id most of its members already had.
+
+```mermaid
+sequenceDiagram
+  participant FS as CivilianFearSystem
+  participant CS as CrowdSystem
+  participant A as a member who heard the fire
+  participant B as a member 110 m off, beyond hearing
+  FS->>A: Fear up (heard), HeardAt
+  A->>A: Alarmed, then Panic
+  CS->>B: same crowd, within ContagionMetres of a frightened member
+  CS->>B: Fear rises toward 0.9 x that member's fear, at a rate falling with distance, FrightFrom copied
+  B->>B: Panic, flees from where the others flee from
+```
+*What the picture shows that prose hid:* contagion can never RAISE a crowd's peak fear — each hop carries at most 0.9 of its source — so a
+wave dies out after a few hops and two frightened neighbours cannot hold each other frightened forever (each fades below the other).
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brain node)"]
+    TE[CgfThreatEvaluationSystem] --> FS[CivilianFearSystem]
+    FS --> CS[CrowdSystem]
+    CS --> BT[BrainTickSystem]
+    BT --> HSM[CivilianHsm per civilian]
+    CS -.creates.-> CR[Crowd entities, local, never saved]
+  end
+  subgraph Other["SimHost, IG, maps"]
+    NONE[no Crowd: brain-local; U-5's overlay needs a descriptor first]
+  end
+  style NONE fill:#f66,color:#000
+```
+*What the picture shows that prose hid:* `CgfLogicPack` runs the crowd after the fear system and before the brain tick, so a contagion step
+and the guard that reads it land in the same frame; the red box — no other node holds a crowd, so ui's optional overlay (U-5) needs a
+replicated descriptor first, a backend item that does not exist yet.
+
+| decision | ⭐ lean (this lane's detail under CV-5) | rejected — one line each |
+|---|---|---|
+| membership | ⭐ connected components of civilians within `LinkMetres` (15 m), ≥ `MinMembers` (3), recomputed every frame (300 civilians ≈ 45 000 pair checks) | a crowd assigned by the scenario: onlookers form crowds nobody authored · `UnitRoster`: 16 members, and a crowd is uncommanded (T3) |
+| identity | ⭐ a component keeps the id most of its members had last frame; a new id otherwise; an empty id's entity is destroyed | a fresh id every frame: a reader could not follow a crowd |
+| the crowd entity | ⭐ CGF-local `repo.CreateEntity` + `Crowd` + `DerivedParts.MarkNotSaved`, no `NetworkIdentity` — the `EqsChildSensor` pattern | a replicated entity: no reader on another node yet (U-5 is optional, LATER) · a singleton table: CV-5 rules an entity |
+| what draws onlookers | ⭐ a PERSON whose `Injury.StateOf` is not Ok within `AttractMetres` (80 m), read from ground truth on CGF — CV-2's "crowd awareness comes from the CrowdSystem" | per-person vision: a Neutral observer drops Neutral targets (`VisionBroadphase.cs:79`) and costs CV-2's budget |
+| how they gather | ⭐ walk to a point on a ring 4–9 m round the focus, on their own bearing (`SimRng` per man) and stand | everyone to the focus point: they stack on the casualty |
+| contagion | ⭐ from a same-crowd member within `ContagionMetres` (20 m) showing fear (Alarmed, Panic, Shelter, Cower): `Fear += ContagionRate·(1 − ½·d/R)·dt·(0.9·Fear_src − Fear)` when positive; `FrightFrom` copied from the strongest source | an impulse per sighting: two cowering neighbours re-frighten each other forever · the crowd's mean: one panicking man in 300 changes nothing, a wave never starts |
+| how a check tells hearing from contagion | ⭐ `CivilianState.HeardAt` — the fear system stamps the last time he HEARD violence | a contagion counter: says nothing about whether he also heard it |
+
+⭐ **Demos** (§5c): `ua-civ-gathering` and `ua-civ-contagion`, each with a live check and a twin. ⚠ **Known limits:** ① incidents are ground
+truth within 80 m — no line of sight; ② a crowd is one CGF's civilians (two CGF nodes ⇒ two crowds where one stands); ③ an onlooker does
+not turn to face the focus (no facing request exists for a standing person); ④ an onlooker stays as long as the incident does — a casualty
+is never rescued (§5d ③), so the crowd stays.
+
+## 5g. CIV-3 behaviour — the protest and its gestures *(behaviors, `CE-2240`, 2026-10-17; build-state: READY-TO-BUILD)*
+
+INVENTORY *(codebase-memory CLI + grep, 2026-10-17)*: backend's B-6 is built (§7.7: `Gesture` 398, `Gestures.Set/Of`, `dtGesture` 143,
+Brain group, so the behaviour on CGF owns it); ui's U-6 is built (`CE-1166`: `EntityBodyLayer3D.Gestured` draws `Gestures.Of` on every map
+host, the placard for `HoldSign`). A params DTO carries a point as a `Vector3` (`CombatPostureParamsJsonDto.Objective`). ⛔ No facing
+request exists for a standing person (grep `Facing|LookAt|TurnTo` over the behaviour layer: none).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianBehavior { <<grows>> + Protest state, guards Protesting }
+  class ProtestState { <<NEW, in the block>> Moving NextMillAt Spot NextGestureAt Sign }
+  class CivilianParams { <<grows>> + ProtestAt HasProtest }
+  class CivilianParamsJsonDto { <<grows>> + ProtestAt (Vector3), Protest (bool) }
+  class Gestures { <<existing, backend B-6>> Set Of }
+  class LocomotionMoveTo { <<existing>> Issue Stop Status }
+  class CrowdSystem { <<existing, CE-2237>> the protesters ringing one point are one crowd }
+  CivilianBehavior --> ProtestState
+  CivilianBehavior ..> CivilianParams : ProtestAt
+  CivilianBehavior ..> Gestures : writes FistRaised, HoldSign, None on exit
+  CivilianBehavior ..> LocomotionMoveTo : to a spot on the protest ring, then milling
+```
+*What the picture shows that prose hid:* a protest is a PARAMETER of the one civilian machine (where to protest), not a new type or a
+crowd order — and the crowd it forms is the same derived crowd as onlookers', so anger and provocation (`CE-2238`, `CE-2241`) attach to
+a crowd that already exists.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Protest : he has a protest point
+  Protest --> Panic : Fear >= PanicAt
+  Protest --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* a protester skips Alarmed — a shot alone does not send a committed protester home, only fear past
+PANIC does (§2.2's "Protest → Panic : lethal fire nearby"); Riot (`CE-2238`) is the next edge out of Protest.
+
+```mermaid
+sequenceDiagram
+  participant HSM as CivilianHsm (CGF)
+  participant MV as SimHost mover
+  participant G as Gesture (dtGesture)
+  participant N as every map host
+  HSM->>MV: MoveTo his spot on the protest ring (8 to 15 m out), walking
+  loop every 8 to 15 s
+    HSM->>MV: a step to a new spot within 3 m, slowly
+  end
+  alt a sign carrier (40 per cent, per man)
+    HSM->>G: HoldSign, the whole protest
+  else
+    loop
+      HSM->>G: FistRaised for 3 to 6 s, then None for 2 to 5 s
+    end
+  end
+  G-->>N: dtGesture, drawn as arms and a placard
+  HSM->>G: None, on leaving Protest
+```
+*What the picture shows that prose hid:* the brain is the gesture's only writer and every map just draws the replicated byte, so "a
+protest shows its gestures on every map" needs no new wire; and leaving the state clears it, so a panicking protester never runs with
+his fist up.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| who protests | ⭐ a civilian whose params name a point (`Protest: true`, `ProtestAt`) — scenario-authored, the same CivilianHsm | a protester TYPE: re-create on every mood change (CV-1) · a crowd order: a crowd is uncommanded (T3) |
+| where he stands | ⭐ on a ring 8–15 m round the point, his own bearing (the onlookers' `RingPoint`, wider), stepping within 3 m every 8–15 s at 0.8 m/s | standing still: a frozen crowd reads as a picture, not a protest |
+| his gesture | ⭐ 40 % carry a sign the whole time (`HoldSign`), the rest raise a fist 3–6 s then rest 2–5 s — per man, `SimRng` | everyone the same: a drilled unit, not a crowd |
+| leaving | ⭐ `None` on exit; Panic only past `PanicAt` | Alarmed from Protest: one shot would end every protest |
+
+⚠ **Known limits:** ① protesters do not FACE the point (no facing request for a standing man — §5f ③); ② anger stays 0 until `CE-2238`/`CE-2241`
+add producers; ③ a protest point inside a solid building leaves its ring spots unreachable on that side — author it in the street.
 
 ## 6. Known limits
 

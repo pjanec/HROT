@@ -72,6 +72,7 @@ namespace Fdp.Toolkit.Civilians
                         ref var mind = ref repo.GetComponentRW<CivilianState>(heard.Observer);   // ⭐ CE-2236 — where it came from
                         mind.FrightFrom = new System.Numerics.Vector3(heard.X, heard.Y, heard.Z);
                         mind.HasFrightFrom = 1;
+                        mind.HeardAt = now;   // ⭐ CE-2237 — heard, not caught from his crowd
                     }
                 }
 

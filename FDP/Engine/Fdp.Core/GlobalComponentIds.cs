@@ -966,5 +966,10 @@ namespace Fdp.Core
         /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
         /// saved). ⚠ 399 measured free on backend, ui and behaviors 2026-10-17.</summary>
         public const int CivilianState = 399;
+
+        /// <summary><c>Crowd</c> — ⭐ CE-2237 (civilians CIV-3, CV-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5f): one crowd of civilians
+        /// (members, mean fear and anger, focus), a bodiless BRAIN-LOCAL entity on the node that runs its members' brains (never replicated,
+        /// never saved). ⚠ 400 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int Crowd = 400;
     }
 }

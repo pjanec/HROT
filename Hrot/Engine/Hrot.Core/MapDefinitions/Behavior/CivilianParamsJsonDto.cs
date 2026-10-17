@@ -54,5 +54,14 @@ namespace Hrot.Map.Definitions.Behavior
 
         [JsonPropertyName("HideMaxSeconds")]
         public float HideMaxSeconds;
+
+        /// <summary>⭐ CE-2240 (CV-13) — he is a protester: he goes to <see cref="ProtestAt"/> and protests there (a ring round it,
+        /// milling, fist raised or a sign held). Default false — a civilian who is not told to protest never does.</summary>
+        [JsonPropertyName("Protest")]
+        public bool Protest;
+
+        /// <summary>⭐ CE-2240 — where he protests (a building's front, a square): the point the protesters ring.</summary>
+        [JsonPropertyName("ProtestAt")]
+        public System.Numerics.Vector3 ProtestAt;
     }
 }

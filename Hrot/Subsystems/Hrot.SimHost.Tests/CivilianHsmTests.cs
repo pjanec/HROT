@@ -242,6 +242,88 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(CivilianMode.Inside, w.Mode);
         }
 
+        /// <summary>⭐ <c>CE-2237</c> (§5f) — drawn by an incident (his <c>Focus</c>, which the crowd system sets), a calm civilian
+        /// leaves his routine and walks to a spot on a ring 4–9 m round it; the focus gone, he goes back to his routine; frightened while
+        /// looking on, he is alarmed instead — fear outranks curiosity.</summary>
+        [Fact]
+        public unsafe void CE2237_AnIncidentDrawsHim_ToARingRoundIt_GoneHeGoesBack_FrightenedHeAlarms()
+        {
+            var w = new World();
+            w.Start();
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Routine", w.State());
+
+            var focus = new Vector3(130, 200, 0);   // 30 m east of him
+            void Draw(bool on)
+            {
+                ref var mind = ref w.Repo.GetComponentRW<CivilianState>(w.Unit);
+                mind.Focus = focus;
+                mind.HasFocus = on ? (byte)1 : (byte)0;
+            }
+            Draw(true);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("Gather", w.State());
+            Assert.Equal(CivilianMode.Gather, w.Mode);
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+            var loco = w.Loco;
+            var to = ((MoveToParams*)loco.Params)->Destination;
+            float ring = Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(focus.X, focus.Y));
+            Assert.InRange(ring, CrowdRules.RingMetres - 0.01f, CrowdRules.RingMetres + CrowdRules.RingJitterMetres + 0.01f);
+            Assert.True(to.X < focus.X, $"he stands on HIS side of it (from the west), not across it: {to}");
+
+            Draw(false);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("Routine", w.State());
+
+            Draw(true);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("Gather", w.State());
+            w.Fear(CivilianBehavior.DefaultAlarmAt);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("Alarmed", w.State());
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+        }
+
+        /// <summary>⭐ <c>CE-2240</c> (§5g) — told to protest at a point, he walks to a spot on a ring 8–15 m round it and shows it: a
+        /// sign held, or his fist raised (the replicated <c>Gesture</c>); a fright short of panic does not end it (no Alarmed); past
+        /// panic he panics and lowers his arms.</summary>
+        [Fact]
+        public unsafe void CE2240_AProtester_GoesToTheRingAndShowsIt_OnlyPanicEndsIt_AndHisArmsComeDown()
+        {
+            var w = new World();
+            Assert.True(w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>(), "the gesture needs its component on this node");
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Protest", w.State());
+            Assert.Equal(CivilianMode.Protest, w.Mode);
+            var loco = w.Loco;
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, loco.ActiveAction);
+            var to = ((MoveToParams*)loco.Params)->Destination;
+            float ring = Vector2.Distance(new Vector2(to.X, to.Y), new Vector2(130, 200));
+            Assert.InRange(ring, CivilianBehavior.ProtestRingMetres - 0.01f, CivilianBehavior.ProtestRingMetres + CivilianBehavior.ProtestRingJitterMetres + 0.01f);
+            Assert.Contains(Gestures.Of(w.Repo, w.Unit), new[] { GestureKind.HoldSign, GestureKind.FistRaised });
+
+            w.Fear(CivilianBehavior.DefaultPanicAt - 0.01f);   // frightened, short of panic: a protester stays
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Protest", w.State());
+
+            w.Fear(CivilianBehavior.DefaultPanicAt);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Panic", w.State());
+            Assert.Equal(GestureKind.None, Gestures.Of(w.Repo, w.Unit));
+        }
+
+        /// <summary>⭐ <c>CE-2240</c> — a civilian NOT told to protest never does, and his arms stay down.</summary>
+        [Fact]
+        public void CE2240_ACivilianNotToldToProtest_NeverDoes()
+        {
+            var w = new World();
+            w.Start();
+            for (int i = 0; i < 30; i++) w.Tick();
+            Assert.Equal("Routine", w.State());
+            Assert.Equal(GestureKind.None, Gestures.Of(w.Repo, w.Unit));
+        }
+
         [Fact]
         public void CE2235_TheCivilianTypesStartCivilianHsm_ByDefault()
         {

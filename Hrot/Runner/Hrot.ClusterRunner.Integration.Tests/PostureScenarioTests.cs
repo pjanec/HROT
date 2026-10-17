@@ -453,6 +453,283 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine(State());
     }
 
+    /// <summary>A terrain door's state as <paramref name="world"/> holds it (its door entity), or null while that node has none.</summary>
+    private static Fdp.Toolkit.Terrain.TerrainDoorState? DoorOf(EntityRepository world, string key)
+    {
+        var d = Fdp.Toolkit.Terrain.TerrainObjects.Find(world, key);
+        return !d.IsNull && world.HasComponent<Fdp.Toolkit.Terrain.DoorState>(d) ? world.GetComponent<Fdp.Toolkit.Terrain.DoorState>(d).State : null;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2236</c> CIV-2 — <c>ua-civ-shelter</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5e): on bt-range a burst 28 m away panics four civilians; each runs through House A's closed (not locked) door to a point
+    /// inside its footprint, none enters the locked House B, and each deletes himself about 20 s (the scenario's hide time) after going in
+    /// — gone on CGF, SimHost and IG. Sampled every frame, so <c>Panic</c> itself is asserted (the live check's poll accepts Panic or beyond).
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE2236_CivShelter_PanicRunsThroughAnOpenableDoor_NeverIntoTheLockedHouse_GoneAfterTheHideTime()
+    {
+        using var harness = await StartShippedScenario("ua-civ-shelter");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        string[] names = { "Civilian 1", "Civilian 2", "Civilian 3", "Civilian 4" };
+        const string aFront = "bt-range/House A/front", aBack = "bt-range/House A/back", bFront = "bt-range/House B/front", bBack = "bt-range/House B/back";
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull),
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        Assert.True(harness.PumpUntil(() => DoorOf(cgf, aFront) != null && DoorOf(cgf, bFront) != null, timeoutFrames: 2000), "the doors must exist as entities");
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, DoorOf(cgf, aFront));   // ⓪ the scenario's TerrainObjects
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Closed, DoorOf(cgf, aBack));
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Locked, DoorOf(cgf, bFront));
+        Assert.Equal(Fdp.Toolkit.Terrain.TerrainDoorState.Locked, DoorOf(cgf, bBack));
+
+        var rifle = ByName(cgf, "Rifleman");
+        var civs = names.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => cgf.IsAlive(e) ? Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e) : Fdp.Toolkit.Civilians.CivilianMode.None;
+        var panicked = new System.Collections.Generic.HashSet<Entity>();
+        var insideAt = new System.Collections.Generic.Dictionary<Entity, (double At, Vector3 Where)>();
+        var goneAt = new System.Collections.Generic.Dictionary<Entity, double>();
+        var inB = new System.Collections.Generic.HashSet<Entity>();
+        var opened = new System.Collections.Generic.HashSet<string>();
+        bool Sample()
+        {
+            double now = Fdp.Toolkit.Combat.HitModel.Now(cgf);
+            foreach (var e in civs)
+            {
+                if (goneAt.ContainsKey(e)) continue;
+                if (!cgf.IsAlive(e)) { goneAt[e] = now; continue; }
+                var m = Mode(e);
+                if (m == Fdp.Toolkit.Civilians.CivilianMode.Panic) panicked.Add(e);
+                var p = cgf.GetComponent<SimTransform>(e).Position;
+                if (m == Fdp.Toolkit.Civilians.CivilianMode.Inside && !insideAt.ContainsKey(e)) insideAt[e] = (now, p);
+                if (p.X >= 160f && p.X <= 168f && p.Y >= 100f && p.Y <= 110f) inB.Add(e);
+            }
+            foreach (var (host, w) in new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) })
+                if (DoorOf(w, aFront) == Fdp.Toolkit.Terrain.TerrainDoorState.Open || DoorOf(w, aBack) == Fdp.Toolkit.Terrain.TerrainDoorState.Open) opened.Add(host);
+            return goneAt.Count == civs.Length;
+        }
+        string State() => string.Join(", ", names.Zip(civs, (n, e) => $"{n}: {Mode(e)}{(insideAt.TryGetValue(e, out var i) ? $" in@{i.At:F1}s {i.Where.X:F1},{i.Where.Y:F1}" : "")}{(goneAt.TryGetValue(e, out var g) ? $" gone@{g:F1}s" : "")}"))
+                          + $" · door opened on [{string.Join(" ", opened)}]";
+
+        Assert.True(harness.PumpUntil(() => civs.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine), timeoutFrames: 1200),
+            $"① the 4 civilians start in Routine; {State()}");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        int a0 = Ammo();
+        Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"① the rifleman opens fire, 28 m away; {State()}");
+        bool done = harness.PumpUntil(Sample, timeoutFrames: 9000);
+        _out.WriteLine(State());
+
+        Assert.True(panicked.Count == civs.Length, $"① each civilian enters Panic; {State()}");
+        Assert.True(insideAt.Count == civs.Length, $"② each reaches Inside; {State()}");
+        Assert.True(insideAt.Values.All(i => i.Where.X > 100f && i.Where.X < 110f && i.Where.Y > 100f && i.Where.Y < 108f),
+            $"② …standing inside House A's footprint (100–110 × 100–108); {State()}");
+        Assert.True(opened.SetEquals(new[] { "CGF", "SimHost", "IG" }), $"② a door of House A opens to let them in, on every node; {State()}");
+        Assert.True(inB.Count == 0, $"③ none enters the locked House B; {State()}");
+        Assert.True(done, $"④ each deletes himself after hiding; {State()}");
+        Assert.True(goneAt.All(g => g.Value - insideAt[g.Key].At is >= 18.0 and <= 23.0), $"④ …about 20 s (the scenario's hide time) after going in; {State()}");
+        Assert.True(harness.PumpUntil(() => names.All(n => ByName(sim, n).IsNull && ByName(ig, n).IsNull), timeoutFrames: 600),
+            $"④ …and is gone on SimHost and IG too: [{string.Join(", ", names.Where(n => !ByName(sim, n).IsNull || !ByName(ig, n).IsNull))}]");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2236</c> CIV-2 — <c>ua-civ-cower</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5e): on test-town (every building solid) a firefight 15–25 m away panics three civilians, and with no building to enter each
+    /// cowers — <c>EffectState.Cowering</c> on CGF, SimHost and IG, standing still; once the hostile is down and fear fades each leaves
+    /// Cower (for Alarmed, never back to Panic) and the flag clears on every node.
+    /// </summary>
+    [Fact(Timeout = 900_000)]
+    public async Task CE2236_CivCower_NoBuildingToEnter_EachCowersOnEveryNode_AndRisesWhenTheFiringStops()
+    {
+        using var harness = await StartShippedScenario("ua-civ-cower");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        string[] names = { "Civilian 1", "Civilian 2", "Civilian 3" };
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Hostile").IsNull
+                                         && names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF, SimHost and IG");
+        var hostile = ByName(cgf, "Hostile");
+        var civs = names.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
+        bool CowersOn(EntityRepository w, string n) { var e = ByName(w, n); return !e.IsNull && Effects.IsCowering(w, e); }
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var panicked = new System.Collections.Generic.HashSet<Entity>();
+        bool rePanicked = false;
+        void Sample() { foreach (var e in civs) if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Panic) panicked.Add(e); }
+        string State() => "[" + string.Join(", ", civs.Select(Mode)) + "] cowering " + string.Join(" ", hosts.Select(h => $"{h.Item1}:{names.Count(n => CowersOn(h.Item2, n))}"));
+
+        Assert.True(harness.PumpUntil(() => civs.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine), timeoutFrames: 1200),
+            $"① the 3 civilians start in Routine; {State()}");
+        Assert.True(harness.PumpUntil(() => { Sample(); return civs.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Cower); }, timeoutFrames: 6000),
+            $"① under fire, with no building to enter, each cowers; {State()}");
+        Assert.True(panicked.Count == civs.Length, $"① …through Panic (the only way into Cower); {State()}");
+        Assert.True(harness.PumpUntil(() => hosts.All(h => names.All(n => CowersOn(h.Item2, n))), timeoutFrames: 120),
+            $"① EffectState.Cowering is set on every node; {State()}");
+        var at = civs.Select(e => cgf.GetComponent<SimTransform>(e).Position).ToArray();
+        harness.PumpUntil(() => false, timeoutFrames: 90);
+        float moved = civs.Select((e, i) => Vector3.Distance(at[i], cgf.GetComponent<SimTransform>(e).Position)).Max();
+        Assert.True(civs.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Cower) && moved < 0.3f, $"① …and stands still (moved {moved:F2} m in 1.5 s); {State()}");
+
+        Assert.True(harness.PumpUntil(() => !Fdp.Toolkit.Combat.Injury.IsInTheFight(cgf, hostile), timeoutFrames: 12000), $"the hostile is put down; {State()}");
+        Assert.True(harness.PumpUntil(() =>
+        {
+            foreach (var e in civs) rePanicked |= Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Panic;
+            return civs.All(e => Mode(e) is not (Fdp.Toolkit.Civilians.CivilianMode.Cower or Fdp.Toolkit.Civilians.CivilianMode.Panic));
+        }, timeoutFrames: 3600), $"② the firing over, each leaves Cower as his fear fades; {State()}");
+        Assert.False(rePanicked, $"② …for Alarmed, never back to Panic (§5e: Cower → Alarmed); {State()}");
+        Assert.True(harness.PumpUntil(() => hosts.All(h => names.All(n => !CowersOn(h.Item2, n))), timeoutFrames: 120),
+            $"② …and Cowering is cleared on every node; {State()}");
+        _out.WriteLine(State());
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2237</c> CIV-3 — <c>ua-civ-gathering</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5f): a hurt civilian at test-town's crossroads draws the twelve calm civilians 30–60 m up the four streets; each Gathers, their
+    /// mean distance to him falls below 15 m within 60 s, they stand on a ring round him (not on top of him), and one crowd holds at least 8.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2237_CivGathering_AHurtManDrawsTheOnlookers_ToARingRoundHim_AsOneCrowd()
+    {
+        using var harness = await StartShippedScenario("ua-civ-gathering");
+        var cgf = harness.Cgf!.World!;
+        var names = Enumerable.Range(1, 12).Select(i => $"Onlooker {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Casualty").IsNull && names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var casualty = ByName(cgf, "Casualty");
+        var onlookers = names.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
+        Fdp.Toolkit.Civilians.CivilianState Mind(Entity e) => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e);
+        Vector3 Pos(Entity e) => cgf.GetComponent<SimTransform>(e).Position;
+        Assert.True(harness.PumpUntil(() => Mode(casualty) == Fdp.Toolkit.Civilians.CivilianMode.Casualty, timeoutFrames: 600),
+            "⓪ the hurt civilian (health 40) is a Casualty — the incident");
+        var focus = Pos(casualty);
+        float Dist(Entity e) => Vector2.Distance(new Vector2(Pos(e).X, Pos(e).Y), new Vector2(focus.X, focus.Y));
+        var gathered = new System.Collections.Generic.HashSet<Entity>();
+        double t0 = Fdp.Toolkit.Combat.HitModel.Now(cgf);
+        string State() => string.Join(", ", onlookers.Select(e => $"{Mode(e)}@{Dist(e):F1}m#{Mind(e).CrowdId}"));
+
+        Assert.True(harness.PumpUntil(() =>
+        {
+            foreach (var e in onlookers) if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Gather) gathered.Add(e);
+            return onlookers.Average(Dist) < 15f;
+        }, timeoutFrames: 5400), $"② their mean distance to him falls below 15 m; {State()}");
+        double took = Fdp.Toolkit.Combat.HitModel.Now(cgf) - t0;
+        // ⭐ the mean falls under 15 m while the 60 m ones are still walking (measured live: 25 s) — let the last ones arrive
+        Assert.True(harness.PumpUntil(() =>
+        {
+            foreach (var e in onlookers) if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Gather) gathered.Add(e);
+            return onlookers.All(e => Dist(e) <= 11f);
+        }, timeoutFrames: 3600), $"④ every onlooker arrives (within 11 m of him); {State()}");
+        _out.WriteLine($"mean < 15 m after {took:F1} s; {State()}");
+
+        Assert.Equal(onlookers.Length, gathered.Count);   // ① each is drawn to it
+        Assert.True(took <= 60.0, $"② …within 60 s (took {took:F1} s)");
+        Assert.True(onlookers.All(e => Dist(e) is >= 2.5f and <= 11f), $"④ they stand on a ring round him, not on top of him; {State()}");
+        var ids = onlookers.Select(e => Mind(e).CrowdId).ToArray();
+        int best = ids.GroupBy(i => i).OrderByDescending(g => g.Count()).First().Key;
+        Assert.True(best != 0 && ids.Count(i => i == best) >= 8, $"③ one crowd holds at least 8 of them; {State()}");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2237</c> CIV-3 — <c>ua-civ-contagion</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5f): fifteen civilians stand as ONE crowd along test-town's street, 30–142 m from a firefight at its west end. The near ones
+    /// hear it and panic; the far ones hear NOTHING (<c>HeardAt</c> stays 0, sampled every frame) — and at least three of them panic
+    /// anyway, caught from the crowd.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2237_CivContagion_FearReachesTheOnesWhoHeardNothing_ThroughTheCrowd()
+    {
+        using var harness = await StartShippedScenario("ua-civ-contagion");
+        var cgf = harness.Cgf!.World!;
+        var names = Enumerable.Range(1, 15).Select(i => $"Civilian {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var rifle = ByName(cgf, "Rifleman");
+        var civs = names.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
+        Fdp.Toolkit.Civilians.CivilianState Mind(Entity e) => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e);
+        Assert.True(harness.PumpUntil(() => civs.All(e => cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(e)) && civs.All(e => Mind(e).CrowdId != 0)
+                                         && civs.Select(e => Mind(e).CrowdId).Distinct().Count() == 1, timeoutFrames: 1200),
+            "⓪ the fifteen stand as ONE crowd along the street");
+
+        var heard = new System.Collections.Generic.HashSet<Entity>();
+        var panicked = new System.Collections.Generic.HashSet<Entity>();
+        void Sample()
+        {
+            foreach (var e in civs)
+            {
+                if (!cgf.IsAlive(e)) continue;
+                if (Mind(e).HeardAt > 0) heard.Add(e);
+                if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Panic) panicked.Add(e);
+            }
+        }
+        string State() => string.Join(", ", civs.Select((e, i) => $"{i + 1}:{Mode(e)}{(heard.Contains(e) ? "h" : "")}{(cgf.IsAlive(e) ? $"{Mind(e).Fear:F2}" : "")}"));
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        int a0 = Ammo();
+        Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"① the rifleman opens fire at the west end; {State()}");
+        harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 2400);   // 40 s
+        _out.WriteLine(State());
+
+        var deaf = civs.Where(e => !heard.Contains(e)).ToArray();
+        Assert.True(heard.Count >= 5, $"① the near ones hear it ({heard.Count} of 15); {State()}");
+        Assert.True(deaf.Length >= 4, $"⓪ the far ones (100+ m from the fire) hear nothing ({deaf.Length} never heard); {State()}");
+        int caught = deaf.Count(panicked.Contains);
+        Assert.True(caught >= 3, $"② at least three who heard nothing panic, from the crowd ({caught}); {State()}");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2240</c> CIV-3 — <c>ua-civ-protest</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5g): twelve civilians told to protest in front of a test-town building reach <c>Protest</c>, stand as one crowd round the
+    /// point, and show it on CGF, SimHost and IG — at least three fists raised and three signs held on each node; in 120 s nobody turns
+    /// Hostile and nobody riots.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2240_CivProtest_TheCrowdProtests_ItsGesturesShowOnEveryNode_NobodyRiots()
+    {
+        using var harness = await StartShippedScenario("ua-civ-protest");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var names = Enumerable.Range(1, 12).Select(i => $"Protester {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => names.All(n => !ByName(cgf, n).IsNull && !ByName(sim, n).IsNull && !ByName(ig, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF, SimHost and IG");
+        var civs = names.Select(n => ByName(cgf, n)).ToArray();
+        Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        var fists = hosts.ToDictionary(h => h.Item1, _ => new System.Collections.Generic.HashSet<string>());
+        var signs = hosts.ToDictionary(h => h.Item1, _ => new System.Collections.Generic.HashSet<string>());
+        var bad = new System.Collections.Generic.HashSet<string>();
+        void Sample()
+        {
+            foreach (var (host, w) in hosts)
+                foreach (var n in names)
+                {
+                    var e = ByName(w, n);
+                    if (e.IsNull) continue;
+                    var g = Fdp.Toolkit.Combat.Gestures.Of(w, e);
+                    if (g == Fdp.Toolkit.Combat.GestureKind.FistRaised) fists[host].Add(n);
+                    if (g == Fdp.Toolkit.Combat.GestureKind.HoldSign) signs[host].Add(n);
+                }
+            foreach (var e in civs)
+            {
+                if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Riot) bad.Add($"riot {e}");
+                if (cgf.GetComponentRO<EntityInfo>(e).ForceId != ForceId.Neutral) bad.Add($"side {e}");
+            }
+        }
+        string State() => "[" + string.Join(", ", civs.Select(Mode)) + "] " + string.Join(" ", hosts.Select(h => $"{h.Item1}: fist {fists[h.Item1].Count} sign {signs[h.Item1].Count}"));
+
+        Assert.True(harness.PumpUntil(() => { Sample(); return civs.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Protest); }, timeoutFrames: 1800),
+            $"① the crowd reaches Protest; {State()}");
+        harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 7200);   // 120 s
+        _out.WriteLine(State());
+        var ids = civs.Select(e => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e).CrowdId).ToArray();
+        int best = ids.Where(i => i != 0).GroupBy(i => i).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault();
+        Assert.True(best != 0 && ids.Count(i => i == best) >= 10, $"① …standing as one crowd round the point [{string.Join(",", ids)}]");
+        foreach (var (host, _) in hosts)
+            Assert.True(fists[host].Count >= 3 && signs[host].Count >= 3, $"② on {host} ≥ 3 fists raised and ≥ 3 signs held; {State()}");
+        Assert.Empty(bad);   // ③ nobody turns Hostile, nobody riots
+    }
+
     /// <summary>
     /// ⭐ <c>CE-3085</c> — U2 <c>ua-threat-ranking</c> in-process (the live check's twin): once the ranking settles over at
     /// least two remembered contacts with a non-zero top score, the armed, visible, nearest contact ranks first; the
