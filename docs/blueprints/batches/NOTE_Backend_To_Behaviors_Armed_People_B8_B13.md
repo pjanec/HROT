@@ -51,7 +51,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 ⚠ The bomber's own death is the blast's business (it bursts at him) — nothing extra to do. The ui draws Back (slung) and Hidden (not drawn); until they do, every carried weapon is drawn in his hands.
 
-**⑦ B-12 — what is in his hand** ([CE-3234](../Blueprint_Issues_Tracker.md), at `backend@B12SHA`; design [§7.14 / §7.14a](../../DESIGN_Civilians_And_Crowd_Control.md)).
+**⑦ B-12 — what is in his hand** ([CE-3234](../Blueprint_Issues_Tracker.md), at `backend@9ef1ba306`; design [§7.14 / §7.14a](../../DESIGN_Civilians_And_Crowd_Control.md)).
 
 | what you can call | what it does |
 |---|---|
