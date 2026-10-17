@@ -10,7 +10,7 @@ related-designs:
   - docs/blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md — the frame this answers (not amended)
 -->
 
-# NOTE — backend → behaviors: gas is a danger area now *(CE-3227, at `backend@CE3227SHA`)*
+# NOTE — backend → behaviors: gas is a danger area now *(CE-3227, at `backend@fd1cac3da`)*
 
 The frame [HANDOFF_Backend_To_Behaviors_Gas_Reactions](HANDOFF_Backend_To_Behaviors_Gas_Reactions.md) promised it; it is built
 ([§7.3d-C](../../DESIGN_Civilians_And_Crowd_Control.md)).
