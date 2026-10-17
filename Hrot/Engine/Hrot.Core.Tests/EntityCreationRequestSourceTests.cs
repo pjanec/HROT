@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Core.Network;
 
 namespace Hrot.Core.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="ScenarioEntityCreationRequestSource"/> (TASK-C001)
+/// Unit tests for <see cref="BusEntityCreationRequestSource"/> (CE-3228; replaced TASK-C001's queue)
 /// and <see cref="CompositeEntityCreationRequestSource"/> (TASK-C002).
 /// </summary>
 public class EntityCreationRequestSourceTests
@@ -24,71 +25,52 @@ public class EntityCreationRequestSourceTests
         };
 
     // ══════════════════════════════════════════════════════════════════════════
-    // TASK-C001: ScenarioEntityCreationRequestSource
+    // ⭐⭐ CE-3228 — BusEntityCreationRequestSource (replaces the TASK-C001 queue singleton)
+    //    📄 docs/DESIGN_Entity_Creation_Unification.md §3.4d
     // ══════════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// C001 success condition 1: 3 enqueued requests are drained in FIFO order;
-    /// queue is empty after the call.
-    /// </summary>
-    [Fact]
-    public void ScenarioSource_BasicEnqueueDrain_FifoOrder()
+    private static Fdp.Core.FdpEventBus NewBus()
     {
-        var source = new ScenarioEntityCreationRequestSource();
+        var bus = new Fdp.Core.FdpEventBus();
+        bus.RegisterManaged<EntityCreationRequest>();
+        return bus;
+    }
+
+    /// <summary>⭐ A request published this frame is read after the next swap, in publish order, exactly once.</summary>
+    [Fact]
+    public void BusSource_DrainsWhatWasPublished_LastFrame()
+    {
+        var bus    = NewBus();
+        var source = new BusEntityCreationRequestSource(bus);
         var r1 = MakeRequest();
         var r2 = MakeRequest();
         var r3 = MakeRequest();
+        bus.PublishManaged(r1);
+        bus.PublishManaged(r2);
+        bus.PublishManaged(r3);
 
-        source.Enqueue(r1);
-        source.Enqueue(r2);
-        source.Enqueue(r3);
+        var beforeSwap = new List<EntityCreationRequest>();
+        source.ProcessRequests(beforeSwap.Add);
+        Assert.Empty(beforeSwap);   // not visible until the frame's swap
 
+        bus.SwapBuffers();
         var received = new List<EntityCreationRequest>();
         source.ProcessRequests(received.Add);
+        Assert.Equal(new[] { r1, r2, r3 }, received);
 
-        Assert.Equal(3, received.Count);
-        Assert.Same(r1, received[0]);
-        Assert.Same(r2, received[1]);
-        Assert.Same(r3, received[2]);
-
-        // Queue is now empty - second drain yields nothing.
-        var secondDrain = new List<EntityCreationRequest>();
-        source.ProcessRequests(secondDrain.Add);
-        Assert.Empty(secondDrain);
+        bus.SwapBuffers();   // the next frame: nothing new was published
+        var nextFrame = new List<EntityCreationRequest>();
+        source.ProcessRequests(nextFrame.Add);
+        Assert.Empty(nextFrame);
     }
 
-    /// <summary>
-    /// C001 success condition 2: drain cap of 500 is enforced over two calls.
-    /// </summary>
+    /// <summary>⭐ An empty bus is a no-op (handler never called, no exception).</summary>
     [Fact]
-    public void ScenarioSource_MaxItemsPerTick_Cap500()
+    public void BusSource_EmptyBus_NoOp()
     {
-        var source = new ScenarioEntityCreationRequestSource(maxRequestsPerTick: 500);
-        for (int i = 0; i < 600; i++)
-            source.Enqueue(MakeRequest());
-
-        int firstDrainCount = 0;
-        source.ProcessRequests(_ => firstDrainCount++);
-        Assert.Equal(500, firstDrainCount);
-
-        int secondDrainCount = 0;
-        source.ProcessRequests(_ => secondDrainCount++);
-        Assert.Equal(100, secondDrainCount);
-
-        // Now empty.
-        int thirdDrainCount = 0;
-        source.ProcessRequests(_ => thirdDrainCount++);
-        Assert.Equal(0, thirdDrainCount);
-    }
-
-    /// <summary>
-    /// C001 success condition 3: calling ProcessRequests on an empty source
-    /// is a no-op (handler never called, no exception).
-    /// </summary>
-    [Fact]
-    public void ScenarioSource_EmptyQueue_NoOp()
-    {
-        var source = new ScenarioEntityCreationRequestSource();
+        var bus    = NewBus();
+        var source = new BusEntityCreationRequestSource(bus);
+        bus.SwapBuffers();
         int callCount = 0;
 
         var ex = Record.Exception(() => source.ProcessRequests(_ => callCount++));
@@ -98,46 +80,38 @@ public class EntityCreationRequestSourceTests
     }
 
     /// <summary>
-    /// C001 success condition 4: concurrent enqueueing from 4 tasks and
-    /// concurrent draining from a 5th task -- total processed == 1000,
-    /// no InvalidOperationException.
+    /// ⭐⭐ Under strict mode (<c>FdpConfig.EnforceExplicitEventRegistration</c>, set by every production host) registering a
+    /// managed event compiles its serializer. The request carries an object list and a dictionary of tuples — this pins that the
+    /// compile succeeds, or every host would throw at startup.
     /// </summary>
     [Fact]
-    public async Task ScenarioSource_ConcurrentSafety_1000Items()
+    public void BusSource_TheRequestCompilesUnderStrictRegistration()
     {
-        var source = new ScenarioEntityCreationRequestSource(maxRequestsPerTick: 10_000);
-        int processedCount = 0;
-        var drainDone = new ManualResetEventSlim(false);
+        var ex = Record.Exception(() => Fdp.Core.FlightRecorder.FdpAutoSerializer.EnsureCompiled<EntityCreationRequest>());
+        Assert.Null(ex);
+    }
 
-        // Start 4 writer tasks.
+    /// <summary>⭐ Publishing is lock-safe: 4 writer threads × 250, all 1000 read after one swap.</summary>
+    [Fact]
+    public async Task BusSource_ConcurrentPublish_1000Items()
+    {
+        var bus    = NewBus();
+        var source = new BusEntityCreationRequestSource(bus);
+
         var writerTasks = new Task[4];
         for (int w = 0; w < 4; w++)
-        {
             writerTasks[w] = Task.Run(() =>
             {
                 for (int i = 0; i < 250; i++)
-                    source.Enqueue(MakeRequest());
+                    bus.PublishManaged(MakeRequest());
             });
-        }
-
-        // Start 1 reader task that drains in a loop until signalled.
-        var readerTask = Task.Run(() =>
-        {
-            while (!drainDone.IsSet || Volatile.Read(ref processedCount) < 1000)
-            {
-                source.ProcessRequests(_ => Interlocked.Increment(ref processedCount));
-                Thread.SpinWait(10);
-            }
-        });
-
         await Task.WhenAll(writerTasks);
-        drainDone.Set();
-        await readerTask.WaitAsync(TimeSpan.FromSeconds(10));
 
-        // Final drain sweep.
-        source.ProcessRequests(_ => Interlocked.Increment(ref processedCount));
+        bus.SwapBuffers();
+        int processedCount = 0;
+        source.ProcessRequests(_ => processedCount++);
 
-        Assert.Equal(1000, Volatile.Read(ref processedCount));
+        Assert.Equal(1000, processedCount);
     }
 
     // ══════════════════════════════════════════════════════════════════════════

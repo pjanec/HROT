@@ -9,6 +9,7 @@ using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Common.EntityCreation;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Hrot.Core.Network;
 using Xunit;
 
@@ -25,7 +26,6 @@ namespace Hrot.SimHost.Tests
         private const long JetType = 7405, PilotType = 7206;
         private readonly EntityRepository _w = new();
         private readonly EjectionSystem _sys = new();
-        private readonly ScenarioEntityCreationRequestSource _requests = new();
 
         public EjectionSystemTests()
         {
@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
             jet.AddDescriptor(new EjectionDto { PilotType = PilotType, SeatX = 4.5f, SeatZ = 1.2f, AutoEjectBelowFraction = 0.2f });
             db.Register(jet);
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            _w.SetSingletonManaged(_requests);
+            _w.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the pilot is requested on the bus
         }
 
         public void Dispose() => _w.Dispose();
@@ -61,9 +61,8 @@ namespace Hrot.SimHost.Tests
         {
             _w.Bus.SwapBuffers();
             _sys.Execute(_w, 1f / 60f);
-            var spawned = new List<EntityCreationRequest>();
-            _requests.ProcessRequests(spawned.Add);
             _w.Bus.SwapBuffers();
+            var spawned = _w.Bus.ReadManaged<EntityCreationRequest>().ToList();   // ⭐ CE-3228 — what the request system reads next frame
             float damage = _w.Bus.Read<DamageAssessedEvent>().ToArray().Sum(d => d.TotalDamage);
             return (spawned, damage);
         }

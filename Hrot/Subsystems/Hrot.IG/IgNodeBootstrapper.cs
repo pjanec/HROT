@@ -55,13 +55,6 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     private readonly INetworkFactory? _networkFactory;
 
     /// <summary>
-    /// ⭐⭐ The node's LOCAL entity-creation request source, owned by the creation pack and published
-    /// here so IG's authoring tools can enqueue INTENTS onto it (host (f)). Null until
-    /// <see cref="RegisterSpawningPipeline"/> has run.
-    /// </summary>
-    public ScenarioEntityCreationRequestSource? LocalEntityCreationRequests { get; private set; }
-
-    /// <summary>
     /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
     /// It owns every published <c>RoadNetworkBlob</c> and is what makes a terrain reload safe against a
     /// background reader.
@@ -552,11 +545,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         foreach (var sys in creation.NetworkSystems)
             context.Kernel.RegisterGlobalSystem(sys);
 
-        // ⭐ The tools' sink. RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems
-        //    (SharedApplicationBootstrapper.cs:111 vs :139), so the registrar callback that constructs
-        //    MapCommandController always sees a non-null value. Same arrangement as CgfSubsystem's
-        //    _scenarioSource and EditorSubsystem's _scenarioLoadSource.
-        LocalEntityCreationRequests = creation.LocalRequests;
+        // ⭐ RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems (SharedApplicationBootstrapper.cs:111 vs :139), so the
+        //    registrar callback that constructs MapCommandController always sees the pack. ⭐ CE-3228 — the tools publish their
+        //    requests on this world's bus, which the pack reads.
         EntityCreation              = creation;   // CE-515
 
         context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input

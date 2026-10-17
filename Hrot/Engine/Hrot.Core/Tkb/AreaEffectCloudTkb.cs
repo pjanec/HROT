@@ -12,7 +12,7 @@ namespace Hrot.Core.Tkb
     /// </summary>
     public static class AreaEffectCloudTkb
     {
-        public const long Type = Fdp.Toolkit.Combat.AreaEffectClouds.TkbType;   // the toolkit spawns it (AreaEffectClouds.Spawn)
+        public const long Type = Fdp.Toolkit.Combat.AreaEffectClouds.TkbType;   // the toolkit requests it (AreaEffectClouds.Request, CE-3228)
         public const string Name = "Area effect cloud";
 
         public static bool Is(long tkbType) => tkbType == Type;

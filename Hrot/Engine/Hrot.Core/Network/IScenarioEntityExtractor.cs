@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Scenario;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Core.Network;
 

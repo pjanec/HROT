@@ -5,6 +5,7 @@ using Fdp.Toolkit.Orchestration;
 using HrotStrideApp;
 using Hrot.Core.Network;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -102,7 +103,7 @@ public sealed class EditorStrideSubsystemTests : IDisposable
         // authority on all initial components immediately.
         // BATCH-03 STR-D8: Use a real UrbanCombat TKB type (1001 = CivilianPedestrian)
         // now that EditorStrideSubsystem.Initialize registers the real UrbanCombat templates.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,           // localNodeId = EditorNodeId = 0
@@ -172,7 +173,7 @@ public sealed class EditorStrideSubsystemTests : IDisposable
     public void PumpSixtyFrames_AfterSpawn_DoesNotThrow()
     {
         // BATCH-03 STR-D8: Use a real UrbanCombat TKB type (2002 = InfantrySoldier).
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

@@ -234,7 +234,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             PumpBothFrames(simHost, cgf, 40);
 
             var cgfWorld = cgf.World!;
-            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
@@ -304,7 +304,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 
             var cgfWorld = cgf.World!;
             long start = new DateTime(2024, 3, 1, 4, 30, 0, DateTimeKind.Utc).Ticks;
-            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
@@ -378,7 +378,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             PumpBothFrames(simHost, cgf, 40);
 
             var cgfWorld = cgf.World!;
-            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
@@ -432,7 +432,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
             PumpBothFrames(simHost, cgf, 40);
 
             var cgfWorld = cgf.World!;
-            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            cgf.CgfSvc.EntityCreation!.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,

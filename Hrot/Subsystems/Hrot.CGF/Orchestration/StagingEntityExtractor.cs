@@ -11,6 +11,7 @@ using Fdp.Toolkit.Scenario;
 using Hrot.CGF.Orchestration;
 using Hrot.Common.Serializers;
 using Hrot.Core.Network;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.CGF.Orchestration
 {

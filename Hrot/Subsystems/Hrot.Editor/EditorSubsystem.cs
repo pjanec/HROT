@@ -173,7 +173,9 @@ namespace Hrot.Editor
     public sealed class EditorSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable, Fdp.Toolkit.Runner.IAppExitGuard,
         Hrot.Common.EntityCreation.IEntityCreationHost
     {
-        private const int EditorNodeId = 0;
+        /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — the editor's node id. 🔒 User, <c>2026-10-17</c>: <i>"No valid node ID should be
+        /// 0."</i> 0 means "no node" and, on a creation request, "the system picks"; the editor is an offline one-node cluster, so 1.</summary>
+        internal const int EditorNodeId = 1;
 
         /// <summary>
         /// ⭐ The editor's terrain residency — the one its load chain commits through and the terrain picker
@@ -325,7 +327,6 @@ namespace Hrot.Editor
 
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
-        private ScenarioEntityCreationRequestSource? _scenarioLoadSource;
         // ⚠ CE-203 widened this from TkbDatabase to the interface: the instance now comes from
         //   HrotNodeContext.TkbDb, which is typed ITkbDatabase. 📐 Measured — nothing reads a concrete
         //   member off it. ⛔⛔ CE-204: this comment used to claim the only outside consumer,
@@ -803,13 +804,6 @@ namespace Hrot.Editor
         /// Exposed so the Stride layer can assert on it without a GPU context.
         /// </summary>
         public bool IsHeadless => _headless;
-
-        /// <summary>
-        /// The entity-creation request source: enqueue an <c>EntityCreationRequest</c> here to spawn
-        /// through the production <c>CreateEntityRequestSystem -> NetworkSpawningSystem</c> pipeline.
-        /// Null until <see cref="Initialize"/> has run.
-        /// </summary>
-        public ScenarioEntityCreationRequestSource? EntityCreationRequestSource => _scenarioLoadSource;
 
         /// <summary>
         /// The editor's authoritative spawn TKB (NED catalog + UrbanCombat templates) -- the instance
@@ -1481,12 +1475,8 @@ namespace Hrot.Editor
 
             var elm      = creation.Elm;
             var spawnSys = creation.SpawnSystem;
-            // ⭐ `ST-010` — the pack owns the local request source now; this host just holds the same
-            //   instance it always did, so EntityCreationRequestSource keeps working unchanged.
-            // ⚠ The local name is kept deliberately: five later sites in this method reference it, and
-            //   renaming them would be churn that hides the one real change (who CONSTRUCTS it).
-            var scenarioLoadSource = creation.LocalRequests;
-            _scenarioLoadSource    = scenarioLoadSource;
+            // ⭐⭐ CE-3228 (Entity Creation §3.4d) — a request is PUBLISHED on this world's bus (EntityCreation.Publish); the pack's bus
+            //   source reads it. The queue singleton `ST-010` handed around here is gone.
             var extractor          = new StagingEntityExtractor();
 
             // ⭐⭐⭐ BP-509 — the staging→runtime id table reaches the control-plane bus.
@@ -1543,7 +1533,7 @@ namespace Hrot.Editor
             //   CGF's step does. ⛔ Before, an edit load kept the file's STAGING ids in every task's params, and a save
             //   or a run from the editor carried them on. 📄 docs/blueprints/DESIGN_Entity_Reference.md D4.
             editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
-                scenarioSerializer, scenarioLoader, extractor, scenarioLoadSource, idAllocator,
+                scenarioSerializer, scenarioLoader, extractor, _world!.Bus, idAllocator,
                 behaviorRemapper: Hrot.CGF.Configuration.CgfBehaviorSetup.CreateBehaviorRemapper(_behaviorRegistry)));
 
             clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
@@ -1633,7 +1623,6 @@ namespace Hrot.Editor
             // ⭐ CE-454 (W3): the one mapper list both Brain hosts share.
             var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
-                scenarioLoadSource,
                 mapperRegistry,
                 _blueprintRegistry);
 
@@ -1770,7 +1759,7 @@ namespace Hrot.Editor
             _kernel.RegisterModule(new EditorSystemsModule(() => EntityCreation));   // ⭐ CE-3141 — the obstacle tool creates through the pack
 
             // ?? 4c. ELM + offline spawning module + scenario genesis pipeline ??????????????????
-            // CreateEntityRequestSystem drains scenarioLoadSource each Input tick and emits
+            // CreateEntityRequestSystem reads the bus's creation requests each Input tick and emits
             // SpawnEntityCommand events for NetworkSpawningSystem (BeforeSync tick), which
             // sets AuthorityMask = ComponentMask for locally owned entities.
             // ⭐ CE-140 step 3, host (c) — the request system is the pack's; it was built ~180 lines
@@ -2003,7 +1992,7 @@ namespace Hrot.Editor
                     //   Windowed only: a headless editor reports Spawn unserviceable, as before.
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => _tkbDatabase,
-                        Requests:     () => _scenarioLoadSource,
+                        Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                         GeoTransform: () => geoTransform)
                     {
                         SuspendedReason = () => _previewController?.IsInPreviewMode == true ? "suspended in Preview" : null,

@@ -12,6 +12,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -52,7 +53,7 @@ public sealed class StrD21NavigationFixTests : IDisposable
 
     private Entity SpawnAndPump(long tkbType, Vector3 pos)
     {
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

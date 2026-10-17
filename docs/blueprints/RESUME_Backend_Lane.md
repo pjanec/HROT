@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-current-answer: ⭐⭐⭐ §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+current-answer: ⭐⭐⭐ §00000 (2026-10-17) — CE-3228 (creation request on the bus) + the gas cloud landed; next CE-3227 / CE-3222. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,19 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 00000. NOW (`2026-10-17`) — CE-3228 + the gas cloud landed on `backend` *(🔒 user: "follow HANDOFF_Backend_Takeover_CE3228_Cloud.md. push to backend branch when in consistent state")*
+
+⭐ **Built (from the takeover of `wip/backend-ce3228-cloud`):** [`CE-3228`](Blueprint_Issues_Tracker.md) — ONE creation request on the
+FDP bus (`EntityCreationRequest` moved to `Fdp.Toolkit.NetworkSpawning.Events`; the queue singleton gone; every local author publishes;
+`ScenarioSpawnAdapter`'s four affordances end in one request mapping; the editor is node 1; closes `CE-3226`) — design
+[Entity Creation §3.4d](../DESIGN_Entity_Creation_Unification.md) (as-built at its end) · [`CE-3219`](Blueprint_Issues_Tracker.md) part 3 —
+the gas / smoke cloud (component **401**, `dtAreaEffectCloud` 144, TKB 7202), asked for with that request, owned by the default processor —
+design [Civilians §7.3b/§7.3c](../DESIGN_Civilians_And_Crowd_Control.md). Sent: behaviors the
+[gas reactions frame](batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md), ui the [cloud note](batches/NOTE_Backend_To_Ui_AreaEffectCloud.md).
+**Next:** [`CE-3227`](Blueprint_Issues_Tracker.md) (gas as a danger area) · [`CE-3222`](Blueprint_Issues_Tracker.md) B-4 the civilian
+perf gate (unblocked: behaviors' `CivilianHsm` landed) · `CE-3220` part 2 · the live `ua-civ-neutral-gate` re-check (CE-2242 + CE-3225) ·
+CE-3216 S2 (from §0000).
 
 ## 0000. NOW (`2026-10-16`) — a new backend session holds the lane *(🔒 user: "pls write handoff to another session (also backend) so i can continue there")*
 

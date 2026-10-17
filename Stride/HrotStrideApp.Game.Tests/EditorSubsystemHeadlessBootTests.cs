@@ -21,6 +21,7 @@ using Hrot.Editor;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -292,10 +293,10 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
 
         // ── Get world and scenario source ───────────────────────────────────────────
         var world          = _editor.World;
-        var scenarioSource = _editor.EntityCreationRequestSource;
+        var scenarioSource = _editor.World.Bus   /* CE-3228 — requests ride the bus */;
 
         // ── Spawn InfantrySoldier (TKB 2002) via production spawn pipeline ─────────
-        scenarioSource.Enqueue(new EntityCreationRequest
+        scenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -420,8 +421,8 @@ public sealed class EditorSubsystemHeadlessBootTests : IDisposable
         world.SetSingletonManaged<INavmeshProvider>(provider);
 
         // ── Spawn APC ─────────────────────────────────────────────────────────────
-        var scenarioSource = _editor.EntityCreationRequestSource;
-        scenarioSource.Enqueue(new EntityCreationRequest
+        var scenarioSource = _editor.World.Bus   /* CE-3228 — requests ride the bus */;
+        scenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

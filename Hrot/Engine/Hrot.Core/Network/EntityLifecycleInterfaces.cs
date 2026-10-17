@@ -1,4 +1,5 @@
 using System;
+using Fdp.Toolkit.NetworkSpawning.Events;   // ⭐ CE-3228 — EntityCreationRequest moved down to the toolkit (Entity Creation §3.4d)
 
 namespace Hrot.Core.Network;
 
@@ -17,8 +18,6 @@ public enum EntityOperationStatus : int
     UnknownDescriptorType = 2,
     /// <summary>Entity ID not found in the network map.</summary>
     EntityNotFound = 3,
-}
-
 }
 
 /// <summary>

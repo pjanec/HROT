@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Core.Network;
 using Hrot.Stride.Core.TestHarness;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using SNum = System.Numerics;
 
 namespace HrotStrideApp;
@@ -172,9 +173,9 @@ public static class StrideTestHarnessCases
     }
 
     private static void EnqueueSpawn(
-        ScenarioEntityCreationRequestSource source, long tkbType, SNum.Vector3 fdpPos)
+        FdpEventBus source, long tkbType, SNum.Vector3 fdpPos)
     {
-        source.Enqueue(new EntityCreationRequest
+        source.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0, // localNodeId=0 → authority granted immediately (owned)

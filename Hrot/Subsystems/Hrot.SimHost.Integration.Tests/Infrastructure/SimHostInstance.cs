@@ -389,7 +389,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             var musclePack = new SimHostCoreLogicPack(_entityMap, roadNetwork, trajectoryPool);
             var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();   // CE-454: the production list
             var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
-                new ScenarioEntityCreationRequestSource(),
                 mapperRegistry,
                 new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 

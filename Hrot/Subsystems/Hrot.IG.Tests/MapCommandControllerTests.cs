@@ -28,7 +28,7 @@ public class MapCommandControllerTests
         GlobalGizmoManager       manager,
         EntityRepository         repo,
         MapCommandController     controller,
-        ScenarioEntityCreationRequestSource requests)
+        FdpEventBus              requests)
     BuildController()
     {
         var canvas     = new MapCanvas();
@@ -40,9 +40,9 @@ public class MapCommandControllerTests
         repo.RegisterEvent<GizmoDragUpdateEvent>();
         repo.RegisterEvent<GizmoMouseEvent>();
         repo.RegisterEvent<GizmoKeyEvent>();
-        var requests   = new ScenarioEntityCreationRequestSource();
-        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback, requests, globalGizmoManager: manager);
-        return (canvas, bus, ackCapture, manager, repo, ctrl, requests);
+        // ⭐ CE-3228 — the controller publishes its requests on its bus (Entity Creation §3.4d)
+        var ctrl       = new MapCommandController(canvas, bus, ackCapture.Callback, globalGizmoManager: manager);
+        return (canvas, bus, ackCapture, manager, repo, ctrl, bus);
     }
 
     // Publishes a left-mouse-released event and drives a single Execute tick,
@@ -76,11 +76,11 @@ public class MapCommandControllerTests
     /// instead of publishing a node-local SpawnEntityCommand ORDER onto the bus. The claims below are
     /// unchanged — "one gesture produces exactly one creation" — only their observation point moved.
     /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4b.
-    private static IReadOnlyList<EntityCreationRequest> DrainRequests(ScenarioEntityCreationRequestSource requests)
+    /// ⭐ CE-3228 — the seam is now the bus: what was published since the last read becomes visible at the swap.
+    private static IReadOnlyList<EntityCreationRequest> DrainRequests(FdpEventBus requests)
     {
-        var drained = new List<EntityCreationRequest>();
-        requests.ProcessRequests(drained.Add);
-        return drained;
+        requests.SwapBuffers();
+        return requests.ReadManaged<EntityCreationRequest>().ToList();
     }
 
     [Fact]

@@ -9,6 +9,7 @@ using Hrot.Stride.Animation;
 using Hrot.Stride.Core.TestHarness;
 using SNum = System.Numerics;
 using Fdp.Toolkit.Animation;   // CE-1033 S4 — LocomotionBlend moved here (Fdp.Toolkits)
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp;
 
@@ -112,7 +113,7 @@ public static class StrideAnimationHarnessCases
                 new TkbIdentity  { TkbType = TkbInfantrySoldier },
             },
         };
-        ctx.ScenarioSource.Enqueue(request);
+        ctx.ScenarioSource.PublishManaged(request);
 
         ctx.Log($"{label} Mannequin: spawned @ FDP ({startPos.X:F1},{startPos.Y:F1},{startPos.Z:F1}); " +
                 $"driving forward at {speedMps:F1} m/s for {DriveSeconds:F0}s.");

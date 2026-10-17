@@ -49,19 +49,6 @@ namespace Hrot.CGF
         private readonly ModuleHostKernel _kernel;
         private bool _initialized;
 
-        // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
-        // Constructed once here so the same instance is handed to both the scenario
-        // load handlers and the CgfLogicPack composite source during Phase 3 wiring.
-        private readonly ScenarioEntityCreationRequestSource _scenarioEntityCreationSource;
-
-        /// <summary>
-        /// Returns the in-memory scenario entity creation request source.
-        /// Load handlers (Phases 3-4) use this to enqueue entity creation requests
-        /// that are then processed by <c>CreateEntityRequestSystem</c>.
-        /// </summary>
-        internal ScenarioEntityCreationRequestSource ScenarioEntityCreationSource
-            => _scenarioEntityCreationSource;
-
         /// <summary>Exposes the <see cref="Fdp.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
         public Fdp.Toolkit.Orchestration.ClusterSlave ClusterSlave => _clusterSlave;
 
@@ -106,9 +93,6 @@ namespace Hrot.CGF
             // Accept participant from composition root (Rule 3, modular-2 DESIGN.md).
             // When null, the node operates without DDS (offline / pure-domain test path).
             _participant = participant;
-            // Construct the scenario source before any handler registration so it is
-            // available for load handler wiring in Phases 3-4.
-            _scenarioEntityCreationSource = new ScenarioEntityCreationRequestSource();
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and time controller.
             _eventBus         = new FdpEventBus();
             _orchestrationBus = new FdpEventBus();  // Control Plane bus (orchestration/cluster management)
@@ -219,7 +203,7 @@ namespace Hrot.CGF
                             new Hrot.Map.Common.Services.TerrainResidency(
                                 localTempRoot, new CarKinem.Road.RoadNetworkHolder()), localTempRoot),
                         new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
-                            scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource,
+                            scenarioSerializer, scenarioLoader, extractor, _world.Bus,   // ⭐ CE-3228 — requests on the world's bus
                             cgfIdAllocator, behaviorRemapper: behaviorRemapper),
                     },
                     _world,
@@ -231,7 +215,7 @@ namespace Hrot.CGF
                 // publishes DestroyEntityCommand events on stop (TASK-C007).
                 _clusterSlave.RegisterHandler(
                     new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
-                        scenarioSerializer, scenarioLoader, extractor, _scenarioEntityCreationSource, cgfIdAllocator, _world, behaviorRemapper));
+                        scenarioSerializer, scenarioLoader, extractor, cgfIdAllocator, _world, behaviorRemapper));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only

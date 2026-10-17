@@ -16,7 +16,7 @@ namespace Hrot.Stride.Core.TestHarness;
 /// registry.Register(new VisualTestCase(
 ///     "My Case Label",
 ///     "What it does / what to look for on screen.",
-///     ctx => { /* ctx.ScenarioSource.Enqueue(...) / ctx.World... / ctx.Log("...") */ }));
+///     ctx => { /* ctx.ScenarioSource.PublishManaged(...) / ctx.World... / ctx.Log("...") */ }));
 /// </code>
 /// For a continuous (per-frame) case, register a hook from inside <c>Run</c>:
 /// <code>

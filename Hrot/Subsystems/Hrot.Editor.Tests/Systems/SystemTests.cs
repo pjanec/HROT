@@ -156,9 +156,8 @@ public sealed class EditorZoneAuthoringSystemTests : IDisposable
         _world.Bus.SwapBuffers();
         sys.Execute(_world, 0f);
 
-        var requests = new System.Collections.Generic.List<Hrot.Core.Network.EntityCreationRequest>();
-        creation.LocalRequests.ProcessRequests(requests.Add);
-        var request = Assert.Single(requests);
+        _world.Bus.SwapBuffers();   // ⭐ CE-3228 — the request rides the bus; visible after the frame's swap
+        var request = Assert.Single(_world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>());
         Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock, request.TkbType);
         Assert.NotNull(tkb.TryGetByType(request.TkbType, out var template) ? template : null);
         Assert.Equal(50f, Assert.Single(request.InitialComponents!.OfType<SimTransform>()).Position.X);

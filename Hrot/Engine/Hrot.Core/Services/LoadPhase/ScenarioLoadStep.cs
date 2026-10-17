@@ -12,6 +12,7 @@ using Fdp.Toolkit.Scenario;
 using Hrot.Common.Serializers;
 using Hrot.Core.Network;
 using Hrot.Map.Common.Services;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Map.Common.ClusterLoad;
 
@@ -56,7 +57,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private readonly ScenarioSerializer _serializer;
     private readonly IScenarioLoader _scenarioLoader;
     private readonly IScenarioEntityExtractor _extractor;
-    private readonly ScenarioEntityCreationRequestSource _source;
+    private readonly FdpEventBus _bus;   // ⭐ CE-3228 — the requests go on the world's bus (Entity Creation §3.4d)
     private readonly INetworkIdAllocator _idAllocator;
     private readonly ScenarioBehaviorRemapper? _remapper;
     private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
@@ -65,6 +66,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.TerrainDoorState>? _pendingDoorStates;   // ⭐ 5e — the scenario's TerrainObjects
     private Guid? _pendingTransactionId;
+    private uint? _publishedAtTick;   // ⭐ CE-3228 — the SimulationTick at which Commit published (readiness ①)
     private bool _prepared;   // ⭐ CE-3216 C-3 — a Prepare ran and was neither committed nor aborted (a new scenario sets no transaction id)
 
     /// <param name="idAllocator">
@@ -81,7 +83,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         ScenarioSerializer serializer,
         IScenarioLoader scenarioLoader,
         IScenarioEntityExtractor extractor,
-        ScenarioEntityCreationRequestSource source,
+        FdpEventBus bus,
         INetworkIdAllocator idAllocator,
         ScenarioBehaviorRemapper? behaviorRemapper = null,
         ReadOnlyMigrationAdapter? readOnlyMigrationAdapter = null,
@@ -90,7 +92,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _serializer         = serializer     ?? throw new ArgumentNullException(nameof(serializer));
         _scenarioLoader     = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
         _extractor          = extractor      ?? throw new ArgumentNullException(nameof(extractor));
-        _source             = source         ?? throw new ArgumentNullException(nameof(source));
+        _bus                = bus            ?? throw new ArgumentNullException(nameof(bus));
         _idAllocator        = idAllocator    ?? throw new ArgumentNullException(nameof(idAllocator));
         _remapper           = behaviorRemapper;
         _readOnlyAdapter    = readOnlyMigrationAdapter;
@@ -141,7 +143,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
 
     /// <inheritdoc/>
     /// <remarks>
-    /// ⭐ <b>Commit only ENQUEUES.</b> The genesis pipeline drains the queue over LATER frames, which is
+    /// ⭐ <b>Commit only PUBLISHES</b> (on the bus, <c>CE-3228</c>). The genesis pipeline drains the requests over LATER frames, which is
     /// why the readiness predicate exists at all — and why terrain residency cannot be stamped here.
     /// </remarks>
     public void Commit(LoadPhaseContext context, EntityRepository? world)
@@ -149,6 +151,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         // ⛔ a prepared batch of ANOTHER transaction is stale — neither it nor this transaction's doors are ours to enqueue
         if (_pendingTransactionId != null && _pendingTransactionId != context.TransactionId) return;
 
+        _publishedAtTick = null;
         try
         {
             bool hasEnvironment = world != null && Fdp.Toolkit.Weather.ScenarioTime.TryClock(world, out _);
@@ -166,7 +169,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                         }
                         hasEnvironment = true;
                     }
-                    _source.Enqueue(request);
+                    Publish(world, request);
                 }
 
             // ⭐ Buildings Stage 5b — the TERRAIN's entities (its doors), right after the scenario's own, in key order, ids from the
@@ -178,14 +181,14 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
                 if (terrain != null && terrain.Doors.Count > 0)
                     foreach (var request in TerrainObjectRequests.ForDoors(
                                  terrain, Fdp.Toolkit.Terrain.TerrainObjects.ExistingKeys(world), _idAllocator, _pendingDoorStates))
-                        _source.Enqueue(request);
+                        Publish(world, request);
             }
 
             // ⭐ CE-3216 C-3 (R-3012) — a scenario with no World Environment gets a DEFAULT one, so the clock is always there to change
             //   (and is saved next time). ⭐ W-8: the FIXED built-in start time, ⛔ never the wall clock. After the doors, so their ids
             //   are what they were before the clock existed. Also for a NEW scenario. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md.
             if (!hasEnvironment && _prepared)
-                _source.Enqueue(WorldEnvironmentRequest(_idAllocator));
+                Publish(world, WorldEnvironmentRequest(_idAllocator));
         }
         finally
         {
@@ -194,6 +197,13 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
             _pendingTransactionId = null;
             _prepared             = false;
         }
+    }
+
+    /// <summary>⭐ <c>CE-3228</c> (Entity Creation §3.4d) — a request goes on the bus; the tick it went on is what readiness ① waits on.</summary>
+    private void Publish(EntityRepository? world, EntityCreationRequest request)
+    {
+        _bus.PublishManaged(request);
+        if (world != null) _publishedAtTick ??= world.SimulationTick;
     }
 
     /// <summary>⭐ CE-3216 C-3 — the creation request for a DEFAULT World Environment: the built-in start time, an id from the cluster's
@@ -209,6 +219,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     /// <inheritdoc/>
     public void Abort(LoadPhaseContext context)
     {
+        _publishedAtTick      = null;
         _pendingRequests      = null;
         _pendingDoorStates    = null;
         _pendingTransactionId = null;
@@ -224,8 +235,14 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     /// </summary>
     public bool IsResolved(EntityRepository? world)
     {
-        // ① every extracted request has been consumed by CreateEntityRequestSystem.
-        if (!_source.IsEmpty) return false;
+        // ① every extracted request has been consumed by CreateEntityRequestSystem. ⭐ CE-3228 (Entity Creation §3.4d): the requests
+        //    went on the bus, which shows them after the NEXT swap; the request system reads them in the Input phase of the frame after
+        //    that. ⇒ two kernel ticks after the publish, all of them have been read (a publish inside a frame costs one spare frame).
+        if (_publishedAtTick is { } at && world != null)
+        {
+            if (unchecked(world.SimulationTick - at) < 2) return false;
+            _publishedAtTick = null;
+        }
 
         if (world != null)
         {

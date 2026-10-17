@@ -74,7 +74,7 @@ namespace HrotStrideApp;
 ///     <c>StrideKinematicsModule</c> (STR-P1-T1) when Phase 1 is implemented.</item>
 ///   <item>Spawn pipeline: <see cref="EntityLifecycleModule"/> + <see cref="NetworkSpawningSystem"/>
 ///     + <see cref="CreateEntityRequestSystem"/> feeding a
-///     <see cref="ScenarioEntityCreationRequestSource"/>; <c>localNodeId = 0</c> so all
+///     the world's bus (<c>CE-3228</c>); the editor is the default processor, so all
 ///     spawned entities are instantly <c>WithOwned</c>.</item>
 ///   <item>Separate <see cref="FdpEventBus"/> <c>_orchestrationBus</c> — never the same
 ///     instance as <c>world.Bus</c>; required invariant from design §8.1.</item>
@@ -165,7 +165,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     /// Entity-creation request source fed by <see cref="CreateEntityRequestSystem"/>.
     /// Enqueue an <see cref="EntityCreationRequest"/> here to spawn via the Brain path.
     /// </summary>
-    public ScenarioEntityCreationRequestSource ScenarioSource { get; private set; } = null!;
+    public FdpEventBus ScenarioSource { get; private set; } = null!;   // ⭐ CE-3228 — the creation pack's bus
 
     // ⛔ CE-209 — `EntityMap` is GONE for the same reason: only the self-contained arm assigned it.
     //   In the hosted composition the editor owns the NetworkEntityMap, and StrideHrotGame already
@@ -714,7 +714,7 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         // Repoint ScenarioSource so StrideHrotGame.EnqueueDemoSpawns() and all harness
         // cases (which spawn via ctx.ScenarioSource = _editorSubsystem.ScenarioSource)
         // go through the production EditorSubsystem spawn path.
-        ScenarioSource = _editor.EntityCreationRequestSource;
+        ScenarioSource = _editor.World!.Bus;   // ⭐ CE-3228 — the editor's creation pack reads its world's bus
 
         // TkbDb UNIFICATION (BATCH-S2-E): bind the Stride view to the editor's authoritative spawn DB
         // — the exact instance NetworkSpawningSystem + translators resolve from — instead of a duplicate.

@@ -19,7 +19,7 @@ public sealed class EntityAuthoringPackTests : IDisposable
 {
     private readonly EntityRepository _world = new();
     private readonly TkbDatabase _tkb = new();
-    private readonly ScenarioEntityCreationRequestSource _requests = new();
+    private FdpEventBus Requests => _world.Bus;   // ⭐ CE-3228 — the creation pack reads the world's bus
 
     public EntityAuthoringPackTests()
     {
@@ -37,8 +37,8 @@ public sealed class EntityAuthoringPackTests : IDisposable
         EntityAuthoring = inputs,
     });
 
-    private EntityAuthoringInputs Inputs(Func<ScenarioEntityCreationRequestSource?>? requests = null)
-        => new(() => _tkb, requests ?? (() => _requests), () => null);
+    private EntityAuthoringInputs Inputs(Func<FdpEventBus?>? requests = null)
+        => new(() => _tkb, requests ?? (() => Requests), () => null);
 
     [Fact]
     public void CE1017_AHostThatCanAuthor_GetsTheWholeSurface_FromThePack()
@@ -69,13 +69,13 @@ public sealed class EntityAuthoringPackTests : IDisposable
     [Fact]
     public void CE1017_TheSpawnAdapter_WaitsForTheRequestQueue_AndTheMenuFollows()
     {
-        ScenarioEntityCreationRequestSource? queue = null;   // the creation pack is composed after the map
+        FdpEventBus? queue = null;   // the creation pack is composed after the map
         var mi = Build(Inputs(() => queue));
 
         Assert.Null(mi.EntityAuthoring!.Spawn);
         Assert.DoesNotContain("Add Entity", mi.CanvasMenu.CurrentJson());
 
-        queue = _requests;
+        queue = Requests;
 
         Assert.NotNull(mi.EntityAuthoring.Spawn);
         Assert.Contains("Add Entity", mi.CanvasMenu.CurrentJson());

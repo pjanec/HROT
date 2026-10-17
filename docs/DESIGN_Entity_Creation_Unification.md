@@ -1087,7 +1087,7 @@ so it is LOUD, not silent.
 | ⭐ **option B** | **keep IG non-materialising** — it is what IG does today anyway — and re-point the rails at the SCHEDULING signal plus a strictly stronger assertion that `NedNetworkFactory` never puts the spawn egress translator in the IG list |
 | ⚠ **lean** | ⛔⛔ **SUPERSEDED `2026-09-03` — the user chose A.** 🔒 *"F4: do option A — fix the two destroy consumers properly."* ⇒ 📄 **§3.4c is the design.** ⭐ The lean itself said A was *"the real fix"*; what it under-weighed is that **B leaves the hazard in place on a host that is about to be able to own entities**, and that node-roles §8 ② *(what removes an orphaned IG's replicas on peers)* is **the same defect seen from the peer's side** — so B would have shipped two halves of one bug |
 
-### 3.4d ⭐⭐⭐ `CE-3228` — **ONE REQUEST, ON THE FDP BUS: the local intake is the bus, not a queue singleton** *(`2026-10-17`; build-state: BUILDING)*
+### 3.4d ⭐⭐⭐ `CE-3228` — **ONE REQUEST, ON THE FDP BUS: the local intake is the bus, not a queue singleton** *(`2026-10-17`; build-state: BUILT — as-built at the end of this section)*
 
 > 🔒 **User, `2026-10-17`:** *"The behavior or whoever wants to create an entity simply puts a request in the form of FDP bus event,
 > and some system will create the entity based on that."* · *"I am not aware of any scenario loading thread and network thread and UI
@@ -1169,6 +1169,29 @@ creates nothing — the same as the queue's "no singleton ⇒ no creation" guard
 | the local intake | the FDP bus, read by `BusEntityCreationRequestSource` in the request system's local tier | the queue singleton: its thread-safety serves no producer (inventory) · publishing `SpawnEntityCommand`: the ORDER level, skips routing and grants (§3.4b, Authoring Surface G1) |
 | the wire intake | unchanged — `NedEntityCreationRequestSource` stays the wire tier, building the same type | network ingress publishing on the bus too: the forwarder would see wire requests and bounce them (§3.4b) |
 | node id 0 | never a node; at the request level it means "the system picks" (the default processor, then the role-group grants to the least-loaded node); the editor moves off 0 | a "this node" sentinel (−1): redundant once 0 is never a node |
+
+#### 3.4d AS-BUILT *(`2026-10-17`)* — built as drawn; two things the drawing did not say
+
+| built | where |
+|---|---|
+| `EntityCreationRequest` moved to `Fdp.Toolkit.NetworkSpawning.Events`, unchanged + `[DataPolicy(NoReplay)]`; registered on every world by `HrotSharedComponentRegistry` and by the pack | `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Events/EntityCreationRequest.cs` |
+| `BusEntityCreationRequestSource` where the queue sat (inside the forwarder, beside the wire source); `EntityCreation.Publish(request)`; `RequestEntityCreation` publishes | `Hrot.Core/Network`, `Hrot.Common/EntityCreation` |
+| every local author publishes: `EjectionSystem`, `MapCameraLayer` (closes `CE-3226`), `ScenarioLoadStep`, `CgfEpisodeLoadHandler`, `MapCommandController`, `MiniExConPanelState`, `DebugApiService`, `SimHostApp`'s test hook, the Stride harness, the gas cloud | — |
+| ⭐ `ScenarioSpawnAdapter` — placement, area, zone and route all end in ONE mapping (`RequestFor(SpawnEntityCommand)` → `Request`); zero `SpawnEntityCommand` published by an authoring tool (Authoring Surface G1 / ⑧) | `Hrot.Presentation/Adapters/ScenarioSpawnAdapter.cs` |
+| ⭐ the editor's node id is **1** (`EditorSubsystem.EditorNodeId`) — 🔒 *"No valid node ID should be 0"* | `EditorSubsystem.cs`, `EditorApplication.cs` |
+| retired: the queue singleton, `EntityCreation.LocalRequests`, `CgfLogicPack`'s unread `scenarioSource`, the hosts' queue properties; component id `EntityCreationRequestSource` (349) kept RETIRED, never reused | `GlobalComponentIds.cs` |
+
+⚠ **What the drawing did not say — ① the load step's readiness.** The queue let `ScenarioLoadStep.IsResolved` ask *"is it empty?"*. A bus
+cannot be asked that: a request sits in the write buffer until the frame's swap and is read in the Input phase of the frame after
+(`ModuleHostKernel` swaps after `BeforeSync`). ⇒ readiness ① now holds **two kernel ticks after the commit published**
+(`SimulationTick` stamped at the first publish; a publish inside a frame costs one spare frame). Railed by
+`ScenarioLoadStepTests.ASourceStillHoldingRequests_IsNotResolved` (not resolved at +0 and +1 tick, resolved at +2).
+**② a world that cannot carry the request creates nothing.** `EjectionSystem` and `MapCameraLayer` guard on
+`Bus.IsRegisteredManaged<EntityCreationRequest>()` — what the queue singleton's presence used to say (a world with no shared registry and
+no pack); under strict registration an unguarded publish there would throw.
+
+⭐ **Strict registration measured:** `FdpAutoSerializer.EnsureCompiled<EntityCreationRequest>()` succeeds (the `List<object>` and the
+dictionary of tuples included) — `EntityCreationRequestSourceTests.BusSource_TheRequestCompilesUnderStrictRegistration`.
 
 ### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
 

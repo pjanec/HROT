@@ -132,3 +132,4 @@ public sealed class EntityCreationRequest
     /// 📄 docs/DESIGN_Add_Entity_Picker.md §2e.
     /// </summary>
     public Fdp.Toolkit.NetworkSpawning.SpawnHeight? SpawnHeight { get; init; }
+}

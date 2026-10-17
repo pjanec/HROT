@@ -2666,21 +2666,24 @@ public sealed class Map3DTests
     public void S5_TheFirstMove_RequestsAnUnownedCamera_TheCreatorOwnsIt_AndItsPoseIsKept_AndSaved()
     {
         using var w = CameraWorld();
-        var requests = new Hrot.Core.Network.ScenarioEntityCreationRequestSource();
-        w.SetSingletonManaged(requests);                       // as the shared EntityCreationPack publishes it on every creating host
+        // ⭐ CE-3228 — the request rides the world's bus, registered on every creating host (Entity Creation §3.4d)
+        w.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>();
+        List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> Asked()
+        {
+            w.Bus.SwapBuffers();
+            return w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToList();
+        }
         var (_, sw, two) = Map(new Vector2(10f, 20f), 2f);
         var layer = new Hrot.UI.Common.Map3D.MapCameraLayer(sw, () => w);
         layer.Update(0.016f);                                  // the baseline
-        Assert.True(requests.IsEmpty);
+        Assert.Empty(Asked());
 
         two.ApplyCameraView(new MapCameraView { Target = new Vector2(300f, 400f), Zoom = 2f, SmoothTarget = new Vector2(300f, 400f), SmoothZoom = 2f });
         layer.Update(0.016f);                                  // a move …
-        Assert.True(requests.IsEmpty);                         // … nothing asked while the view is still changing
+        Assert.Empty(Asked());                                 // … nothing asked while the view is still changing
         for (int i = 0; i < 40; i++) layer.Update(0.016f);     // still for > SettleSeconds
 
-        var asked = new List<Hrot.Core.Network.EntityCreationRequest>();
-        requests.ProcessRequests(asked.Add);
-        var r = Assert.Single(asked);                          // one request, not one per frame
+        var r = Assert.Single(Asked());                          // one request, not one per frame
         Assert.Equal(Hrot.Core.Tkb.MapCameraTkb.Type, r.TkbType);
         Assert.Equal(Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor, r.OwnerAppInstanceId);   // R-140: unowned
         Assert.True(layer.Requested);
@@ -2697,7 +2700,7 @@ public sealed class Map3DTests
         sw.Set(true, animate: false);                          // switching to 3-D is a camera move: the owner keeps it
         for (int i = 0; i < 40; i++) layer.Update(0.016f);
         Assert.False(MapViewSwitch.IsTwoDPose(Hrot.UI.Common.Map3D.MapCameraPose.FromTransform(w.GetComponentRO<SimTransform>(cam), null)));
-        Assert.True(requests.IsEmpty);                         // moved, never asked for a second one
+        Assert.Empty(Asked());                                 // moved, never asked for a second one
         Assert.Equal(1, w.EntityCount);
 
         var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Editor").Build();

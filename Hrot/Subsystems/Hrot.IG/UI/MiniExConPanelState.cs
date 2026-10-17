@@ -90,7 +90,7 @@ public class MiniExConPanelState
 
     /// <summary>
     /// Constructs the entity shape from the current form fields and enqueues it as an
-    /// <see cref="EntityCreationRequest"/> onto <paramref name="requests"/>.
+    /// <see cref="EntityCreationRequest"/> on <paramref name="requests"/> — the node's bus (<c>CE-3228</c>, Entity Creation §3.4d).
     ///
     /// The command mirrors the <c>CreationTool</c> contract:
     /// <list type="bullet">
@@ -105,7 +105,7 @@ public class MiniExConPanelState
     /// ⭐ The node's LOCAL entity-creation request source; must not be <c>null</c>. host (f): the panel
     /// posts an INTENT here rather than publishing a node-local ORDER onto the event bus.
     /// </param>
-    public void Submit(ScenarioEntityCreationRequestSource requests)
+    public void Submit(FdpEventBus requests)
     {
         if (requests is null) throw new ArgumentNullException(nameof(requests));
 
@@ -132,7 +132,7 @@ public class MiniExConPanelState
         };
 
         var request = IgEntityCreationRequests.FromSpawnCommand(cmd);
-        requests.Enqueue(request);
+        requests.PublishManaged(request);
         OnRequestEnqueued?.Invoke(request);
     }
 

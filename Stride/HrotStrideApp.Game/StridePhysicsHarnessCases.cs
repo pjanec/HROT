@@ -11,6 +11,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Core;
 using Hrot.Stride.Core.TestHarness;
 using Stride.Rendering;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using SNum = System.Numerics;
 using SMath = Stride.Core.Mathematics;
 using StrideEntity = Stride.Engine.Entity;
@@ -393,7 +394,7 @@ public static class StridePhysicsHarnessCases
             slowMinFrac:      0.2f,
             wheelBase:        WpWheelBase);
 
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -740,7 +741,7 @@ public static class StridePhysicsHarnessCases
 
         var startPos = new SNum.Vector3(x, y, z);
 
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0, // owned immediately
@@ -834,7 +835,7 @@ public static class StridePhysicsHarnessCases
 
         var startPos = new SNum.Vector3(x, y, z);
 
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -961,7 +962,7 @@ public static class StridePhysicsHarnessCases
         // and VehicleState (guarded by IsComponentTypeRegistered checks — both are already
         // registered via KinematicComponentRegistry through MuscleRoleComponentRegistry in
         // SimHostComponentRegistry.RegisterAll). No need to add them in InitialComponents.
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,            // localNodeId=0 → authority granted (WithOwned<SimTransform>)
@@ -1210,7 +1211,7 @@ public static class StridePhysicsHarnessCases
         var   startPos = new SNum.Vector3(NavDriveStartFdp.X, NavDriveStartFdp.Y, startZ);
         s_physicsRowY += 4f; // advance layout cursor to avoid overlap with earlier spawns
 
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -1596,7 +1597,7 @@ public static class StridePhysicsHarnessCases
         // TKB 2002 = InfantrySoldier → capsule CharacterComponent, same as F1 "Physics Walk".
         // FDP Z=0 → Stride Y=0 (floor level). Entity origin = base of capsule (feet).
         var startPos = new SNum.Vector3(effectiveStart.X, effectiveStart.Y, 0f);
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -1929,7 +1930,7 @@ public static class StridePhysicsHarnessCases
 
         // ── Spawn the mannequin (TKB 2002 InfantrySoldier — same as F1/F5) ──
         var startPos = new SNum.Vector3(effectiveStart.X, effectiveStart.Y, 0f);
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -2219,7 +2220,7 @@ public static class StridePhysicsHarnessCases
         // ── Spawn the APC (TKB 2001) ────────────────────────────────────────
         float startZ = ApcBoxHalfHeightFdpZ;
         var startPos = new SNum.Vector3(MoveOrderVehStartFdp.X, MoveOrderVehStartFdp.Y, startZ);
-        ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

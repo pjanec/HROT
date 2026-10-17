@@ -18,7 +18,7 @@ namespace Hrot.Stride.Core.TestHarness;
 /// <para>
 /// <b>Engine-agnostic by design.</b> Every member is expressed in types available to
 /// <c>Hrot.Stride.Core</c> (Fdp.Core <see cref="EntityRepository"/>, Hrot.Core
-/// <see cref="ScenarioEntityCreationRequestSource"/>, Hrot.Stride.Core
+/// the creation bus (<c>CE-3228</c>), Hrot.Stride.Core
 /// <see cref="StrideVisualBindingSystem"/>, and Stride <see cref="Scene"/> /
 /// <see cref="Entity"/>). The context therefore does <b>not</b> reference
 /// <c>HrotStrideApp.Game</c> (no dependency cycle); the game constructs it from its
@@ -51,8 +51,8 @@ public sealed class TestHarnessContext
     /// </summary>
     /// <param name="world">The live FDP ECS world (simulation layer).</param>
     /// <param name="scenarioSource">
-    /// The scenario spawn queue; <see cref="ScenarioEntityCreationRequestSource.Enqueue"/>
-    /// feeds the Brain spawn path (CreateEntityRequestSystem → NetworkSpawningSystem).
+    /// ⭐ <c>CE-3228</c> — the bus the creation pack reads; <c>PublishManaged(EntityCreationRequest)</c> feeds the Brain spawn path
+    /// (CreateEntityRequestSystem → NetworkSpawningSystem) next frame.
     /// </param>
     /// <param name="visualBindingSystem">
     /// The Stride visual binding system (may be <c>null</c> in a headless harness without a
@@ -65,7 +65,7 @@ public sealed class TestHarnessContext
     /// </param>
     public TestHarnessContext(
         EntityRepository world,
-        ScenarioEntityCreationRequestSource scenarioSource,
+        FdpEventBus scenarioSource,
         StrideVisualBindingSystem? visualBindingSystem,
         Scene scene,
         StrideEntity? cameraEntity,
@@ -82,8 +82,8 @@ public sealed class TestHarnessContext
     /// <summary>The live FDP ECS world (simulation layer).</summary>
     public EntityRepository World { get; }
 
-    /// <summary>The scenario spawn queue feeding the Brain spawn path.</summary>
-    public ScenarioEntityCreationRequestSource ScenarioSource { get; }
+    /// <summary>⭐ <c>CE-3228</c> — the bus the creation pack reads: publish an <c>EntityCreationRequest</c> here to spawn.</summary>
+    public FdpEventBus ScenarioSource { get; }
 
     /// <summary>
     /// The Stride visual binding system; <c>null</c> when the harness runs without a GPU

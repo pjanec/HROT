@@ -37,7 +37,6 @@ namespace Hrot.UI.Common.Adapters
         private readonly FdpEventBus        _bus;
         private readonly JsonAttributeCompiler? _jsonCompiler;
         private readonly ITkbDatabase?      _tkbDb;
-        private readonly ScenarioEntityCreationRequestSource? _requestSource;
         private readonly GlobalGizmoManager? _globalGizmoManager;
         private readonly Hrot.ScenarioEditor.Tools.ToolController? _tools;
         private long?                        _activeSequenceId;
@@ -68,7 +67,8 @@ namespace Hrot.UI.Common.Adapters
         /// </summary>
         public long LastSelectedTkbType { get; private set; } = TkbEntityTypes.Tank_M1Abrams;
 
-        /// <param name="bus">The local FDP event bus used to route spawn commands.</param>
+        /// <param name="bus">⭐ <c>CE-3228</c> — the bus the host's creation pack reads: every affordance (placement, area, zone, route) ends in
+        /// an <c>EntityCreationRequest</c> published here (Entity Authoring Surface G1 / acceptance ⑧; Entity Creation §3.4d).</param>
         /// <param name="jsonCompiler">
         /// The JSON->ECS attribute compiler (from <c>AttributeCompilerFactory.Build</c>).
         /// Used to parse <c>InitialAttributesJson</c> into concrete ECS component objects
@@ -94,14 +94,12 @@ namespace Hrot.UI.Common.Adapters
             FdpEventBus bus,
             JsonAttributeCompiler? jsonCompiler = null,
             ITkbDatabase? tkbDb = null,
-            ScenarioEntityCreationRequestSource? requestSource = null,
             GlobalGizmoManager? globalGizmoManager = null,
             Hrot.ScenarioEditor.Tools.ToolController? tools = null)
         {
             _bus          = bus;
             _jsonCompiler = jsonCompiler;
             _tkbDb        = tkbDb;
-            _requestSource = requestSource;
             _globalGizmoManager = globalGizmoManager;
             _tools        = tools;
 
@@ -222,36 +220,7 @@ namespace Hrot.UI.Common.Adapters
                         cmd.InitialComponents = ctx.FlushComponents();
                     }
 
-
-                    // Preserve explicit unmanaged fields from the tool.
-                    // EntityCreationRequest expects all spatial overrides to be inside the generic list.
-                    if (cmd.InitialTransform.HasValue)
-                    {
-                        cmd.InitialComponents.Add(cmd.InitialTransform.Value);
-                    }
-                    if (cmd.InitialVelocity.HasValue)
-                    {
-                        cmd.InitialComponents.Add(cmd.InitialVelocity.Value);
-                    }
-
-
-                    if (_requestSource != null)
-                    {
-                        _requestSource.Enqueue(new EntityCreationRequest
-                        {
-                            RequestId             = cmd.RequestId,
-                            OwnerAppInstanceId    = cmd.OwnerNodeId,
-                            TkbType               = cmd.TkbType,
-                            DisType               = cmd.DisType,
-                            InitialComponents     = cmd.InitialComponents,
-                            InitialAttributesJson = cmd.InitialAttributesJson,
-                            SpawnHeight           = cmd.SpawnHeight,   // CE-1017 S2 — the creator resolves the level
-                        });
-                    }
-                    else
-                    {
-                        _bus.PublishManaged(cmd);
-                    }
+                    Request(cmd);
                 },
                 tkbType:               tkbType,
                 initialPropertiesJson: initialPropertiesJson,
@@ -343,7 +312,7 @@ namespace Hrot.UI.Common.Adapters
             var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
                 TkbType:    tkbType,
                 StyleJson:  _pendingStyleJson,
-                OnCommit:   cmd => _bus.PublishManaged(cmd),
+                OnCommit:   Request,
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
@@ -440,13 +409,45 @@ namespace Hrot.UI.Common.Adapters
                         InitialComponents = new System.Collections.Generic.List<object> { routePlan },
                     };
 
-                    _bus.PublishManaged(cmd);
+                    Request(cmd);
                 },
                 onRemove: () => { _globalGizmoManager!.Unregister(routeId); _activeSequenceId = null; });
 
             _activeSequenceId = routeId;
             _globalGizmoManager!.Register(routeId, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-3228</c> — THE one mapping from what a tool produced to a creation REQUEST, for every affordance (placement,
+        /// area, zone, route). ⛔ No <c>SpawnEntityCommand</c> is published here any more: that is the ORDER level, which skips the
+        /// routing and the load-balanced grants (Entity Authoring Surface G1 / acceptance ⑧). Owner 0 ⇒ the system picks (the default
+        /// processor). The transform and velocity ride in the component list, as every request carries them.
+        /// 📄 docs/DESIGN_Entity_Creation_Unification.md §3.4d.
+        /// </summary>
+        public void Request(SpawnEntityCommand cmd)
+            => _bus.PublishManaged(RequestFor(cmd));
+
+        /// <summary>⭐ <c>CE-3228</c> — the pure mapping behind <see cref="Request"/>.</summary>
+        public static EntityCreationRequest RequestFor(SpawnEntityCommand cmd)
+        {
+            var components = cmd.InitialComponents ?? new System.Collections.Generic.List<object>();
+            if (cmd.InitialTransform.HasValue) components.Add(cmd.InitialTransform.Value);
+            if (cmd.InitialVelocity.HasValue)  components.Add(cmd.InitialVelocity.Value);
+            return new EntityCreationRequest
+            {
+                RequestId             = cmd.RequestId == System.Guid.Empty ? System.Guid.NewGuid() : cmd.RequestId,
+                OwnerAppInstanceId    = cmd.OwnerNodeId,
+                TkbType               = cmd.TkbType,
+                DisType               = cmd.DisType,
+                InitialComponents     = components,
+                InitialAttributesJson = cmd.InitialAttributesJson,
+                PreAllocatedNetworkId = cmd.NetworkId,
+                InitType              = cmd.InitType,
+                ReliableInitTimeout   = cmd.ReliableInitTimeout,
+                IsTransient           = cmd.IsTransient,
+                SpawnHeight           = cmd.SpawnHeight,   // CE-1017 S2 — the creator resolves the level
+            };
         }
     }
 }

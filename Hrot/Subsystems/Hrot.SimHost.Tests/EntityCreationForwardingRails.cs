@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Hrot.Core.Network;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Tests
 {
@@ -28,6 +29,17 @@ namespace Hrot.SimHost.Tests
             public void Send(EntityCreationRequest request) => Sent.Add(request);
         }
 
+        /// <summary>⭐ A wire-intake stand-in: hands over what it holds, once.</summary>
+        private sealed class ListSource : IEntityCreationRequestSource
+        {
+            public List<EntityCreationRequest> Items { get; } = new();
+            public void ProcessRequests(System.Action<EntityCreationRequest> handler)
+            {
+                foreach (var r in Items) handler(r);
+                Items.Clear();
+            }
+        }
+
         private static EntityCreationRequest Request(int owner) => new()
         {
             RequestId          = System.Guid.NewGuid(),
@@ -39,8 +51,12 @@ namespace Hrot.SimHost.Tests
             IEnumerable<EntityCreationRequest> requests,
             bool isDefaultProcessor = false)
         {
-            var local = new ScenarioEntityCreationRequestSource();
-            foreach (var r in requests) local.Enqueue(r);
+            // ⭐ CE-3228 — the LOCAL intake is the bus: publish, swap, and the bus source reads them.
+            var bus = new Fdp.Core.FdpEventBus();
+            bus.RegisterManaged<EntityCreationRequest>();
+            foreach (var r in requests) bus.PublishManaged(r);
+            bus.SwapBuffers();
+            var local = new BusEntityCreationRequestSource(bus);
 
             var egress = new RecordingEgress();
             var sut    = new ForwardingEntityCreationRequestSource(
@@ -115,12 +131,15 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void ARequestArrivingFromTheWire_IsNeverReForwarded()
         {
-            var local   = new ScenarioEntityCreationRequestSource();
-            var network = new ScenarioEntityCreationRequestSource();   // stands in for the DDS ingress
+            var bus = new Fdp.Core.FdpEventBus();
+            bus.RegisterManaged<EntityCreationRequest>();
+            var local   = new BusEntityCreationRequestSource(bus);   // ⭐ CE-3228 — the local intake is the bus
+            var network = new ListSource();                         // stands in for the DDS ingress
             var egress  = new RecordingEgress();
+            bus.SwapBuffers();
 
             // ⭐ A peer's request for a THIRD node — the exact shape that would bounce.
-            network.Enqueue(Request(RemoteNodeId));
+            network.Items.Add(Request(RemoteNodeId));
 
             var composed = new CompositeEntityCreationRequestSource(new IEntityCreationRequestSource[]
             {

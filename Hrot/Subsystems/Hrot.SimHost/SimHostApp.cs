@@ -425,7 +425,7 @@ namespace Hrot.SimHost
                         EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                             Tkb:          () => _world is { } w && w.HasSingletonManaged<ITkbDatabase>()
                                                 ? w.GetSingletonManaged<ITkbDatabase>() : null,
-                            Requests:     () => EntityCreation?.LocalRequests,
+                            Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                             GeoTransform: () => _geoTransform),
                         // ⭐ W1 (DESIGN_Visual_Effects.md §7 VE-R) — effects are recorded; in a replay the effect systems stand down.
                         //   The SAME gate the ELM reads (NodeBootstrapper wires it to the record/replay controller), read late.
@@ -858,7 +858,7 @@ namespace Hrot.SimHost
             //   📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S3, §5.7.
             var creation = EntityCreation
                 ?? throw new InvalidOperationException("SimHostApp has no entity-creation pack yet.");
-            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = creation.NodeId,

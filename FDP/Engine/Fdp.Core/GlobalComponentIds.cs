@@ -746,8 +746,9 @@ namespace Fdp.Core
         /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
         public const int EntityAppearance = 348;
 
-        /// <summary><c>ScenarioEntityCreationRequestSource</c> — a node's LOCAL entity-creation request queue, as a managed world singleton
-        /// (published by <c>EntityCreationPack</c>), so shared code holding only the world can request an entity (<c>CE-1033</c> S5, R-260).</summary>
+        /// <summary>⛔ RETIRED by <c>CE-3228</c> (2026-10-17) — was <c>ScenarioEntityCreationRequestSource</c>, a node's LOCAL entity-creation
+        /// request queue as a managed world singleton (<c>CE-1033</c> S5, R-260). A request is now an <c>EntityCreationRequest</c> on the
+        /// FDP bus (docs/DESIGN_Entity_Creation_Unification.md §3.4d). ⛔ Never reuse this id.</summary>
         public const int EntityCreationRequestSource = 349;
 
         /// <summary><c>TurretPose</c> — a turret part's traverse and gun elevation (WL-1, docs/DESIGN_Weapon_Layers.md W-9). ⚠ 350 is
@@ -963,7 +964,8 @@ namespace Fdp.Core
         public const int Gesture = 398;
 
         /// <summary><c>AreaEffectCloud</c> — ⭐ CE-3219 part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b): a
-        /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).</summary>
-        public const int AreaEffectCloud = 399;
+        /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).
+        /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is taken by test-only components (Fdp.Core.Tests).</summary>
+        public const int AreaEffectCloud = 401;
     }
 }

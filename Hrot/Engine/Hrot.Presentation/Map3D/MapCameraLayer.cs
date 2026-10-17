@@ -192,9 +192,10 @@ public sealed class MapCameraLayer : IMapLayer
             return;
         }
         if (_requestedFor >= 0f && _requestedFor < RequestRetrySeconds) return;      // asked already; wait for it
-        if (!w.HasSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()) return;   // no creation here (replay)
+        // ⭐ CE-3228 / CE-3226 (Entity Creation §3.4d) — asked for on the bus; a world whose bus cannot carry the request creates nothing.
+        if (!w.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>()) return;
         // ⭐ R-140 — UNOWNED (owner 0): the default processor creates and owns it, never an IG. Nobody has to acknowledge a view.
-        w.GetSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+        w.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,

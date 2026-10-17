@@ -58,7 +58,9 @@ namespace Hrot.Common.EntityCreation
             ref readonly var health = ref repo.GetComponentRO<Health>(aircraft);
             if (health.Current <= 0f && !Wrecked(repo, aircraft) || !Embarkation.OwnsHealth(repo, aircraft)) return;   // ⭐ CE-3215 — a wreck still ejects
             if (EjectionOf(repo, aircraft) is not { PilotType: > 0 } ej || !repo.HasComponent<SimTransform>(aircraft)) return;
-            if (!repo.HasSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()) return;   // no creation here (replay)
+            // ⭐ CE-3228 / CE-3226 (Entity Creation §3.4d) — the pilot is ASKED FOR on the bus; the request system reads it next frame.
+            //   A world whose bus cannot carry the request (no shared registry, no creation pack) creates nothing here.
+            if (!repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>()) return;
             _ejected.Add(aircraft);
 
             // ① the pilot, at the seat, with the aircraft's velocity and the rocket's climb, coming down from the start
@@ -68,7 +70,7 @@ namespace Hrot.Common.EntityCreation
             Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, aircraft, out var at, out var v);
             var seat = at + Vector3.Transform(new Vector3(ej.SeatX, ej.SeatY, ej.SeatZ), tf.Rotation);
             float yaw = RotorcraftModel.YawOf(tf.Rotation);
-            repo.GetSingletonManaged<Hrot.Core.Network.ScenarioEntityCreationRequestSource>()!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId = Guid.NewGuid(),
                 OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,

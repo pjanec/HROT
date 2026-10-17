@@ -16,6 +16,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using SMath = Stride.Core.Mathematics;
 
 namespace HrotStrideApp.Tests;
@@ -171,7 +172,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
     public void B26_F6_1_InfantrySpawnedViaTranslator_HasNoVehicleState_AfterFix()
     {
         // Arrange: spawn an InfantrySoldier via the full production path.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -258,7 +259,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
             $"B26-F6-2 navmesh check: F6 goal {F6GoalFdp} must snap to navmesh.");
 
         // ── Spawn a CivilianPedestrian at a known on-navmesh position ──
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -388,7 +389,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
     public void B26_F7_1_VehicleSpawn_SimTransformMatchesRequestedPosition()
     {
         // Arrange: spawn APC at the F7 start position.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -454,7 +455,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         _sut.World.SetSingletonManaged<INavmeshProvider>(provider);
 
         // ── Spawn APC at the known F7 start position ──
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -535,7 +536,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
     public void B26_F6F7_Shape_VehicleHasVehicleState_InfantryDoesNot()
     {
         // Spawn infantry
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -545,7 +546,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         });
 
         // Spawn APC
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -643,7 +644,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
         Assert.True(goalSnapped,  $"B27-F6: F6 goal {F6GoalFdp} must snap to navmesh.");
 
         // ── Spawn InfantrySoldier (TKB 2002) — the LIVE type with BTree/BehaviorState ──
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -798,7 +799,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
     public void B27_F7_TryResolveNearest_WithVehicleStateFilter_SelectsApcNotInfantry()
     {
         // Spawn InfantrySoldier at F6 start position (alive when F7 is pressed).
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -809,7 +810,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
 
         // Spawn MilitaryAPC at F7 start position (ApcBoxHalfHeightFdpZ = 1.25 m).
         var apcStart = new Vector3(F7StartFdp.X, F7StartFdp.Y, 1.25f);
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

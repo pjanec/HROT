@@ -1027,7 +1027,7 @@ public sealed class EqsDistributedTests
         private long CreateThroughThePack(long tkb)
         {
             var creation = ((Hrot.Common.EntityCreation.IEntityCreationHost)H.Cgf!).EntityCreation!;
-            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = tkb,
             });

@@ -170,7 +170,7 @@ public sealed class TestHarnessTests : IDisposable
     {
         var log = new List<string>();
         var ctx = new TestHarnessContext(
-            new EntityRepository(), new ScenarioEntityCreationRequestSource(),
+            new EntityRepository(), new FdpEventBus(),
             visualBindingSystem: null, scene: new Scene(), cameraEntity: null, log: log.Add);
 
         bool otherRan = false;
@@ -902,7 +902,7 @@ public sealed class TestHarnessTests : IDisposable
 
     private static TestHarnessContext MakeBareContext()
         => new TestHarnessContext(
-            new EntityRepository(), new ScenarioEntityCreationRequestSource(),
+            new EntityRepository(), new FdpEventBus(),
             visualBindingSystem: null, scene: new Scene(), cameraEntity: null,
             log: _ => { });
 }

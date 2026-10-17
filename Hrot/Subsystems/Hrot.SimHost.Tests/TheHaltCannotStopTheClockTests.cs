@@ -37,7 +37,6 @@ public sealed class TheHaltCannotStopTheClockTests
         => new CgfLogicPack(
             behaviorRegistry: new Fdp.Toolkit.Behavior.BehaviorRegistry(),
             entityMap:        new NetworkEntityMap(),
-            scenarioSource:   new Hrot.Core.Network.ScenarioEntityCreationRequestSource(),
             mapperRegistry:   new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(),
             blueprintRegistry: new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 

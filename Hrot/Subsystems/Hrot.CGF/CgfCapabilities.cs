@@ -42,12 +42,11 @@ internal static class CgfCapabilities
     /// had and which the hook sequence now encodes.</para>
     ///
     /// <para>⭐⭐ <b>The pack is INJECTED, not constructed here.</b> <c>CgfLogicPack</c> needs the
-    /// behaviour registry, the network entity map, the scenario source and the mapper registry — all
+    /// behaviour registry, the network entity map and the mapper registry — all
     /// values the root has and this class would otherwise have to be handed anyway. Following the
     /// interface's own rule (<i>the variation point is the INSTANCE, not a factory</i>) keeps the
     /// capability a declaration of WHAT the Brain contributes rather than a second place that decides
-    /// HOW the pack is built. ⚠ It also keeps <c>ScenarioSource</c> reachable at the root, which the
-    /// load handlers still read.</para>
+    /// HOW the pack is built.</para>
     /// </remarks>
     internal sealed class Brain : INodeCapability
     {

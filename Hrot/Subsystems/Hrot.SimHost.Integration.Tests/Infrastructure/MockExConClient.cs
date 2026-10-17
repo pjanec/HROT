@@ -7,6 +7,7 @@ using Fdp.Interfaces;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Integration.Tests.Infrastructure
 {

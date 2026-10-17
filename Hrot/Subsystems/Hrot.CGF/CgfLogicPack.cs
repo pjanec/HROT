@@ -75,10 +75,6 @@ namespace Hrot.CGF
         // each plan so they keep their tail-of-Simulation position. Carrying them here made every
         // Brain+Muscle node register them twice.
 
-        // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
-        // Held here for future hand-off to load handlers (Phases 3-4).
-        internal ScenarioEntityCreationRequestSource ScenarioSource { get; }
-
         /// <summary>Systems to wrap in TogglableInputGroup.</summary>
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
@@ -115,11 +111,6 @@ namespace Hrot.CGF
         /// Network entity map forwarded to <see cref="ActionDispatchModule"/> via
         /// <see cref="JoinFormationExecutor"/>.
         /// </param>
-        /// <param name="scenarioSource">
-        /// In-memory entity creation request source shared by CGF load handlers (Phases 3-4)
-        /// and multiplexed alongside the live NED source by <c>CgfSubsystem</c>.
-        /// Must not be null.
-        /// </param>
         /// <param name="mapperRegistry">
         /// Registry of <see cref="ITacticalOrderMapper"/> implementations used by
         /// <see cref="TacticalIntentResolutionSystem"/> to translate generic tactical
@@ -139,7 +130,6 @@ namespace Hrot.CGF
         public CgfLogicPack(
             BehaviorRegistry                     behaviorRegistry,
             NetworkEntityMap                     entityMap,
-            ScenarioEntityCreationRequestSource  scenarioSource,
             TacticalIntentMapperRegistry         mapperRegistry,
             BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
@@ -147,11 +137,8 @@ namespace Hrot.CGF
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
-            if (scenarioSource    == null) throw new ArgumentNullException(nameof(scenarioSource));
             if (mapperRegistry    == null) throw new ArgumentNullException(nameof(mapperRegistry));
             if (blueprintRegistry == null) throw new ArgumentNullException(nameof(blueprintRegistry));
-
-            ScenarioSource = scenarioSource;
 
             // ⭐⭐⭐ P3 step 3b — the EXECUTION gate, threaded to BOTH cognitive modules from ONE flag so
             //   they cannot disagree. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.5.

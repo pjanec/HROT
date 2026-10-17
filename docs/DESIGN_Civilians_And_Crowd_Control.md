@@ -651,20 +651,20 @@ the way door states already are (R-219): every sight query is asked through `IWo
 classDiagram
   direction LR
   class AreaEffectCloud { <<NEW component, PerInstanceValue>> Kind TearGas Smoke · Radius · Height · SightTransmittance · IrritantSeconds · BornAtSimSeconds · Seconds }
-  class AreaEffectClouds { <<NEW static>> Of(view) the live cloud table · Spawn(repo, at, cloud) · TkbType 7202 }
+  class AreaEffectClouds { <<NEW static>> Of(view) the live cloud table · Request(repo, at, cloud) · TkbType 7202 }
   class CloudTable { <<NEW, the DoorStates shape>> per thread, per view; Transmittance(from, to) }
   class TerrainWorldQuery { <<existing, grows>> + Clouds: SightBlocked, QuerySight, Trace(Sight) multiply them in }
   class WorldQuery { <<existing>> Of(view) passes the view's clouds }
-  class AreaEffectSystem { <<existing>> an Irritant or Smoke burst spawns a cloud }
-  class SpawnEntityCommand { <<existing FDP bus event, grows>> + ThisNode owner value }
-  class NetworkSpawningSystem { <<existing FDP>> creates the entity, resolves ThisNode to its own node id }
+  class AreaEffectSystem { <<existing>> an Irritant or Smoke burst requests a cloud }
+  class EntityCreationRequest { <<existing, MOVED to Fdp.Toolkits, CE-3228>> on the FDP bus, owner 0 = the system picks }
+  class CreateEntityRequestSystem { <<existing>> the default processor creates it, or the request is forwarded there }
   class AreaEffectCloudSystem { <<NEW, Interactions capability, owner only>> once a second per cloud: drift by WindAt x elapsed, Irritant hits to people · destroy at the end }
   class EntityAreaEffectCloud { <<NEW wire dtAreaEffectCloud 144>> creator to every node, no group (like dtObstacleShape) }
   class EffectLayer { <<existing, ui U4-a>> draws Radius, fades on BornAtSimSeconds + Seconds }
-  AreaEffectSystem ..> AreaEffectClouds : Spawn
-  AreaEffectClouds ..> SpawnEntityCommand : publishes on the FDP bus
-  SpawnEntityCommand ..> NetworkSpawningSystem
-  NetworkSpawningSystem ..> AreaEffectCloud : InitialComponents
+  AreaEffectSystem ..> AreaEffectClouds : Request
+  AreaEffectClouds ..> EntityCreationRequest : publishes on the FDP bus
+  EntityCreationRequest ..> CreateEntityRequestSystem
+  CreateEntityRequestSystem ..> AreaEffectCloud : InitialComponents
   AreaEffectCloud ..> EntityAreaEffectCloud
   AreaEffectCloudSystem ..> AreaEffectCloud
   AreaEffectClouds ..> CloudTable
@@ -678,26 +678,28 @@ only new wire data is the cloud's own description, once (its position rides the 
 ```mermaid
 sequenceDiagram
   participant SH as SimHost (resolves the burst)
+  participant CG as CGF (the default processor)
   participant C as cluster (every node)
   participant Q as any sight query
-  SH->>SH: AreaEffectSystem: a TearGas / Smoke burst publishes SpawnEntityCommand(type 7202, owner ThisNode)
-  SH->>SH: NetworkSpawningSystem: creates it, owner = SimHost
-  SH->>C: EntityMaster + dtAreaEffectCloud (Kind, Radius, born, seconds)
+  SH->>SH: AreaEffectSystem: a TearGas / Smoke burst publishes EntityCreationRequest(type 7202, owner 0) on the bus
+  SH->>CG: not the default processor: the forwarder sends the request (CreateEntityRequest on DDS)
+  CG->>CG: CreateEntityRequestSystem creates it, owner = CGF, a bare type is granted to nobody (R-175)
+  CG->>C: EntityMaster + dtAreaEffectCloud (Kind, Radius, born, seconds)
   loop once a second per cloud, owner only
-    SH->>SH: move the cloud by WindAt(position) x the time since its last step
-    SH->>SH: Irritant hit to every PERSON inside (DamageAssessedEvent, 0 damage)
-    SH->>C: the transform (ordinary position replication)
+    CG->>CG: move the cloud by WindAt(position) x the time since its last step
+    CG->>CG: Irritant hit to every PERSON inside (DamageAssessedEvent, 0 damage, to the owner of his Health)
+    CG->>C: the transform (ordinary position replication)
   end
   Q->>Q: WorldQuery.Of(view): SightBlocked multiplies terrain x clouds crossed
-  SH->>C: at BornAt + Seconds the owner destroys it (the delete replicates)
+  CG->>C: at BornAt + Seconds the owner destroys it (the delete replicates)
 ```
 
 ```mermaid
 graph TD
   PACK[shared pack: every node] --> CLOUD[AreaEffectCloudSystem: acts only on clouds it has authority over]
   PACK --> PAIR[dtAreaEffectCloud egress + ingress]
-  AES[AreaEffectSystem: the node that resolves the burst] --> SPAWN[SpawnEntityCommand on the FDP bus]
-  SPAWN --> NSS[NetworkSpawningSystem: every node with a spawning system]
+  AES[AreaEffectSystem: the node that resolves the burst] --> REQ[EntityCreationRequest on the FDP bus, owner 0]
+  REQ --> CERS[CreateEntityRequestSystem: the default processor creates it; elsewhere the forwarder sends it there]
   WQ[WorldQuery.Of / TerrainWorldLosStrategy / TerrainLosService] --> TABLE[AreaEffectClouds.Of view]
   LS[LifespanSystem]:::dead
   classDef dead fill:#f88
@@ -710,7 +712,7 @@ graph TD
 | sight | a live overlay at the world-query seam (the `DoorStates` shape), multiplied into `SightBlocked`, `QuerySight` and `Trace(Sight)` | a baked `smoke` prism: never re-baked while drifting, and a wall to the navmesh and `SurfaceZ` |
 | drift | the owner steps the cloud ONCE A SECOND by `WeatherField.WindAt(position) × the time since its last step` (🔒 user: *"not every tick"*); no weather ⇒ it stays | every tick: a position sample per tick per cloud on the wire · a fixed breeze (VE W3's): ignores the scenario's weather |
 | lifetime | `BornAtSimSeconds` + `Seconds` on `AreaEffectCloud`; the owner destroys it | `Lifespan`: destroyed on every node (above) |
-| creation | ⭐ the FDP bus spawn order `SpawnEntityCommand` (`AreaEffectClouds.Spawn`), owner `SpawnEntityCommand.ThisNode` — resolved by `NetworkSpawningSystem` to its own id (🔒 user: *"whoever wants to create an entity simply puts a request in the form of FDP bus event, and some system will create the entity"*) | a toolkit event + a Hrot spawn system feeding the creation-request queue: two steps, and that queue is the CROSS-NODE request tier ("who should do this", ACKs, routing — Entity Creation Unification "the two levels"); the burst's node has already decided · the requester naming its node id: it has none to name (`INetworkTopology` is retired) · owner 0 = "this node": three editor sources already publish 0 |
+| creation | ⭐ THE entity-creation request on the FDP bus (`AreaEffectClouds.Request` → `EntityCreationRequest`, owner 0 = the system picks: the default processor creates it, then the role-group grants) — `CE-3228`, Entity Creation §3.4d (🔒 user: *"whoever wants to create an entity simply puts a request in the form of FDP bus event, and some system will create the entity"* · *"Isn't the creation request coming from the network exactly the same one … Do we need some new FDP request? I do not think so."*) | a toolkit event + a Hrot spawn system: two steps · publishing `SpawnEntityCommand` directly (with a `ThisNode` owner): the ORDER level, which skips the routing and the load-balanced grants (Authoring Surface G1) — built first, reverted the same day · a new FDP request type: two types for one intent (user) |
 | who irritates | the owner, once a second, an Irritant hit (0 damage) to each PERSON inside (`PhysicsColliderReaders.IsPerson`, the one person check) through the existing `DamageAssessedEvent` → owner of `Health` path | every node: N copies of each hit · every `Health` holder: gasses vehicles |
 
 | the design rests on | code | design |
@@ -725,29 +727,31 @@ graph TD
 
 | built | where |
 |---|---|
-| `AreaEffectCloud` (component 399, `NoScenario`) · `CloudKind` · `CloudTable` / `AreaEffectClouds.Of` (the `DoorStates` shape: per thread, the last table handed back while unchanged; null when there are none) · `AreaEffectClouds.Spawn` / `TkbType` 7202 | `Fdp.Toolkits/Combat/AreaEffectClouds.cs` |
+| `AreaEffectCloud` (component 401, `NoScenario`; ⚠ 399 went to behaviors' `CivilianState`) · `CloudKind` · `CloudTable` / `AreaEffectClouds.Of` (the `DoorStates` shape: per thread, the last table handed back while unchanged; null when there are none) · `AreaEffectClouds.Request` / `TkbType` 7202 | `Fdp.Toolkits/Combat/AreaEffectClouds.cs` |
 | sight: dense for two thirds of its life, then thinning linearly to clear (`TransmittanceAt`); clouds crossed MULTIPLY (two 0.6 clouds block, one does not); `Trace(Sight)` lists each as a `"cloud"` crossing | `TerrainWorldQuery.SightBlocked` / `Trace`, `ForView` |
 | the owner's system, once a second per cloud (`StepSeconds`; the first step at once): drift by `WeatherField.WindAt(position) × elapsed`, an Irritant hit (0 damage, `IrritantSeconds`) to every living, not-hidden PERSON inside (`PhysicsColliderReaders.IsPerson`); destroy at `BornAt + Seconds` (checked each tick) | `Combat/Systems/AreaEffectCloudSystem.cs` |
 | the burst asks: `WarheadDto` grows `CloudRadiusM` / `CloudHeightM` / `CloudSeconds`, `WarheadKind.Smoke`, `HasCloud`; tear gas 0.4 transmittance, smoke 0.1; a remote detonation never asks | `AreaEffectSystem.RequestCloud` |
-| creation: the FDP spawn order `SpawnEntityCommand` with owner `SpawnEntityCommand.ThisNode` (−1, NEW), which `NetworkSpawningSystem` resolves to its own node id (one line); TKB 7202 "Area effect cloud" registered by Hrot (`AreaEffectCloudTkb`, hidden from the palette); the owner's system in the `Interactions` capability (every node) | `SpawnEntityCommand.cs`, `NetworkSpawningSystem.cs`, `CoreInfrastructureCapabilities.cs` |
+| creation: ⭐ `CE-3228` — the entity-creation request on the FDP bus, owner 0: the default processor (CGF) creates it — on any other node the forwarder sends the request there (Entity Creation §3.4d). TKB 7202 "Area effect cloud" registered by Hrot (`AreaEffectCloudTkb`, bare, hidden from the palette) ⇒ no role group applies and nothing is granted away (R-175, `RoleGroupOwnershipStrategyTests.ATacticalSymbol_GrantsNothing`): the creator owns its position too, so the owner's drift replicates. The owner's system is in the `Interactions` capability (every node) | `AreaEffectClouds.cs`, `AreaEffectSystem.RequestCloud`, `AreaEffectCloudTkb.cs`, `CoreInfrastructureCapabilities.cs` |
 | wire: `dtAreaEffectCloud` 144, topic `EntityAreaEffectCloud` (reliable, transient-local), no ownership group, in the shared translator pack | `EntityAreaEffectCloudTranslators.cs`, `SharedTranslatorPack.cs` |
 | munitions (B-5's gas grenade): tear-gas grenade `6039` (6 m, 60 s, time fuze 1.5 s) · 40 mm tear-gas canister `6040` (8 m, 90 s) · smoke grenade `6041` (8 m, 4 m high, 75 s); the security launcher man carries 2 tear-gas grenades (mount 2) | `MunitionTkbCatalog.cs`, `CivilianTkbCatalog.cs` |
 
 Rails: `AreaEffectCloudTests` (10: sight through / beside / over / thinning, two clouds multiply, drift once a second, no weather, irritation
 once a second inside only, people not vehicles, smoke irritates nobody, ends at its time, a cloud this node does not own is left alone, the
-burst publishes the spawn order) · `SpawnSystemTests.CE3219_ThisNode_IsTheSpawningNode` · `NonLethalMunitionTests.CE3219_…` (each cloud
-round over the built-in TKB spawns its cloud) · `BodyPartReplicationTests.CE3219_…` (every field across the wire) ·
-`EntityOrdersAcrossNodesTests.CE3219_…` (spawned on SimHost ⇒ on CGF and the IG, owned by SimHost only ⇒ gone everywhere at its time).
+burst publishes the creation request) · `NonLethalMunitionTests.CE3219_…` (each cloud round over the built-in TKB requests its cloud) ·
+`BodyPartReplicationTests.CE3219_…` (every field across the wire) · `EntityOrdersAcrossNodesTests.CE3219_…` (asked for on SimHost ⇒ forwarded,
+created and owned by the default processor CGF ⇒ on SimHost and the IG as replicas ⇒ gone everywhere at its time).
 
-⛔ **SUPERSEDED `2026-10-17` (same day, before any push):** the first build had an `AreaEffectCloudRequest` toolkit event (5011) and a Hrot
-`AreaEffectCloudSpawnSystem` feeding the creation-request queue, and drifted every tick. Rejected by the user: two steps where the FDP bus
-order already exists, and every-tick drift. Both removed; event id 5011 was never pushed.
+⛔ **SUPERSEDED `2026-10-17` (same day, before any push), twice:** ① the first build had an `AreaEffectCloudRequest` toolkit event (5011)
+and a Hrot `AreaEffectCloudSpawnSystem` feeding the creation-request queue, and drifted every tick — rejected by the user (two steps,
+every-tick drift); event id 5011 was never pushed. ② the second published the `SpawnEntityCommand` ORDER with a new `ThisNode` (−1) owner —
+rejected: the order skips the routing and the load-balanced grants, and *"no valid node ID should be 0"* makes owner 0 free to mean "the
+system picks". Reverted; the cloud asks with THE creation request (`CE-3228`).
 
 ⚠ **Limits, stated:** a scenario with no `TerrainWorld` has no world query, so its clouds do not block sight (every sight caller already
 needs a terrain). The canister is data only: no launcher loads it yet (which round a launcher fires is the weapon brain's choice —
-behaviors). The drift is written by the cloud's primary owner. `dtAreaEffectCloud` has no group, but the position (`dtWorldPos`) is in the
-MuscleGround group, so a cloud created on a node without that role could have its position granted away and then not drift. ⛔ Not
-measured: every cloud today is created where the burst is resolved (SimHost, a MuscleGround node), as the cross-node rail does.
+behaviors). The drift is written by the cloud's primary owner. ⭐ A cloud's TKB type is bare, so no role group applies (R-175) and its
+position is never granted away — the default processor that creates it drifts it. ⚠ Not railed across nodes: the cross-node rail checks
+creation, ownership and the end, not the drift (`AreaEffectCloudTests` rails the drift on one node).
 
 #### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
 

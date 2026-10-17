@@ -22,8 +22,8 @@ and someone caught in it without a mask escapes blind before doing anything else
 ## Design basis — read these, they are the contract
 
 - **The cloud** — [§7.3b / §7.3c](../../DESIGN_Civilians_And_Crowd_Control.md): a replicated `AreaEffectCloud` entity (radius, height,
-  kind, born, seconds), owned by the node that resolved the burst, drifting once a second on the ground wind. Every node can read every
-  cloud: `AreaEffectClouds.Of(view)`.
+  kind, born, seconds), asked for with the entity-creation request on the bus (`CE-3228`) and so created and owned by the default
+  processor (CGF), drifting once a second on the ground wind. Every node can read every cloud: `AreaEffectClouds.Of(view)`.
 - **The expected behaviours** — [§7.3d](../../DESIGN_Civilians_And_Crowd_Control.md) table: avoid · escape blind · mask drill · crowd
   scatter · smoke is cover, not danger.
 - **The effect on a person** — already built: a tear-gas cloud sends an Irritant hit once a second to each person inside, which sets
