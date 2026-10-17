@@ -961,5 +961,9 @@ namespace Fdp.Core
         /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
         /// <c>dtGesture</c> (143).</summary>
         public const int Gesture = 398;
+
+        /// <summary><c>AreaEffectCloud</c> — ⭐ CE-3219 part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b): a
+        /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).</summary>
+        public const int AreaEffectCloud = 399;
     }
 }

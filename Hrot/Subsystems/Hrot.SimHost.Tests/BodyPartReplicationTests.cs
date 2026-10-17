@@ -24,6 +24,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -123,6 +124,31 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45L, default));
+        }
+
+        /// <summary>⭐ <c>CE-3219</c> part 3 (§7.3b) — a cloud's every field reaches the other node (its kind, size, sight, irritation and
+        /// the born/seconds a renderer fades on), and a thinner cloud is a new sample.</summary>
+        [Fact]
+        public void CE3219_ACloud_ReachesTheOtherNode_WithEveryField()
+        {
+            var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
+            {
+                Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
+                BornAtSimSeconds = 12.5, Seconds = 60f,
+            };
+            var sample = EntityAreaEffectCloudEgressTranslator.ToSample(46L, cloud);
+
+            var (node, unit, map) = Node(46L);
+            using (node)
+            {
+                var ingress = new EntityAreaEffectCloudIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(cloud, node.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(unit));
+            }
+
+            Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(46L, cloud with { SightTransmittance = 0.6f }));
         }
 
         [Fact]

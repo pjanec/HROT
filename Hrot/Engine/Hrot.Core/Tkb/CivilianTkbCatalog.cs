@@ -50,7 +50,7 @@ namespace Hrot.Core.Tkb
             //   melee node, D5); the launcher man a 40 mm baton-round launcher. Tear gas waits for the cloud (CE-3219 part 3).
             Security(tkb, "SecurityShield",   TkbSecurityShield,   StunGrenades());
             Security(tkb, "SecurityBaton",    TkbSecurityBaton,    StunGrenades());
-            Security(tkb, "SecurityLauncher", TkbSecurityLauncher, BatonLauncher(), StunGrenades());
+            Security(tkb, "SecurityLauncher", TkbSecurityLauncher, BatonLauncher(), StunGrenades(), TearGasGrenades());   // ⭐ CE-3219 part 3 — and gas
         }
 
         private static void Civilian(ITkbDatabase tkb, string name, int type, float height, float radius, float runSpeed, AgeBand age, PersonSex sex)
@@ -75,6 +75,12 @@ namespace Hrot.Core.Tkb
         private static WeaponMountDto StunGrenades() => new()
         {
             InitialAmmunition = 2, MuzzleVelocity = 15f, Range = 25f, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade,
+        };
+
+        /// <summary>⭐ <c>CE-3219</c> part 3 — two tear-gas grenades, thrown like the stun grenade (their cloud drifts on the wind).</summary>
+        private static WeaponMountDto TearGasGrenades() => new()
+        {
+            InitialAmmunition = 2, MuzzleVelocity = 15f, Range = 25f, AmmoGuid = MunitionTkbCatalog.TkbTearGasGrenade, Category = WeaponCategory.Grenade,
         };
 
         private static WeaponMountDto BatonLauncher() => new()

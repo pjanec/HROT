@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -333,6 +334,71 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             Fdp.Toolkit.Combat.Gestures.Of(sim, ByName(sim, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None
             && Fdp.Toolkit.Combat.Gestures.Of(ig, ByName(ig, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None, timeoutFrames: 600),
             "lowering the hands must reach both too");
+    }
+
+    private static int Clouds(EntityRepository world)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) return 0;
+        int n = 0;
+        foreach (var _ in world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().Build()) n++;
+        return n;
+    }
+
+    private static Entity FirstCloud(EntityRepository world)
+    {
+        foreach (var e in world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().Build()) return e;
+        return Entity.Null;
+    }
+
+    /// <summary>⭐⭐ <c>CE-3219</c> part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) + <c>CE-3228</c> (§3.4d) —
+    /// a cloud a burst asks for on SimHost (the entity-creation request on the bus, owner 0) is forwarded to the default processor, which
+    /// creates and owns it; it reaches SimHost and the IG with its fields, and when its time is up its owner ends it and it is gone on every
+    /// node (no node but the owner ends it).</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3219_ACloudAskedForOnSimHost_ReachesEveryNode_AndEndsEverywhere()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.Equal(0, Clouds(sim) + Clouds(cgf) + Clouds(ig));
+
+        Fdp.Toolkit.Combat.AreaEffectClouds.Request(sim, new System.Numerics.Vector3(5, 5, 0), new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
+            BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(sim).TotalTime, Seconds = 3f,
+        });
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 1 && Clouds(cgf) == 1 && Clouds(ig) == 1, timeoutFrames: 600),
+            $"the cloud must exist on SimHost, CGF and the IG (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
+        foreach (var w in new[] { cgf, ig })
+        {
+            var c = w.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(FirstCloud(w));
+            Assert.Equal(Fdp.Toolkit.Combat.CloudKind.TearGas, c.Kind);
+            Assert.Equal(6f, c.Radius);
+            Assert.Equal(3f, c.Seconds);
+        }
+        // ⭐ CE-3228 — asked for with owner 0 on SimHost (not the default processor) ⇒ forwarded; the default processor (CGF) creates and owns it
+        Assert.True(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, FirstCloud(cgf)), "the default processor (CGF) owns it");
+        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(sim, FirstCloud(sim)), "a replica is not its owner");
+        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(ig, FirstCloud(ig)), "a replica is not its owner");
+
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 0 && Clouds(cgf) == 0 && Clouds(ig) == 0, timeoutFrames: 2000),
+            $"its owner ends it at its time and it is gone everywhere (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
     }
 
     /// <summary>⭐⭐ <c>CE-1148</c> S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — a burst simulated on SimHost reaches the

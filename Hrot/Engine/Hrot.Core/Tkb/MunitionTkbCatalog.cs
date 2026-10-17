@@ -121,8 +121,16 @@ namespace Hrot.Core.Tkb
         public const int TkbStunGrenade = 6037;
         /// <summary>⭐ <c>CE-3223</c> — a thrown STONE (a rioter's): a blunt hit.</summary>
         public const int TkbStone = 6038;
+        /// <summary>⭐ <c>CE-3219</c> part 3 (civilians B-5, CV-9) — a TEAR-GAS grenade (thrown, time fuze): leaves an irritant cloud that
+        /// drifts on the wind (<c>AreaEffectCloud</c>, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b).</summary>
+        public const int TkbTearGasGrenade = 6039;
+        /// <summary>⭐ <c>CE-3219</c> part 3 — a 40 mm TEAR-GAS canister (a less-lethal launcher's, impact): a larger irritant cloud.</summary>
+        public const int TkbTearGasCanister = 6040;
+        /// <summary>⭐ <c>CE-3219</c> part 3 — a SMOKE grenade (thrown, time fuze): a cloud that blocks sight and hurts nobody.</summary>
+        public const int TkbSmokeGrenade = 6041;
 
         public const string BatonRoundName = "40mm baton round", StunGrenadeName = "stun grenade", StoneName = "thrown stone";
+        public const string TearGasGrenadeName = "tear gas grenade", TearGasCanisterName = "40mm tear gas canister", SmokeGrenadeName = "smoke grenade";
 
         public const string Mortar60mmHeName = "60mm mortar HE", Mortar120mmHeName = "120mm mortar HE",
                             Howitzer105HeName = "105mm howitzer HE", Howitzer155HeName = "155mm howitzer HE";
@@ -271,6 +279,17 @@ namespace Hrot.Core.Tkb
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
             Register(tkb, StoneName, TkbStone, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f }, damage: 3f);
+            // ⭐⭐ CE-3219 part 3 (§7.3b) — the CLOUD rounds: no blast, no fragments; the warhead's Cloud* fields make AreaEffectSystem ask
+            //   for an AreaEffectCloud where it bursts. A CS grenade's cloud ≈ 6 m across the first minute (public M7A3 figures, rounded);
+            //   a smoke grenade's screen ≈ 8 m for about a minute (M18). Starter values — tuning starts here.
+            Register(tkb, TearGasGrenadeName, TkbTearGasGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 6f, CloudHeightM = 3f, CloudSeconds = 60f,
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+            Register(tkb, TearGasCanisterName, TkbTearGasCanister, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f, CloudHeightM = 3f, CloudSeconds = 90f });
+            Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
         }
 
         // ⭐ CE-3213 — the SISO-REF-010 countries the munition codes use (enumeration 29, Country).
@@ -350,6 +369,7 @@ namespace Hrot.Core.Tkb
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
+                [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive

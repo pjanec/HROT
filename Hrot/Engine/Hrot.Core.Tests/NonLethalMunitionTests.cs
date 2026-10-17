@@ -86,6 +86,44 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal((ulong)MunitionTkbCatalog.TkbStunGrenade, Ammo(CivilianTkbCatalog.TkbSecurityBaton, 0));
             Assert.Equal((ulong)MunitionTkbCatalog.TkbBatonRound, Ammo(CivilianTkbCatalog.TkbSecurityLauncher, 0));
             Assert.Equal((ulong)MunitionTkbCatalog.TkbStunGrenade, Ammo(CivilianTkbCatalog.TkbSecurityLauncher, 1));
+            Assert.Equal((ulong)MunitionTkbCatalog.TkbTearGasGrenade, Ammo(CivilianTkbCatalog.TkbSecurityLauncher, 2));   // ⭐ CE-3219 part 3
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3219</c> part 3 (B-5's gas grenade, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — each cloud round, bursting through
+        /// the real <see cref="AreaEffectSystem"/> over the built-in TKB, asks for a cloud of its kind and hurts nobody on the spot.
+        /// </summary>
+        [Fact]
+        public void CE3219_EachCloudRound_AsksForItsCloud_AndHurtsNobodyOnTheSpot()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<DamageAssessedEvent>();
+            world.SetSingletonManaged<ITkbDatabase>(BuiltIn());
+            var man = world.CreateEntity();
+            world.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            world.AddComponent(man, new SimTransform { Position = new System.Numerics.Vector3(1, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+
+            foreach (var (ammo, kind) in new[]
+            {
+                ((long)MunitionTkbCatalog.TkbTearGasGrenade, Fdp.Toolkit.Combat.CloudKind.TearGas),
+                ((long)MunitionTkbCatalog.TkbTearGasCanister, Fdp.Toolkit.Combat.CloudKind.TearGas),
+                ((long)MunitionTkbCatalog.TkbSmokeGrenade, Fdp.Toolkit.Combat.CloudKind.Smoke),
+            })
+            {
+                world.Bus.Publish(new DetonationNotification { HitX = 0, HitY = 0, HitZ = 0.1f, Ammo = ammo });
+                world.Bus.SwapBuffers();
+                new AreaEffectSystem().Execute(world, 0.016f);
+                world.Bus.SwapBuffers();
+                var request = Assert.Single(world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToArray());
+                Assert.Equal(Hrot.Core.Tkb.AreaEffectCloudTkb.Type, request.TkbType);   // the built-in TKB knows the type it asks for
+                var cloud = Assert.Single(request.InitialComponents!.OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
+                Assert.Equal(kind, cloud.Kind);
+                Assert.True(cloud.Radius > 0f && cloud.Seconds > 0f, $"{ammo}: a cloud needs a size and a life");
+                Assert.Empty(world.Bus.Read<DamageAssessedEvent>().ToArray());
+            }
         }
     }
 }

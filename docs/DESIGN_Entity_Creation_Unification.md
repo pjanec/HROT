@@ -110,6 +110,7 @@ related-designs:
     tables, the creator's birthright, the promote-leg claim). This document owns the PACK that builds the
     two systems that apply it. ⇒ §4.1 here answers only the question a reader of THIS file asks — "any node
     can create an entity, so who owns its EntityInfo?" — and points there for everything else.
+  - DESIGN_Civilians_And_Crowd_Control.md — §7.3b the gas cloud, the first FDP-level author that requests an entity through §3.4d's bus request
   - DESIGN_Distributed_Scenario_Persistence.md — the `OwnerNodeId` this pipeline stamps at creation IS the
     entity-level SAVE ownership that the distributed scenario save gates on (`HasAuthority`). That doc owns
     the save/load mechanism; this one owns the creation that sets the owner.
@@ -1085,6 +1086,89 @@ so it is LOUD, not silent.
 | ⭐⭐ **option A** | **reconcile the two destroy consumers** *(the real `CE-144` fix)*, then schedule the spawn system and tighten the rails onto scheduling. ⛔ Cross-host blast radius |
 | ⭐ **option B** | **keep IG non-materialising** — it is what IG does today anyway — and re-point the rails at the SCHEDULING signal plus a strictly stronger assertion that `NedNetworkFactory` never puts the spawn egress translator in the IG list |
 | ⚠ **lean** | ⛔⛔ **SUPERSEDED `2026-09-03` — the user chose A.** 🔒 *"F4: do option A — fix the two destroy consumers properly."* ⇒ 📄 **§3.4c is the design.** ⭐ The lean itself said A was *"the real fix"*; what it under-weighed is that **B leaves the hazard in place on a host that is about to be able to own entities**, and that node-roles §8 ② *(what removes an orphaned IG's replicas on peers)* is **the same defect seen from the peer's side** — so B would have shipped two halves of one bug |
+
+### 3.4d ⭐⭐⭐ `CE-3228` — **ONE REQUEST, ON THE FDP BUS: the local intake is the bus, not a queue singleton** *(`2026-10-17`; build-state: BUILDING)*
+
+> 🔒 **User, `2026-10-17`:** *"The behavior or whoever wants to create an entity simply puts a request in the form of FDP bus event,
+> and some system will create the entity based on that."* · *"I am not aware of any scenario loading thread and network thread and UI
+> thread … Do we really need it?"* · *"Isn't the creation request coming from the network exactly the same one that should come from all
+> the other modules? Do we need some new FDP request? I do not think so."* · *"No valid node ID should be 0."* — both approved.
+
+📐 **INVENTORY** *(grep for `.Enqueue(new EntityCreationRequest` / `RequestEntityCreation(` + the queue / composite / forwarder
+constructors; `search_graph` on `.*(SpawnEntityCommand|EntityCreationRequest|CreationRequestSource|SpawningSystem|CreateEntityRequestSystem)$`,
+46 rows, `has_more:false`)*: **one** request type, `EntityCreationRequest`; **four** request sources (`ScenarioEntityCreationRequestSource`
+— the queue singleton, `CompositeEntityCreationRequestSource`, `ForwardingEntityCreationRequestSource`, `NedEntityCreationRequestSource`);
+**one** consumer, `CreateEntityRequestSystem`; **~12 local producers** — `EjectionSystem` · `MapCameraLayer` · `ScenarioSpawnAdapter` ·
+`MiniExConPanelState` · `EntityCreation.RequestEntityCreation` (`EditorZoneAuthoringSystem`, `DebugApiService`) · `DebugApiService:1758` ·
+`SimHostApp:861` · `ScenarioLoadStep` ×3 · `CgfEpisodeLoadHandler` · the Stride harness · and the gas cloud (`CE-3219`).
+
+| the claim the change rests on | code | design |
+|---|---|---|
+| every local producer runs on the frame thread | ✅ systems in the tick · the IG Raylib loop runs UI and `_kernel.Update()` (`IgApplication.cs:1477/1152`) · HTTP → `_jobQueue.RunOnMainThread` (`DebugApiHost.cs:568`) · load commit from `ClusterSlave` "once per frame from the main thread" (`ClusterSlave.cs:191/306`) | ⛔ the queue's own comment ("orchestration/load-handler thread", `ScenarioEntityCreationRequestSource.cs:10`) is STALE since load phase P4 (R-4001) |
+| a request published between frames is read next frame, and publishing is safe from any thread | ✅ `PublishManaged` locks and becomes visible after `SwapBuffers` (`FdpEventBus.cs:62`, `ModuleHostKernel.cs:555`) | — |
+| the bus is a broadcast — a second reader of a request ACTS | ✅ §3.4a | ✅ §3.4a / §3.4b |
+| the forwarder must never see a wire-originated request | ✅ §3.4b: it wraps the LOCAL intake only (`ForwardingEntityCreationRequestSource` remarks) | ✅ §3.4b |
+| the request type is FDP-clean | ✅ every field is a primitive or an FDP type (`ReliableInitType`, `SpawnHeight`, component objects) | — |
+| managed bus events are recorded unless `NoReplay` | ✅ `RecorderSystem.cs:677-689` | — |
+| no real node is 0 except the editor | ✅ `EditorSubsystem.cs:176` (`EditorNodeId = 0`, an offline node); hosts use ≥ 1; 0 already means "default processor" (`EntityCreationRouting.cs:33`) and "no node" (`OwnershipApplier.cs:83`) | ✅ user ruling above |
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityCreationRequest { <<MOVES to Fdp.Toolkits.NetworkSpawning, unchanged + NoReplay>> RequestId · OwnerAppInstanceId (0 = the system picks) · TkbType · InitialComponents · InitType · … }
+  class FdpEventBus { <<existing>> PublishManaged(request) · ReadManaged }
+  class BusEntityCreationRequestSource { <<NEW, replaces the queue>> IEntityCreationRequestSource over ReadManaged of EntityCreationRequest }
+  class ForwardingEntityCreationRequestSource { <<existing>> wraps the LOCAL intake: not mine and not default-on-me => send over the wire }
+  class NedEntityCreationRequestSource { <<existing>> the wire intake, builds the same EntityCreationRequest }
+  class CompositeEntityCreationRequestSource { <<existing>> local tier + wire tier }
+  class CreateEntityRequestSystem { <<existing>> routing (EntityCreationRouting), id, ACK, role grants, then SpawnEntityCommand }
+  class ScenarioEntityCreationRequestSource { <<DELETED>> the ConcurrentQueue singleton }
+  FdpEventBus <.. BusEntityCreationRequestSource : reads
+  BusEntityCreationRequestSource <-- ForwardingEntityCreationRequestSource : wraps
+  ForwardingEntityCreationRequestSource <-- CompositeEntityCreationRequestSource
+  NedEntityCreationRequestSource <-- CompositeEntityCreationRequestSource
+  CompositeEntityCreationRequestSource <-- CreateEntityRequestSystem
+```
+*What the picture shows that prose hid:* the change is ONE box — the local intake. Routing, the forwarder's "wire requests can't reach me"
+guarantee, ids, ACKs and the load-balanced grants are untouched, because the bus source sits exactly where the queue sat.
+
+```mermaid
+sequenceDiagram
+  participant A as any local author (a system, a UI tool, the debug API, scenario load)
+  participant B as FDP bus
+  participant R as CreateEntityRequestSystem (via the local tier)
+  participant W as wire (another node)
+  A->>B: PublishManaged(EntityCreationRequest{ Owner = 0 or a node id })
+  Note over B: visible after the next SwapBuffers
+  R->>B: ReadManaged (once per frame, the local tier)
+  alt owner is this node, or 0 and this node is the default processor
+    R->>R: id, ACK, role grants, SpawnEntityCommand
+  else owner is another node, or 0 and this node is not the default processor
+    R->>W: the forwarder sends it (CreateEntityRequest on DDS)
+  end
+  W->>R: a request from another node arrives on the WIRE tier (never the bus)
+```
+
+```mermaid
+graph TD
+  PACK[EntityCreationPack: every node] --> BSRC[BusEntityCreationRequestSource over this world's bus]
+  PACK --> FWD[ForwardingEntityCreationRequestSource, when the host has an egress]
+  PACK --> REQ[CreateEntityRequestSystem: ticked every frame]
+  NET[NetworkAdapters.RequestSource] --> REQ
+  PROD[authors: Ejection, MapCamera, UI tools, DebugApi, ScenarioLoadStep, CGF episode load, AreaEffectSystem] --> BUS[FDP bus]
+  BUS --> BSRC
+  Q[ScenarioEntityCreationRequestSource singleton]:::dead
+  classDef dead fill:#f88
+```
+*Caption:* the red box is deleted. ⚠ A host that composes no `EntityCreationPack` (a replay) has no reader, so a request published there
+creates nothing — the same as the queue's "no singleton ⇒ no creation" guard, now by construction.
+
+| decision | ⭐ lean (approved) | rejected — one line each |
+|---|---|---|
+| the request type | the EXISTING `EntityCreationRequest`, moved down to `Fdp.Toolkits.NetworkSpawning` so FDP code (the gas cloud) can publish it; `[DataPolicy(NoReplay)]` | a new FDP request type: two types for one intent (user) · keeping it in `Hrot.Core`: FDP producers cannot reach it |
+| the local intake | the FDP bus, read by `BusEntityCreationRequestSource` in the request system's local tier | the queue singleton: its thread-safety serves no producer (inventory) · publishing `SpawnEntityCommand`: the ORDER level, skips routing and grants (§3.4b, Authoring Surface G1) |
+| the wire intake | unchanged — `NedEntityCreationRequestSource` stays the wire tier, building the same type | network ingress publishing on the bus too: the forwarder would see wire requests and bounce them (§3.4b) |
+| node id 0 | never a node; at the request level it means "the system picks" (the default processor, then the role-group grants to the least-loaded node); the editor moves off 0 | a "this node" sentinel (−1): redundant once 0 is never a node |
 
 ### 3.4c ⭐⭐⭐ `CE-144` — **ONE CONSUMER OF `DestroyEntityCommand`.** `build-state: READY-TO-BUILD`
 

@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.World
         {
             if (view is not EntityRepository repo || !repo.HasSingletonManaged<TerrainWorld>()) return null;
             var world = repo.GetSingletonManaged<TerrainWorld>();
-            return world == null ? null : TerrainWorldQuery.For(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null);
+            return world == null ? null : TerrainWorldQuery.ForView(view, world);   // ⭐ CE-3219 part 3 — doors AND clouds
         }
 
         /// <summary>⭐ CE-1033 S1 (WQ-G) — the terrain's drawable triangles for <paramref name="view"/>, or null when it has no world.</summary>

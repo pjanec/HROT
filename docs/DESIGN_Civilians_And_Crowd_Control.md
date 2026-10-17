@@ -621,7 +621,7 @@ the descriptor-map lists (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStr
 × the blast fall-off × barrier × shadow (`AreaEffectSystem` — a wall between him and the flash spares him). Rails:
 `DamageCalculationSystemTests.CE3219_ABluntRound_…`, `AreaEffectSystemTests.CE3219_AStunBurst_…`.
 
-⏳ **Part 3 — the cloud (B1-c, B1-d, M-4). ✅ RULED `2026-10-17` (R-3014): the cloud is a REPLICATED entity.** 🔒 User: *"Claud being a special area entity approved."* The node that
+⏳ **Part 3 — the cloud (B1-c, B1-d, M-4). ✅ RULED `2026-10-17` (R-3014): the cloud is a REPLICATED entity.** ⚠ The obstacle-prism SIGHT mechanism below is SUPERSEDED by §7.3b (the cloud drifts on the wind) — the replicated entity stands. 🔒 User: *"Claud being a special area entity approved."* The node that
 owns the detonation creates it through the normal creation path: a TKB "gas cloud" type carrying `StaticObstacle` (material `smoke`)
 + `ObstacleShape` + `Lifespan`. Every node then bakes it with the existing `StaticObstacleBakeSystem`. When the owner's
 `LifespanSystem` (`Fdp.Toolkits/Time/LifespanSystem.cs`) removes it, the delete replicates. The owner alone pulses the irritation
@@ -636,6 +636,164 @@ see the cloud as they see any entity. ⚠ Still to measure: M-4, the rebake cost
 
 ⛔ **SUPERSEDED (`2026-10-16`):** *"`DetonationNotification` reaches EVERY node … each node derives the same cloud … a registration on
 every host, not a single pack line."* The second premise was wrong: the bake is one line in the shared pack. A derived cloud would also be missed by a late joiner.
+
+#### 7.3b Part 3 DESIGN — the cloud *(`CE-3219`, backend, `2026-10-17`; build-state: BUILT — as-built in §7.3c)*
+
+🔒 User, `2026-10-17`: *"do the cloud next. Btw the ground wind could move the cloud i guess."* ⇒ the cloud DRIFTS. ⛔ That retires
+§7.3's B1-c (a `smoke` obstacle prism baked into the terrain): measured, `StaticObstacleBakeSystem` waits for its obstacle set to be
+quiet for 0.5 s before baking (`StaticObstacleBake.cs`, `DebounceSeconds`), so a cloud that moves every tick is never re-baked; and a
+prism is a wall to the navmesh and to `SurfaceZ` (nothing but the renderer skips a see-through prism — `TerrainWorldMesh.IsVolumeEffect`
+is its only reader), so people would walk round gas, or stand on it. ⭐ Instead the cloud is a LIVE OVERLAY at the world-query seam,
+the way door states already are (R-219): every sight query is asked through `IWorldQuery` (`WorldQuery.Of`, `TerrainWorldLosStrategy`,
+`TerrainLosService`), and the query multiplies in the clouds the line crosses.
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectCloud { <<NEW component, PerInstanceValue>> Kind TearGas Smoke · Radius · Height · SightTransmittance · IrritantSeconds · BornAtSimSeconds · Seconds }
+  class AreaEffectClouds { <<NEW static>> Of(view) the live cloud table · Spawn(repo, at, cloud) · TkbType 7202 }
+  class CloudTable { <<NEW, the DoorStates shape>> per thread, per view; Transmittance(from, to) }
+  class TerrainWorldQuery { <<existing, grows>> + Clouds: SightBlocked, QuerySight, Trace(Sight) multiply them in }
+  class WorldQuery { <<existing>> Of(view) passes the view's clouds }
+  class AreaEffectSystem { <<existing>> an Irritant or Smoke burst spawns a cloud }
+  class SpawnEntityCommand { <<existing FDP bus event, grows>> + ThisNode owner value }
+  class NetworkSpawningSystem { <<existing FDP>> creates the entity, resolves ThisNode to its own node id }
+  class AreaEffectCloudSystem { <<NEW, Interactions capability, owner only>> once a second per cloud: drift by WindAt x elapsed, Irritant hits to people · destroy at the end }
+  class EntityAreaEffectCloud { <<NEW wire dtAreaEffectCloud 144>> creator to every node, no group (like dtObstacleShape) }
+  class EffectLayer { <<existing, ui U4-a>> draws Radius, fades on BornAtSimSeconds + Seconds }
+  AreaEffectSystem ..> AreaEffectClouds : Spawn
+  AreaEffectClouds ..> SpawnEntityCommand : publishes on the FDP bus
+  SpawnEntityCommand ..> NetworkSpawningSystem
+  NetworkSpawningSystem ..> AreaEffectCloud : InitialComponents
+  AreaEffectCloud ..> EntityAreaEffectCloud
+  AreaEffectCloudSystem ..> AreaEffectCloud
+  AreaEffectClouds ..> CloudTable
+  WorldQuery ..> TerrainWorldQuery
+  TerrainWorldQuery --> CloudTable
+  EffectLayer ..> AreaEffectCloud
+```
+*What the picture shows that prose hid:* nothing the cloud does touches the terrain world, so a moving cloud costs no bake on any node; the
+only new wire data is the cloud's own description, once (its position rides the entity's ordinary transform).
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (resolves the burst)
+  participant C as cluster (every node)
+  participant Q as any sight query
+  SH->>SH: AreaEffectSystem: a TearGas / Smoke burst publishes SpawnEntityCommand(type 7202, owner ThisNode)
+  SH->>SH: NetworkSpawningSystem: creates it, owner = SimHost
+  SH->>C: EntityMaster + dtAreaEffectCloud (Kind, Radius, born, seconds)
+  loop once a second per cloud, owner only
+    SH->>SH: move the cloud by WindAt(position) x the time since its last step
+    SH->>SH: Irritant hit to every PERSON inside (DamageAssessedEvent, 0 damage)
+    SH->>C: the transform (ordinary position replication)
+  end
+  Q->>Q: WorldQuery.Of(view): SightBlocked multiplies terrain x clouds crossed
+  SH->>C: at BornAt + Seconds the owner destroys it (the delete replicates)
+```
+
+```mermaid
+graph TD
+  PACK[shared pack: every node] --> CLOUD[AreaEffectCloudSystem: acts only on clouds it has authority over]
+  PACK --> PAIR[dtAreaEffectCloud egress + ingress]
+  AES[AreaEffectSystem: the node that resolves the burst] --> SPAWN[SpawnEntityCommand on the FDP bus]
+  SPAWN --> NSS[NetworkSpawningSystem: every node with a spawning system]
+  WQ[WorldQuery.Of / TerrainWorldLosStrategy / TerrainLosService] --> TABLE[AreaEffectClouds.Of view]
+  LS[LifespanSystem]:::dead
+  classDef dead fill:#f88
+```
+*Caption:* the red box is deliberately NOT used — `LifespanSystem` destroys on every node that runs it, so a replicated cloud carrying
+`Lifespan` would be deleted locally on each replica as well as by its owner; the cloud keeps its own born/seconds and only the owner ends it.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| sight | a live overlay at the world-query seam (the `DoorStates` shape), multiplied into `SightBlocked`, `QuerySight` and `Trace(Sight)` | a baked `smoke` prism: never re-baked while drifting, and a wall to the navmesh and `SurfaceZ` |
+| drift | the owner steps the cloud ONCE A SECOND by `WeatherField.WindAt(position) × the time since its last step` (🔒 user: *"not every tick"*); no weather ⇒ it stays | every tick: a position sample per tick per cloud on the wire · a fixed breeze (VE W3's): ignores the scenario's weather |
+| lifetime | `BornAtSimSeconds` + `Seconds` on `AreaEffectCloud`; the owner destroys it | `Lifespan`: destroyed on every node (above) |
+| creation | ⭐ the FDP bus spawn order `SpawnEntityCommand` (`AreaEffectClouds.Spawn`), owner `SpawnEntityCommand.ThisNode` — resolved by `NetworkSpawningSystem` to its own id (🔒 user: *"whoever wants to create an entity simply puts a request in the form of FDP bus event, and some system will create the entity"*) | a toolkit event + a Hrot spawn system feeding the creation-request queue: two steps, and that queue is the CROSS-NODE request tier ("who should do this", ACKs, routing — Entity Creation Unification "the two levels"); the burst's node has already decided · the requester naming its node id: it has none to name (`INetworkTopology` is retired) · owner 0 = "this node": three editor sources already publish 0 |
+| who irritates | the owner, once a second, an Irritant hit (0 damage) to each PERSON inside (`PhysicsColliderReaders.IsPerson`, the one person check) through the existing `DamageAssessedEvent` → owner of `Health` path | every node: N copies of each hit · every `Health` holder: gasses vehicles |
+
+| the design rests on | code | design |
+|---|---|---|
+| every sight query goes through one seam | ✅ `WorldQuery.cs:19` and `LosStrategies.cs:160` build it through `TerrainWorldQuery.ForView`; the EQS `TerrainLosService` takes that `IWorldQuery` (`ILosService.cs:31`; its `:39` bare-terrain form is for tests and tools) | ✅ World Query Seam WQ-A |
+| a moving prism is never re-baked | ✅ `StaticObstacleBake.cs` (signature must be quiet `DebounceSeconds`) | — |
+| the wind is readable at a point | ✅ `WeatherField.WindAt(world, point)` (`WeatherField.cs:249`) | ✅ Weather §4 (CE-3216) |
+| a creator-owned per-instance descriptor needs no group | ✅ `NedOwnershipGroupBinding.cs:102` (dtObstacleShape) | ✅ P-7a §9 |
+| `LifespanSystem` destroys on every node | ✅ `LifespanSystem.cs` (no authority check) | — |
+
+#### 7.3c AS-BUILT `CE-3219` part 3 *(2026-10-17)* — the cloud, built as §7.3b draws it
+
+| built | where |
+|---|---|
+| `AreaEffectCloud` (component 399, `NoScenario`) · `CloudKind` · `CloudTable` / `AreaEffectClouds.Of` (the `DoorStates` shape: per thread, the last table handed back while unchanged; null when there are none) · `AreaEffectClouds.Spawn` / `TkbType` 7202 | `Fdp.Toolkits/Combat/AreaEffectClouds.cs` |
+| sight: dense for two thirds of its life, then thinning linearly to clear (`TransmittanceAt`); clouds crossed MULTIPLY (two 0.6 clouds block, one does not); `Trace(Sight)` lists each as a `"cloud"` crossing | `TerrainWorldQuery.SightBlocked` / `Trace`, `ForView` |
+| the owner's system, once a second per cloud (`StepSeconds`; the first step at once): drift by `WeatherField.WindAt(position) × elapsed`, an Irritant hit (0 damage, `IrritantSeconds`) to every living, not-hidden PERSON inside (`PhysicsColliderReaders.IsPerson`); destroy at `BornAt + Seconds` (checked each tick) | `Combat/Systems/AreaEffectCloudSystem.cs` |
+| the burst asks: `WarheadDto` grows `CloudRadiusM` / `CloudHeightM` / `CloudSeconds`, `WarheadKind.Smoke`, `HasCloud`; tear gas 0.4 transmittance, smoke 0.1; a remote detonation never asks | `AreaEffectSystem.RequestCloud` |
+| creation: the FDP spawn order `SpawnEntityCommand` with owner `SpawnEntityCommand.ThisNode` (−1, NEW), which `NetworkSpawningSystem` resolves to its own node id (one line); TKB 7202 "Area effect cloud" registered by Hrot (`AreaEffectCloudTkb`, hidden from the palette); the owner's system in the `Interactions` capability (every node) | `SpawnEntityCommand.cs`, `NetworkSpawningSystem.cs`, `CoreInfrastructureCapabilities.cs` |
+| wire: `dtAreaEffectCloud` 144, topic `EntityAreaEffectCloud` (reliable, transient-local), no ownership group, in the shared translator pack | `EntityAreaEffectCloudTranslators.cs`, `SharedTranslatorPack.cs` |
+| munitions (B-5's gas grenade): tear-gas grenade `6039` (6 m, 60 s, time fuze 1.5 s) · 40 mm tear-gas canister `6040` (8 m, 90 s) · smoke grenade `6041` (8 m, 4 m high, 75 s); the security launcher man carries 2 tear-gas grenades (mount 2) | `MunitionTkbCatalog.cs`, `CivilianTkbCatalog.cs` |
+
+Rails: `AreaEffectCloudTests` (10: sight through / beside / over / thinning, two clouds multiply, drift once a second, no weather, irritation
+once a second inside only, people not vehicles, smoke irritates nobody, ends at its time, a cloud this node does not own is left alone, the
+burst publishes the spawn order) · `SpawnSystemTests.CE3219_ThisNode_IsTheSpawningNode` · `NonLethalMunitionTests.CE3219_…` (each cloud
+round over the built-in TKB spawns its cloud) · `BodyPartReplicationTests.CE3219_…` (every field across the wire) ·
+`EntityOrdersAcrossNodesTests.CE3219_…` (spawned on SimHost ⇒ on CGF and the IG, owned by SimHost only ⇒ gone everywhere at its time).
+
+⛔ **SUPERSEDED `2026-10-17` (same day, before any push):** the first build had an `AreaEffectCloudRequest` toolkit event (5011) and a Hrot
+`AreaEffectCloudSpawnSystem` feeding the creation-request queue, and drifted every tick. Rejected by the user: two steps where the FDP bus
+order already exists, and every-tick drift. Both removed; event id 5011 was never pushed.
+
+⚠ **Limits, stated:** a scenario with no `TerrainWorld` has no world query, so its clouds do not block sight (every sight caller already
+needs a terrain). The canister is data only: no launcher loads it yet (which round a launcher fires is the weapon brain's choice —
+behaviors). The drift is written by the cloud's primary owner. `dtAreaEffectCloud` has no group, but the position (`dtWorldPos`) is in the
+MuscleGround group, so a cloud created on a node without that role could have its position granted away and then not drift. ⛔ Not
+measured: every cloud today is created where the burst is resolved (SimHost, a MuscleGround node), as the cross-node rail does.
+
+#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
+
+🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
+gas) so the gas is something like a dangerous area to be avoided by not stepping into and rather taking cover farther from its current or
+future expected location"* · *"Danger area kind for gas seems okay."* · *"Behaviors accepted."*
+
+📐 INVENTORY (`search_graph name_pattern=".*(DangerAlongRoute|DangerZone|DangerArea|AvoidArea|Hazard)[A-Za-z]*$"`, Class: 29, Interface: 1,
+`has_more:false`): the danger-area machinery EXISTS — `IDangerAreaProvider`, `DangerAreaSensorSystem`, `DangerAlongRouteClassifier`,
+`DangerAreaKind` (*"Extensible: new kinds may be added"*), `DangerAreaKindsOf.Wants` (stops at `CrestLine`), `DangerAreaCrossingManeuver`,
+behaviors' `DangerAreaNodes`. ⇒ gas is a new KIND in it, never a second danger mechanism. ⚠ That machinery is built for areas to CROSS
+(a bound from `NearSideHandle` to `FarSideHandle`); gas is an area NOT to enter — the kind is what lets a behaviour choose differently.
+
+```mermaid
+classDiagram
+  direction LR
+  class DangerAreaKind { <<existing enum, grows>> + GasCloud }
+  class DangerAreaKindsOf { <<existing>> Wants: + GasCloud bit }
+  class DangerAlongRouteClassifier { <<existing, grows>> + a cloud crossing the route corridor, now OR where the wind takes it within T s }
+  class AreaEffectClouds { <<existing>> Of(view) · + Predicted(cloud, position, wind, T) }
+  class DangerAreaDescriptor { <<existing>> Center · ExtentsXY · NearSideHandle FarSideHandle = detour points }
+  class EffectState { <<existing>> Irritated: the person cannot see }
+  class GasReactions { <<behaviors lane>> avoid · escape blind · mask drill · crowd scatter }
+  DangerAlongRouteClassifier ..> AreaEffectClouds
+  DangerAlongRouteClassifier ..> DangerAreaDescriptor : Kind GasCloud
+  GasReactions ..> DangerAreaDescriptor
+  GasReactions ..> EffectState
+```
+*What the picture shows that prose hid:* the backend adds ONE kind and one predicted footprint; every reaction reads data that already
+replicates (the danger-area result, `EffectState`). No navmesh change.
+
+| situation | the expected behaviour *(behaviors lane)* | reads |
+|---|---|---|
+| outside, gas on or near the route | do not step in; detour or wait; take cover upwind / crosswind, beyond where the cloud will be in 10–20 s | the `GasCloud` danger area (its footprint already includes the drift) |
+| caught inside, no mask | eyes shut: NO cover search — move blind out of the cloud, upwind and away from its centre; seek cover only once sight is back | `EffectState` Irritated · the wind |
+| masked (riot police, prepared troops) | a masking drill (~8 s), then continue; not irritated, narrower vision | a gas-mask TKB entry *(backend, later)* |
+| a crowd | break and flee away from the cloud and the launcher; panic spreads | the danger area · the CivilianHsm |
+| smoke (not gas) | cover, not danger: cross open ground behind it; the enemy fires blind into it | sight only (already built) |
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| where avoidance lives | a `DangerAreaKind.GasCloud` reported by the existing danger-area sensor | a new EQS "outside the cloud" test: a second danger mechanism · a navmesh cost: a rebake each time a cloud moves |
+| the footprint | the cloud now ∪ its centre moved by `WindAt × T` (T ≈ 15 s), radius + a margin | the current cylinder only: the cloud drifts onto the chosen cover |
+| a gassed man | no cover search; escape blind | a normal cover search: he cannot see (user) |
+
+⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
@@ -660,8 +818,8 @@ node (D5) whose hit goes through B-1-a's event — backend adds only the warhead
 | loadouts: shield and baton men carry 2 stun grenades; the launcher man a baton-round launcher (20 rounds, 80 m/s, 50 m) and 2 stun grenades | `CivilianTkbCatalog.Security(…, mounts)` |
 | rail `NonLethalMunitionTests` (3): each round resolves to its effect with no fragments (`ParameterResolver.Warhead`); the real `DamageCalculationSystem` / `AreaEffectSystem` over the built-in TKB knock down / stun; the security types load the rounds. Red-proved: the baton round set to Kinetic ⇒ 2 red | `Hrot.Core.Tests` |
 
-⏳ **Not built, and why:** the gas grenade and gas launcher round wait for the cloud (§7.3, B-1 part 3). The Molotov waits too, since
-its fire is the same kind of lasting area. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
+✅ **The gas grenade, the gas canister and a smoke grenade are BUILT** with the cloud (§7.3c, `2026-10-17`). ⏳ The Molotov still waits:
+its fire is the same kind of lasting area, with a burn effect no cloud has yet. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
 behaviors' CE-2236. The baton blow is behaviors' melee node (D5).
 
 ### 7.7 B-6 — the gesture *(CV-13, R-2024; `CE-3224`; [frame](blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md))* — ✅ BUILT `2026-10-17`

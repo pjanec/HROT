@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Hrot.Common.Systems;
 using Hrot.Core.Network;
@@ -31,7 +32,6 @@ namespace Hrot.Common.EntityCreation
         internal EntityCreation(
             IReadOnlyList<ITkbEntityTranslator> translators,
             EntityLifecycleModule elm,
-            ScenarioEntityCreationRequestSource localRequests,
             CreateEntityRequestSystem requestSystem,
             EntityRequestFinalizationSystem finalizationSystem,
             NetworkSpawningSystem spawnSystem,
@@ -46,7 +46,6 @@ namespace Hrot.Common.EntityCreation
             SeatPresetSystem   = seatPresetSystem;
             Translators        = translators;
             Elm                = elm;
-            LocalRequests      = localRequests;
             RequestSystem      = requestSystem;
             FinalizationSystem = finalizationSystem;
             SpawnSystem        = spawnSystem;
@@ -103,24 +102,13 @@ namespace Hrot.Common.EntityCreation
         public EntityLifecycleModule Elm { get; }
 
         /// <summary>
-        /// ⭐⭐ <b>The local, in-process request queue — this is how a node creates an entity it OWNS.</b>
-        /// Enqueue an <c>EntityCreationRequest</c> with <c>OwnerAppInstanceId = NodeId</c> and
-        /// <see cref="RequestSystem"/> drains it on the next tick; no DDS round trip.
-        ///
-        /// <para>⚠ Thread-safe: <c>Enqueue</c> may be called from an orchestration thread, and draining
-        /// happens on the ECS tick.</para>
-        ///
-        /// <para>⭐⭐⭐ <b>AUTHORS SHOULD NOT TOUCH THIS — call <see cref="RequestEntityCreation"/>.</b>
-        /// ⚠ An earlier version of this remark promised two affordances, <c>CreateLocallyOwned</c> and
-        /// <c>RequestFromDefaultProcessor</c> (<c>DESIGN_Entity_Creation_Unification.md</c> §3.4),
-        /// blocked on <c>CE-143</c>. ⛔ <b>That two-method shape is SUPERSEDED</b> — the routing input is
-        /// ONE field, so two verbs named the ARGUMENT rather than the behaviour, and neither could
-        /// express <i>"owned by a third node"</i>. 📄 <c>DESIGN_Entity_Authoring_Surface.md</c> §4b.
-        /// ⭐ <c>CE-143</c> is resolved (<c>EntityCreationRequest.InitType</c> exists), and the one
-        /// method below shipped in its place. This property stays public because a TRANSLATOR (§2)
-        /// legitimately enqueues a fully-determined request.</para>
+        /// ⭐⭐⭐ <c>CE-3228</c> (docs/DESIGN_Entity_Creation_Unification.md §3.4d) — a TRANSLATOR (§2) with a fully-determined request (the
+        /// scenario extractor, the debug API's raw path) PUBLISHES it on this world's bus exactly as <see cref="RequestEntityCreation"/> does;
+        /// the request system reads it next frame. ⛔ The <c>LocalRequests</c> queue singleton this replaced is gone: every local author runs
+        /// on the frame thread.
         /// </summary>
-        public ScenarioEntityCreationRequestSource LocalRequests { get; }
+        public void Publish(EntityCreationRequest request)
+            => World.Bus.PublishManaged(request ?? throw new ArgumentNullException(nameof(request)));
 
         /// <summary>
         /// ⭐⭐⭐ <b>THE AUTHORING AFFORDANCE — ask for an entity to exist.</b> Returns the request id,
@@ -137,7 +125,7 @@ namespace Hrot.Common.EntityCreation
         ///   <item>⛔ <b>TRANSLATOR</b> — an EXISTING external representation is being mapped in: a
         ///     scenario file, a DDS sample, another node's message. The representation already fixed the
         ///     owner, the components and the id. <b>It constructs <c>EntityCreationRequest</c> directly
-        ///     onto <see cref="LocalRequests"/>, and that is CORRECT — not a loophole.</b> Forcing it
+        ///     onto the bus (<see cref="Publish"/>), and that is CORRECT — not a loophole.</b> Forcing it
         ///     through here would add a defaulting layer over fields that are already determined, and it
         ///     needs <c>PreAllocatedNetworkId</c> / <c>ChildComponentOverrides</c>, which this affordance
         ///     deliberately excludes (§3). The two production translators are
@@ -227,7 +215,7 @@ namespace Hrot.Common.EntityCreation
             if (initialComponents is { Count: > 0 }) components = new List<object>(initialComponents);
             if (transform.HasValue) (components ??= new List<object>(1)).Add(transform.Value);
 
-            LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            Publish(new EntityCreationRequest
             {
                 RequestId             = requestId,
                 OwnerAppInstanceId    = owner,

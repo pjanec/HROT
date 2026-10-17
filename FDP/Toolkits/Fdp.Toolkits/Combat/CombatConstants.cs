@@ -58,6 +58,7 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-1128</c> — <see cref="Contracts.RoundImpactNotification"/>: a round marked a surface (docs/DESIGN_Visual_Effects.md §10).</summary>
         public const int RoundImpactNotificationEventId = 5010;
 
+
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;
 

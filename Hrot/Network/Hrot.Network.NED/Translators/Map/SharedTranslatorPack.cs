@@ -126,6 +126,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
             yield return new EntityGestureEgressTranslator(participant);
             yield return new EntityGestureIngressTranslator(participant, entityMap);
+            // ⭐ CE-3219 part 3 (civilians B-1) — a gas / smoke cloud's description (creator → every node).
+            yield return new EntityAreaEffectCloudEgressTranslator(participant);
+            yield return new EntityAreaEffectCloudIngressTranslator(participant, entityMap);
             // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
             //   (the Muscle → every node).
             yield return new EntityPartDamageEgressTranslator(participant);

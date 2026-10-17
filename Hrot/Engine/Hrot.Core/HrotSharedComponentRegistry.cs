@@ -73,6 +73,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
+        world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
@@ -180,6 +181,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<SetTimeScaleIntent>();
         world.RegisterManagedEvent<SlaveNodeSetUpdatedEvent>();
         world.RegisterManagedEvent<SpawnEntityCommand>();
+        world.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the creation request, published on the bus by every local author
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();

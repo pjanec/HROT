@@ -361,6 +361,23 @@ namespace Hrot.NED.Descriptors
         public byte Kind;
     }
 
+    // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud, its creator → every node. Reliable + TransientLocal + KeepLast 1:
+    //   a late joiner must see a cloud still hanging there. Its position is the entity's ordinary transform.
+    [DdsTopic("EntityAreaEffectCloud")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityAreaEffectCloud
+    {
+        [DdsKey] public long EntityId;
+        public byte Kind;
+        public float Radius;
+        public float Height;
+        public float SightTransmittance;
+        public float IrritantSeconds;
+        public double BornAtSimSeconds;
+        public float Seconds;
+    }
+
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
     //   (Brain group) → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1, like EntityWeaponAmmo: it changes per hit,
     //   and a late joiner must see a man's wounds.
