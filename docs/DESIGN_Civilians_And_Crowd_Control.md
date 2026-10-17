@@ -842,3 +842,92 @@ reads the prism (B1-c unchanged). ⚠ Cross-lane: `Fdp.Toolkits/Terrain/TerrainW
 Today's see-through materials (glass, hedge, chain-link) all block movement ⇒ nothing existing changes. Rail
 `TerrainWorldTests.CE1165_…`, red-proved. ⏳ U4-a (the cloud drawn in `EffectLayer`) waits on `AreaEffectCloud`.
 
+
+### 8.7 U-6 — gestures and the placard *(ui, `2026-10-17`; frame [HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md), CV-13 R-2024; item `CE-1166`)*
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*Gesture.*` (40 results) and `.*Placard.*|.*Sign.*Pole.*` (0) + grep
+`Arms(` in `ShapeKit.cs`; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | exists | where |
+|---|---|---|
+| a body-gesture anything | ⛔ **none** — all 40 `Gesture` hits are EDITOR input gestures (variable edit, watch pinning) | — |
+| backend's `Gesture` component (B-6) | ⏳ **not built** at `ui@21a0e3498` (frame dispatched to backend the same day) | — |
+| arm overrides on a figure | `BlockFigure.CarrierArms` (C-1), `HandleArms` (T-b3), `AtWeapon` (N-2), `Shouldered` (N-4), `Cower` (U-3) — each replaces the four arm parts at `TorsoIndex+2…+5` and slings a soldier's rifle at `WeaponIndex` | `ShapeKit.cs:1055,1081,1104`, `ShapeKit.cs:873` |
+| where an override is applied | `EntityBodyLayer3D.Burdened` (standing only; carriage arms) after `FigurePose` | `EntityBodyLayer3D.cs:660-680` |
+| 2-D state text | `StanceGizmo`; `EffectStateGizmo` (U-3c, DOWN · STUNNED · GASSED · COWERING) | `EffectStateGizmo.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class Gesture { <<backend B-6, NOT YET BUILT>> None HandsUp FistRaised HoldSign Waving Throwing }
+  class ArmGesture { <<NEW, ui>> the same six names, byte for byte }
+  class BlockFigure { <<existing, grows>> +GestureArms(parts, ArmGesture, crouched, soldier) KitPart[] ; +Placard KitPart[] }
+  class EntityBodyLayer3D { <<existing, grows>> Gestured(world, e, parts) after Burdened }
+  class EffectStateGizmo { <<existing, grows>> + HANDS UP / PROTEST text }
+  class CarrierArms { <<existing>> the precedent: replace the four arm parts }
+  EntityBodyLayer3D --> BlockFigure : GestureArms
+  EntityBodyLayer3D ..> Gesture : reads (when B-6 lands)
+  Gesture ..> ArmGesture : cast, a rail pins the names
+  BlockFigure ..> CarrierArms : same shape
+  EffectStateGizmo ..> Gesture : reads (when B-6 lands)
+```
+*Caption:* what the picture shows that prose hid — the drawing vocabulary (`ArmGesture`) is ui's own and is built now; the ONLY edge that
+waits on backend is the read of `Gesture`, and a rail pins the two enums' names so the cast cannot drift.
+
+```mermaid
+sequenceDiagram
+  participant L as EntityBodyLayer3D (every map host, each frame)
+  participant F as FigurePose
+  participant B as Burdened
+  participant G as Gestured
+  participant K as BlockFigure
+  L->>F: parts for the stance (dead fall, cower win first)
+  L->>B: carriage arms (a carrier does not gesture)
+  L->>G: free, standing or crouched, alive, not cowering
+  G->>G: ArmGesture from Gesture (None draws nothing new)
+  G->>K: GestureArms(parts, g, crouched, soldier)
+  K-->>L: the four arm parts replaced, rifle slung, HoldSign adds the pole and the board
+```
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack, every map host] --> BODY[EntityBodyLayer3D.Draw each frame]
+  BODY --> FP[FigurePose]
+  BODY --> BUR[Burdened]
+  BODY --> GES[Gestured NEW]
+  SGS[StatelessGizmoSystem, every host] --> ESG[EffectStateGizmo]
+  B6[backend B-6 Gesture component]:::wait -.->|not built: Gestured reads None| GES
+  B6 -.-> ESG
+  classDef wait fill:#ffd,stroke:#aa0
+```
+*Caption:* both readers are already called each frame on every map host; the yellow box is the one input that does not exist yet — until it
+does, `Gestured` sees `None` and the figure is unchanged.
+
+| # | decision | lean | rejected |
+|---|---|---|---|
+| **U6-a** | where the override applies | `Gestured` right after `Burdened`: standing AND crouched (the shoulders follow `CrouchDrop`); NOT prone, dead, cowering, knocked down or carrying (those already own the arms — the frame's "EffectState wins") | inside `FigurePose`: it returns before carriage, so a carrier would wave · prone too: a prone man's arms are under him |
+| **U6-b** | the vocabulary | ui's `ArmGesture` enum with backend's six names; the wiring is a byte cast and a rail asserts `Enum.GetNames` equal | switch on backend's type directly: blocks the whole build on B-6 · a pose per stance: six × three tables |
+| **U6-c** | the shapes | HandsUp — both arms straight up, open · FistRaised — right arm up, the left hanging · HoldSign — both hands up on a pole in front of the face, a board above the head · Waving — right arm up and out, the forearm tilted · Throwing — the wind-up: right hand back above the shoulder, left arm forward; all static (the brain cycles them, the frame says so) | animated waving: the brain toggles it, and an animation per gesture is a second clock |
+| **U6-d** | the placard | two appended parts (a `Metal`-role pole and a `Canvas`-role board), appended AFTER every indexed part so no index moves | a prop entity: fenced off by the frame |
+| **U6-e** | 2-D | `EffectStateGizmo` adds `HANDS UP` (HandsUp) and `PROTEST` (FistRaised, HoldSign, Waving, Throwing) to its one line | a second gizmo: two lines under one man |
+| **U6-f** | a soldier | the gesture still draws (a surrendering soldier raises his hands); his rifle is slung like a carrier's | skip soldiers: CV-13a's surrender is about armed men |
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| an arm override replaces four parts at `TorsoIndex+2` | ✅ `ShapeKit.cs:1081-1094` (`CarrierArms`) | ✅ §8.4 U3-a names the arm-override precedent |
+| a carrier never reaches `Gestured` with free arms | ✅ `Burdened` sets carrier arms first (`EntityBodyLayer3D.cs:666`) | ✅ frame: "EffectState wins over a gesture" (cowering / down) |
+| appending parts moves no index | ✅ `HeadIndex 5`, `TorsoIndex 4`, `WeaponIndex 10` are all below the arm block's end | ⛔ searched, none found |
+| backend's enum names are the frame's six | ⛔ **assumed until B-6 lands** — the names rail fails the build the day they differ | ✅ CV-13 §4 lists the six |
+
+#### 8.7a AS-BUILT — the poses (`CE-1166` part 1, `2026-10-17`, ui)
+
+| decision | as built | still to do |
+|---|---|---|
+| U6-b | `BlockFigure.ArmGesture` — the six names of CV-13 | the names rail and the byte cast, the day B-6's `Gesture` exists |
+| U6-c | `BlockFigure.GestureArms(parts, gesture, crouched, soldier)` — the five shapes as leaned, static; only the four arm parts at `TorsoIndex+2…+5` change; a soldier's rifle slung (the carrier's sling, shifted by the crouch) | — |
+| U6-d | `BlockFigure.Placard(drop)` — the pole (`Metal`) and the board (`Canvas`), appended after every indexed part (`PlacardParts` = 2) | — |
+| U6-a, U6-e | ⏳ **not built** — `EntityBodyLayer3D.Gestured` and the 2-D text need the replicated `Gesture` to read | wire both when B-6 lands; then the `ua-civ-protest` look |
+
+No deviation from §8.7's leans. Rails `Map3DTests.CE1166_EachGesture_ChangesOnlyTheArms` (×5, standing and crouched, the placard above the
+head, the soldier's rifle slung) and `CE1166_TheShapes_ReadAsTheGesture` (hands up = two hands above the head, a fist = one, the wind-up's
+hand behind the shoulder), red-proved with three switches (no override · hands up drawn as a fist · no placard).

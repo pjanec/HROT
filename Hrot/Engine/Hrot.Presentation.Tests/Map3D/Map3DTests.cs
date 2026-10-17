@@ -1472,6 +1472,53 @@ public sealed class Map3DTests
         Assert.True(arms.Max(i => Top([cower[i]], size)) > headMid, "the hands are not over the head");
     }
 
+    /// <summary>⭐ CE-1166 (civilian U-6, docs/DESIGN_Civilians_And_Crowd_Control.md §8.7) — each gesture changes ONLY the four arm parts
+    /// of a standing and of a crouched figure (the frame's acceptance: the arm boxes differ from the stance's), None changes nothing, a
+    /// soldier's rifle is slung, and HoldSign alone adds the pole and a board above his head.</summary>
+    [Theory]
+    [InlineData(BlockFigure.ArmGesture.HandsUp)]
+    [InlineData(BlockFigure.ArmGesture.FistRaised)]
+    [InlineData(BlockFigure.ArmGesture.HoldSign)]
+    [InlineData(BlockFigure.ArmGesture.Waving)]
+    [InlineData(BlockFigure.ArmGesture.Throwing)]
+    public void CE1166_EachGesture_ChangesOnlyTheArms(BlockFigure.ArmGesture gesture)
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        foreach (var (stance, crouched) in new[] { (StanceId.Standing, false), (StanceId.Crouched, true) })
+        {
+            var plain = BlockFigure.Parts(stance, soldier: false);
+            Assert.Same(plain, BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.None, crouched, false));
+            var shown = BlockFigure.GestureArms(plain, gesture, crouched, soldier: false);
+            int extra = gesture == BlockFigure.ArmGesture.HoldSign ? BlockFigure.PlacardParts : 0;
+            Assert.Equal(plain.Length + extra, shown.Length);
+            var changed = Enumerable.Range(0, plain.Length).Where(i => plain[i] != shown[i]).ToList();
+            Assert.Equal(Enumerable.Range(BlockFigure.TorsoIndex + 2, 4), changed);   // the four arm parts, nothing else
+            if (gesture == BlockFigure.ArmGesture.HoldSign)
+                Assert.True(Top(shown[^1..], size) > Top(plain, size) + 0.3f, $"{stance}: the board is not above his head");
+
+            var armed = BlockFigure.Parts(stance, soldier: true);
+            var slung = BlockFigure.GestureArms(armed, gesture, crouched, soldier: true);
+            Assert.NotEqual(armed[BlockFigure.WeaponIndex], slung[BlockFigure.WeaponIndex]);
+        }
+    }
+
+    /// <summary>⭐ CE-1166 (§8.7 U6-c) — the shapes read as what they are: hands up puts BOTH hands above the head, a raised fist ONE, and
+    /// the wind-up puts the throwing hand behind the shoulder line.</summary>
+    [Fact]
+    public void CE1166_TheShapes_ReadAsTheGesture()
+    {
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+        float headTop = Top([plain[BlockFigure.HeadIndex]], size);
+        int HandsAboveHead(KitPart[] parts) => new[] { BlockFigure.TorsoIndex + 3, BlockFigure.TorsoIndex + 5 }
+            .Count(i => Top([parts[i]], size) > headTop);
+        Assert.Equal(0, HandsAboveHead(plain));
+        Assert.Equal(2, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false)));
+        Assert.Equal(1, HandsAboveHead(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.FistRaised, false, false)));
+        var windUp = BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.Throwing, false, false);
+        Assert.True(Vector3.Transform(Vector3.Zero, windUp[BlockFigure.TorsoIndex + 5].BodyTransform(size)).X < -0.1f, "the throwing hand is not back");
+    }
+
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,
     /// all eight at none left (a dead man), none for a pool with no maximum.</summary>
     [Fact]
