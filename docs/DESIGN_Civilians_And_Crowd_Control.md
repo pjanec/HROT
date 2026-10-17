@@ -1352,7 +1352,7 @@ mutants (no lay-down · no take-up · never held · no `AllLaidDown` term · no 
 `PostureScenarioTests.CE2241_ArmedSurrender_…`: surrendered on CGF/SimHost/IG at 1.6 s, 0 rounds, unhurt, rose at 21.6 s, fired on at
 22.4 s.
 
-### 5h.6 AW-22 — a known combatant, per unit *(behaviors, `CE-2238` part 3 / handoff A5, 2026-10-17; build-state: READY-TO-BUILD)*
+### 5h.6 AW-22 — a known combatant, per unit *(behaviors, `CE-2238` part 3 / handoff A5, 2026-10-17; build-state: BUILT)*
 
 ⭐ **Scope.** AW-22's KNOWLEDGE half: a civilian who commits a LETHAL hostile act becomes a known combatant to the units that witnessed it
 and to their squad, sticky for the exercise; everyone else still sees a civilian (the conduct rules). The act's REPLICATED kind is
@@ -1429,6 +1429,15 @@ every witness's `TargetMemory` lives.
 
 ⚠ **Known limits:** ① heard-only witnesses (an anonymous acoustic contact) learn nothing — there is no identity to mark; ② the knowledge is
 not on the wire (another node's brain has its own); ③ "for such time" stays simplified — sticky for the exercise (AW-22).
+
+⭐ **As built `2026-10-17`** *(matches the four diagrams; two facts the design did not state)*: `KnownCombatants` (`Combat/KnownCombatants.cs`),
+`TargetMemory.KnownCombatantIds[8]`, `HostileActKind` + `Commit(repo, actor, kind)` (`Civilians/HostileActs.cs`), `Armament.Judge` +
+`AsKnown`. ⭐ **① a COMMANDER reads his own roster** — he has no `UnitSubordinate`, so the first build missed him (a rail caught it);
+`Knows` takes the observer himself as the commander when he answers to nobody. ⭐ **② the neutral gate comes first** — `ThreatDanger.Of`
+returns 0 for a Neutral before `Judge` is asked (CE-2233), so the knowledge matters once the act has flipped him Hostile (CV-4), which it
+always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluationSystem` stamps). Rails: `ArmamentTests.CE2238_…` ×3 —
+red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
+witness window · a known man always lethal). Note to backend: [`NOTE_Behaviors_To_Backend_HostileActKind.md`](blueprints/batches/NOTE_Behaviors_To_Backend_HostileActKind.md).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
