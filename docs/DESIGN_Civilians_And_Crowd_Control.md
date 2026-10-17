@@ -2255,13 +2255,29 @@ with a brain.
 | SimHost all systems | 54.2 | 157.4 | ×2.9 |
 | `BrainTickSystem` | 1.70 | 4.79 | ×2.8 — linear |
 | `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame): 📐 **2.41 at 300 after**; CGF's sum 138.8 → 100.2, frames 382 → 512 |
-| `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ `CE-3241` |
+| `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ **`CE-3241` — fixed** (per-frame key maps instead of a sensor scan per result): 📐 **below SimHost's top 8 (< 1.5) at 300 after** |
 | `CrowdSystem` (CGF, behaviors) | 0.45 | 3.06 | ×6.8 ⇒ behaviors note |
 | `RecorderTickSystem` CGF / SimHost / IG | 25.0 / 22.1 / 15.5 | 29.4 / 24.6 / 16.8 | flat but the biggest ⇒ `CE-3243` |
 | frames in 60 s of sim | 690 | 382 | |
 
-⛔ **500 did not load:** not settled in the load route's 30 s (1059 entities) ⇒ `CE-3242`. ⚠ **No budget is set yet** — the
-harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
+~~⛔ **500 did not load:** not settled in the load route's 30 s (1059 entities) ⇒ `CE-3242`.~~ ⭐ **`CE-3242` — fixed.** Measured
+with the route's new per-translator ms and a stopwatch inside promotion: SimHost promoted 2–5 civilians/s because the perception
+translator's `SensorChildFactory.Find` scanned every sensor child per call (1.1 ms a call at 1 500 entities) — the load trickled in
+for 93 s and CGF gave up waiting on 267 acks. Now an index per world: 📐 **the 500 load lands in 13 s** and the load route settles.
+
+📐 **After `CE-3240`/`CE-3241`/`CE-3242`** (same harness; ms/frame recent average):
+
+| | 300 | 500 |
+|---|---|---|
+| CGF all systems | 95.2 | 338.0 |
+| SimHost all systems | 71.4 *(was 157.4)* | 104.1 |
+| IG all systems | 30.0 | 38.1 |
+| `CrowdSystem` (CGF, behaviors) | 3.16 | ⛔ **103.6** (max 159) — now CGF's biggest ⇒ behaviors note |
+| `RecorderTickSystem` CGF / SimHost / IG | 29.4 / 24.0 / 15.3 | 33.4 / 27.3 / 15.9 ⇒ `CE-3243` |
+| `OwnershipRecomputeSystem` CGF / SimHost | 9.6 / 11.4 | 16.3 / 19.1 — linear |
+| frames in 60 s of sim | 448 *(was 382)* | 322 |
+
+⚠ **No budget is set yet** — the harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
 
 ### 7.5 B-5 — the weapons *(CV-9)*
 

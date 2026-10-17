@@ -21,4 +21,12 @@ your own) before the 500-civilian demos. Re-measure with the same command; it pr
 ⚠ Two backend findings from the same run, for context: `WeaponAmmoMirrorSystem` was the same shape and is fixed (`CE-3240`);
 `EqsResultUpdateSystem` on SimHost is open (`CE-3241`).
 
+## ⛔ Update `2026-10-17` (later) — at 500 it is CGF's biggest system
+
+With the backend's three crowd-scaling fixes in (`CE-3240`, `CE-3241`, `CE-3242` — the 500-civilian scenario now loads in 13 s), the
+same command at **500 civilians** measures `CrowdSystem` at **103.6 ms/frame (max 159)** against **3.16 at 300** — ×33 for ×1.7, far
+past quadratic, so something changes shape between 300 and 500 (one crowd group swallowing the town? a pass per member per member
+of its group?). It is now CGF's largest system — more than the recorder — and CGF runs 338 ms/frame at 500. ⭐ This is the one that
+decides whether 500 is playable: `python3 scripts/perf-civilians.py 300 500` reproduces it in ~6 minutes.
+
 **Ids allocated:** none (backend rows CE-3240…CE-3243 are in the tracker).
