@@ -149,5 +149,21 @@ namespace Fdp.Toolkit.Combat.Components
         public const byte Landed = 8;
         /// <summary>Already burst: a late raycast of an earlier segment must not detonate it a second time.</summary>
         public const byte Spent = 16;
+
+        /// <summary>
+        /// ⭐ The ONE derivation of a fired round's bits from its warhead (<c>FireProcessingSystem</c>). ⭐⭐ <c>CE-3239</c> — a CLOUD warhead
+        /// (tear gas, smoke: no blast, no fragments) BURSTS too (<see cref="Area"/>): before, it never did on the ground — a canister was
+        /// destroyed where it stopped and a gas grenade that landed before its fuze lay 8 ticks and vanished, so neither raised its cloud.
+        /// </summary>
+        public static byte BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto? warhead, out float fuzeSeconds)
+        {
+            fuzeSeconds = 0f;
+            if (warhead == null) return 0;
+            byte bits = 0;
+            if (warhead.HasAreaEffect || warhead.HasCloud) bits |= Area;
+            if (warhead.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && warhead.FuzeDelayS > 0f) { bits |= TimeFuze; fuzeSeconds = warhead.FuzeDelayS; }
+            if (warhead.Indirect) bits |= Arc;
+            return bits;
+        }
     }
 }

@@ -175,11 +175,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 byte warheadBits = 0; float fuze = 0f; uint arcLifetime = 0;
                 if (CombatTkb.WarheadOf(repo, ammo) is { } wh)   // ⭐ CE-3158 G3 — the one lookup
                 {
-                    if (wh.HasAreaEffect) warheadBits |= WarheadRound.Area;
-                    if (wh.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && wh.FuzeDelayS > 0f) { warheadBits |= WarheadRound.TimeFuze; fuze = wh.FuzeDelayS; }
+                    warheadBits = WarheadRound.BitsOf(wh, out fuze);   // ⭐ CE-3239 — a cloud round bursts too
                     if (wh.Indirect)
                     {
-                        warheadBits |= WarheadRound.Arc;
                         // ⭐ WL-4 L-1 (Weapon_Layers §5f) — a throw whose low arc the terrain would stop (the wall the target is
                         //   behind) is LOBBED: ThrowArc walks the arc through the same terrain rule the flight uses.
                         float arcPen = firedMount != null && firedMount.DamagePerHit > 0f ? CombatTkb.PenetrationOf(repo, firedMount) : 0f;

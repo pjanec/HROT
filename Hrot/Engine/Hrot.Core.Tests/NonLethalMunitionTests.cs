@@ -118,6 +118,24 @@ namespace Hrot.Map.Common.Tests
         /// ⭐⭐ <c>CE-3219</c> part 3 (B-5's gas grenade, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — each cloud round, bursting through
         /// the real <see cref="AreaEffectSystem"/> over the built-in TKB, asks for a cloud of its kind and hurts nobody on the spot.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3239</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3c) — every built-in cloud round FLIES as an area round, so the
+        /// flight bursts it on the ground (the rail below publishes the burst by hand; this is the half it never saw).
+        /// </summary>
+        [Fact]
+        public void CE3239_EveryBuiltInCloudRound_FliesAsAnAreaRound()
+        {
+            var db = BuiltIn();
+            int clouds = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<WarheadDto>() is not { HasCloud: true } w) continue;
+                clouds++;
+                Assert.True((Fdp.Toolkit.Combat.Components.WarheadRound.BitsOf(w, out _) & Fdp.Toolkit.Combat.Components.WarheadRound.Area) != 0, t.Name);
+            }
+            Assert.True(clouds >= 3, $"tear-gas grenade, canister and smoke: {clouds}");
+        }
+
         [Fact]
         public void CE3219_EachCloudRound_AsksForItsCloud_AndHurtsNobodyOnTheSpot()
         {

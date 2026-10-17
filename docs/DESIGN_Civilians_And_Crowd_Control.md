@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -1497,6 +1497,16 @@ position is never granted away — the default processor that creates it drifts 
 creation, ownership and the end, not the drift (`AreaEffectCloudTests` rails the drift on one node). ⭐ A cloud asked for on a node that
 is not the default processor crosses the wire inside the forwarded request (`dtAreaEffectCloud` in the request's descriptor union —
 Entity Creation §3.4d ③); it is created `AllPeers` there (the request's `InitType` does not travel).
+
+⛔⛔ **Defect found and fixed `2026-10-17` — `CE-3239`: a cloud round never burst on the GROUND.** 📐 Measured in the B-13 round-lifecycle
+sweep: `FireProcessingSystem` set a round's `Area` bit only for `WarheadDto.HasAreaEffect` (blast or fragments), and only an `Area` round
+bursts when the flight stops it — so a canister was destroyed where it landed (`BallisticsSystem`'s stopped-round grace) and a gas grenade that
+landed before its 1.5 s fuze lay 8 ticks and vanished. ⚠ The rails above published the burst by hand, so none saw it. ⭐ Now
+`WarheadRound.BitsOf` (`Combat/Components/CombatComponents.cs`) is the one derivation of a fired round's bits and sets `Area` for `HasCloud`
+too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as drawn, and is still not assessed as a blast. Rails
+`WarheadFlightTests.CE3239_…` (the fuzed grenade bursts on its fuze where it lies; the canister where it lands) and
+`NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
+like any area round — the effects layer draws what it draws for one (ui's to decide).
 
 #### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
 

@@ -187,5 +187,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.InRange(b.HitX, 13.5f, 16.5f);
             Assert.InRange(b.HitZ, 0f, 0.2f);                      // where it lay
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3239</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3c) — a CLOUD round (tear gas: no blast, no fragments) bursts on
+        /// the ground like any area round: a gas grenade that lands before its fuze waits and bursts on it, a canister bursts where it
+        /// lands. ⛔ Before, <see cref="WarheadRound.BitsOf"/>'s source read only blast/fragments, so neither burst and no cloud was raised.
+        /// </summary>
+        [Theory]
+        [InlineData(1.5f)]   // the gas grenade: time-fuzed, lands at ~1 s
+        [InlineData(0f)]     // the canister: bursts where it lands
+        public void CE3239_ACloudRound_BurstsOnTheGround_WhereItLies(float fuze)
+        {
+            var gas = new Fdp.Toolkit.Tkb.Domain.WarheadDto
+            {
+                Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Irritant, CloudRadiusM = 6f, CloudSeconds = 60f, Indirect = true,
+                Fuze = fuze > 0f ? Fdp.Toolkit.Tkb.Domain.FuzeKind.Time : Fdp.Toolkit.Tkb.Domain.FuzeKind.Impact, FuzeDelayS = fuze,
+            };
+            byte bits = WarheadRound.BitsOf(gas, out float fuzeSeconds);
+            Assert.True((bits & WarheadRound.Area) != 0, "a cloud round bursts");
+            Assert.Equal(fuze, fuzeSeconds);
+
+            Launch(new Vector3(0, 0, 1.5f), new Vector3(15, 0, 0), 15f, high: false, bits, fuze: fuzeSeconds);
+            var (tick, b) = Assert.Single(Fly(60 * 10));
+            if (fuze > 0f) Assert.InRange(tick * Dt, fuze - 0.1f, fuze + 0.2f);   // on its fuze, lying where it landed
+            Assert.InRange(b.HitX, 13.5f, 16.5f);
+            Assert.InRange(b.HitZ, 0f, 0.2f);
+        }
     }
 }
