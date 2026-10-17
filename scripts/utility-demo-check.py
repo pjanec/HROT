@@ -3557,7 +3557,8 @@ def run_armed_self_defence(c, timeout):
 
 def run_armed_celebration(c, timeout):
     """test-town: a police patrol (a rifle, a Lethal ceiling) 24 m from a wedding party; a Neutral guest fires his rifle into the air
-    (8 rounds), then aims it at the patrol. ① while he fires into the air the patrol WARNS (the Warning cue) and spends no round · ② once
+    (8 rounds), then aims it at the patrol. ① he is WARNED (the Warning cue — at once, his rifle is in his hands) and while he fires into
+    the air the patrol spends no round · ② once
     he aims at it, the patrol's rifle fires at him · ③ no other guest is hurt. The twin (PostureScenarioTests.CE2239_Celebration_…)
     checks every frame."""
     ids = ids_by_name()
@@ -3577,7 +3578,7 @@ def run_armed_celebration(c, timeout):
         h = (ammo(his_rifle) or (None,))[0]
         if st["aimed"] is None and h is not None and his0 is not None and h < his0:
             st["volley"] = True
-        if st["volley"] and st["aimed"] is None and gesture_on("CGF", cop) == "Warning":
+        if st["aimed"] is None and gesture_on("CGF", cop) == "Warning":   # armed in his hands from the start: warned at once (EL-3)
             st["warned"] = True
         a = (ammo(cop_rifle) or (None,))[0]
         if a is not None and st["cop"] is not None and a < st["cop"]:

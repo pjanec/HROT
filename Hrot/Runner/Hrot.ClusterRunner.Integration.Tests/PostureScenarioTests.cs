@@ -1022,7 +1022,8 @@ public sealed class PostureScenarioTests : IDisposable
             if (his0 < 0) his0 = Ammo(hisRifle);                                     // his WeaponState comes a frame or so after the spawn
             if (aimsAtCop) aimedAt ??= cgf.SimulationTime;
             if (aimedAt == null && Ammo(hisRifle) < his0) volley = true;
-            if (volley && aimedAt == null && Gestures.Of(cgf, cop) == GestureKind.Warning) warned = true;
+            // ⭐ armed in his hands from the start, he is warned at once (the first warning's time stands, EL-3) — before he aims
+            if (aimedAt == null && (Gestures.Of(cgf, cop) == GestureKind.Warning || EscalationLadder.WarnedAt(cgf, cop, man) > 0)) warned = true;
             int a = Ammo(copRifle);
             if (a >= 0 && copLast >= 0 && a < copLast)
             {
@@ -1037,7 +1038,7 @@ public sealed class PostureScenarioTests : IDisposable
 
         harness.PumpUntil(() => { Sample(); return atHim > 0 && cgf.SimulationTime - aimedAt >= 2.0 || cgf.SimulationTime > 60.0; }, timeoutFrames: 6000);
         _out.WriteLine(State());
-        Assert.True(volley && warned, $"① he fires into the air and the patrol warns; {State()}");
+        Assert.True(volley && warned, $"① he fires into the air, warned before he aims; {State()}");
         Assert.True(roundsWhileVolley == 0, $"① …and spends no round; {State()}");
         Assert.True(aimedAt != null && atHim > 0, $"② once he aims at the patrol, it fires at him; {State()}");
         Assert.True(guests.All(g => cgf.GetComponentRO<Health>(g).Current >= 100f), $"③ no other guest is hurt; {State()}");
