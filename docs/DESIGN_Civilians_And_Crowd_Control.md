@@ -535,12 +535,22 @@ the descriptor-map lists (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStr
 × the blast fall-off × barrier × shadow (`AreaEffectSystem` — a wall between him and the flash spares him). Rails:
 `DamageCalculationSystemTests.CE3219_ABluntRound_…`, `AreaEffectSystemTests.CE3219_AStunBurst_…`.
 
-⏳ **Part 3 — the cloud (B1-c, B1-d, M-4), with one design point measured:** `DetonationNotification` reaches EVERY node (remote copies
-flagged `IsRemote`), and a LOCAL entity carrying `StaticObstacle` + `ObstacleShape` + `SimTransform` is baked like any other obstacle
-(`StaticObstacleBake.cs:167`). ⇒ ⭐ lean: each node DERIVES the same cloud from the same detonation (like the visual effects, W1) — no
-replicated cloud entity, no new descriptor; only the node that owned the detonation pulses the irritation. ⚠ Open: the spawning system
-must run on every host that bakes terrain, i.e. beside `StaticObstacleBakeSystem`, whose hosts each register it and are checked by
-`EntityCreation`'s missing-system list — a registration on every host, not a single pack line.
+⏳ **Part 3 — the cloud (B1-c, B1-d, M-4). ⭐ Lean (re-measured `2026-10-17`): the cloud is a REPLICATED entity.** The node that
+owns the detonation creates it through the normal creation path: a TKB "gas cloud" type carrying `StaticObstacle` (material `smoke`)
++ `ObstacleShape` + `Lifespan`. Every node then bakes it with the existing `StaticObstacleBakeSystem`. When the owner's
+`LifespanSystem` (`Fdp.Toolkits/Time/LifespanSystem.cs`) removes it, the delete replicates. The owner alone pulses the irritation
+(`AreaEffectCloudSystem`). It reuses creation, replication, the obstacle bake and its lifecycle ack. A late joiner and a recording
+see the cloud as they see any entity. ⚠ Still to measure: M-4, the rebake cost per cloud.
+
+| the lean rests on | code | design |
+|---|---|---|
+| one registration covers every host | ✅ the bake is made inside the shared pack (`EntityCreationPack.cs:115`) | ✅ P-7a §9 *(rule and ack both in the pack)* |
+| a local derivation would miss nodes | ✅ `MunitionDetonation` ingress is on IG (`NedIgTranslators.cs:45`) and SimHost (`SimHostAuxiliaryTranslatorPack.cs:103`) only, not CGF | ⛔ searched, none found |
+| a removed cloud leaves every node | ⛔ assumed: the owner's destroy replicates like any delete | ✅ creation unification §3 |
+
+⛔ **SUPERSEDED (`2026-10-16`):** *"`DetonationNotification` reaches EVERY node … each node derives the same cloud … a registration on
+every host, not a single pack line."* Both premises were wrong. CGF does not ingest detonations, and the bake is one line in the
+shared pack. A derived cloud would also be missed by a late joiner.
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
