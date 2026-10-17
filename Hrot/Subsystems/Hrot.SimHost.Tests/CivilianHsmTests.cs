@@ -8,6 +8,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Tkb.Domain;
@@ -146,7 +147,7 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4; i++) w.Tick();
             if (alarmedFirst)
             {
-                w.Fear(1f);
+                w.Fear(CivilianBehavior.DefaultAlarmAt);   // ⭐ CE-2236 — alarmed, not panicked (fear below PanicAt)
                 for (int i = 0; i < 3; i++) w.Tick();
                 Assert.Equal("Alarmed", w.State());
             }
@@ -163,6 +164,82 @@ namespace Hrot.SimHost.Tests
             w.Fear(0f);
             for (int i = 0; i < 5; i++) w.Tick();
             Assert.Equal("Casualty", w.State());
+        }
+
+        /// <summary>⭐ <c>CE-2236</c> (§5e) — terrified with no building in reach (this world has no terrain, so the shelter query never
+        /// answers), he panics, waits for the answer, then cowers where he is: crouched, cowering on every map. His fear falling below
+        /// panic ends the cowering, back to alarmed. Wounded while cowering, he is a casualty.</summary>
+        [Fact]
+        public void CE2236_PanickedWithNoShelter_HeCowers_UntilHisFearFallsBelowPanic()
+        {
+            var w = new World();
+            Assert.True(w.Repo.IsComponentTypeRegistered<EffectState>(), "the cowering flag needs EffectState on this node");
+            w.Start();
+            for (int i = 0; i < 4; i++) w.Tick();
+
+            w.Fear(1f);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("Panic", w.State());
+            Assert.Equal(CivilianMode.Panic, w.Mode);
+            Assert.Equal(StanceId.Standing, w.Stance);
+
+            int waited = 0;
+            while (w.State() == "Panic" && waited < 400) { w.Tick(); waited++; }
+            Assert.Equal("Cower", w.State());
+            Assert.InRange(waited * 0.016, CivilianBehavior.ShelterWaitSeconds - 0.2, CivilianBehavior.ShelterWaitSeconds + 0.2);
+            Assert.Equal(CivilianMode.Cower, w.Mode);
+            Assert.Equal(StanceId.Crouched, w.Stance);
+            Assert.True(Effects.IsCowering(w.Repo, w.Unit));
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+
+            w.Fear(CivilianBehavior.DefaultPanicAt);
+            for (int i = 0; i < 5; i++) w.Tick();
+            Assert.Equal("Cower", w.State());   // at the panic line: still cowering
+
+            w.Fear(CivilianBehavior.DefaultPanicAt - 0.05f);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Alarmed", w.State());
+            Assert.False(Effects.IsCowering(w.Repo, w.Unit), "the cowering ends with the state");
+
+            w.Fear(1f);
+            for (int i = 0; i < 6; i++) w.Tick();
+            Assert.Equal("Panic", w.State());   // a second panic starts afresh: waits again
+            for (int i = 0; i < 400 && w.State() == "Panic"; i++) w.Tick();
+            Assert.Equal("Cower", w.State());
+            w.Health(40f);
+            for (int i = 0; i < 3; i++) w.Tick();
+            Assert.Equal("Casualty", w.State());
+            Assert.False(Effects.IsCowering(w.Repo, w.Unit));
+            Assert.Equal(StanceId.Prone, w.Stance);
+        }
+
+        /// <summary>⭐ <c>CE-2236</c> (R-4035) — inside, he hides for a time drawn from [HideMin, HideMax], then deletes himself: ONE
+        /// <c>DestroyEntityCommand</c> naming his network id, not one per frame.</summary>
+        [Fact]
+        public void CE2236_Inside_HeHidesHisTime_ThenDeletesHimselfOnce()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.NetworkIdentity(4242));
+            var p = CivilianBehavior.Defaults();
+            p.HideMinSeconds = 1f;
+            p.HideMaxSeconds = 1.5f;
+            var ws = new CivilianBehavior.PanicState();
+            int destroys = 0;
+            double start = w.Repo.SimulationTime, deletedAt = 0;
+            for (int i = 0; i < 150; i++)
+            {
+                CivilianBehavior.Inside(ref p, ref ws, w.Unit, w.Repo);
+                w.Tick();
+                foreach (var c in w.Repo.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+                {
+                    Assert.Equal(4242L, c.NetworkId);
+                    destroys++;
+                    deletedAt = w.Repo.SimulationTime;
+                }
+            }
+            Assert.Equal(1, destroys);
+            Assert.InRange(deletedAt - start, 1.0, 1.5 + 0.05);
+            Assert.Equal(CivilianMode.Inside, w.Mode);
         }
 
         [Fact]

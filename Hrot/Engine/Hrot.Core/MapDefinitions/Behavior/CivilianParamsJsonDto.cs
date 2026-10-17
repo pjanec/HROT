@@ -34,5 +34,25 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The fear below which an alarmed man goes back to his routine. Default 0.1.</summary>
         [JsonPropertyName("CalmBelow")]
         public float CalmBelow;
+
+        /// <summary>⭐ CE-2236 — the fear (0…1) at which an alarmed man panics. Default 0.6.</summary>
+        [JsonPropertyName("PanicAt")]
+        public float PanicAt;
+
+        /// <summary>⭐ CE-2236 — how fast he runs when he panics, m/s. Default 3.5.</summary>
+        [JsonPropertyName("PanicSpeed")]
+        public float PanicSpeed;
+
+        /// <summary>⭐ CE-2236 — how far he looks for a building he can enter, m. Default 80.</summary>
+        [JsonPropertyName("ShelterSearchRadius")]
+        public float ShelterSearchRadius;
+
+        /// <summary>⭐ CE-2236 (R-4035) — how long he hides inside before he is gone, s — between the min and the max, at random.
+        /// Defaults 60 and 180.</summary>
+        [JsonPropertyName("HideMinSeconds")]
+        public float HideMinSeconds;
+
+        [JsonPropertyName("HideMaxSeconds")]
+        public float HideMaxSeconds;
     }
 }

@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
 known-rot: none.
 known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says
@@ -191,7 +191,7 @@ stateDiagram-v2
   Riot --> Panic : fear beats anger
   Panic --> Shelter : an enterable building is reachable
   Panic --> Cower : under fire, no shelter reachable
-  Cower --> Panic : fire stops
+  Cower --> Alarmed : fear falls below panic
   Shelter --> Inside : through the door
   Inside --> [*] : hide time over, entity deleted
   Routine --> Casualty : wounded
@@ -204,7 +204,9 @@ stateDiagram-v2
 
 *What the picture shows that prose hid:* panic never ends in open-ended running — every panic path drains into Shelter
 (and deletion) or Cower (R-4035); and the only edges INTO violence go through the crowd (Protest → Riot) or a weapon, so a
-lone frightened civilian never attacks.
+lone frightened civilian never attacks. ⚠ **As built (`CE-2236`, §5e):** Cower's exit is **Alarmed** once fear falls below
+`PanicAt` — ⛔ SUPERSEDED: *"Cower → Panic : fire stops"*, which re-asks the shelter query that just answered none and loops
+Panic ⇄ Cower while he is still frightened.
 
 ### 2.3 Sequence — a shot, a panicking civilian, a building, gone
 
@@ -512,6 +514,133 @@ so anything another node needs (the cower pose, the side) travels in its own rep
 targets in vision (`VisionBroadphase.cs:79`), so the crowd hint (`CE-2237`) carries it. ② Fear's impulses and fade are constants of
 `CivilianFear`, the same for every man — attitude-scaled nerve comes with `CE-2238`. ③ A casualty stays one; a casualty's rescue is not
 civilian behaviour.
+
+## 5e. CIV-2 behaviour — Panic, Shelter, Inside, Cower *(behaviors, `CE-2236`, 2026-10-17)*
+
+INVENTORY *(codebase-memory CLI `search_graph` + grep; `check_index_coverage` not available through the CLI)*: EQS templates are
+`[EqsTemplate]` static classes (`VehicleTemplates.cs` — ⚠ the existing **`FindShelter`** finds OVERHEAD cover on a grid for the drone
+shelter, V8b: it does not know doors or footprints, so it cannot answer "a house I can walk into"); point generators derive from
+`PointPatternGenerator` (`PointPatternGenerators.cs`); a behaviour owns a sensor through `PostureNodes.Keep/Drop`; doors are
+`TerrainWorld.Doors`/`Panels` with live state in `DoorStates.Of` and the mover opens a closed door itself (`DoorPassageSystem`, §5a M-2);
+a person is deleted on every node by `DestroyEntityCommand` (§5a M-1); cowering is `Effects.SetCowering` (backend F-3, §7).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianBehavior { <<grows>> + Panic Shelter Inside Cower, guards Panicked BelowPanic ShelterFound NoShelter InsideNow ShelterFailed }
+  class PanicState { <<NEW, in the block>> Sensor Since Answered Found Moving Arrived Failed Deleted Shelter HideUntil }
+  class CivilianState { <<grows>> + FrightFrom HasFrightFrom }
+  class CivilianFearSystem { <<grows>> records where the frightening sound came from }
+  class FindEnterableShelter { <<NEW EQS template, Fdp.Toolkits>> }
+  class EnterableDoorGenerator { <<NEW>> one point InsetMetres inside per exterior ground door not Locked }
+  class InsideTest { <<NEW EQS filter>> IsInside(world, p) — a non-solid footprint }
+  class NavmeshReachableTest { <<existing>> a Locked door is a wall }
+  class PathCostScoreTest { <<existing>> }
+  class PostureNodes { <<existing>> Keep Drop }
+  class DoorStates { <<existing>> Of }
+  class DoorPassageSystem { <<existing, SimHost>> opens a closed door on the path }
+  class Effects { <<existing, backend F-3>> SetCowering }
+  class DestroyEntityCommand { <<existing>> }
+  CivilianBehavior --> PanicState
+  CivilianBehavior ..> PostureNodes : Keep the shelter sensor in Panic
+  PostureNodes ..> FindEnterableShelter
+  FindEnterableShelter --> EnterableDoorGenerator
+  FindEnterableShelter --> InsideTest
+  FindEnterableShelter --> NavmeshReachableTest
+  FindEnterableShelter --> PathCostScoreTest
+  EnterableDoorGenerator ..> DoorStates : skips Locked
+  CivilianBehavior ..> InsideTest : IsIndoors on the run in
+  CivilianBehavior ..> Effects : Cower sets, its exit clears
+  CivilianBehavior ..> DestroyEntityCommand : Inside, after the hide time
+  CivilianFearSystem --> CivilianState : FrightFrom
+  CivilianBehavior ..> CivilianState : Panic flees from FrightFrom
+  DoorPassageSystem ..> DoorStates : Open
+```
+*What the picture shows that prose hid:* ONE new template of three new pieces, the rest reused — the door rule ("if the doors can be
+opened") lives in TWO existing places and nowhere new: the generator skips a Locked door, and the reachability test treats it as a wall;
+nothing in the HSM knows doors, and `InsideTest.IsInside` is the same question for the query and for the run in.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Alarmed : Fear >= AlarmAt (0.3)
+  Alarmed --> Routine : Fear < CalmBelow (0.1)
+  Alarmed --> Panic : Fear >= PanicAt (0.6)
+  Panic --> Shelter : the query found a way in
+  Panic --> Cower : none, or no answer in 3 s
+  Shelter --> Inside : arrived, or inside the footprint
+  Shelter --> Cower : the way failed
+  Cower --> Alarmed : Fear < PanicAt
+  Inside --> [*] : hide time over, deleted
+  Routine --> Casualty : wounded (priority)
+  Alarmed --> Casualty : wounded (priority)
+  Panic --> Casualty : wounded (priority)
+  Shelter --> Casualty : wounded (priority)
+  Cower --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* every panic drains — into Inside (and deletion) or Cower, never open-ended running (R-4035);
+Cower's exit is Alarmed, not Panic (§2.2 SUPERSEDED there): re-panicking would re-ask a query that just answered none; Inside alone has
+no wounded edge, because a man inside is about to vanish and nothing outside can hurt him.
+
+```mermaid
+sequenceDiagram
+  participant FS as CivilianFearSystem
+  participant HSM as CivilianHsm (CGF)
+  participant EQ as EQS FindEnterableShelter
+  participant MV as SimHost mover
+  participant D as DoorPassageSystem
+  participant N as every node
+  FS->>FS: heard shots, Fear past PanicAt, FrightFrom = the sound
+  HSM->>HSM: Alarmed, then Panic: stand, flee 20 m from FrightFrom
+  HSM->>EQ: Keep sensor (search 80 m)
+  EQ-->>HSM: best point inside, reachable through a door not Locked
+  HSM->>MV: MoveTo the point at 3.5 m/s (Shelter)
+  MV->>D: a closed door on the path
+  D-->>MV: Open
+  MV-->>HSM: arrived (or IsIndoors)
+  HSM->>HSM: Inside, hide time drawn in [HideMin, HideMax]
+  HSM->>N: DestroyEntityCommand, once
+```
+*What the picture shows that prose hid:* the flee and the query run TOGETHER — he is already running away while EQS answers, and the
+answer replaces the flee's move; a query that never answers (no terrain, a node without EQS) costs ShelterWaitSeconds and ends in
+Cower, not a stuck Panic.
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brain node)"]
+    FS[CivilianFearSystem] --> BT[BrainTickSystem]
+    BT --> HSM[CivilianHsm]
+    HSM -->|Keep| EQS[EqsSolverSystem FindEnterableShelter]
+    EQS -->|EqsCognitiveBuffer| HSM
+    HSM -->|SetCowering| ES[EffectState]
+    HSM -->|DestroyEntityCommand| SP[NetworkSpawning]
+  end
+  subgraph SimHost
+    MV[CarKinematicsSystem + DoorPassageSystem]
+    PR[EngineBackedPathResponseSystem]
+  end
+  HSM -->|NavigationIntent PathToPoint| MV
+  PR -->|refuses a path for a stopped move| MV
+  ES -->|dtEffectState| ALL[SimHost, IG, maps: Cower pose]
+  SP -->|delete on the wire| ALL
+```
+*What the picture shows that prose hid:* the one cross-lane fix of this slice sits on SimHost — `EngineBackedPathResponseSystem` drove
+EVERY reachable path answer, so a path planned for a move that was then STOPPED revived it (measured: a casualty crawling 2 m along
+the walk he was shot out of, CIV-1's ④); it now refuses one whose intent is the explicit stop (`CE-2245`).
+
+| decision | ⭐ as built | rejected — one line each |
+|---|---|---|
+| where he hides | ⭐ a NEW template `FindEnterableShelter`: a point 2 m inside each exterior ground-storey door not Locked, indoors, reachable, nearest | the existing `FindShelter`: overhead cover on a grid, blind to doors and footprints · the door CENTRE: on the threshold, half outside |
+| the lock rule | ⭐ the generator skips Locked (`DoorStates`) and reachability treats it as a wall — both existing | a door check in the HSM: a third place for one rule |
+| the run | ⭐ flee 20 m from `FrightFrom` while the query runs, then MoveTo the answer at 3.5 m/s, upright | wait still for the answer: a man frozen under fire · `FallBack`: a soldier's node, needs a threat contact he does not have |
+| no answer | ⭐ Cower after `ShelterWaitSeconds` (3 s) | wait forever: no terrain ⇒ a stuck Panic |
+| inside | ⭐ hide `[HideMin, HideMax]` (60–180 s, `SimRng`), then ONE `DestroyEntityCommand` | `PhysicalPresence.IsHidden`: keeps him alive for nothing (CV-7) |
+| Cower's exit | ⭐ Alarmed once Fear < PanicAt | §2.2's Cower → Panic: re-asks a query that answered none, loops Panic ⇄ Cower |
+| the stopped-move fix | ⭐ `EngineBackedPathResponseSystem` skips a path whose entity's intent is `None` (cross-lane, backend file; the handle stays registered) | correlate request ids: PlanRoute already asks with intent `None` and documents that it "does not start corridor-following" — the same rule fixes it |
+
+⚠ **Known limits (slice 2):** ① only bt-range's houses are enterable (§6); on test-town every panic ends in Cower. ② The shelter is the
+first answer — a door locked AFTER the answer makes the run fail and he cowers, he does not re-query. ③ `Inside` deletes him from
+`SimulationTime`; a paused sim holds him inside. ④ Upper storeys are not candidates (ground floor only).
 
 ## 6. Known limits
 

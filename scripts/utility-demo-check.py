@@ -2742,10 +2742,14 @@ def run_civ_routine_alarm(c, timeout):
             if civ_mode(n) not in ("Routine", None):
                 far_alarmed.add(n)
 
-    alarmed = wait_for(lambda: (far_sample(), all(civ_mode(n) == "Alarmed" for n in near))[1], 20, every=0.2)
+    # ⭐ CE-2236 — more shots take him past PanicAt (Panic, then Cower: test-town's buildings are solid); a 0.2 s poll can miss
+    #   the alarm on the way, so "alarmed or beyond" — the in-process twin samples every frame and asserts Alarmed itself
+    frightened = ("Alarmed", "Panic", "Shelter", "Cower")
+    alarmed = wait_for(lambda: (far_sample(), all(civ_mode(n) in frightened for n in near))[1], 20, every=0.2)
     t_alarm = sim_time() or 0.0
     c.ok(alarmed is not None and t_alarm - t_shot <= 2.5,
-         f"② both near civilians (40 m from the shooter) are Alarmed {t_alarm - t_shot:.1f} s of sim time after the first shot")
+         f"② both near civilians (40 m from the shooter) are Alarmed or beyond {t_alarm - t_shot:.1f} s of sim time after the "
+         f"first shot ({[civ_mode(n) for n in near]})")
     th = (comps(hostile).get("InjuryThresholds") or {})
     down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
     wait_for(lambda: (far_sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
@@ -2773,11 +2777,125 @@ def run_civ_routine_alarm(c, timeout):
          f"④ …and stays one, where he fell (moved {flat(pa, pb) if pa and pb else None} m in 4 s)")
 
 
+
+# ── CE-2236 CIV-2 — panic, shelter, inside, cower (Civilians §5c, §5e) ─────────────────────────────────────────────────
+
+def comps_on(perspective, nid):
+    """The entity's components as `perspective`'s node holds them; None when that node does not have it."""
+    call("POST", "/perspective", {"name": perspective})
+    try:
+        d = data(call("GET", f"/entities/{nid}"))
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return (d or {}).get("Components") if d else None
+
+
+def cowering_on(perspective, nid):
+    return ((comps_on(perspective, nid) or {}).get("EffectState") or {}).get("Cowering") == 1
+
+
+def _footprint_a():
+    # bt-range House A: house-2f (10 x 8 m) placed with its south-west corner at (100, 100), rotation 0
+    return (100.0, 100.0, 110.0, 108.0)
+
+
+def _in_a(p):
+    x0, y0, x1, y1 = _footprint_a()
+    return p is not None and x0 < p[0] < x1 and y0 < p[1] < y1
+
+
+def run_civ_shelter(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in (1, 2, 3, 4)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 4 civilians are loaded"):
+        return
+    front, back = "bt-range/House A/front", "bt-range/House A/back"
+    d = wait_for(lambda: (x := doors_by_key()) and all((x.get(k) or {}).get("runtimeId") for k in (front, back)) and x, timeout)
+    if not c.ok(d is not None, "House A's doors exist as entities"):
+        return
+    c.ok(d[front]["state"] == "Closed" and d[back]["state"] == "Closed",
+         f"⓪ House A's doors are Closed, not locked (TerrainObjects) — front {d[front]['state']}, back {d[back]['state']}")
+    bdoors = {k: v["state"] for k, v in d.items() if k.startswith("bt-range/House B/") and not k.endswith("/hall")}
+    c.ok(bdoors and all(v == "Locked" for v in bdoors.values()), f"⓪ House B's outer doors are Locked — {bdoors}")
+    call("POST", "/sim/play", {})
+    routine = wait_for(lambda: all(civ_mode(n) == "Routine" for n in civs), 30)
+    c.ok(routine is not None, f"① the 4 civilians start in Routine ({[civ_mode(n) for n in civs]})")
+
+    seen, inside_at, gone_at, in_b = {n: set() for n in civs}, {}, {}, set()
+    def watch():
+        now = sim_time() or 0.0
+        for n in civs:
+            if n in gone_at:
+                continue
+            m = civ_mode(n)
+            if m is None and comps_on("CGF", n) is None:
+                gone_at[n] = now
+                continue
+            seen[n].add(m)
+            p = position(n)
+            if m == "Inside" and n not in inside_at:
+                inside_at[n] = (now, p)
+            if p is not None and 160 <= p[0] <= 168 and 100 <= p[1] <= 110:
+                in_b.add(n)
+        return len(gone_at) == len(civs)
+
+    a0 = (ammo(rifle) or (None,))[0]
+    shot = wait_for(lambda: (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0, timeout)
+    if not c.ok(shot is not None, "① the rifleman opens fire, 28 m from the civilians"):
+        return
+    done = wait_for(watch, timeout * 3, every=0.25)
+    c.ok(all("Panic" in seen[n] for n in civs), f"① each civilian panics ({ {n: sorted(x for x in seen[n] if x) for n in civs} })")
+    c.ok(all(n in inside_at for n in civs), f"② each reaches Inside ({sorted(inside_at)})")
+    c.ok(all(_in_a(inside_at[n][1]) for n in inside_at),
+         f"② …standing inside House A's footprint ({ {n: inside_at[n][1] for n in inside_at} })")
+    st = {k: (doors_by_key().get(k) or {}).get("state") for k in (front, back)}
+    c.ok("Open" in st.values(), f"② a door of House A was opened to let them in — {st}")
+    c.ok(not in_b, f"③ none enters the locked House B ({sorted(in_b)})")
+    c.ok(done is not None, f"④ each deletes himself after hiding ({len(gone_at)} of 4 gone)")
+    waits = {n: round(gone_at[n] - inside_at[n][0], 1) for n in civs if n in gone_at and n in inside_at}
+    c.ok(waits and all(18.0 <= w <= 23.0 for w in waits.values()), f"④ …about 20 s (the scenario's hide time) after going in — {waits}")
+    for host in ("SimHost", "IG"):
+        left = [n for n in civs if comps_on(host, n) is not None]
+        c.ok(not left, f"④ …and is gone on {host} too ({left})")
+
+
+def run_civ_cower(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in (1, 2, 3)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 3 civilians are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    routine = wait_for(lambda: all(civ_mode(n) == "Routine" for n in civs), 30)
+    c.ok(routine is not None, f"① the 3 civilians start in Routine ({[civ_mode(n) for n in civs]})")
+    cower = wait_for(lambda: all(civ_mode(n) == "Cower" for n in civs), timeout, every=0.25)
+    if not c.ok(cower is not None, f"① under fire, with no building to enter (test-town's are solid), each cowers ({[civ_mode(n) for n in civs]})"):
+        return
+    for host in ("CGF", "SimHost", "IG"):
+        c.ok(all(cowering_on(host, n) for n in civs), f"① EffectState.Cowering is set on {host} ({[cowering_on(host, n) for n in civs]})")
+    pa = {n: position(n) for n in civs}
+    time.sleep(1.5)
+    still = {n: round(flat(pa[n], position(n)), 2) for n in civs if pa[n] and position(n)}
+    c.ok(all(civ_mode(n) == "Cower" for n in civs) and all(v < 0.3 for v in still.values()),
+         f"① …and stands still where he is (moved {still} m in 1.5 s)")
+
+    th = (comps(hostile).get("InjuryThresholds") or {})
+    down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
+    wait_for(lambda: (h := health(hostile)) is not None and h < down_below, timeout * 2)
+    over = wait_for(lambda: all(civ_mode(n) not in ("Cower", "Panic") for n in civs), 60, every=0.25)
+    c.ok(over is not None, f"② the firing over, each leaves Cower as his fear fades ({[civ_mode(n) for n in civs]})")
+    for host in ("CGF", "SimHost", "IG"):
+        c.ok(not any(cowering_on(host, n) for n in civs), f"② …and Cowering is cleared on {host}")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
              # ⭐ CE-2235 CIV-1 — the civilian HSM: routine, alarm, casualty (Civilians §5c, §5d)
              "ua-civ-routine-alarm": run_civ_routine_alarm,
+             # ⭐ CE-2236 CIV-2 — panic, shelter and cower (Civilians §5c, §5e)
+             "ua-civ-shelter": run_civ_shelter, "ua-civ-cower": run_civ_cower,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

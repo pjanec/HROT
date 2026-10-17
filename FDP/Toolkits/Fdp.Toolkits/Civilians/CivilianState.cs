@@ -53,6 +53,10 @@ namespace Fdp.Toolkit.Civilians
         public Vector3 Home;
         /// <summary>Sim time (s) of the last thing that frightened him; 0 when nothing has.</summary>
         public double LastFrightAt;
+        /// <summary>⭐ <c>CE-2236</c> — where the last frightening SOUND seemed to come from (the hearing estimate, off by its radius);
+        /// valid when <see cref="HasFrightFrom"/> is 1. A panicking man runs away from it.</summary>
+        public Vector3 FrightFrom;
+        public byte HasFrightFrom;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

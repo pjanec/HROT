@@ -65,7 +65,14 @@ namespace Fdp.Toolkit.Civilians
                         float dx = heard.X - me.X, dy = heard.Y - me.Y;
                         distance = MathF.Sqrt(dx * dx + dy * dy);
                     }
-                    Frighten(repo, heard.Observer, CivilianFear.Impulse((SoundSourceClass)heard.SourceClass, distance), now);
+                    float impulse = CivilianFear.Impulse((SoundSourceClass)heard.SourceClass, distance);
+                    Frighten(repo, heard.Observer, impulse, now);
+                    if (impulse > 0f)
+                    {
+                        ref var mind = ref repo.GetComponentRW<CivilianState>(heard.Observer);   // ⭐ CE-2236 — where it came from
+                        mind.FrightFrom = new System.Numerics.Vector3(heard.X, heard.Y, heard.Z);
+                        mind.HasFrightFrom = 1;
+                    }
                 }
 
             if (repo.Bus.IsRegistered<SensorChangedEvent>())

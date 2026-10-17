@@ -420,7 +420,12 @@ public sealed class PostureScenarioTests : IDisposable
         var far = farNames.Select(n => ByName(cgf, n)).ToArray();
         Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
         bool farAlarmed = false;
-        void Sample() { foreach (var f in far) farAlarmed |= Mode(f) is not (Fdp.Toolkit.Civilians.CivilianMode.Routine or Fdp.Toolkit.Civilians.CivilianMode.None); }
+        var nearAlarmed = new System.Collections.Generic.HashSet<Entity>();   // ⭐ CE-2236 — sampled every frame: past PanicAt he moves on to Panic
+        void Sample()
+        {
+            foreach (var f in far) farAlarmed |= Mode(f) is not (Fdp.Toolkit.Civilians.CivilianMode.Routine or Fdp.Toolkit.Civilians.CivilianMode.None);
+            foreach (var n in near) if (Mode(n) == Fdp.Toolkit.Civilians.CivilianMode.Alarmed) nearAlarmed.Add(n);
+        }
         string State() => "near [" + string.Join(", ", near.Select(Mode)) + "] far [" + string.Join(", ", far.Select(Mode)) + "]";
 
         Assert.True(harness.PumpUntil(() => near.Concat(far).All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine), timeoutFrames: 1200),
@@ -428,8 +433,8 @@ public sealed class PostureScenarioTests : IDisposable
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
         int a0 = Ammo();
         Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"② the rifleman opens fire; {State()}");
-        Assert.True(harness.PumpUntil(() => { Sample(); return near.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Alarmed); }, timeoutFrames: 150),
-            $"② both near civilians are Alarmed within 2.5 s of the first shot; {State()}");
+        Assert.True(harness.PumpUntil(() => { Sample(); return nearAlarmed.Count == near.Length; }, timeoutFrames: 150),
+            $"② both near civilians are Alarmed within 2.5 s of the first shot (more shots may panic them on: CE-2236); {State()}");
         harness.PumpUntil(() => { Sample(); return !Fdp.Toolkit.Combat.Injury.IsInTheFight(cgf, hostile); }, timeoutFrames: 12000);
         Assert.True(harness.PumpUntil(() => { Sample(); return near.All(e => Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Routine); }, timeoutFrames: 6000),
             $"③ quiet again, both near civilians go back to Routine; {State()}");

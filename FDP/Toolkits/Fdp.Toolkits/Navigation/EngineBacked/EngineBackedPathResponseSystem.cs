@@ -48,6 +48,12 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
                 var entity = repo.GetEntityByIndex(entityIndex);
                 if (!repo.IsAlive(entity)) continue;
                 if (!repo.HasComponent<NavState>(entity)) continue;
+                // ⭐ CE-2245 — a path answered AFTER the move it was planned for was stopped (intent None: the bridge's explicit
+                //   stop) must not revive that move. Measured: a civilian shot while walking dropped prone and then crawled
+                //   2 m along the old path. The handle stays registered above; only the drive is refused.
+                if (repo.IsComponentTypeRegistered<NavigationIntent>() && repo.HasComponent<NavigationIntent>(entity)
+                    && repo.GetComponent<NavigationIntent>(entity).Mode == NavigationMode.None)
+                    continue;
 
                 ref var navState = ref repo.GetComponentRW<NavState>(entity);
                 navState.TrajectoryId = handle;
