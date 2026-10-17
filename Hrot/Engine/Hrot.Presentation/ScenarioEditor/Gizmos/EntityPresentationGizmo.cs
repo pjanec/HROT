@@ -156,7 +156,8 @@ namespace Hrot.ScenarioEditor.Gizmos
                 profileId,
                 length,
                 width,
-                conditionMask);
+                conditionMask,
+                colour: Hrot.Common.Diagnostics.Gizmos.AffiliationColors.For(view, entity));   // ⭐ CE-1163 — the live side
         }
     }
 }

@@ -24,6 +24,9 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CE-3080 (R-214) — a KILLED (⭐ CE-2155: or incapacitated) unit is no danger: its entity stays (Health 0) and still carries WeaponState, so
             //   it used to read as armed for every threat reader. Here, once, for all of them. 📄 DESIGN_Sensors_And_Doctrine §7.8a.
             if (IsOutOfTheFight(view, target)) return 0f;
+            // ⭐ CE-2233 (CIV-0; DESIGN_Civilians_And_Crowd_Control CV-8, R-3013) — a NEUTRAL is no danger: a civilian is not a threat
+            //   until a visible hostile act flips its side (CV-4). Here, once, for every threat reader — like the dead above.
+            if (IsNeutral(view, target)) return 0f;
             // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is as armed as its gun
             // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a WeaponState that is only a flare / chaff dispenser (an unarmed UH-60) arms nobody
             if ((!view.HasComponent<WeaponState>(target) || Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(view, target))
@@ -32,6 +35,18 @@ namespace Fdp.Toolkit.Perception
             if (view is EntityRepository repo && ToMe(repo, self, target, out float toMe)) return toMe;
             return 1f;
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2233</c> (CIV-0, the safety gate; 📄 DESIGN_Civilians_And_Crowd_Control.md CV-8) — is <paramref name="target"/> a
+        /// NEUTRAL the ground AI must not engage: its <see cref="EntityInfo"/> says <see cref="ForceId.Neutral"/>. ⚠ Neutral is the
+        /// enum's ZERO, so an entity with NO <c>EntityInfo</c> is not neutral (unknown = engageable, as for <see cref="Of"/>'s "a target
+        /// this node does not hold"). The side is read LIVE (memory stores no side), so a civilian whose side flips to Hostile is
+        /// engageable on the next read. Readers: <see cref="Of"/> (danger 0), the threat pick (<c>EqsTacticsNodes.TopThreat</c>) and the
+        /// weapon brain's hold (<c>AimAndFireExecutor.HoldOf</c> ⇒ <c>ActionReason.HoldNeutral</c>).
+        /// </summary>
+        public static bool IsNeutral(ISimulationView view, Entity target)
+            => !target.IsNull && view.IsAlive(target) && view.HasComponent<EntityInfo>(target)
+               && view.GetComponentRO<EntityInfo>(target).ForceId == ForceId.Neutral;
 
         /// <summary>The floor of an ARMED target's danger to a vehicle: harmless to my armour, but still armed and still watched.</summary>
         public const float ArmedHarmless = 0.1f;

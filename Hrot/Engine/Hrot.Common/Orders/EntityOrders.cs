@@ -177,11 +177,31 @@ namespace Hrot.Common.Orders
 
         /// <summary>⭐ <c>CE-3172</c> — POSSESS the unit (FPS): its task pauses and this station's control frames drive it, until
         /// <see cref="Unpossess"/> (or it dies) resumes the task. Another station's hold is taken over (C-3).</summary>
-        public OrderResult Possess(long unit)
+        public OrderResult Possess(long unit) => Possess(unit, PossessionMode.Fps);
+
+        /// <summary>
+        /// ⭐ <c>CE-1158</c> (§8h U-4, module graph GAP2) — possess in <paramref name="mode"/>: <see cref="PossessionMode.Fps"/> drives the
+        /// unit; <see cref="PossessionMode.Riding"/> keeps it held (its task paused) while the station drives the vehicle it sits in. A new
+        /// Fps possession RELEASES this station's other Fps unit, so a station never holds two (C-8: one operator per node); a rider is kept.
+        /// </summary>
+        public OrderResult Possess(long unit, PossessionMode mode)
         {
             if (!TryAddress(unit, out var entity, out var refused, ignorePossession: true)) return refused;
-            Publish(new PossessRequestEvent { Unit = entity, Mode = PossessionMode.Fps, StationNodeId = StationFor(entity) });
-            return new OrderResult(OrderRefusal.None, "possessing", string.Empty, string.Empty);
+            if (mode != PossessionMode.Riding) ReleaseOtherFps(entity);
+            Publish(new PossessRequestEvent { Unit = entity, Mode = mode, StationNodeId = StationFor(entity) });
+            return new OrderResult(OrderRefusal.None, mode == PossessionMode.Riding ? "riding" : "possessing", string.Empty, string.Empty);
+        }
+
+        private void ReleaseOtherFps(Entity keep)
+        {
+            if (!_world.IsComponentTypeRegistered<PossessedBy>()) return;
+            foreach (var other in _world.Query().With<PossessedBy>().Build())
+            {
+                if (other == keep || !_world.IsAlive(other)) continue;
+                var held = _world.GetComponentRO<PossessedBy>(other);
+                if (held.Mode == PossessionMode.Riding || held.StationNodeId != StationFor(other)) continue;
+                Publish(new ReleasePossessionEvent { Unit = other, StationNodeId = held.StationNodeId });
+            }
         }
 
         /// <summary>⭐ <c>CE-3172</c> (C-4) — let the possessed unit go: the task it was doing resumes.</summary>

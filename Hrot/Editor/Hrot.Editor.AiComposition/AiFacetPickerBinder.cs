@@ -38,6 +38,13 @@ public sealed record AiFacetPickerServices
     /// as *"there are no BTree assets"* rather than *"this host wired nothing"*.
     /// </summary>
     public IAssetCatalog? Catalog { get; init; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1008</c> (AI_Editor_Shared_Infrastructure §7.1b) — the host's shell <c>PickerRegistry.OpenPicker</c>: every choice field of
+    /// the BTree / HSM inspectors opens the ONE searchable picker through it. ⛔ A host that draws a shell registry must pass it (null ⇒
+    /// plain combos, no search).
+    /// </summary>
+    public Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>? OpenPicker { get; init; }
 }
 
 /// <summary>
@@ -82,7 +89,7 @@ public static class AiFacetPickerBinder
             && services.BehaviorRegistry is not null)
         {
             var drawers = BTreePickerDrawerFactory.BuildDrawers(
-                btreeAsset, services.BehaviorRegistry, services.ActionSchema, services.Catalog);
+                btreeAsset, services.BehaviorRegistry, services.ActionSchema, services.Catalog, services.OpenPicker);   // ⭐ CE-1008
 
             services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
@@ -96,7 +103,8 @@ public static class AiFacetPickerBinder
             var registry = services.BehaviorRegistry;
             var drawers = HsmPickerDrawerFactory.BuildDrawers(
                 hsmAsset, services.ActionSchema, services.Catalog,
-                registry is null ? null : () => registry.GetRegisteredNames());   // ⭐ CE-2083: the SOP behaviour picker
+                registry is null ? null : () => registry.GetRegisteredNames(),   // ⭐ CE-2083: the SOP behaviour picker
+                services.OpenPicker);                                            // ⭐ CE-1008: the searchable picker
 
             services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at

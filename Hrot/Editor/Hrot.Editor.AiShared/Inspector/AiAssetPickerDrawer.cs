@@ -28,12 +28,18 @@ public sealed class AiAssetPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly IAssetCatalog _catalog;
     private readonly AssetKind     _kind;
+    private readonly PickerField   _field;
 
-    public AiAssetPickerDrawer(IAssetCatalog catalog, AssetKind kind)
+    /// <param name="field">⭐ <c>CE-1008</c> (§7.1b) — the searchable choice field; null ⇒ a plain combo.</param>
+    public AiAssetPickerDrawer(IAssetCatalog catalog, AssetKind kind, PickerField? field = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _kind    = kind;
+        _field   = field ?? new PickerField(null);
     }
+
+    /// <summary>⭐ CE-1008 — the choice field (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(string);
 
@@ -66,30 +72,13 @@ public sealed class AiAssetPickerDrawer : IImGuiFieldDrawer, IPickerListSource
             return false;
         }
 
+        // ⭐ An explicit "none" entry (the field's own): a hosted subtree is OPTIONAL, and a designer must be able to UNSET one.
+        // ⭐ CE-1008 — the ONE searchable picker (a plain combo where the host passed none).
         bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo("##aiassetpicker", current))
+        if (_field.Draw("aiassetpicker", node, current, PickerChoices.Flat(items), $"{_kind} asset", out var picked))
         {
-            // ⭐ An explicit "none" row: a hosted subtree is OPTIONAL, and a designer must be able to
-            //   UNSET one. ⛔ Without this the only way back is to hand-clear the field, which is
-            //   precisely the free-text step this picker exists to remove.
-            bool noneSelected = string.IsNullOrEmpty(current);
-            if (ImGuiNET.ImGui.Selectable("(none)", noneSelected) && !noneSelected)
-            {
-                value   = string.Empty;
-                changed = true;
-            }
-
-            foreach (var name in items)
-            {
-                bool selected = string.Equals(name, current, StringComparison.Ordinal);
-                if (ImGuiNET.ImGui.Selectable(name, selected) && !selected)
-                {
-                    value   = name;
-                    changed = true;
-                }
-                if (selected) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
+            value   = picked ?? string.Empty;
+            changed = true;
         }
 
         // ⚠ A reference whose asset is absent must stay VISIBLE, not silently blank: the combo shows

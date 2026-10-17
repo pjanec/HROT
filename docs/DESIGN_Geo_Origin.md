@@ -141,6 +141,14 @@ graph TD
 
 ⚠ **Left, flagged:** `NodeConfiguration.GeodeticOrigin` (a config default, Tel Aviv) is read by nothing but its own config tests — a second origin source in name only. Lean: retire it with the next SimHost config change; not removed here (no rush removals).
 
+🔴 **Known limit, measured `2026-10-17` (behaviors, `CE-2242`):** ③'s "set FIRST, in the same commit" holds per node, but **not
+across the cluster**. `Commit` runs after `Prepare`, and `Prepare` carries the navmesh bake (`TerrainResidency.cs:200`, ~0.5–0.6 s on
+test-town). A node with no bake commits at once, CGF spawns the scenario, and a node still baking receives those entities'
+GEODETIC positions with its origin unset — they land at `(901880, 5038392)`, outside every grid, and a static entity is never re-sent.
+Seen on 5 of ~10 fresh `--mode all` loads (log: the third "geo origin set" line comes after "Navmesh … baked", the
+`ProcessSpawn` lines before it). Leans, unmeasured: set the origin in an early commit before the bake (it needs only
+`Definition.Origin`), or hold the scenario's entity requests until every node has committed its terrain.
+
 ⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.
 
 ## 5. The Replay Browser loads the recording's terrain *(`CE-3118`, backend, `2026-10-09`; build-state: BUILT)*

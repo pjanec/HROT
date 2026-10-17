@@ -8,6 +8,9 @@ current-answer: 3.3 and 3.4 are BUILT (UXI-23 S2a/S4). START AT 3.8 - READY-TO-B
   because MilStd2525 is already a peer token with its own renderer case (3.8.3). 3.8's step 0 is DONE:
   SemanticShapeRenderer deleted and the NATO affiliation table corrected (3.8.11). Still NOT-BUILT:
   3.1 (CE-125 - the renderer hardcodes cyan at EntityPresentationGizmoShared.cs:92), 3.2, 3.5, 3.6, 3.7.
+  ⭐ 2026-10-16 (CE-1163, civilian U-2): §3.1's colour half and §3.2 are BUILT — AffiliationColors (Hrot.Common) colours the outline by
+  ResolvedStyle tint, else live ForceId from ResolvedStyleConstants, else cyan; SidePalette and the placement ghost read the same table.
+  Still not built: §3.1's condition from ResolvedStyle.DamageLevel, 3.5, 3.6, 3.7.
 known-rot: 3.0 is SUPERSEDED by 3.8.9 - the JSON style cascade is IG-ONLY, so StyleResolutionSystem is
   NOT lifted to every host. 3.8's first two drafts are in the HISTORY section and must not be quoted -
   both put a renderer seam inside FDP/ExtDeps/GizmoMap, which the final design does not need.
@@ -15,6 +18,7 @@ known-rot: 3.0 is SUPERSEDED by 3.8.9 - the user ruled the JSON style cascade an
   StyleResolutionSystem is NOT lifted to every host. 3.8's own first draft is in the HISTORY section and
   must not be quoted.
 related-designs:
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §8 U-2 (CE-1163): a civilian whose side flips must redraw live; it builds §3.1 here and adds the IG override precedence (U2-b)
   - docs/UX/UX_Feature_Selection.md — owns UXI-11: WHICH entities are selected and how that is stored,
     requested and announced. This file owns only what a selected entity LOOKS like (the ring, the symbol).
 -->

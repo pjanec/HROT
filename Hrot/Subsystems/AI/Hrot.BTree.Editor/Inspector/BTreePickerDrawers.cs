@@ -33,13 +33,17 @@ public static class BTreePickerDrawerFactory
         BehaviorTreeAsset      asset,
         BehaviorRegistry       registry,
         IActionSchemaExporter? exporter = null,
-        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null,
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>>? openPicker = null)
     {
         if (asset    is null) throw new ArgumentNullException(nameof(asset));
         if (registry is null) throw new ArgumentNullException(nameof(registry));
 
+        // ⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — ONE choice field for this document's pickers (searchable where the host
+        //   passed its shell picker, plain combos where not)
+        var field = new Hrot.Editor.AiShared.Inspector.PickerField(openPicker);
         var bindingDrawer = new ActionBindingDrawer(
-            new ActionBindingSources(asset, _ => registry.GetRegisteredNames(), exporter, catalog));
+            new ActionBindingSources(asset, _ => registry.GetRegisteredNames(), exporter, catalog), field);
 
         var composite = new CompositeStringDrawer();
 
@@ -48,11 +52,11 @@ public static class BTreePickerDrawerFactory
         //   reads as "there are no such assets". One kind is used on BTree facets (BTree), so one drawer serves.
         if (catalog is not null)
             composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(
-                new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, Hrot.Editor.AiShared.AssetKind.BTree));
+                new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, Hrot.Editor.AiShared.AssetKind.BTree, field));
 
         // ⭐ CE-2079 — an SOP order's behaviour: every registered behaviour (any tier, hand-written included).
         composite.Register<Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute>(
-            new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(() => registry.GetRegisteredNames()));
+            new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer(() => registry.GetRegisteredNames(), field));
 
         return new Dictionary<Type, IImGuiFieldDrawer>
         {

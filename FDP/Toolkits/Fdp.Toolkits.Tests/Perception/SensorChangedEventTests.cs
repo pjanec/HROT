@@ -155,6 +155,45 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Contains(last, e => e.What == SensorChange.AllClear && e.Unit == unit);   // forgotten (CE-3046) ⇒ all clear
         }
 
+        /// <summary>⭐ <c>CE-2233</c> (CIV-0, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS: a NEUTRAL in
+        /// memory raises no FirstThreat, a Hostile seen while he is still remembered does, and so does the neutral turning Hostile; with
+        /// only neutrals left the memory is all clear although it is not empty.</summary>
+        [Fact]
+        public unsafe void CE2233_ANeutralIsNoFirstThreat_AHostileAfterIt_Is_AndSoIsTheNeutralTurningHostile()
+        {
+            var w = World();
+            if (!w.IsComponentTypeRegistered<EntityInfo>()) w.RegisterComponent<EntityInfo>();
+            var unit = w.CreateEntity();
+            var civilian = w.CreateEntity();
+            var hostile = w.CreateEntity();
+            w.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            w.AddComponent(hostile, new EntityInfo { ForceId = ForceId.Hostile });
+            w.AddComponent(unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(unit, new TargetMemory());
+            void Track(params Entity[] seen)
+            {
+                var t = new ActiveSensorTracks();
+                for (int i = 0; i < seen.Length; i++) t.EntityIds[i] = (long)seen[i].PackedValue;
+                t.Count = seen.Length;
+                if (w.HasComponent<ActiveSensorTracks>(unit)) w.SetComponent(unit, t); else w.AddComponent(unit, t);
+            }
+            var sys = new ThreatEvaluationSystem();
+
+            Track(civilian);
+            Assert.Empty(Run(w, sys, 1f));                                                    // a neutral: remembered, no threat
+            Assert.Equal(1, w.GetComponentRO<TargetMemory>(unit).Count);
+            Track(civilian, hostile);
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);    // the Hostile AFTER the civilian is one
+            Track(civilian);
+            List<SensorChangedEvent> last = new();
+            for (int i = 0; i < 200 && !last.Any(e => e.What == SensorChange.AllClear); i++) last = Run(w, sys, 1f);
+            Assert.Contains(last, e => e.What == SensorChange.AllClear);                      // hostile forgotten, civilian still held
+            Assert.Equal(1, w.GetComponentRO<TargetMemory>(unit).Count);
+
+            w.GetComponentRW<EntityInfo>(civilian).ForceId = ForceId.Hostile;                 // a hostile act flips his side
+            Assert.Equal(SensorChange.FirstThreat, Assert.Single(Run(w, sys, 1f)).What);
+        }
+
         [Fact]
         public void AHealthDrop_PublishesHit_OnceForTheDrop()
         {

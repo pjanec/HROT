@@ -274,6 +274,11 @@ def run_threat_ranking(c, timeout):
     c.ok("Armed Hidden" not in names, "the contact hidden behind the Tower is not ranked (never seen)")
     if "Civilian Near" in names and "Armed Near" in names:
         c.ok(names.index("Civilian Near") > names.index("Armed Near"), "the unarmed civilian ranks below the armed contact")
+    # ⭐ CE-2233 (CIV-0, Civilians CV-8) — the civilian is NEUTRAL: seen and remembered (a soldier sees civilians), but no danger
+    #   (ThreatDanger 0 ⇒ score 0) and never the pick
+    if "Civilian Near" in names:
+        c.ok(scores[names.index("Civilian Near")] == 0, f"the neutral civilian scores 0 (no danger): {scores[names.index('Civilian Near')]}")
+    c.ok((d.get("winner") or {}).get("name") != "Civilian Near", "the neutral civilian is never the winner")
     if "Armed Far" in names and "Armed Near" in names:
         c.ok(names.index("Armed Far") > names.index("Armed Near"), "the farther armed contact ranks below the nearer")
 
@@ -2591,7 +2596,84 @@ def run_drone_shelter(c, timeout):
     c.ok((health(open_tank) or 0) < (h0[open_tank] or 0), f"② ★ the tank in the open is hit from above — {h0[open_tank]} → {health(open_tank)}")
 
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
+# ── CIV-0 (CE-2233) — the safety gate: a soldier never engages a NEUTRAL ────────────────────────────────────────────────
+#   docs/DESIGN_Civilians_And_Crowd_Control.md §5c (the demo table) / §5b (as-built). Cast: a rifleman (Friend); an unarmed
+#   Neutral civilian; an ARMED Neutral nearest of all (were the gate missing, he is the top pick: armed, near, in sight); a
+#   Hostile farther off. The armed bodies have no brain (TKB 2002 has no default behaviour), so only the rifleman fires.
+#   PASS = ① he SEES both neutrals (memory) — the gate, not blindness, spares them · ② the Hostile dies · ③ neither neutral
+#   loses health, sampled for the whole run · ④ the neutrals score 0 in the threat ranking · ⑤ with only neutrals left he
+#   fires no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged (the gate reads the side LIVE).
+
+def _memory_ids(nid):
+    return {x.get("networkId") for x in (data(call("GET", f"/entities/{nid}/memory")) or {}).get("slots") or []}
+
+
+def run_civ_neutral_gate(c, timeout):
+    ids = ids_by_name()
+    rifle, civ, armed, hostile = (ids.get(n) for n in ("Rifleman", "Civilian", "Armed Neutral", "Hostile"))
+    if not c.ok(None not in (rifle, civ, armed, hostile), "the rifleman, the civilian, the armed neutral and the hostile are loaded"):
+        return
+    # ⓪ PRECONDITION — the cast stands where the scenario put it. ⚠ Measured 2026-10-17 (CE-2242): on some fresh loads every entity
+    #   lands ~900 km out ((901880, 5038392) — a projected coordinate, outside the perception grid), nobody sees anybody, and every
+    #   later line would fail for a reason that is not CIV-0's. Report THAT, and stop.
+    p0 = position(rifle)
+    if not c.ok(p0 is not None and 0 <= p0[0] <= 1000 and 0 <= p0[1] <= 1000,
+                f"⓪ the cast is on the terrain where the scenario put it (rifleman at {p0}; ⛔ off-terrain = CE-2242, a load race, not CIV-0)"):
+        return
+    full = {n: health(n) for n in (civ, armed)}
+    low = dict(full)
+    zero_scores, ranked_seen = True, False
+
+    def sample():
+        nonlocal zero_scores, ranked_seen
+        for n in (civ, armed):
+            h = health(n)
+            if h is not None and low[n] is not None:
+                low[n] = min(low[n], h)
+        d = decision(utility(rifle), RANKING)
+        for r in (d or {}).get("ranked") or []:
+            if r.get("networkId") in (civ, armed) or r.get("name") in ("Civilian", "Armed Neutral"):
+                ranked_seen = True
+                zero_scores = zero_scores and (r.get("score") or 0) == 0
+
+    call("POST", "/trace/observe", {"networkId": rifle, "on": True})
+    call("POST", "/sim/play", {})
+
+    seen = wait_for(lambda: (sample(), {civ, armed} <= _memory_ids(rifle))[1], timeout)
+    c.ok(seen is not None, "① the rifleman sees (remembers) both neutrals")
+    # ② OUT OF THE FIGHT, not "health 0": an incapacitated man bleeds out and is not shot again (Injury.IsInTheFight, I4) —
+    #   measured live 2026-10-17: the Hostile sat at 1.1 HP, incapacitated, the rifleman rightly holding fire
+    th = ((data(call("GET", f"/entities/{hostile}")) or {}).get("Components") or {}).get("InjuryThresholds") or {}
+    down_below = (th.get("IncapacitatedBelow") or 0.25) * 100
+    down = wait_for(lambda: (sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
+    c.ok(down is not None, f"② the Hostile is put out of the fight (health {health(hostile)} < {down_below:.0f})")
+    c.ok(low[civ] == full[civ], f"③ the unarmed civilian is never hit: {full[civ]} → lowest {low[civ]}")
+    c.ok(low[armed] == full[armed], f"③ the ARMED neutral is never hit: {full[armed]} → lowest {low[armed]}")
+    c.ok(ranked_seen and zero_scores, f"④ the neutrals are ranked and score 0 (ranked: {ranked_seen})")
+
+    a0, _ = ammo(rifle)
+    t_end = time.time() + 8
+    while time.time() < t_end:
+        sample()
+        time.sleep(0.5)
+    a1, _ = ammo(rifle)
+    c.ok(a0 is not None and a0 == a1, f"⑤ with only neutrals left he fires nothing for 8 s (rounds {a0} → {a1})")
+    c.ok(low[civ] == full[civ] and low[armed] == full[armed], "⑤ …and both neutrals are still unhurt")
+
+    # ⑥ through the ONE write path that reaches the owner and the wire (EntityWriteRouter, CE-3221) — ⛔ not /component: that is a
+    #   StructEdit of this node's world, never sent (measured live 2026-10-17: "ok", and nobody else saw the flip)
+    r = call("POST", f"/entities/{armed}/attribute", {"patchJson": {"Affiliation": "FORCE_OPPOSING"}})
+    route = ((data(r) or {}).get("write") or {}).get("route") if "http" not in r else None
+    if not c.ok(route in ("direct", "requested"), f"⑥ the armed neutral's side flips to Hostile (route {route}; {r if 'http' in r else ''})"):
+        return
+    hit = wait_for(lambda: (h := health(armed)) is not None and full[armed] is not None and h < full[armed], timeout)
+    c.ok(hit is not None, f"⑥ ★ once Hostile he is engaged at once — health {full[armed]} → {health(armed)}")
+    c.ok(health(civ) == full[civ], f"⑥ …and the unarmed civilian is still unhurt ({health(civ)})")
+
+
+SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
+             # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
+             "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

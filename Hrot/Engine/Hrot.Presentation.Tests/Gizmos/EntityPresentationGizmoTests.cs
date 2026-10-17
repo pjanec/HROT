@@ -458,5 +458,64 @@ namespace Hrot.Presentation.Tests.Gizmos
             Assert.Single(duplicates);
             Assert.Equal(typeof(EntityPresentationGizmo), duplicates[0]);
         }
+
+        // ── ⑦ CE-1163 (civilian U-2; UX_Feature_Entity_Symbology §3.1 — CE-125 defect A) — the side's colour ─────────────
+
+        private Rgba32 OutlineColour(Entity entity)
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            new EntityPresentationGizmo().Draw(_repo, entity, buffer);
+            foreach (var p in buffer.GetFrame())
+                if (p.Shape == DebugPrimitiveShape.SemanticShape) return p.Color;
+            throw new InvalidOperationException("no semantic shape drawn");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>CE-1163</b> — the outline is the entity's LIVE side, from the one palette, every frame: a neutral civilian draws green and,
+        /// the moment its side flips (R-3013 CV-4: a hostile act), red — no reload. An entity whose side is not known keeps the old cyan,
+        /// now only the fallback. 🔒 Before: every entity on every host was the same cyan (<c>EntityPresentationGizmoShared</c>).
+        /// </summary>
+        [Fact]
+        public void CE1163_TheOutline_IsTheLiveSide_AndRedrawsTheMomentItFlips_AnUnknownSideKeepsTheCyan()
+        {
+            _repo.RegisterComponent<EntityInfo>();
+            var civilian = Spawn(21L, new Vector3(10f, 10f, 0f));
+            _repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            Assert.Equal(new Rgba32(ResolvedStyleConstants.NeutralTintR, ResolvedStyleConstants.NeutralTintG, ResolvedStyleConstants.NeutralTintB, 255),
+                OutlineColour(civilian));
+
+            _repo.SetComponent(civilian, new EntityInfo { ForceId = ForceId.Hostile });
+            Assert.Equal(new Rgba32(ResolvedStyleConstants.HostileTintR, ResolvedStyleConstants.HostileTintG, ResolvedStyleConstants.HostileTintB, 255),
+                OutlineColour(civilian));
+
+            var unknown = Spawn(22L, new Vector3(20f, 10f, 0f));
+            Assert.Equal(Hrot.Common.Diagnostics.Gizmos.AffiliationColors.NoSide, OutlineColour(unknown));
+        }
+
+        /// <summary>⭐ CE-1163 — where a host resolved a style (the IG's <see cref="ResolvedStyle"/>: an operator's symbol override, an authored
+        /// colour), its tint wins over the side — the IG's capability is kept (R-137), not flattened to the side's colour.</summary>
+        [Fact]
+        public void CE1163_AResolvedTint_WinsOverTheSide()
+        {
+            _repo.RegisterComponent<EntityInfo>();
+            _repo.RegisterComponent<ResolvedStyle>();
+            var unit = Spawn(23L, new Vector3(10f, 10f, 0f));
+            _repo.AddComponent(unit, new EntityInfo { ForceId = ForceId.Hostile });
+            var style = ResolvedStyle.CreateDefault();
+            style.Tint = new Color32 { R = 10, G = 200, B = 30, A = 255 };
+            _repo.AddComponent(unit, style);
+            Assert.Equal(new Rgba32(10, 200, 30, 255), OutlineColour(unit));
+        }
+
+        /// <summary>⭐ CE-1163 (Symbology §3.2) — ONE side palette: the entity card's <c>SidePalette</c> (it had its own) and the outline read the
+        /// same table, so a card frame and its symbol never disagree.</summary>
+        [Fact]
+        public void CE1163_TheCardAndTheOutline_ReadOnePalette()
+        {
+            foreach (var side in new[] { ForceId.Neutral, ForceId.Friend, ForceId.Hostile })
+                Assert.Equal(Hrot.Common.Diagnostics.Gizmos.AffiliationColors.Of(side), Hrot.Common.Diagnostics.Gizmos.SidePalette.Of(side));
+            Assert.Equal(new Rgba32(ResolvedStyleConstants.FriendTintR, ResolvedStyleConstants.FriendTintG, ResolvedStyleConstants.FriendTintB, 255),
+                Hrot.Common.Diagnostics.Gizmos.SidePalette.Friend);
+        }
     }
 }

@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5)
+updated: 2026-10-17 (behaviors: CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-1…B-5).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
 known-rot: none.
 known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thousands of trivial entities (traffic, crowds)"
@@ -43,6 +43,11 @@ related-designs:
     civilian and security-force classes are added to.
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians.md — the backend half of §5 (B-1…B-5).
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md — the ui half of §5 (U-1…U-5).
+  - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the map symbol's colour (§3.1 the AffiliationColors fix = CE-125, §3.2 the one palette); U-2 builds §3.1.
+  - docs/DESIGN_Visual_Effects.md — owns EffectLayer (lifespan visuals, the chaff cloud) that U-4 extends.
+  - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md — ui's four findings on §7 (F-1…F-4).
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — B-6, the replicated Gesture component (CV-13).
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md — U-6, the gesture poses and the placard on a pole (CV-13).
 -->
 
 # DESIGN — **civilians and crowd control** *(the CIV programme)*
@@ -71,6 +76,11 @@ related-designs:
 | **R-4035** | a panicking civilian **hides in a building whose door can be opened**, and **disappears** after a while inside — never flees indefinitely |
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
 | **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
+| **R-2024** | ✅ **CV-13, CV-13a, CV-14 approved as written** (§4) — gestures and drawn props, hands up holds fire, the security forces provoke a crowd |
+
+🔒 **User, verbatim (`2026-10-17`):**
+- *"Do we have special stances for demonstrating pedestrians? Like they might be raising hands or holding a poster On a pole. They might also need some behavior. I don't know exactly what, but they might sometims  respond to the security forces by switching to rioting."*
+- *"approved, add CV-13 and CV-14 to the design"*
 
 ## 1. INVENTORY *(2026-10-16 — four read-only sweeps: codebase-memory CLI `search_graph` + grep + the design corpus; `check_index_coverage` NOT run)*
 
@@ -108,7 +118,9 @@ classDiagram
   class HostileAct { <<NEW component, replicated>> SinceSimTime Kind }
   class EntityInfo { <<existing>> ForceId flips Neutral to Hostile on a hostile act }
   class Crowd { <<NEW bodiless entity>> Members Mood Density Focus Instigators }
-  class CrowdSystem { <<NEW, CGF>> mood, contagion, gathering, focus }
+  class CrowdSystem { <<NEW, CGF>> mood, contagion, gathering, focus, provocation by security forces CV-14 }
+  class Gesture { <<NEW component, replicated, CV-13>> None HandsUp FistRaised HoldSign Waving Throwing }
+  class FigurePose { <<existing, map 3-D>> arm override per gesture, placard drawn for HoldSign }
   class FindEnterableShelter { <<NEW EQS template>> door generator, InsideTest, door-aware PathCost }
   class InsideTest { <<NEW EQS test>> point in a non-solid footprint }
   class DoorPassageSystem { <<existing>> opens closed doors on the path }
@@ -148,13 +160,20 @@ classDiagram
   AimAndFireExecutor ..> EntityInfo : skips Neutral targets
   CivilianHsm ..> EffectState : cower, disperse
   CivilianHsm ..> DoorPassageSystem : moves through doors
+  CivilianHsm ..> Gesture : writes, on CGF
+  FigurePose ..> Gesture : reads, every map host
+  AimAndFireExecutor ..> Gesture : HandsUp holds fire, CV-13a
+  CrowdSystem ..> EffectHit : force used on a member, CV-14
+  CrowdSystem ..> EntityClassTable : security forces near the crowd, CV-14
 ```
 
 *What the picture shows that prose hid:* the side flip has ONE producer (a hostile act, made by the civilian's own brain on
 CGF, which is also the creator that owns `EntityInfo`) and every existing side reader picks it up live, because
 `TargetMemory` stores no side — on OTHER nodes only because the flip marks `dtEntityInfo` dirty (§1, the egress re-sends
 nothing otherwise); and every non-lethal effect lands in ONE stored component (`EffectState`) that both the
-civilian HSM and the body read — the I1 rule stays intact because health is never used to mean "stunned".
+civilian HSM and the body read — the I1 rule stays intact because health is never used to mean "stunned". ⭐ *(CV-13/CV-14, 2026-10-17)* — what a protester DOES
+with his body is a third, separate carrier (`Gesture`), written by the same brain and read by the map and by the fire gate; and the
+crowd's anger has TWO producers, instigators and the security forces themselves, so a police action can tip a crowd into a riot.
 
 ### 2.2 The civilian HSM
 
@@ -294,6 +313,9 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **CV-9** | the weapons | slice 1 of non-lethal: **baton/melee** (D5 `MeleeAttack`), **baton round** (ballistic, Blunt), **tear gas grenade/launcher** (Indirect, Irritant cloud), **stun grenade** (thrown, Stun area); civilians' **stone** and **Molotov** (`ThrowAt`, Blunt / fire cloud); later: water cannon (a spray weapon), LRAD | all at once: the spray and acoustic weapons need new physics | TKB weapons + munitions |
 | **CV-10** | scale | target **~300 active civilians per CGF** (perf gate in CIV-1, measured: brain tick per entity, perception, movement); movement through `CarKinematicsSystem` `HumanGait` on SimHost (dtCrowd is Stride-only, 128 cap); above the budget, the scenario spawns fewer — no brain LOD in slice 1 | thousands of brained civilians: unmeasured, perception alone tops out near 500 · dtCrowd: not on SimHost | measurement first |
 | **CV-11** | security forces | a police/security unit family (shield, baton, baton-round launcher, gas launcher, stun grenades) and a **hold-the-line** behaviour on SquadMarch's `Line` formation; a proper cordon waits for CE-2124 (formations) | building a cordon formation now: CE-2124 is the owner | behaviors lane |
+| **CV-13** *(2026-10-17, R-2024)* | gestures and props | ONE replicated **`Gesture`** byte per person {None, HandsUp, FistRaised, HoldSign, Waving, Throwing}: the civilian HSM writes it on CGF (as it writes `Cowering`); the map's `FigurePose` reads it as an ARM override (the way it draws carry arms today); **HoldSign draws a pole + placard in the hands — drawn only, no entity**; Throwing is the wind-up `ThrowAt` (CE-2238) sets | fold into `EffectState`: those are timed effects of a hit, a gesture is the person's own act · a real carried-item entity for the pole: heavy for a picture — later, if a pole must be dropped or used as a club · new stances: a stance is locomotion (stand / crouch / prone), a gesture is the arms over any stance | backend: the component + wire (B-6); ui: the poses + placard (U-6); behaviors: who writes it (CE-2240) |
+| **CV-13a** *(2026-10-17, R-2024)* | hands up | a person showing **HandsUp is held like a neutral** — `AimAndFireExecutor.HoldOf` ⇒ a new `HoldSurrender`, the same gate CIV-0 built (§5b) — even when Hostile; it does NOT flip the side back | decoration only: a soldier shooting a surrendering man is exactly what a trainee is assessed on · flip Hostile → Neutral on hands up: the act stays recorded, and a feint must not erase it | `AimAndFireExecutor`, `ThreatDanger` (behaviors) |
+| **CV-14** *(2026-10-17, R-2024)* | the security forces provoke | the `CrowdSystem` (CV-5) gets anger inputs beside the instigators: ① security forces (the `SecurityForce` class, CV-1) within ~30 m and FACING the crowd raise it slowly; ② force used on a member (baton, baton round, gas, an arrest — an `EffectHit` on him) SPIKES it in his neighbours; ③ the police withdrawing lets it decay. Each member has a **hidden threshold from his attitude** (CV-4), so only a FRACTION riots — the same non-lethal hit makes a calm crowd disperse and an angry one riot (the Riot / Dispersing edges of §2.2 both stay) | a fixed scripted switch: predictable, not a test of the trainee's choice · per-person vision of the police: the perception cost CV-2 already ruled out | `CrowdSystem` (behaviors, with CE-2237/CE-2241) |
 | **CV-12** | the SUMO hookup | last slice (R-4033): AQ93 §8's handover creates a civilian of this family in **Panic** mode with the incident point — no special type | a SUMO-specific type: two civilian models | AQ93 §8 |
 
 ## 5. Slice plan *(backend + ui halves handed off as frames 2026-10-16; behaviors half recorded, not started)*
@@ -307,9 +329,9 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **CIV-0** | **safety gate**: ground-AI targeting skips Neutral targets (CV-8 first half) | behaviors `CE-2233` | a soldier at FireAtWill next to a neutral civilian does not engage it; `ua-threat-ranking` migrates |
 | **CIV-1** | the new civilian family (CV-1/CV-2) + its class rows, old types retired, 4 scenarios migrated; `CivilianHsm` Routine + Alarmed + Casualty; **perf gate** (CV-10) | backend B-2, B-4 · behaviors `CE-2235` · ui U-1 | 300 civilians on CGF within the frame budget, measured |
 | **CIV-2** | Panic → Shelter → Inside → deleted, Cower (CV-7) on bt-range | behaviors `CE-2234` (§5a first), `CE-2236` | a shot near a civilian sends it through an openable door into a house and it is gone after the hide time; a locked house is skipped |
-| **CIV-3** | crowds (CV-5): gathering, protest, contagion | behaviors `CE-2237` · ui U-5 (optional) | onlookers gather at an incident; fear spreads through a crowd |
+| **CIV-3** | crowds (CV-5): gathering, protest, contagion; ⭐ the protest's **gestures + placards** (CV-13) | behaviors `CE-2237`, `CE-2240` · backend B-6 · ui U-5 (optional), U-6 | onlookers gather at an incident; fear spreads through a crowd; a protest shows its gestures on every map |
 | **CIV-4** | attitude + hostile acts (CV-4), `ThrowAt` + `MeleeAttack` (D5), riot (CV-3) | backend B-3 · behaviors `CE-2238` · ui U-2 | a rioter that throws a stone turns Hostile on every node; soldiers may now answer it |
-| **CIV-5** | non-lethal (CV-6, CV-9), escalation ladder (CV-8), security forces (CV-11) | backend B-1, B-5 · behaviors `CE-2239` · ui U-3, U-4 | a police line disperses a riot with gas and baton rounds without a single lethal shot; an armed rioter draws lethal fire |
+| **CIV-5** | non-lethal (CV-6, CV-9), escalation ladder (CV-8), security forces (CV-11); ⭐ the security forces **provoke** (CV-14) and **hands up holds fire** (CV-13a) | backend B-1, B-5 · behaviors `CE-2239`, `CE-2241` · ui U-3, U-4 | a police line disperses a riot with gas and baton rounds without a single lethal shot; an armed rioter draws lethal fire; a pressing police line tips a FRACTION of a protest into a riot |
 | **CIV-6** | water cannon, LRAD, Molotov fire cloud | backend | — |
 | **CIV-7** | SUMO hookup (CV-12, AQ93 §8) | coordinator | a panicked SUMO pedestrian becomes a civilian in Panic and shelters |
 
@@ -319,6 +341,68 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 |---|---|---|---|
 | **M-1** | does CGF hold the authority the wire delete needs over a civilian it CREATED, while SimHost moves the body? | §2.3's last step: `CycloneNetworkCleanupSystem` disposes on the wire only when the deleting node `HasAuthority`; if SimHost is primary, "the brain deletes itself" leaves a ghost everywhere else | `CycloneNetworkCleanupSystem.cs:70-120`, R-160, the CGF creation path |
 | **M-2** | does the route planner reach a point INSIDE a bt-range house footprint (through its door), and does `DoorPassageSystem` fire on that route? | CV-7's "a point inside the footprint" is only reachable if the navmesh / road graph enters the building; if not, the shelter target must be the door's inner side | `NavDoorways.cs`, `DoorPassageSystem.cs:78-122`, the bt-range terrain |
+
+⭐ **Answered** *(behaviors, `CE-2234`, 2026-10-17)* — both YES, so CV-7 keeps its shape:
+
+| # | answer | evidence |
+|---|---|---|
+| **M-1** | ✅ **a `DestroyEntityCommand` published on CGF removes a person CGF created on SimHost and on CGF** — no ownership move, no SimHost-side logic. The brain's self-delete is enough | `SplitAuthoritySpawnTests.CE2234_APersonCgfCreated_DeletedOnCgf_IsGoneOnSimHost` (two nodes, real DDS) — passes. ⚠ a measurement rail, not red-proved |
+| **M-2** | ✅ **a path from outside reaches inside the house through its door; every doorway of the SHIPPED bt-range House A connects for infantry; a closed door on the route holds the walker and opens once, a locked one is a wall (replans or fails the move)** ⇒ the shelter target may be a point inside the footprint | `RecastNavmeshFactoryTests.Stage2_InsideTheHouse_…`, `Stage5c_ALockedDoorIsAWall_…`, `Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`, `DoorPassageSystemTests.Stage5d_*` (4) — 7 / 0 |
+
+## 5b. AS-BUILT — CIV-0, the safety gate *(behaviors, `CE-2233`, 2026-10-17)*
+
+Built as CV-8's first half, at every layer a target passes (five — the last two found after the first three shipped) — measured, not assumed: danger 0 alone left the neutral as
+`TopThreat`'s pick (it takes the ranking's top at score 0, the CE-2202 corpse case).
+
+| layer | as built | why here |
+|---|---|---|
+| danger | `ThreatDanger.Of` = 0 for a neutral (`ThreatDanger.IsNeutral`: `EntityInfo.ForceId == Neutral`, read live) | "the ONE function every threat reader calls" (Sensors §7.8a) — counts, the ranking, danger areas, the vehicle budget at once, as the dead (CE-3080) |
+| pick | `EqsTacticsNodes.TopThreat`: the designated target, the kept/top threat and the live fallback must be `Engageable` (in the fight AND not neutral) | the one threat pick every fire / sensor / close step goes through (Entity Control §10) |
+| fire | `AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldNeutral` (label "hold: neutral", amber, weapon posture Ready) — on both the turret and the per-shot path | the last gate before an AI round, whoever picked the target (a squad assignment, an order); ⭐ an operator's (human's) fire does not pass here |
+| edges | `ThreatEvaluationSystem`'s FirstThreat / AllClear count THREATS (`ThreatCount`: heard contacts + seen non-neutral ones), against the unit's count last frame — so a neutral turning Hostile is a FirstThreat | 📐 **found by the demo `ua-civ-neutral-gate`**: counted as CONTACTS, the first civilian seen took the one FirstThreat — `BasicInfantrySop` reacted, found nothing to engage, went idle — and the Hostile seen after it raised none: he never fought; and with civilians in view the memory never empties, so AllClear never came. ⛔ SUPERSEDED: `countBefore == 0 && mem.Count > 0`. Rail `SensorChangedEventTests.CE2233_…`, red-proved |
+| posture | `StandardInputs.HaveLiveTarget` and `ThreatInSight` skip a neutral as they skip a corpse (CE-2120) | 📐 found by a sweep of every `IsOutOfTheFight` reader: these two gate the FIRING postures — without it a soldier who sees only a civilian picks Suppress with nothing to shoot. (`SquadInputs:270` reads the unit's own members and the EQS `AliveFilterTest` is not a threat gate — left alone) |
+
+📐 **Live** *(2026-10-17, `utility-demo-check.py --launch ua-threat-ranking`, "Civilian Near" now Neutral)*: the ranking settles Armed Near
+› Armed Far › Civilian 0, and stays so until both armed contacts are down. ⚠ Once every candidate scores 0 the ranking's debug WINNER
+shows the civilian (the scorer returns its top at 0) — harmless, `TopThreat` filters it, but a reader of `/utility` should not take it as
+a pick.
+
+⚠ **Known limits of the gate:** ① an entity with NO `EntityInfo` is not neutral (Neutral is the enum's zero; unknown = engageable, as
+`ThreatDanger` treats a target this node does not hold). ② An ORDER to attack a neutral is held by the weapon (no override yet — the
+escalation ladder, `CE-2239`, decides whether an order may). ③ A grenade or an indirect round at a POINT is not gated by a neutral near
+it (collateral is `CE-2239`'s). ④ Scenario sweep (2026-10-17): of 315 typed scenario entities only 4 are Neutral / unset — two vans and two
+weather regions, none a combatant.
+
+## 5c. Demo scenarios — one per feature, each a TEST *(behaviors, 2026-10-17; user: "a demo scenario for each civilian feature, with a clear success condition so it is usable as a test")*
+
+⭐ **The rule:** a civilian slice is not done until its demo PASSES. Each demo is ① a `scenarios/<name>/scenario.json`, ② a live check
+`python3 scripts/utility-demo-check.py --launch <name>` (a fresh cluster, asserting — the acceptance), and ③ an in-process twin in
+`Hrot.ClusterRunner.Integration.Tests` (the CI gate; shipped-scenario twins live in `PostureScenarioTests`). A PASS line names what it
+proves; ⭐ every demo also asserts the **precondition that makes the pass meaningful** (e.g. "he SEES the neutral" — otherwise "not
+shot" could mean "not seen").
+
+| slice | demo | terrain · cast | ⭐ PASS = all of | state |
+|---|---|---|---|---|
+| **CIV-0** `CE-2233` | **`ua-civ-neutral-gate`** | test-town · a rifleman (Friend, CombatPosture); an unarmed Neutral civilian; an ARMED Neutral nearest of all; a Hostile farther | ① he remembers both neutrals · ② the Hostile dies · ③ neither neutral loses health, sampled all run · ④ the neutrals rank at score 0 · ⑤ with only neutrals left, no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged, the civilian still unhurt | ✅ built (twin `PostureScenarioTests.CE2233_CivNeutralGate_…`) |
+| CIV-0 | `ua-threat-ranking` *(migrated)* | test-town · its civilian is Neutral | the neutral civilian scores 0 and is never the ranking's winner | ✅ |
+| **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town · 6 civilians of the new types (1101–1104) at their routine points; a soldier who fires a burst at a target 40 m from two of them, 150 m from the rest | ① all 6 start in `Routine` · ② within 2 s of the first shot, every civilian within hearing (100 m) is `Alarmed`, every one beyond stays `Routine` · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40) ⇒ `Casualty`, stops moving, and stays there | ⏳ with CE-2235 |
+| CIV-1 | **`ua-civ-crowd-300`** *(perf gate, CV-10)* | test-town · 300 civilians, mixed variants, routine points spread over the town | ① all 300 run a behaviour · ② over 60 s, CGF frame time p95 ≤ the budget backend's `scripts/perf-civilians.sh` measures against (B-4) · ③ brain tick per civilian reported | ⏳ CE-2235 + B-4 |
+| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ⏳ |
+| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ⏳ |
+| **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · 12 civilians within 80 m of an incident (a casualty on the street) | ① one `Crowd` entity forms holding ≥ 8 of them · ② their mean distance to the focus falls below 15 m within 60 s | ⏳ |
+| CIV-3 | **`ua-civ-contagion`** | test-town · a crowd of 15 spread over 150 m; a blast at one end (heard by the near half only) | ① the near half panics · ② fear then reaches members who did NOT hear it (beyond 100 m): ≥ 3 of them panic via the crowd, not via hearing | ⏳ |
+| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
+| CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
+| **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
+| CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
+| **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · a protest crowd of 12 at a building, an instigator-free crowd, NO security forces | ① the crowd reaches `Protest` · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · a rifleman (Friend); a Hostile armed rioter who drops his weapon and raises his hands mid-fight | ① he is engaged while armed and fighting · ② from the frame his `Gesture` is HandsUp, no round is fired at him for 10 s, his side stays Hostile · ③ hands down + armed again ⇒ he is engaged again | ⏳ |
+| CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
+
+⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
+`wait_for(condition, timeout)` with the condition printed on failure, and every "never" is SAMPLED over the whole run (a minimum, not
+an end state).
 
 ## 6. Known limits
 
@@ -613,3 +697,169 @@ file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` afte
 | F-4 | no elderly carrier | ✅ built as asked: the TKB descriptor `PersonDto` (`Body.Person`), holding `Age` (Adult / Child / Elderly) and `Sex` (Unspecified / Male / Female). It is on the four civilian types (male, female, minor, elderly), and the security types say Adult. No descriptor means an adult of unspecified sex, so soldiers need none. Read it with `template.GetDescriptor<PersonDto>()` |
 
 ⭐ Ruled `2026-10-16` (R-3013). Tracker: B-1 `CE-3219` · B-2 `CE-3220` · B-3 `CE-3221` · B-4 `CE-3222` · B-5 `CE-3223`.
+
+## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
+
+**INVENTORY** *(2026-10-16; codebase-memory CLI `search_graph` for `.*EntityClassTable.*`, `.*VisualFamil.*`, `.*EffectState.*`,
+`.*AreaEffect.*`, `.*IgSymbolOverride.*`, `.*Affiliation.*` + grep on every call site + the design corpus; `check_index_coverage` NOT run — CLI only)*:
+
+| surface | exists | where |
+|---|---|---|
+| class rows | `Person` 3, `LandPerson` 3.1, `Infantry` 3.1.*.1 — **no Civilian / SecurityForce row** (B-2) | `EntityClassTable.cs:98-191` |
+| class readers a new row reaches | picker folders (`DisNameTable` → `EntityTypeCatalog.CategoryOf`), picker icon (`VisualFamilies.IconName`), 3-D family (`VisualFamilies.FamilyOfClass`), 2-D outline (`EntityClassShapeLibrary.ProfileOfClass`), `WeaponKits`, behaviour lookup (`OrderResolver`, `TacticalIntentResolutionSystem`) | `DisNameTable.cs:24-38`, `EntityTypeCatalog.cs:56,87-91,131`, `VisualFamily.cs:51-89`, `EntityClassShapeLibrary.cs:21-42` |
+| soldier vs civilian look | ⚠ **a hard-coded `DIS Category == 1`**, not the table | `VisualFamily.cs:104` `IsSoldier` |
+| outfits, child | `Outfits.For(seed, type, soldier, child, own, side)`; child = shorter than 1.5 m; no elderly look | `Outfits.cs:91`, `EntityBodyLayer3D.cs:47,223,1204` |
+| the 2-D side colour | 🔴 **no map host draws an SIDC**; the shared entity outline is **fixed cyan** on every host (CE-125, Symbology defect A) | `EntityPresentationGizmoShared.cs:272` |
+| side palettes | **four** that disagree: `ResolvedStyleConstants` (authoritative, Symbology §3.2), `EntityPlacementGizmo.GetAffiliationColor`, `MilStd2525Renderer`, and the entity card's `SidePalette` | `EntityCardGizmos.cs:13-25` (the fourth, not in Symbology §1) |
+| IG override | `StyleResolutionSystem`: live `ForceId` at Layer 1.5, then `IgSymbolOverride.StyleSetId` re-sets the affiliation at Layer 2 — **a flip is outranked**; its output `ResolvedStyle` feeds no renderer | `StyleResolutionSystem.cs:110-131` |
+| poses | `FigurePose` from `LogicalStance` + `StanceStatus`; a lying wounded pose exists (`Downed`, C-2); **no cower pose; no `EffectState`** (B-1) | `EntityBodyLayer3D.cs:399-432`, `ShapeKit.cs:1163-1177`, `Carriage.cs:29,88` |
+| 2-D state text | `StanceGizmo` — a text line under the entity, on every host | `StanceGizmo.cs:11-35` |
+| clouds | **no `AreaEffectCloud`, no smoke obscurant**; `EffectLayer` (2-D + 3-D, every host) already draws a growing fading disc, wreck-smoke puffs and a chaff cloud thinning over its `Lifespan` | `EffectLayer.cs:15-25,141-216`, `MapInteractionPack.cs:485` |
+| ⚠ B1-c's prism | every terrain prism is meshed whatever its material ⇒ a `smoke` obstacle draws as a **solid block** (3-D mesh and the 2-D terrain gizmo) | `TerrainWorldMesh.cs:48,128-133`, `StaticObstacles.cs:100-112`, `TerrainWorldGizmo.cs:68` |
+| ⚠ a name | `EffectKind` already names the VISUAL-effect enum; B-1 draws a second `EffectKind` | `EffectDtos.cs:7` |
+
+### 8.1 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityClassTable { <<existing, B-2 adds rows>> Civilian 3.1.*.2 · SecurityForce 3.1.*.3 }
+  class VisualFamilies { <<existing, grows>> +PersonKit(t) Civilian / Soldier / Security · IconName per class }
+  class Outfits { <<existing, grows>> For(seed, type, kit, age, own, side) · + police look · + elderly look }
+  class EntityBodyLayer3D { <<existing>> FigurePose reads EffectState first }
+  class FigurePose { <<existing, grows>> KnockedDown ⇒ Downed · Cowering ⇒ Cower }
+  class BlockFigure { <<existing, grows>> + Cower parts: crouched, forearms over the head }
+  class EffectState { <<B-1 NEW>> Stunned Irritated KnockedDown + Cowering (asked of B-1) }
+  class EffectStateGizmo { <<NEW, StanceGizmo's shape>> 2-D text: DOWN · STUNNED · GASSED · COWERING }
+  class AffiliationColors { <<NEW, Symbology §3.1>> For(view, entity): ResolvedStyle tint, else live ForceId, else cyan }
+  class ResolvedStyleConstants { <<existing, the one palette>> }
+  class EntityPresentationGizmoShared { <<existing>> prim.Color = AffiliationColors.For }
+  class SidePalette { <<existing, 4th palette>> redirects to ResolvedStyleConstants }
+  class StyleResolutionSystem { <<existing, IG>> StyleSetId no longer outranks live ForceId }
+  class EffectLayer { <<existing, grows>> + cloud: disc 2-D, puffs 3-D, fades on Lifespan }
+  class AreaEffectCloud { <<B-1 NEW>> Kind Radius Magnitude }
+  class TerrainWorldMesh { <<existing, grows>> skips see-through walk-through prisms }
+  EntityClassTable <.. VisualFamilies : class of the type
+  VisualFamilies <.. Outfits : kit
+  EntityBodyLayer3D --> FigurePose
+  FigurePose ..> EffectState
+  FigurePose --> BlockFigure
+  EffectStateGizmo ..> EffectState
+  EntityPresentationGizmoShared ..> AffiliationColors
+  AffiliationColors ..> ResolvedStyleConstants
+  SidePalette ..> ResolvedStyleConstants
+  EffectLayer ..> AreaEffectCloud
+  TerrainWorldMesh ..> AreaEffectCloud : not drawn as terrain
+```
+*What the picture shows that prose hid:* every new box hangs off an EXISTING reader — the class table, the pose function,
+`EffectLayer`, the shared outline — so the four items add one new class (`EffectStateGizmo`) and one helper (`AffiliationColors`,
+already designed by Symbology §3.1); everything else grows.
+
+### 8.2 Sequence — a civilian flips Hostile (U-2)
+
+```mermaid
+sequenceDiagram
+  participant B as CGF behaviour (HostileAct)
+  participant A as EntityAffiliation.Set (B-3)
+  participant N as EntityInfo egress / ingress
+  participant G as EntityPresentationGizmo (every host, each frame)
+  participant C as AffiliationColors.For
+  participant I as IG StyleResolutionSystem
+  B->>A: Set(civilian, Hostile)
+  A->>N: ForceId dirty, one sample
+  N-->>G: the entity's EntityInfo.ForceId = Hostile
+  G->>C: colour of this entity
+  C-->>G: no ResolvedStyle here ⇒ the live ForceId's colour (red)
+  N-->>I: same sample on the IG
+  I->>I: Layer 1.5 live ForceId, then Layer 2 keeps texture and label, NOT the StyleSet colour
+  I-->>G: ResolvedStyle tint red ⇒ the IG draws it red too
+```
+*What the picture shows that prose hid:* "within one update, no reload" costs nothing new on the wire — the gizmo reads the side
+every frame; the only reasons it does not redraw today are the cyan constant and the IG override's precedence.
+
+### 8.3 Modules — who registers it, who calls it each frame
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers, every map host] --> BODY[EntityBodyLayer3D: pose, outfit]
+  MIP --> EFX[EffectLayer: the cloud]
+  MIP --> TER[TerrainLayer3D: TerrainWorldMesh on rebake]
+  SGS[StatelessGizmoSystem, every host, each frame] --> EPG[EntityPresentationGizmo: the outline colour]
+  SGS --> ESG[EffectStateGizmo NEW, auto-discovered like StanceGizmo]
+  IGM[IG StyleResolutionModule, IG only] --> SRS[StyleResolutionSystem]
+  PK[Add-Entity picker] --> DNT[DisNameTable folders, from the class table]
+  B1[B-1 AreaEffectCloud + StaticObstacle smoke] -.->|today: meshed solid| TER
+  classDef dead fill:#fdd,stroke:#c00
+  CYAN[the outline colour is a constant: never reads the side]:::dead
+  CYAN -.-> EPG
+```
+*Caption:* every surface is already called each frame on every map host; ⚠ the red box is why a flip shows nowhere in 2-D today,
+and the dashed B-1 edge is the one path where a backend change would draw wrongly unless U-4 lands with it.
+
+### 8.4 Decisions — leans *(the CVs above them are ruled, R-3013; these ui details follow the CV leans)*
+
+| # | item | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **U1-a** | U-1 the soldier look | `VisualFamilies.PersonKit(t)` reads the CLASS (Infantry ⇒ soldier kit, SecurityForce ⇒ police kit, Civilian / other ⇒ clothes), replacing `IsSoldier`'s `Category == 1` | keep `Category == 1`: a police officer (category 3) draws in civilian clothes with no weapon |
+| **U1-b** | U-1 elderly | ask B-2 for an explicit age/sex on the type (one small descriptor read by `Outfits`); child stays "under 1.5 m" | derive from the type NAME: two tables (R-280) · from height: an old man is not shorter |
+| **U1-c** | U-1 picker | nothing to build: the folders come from the new rows (`DisNameTable`); a rail that a Civilian and a SecurityForce type each land in their folder with their icon | a hand-made civilian folder: a second table |
+| **U2-a** | U-2 the 2-D colour | build Symbology §3.1 (CE-125): `AffiliationColors.For` — `ResolvedStyle` tint, else the live `ForceId` from `ResolvedStyleConstants`, else today's cyan; `SidePalette` redirects to the same constants | colour only flipped civilians: a second rule for one colour · keep the cyan: friend and hostile stay identical (defect A) |
+| **U2-b** | U-2 the IG override | `IgSymbolOverride.StyleSetId` stops outranking a live `EntityInfo.ForceId` (it applies when no `EntityInfo` is present); its texture and label overrides keep winning | the override always wins: a flipped civilian stays neutral on the IG |
+| **U2-c** | U-2 in 3-D | ⭐ **no clothes change** — a hostile civilian still LOOKS civilian (the user's "side is what others can see" is the 2-D symbol and the card); the card frame already follows live side | repaint the figure: makes a disguise visible to everyone |
+| **U3-a** | U-3 pose source | `FigurePose` reads `EffectState` FIRST: KnockedDown ⇒ the existing `Downed` pose (C-2), Cowering ⇒ a new `Cower` block pose; else stance as today | per-state models: a second pose system · KnockedDown as plain prone (B1-b sets the stance prone): reads as a soldier taking cover |
+| **U3-b** | U-3 cower's carrier | ask B-1 to add a `Cowering` bit to `EffectState`, written by the CivilianHsm (§2.1 already draws `CivilianHsm ..> EffectState : cower`) | a new replicated component for one bit · infer from stance + speed: a crouched soldier would cower |
+| **U3-c** | U-3 in 2-D | `EffectStateGizmo`, `StanceGizmo`'s shape: one text line (DOWN / STUNNED / GASSED / COWERING) | an icon set: not designed anywhere yet |
+| **U4-a** | U-4 the drawing | `EffectLayer` draws an `AreaEffectCloud`: a disc growing to `Radius` and fading over `Lifespan` in 2-D, the chaff cloud's puffs in 3-D (tear gas off-white, smoke grey) | a gizmo: `EffectLayer` is "no gizmos (U2)" and already owns lifespan visuals |
+| **U4-b** | U-4 the prism | `TerrainWorldMesh` and `TerrainWorldGizmo` skip a prism whose material lets sight through (`SightTransmittance > 0`) and does not block movement — a volume effect, drawn by its own layer | let the terrain draw it: a gas cloud renders as a solid grey block |
+| **U4-c** | the enum name | ask B-1 to name its enum `HitEffectKind` (or similar) | a second `EffectKind`: two meanings for one name across Fdp.Toolkits |
+
+| the leans rest on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a police officer draws as a civilian today | ✅ `VisualFamily.cs:104` | ✅ R-280 (one class table) says the class decides |
+| the 2-D outline never reads the side | ✅ `EntityPresentationGizmoShared.cs:272` | ✅ Symbology §2 defect A, §3.1 the fix (CE-125) |
+| the IG override outranks a live flip | ✅ `StyleResolutionSystem.cs:110-131` | ⛔ searched Symbology §3.8.9 / §0, nothing rules precedence against a live flip |
+| who publishes `IgSymbolOverride.StyleSetId` (U2-b's blast radius) | ✅ **measured `2026-10-16`: two DELIBERATE producers** — the IG's mini-ExCon panel (`MiniExConPanelState.cs:118-120`, an operator picks the affiliation) and the external `MapEntitySymbol` topic (`MapEntitySymbolIngressTranslator.cs:78,105`) | ⛔ not searched — ⇒ 🔴 **U2-b's lean is WITHDRAWN**: an operator's override is an intent, so it keeps winning; a live flip shows wherever no override was set (§8.6) |
+| a `smoke` prism would draw solid | ✅ `TerrainWorldMesh.cs:48,128-133` | ✅ B1-c (§7.3) — the clash is between two correct designs |
+| nothing marks cowering on the wire | ✅ B-1's `EffectState` fields (§7.3) | ✅ §2.1 draws the edge — the field is missing, not the intent |
+
+### 8.5 Items *(ids from the ui block)*
+
+| id | item | needs | build when |
+|---|---|---|---|
+| `CE-1162` | U-1 class-driven person kit, police and elderly looks, picker rail | B-2 rows (`CE-3220`); U1-b's age field | B-2's rows exist |
+| `CE-1163` | U-2 side colour on the 2-D outline (= CE-125's §3.1) + the IG override precedence | B-3 (`CE-3221`, built); U2-b measured | now (U2-a); U2-b after its measurement |
+| `CE-1164` | U-3 `EffectState` poses (Downed, Cower) + `EffectStateGizmo` | B-1 `EffectState` with Cowering (`CE-3219`) | B-1 exists |
+| `CE-1165` | U-4 the cloud in `EffectLayer` + terrain skips see-through prisms | B-1 `AreaEffectCloud` (`CE-3219`) | with B-1 |
+
+U-5 (crowd overlay) stays LATER as the handoff leans, with no id until behaviors' `CE-2237` exists.
+⚠ **Findings for the backend lane** (U1-b, U3-b, U4-b, U4-c) are sent in
+[`HANDOFF_Ui_To_Backend_Civilians_Findings.md`](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md).
+
+### 8.6 AS-BUILT — U-1 and U-2 (`CE-1162`, `CE-1163`, `2026-10-16`, ui)
+
+| decision | as built | deviation, and why |
+|---|---|---|
+| U1-a | `VisualFamilies.PersonKitOf(t)` walks the class chain: `SecurityForce` ⇒ `PersonKit.Security`, `Infantry` ⇒ `Soldier`, else `Civilian`; `TypeLook.Kit`; `IsSoldier` (the rifle) = a soldier, or an officer whose type has a weapon suite | ⚠ a security-force officer draws **unarmed** today: backend's `CivilianTkbCatalog` gives the 1201–1203 types no weapons yet (B-5) |
+| U1-a (outfit) | `Outfits.For(…, kit)` — Security wears `Outfits.PoliceUniform` (navy), trousers darker, no camouflage whatever his side, the helmet of the uniformed | — |
+| U1-b | ⏳ not built: no elderly look until a TKB age carrier exists (finding F-4) | — |
+| U1-c | nothing to build: the picker folders come from backend's rows; backend's own `EntityTypeCatalogTests` rows cover it | — |
+| U2-a | `AffiliationColors` (Hrot.Common): `For(view, entity)` = the `ResolvedStyle` tint, else the live `EntityInfo.ForceId` from `ResolvedStyleConstants`, else `NoSide` (the old cyan); `EntityPresentationGizmo` passes it to `DrawSemanticShape(…, colour)` on every host; `SidePalette` (the card) and `EntityPlacementGizmo`'s private palette now read the same table | ⚠ the card frame's colours change to the authoritative table (pure blue / red / green): Symbology §3.2 names that table, and two palettes would disagree |
+| U2-b | 🔴 **withdrawn** — `IgSymbolOverride.StyleSetId` keeps winning on the IG (it is an operator's or the exercise's deliberate choice, §8.4's measured row) | the lean assumed nobody set it on purpose; measured, two producers do |
+| U2-c | no 3-D change (as leaned) | — |
+
+Rails: `EntityPresentationGizmoTests.CE1163_…` ×3 (the live side and its flip, a resolved tint wins, one palette) · `Map3DTests.CE1162_…`
+(the kit from the class; police uniform on every side; civilians in clothes; every infantryman still a soldier).
+
+**U-3 (`CE-1164`, `2026-10-16`) as built:** `Carriage.Of` returns `Downed` when `Effects.IsKnockedDown` (backend's `EffectState`, CE-3219) —
+so a knocked-down man lies like a man down at full health and stands when it runs out (U3-a, through the carriage that already picks
+`Downed` for the incapacitated, not a second pose path in `FigurePose`). `EffectStateGizmo` (Hrot.Common, auto-discovered, Labels layer)
+writes `DOWN · STUNNED · GASSED` under him in 2-D (U3-c). ⏳ **Cower is not built**: `EffectState` has no Cowering yet (finding F-3).
+Rail `Map3DTests.CE1164_…`, red-proved (both halves).
+
+**U-4 (`CE-1165`) part built `2026-10-16` — U4-b, ahead of B-1's cloud:** `TerrainWorldMesh.IsVolumeEffect(prism)` (a material with
+`SightTransmittance > 0` and `BlocksMovement = false`) keeps such a prism out of the mesh — so it neither renders as a block nor enters the
+navmesh (it blocks nothing; this also answers backend's M-4 for walk-through prisms) — and `TerrainWorldGizmo` skips it in 2-D. Sight still
+reads the prism (B1-c unchanged). ⚠ Cross-lane: `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs` (backend's area), render/navmesh input only.
+Today's see-through materials (glass, hedge, chain-link) all block movement ⇒ nothing existing changes. Rail
+`TerrainWorldTests.CE1165_…`, red-proved. ⏳ U4-a (the cloud drawn in `EffectLayer`) waits on `AreaEffectCloud`.
+

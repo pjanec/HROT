@@ -22,9 +22,17 @@ namespace Hrot.Editor.AiShared.Inspector.ActionBinding;
 public sealed class ActionBindingDrawer : IImGuiFieldDrawer
 {
     private readonly ActionBindingSources _sources;
+    private readonly PickerField _field;
 
-    public ActionBindingDrawer(ActionBindingSources sources)
-        => _sources = sources ?? throw new ArgumentNullException(nameof(sources));
+    /// <param name="field">⭐ <c>CE-1008</c> (AI_Editor_Shared_Infrastructure §7.1b) — the searchable choice field; null ⇒ plain combos.</param>
+    public ActionBindingDrawer(ActionBindingSources sources, PickerField? field = null)
+    {
+        _sources = sources ?? throw new ArgumentNullException(nameof(sources));
+        _field = field ?? new PickerField(null);
+    }
+
+    /// <summary>⭐ CE-1008 — the choice field the four pickers use (the forwarding rail reads it).</summary>
+    public PickerField Field => _field;
 
     public Type TargetType => typeof(BehaviorActionBindingFacet);
 
@@ -68,7 +76,7 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
         ImGuiNET.ImGui.SetNextItemWidth(width);
         var methods = _sources.GetMethods(slot.Kind);
         string? picked;
-        if (Combo("method##abm", b.MethodFqn, methods, _sources.MethodLabel, out picked))
+        if (_field.Draw("method##abm", node, b.MethodFqn, PickerChoices.Methods(methods, _sources.MethodLabel), "Method", out picked))
         {
             PickMethod(ref b, picked);
             changed = true;
@@ -78,7 +86,7 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
         if (slot.AllowsBlueprint)
         {
             ImGuiNET.ImGui.SetNextItemWidth(width);
-            if (Combo("blueprint##abb", b.BlueprintName, _sources.GetBlueprints(), null, out picked))
+            if (_field.Draw("blueprint##abb", node, b.BlueprintName, PickerChoices.Flat(_sources.GetBlueprints()), "Blueprint", out picked))
             {
                 PickBlueprint(ref b, picked);
                 changed = true;
@@ -109,7 +117,7 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
         else
         {
             ImGuiNET.ImGui.SetNextItemWidth(width);
-            if (Combo("variable##abv", b.ExpressionTargetField, _sources.GetVariables(b), null, out picked))
+            if (_field.Draw("variable##abv", node, b.ExpressionTargetField, PickerChoices.Flat(_sources.GetVariables(b)), "Variable", out picked))
             {
                 PickVariable(ref b, picked);
                 changed = true;
@@ -121,8 +129,8 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
         {
             ImGuiNET.ImGui.SetNextItemWidth(width);
             var stateVars = _sources.GetWorkingStateVariables(b);
-            if (Combo("working state##abw", b.WorkingStateTargetField, stateVars,
-                      n => n.Length == 0 ? "(this node)" : n, out picked))
+            if (_field.Draw("working state##abw", node, b.WorkingStateTargetField,
+                            PickerChoices.Flat(stateVars, n => n.Length == 0 ? "(this node)" : n), "Working state", out picked))
             {
                 PickWorkingState(ref b, picked);
                 changed = true;
@@ -147,34 +155,4 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
     /// <summary>⭐ <c>CE-2099</c> — picks the working-state variable (empty = the node's own state).</summary>
     public static void PickWorkingState(ref BehaviorActionBindingFacet b, string? name)
         => b.WorkingStateTargetField = string.IsNullOrEmpty(name) ? null : name;
-
-    /// <summary>One combo with a "(none)" row; the ImGui id of each row is its VALUE so equal labels stay distinct.</summary>
-    private static bool Combo(string id, string? current, IReadOnlyList<string> items,
-                              Func<string, string>? label, out string? picked)
-    {
-        picked = null;
-        current ??= string.Empty;
-        bool changed = false;
-        string shown = current.Length == 0 ? "(none)" : label?.Invoke(current) ?? current;
-        if (ImGuiNET.ImGui.BeginCombo(id, shown))
-        {
-            if (ImGuiNET.ImGui.Selectable("(none)", current.Length == 0) && current.Length != 0)
-            {
-                picked  = string.Empty;
-                changed = true;
-            }
-            foreach (var name in items)
-            {
-                bool sel = name == current;
-                if (ImGuiNET.ImGui.Selectable($"{label?.Invoke(name) ?? name}##{name}", sel) && !sel)
-                {
-                    picked  = name;
-                    changed = true;
-                }
-                if (sel) ImGuiNET.ImGui.SetItemDefaultFocus();
-            }
-            ImGuiNET.ImGui.EndCombo();
-        }
-        return changed;
-    }
 }

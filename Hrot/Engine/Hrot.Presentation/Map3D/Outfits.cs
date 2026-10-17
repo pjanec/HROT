@@ -57,6 +57,8 @@ public static class Outfits
     private static readonly Color[] Suits = [new(52, 54, 58, 255), new(34, 40, 62, 255), new(28, 28, 30, 255), new(96, 98, 102, 255)];
     private static readonly Color[] Ties = [new(170, 30, 36, 255), new(40, 70, 150, 255), new(110, 30, 50, 255), new(40, 100, 60, 255)];
     private static readonly Color Shirt = new(238, 238, 236, 255);
+    /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
+    public static readonly Color PoliceUniform = new(34, 46, 82, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
     private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
     private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy: a hostile reads paler
@@ -88,11 +90,20 @@ public static class Outfits
     /// <paramref name="own"/> is his colour when his entity or his type has one (null: none); for a <paramref name="soldier"/> it is his
     /// uniform (the family default when null). <paramref name="side"/> picks a soldier's camouflage.
     /// </summary>
-    public static Outfit For(long seed, long type, bool soldier, bool child, Color? own, ForceId side)
+    /// <param name="kit">⭐ CE-1162 (civilian U-1) — a <see cref="PersonKit.Security"/> officer wears the police uniform (navy, no
+    /// camouflage: his side does not change his uniform), armed or not.</param>
+    public static Outfit For(long seed, long type, bool soldier, bool child, Color? own, ForceId side, PersonKit kit = PersonKit.Civilian)
     {
         var r = new Draw(seed, type);
         var skin = SkinTones[r.Pick(SkinTones.Length)];
         var hair = HairColours[r.Pick(HairColours.Length)];
+        if (kit == PersonKit.Security)
+        {
+            var uniform = own ?? PoliceUniform;
+            var trousers = Scale(uniform, 0.8f);
+            return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, CamoPattern.None,
+                              child, true, FaceOf(seed, type, woman: false, child));
+        }
         if (soldier)
         {
             var uniform = own ?? new Color(96, 110, 72, 255);

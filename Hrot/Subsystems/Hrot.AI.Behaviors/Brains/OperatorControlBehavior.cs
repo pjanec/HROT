@@ -98,7 +98,10 @@ namespace Hrot.AI.Behaviors.Brains
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
-            ws.Seq = drive.Seq;
+            // ⭐ CE-1157 — no frame (a RIDER: the possession takes his frames while the station drives his vehicle) keeps the last frame
+            //   number, so a station that restarts its frames after the ride (Seq 1 again, counters from 0) still reads as a NEW station and
+            //   resets the press counters; zeroing it swallowed the first press after the ride (its counter equal to the last one acted on)
+            if (drive.Seq != 0) ws.Seq = drive.Seq;
             if (world.HasComponent<ManualDrive>(self)) world.SetComponent(self, drive);
             else world.AddComponent(self, drive);
             OperateWeapon(world, self, ref ws, lastSeq);
@@ -229,14 +232,17 @@ namespace Hrot.AI.Behaviors.Brains
             // a new station's frames start again from 1, and its counters from 0
             if (input.Seq < lastSeq) { ws.ShotSeq = ws.CancelSeq = ws.AmmoSeq = 0; ws.Pending = 0; }
             if (input.CancelSeq != ws.CancelSeq) { ws.CancelSeq = input.CancelSeq; ws.Pending = 0; }
-            var mountDto = CombatTkb.MountOf(world, self, input.Mount);
+            // ⭐ CE-1155 (§8h U-5; Weapon Systems §6 WS-6) — a CONTROLLED index (32+k: the weapon whose gunner seat he holds) names
+            //   that weapon's own mount 0: its type decides the fire mode and the per-press rule, and its WeaponState carries the ammo
+            var (platform, platformMount) = OperatedMount(world, self, input.Mount);
+            var mountDto = CombatTkb.MountOf(world, platform, platformMount);
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
                 // ⭐ CE-1127 (§8g F-1) — a turret, a thrown / arc or a guided weapon LOCKS; a rifle, a mount with no turret, an unguided
                 //   rocket fires by SIGHT (the round goes where the crosshair is when it leaves)
-                var mode = OperatorFireModes.Of(world, self, mountDto,
-                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, self, input.Mount)));
+                var mode = OperatorFireModes.Of(world, platform, mountDto,
+                    AmmoChoice.LoadedAmmo(world, WeaponMountQuery.MountEntity(world, platform, platformMount)));
                 if (mode == OperatorFireMode.Lock)
                 {
                     ws.Pending = 1;
@@ -255,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ammoSteps > 0)
             {
                 ws.AmmoSeq = input.AmmoSeq;
-                var mountEntity = WeaponMountQuery.MountEntity(world, self, input.Mount);
+                var mountEntity = WeaponMountQuery.MountEntity(world, platform, platformMount);
                 if (world.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity))
                     AmmoChoice.Cycle(world, mountEntity, ammoSteps, world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity).ReloadSeconds);
             }
@@ -277,6 +283,16 @@ namespace Hrot.AI.Behaviors.Brains
                     Operator = 1, Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = input.AimPoint,
                     CooldownSeconds = OperatorCooldownSeconds,
                 };
+        }
+
+        /// <summary>⭐ <c>CE-1155</c> — the entity and mount index a frame's <c>Mount</c> names: the man's own mount, or — for a controlled
+        /// index (<see cref="WeaponSystems.IsControlledIndex"/>) — the weapon system he controls and ITS mount 0, as
+        /// <c>AimAndFireExecutor</c> resolves it when it fires. A controlled index with no weapon behind it stays on the man.</summary>
+        private static (Entity Platform, int Mount) OperatedMount(EntityRepository world, Entity self, int mount)
+        {
+            if (!WeaponSystems.IsControlledIndex(mount)) return (self, mount);
+            var weapon = WeaponSystems.ControlledAt(world, self, mount);
+            return weapon.IsNull ? (self, mount) : (weapon, 0);
         }
 
         /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>

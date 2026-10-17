@@ -1000,6 +1000,27 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(ShotsIn(far, ref farCh, 30) > 0);
         }
 
+        /// <summary>⭐⭐ <c>CE-2233</c> (CIV-0, the safety gate; DESIGN_Civilians_And_Crowd_Control CV-8) — the AI's weapon never fires at a
+        /// NEUTRAL, whoever picked it: it holds (<c>HoldNeutral</c>) with the target in sight and in range; once the target's side flips
+        /// to Hostile (read live) it fires. A target with no <c>EntityInfo</c> is not neutral (Neutral is the enum's zero). ✅ Red-proof:
+        /// the hold removed from <c>HoldOf</c> ⇒ rounds at the neutral ⇒ red.</summary>
+        [Fact]
+        public void CE2233_TheAiNeverFiresAtANeutral_AndFiresOnceItsSideFlipsToHostile()
+        {
+            if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+            var (shooter, ch, civilian) = TypedShooter(rifle, range: 50f);
+            _world.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            Assert.Equal(0, ShotsIn(shooter, ref ch, 60));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutral, AimAndFireExecutor.HoldOf(_world, shooter, civilian, rifle, 0));
+
+            _world.GetComponentRW<EntityInfo>(civilian).ForceId = ForceId.Hostile;              // a hostile act flipped his side
+            Assert.True(ShotsIn(shooter, ref ch, 60) > 0);
+
+            var (shooter2, ch2, unknown) = TypedShooter(rifle, range: 50f);                     // no EntityInfo: not neutral
+            Assert.True(ShotsIn(shooter2, ref ch2, 60) > 0);
+        }
+
         /// <summary>
         /// ⭐ D-L — an ATGM does not fire on the move (the weapon holds: HoldMoving) — a machine gun does, at twice the spread (the same
         /// <see cref="HitModel.IsMoving"/> test doubles σ). Standing, the ATGM fires.

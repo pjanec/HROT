@@ -8,6 +8,7 @@ known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): ef
 known-conflict: none.
 related-designs:
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): the RoundImpact pair is on every node with an own-sample skip; supersedes §10's MuscleGround exclusion.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §8 U-4 (CE-1165): tear-gas / smoke clouds (AreaEffectCloud) drawn by EffectLayer, like the chaff cloud
   - DESIGN_Entity_Control.md — §8g OWNS the operator's fire modes (SIGHT / LOCK) and the crosshair on the body parts asked in the same exchange as §10
   - DESIGN_World_Query_Seam.md — OWNS TraceCrossing; §10 IM-4 adds the entry / exit normals to it
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S3: smoke drifts on the real wind instead of W3's fixed breeze
