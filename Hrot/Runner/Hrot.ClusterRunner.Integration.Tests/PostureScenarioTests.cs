@@ -367,7 +367,9 @@ public sealed class PostureScenarioTests : IDisposable
 
         Assert.True(harness.PumpUntil(() => { Sample(); return Remembers(civ) && Remembers(armed); }, timeoutFrames: 6000),
             $"① the rifleman must see both neutrals; {State()}");
-        Assert.True(harness.PumpUntil(() => { Sample(); return Hp(hostile) <= 0f; }, timeoutFrames: 12000), $"② the Hostile must die; {State()}");
+        // ② out of the fight, not "health 0": an incapacitated man bleeds out and is not shot again (Injury.IsInTheFight, I4)
+        Assert.True(harness.PumpUntil(() => { Sample(); return !Fdp.Toolkit.Combat.Injury.IsInTheFight(cgf, hostile); }, timeoutFrames: 12000),
+            $"② the Hostile must be put out of the fight; {State()}");
         Assert.Equal(civFull, civLow);
         Assert.Equal(armedFull, armedLow);
 
