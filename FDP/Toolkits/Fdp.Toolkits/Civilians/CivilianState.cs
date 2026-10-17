@@ -27,6 +27,8 @@ namespace Fdp.Toolkit.Civilians
         ArmedHostile = 11,
         /// <summary>⭐ <c>CE-2237</c> — an onlooker: he walked over to an incident and stands looking (§5f).</summary>
         Gather = 12,
+        /// <summary>⭐ <c>CE-2241</c> ① — a man who committed a hostile act, covered by the forces: hands up, standing still (§5h.3).</summary>
+        Surrender = 13,
     }
 
     /// <summary>

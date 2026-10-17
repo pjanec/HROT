@@ -70,6 +70,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float RiotSpeed = 2.5f;
         /// <summary>How often a rioter looks again for the nearest forces person, s.</summary>
         public const float RiotLookSeconds = 1f;
+        /// <summary>⭐ <c>CE-2241</c> ① — a surrendered man lowers his hands after this long with nobody covering him (s).</summary>
+        public const float SurrenderHoldSeconds = 5f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
@@ -94,6 +96,12 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Moving;
             public Vector3 Goal;
             public double NextLookAt, NextStrikeAt;
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ① — when someone last covered him (sim seconds).</summary>
+        public struct SurrenderState
+        {
+            public double CoveredAt;
         }
 
         /// <summary>⭐ <c>CE-2236</c> — the panic's working memory, shared by Panic, Shelter and Inside: the shelter query, its answer,
@@ -145,6 +153,7 @@ namespace Hrot.AI.Behaviors.Brains
             public GatherState Gather;   // ⭐ CE-2237
             public ProtestState Protest;   // ⭐ CE-2240
             public RiotState Riot;   // ⭐ CE-2238
+            public SurrenderState Surrender;   // ⭐ CE-2241
         }
 
         public static CivilianParams Defaults() => new CivilianParams
@@ -210,9 +219,16 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<CivilianBlackboard, CivilianParams, ProtestState>(bb => bb.Params, bb => bb.Protest, Protest);
             var riot = builder.State("Riot")
                 .Activity<CivilianBlackboard, CivilianParams, RiotState>(bb => bb.Params, bb => bb.Riot, Riot);   // ⭐ CE-2238
+            var surrender = builder.State("Surrender")
+                .Activity<CivilianBlackboard, CivilianParams, SurrenderState>(bb => bb.Params, bb => bb.Surrender, Surrender);   // ⭐ CE-2241
 
+            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest, riot, surrender })
+                s.On(0).GoTo("Casualty").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(2);
+            // ⭐ CE-2241 ① (§5h.3) — a man who committed a hostile act raises his hands while the forces cover him: ahead of every other
+            //    way out (a wound still wins, priority 2)
             foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest, riot })
-                s.On(0).GoTo("Casualty").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(1);
+                s.On(0).GoTo("Surrender").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Covered).Polled().Priority(1);
+            surrender.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams, SurrenderState>(bb => bb.Params, bb => bb.Surrender, Uncovered).Polled();
             routine.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
             routine.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Protesting).Polled();   // ⭐ CE-2240
             protest.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
@@ -556,6 +572,28 @@ namespace Hrot.AI.Behaviors.Brains
             ws = default;
         }
 
+        /// <summary>⭐ <c>CE-2241</c> ① (§5h.3, CV-13a) — Surrender: covered by the forces after his hostile act, he stops and raises his
+        /// hands (<see cref="GestureKind.HandsUp"/> — the AI holds its fire at him, <c>HoldSurrender</c>). His side stays Hostile. Running
+        /// until nobody has covered him for <see cref="SurrenderHoldSeconds"/>, or a wound.</summary>
+        [SharedAiAction]
+        public static NodeStatus Surrender(ref CivilianParams p, ref SurrenderState ws, Entity self, EntityRepository world)
+        {
+            CivilianMind.SetMode(world, self, CivilianMode.Surrender);
+            double now = world.SimulationTime;
+            if (ws.CoveredAt <= 0 || !Covering.By(world, self).IsNull) ws.CoveredAt = now;
+            LocomotionMoveTo.Stop(world, self);
+            if (Gestures.Of(world, self) != GestureKind.HandsUp) Gestures.Set(world, self, GestureKind.HandsUp);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the surrender: his hands come down.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Surrender")]
+        public static void Deactivate_Surrender(ref CivilianParams p, ref SurrenderState ws, Entity self, EntityRepository world)
+        {
+            Gestures.Set(world, self, GestureKind.None);
+            ws = default;
+        }
+
         /// <summary>⭐ <c>CE-2238</c> — the nearest living, standing PERSON of the forces (Friend and not of the Civilian class,
         /// <see cref="Armament.IsCombatant"/>) within <paramref name="reach"/> of <paramref name="self"/>, or <see cref="Entity.Null"/>.</summary>
         public static Entity NearestForces(EntityRepository world, Entity self, float reach)
@@ -648,6 +686,16 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool BelowPanic(ref CivilianParams p, Entity self, EntityRepository world)
             => CivilianMind.FearOf(world, self) < p.PanicAt;
+
+        /// <summary>⭐ <c>CE-2241</c> ① — he has committed a hostile act and a forces person covers him (<see cref="Covering.By"/>).</summary>
+        [SharedAiCondition]
+        public static bool Covered(ref CivilianParams p, Entity self, EntityRepository world)
+            => HostileActs.Committed(world, self) && !Covering.By(world, self).IsNull;
+
+        /// <summary>⭐ <c>CE-2241</c> ① — nobody has covered him for <see cref="SurrenderHoldSeconds"/>: his hands come down.</summary>
+        [SharedAiCondition]
+        public static bool Uncovered(ref CivilianParams p, ref SurrenderState ws, Entity self, EntityRepository world)
+            => ws.CoveredAt > 0 && world.SimulationTime - ws.CoveredAt >= SurrenderHoldSeconds && Covering.By(world, self).IsNull;
 
         /// <summary>⭐ <c>CE-2238</c> — a protester whose anger has reached <see cref="CivilianParams.RiotAt"/> riots.</summary>
         [SharedAiCondition]

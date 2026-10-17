@@ -729,6 +729,59 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
+    /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
+    /// ① his hands are up on CGF, SimHost and IG · ② the rifleman's weapon status is <c>HoldSurrender</c> at least once · ③ from the first
+    /// raised-hands frame on CGF, for 10 s, while the hands stay up, no round is spent and the rioter is not hurt · ④ he stays Hostile.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2241_CivSurrender_ACoveredHostileRaisesHisHands_OnEveryNode_AndNoRoundIsFiredAtHim()
+    {
+        using var harness = await StartShippedScenario("ua-civ-surrender");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Rioter").IsNull) && !ByName(cgf, "Rifleman").IsNull,
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        var rioter = ByName(cgf, "Rioter");
+        var rifle = ByName(cgf, "Rifleman");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        float Hp() => cgf.HasComponent<Health>(rioter) ? cgf.GetComponent<Health>(rioter).Current : -1f;
+        var up = new System.Collections.Generic.HashSet<string>();
+        int held = 0, firstAmmo = -1, spentWhileUp = 0;
+        float firstHp = -1f, hurtWhileUp = 0f;
+        double firstAt = -1;
+        void Sample()
+        {
+            foreach (var (name, w) in hosts)
+            {
+                var r = ByName(w, "Rioter");
+                if (!r.IsNull && Gestures.Of(w, r) == GestureKind.HandsUp) up.Add(name);
+            }
+            if (cgf.HasComponent<ActionStatus>(rifle) && cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason == ActionReason.HoldSurrender) held++;
+            bool handsUp = Gestures.Of(cgf, rioter) == GestureKind.HandsUp;
+            if (handsUp && firstAt < 0) { firstAt = cgf.SimulationTime; firstAmmo = Ammo(); firstHp = Hp(); }
+            if (handsUp && firstAt >= 0 && cgf.SimulationTime - firstAt <= 10.0)
+            {
+                spentWhileUp = Math.Max(spentWhileUp, firstAmmo - Ammo());
+                hurtWhileUp = Math.Max(hurtWhileUp, firstHp - Hp());
+            }
+        }
+        string State() => $"mode {Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, rioter)}, side {cgf.GetComponentRO<EntityInfo>(rioter).ForceId}, " +
+                          $"up [{string.Join(",", up)}], held {held}, rifle {cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason}, ammo {Ammo()}, hp {Hp()}";
+
+        harness.PumpUntil(() => { Sample(); return firstAt >= 0 && cgf.SimulationTime - firstAt >= 10.0; }, timeoutFrames: 6000);   // 100 s
+        _out.WriteLine(State());
+        Assert.True(firstAt >= 0, $"the rioter raises his hands; {State()}");
+        Assert.Equal(3, up.Count);                                    // ① on every node
+        Assert.True(held > 0, $"② the rifleman holds at the raised hands; {State()}");
+        Assert.Equal(0, spentWhileUp);                                // ③ no round while his hands are up
+        Assert.Equal(0f, hurtWhileUp);
+        Assert.Equal(ForceId.Hostile, cgf.GetComponentRO<EntityInfo>(rioter).ForceId);   // ④
+    }
+
+    /// <summary>
     /// ⭐ <c>AW-20</c> (R-2026) — <c>ua-armed-shield</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
     /// §5c, §5h): a rifleman 60 m from an insurgent with four civilians standing in the line between them and two beside him. Sampled every
     /// frame on CGF: ① he holds with <c>HoldNeutralOnLine</c> at least once, and every round he spends leaves with no living civilian's body
