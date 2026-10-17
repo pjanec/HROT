@@ -41,7 +41,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
     /// default); <paramref name="Child"/>: a person shorter than <see cref="ChildHeight"/>.</para>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
-                                           bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian);
+                                           bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
+                                           bool Elderly = false);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -220,7 +221,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e), look.Kit);
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, HasOwnColour(world, e, look) ? colour : null, SideOf(world, e), look.Kit,
+                                     look.Elderly);
                 Outfits.Details(outfit.Value, seed, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
@@ -392,6 +394,13 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// ⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a) — true when <paramref name="e"/> is drawn COWERING
+    /// (<see cref="BlockFigure.Cower"/>): an unarmed man whose <c>EffectState</c> carries the CivilianHsm's cower mode (backend F-3,
+    /// <c>Effects.IsCowering</c>). A soldier never cowers in the drawing; death and the knock-down (a carriage) win over it.
+    /// </summary>
+    public static bool Cowers(EntityRepository world, Entity e, bool soldier) => !soldier && Fdp.Toolkit.Combat.Effects.IsCowering(world, e);
+
     private static float AimedNow(WeaponPostureKind posture) => posture == WeaponPostureKind.Aimed ? 1f : 0f;
 
     /// <returns>The parts, how AIMED he is standing (0..1, the posture blend) — the athletic stance and the glide follow it — and
@@ -414,6 +423,7 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
             return (BlockFigure.Fall(BlockFigure.Parts(from, soldier, posture), t, soldier), 0f, 0f);
         }
         _fall.Alive(e, target, simTime);
+        if (Cowers(world, e, soldier)) return (BlockFigure.Cower, 0f, 0f);
         if (world.IsComponentTypeRegistered<StanceStatus>() && world.HasComponent<StanceStatus>(e))
         {
             ref readonly var status = ref world.GetComponentRO<StanceStatus>(e);
@@ -1202,7 +1212,9 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
         return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
                             TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight,
-                            Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian);   // ⭐ CE-1162
+                            Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
+                            // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
+                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly);
     }
 
     /// <summary>

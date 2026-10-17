@@ -57,6 +57,23 @@ public static class Outfits
     private static readonly Color[] Suits = [new(52, 54, 58, 255), new(34, 40, 62, 255), new(28, 28, 30, 255), new(96, 98, 102, 255)];
     private static readonly Color[] Ties = [new(170, 30, 36, 255), new(40, 70, 150, 255), new(110, 30, 50, 255), new(40, 100, 60, 255)];
     private static readonly Color Shirt = new(238, 238, 236, 255);
+    private static readonly Color[] GreyHair = [new(200, 200, 198, 255), new(170, 170, 168, 255), new(232, 230, 224, 255), new(140, 138, 134, 255)];
+    private static readonly Color[] MutedTops =
+        [new(120, 100, 80, 255), new(90, 96, 110, 255), new(150, 140, 120, 255), new(100, 110, 90, 255), new(130, 90, 90, 255), new(70, 72, 80, 255)];
+
+    /// <summary>⭐ CE-1162 — an elderly civilian's outfit: grey hair (a man often balding), muted top and trousers or a long skirt.</summary>
+    private static Outfit Elderly(Draw r, long seed, long type, Color skin, Color? own)
+    {
+        bool woman = r.Chance(0.5f);
+        var hair = GreyHair[r.Pick(GreyHair.Length)];
+        var style = woman ? (r.Chance(0.6f) ? HairStyle.Short : HairStyle.Long) : (r.Chance(0.4f) ? HairStyle.None : HairStyle.Short);
+        var top = own is { } c ? Scale(c, 0.8f) : MutedTops[r.Pick(MutedTops.Length)];
+        var legs = woman && r.Chance(0.5f) ? Legwear.Skirt : Legwear.Trousers;
+        var bottom = Bottoms[r.Pick(Bottoms.Length)];
+        return new Outfit(top, top, bottom, legs == Legwear.Trousers ? bottom : skin, skin, hair, style, legs, false, default, CamoPattern.None,
+                          false, false, FaceOf(seed, type, woman, false));
+    }
+
     /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
     public static readonly Color PoliceUniform = new(34, 46, 82, 255);
     // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
@@ -92,11 +109,15 @@ public static class Outfits
     /// </summary>
     /// <param name="kit">⭐ CE-1162 (civilian U-1) — a <see cref="PersonKit.Security"/> officer wears the police uniform (navy, no
     /// camouflage: his side does not change his uniform), armed or not.</param>
-    public static Outfit For(long seed, long type, bool soldier, bool child, Color? own, ForceId side, PersonKit kit = PersonKit.Civilian)
+    /// <param name="elderly">⭐ CE-1162 (U1-b) — an elderly civilian (the type's <c>PersonDto.Age</c>): grey or white hair, often thin on top,
+    /// muted everyday clothes (no shorts, no bright tops), sometimes a cardigan.</param>
+    public static Outfit For(long seed, long type, bool soldier, bool child, Color? own, ForceId side, PersonKit kit = PersonKit.Civilian,
+                             bool elderly = false)
     {
         var r = new Draw(seed, type);
         var skin = SkinTones[r.Pick(SkinTones.Length)];
         var hair = HairColours[r.Pick(HairColours.Length)];
+        if (elderly && kit == PersonKit.Civilian && !soldier && !child) return Elderly(r, seed, type, skin, own);
         if (kit == PersonKit.Security)
         {
             var uniform = own ?? PoliceUniform;

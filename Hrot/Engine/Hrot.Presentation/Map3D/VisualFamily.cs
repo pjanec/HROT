@@ -1,3 +1,4 @@
+using System.Linq;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Hrot.Core.Tkb;
@@ -122,12 +123,14 @@ public static class VisualFamilies
         return PersonKit.Civilian;
     }
 
-    /// <summary>True when the person kit carries a rifle: a soldier, or a security-force officer whose type has a weapon (B-5 gives
-    /// shield and baton men their own later). ⭐ CE-1162 — from the class, not a DIS category.</summary>
+    /// <summary>True when the person kit carries a rifle: a soldier, or a security-force officer whose type has a HELD weapon — a
+    /// grenade is thrown, not carried in the hands, so the B-5 shield and baton men (stun grenades only) stay unarmed and the launcher man
+    /// (a baton launcher) is armed. ⭐ CE-1162 — from the class, not a DIS category.</summary>
     public static bool IsSoldier(TkbTemplate t) => PersonKitOf(t) switch
     {
         PersonKit.Soldier => true,
-        PersonKit.Security => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()?.Mounts.Count > 0,
+        PersonKit.Security => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()?.Mounts
+                                  .Any(m => m.Category != Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade) == true,
         _ => false,
     };
 }

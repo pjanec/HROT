@@ -1401,7 +1401,9 @@ public sealed class Map3DTests
         var civilian = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale));
         var police = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield));
         Assert.Equal((VisualFamily.Person, PersonKit.Civilian, false), (civilian.Family, civilian.Kit, civilian.Soldier));
-        Assert.Equal((VisualFamily.Person, PersonKit.Security, false), (police.Family, police.Kit, police.Soldier));
+        Assert.Equal((VisualFamily.Person, PersonKit.Security, false), (police.Family, police.Kit, police.Soldier));   // stun grenades only
+        var launcher = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher));
+        Assert.Equal((PersonKit.Security, true), (launcher.Kit, launcher.Soldier));   // a baton launcher is held: he carries it
         foreach (var t in db.GetAll())
             if (t.DisType.Kind == 3 && t.DisType.Category == 1 && EntityBodyLayer3D.Resolve(t).Family == VisualFamily.Person)
                 Assert.Equal(PersonKit.Soldier, EntityBodyLayer3D.Resolve(t).Kit);   // every infantryman is still a soldier
@@ -1414,6 +1416,60 @@ public sealed class Map3DTests
         var clothes = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, civilian.Soldier, false, null, ForceId.Neutral, civilian.Kit);
         Assert.NotEqual(Outfits.PoliceUniform, clothes.Top);
         Assert.False(clothes.Soldier);
+    }
+
+    /// <summary>⭐ CE-1162 (civilian U1-b, docs/DESIGN_Civilians_And_Crowd_Control.md §8) — the TYPE says an elderly person (backend F-4,
+    /// <c>PersonDto.Age</c>): grey or white hair, long trousers or a skirt (never shorts), on every seed; a younger adult keeps his clothes.</summary>
+    [Fact]
+    public void CE1162_AnElderlyType_IsDressedAndGreyedAsOne()
+    {
+        var db = BuiltIn();
+        var old = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly));
+        var adult = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale));
+        Assert.Equal((true, false, false), (old.Elderly, adult.Elderly, old.Child));
+        int grey = 0;
+        for (long seed = 1; seed <= 40; seed++)
+        {
+            var o = Outfits.For(seed, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianElderly, false, false, null, ForceId.Neutral, old.Kit, old.Elderly);
+            Assert.NotEqual(Legwear.Shorts, o.Legwear);
+            float sat = MathF.Max(o.Hair.R, MathF.Max(o.Hair.G, o.Hair.B)) - MathF.Min(o.Hair.R, MathF.Min(o.Hair.G, o.Hair.B));
+            Assert.True(sat <= 8f && o.Hair.R >= 130, $"seed {seed}: hair {o.Hair.R},{o.Hair.G},{o.Hair.B} is not grey");
+            grey++;
+        }
+        Assert.Equal(40, grey);
+    }
+
+    /// <summary>⭐ CE-1164 (civilian U-3, §8 U3-a) — a COWERING civilian (backend F-3, <c>EffectState.Cowering</c>) is drawn crouched with
+    /// his forearms over his head: as low as a crouch, and the only parts that differ from the crouch are the arms, which reach above his
+    /// head's middle. A soldier never cowers in the drawing; the 2-D line says COWERING.</summary>
+    [Fact]
+    public void CE1164_ACoweringCivilian_CrouchesWithHisArmsOverHisHead()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));
+            Assert.True(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: true));
+            Assert.Equal("COWERING", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, false));
+            Assert.False(EntityBodyLayer3D.Cowers(world, man, soldier: false));
+        }
+
+        var size = ShapeKits.DefaultSize(VisualFamily.Person);
+        var crouched = BlockFigure.Parts(StanceId.Crouched, soldier: false);
+        var cower = BlockFigure.Cower;
+        Assert.Equal(crouched.Length, cower.Length);
+        Assert.InRange(Top(cower, size), Top(crouched, size) - 0.05f, Top(crouched, size) + 0.15f);
+        float headMid = Vector3.Transform(Vector3.Zero, cower[BlockFigure.HeadIndex].BodyTransform(size)).Z;
+        var arms = Enumerable.Range(0, cower.Length).Where(i => cower[i] != crouched[i]).ToList();
+        Assert.NotEmpty(arms);
+        Assert.All(arms, i => Assert.NotEqual(BlockFigure.HeadIndex, i));
+        Assert.True(arms.Max(i => Top([cower[i]], size)) > headMid, "the hands are not over the head");
     }
 
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,

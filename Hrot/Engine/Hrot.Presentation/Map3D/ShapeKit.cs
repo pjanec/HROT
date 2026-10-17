@@ -864,6 +864,20 @@ public static partial class BlockFigure
 
     private static readonly KitPart[] Standing = [.. StandingBody, .. CivilianArms(Vector3.Zero, swing: true)];
     private static readonly KitPart[] Crouched = [.. CrouchedBody, .. CivilianArms(CrouchDrop, swing: false)];
+
+    /// <summary>
+    /// ⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a) — COWERING: crouched low, both forearms up over the
+    /// head (elbows forward, hands on top of it) — what a civilian under fire with nowhere to go does (the CivilianHsm's Cower state,
+    /// <c>EffectState.Cowering</c>).
+    /// </summary>
+    public static readonly KitPart[] Cower = [.. CrouchedBody, .. CowerArms()];
+
+    private static KitPart[] CowerArms()
+    {
+        var l = StandShoulderL + CrouchDrop; var r = StandShoulderR + CrouchDrop;
+        return [.. Arm(l, l + new Vector3(0.22f, 0.07f, 0.10f), l + new Vector3(0.10f, -0.13f, 0.34f), PartRole.Hull),
+                .. Arm(r, r + new Vector3(0.22f, -0.07f, 0.10f), r + new Vector3(0.10f, 0.13f, 0.34f), PartRole.Hull)];
+    }
     private static readonly KitPart[] Prone = [.. ProneBody, .. ProneArms(false)];
     private static readonly KitPart[] ProneArmed = [.. ProneBody, .. ProneArms(true)];
     private static readonly KitPart[][] StandingArmed =

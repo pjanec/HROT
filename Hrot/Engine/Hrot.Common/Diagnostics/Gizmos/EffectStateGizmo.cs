@@ -9,7 +9,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
 {
     /// <summary>
     /// ⭐ <c>CE-1164</c> (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-c) — a person's running non-lethal effects as one
-    /// text line under him: <c>DOWN</c> (knocked down), <c>STUNNED</c>, <c>GASSED</c> (irritated), joined by " · "; NOTHING when none runs.
+    /// text line under him: <c>DOWN</c> (knocked down), <c>STUNNED</c>, <c>GASSED</c> (irritated), ⭐ <c>COWERING</c> (CE-1164 — the CivilianHsm's mode, backend F-3), joined by " · "; NOTHING when none runs.
     /// Reads the replicated <see cref="EffectState"/> (CE-3219) against sim time — the 2-D fallback of the 3-D pose, the shape of
     /// <c>StanceGizmo</c>. On the Labels layer (on by default): an effect is rare and short, and it is what the operator must see.
     /// Auto-discovered on every map host (<c>GizmoReflectionRegistrar</c>).
@@ -33,11 +33,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public static string? Text(EntityRepository repo, Entity entity)
         {
             bool down = Effects.IsKnockedDown(repo, entity), stunned = Effects.IsStunned(repo, entity), gassed = Effects.IsIrritated(repo, entity);
-            if (!down && !stunned && !gassed) return null;
+            bool cowering = Effects.IsCowering(repo, entity);
+            if (!down && !stunned && !gassed && !cowering) return null;
             var parts = new System.Collections.Generic.List<string>(3);
             if (down) parts.Add("DOWN");
             if (stunned) parts.Add("STUNNED");
             if (gassed) parts.Add("GASSED");
+            if (cowering) parts.Add("COWERING");
             return string.Join(" · ", parts);
         }
     }
