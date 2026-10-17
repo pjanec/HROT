@@ -76,7 +76,12 @@ public sealed class SharedApplicationBootstrapperTests
             INetworkFactory factory,
             string[] keys,
             params Hrot.Common.Infrastructure.INodeResourceProvider[] providers)
-            => new TestBootstrapper(factory) { _declaredKeys = keys, _providers = providers };
+            => new TestBootstrapper(factory)
+            {
+                _declaredKeys = keys, _providers = providers,
+                // ⭐ CE-4013 D10 — a resource is declared because a capability needs it (the base checks the two agree).
+                TestCapabilities = keys.Length == 0 ? Array.Empty<INodeCapability>() : new INodeCapability[] { new BorrowingCapability(keys) },
+            };
 
         protected override System.Collections.Generic.IReadOnlyList<string> DeclaredResourceKeys(NodeRole role)
             => _declaredKeys;
@@ -189,6 +194,14 @@ public sealed class SharedApplicationBootstrapperTests
 
         var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
         Assert.Contains("NodeCapabilityWalk.Register", ex.ToString());
+    }
+
+    /// <summary>A capability that borrows exactly <c>keys</c> — what makes a declared resource legitimate.</summary>
+    private sealed class BorrowingCapability : INodeCapability
+    {
+        public BorrowingCapability(string[] keys) => Needs = keys;
+        public string Key => "cap:test-borrowing";
+        public IReadOnlyList<string> Needs { get; }
     }
 
     private sealed class NeedyCapability : INodeCapability
