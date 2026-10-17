@@ -591,6 +591,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target)) return ActionReason.HoldNeutral;
             // ⭐ CV-13a (R-2024) — nor at a man showing HANDS UP, even Hostile (a surrender is honoured; a feint is read live)
             if (Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(world, target)) return ActionReason.HoldSurrender;
+            // ⭐ CE-2239 part 1 (CV-8, §5j FL-2/FL-3) — the unit's FORCE LEVEL: no round above it, unless THIS target is a self-defence threat
+            if (!ForceLevels.Permits(world, unit, target, ammo, mount)) return ActionReason.HoldForceLevel;
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
             //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
             if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;

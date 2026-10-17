@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             if (!w.IsComponentTypeRegistered<CivilianState>()) w.RegisterComponent<CivilianState>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
             if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             return w;
         }
 
@@ -85,6 +86,25 @@ namespace Fdp.Toolkit.Civilians.Tests
             Assert.Equal(frightened - CivilianFear.DecayPerSecond, Fear(w, man), 3);
             for (int i = 0; i < 400; i++) Frame(w, 0.1f);
             Assert.Equal(0f, Fear(w, man));
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6, §5j) — a stun grenade or tear gas hurts nobody and is not heard, yet it is force used on
+        /// him: a NEW stun frightens him as a hit does, ONCE (his fear then fades while the stun runs), and a new irritation that lasts
+        /// longer frightens him again. ✅ Red-proof: the effect block removed from <c>CivilianFearSystem</c> ⇒ red; the "already
+        /// frightened by it" check removed ⇒ red (the fear never fades while the stun runs).</summary>
+        [Fact]
+        public void CE2239_AStunOrGas_FrightensHimOnce_ANewOneAgain()
+        {
+            var w = World();
+            var man = Person(w, Vector3.Zero);
+            w.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { StunnedUntil = 1000 });
+            Frame(w);
+            Assert.Equal(CivilianFear.EffectImpulse, Fear(w, man), 3);
+            for (int i = 0; i < 10; i++) Frame(w, 0.1f);
+            Assert.Equal(CivilianFear.EffectImpulse - CivilianFear.DecayPerSecond, Fear(w, man), 3);
+            w.GetComponentRW<Fdp.Toolkit.Combat.EffectState>(man).IrritatedUntil = 2000;   // the gas reaches him
+            Frame(w);
+            Assert.Equal(1f, Fear(w, man), 3);
         }
 
         [Fact]

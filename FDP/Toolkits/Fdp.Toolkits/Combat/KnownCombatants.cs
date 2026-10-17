@@ -20,6 +20,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>How recently a witness must have perceived the actor (ticks, ~1 s at 60 Hz) — KC-2.</summary>
         public const uint WitnessWindowTicks = 60;
 
+        /// <summary>TEMP diagnostic (blend-back) — what the last MarkWitnesses saw. Remove.</summary>
+        public static string LastProbe = "";
+
         /// <summary><paramref name="observer"/> now knows <paramref name="man"/> is a combatant. False when the observer has no memory.</summary>
         public static bool Mark(EntityRepository world, Entity observer, Entity man)
         {
@@ -46,15 +49,19 @@ namespace Fdp.Toolkit.Combat
             long id = (long)actor.PackedValue;
             uint now = world.SimulationTick;   // what ThreatEvaluationSystem stamps LastSeenTick with (ISimulationView.Tick)
             int n = 0;
+            var probe = new System.Text.StringBuilder($"now {now}:");   // TEMP diagnostic (blend-back) — remove
             foreach (var e in world.Query().With<TargetMemory>().Build())
             {
                 if (e == actor) continue;
                 ref readonly var mem = ref world.GetComponentRO<TargetMemory>(e);
+                for (int k = 0; k < mem.Count; k++)
+                    if (mem.EntityIds[k] == id) probe.Append($" [{e} slot {k} seen {mem.LastSeenTick[k]} anon {TargetMemory.IsAnonymous(in mem, k)}]");
                 bool witnessed = false;
                 for (int k = 0; k < mem.Count && !witnessed; k++)
                     witnessed = mem.EntityIds[k] == id && !TargetMemory.IsAnonymous(in mem, k) && now - mem.LastSeenTick[k] <= WitnessWindowTicks;
                 if (witnessed && Mark(world, e, actor)) n++;
             }
+            LastProbe = probe.Append($" => {n}").ToString();
             return n;
         }
 

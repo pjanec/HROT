@@ -1131,6 +1131,49 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(armed, Fdp.Toolkit.Perception.ThreatDanger.Of(_world, shooter, enemy));
         }
 
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, AW-18; §5j FL-2/FL-3) — the FORCE LEVEL caps the round, at the gate: a NonLethal unit holds
+        /// its rifle (<c>HoldForceLevel</c>, nothing spent) at a Hostile, but fires a baton round; Warn holds even the baton round; no level is
+        /// lethal (unchanged); and SELF-DEFENCE lifts the cap against THAT man only — he aims a lethal weapon at the shooter, or he committed
+        /// a lethal act. ✅ Red-proof: the Permits line dropped from HoldOf ⇒ red; SelfDefence always false ⇒ red; the aimed-at check
+        /// without "at me" ⇒ red (the second man).</summary>
+        [Fact]
+        public void CE2239_TheForceLevel_HoldsALethalRound_NotABatonRound_AndSelfDefenceLiftsItAgainstThatManOnly()
+        {
+            if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
+            if (!_world.IsComponentTypeRegistered<Roe>()) _world.RegisterComponent<Roe>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+            var (shooter, ch, man) = TypedShooter(rifle, range: 30f);
+            _world.AddComponent(man, new EntityInfo { ForceId = ForceId.Hostile });
+            Assert.True(ShotsIn(shooter, ref ch, 60) > 0);                                              // no level: lethal, as before
+
+            _world.AddComponent(shooter, new Roe { ForceLevel = RoeForceLevel.NonLethal });
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel, AimAndFireExecutor.HoldOf(_world, shooter, man, rifle, 0));
+            Assert.Equal(0, ShotsIn(shooter, ref ch, 60));
+
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var baton = new Fdp.Interfaces.TkbTemplate("Baton round", 9390);
+            baton.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Blunt });
+            db.Register(baton);
+            var launcher = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, AmmoGuid = 9390 };
+            Assert.Null(AimAndFireExecutor.HoldOf(_world, shooter, man, launcher, 0));                 // a baton round: allowed
+            _world.GetComponentRW<Roe>(shooter).ForceLevel = RoeForceLevel.Warn;
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel, AimAndFireExecutor.HoldOf(_world, shooter, man, launcher, 0));
+            _world.GetComponentRW<Roe>(shooter).ForceLevel = RoeForceLevel.NonLethal;
+
+            // ⭐ AW-18 — he aims a lethal weapon at the shooter: the rifle is allowed against HIM
+            _world.AddComponent(man, new WeaponState { Ammo = 10, MaxAmmo = 10 });
+            _world.AddComponent(man, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = shooter });
+            Assert.Null(AimAndFireExecutor.HoldOf(_world, shooter, man, rifle, 0));
+            Assert.True(ShotsIn(shooter, ref ch, 60) > 0);
+            // …and only against him: a second Hostile aiming at someone ELSE stays capped
+            var other = SpawnTarget(new Vector3(30f, 5f, 0f));
+            _world.AddComponent(other, new EntityInfo { ForceId = ForceId.Hostile });
+            _world.AddComponent(other, new WeaponState { Ammo = 10, MaxAmmo = 10 });
+            _world.AddComponent(other, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = man });
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel, AimAndFireExecutor.HoldOf(_world, shooter, other, rifle, 0));
+        }
+
         /// <summary>
         /// ⭐ D-L — an ATGM does not fire on the move (the weapon holds: HoldMoving) — a machine gun does, at twice the spread (the same
         /// <see cref="HitModel.IsMoving"/> test doubles σ). Standing, the ATGM fires.

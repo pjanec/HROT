@@ -19,6 +19,21 @@ namespace Fdp.Toolkit.Behavior.Components
         FireAtWill = 3,
     }
 
+    /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, AW-18; docs/DESIGN_Civilians_And_Crowd_Control.md §5j FL-1) — the FORCE LEVEL: the most force
+    /// the unit's weapons may use, ordered from most to least restrictive. <see cref="ForceUnset"/> = no level given ⇒ <see cref="Lethal"/>
+    /// (today's behaviour). Self-defence lifts it (AW-18, <c>ForceLevels.Permits</c>).</summary>
+    public enum RoeForceLevel : byte
+    {
+        /// <summary>No level given — reads as <see cref="Lethal"/>. ⚠ Named, not <c>Unset</c> (the IDL's one enum scope).</summary>
+        ForceUnset = 0,
+        /// <summary>Warn only: no round at all.</summary>
+        Warn = 1,
+        /// <summary>Non-lethal rounds only (baton rounds, stun, gas) and the baton.</summary>
+        NonLethal = 2,
+        /// <summary>Any weapon.</summary>
+        Lethal = 3,
+    }
+
     /// <summary>⭐ <c>CE-2074</c> (R-199 ②, R-200) — may the unit's SOP interrupt its task with a reaction?
     /// <see cref="ReactionsUnset"/> ⇒ <see cref="React"/>.</summary>
     public enum RoeReactions : byte
@@ -56,6 +71,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// back, in seconds; <c>0</c> = unset ⇒ <see cref="RoeOf.DefaultReturnFireWindowSeconds"/>. Last, so the earlier fields
         /// keep their offsets.</summary>
         public float ReturnFireWindowSeconds;
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-1) — the most force the unit may use; <see cref="RoeForceLevel.ForceUnset"/> ⇒
+        /// <see cref="RoeForceLevel.Lethal"/>. Last, so the earlier fields keep their offsets.</summary>
+        public RoeForceLevel ForceLevel;
     }
 
     /// <summary>⭐ <c>CE-2074</c> — reading a unit's ROE with the defaults applied, in one place.</summary>
@@ -79,6 +97,14 @@ namespace Fdp.Toolkit.Behavior.Components
             if (!view.HasComponent<Roe>(unit)) return RoeFire.FireAtWill;
             var fire = view.GetComponentRO<Roe>(unit).Fire;
             return fire == RoeFire.FireUnset ? RoeFire.FireAtWill : fire;
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> part 1 — the unit's force level; <see cref="RoeForceLevel.Lethal"/> when it has no ROE or it is unset.</summary>
+        public static RoeForceLevel ForceLevel(ISimulationView view, Entity unit)
+        {
+            if (!view.HasComponent<Roe>(unit)) return RoeForceLevel.Lethal;
+            var level = view.GetComponentRO<Roe>(unit).ForceLevel;
+            return level == RoeForceLevel.ForceUnset ? RoeForceLevel.Lethal : level;
         }
 
         /// <summary>The unit's reaction rule; <see cref="RoeReactions.React"/> when it has no ROE or it is unset.</summary>

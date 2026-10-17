@@ -1,0 +1,163 @@
+{
+    "$meta": {
+        "docType": "Hrot.Scenario",
+        "schemaVersion": 1
+    },
+    "header": {
+        "subsystemType": "Hrot.Scenario",
+        "schemaVersion": "1.0",
+        "terrainName": "test-town"
+    },
+    "entities": {
+        "c2380004-0000-4000-8000-000000000001": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9961
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Covert insurgent",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "PassengerBuffer": {
+                "Count": 1,
+                "Passengers": [
+                    "c2380004-0000-4000-8000-000000000003"
+                ],
+                "Seats": [
+                    3
+                ]
+            },
+            "MissionPlan": {
+                "PlanData": {
+                    "activeTaskId": "00000000-0000-0000-0000-000000000000",
+                    "tasks": [
+                        {
+                            "taskId": "c2380004-0000-4000-8000-000000000010",
+                            "executingEngine": "",
+                            "behaviorName": "CivilianHsm",
+                            "behaviorParams": "{}",
+                            "triggers": [
+                                {
+                                    "type": "TimerElapsed",
+                                    "params": "8"
+                                }
+                            ]
+                        },
+                        {
+                            "taskId": "c2380004-0000-4000-8000-000000000011",
+                            "executingEngine": "",
+                            "behaviorName": "StationWeapon",
+                            "behaviorParams": "{\"Station\":\"Hands\",\"Seconds\":10}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        },
+                        {
+                            "taskId": "c2380004-0000-4000-8000-000000000012",
+                            "executingEngine": "",
+                            "behaviorName": "PersonAttack",
+                            "behaviorParams": "{\"Target\":9962}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+        "c2380004-0000-4000-8000-000000000002": {
+            "SimTransform": {
+                "Position": [
+                    130,
+                    215,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9962
+            },
+            "TkbIdentity": {
+                "TkbType": 2002
+            },
+            "EntityInfo": {
+                "Name": "Rifleman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CombatPosture",
+                "Params": "{}",
+                "Origin": "Superior"
+            }
+        },
+        "c2380004-0000-4000-8000-000000000003": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "NetworkIdentity": {
+                "Value": 9963
+            },
+            "TkbIdentity": {
+                "TkbType": 617
+            },
+            "EntityInfo": {
+                "Name": "Pistol",
+                "ForceId": "Neutral"
+            },
+            "IsEmbarkedTag": {
+                "Vehicle": "c2380004-0000-4000-8000-000000000001",
+                "Seat": 3
+            }
+        }
+    }
+}

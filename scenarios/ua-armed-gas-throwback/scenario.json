@@ -1,0 +1,193 @@
+{
+    "$meta": {
+        "docType": "Hrot.Scenario",
+        "schemaVersion": 1
+    },
+    "header": {
+        "subsystemType": "Hrot.Scenario",
+        "schemaVersion": "1.0",
+        "terrainName": "test-town"
+    },
+    "entities": {
+        "c2380003-0000-4000-8000-000000000001": {
+            "SimTransform": {
+                "Position": [
+                    90,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9951
+            },
+            "TkbIdentity": {
+                "TkbType": 1203
+            },
+            "EntityInfo": {
+                "Name": "Policeman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "MissionPlan": {
+                "PlanData": {
+                    "activeTaskId": "00000000-0000-0000-0000-000000000000",
+                    "tasks": [
+                        {
+                            "taskId": "c2380003-0000-4000-8000-000000000110",
+                            "executingEngine": "",
+                            "behaviorName": "FireAtPoint",
+                            "behaviorParams": "{\"x\":103,\"y\":200,\"z\":0,\"mount\":2,\"rounds\":1}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        },
+                        {
+                            "taskId": "c2380003-0000-4000-8000-000000000111",
+                            "executingEngine": "",
+                            "behaviorName": "HoldTheLine",
+                            "behaviorParams": "{}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            "Roe": {
+                "Fire": "FireAtWill",
+                "Reactions": "StayOnTask",
+                "SetBy": "Superior",
+                "ForceLevel": "NonLethal"
+            }
+        },
+        "c2380003-0000-4000-8000-000000000002": {
+            "SimTransform": {
+                "Position": [
+                    108,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9952
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Hardened rioter",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true,\"PanicAt\":1.5}",
+                "Origin": "Superior"
+            }
+        },
+        "c2380003-0000-4000-8000-000000000003": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    203,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9953
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Protester 1",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[110,203,0]}",
+                "Origin": "Superior"
+            }
+        },
+        "c2380003-0000-4000-8000-000000000004": {
+            "SimTransform": {
+                "Position": [
+                    110,
+                    197,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9954
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Protester 2",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[110,197,0]}",
+                "Origin": "Superior"
+            }
+        }
+    }
+}

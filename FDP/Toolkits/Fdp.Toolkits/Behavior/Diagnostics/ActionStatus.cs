@@ -77,6 +77,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CV-13a</c> (R-2024; DESIGN_Civilians_And_Crowd_Control §4) — the target shows HANDS UP: the AI's weapon holds, even
         /// at a Hostile. An operator's fire is not held.</summary>
         HoldSurrender,
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-2) — the unit's FORCE LEVEL forbids this round (Warn: any; NonLethal: a lethal
+        /// one), and the target is no self-defence threat (AW-18): the round is held (Running, nothing spent).</summary>
+        HoldForceLevel,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -157,6 +160,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldNeutral        => "hold: neutral",              // ⭐ CE-2233 — a civilian
             ActionReason.HoldNeutralOnLine  => "hold: neutral on line",      // ⭐ AW-20 — a civilian in the line or the spread
             ActionReason.HoldSurrender      => "hold: hands up",             // ⭐ CV-13a — a surrender
+            ActionReason.HoldForceLevel     => "hold: force level",          // ⭐ CE-2239 — the ROE caps the force
             ActionReason.NotControlled      => "hold: not controlled",       // ⭐ WS-3 — the weapon system
             ActionReason.NoGunner           => "hold: no gunner",
             ActionReason.NotDeployed        => "hold: not deployed",
@@ -172,7 +176,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
             or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
-            or ActionReason.HoldSurrender;   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
+            or ActionReason.HoldSurrender or ActionReason.HoldForceLevel;   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)

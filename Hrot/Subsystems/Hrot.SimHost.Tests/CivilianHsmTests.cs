@@ -10,6 +10,7 @@ using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Civilians;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.AI.Behaviors.Brains;
@@ -461,9 +462,11 @@ namespace Hrot.SimHost.Tests
             db.Register(civ);
             var stone = new Fdp.Interfaces.TkbTemplate("Stone", StoneAmmo);
             stone.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true });
+            stone.AddDescriptor(new HandItemDto { LiesSeconds = 60f });   // ⭐ CE-2238 part 3 — a hand may pick one up (B-13)
             db.Register(stone);
             var grenade = new Fdp.Interfaces.TkbTemplate("Grenade", GrenadeAmmo);
             grenade.AddDescriptor(new WarheadDto { Kind = WarheadKind.Fragmentation, Indirect = true });
+            grenade.AddDescriptor(new HandItemDto());
             db.Register(grenade);
             PersonHands.EnsureOnPersons(db);
             w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
@@ -472,6 +475,66 @@ namespace Hrot.SimHost.Tests
             db.TryGetByType(CivilianType, out var t);
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, w.Unit, t!);
             if (stones > 0) Assert.True(PersonHands.Give(w.Repo, w.Unit, StoneAmmo, stones));
+        }
+
+        /// <summary>A round of <paramref name="ammo"/> LYING at <paramref name="at"/>, as the node that flies it holds it (B-13: Landed + Lingers).</summary>
+        private static Entity Lying(World w, long ammo, Vector3 at)
+        {
+            if (!w.Repo.IsComponentTypeRegistered<BallisticProjectile>()) w.Repo.RegisterComponent<BallisticProjectile>();
+            var e = w.Repo.CreateEntity();
+            w.Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            w.Repo.AddComponent(e, new BallisticProjectile { Ammo = ammo, Warhead = (byte)(WarheadRound.Landed | WarheadRound.Lingers), FuzeRemaining = 60f });
+            return e;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 3 (§5i.3 PK-1…PK-3) — a rioter with EMPTY hands and a policeman 12 m off goes for the nearest LYING
+        /// throwable — the stone, not the nearer LIVE grenade — walks to it, asks for it in reach (backend's <c>RoundPickUpSystem</c> grants
+        /// it: the stone is gone, in his hands), and after the bend THROWS it at the policeman. With nobody to throw at he leaves it lying.
+        /// ✅ Red-proof: the scavenge arm removed ⇒ red; the lethal skip removed from <c>Throwables</c> ⇒ red (he goes for the grenade).</summary>
+        [Fact]
+        public void CE2238_ARioterWithEmptyHands_PicksTheLyingStoneUp_NotALiveGrenade_AndThrowsIt()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            w.Repo.SetAuthority<BehaviorState>(w.Unit, true);   // his brain is here ⇒ the grant lands in his hands
+            Hands(w, 0);
+            if (!w.Repo.IsComponentTypeRegistered<HeldFuze>()) w.Repo.RegisterComponent<HeldFuze>();
+            if (!w.Repo.Bus.IsRegistered<PickUpRoundEvent>()) w.Repo.Bus.Register<PickUpRoundEvent>();
+            if (!w.Repo.Bus.IsRegistered<PickUpGrantEvent>()) w.Repo.Bus.Register<PickUpGrantEvent>();
+            var grenade = Lying(w, GrenadeAmmo, new Vector3(102, 200, 0));
+            var stone = Lying(w, StoneAmmo, new Vector3(105, 200, 0));
+            var pick = new Fdp.Toolkit.Combat.Systems.RoundPickUpSystem();
+            void Tick() { w.Tick(); pick.Execute(w.Repo, 0.016f); }
+
+            w.Start("{\"Protest\":true,\"ProtestAt\":[100,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) Tick();
+            Assert.Equal("Riot", w.State());
+            Assert.NotEqual(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);   // nobody to throw at: the stone lies
+            Assert.True(w.Repo.IsAlive(stone));
+
+            var police = Policeman(w, new Vector3(112, 200, 0));
+            for (int i = 0; i < 80; i++) Tick();
+            Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
+            unsafe
+            {
+                ref var loco = ref w.Repo.GetComponentRW<LocomotionChannel>(w.Unit);
+                fixed (byte* p = loco.Params)
+                    Assert.True(Vector2.Distance(new Vector2(105, 200), new Vector2(((MoveToParams*)p)->Destination.X, ((MoveToParams*)p)->Destination.Y)) < 0.1f,
+                        $"he goes for the STONE, not the nearer live grenade: {((MoveToParams*)p)->Destination}");
+            }
+
+            w.Repo.GetComponentRW<SimTransform>(w.Unit).Position = new Vector3(104.5f, 200, 0);   // he got there
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.False(w.Repo.IsAlive(stone), "the stone was granted to him — gone from the ground");
+            Assert.Equal(1, PersonHands.Rounds(w.Repo, w.Unit, StoneAmmo));
+            Assert.True(w.Repo.IsAlive(grenade), "the live grenade lies where it fell");
+
+            for (int i = 0; i < (int)(CivilianBehavior.BendSeconds / 0.016f) + 10; i++) Tick();
+            ref var channel = ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit);
+            Assert.Equal(CombatConstants.ActionIdFireAtPoint, channel.ActiveAction);
+            Assert.True(Vector2.Distance(new Vector2(ThrowParams(w).Point.X, ThrowParams(w).Point.Y), new Vector2(112, 200)) < 0.01f, "thrown at the policeman");
+            Assert.True(HostileActs.Committed(w.Repo, w.Unit));
         }
 
         private static unsafe Fdp.Toolkit.Combat.Executors.FireAtPointParams ThrowParams(World w)
@@ -555,7 +618,47 @@ namespace Hrot.SimHost.Tests
         {
             var e = Policeman(w, at);
             w.Repo.AddComponent(e, new WeaponPosture { Kind = kind, Target = target });
+            if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>();
+            w.Repo.AddComponent(e, new WeaponState { Ammo = 30, MaxAmmo = 30 });   // ⭐ CE-2239 — a rifle in hand (no TKB ⇒ a weapon is lethal)
             return e;
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> (§5j.1) — a COVERING weapon is a lethal one: a rioter who struck (Hostile) with a policeman's BATON
+        /// LAUNCHER aimed at him does not raise his hands (the line's force must still be able to break the riot); a rifle aimed at him
+        /// does. ✅ Red-proof: the <c>LethalInHand</c> line removed from <c>Covering.By</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2239_ABatonLauncherAimedAtHim_DoesNotCoverHim_ARifleDoes()
+        {
+            var w = new World();
+            foreach (var reg in new System.Action[]
+            {
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<WeaponMountInfo>()) w.Repo.RegisterComponent<WeaponMountInfo>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<AmmoLoadout>()) w.Repo.RegisterComponent<AmmoLoadout>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) w.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
+            }) reg();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Map.Common.HrotEnvironment.RegisterBuiltInTkb(db);
+            w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit, HostileActKind.NonLethal));
+
+            var cop = Policeman(w, new Vector3(140, 230, 0));
+            w.Repo.AddComponent(cop, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher });
+            Assert.True(db.TryGetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, out var t));
+            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, cop, t!);
+            w.Repo.AddComponent(cop, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = w.Unit });
+            Assert.False(Fdp.Toolkit.Combat.Armament.LethalInHand(w.Repo, cop));
+            for (int i = 0; i < 60; i++) w.Tick();
+            Assert.NotEqual("Surrender", w.State());
+            Assert.True(Fdp.Toolkit.Combat.Covering.By(w.Repo, w.Unit).IsNull);
+
+            Covering(w, new Vector3(150, 200, 0), w.Unit);   // a rifle
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
         }
 
         /// <summary>⭐ <c>CE-2241</c> ① (§5h.3, CV-13a) — a rioter who struck a policeman (Hostile) is covered by a rifleman: he stops and

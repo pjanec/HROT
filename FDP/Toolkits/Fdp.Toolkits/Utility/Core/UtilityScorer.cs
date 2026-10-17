@@ -300,7 +300,8 @@ namespace Fdp.Toolkit.Utility
                 if ((repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
                     && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self)
                     && (!Fdp.Toolkit.Combat.PersonHands.HandsOnly(repo, self) || Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self))   // ⭐ CE-3230 (H-4)
-                    && !Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, 0))   // ⭐ CE-3232 (B-10) — never a laid-down weapon
+                    && !Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, 0)   // ⭐ CE-3232 (B-10) — never a laid-down weapon
+                    && Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext, Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, 0)))   // ⭐ CE-2239 (FL-4)
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;
@@ -322,6 +323,10 @@ namespace Fdp.Toolkit.Utility
                         && !Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)) continue;
                     if (repo.HasComponent<WeaponMountInfo>(e)
                         && Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex)) continue;   // ⭐ CE-3232
+                    // ⭐ CE-2239 part 1 (CV-8, §5j FL-4) — a mount above the unit's force level is no candidate (self-defence aside)
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && !Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext,
+                               Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex))) continue;
                     candidates[candidateCount]  = e;
                     isSelfMount[candidateCount] = false;
                     candidateCount++;
@@ -335,6 +340,7 @@ namespace Fdp.Toolkit.Utility
                 {
                     if (!repo.HasComponent<WeaponState>(controlled[k])) continue;
                     if (Fdp.Toolkit.Behavior.CarryStations.IsStowed(repo, controlled[k])) continue;   // ⭐ CE-3233 (B-11, ST-5) — slung or hidden: not fired
+                    if (!Fdp.Toolkit.Combat.ForceLevels.AllowsMount(repo, self, externalContext, Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, controlled[k], 0))) continue;   // ⭐ CE-2239 (FL-4)
                     candidates[candidateCount]  = controlled[k];
                     isSelfMount[candidateCount] = true;
                     candidateCount++;
