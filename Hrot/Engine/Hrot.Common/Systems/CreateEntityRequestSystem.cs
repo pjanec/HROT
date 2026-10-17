@@ -75,6 +75,10 @@ namespace Hrot.Common.Systems
         private readonly int                                _localNodeId;
         private readonly bool                               _isDefaultProcessor;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
+
+        /// <summary>⭐ CE-4024 — true when a request's <c>InitialAttributesJson</c> is applied here (the host passed a compiler). The forwarding
+        /// rail asserts it on every host's CONSTRUCTED pack: a host that holds a geo transform and passes no compiler drops every attribute.</summary>
+        public bool AppliesAttributes => _jsonCompiler != null;
         private readonly EntityRequestFinalizationSystem?      _finalizationSystem;
         private readonly IOwnershipDistributionStrategy?    _ownershipStrategy;
 

@@ -79,7 +79,7 @@ public sealed class TrafficPack : INodeCapability, IDisposable
                 context.World.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
             input.Add(new TrafficHandoverSystem(Runtime));
             var mirror = Mirror;
-            input.Add(new TrafficPanicSystem(Runtime, () => mirror.Replicas));   // ⭐ AQ93 §15 K4/K5 — after the mirror: its replicas are current
+            input.Add(new TrafficPanicSystem(Runtime, () => mirror.Replicas, context.EntityMap));   // ⭐ AQ93 §15 K4/K5 — after the mirror: its replicas are current
         }
         simulation.Add(new TrafficShadowFollowSystem());   // ⭐ AQ93 §14 — a handed-over body follows its SUMO shadow where it is moved
     }

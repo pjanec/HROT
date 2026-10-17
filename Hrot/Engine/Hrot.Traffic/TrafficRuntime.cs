@@ -93,6 +93,10 @@ public sealed class TrafficRuntime : IDisposable
     /// <summary>⭐ AQ93 §15 K4 — a shot or blast for the stepping thread, which gives up the pedestrians it frightens. ⛔ Main thread.</summary>
     public void ReportIncident(in TrafficIncident incident) => _incidents.Enqueue(incident);
 
+    /// <summary>⭐ AQ93 §15 K7 — one of SUMO's agents was hit: the stepping thread gives it up. ⛔ Main thread.</summary>
+    public void ReportHit(in TrafficHit hit) => _hits.Enqueue(hit);
+    private readonly System.Collections.Concurrent.ConcurrentQueue<TrafficHit> _hits = new();
+
     /// <summary>⭐ AQ93 §15 K5 — the pedestrians SUMO gave up since the last call, APPENDED to <paramref name="into"/>. ⛔ Main thread.</summary>
     public void TakeConversions(List<TrafficConversion> into)
     {
@@ -147,6 +151,12 @@ public sealed class TrafficRuntime : IDisposable
         {
             _convertScratch.Clear();
             have.Convert(incident, _convertScratch);
+            foreach (var c in _convertScratch) _converted.Enqueue(c);
+        }
+        while (_hits.TryDequeue(out var hit))
+        {
+            _convertScratch.Clear();
+            have.ConvertHit(hit, _convertScratch);
             foreach (var c in _convertScratch) _converted.Enqueue(c);
         }
         Interlocked.Add(ref _steps, have.StepTo(target));

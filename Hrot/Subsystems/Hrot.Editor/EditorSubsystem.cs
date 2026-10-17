@@ -1475,6 +1475,11 @@ namespace Hrot.Editor
                 },
 
                 IsBroadcastArbiter = true,
+
+                // ⭐ CE-4024 — a request's InitialAttributesJson (a spawn's attributesJson, a converted pedestrian's fright) is applied here
+                //   as on every networked host, whose factory hands the pack this compiler. 📌 Measured 2026-10-17: the editor passed none,
+                //   so every attribute of every request was silently dropped (the SILENT-DEFAULT shape: the host held the geo transform).
+                JsonAttributeCompiler = Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geoTransform),
             });
             EntityCreation = creation;   // CE-515
 

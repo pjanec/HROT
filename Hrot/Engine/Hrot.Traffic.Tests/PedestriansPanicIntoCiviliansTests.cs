@@ -88,6 +88,35 @@ public sealed class PedestriansPanicIntoCiviliansTests
     }
 
     [Fact]
+    public void K7_AHitPedestrian_IsGivenUp_AndTheHitReachesTheCivilianHeBecomes()
+    {
+        using var h = Harness.Start(Walkers, maxConverted: 1);
+        h.Run(60.0);
+        var ped = h.Mirror.Pedestrians[0];
+        h.Body(ped.X, ped.Y);
+        h.Run(0.5);
+        var replica = h.Mirror.Replicas!.Pedestrians.First(kv => kv.Key.NetworkId == ped.NetworkId).Value;
+
+        h.World.Bus.Publish(new DamageAssessedEvent { HitEntity = replica, TotalDamage = 35f, IsRemote = true });
+        var requests = h.RunCollecting(1.0);
+
+        var r = Assert.Single(requests);   // only him: a hit is not an incident, and it is never capped
+        Assert.Equal(ped.NetworkId, r.PreAllocatedNetworkId);
+        Assert.Contains(ped.NetworkId, h.Panic.HeldHits);
+
+        // the brain node made him (here: by hand, under the same id) — the held hit is re-published to him, as this node's own
+        var civilian = h.World.CreateEntity();
+        h.World.AddComponent(civilian, new NetworkIdentity(ped.NetworkId));
+        h.Map.Register(ped.NetworkId, civilian);
+        var hits = h.RunCollectingHits(0.5);
+
+        var delivered = Assert.Single(hits, x => x.HitEntity == civilian);
+        Assert.Equal(35f, delivered.TotalDamage);
+        Assert.False(delivered.IsRemote);
+        Assert.Empty(h.Panic.HeldHits);
+    }
+
+    [Fact]
     public void K5_AReleasedPedestrian_LosesItsReplica_AndIsNotRemade()
     {
         var world = new EntityRepository();
@@ -147,10 +176,11 @@ public sealed class PedestriansPanicIntoCiviliansTests
             h.World.Bus.Register<WeaponFireNotification>();
             h.World.Bus.Register<DetonationNotification>();
             h.World.Bus.RegisterManaged<EntityCreationRequest>();
+            h.World.Bus.Register<DamageAssessedEvent>();
             h.Runtime = new TrafficRuntime(new TrafficServeOptions(() => Interlocked.Increment(ref h._next), Participant: null, Source: 1));
             h.Mirror = new TrafficMirrorSystem(h.Runtime, participant: null, entityMap: h.Map, localNodeId: 1);
             var mirror = h.Mirror;
-            h.Panic = new TrafficPanicSystem(h.Runtime, () => mirror.Replicas);
+            h.Panic = new TrafficPanicSystem(h.Runtime, () => mirror.Replicas, h.Map);
             var traffic = h.World.CreateEntity();
             var demand = TrafficDemand.Default;
             demand.TargetCars = 20;
@@ -192,6 +222,23 @@ public sealed class PedestriansPanicIntoCiviliansTests
             Panic.Execute(World, 0f);
             World.Bus.SwapBuffers();
             got.AddRange(World.Bus.ReadManaged<EntityCreationRequest>());
+            return got;
+        }
+
+        public List<DamageAssessedEvent> RunCollectingHits(double seconds)
+        {
+            var got = new List<DamageAssessedEvent>();
+            for (double end = _t + seconds; _t < end;)
+            {
+                World.SetSingleton(new GlobalTime { TotalTime = _t += 0.25, DeltaTime = 0.25f, TimeScale = 1f });
+                World.Bus.SwapBuffers();
+                foreach (var hit in World.Bus.Read<DamageAssessedEvent>()) got.Add(hit);
+                Mirror.Execute(World, 0.25f);
+                Panic.Execute(World, 0.25f);
+                Runtime.SteppingTick();
+            }
+            World.Bus.SwapBuffers();
+            foreach (var hit in World.Bus.Read<DamageAssessedEvent>()) got.Add(hit);
             return got;
         }
 

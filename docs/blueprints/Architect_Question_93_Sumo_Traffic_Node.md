@@ -1269,7 +1269,7 @@ graph TD
 |---|---|---|
 | **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | ✅ BUILT (§15.7) on SumoSharp H14 `13f70db` |
 | **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | ✅ BUILT (§15.7) |
-| **5c** | K7: hits on SUMO cars and pedestrians | 5b |
+| **5c** | K7: hits on SUMO cars and pedestrians | ✅ pedestrians BUILT (§15.7) · ⏳ cars wait for SumoSharp H15 (remove a car by name), dispatched |
 
 ### 15.7 AS BUILT — 5a and 5b *(2026-10-17, CE-4024)*
 
@@ -1327,6 +1327,8 @@ classDiagram
 | ⭐ **the request is transient, `InitType.None`**; the traffic node's own replica goes first (`Release`), the rest on the Despawn | a person SUMO walked is never the scenario's; `NetworkEntityMap.Register` throws on a live id |
 | ⭐ **incidents of one frame closer than 5 m merge** (`MergeMetres`) | a burst of fire is one fright, not one stepping-thread pass per round |
 | ⭐ **demo-city asks for 160 pedestrians** (SumoSharp's own default population) | K1 |
+| ⭐ **K7 for a pedestrian (5c): a `DamageAssessedEvent` on his replica gives him up (never capped), and the hit is HELD (`HoldSeconds` 10) until our civilian exists under his id, then re-published to him as this node's own hit** | the existing damage path then carries it (`DamageAssessedEgressTranslator` → the brain's `HealthApplicationSystem`, authority-gated); no "born damaged" field on the request, and none needed |
+| ⚠ **the editor applied NO request attributes at all** — fixed: `EditorSubsystem` passes `JsonAttributeCompiler` to its creation pack, as every networked host's factory does (rail `TheEditorAppliesRequestAttributesTests`) | 📌 measured live: the first run converted three pedestrians, all calm (`Fear` 0, Gather). The SILENT-DEFAULT shape — a debug-API spawn's `attributesJson` was dropped there too. Folded into [Q59 §15](Architect_Question_59_Attribute_Vocabulary_Single_Source.md) |
 
 | known gap | |
 |---|---|
@@ -1337,7 +1339,11 @@ classDiagram
 Rails: `PedestriansPanicIntoCiviliansTests` (5: walkers named by our allocator and civilian replicas near a body; a shot gives them up
 as terrified-civilian requests keeping their ids, and they leave the wire; the cap; a released replica is not remade; the attributes),
 `TheFourRoutingTablesAgreeTests` (+4 vocabulary cases, a creation request's fright bears a mind in panic), `TheDescriptorMapIsWiredTests`
-(brain-local components exempt). Traffic 53/53.
+(brain-local components exempt), the hit rail (K7: a hit pedestrian is given up and his hit reaches the civilian he becomes). Traffic 54/54.
+
+**Live (editor, `scripts/sumo-accept-slice5.py`): 11/11** — 15 pedestrian replicas near two riflemen; their shoot-out gave up three
+pedestrians (under the cap of 30), each back as OUR civilian with the same network id, no `TrafficCar`, frightened (`Fear` 0.60 and
+falling from 1, `Mode` Cower, `FrightFrom` = where the round left).
 
 
 ## 7. ⛔ HISTORY
