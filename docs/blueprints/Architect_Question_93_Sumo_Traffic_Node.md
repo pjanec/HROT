@@ -51,6 +51,7 @@ related-designs:
 - *"A local entities ok, B ok, C ok, D1 and D7 ok."*
 - *"we can store the sumo road network as part of the terrain and synchronize this the same way as the terrain."*
 - *"Lets discuss pedestrians. I need them and also their panic mode if there is some incident like military/terrorist shootout."* · *"Panicking ones coukd.become.our entities and never returned to sumo"*
+- *"G2 to G6 leans accepted. The Sumo road network can span large areas that are not covered by our terrain, and this is fine because Sumo in thosr area is working just as a background traffic"*
 - *"G1 What do you mean by that shooter's node calculates the damage? It is calculated by the muscle node, isn't it? Why any special traffic hit message? We have an usual hit message. Why sumo entities don't have network ID? They should have one because they are just the normal entities, just calculated by different node and communicate it with a special set of DDS messages for optimal data reckoning."*
 - *"§8.6 lean accepted, drop promotion zones, at lest for now. Will our fire and detonation and entities be able to interact with sumo entities, in a way that if they are hit they will take damage, will be removed from sumo and become our entity with brain, like the panic mode? We need sumo entities to show up in eqs/raycast queries etc"*
 - *"We can extend sumosharp as needed, it is my project. If ckeaned up, i could publish on nuget.org. E2b ok."*
@@ -381,7 +382,7 @@ not dodge each other outside SumoSharp's own default promotion.
 ⛔ Rejected — keep the zones: ORCA cost and two SumoSharp changes for avoidance that only matters where no shooting is
 happening yet.
 
-### 8.7 SUMO entities in the combat world — **hits, blasts, EQS, raycasts** *(DESIGN 2026-10-17; leans G1–G6, not ruled)*
+### 8.7 SUMO entities in the combat world — **hits, blasts, EQS, raycasts** *(DESIGN 2026-10-17; G1 ruled by R-4038, G2–G6 ACCEPTED R-4039)*
 
 📐 **Measured — what happens TODAY to a shot at a mirror (R-4022 A):**
 
@@ -421,6 +422,17 @@ civilian is born wounded.
 | **G4** | what a hit car becomes | the car leaves SUMO and becomes **our civilian car entity** (stopped, damaged); its driver (and passengers, from the car's seats) become civilians in Panic or Casualty | keeping a damaged car in SUMO: SUMO has no damage, it would drive on |
 | **G5** | hits during the conversion | the traffic node accumulates every `EntityHitDamage` for an id until CGF's entity appears, then forwards the sum as one damage | first hit only: a burst would lose all but one round |
 | **G6** | near misses and suppression | a round passing a mirrored pedestrian counts like a heard shot for panic (P2) — no new path | a NearMiss message per mirror: panic already covers it |
+
+### 8.8 The SUMO net may reach beyond our terrain — **background traffic there** *(R-4040, 2026-10-17; consequences H1–H3 are leans)*
+
+🔒 Ruled: the net can span areas our terrain does not cover; there SUMO is **background traffic** only. Nothing in our
+simulation interacts with it there (no units, no ground, no buildings).
+
+| id | consequence | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **H1** | which cars and pedestrians become entities (replicas, R-4038) | only those **inside the terrain's extent** — and, for pedestrians, within R of our units (G2); outside, they are drawn from the receiving buffer with no entity. ⚠ This narrows R-4022 A ("every car") for large nets, where all-cars-everywhere could mean many thousands of entities on every node for traffic nobody can reach | every car on the whole net as an entity: entity, perception-index and recording cost for traffic outside the playable area |
+| **H2** | height outside the terrain | SUMO's lane z (R-4025); a flat net (E2b drape) outside the terrain uses the terrain origin's altitude — there is no ground to drape on | `GroundHeightAt` outside the grid: undefined there |
+| **H3** | drawing | the road layer and the traffic draw everywhere the net reaches; the terrain only where it exists | clipping the roads to the terrain: the background city disappears from the map |
 
 ## 7. ⛔ HISTORY
 
