@@ -4,7 +4,7 @@ updated: 2026-10-17
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
   slices 2–6 (§6) are DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
-current-answer: §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §12 (the dedicated node built alongside — R-4053, leans N1–N8) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
 known-rot: §3.1–§3.4 are the networked TARGET, not the code — as built (§3.0): no `TrafficNodeModule`/`SimulationRunner` (a
@@ -752,6 +752,51 @@ two streets — none matches any net.
 | **D4** | the demo scenario on `demo-city`: the traffic settings entity + a few soldiers at a downtown junction — enough for every slice-1 acceptance check |
 | **D5** | E1b: a non-georeferenced net is placed by an anchor in `terrain.json` |
 | ⛔ | **no procedural buildings** — the viewer's current ones are *"too dense and too unrealistic"* (user); maybe later |
+
+## 12. The dedicated traffic node, built ALONGSIDE the editor *(R-4053, 2026-10-17 — leans N1–N8, not yet ruled)*
+
+> 🔒 **User, `2026-10-17`:** *"I am afraid that if we start building inside the editor without the network,
+> it will be very easy to miss some critical component design rules, and it will be then more difficult to implement the same stuff as a separate node."* ·
+> *"if the stuff works in separate network node, it will probably work well also in the editor."*
+
+⭐ **Measured: the worry is real — slice 1 (§3.0) already holds THREE choices that are right in one process and wrong on a cluster:**
+a car's network id is allocated when a node makes its replica (two nodes ⇒ two ids for one car ⇒ a hit addressed by id misses);
+SUMO's clock is mapped to the HROT clock by a per-node origin (two nodes ⇒ two origins); and the traffic entity never leaves the
+node that loaded the scenario (it has no NED descriptor). ⭐ Each is fixed ONCE, in the shared pack, so the editor runs the network's
+rules too.
+
+```mermaid
+sequenceDiagram
+  participant GT as GlobalTime (cluster sim time t)
+  participant TN as traffic node (TrafficPack)
+  participant L as LiveCitySim
+  participant A as INetworkIdAllocator
+  participant W as sumo topics (DDS)
+  participant S as SimHost (mirror half)
+  participant N as NED
+  GT->>TN: t
+  TN->>L: StepTo(t), SUMO clock started AT the cluster time (N3)
+  L->>A: a car departs, id = AllocateId() (N2)
+  L->>W: lifecycle (durable) with name = network id and dims, frames stamped with cluster time
+  W-->>S: the same records
+  S->>S: ResolveAt(t - delay), near a body: replica with THAT network id, owner = traffic node (N5)
+  S->>N: a round hits it: EntityHitDamage to network id
+  N-->>TN: the owner's replica of the same car takes the damage
+```
+
+*What the picture shows that prose hid:* every node must agree on two numbers it never negotiates — the car's network id and the
+time a sample means — so both are decided ONCE on the traffic node and carried on SumoSharp's own wire; a node only ever reads them.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **N1** | the host | a new `--mode traffic` ECS host: `TrafficSubsystem` + `TrafficNodeBootstrapper` (a `SharedApplicationBootstrapper`, like IG's), role `Traffic`, composing NED ingress (it needs our entities and the demand) and `TrafficPack` | SimHost with `--role Traffic`: `--role` is slated for removal (R-S11) and SimHost composes the muscle tier |
+| **N2** | a car's network id | allocated when SUMO SPAWNS the car, on the traffic node (R-4029), and used AS the SUMO vehicle id (H4) — so the durable lifecycle record carries it to every node. ⭐ SumoSharp change **H5**: `LiveCitySim` takes a vehicle-id provider | allocate when a node makes its replica (slice 1 as built): one car, one id per node |
+| **N3** | the clock on the wire | SUMO's clock STARTS at the cluster time the session starts, so every frame on the wire is stamped in cluster time and a receiver resolves at `GlobalTime − delay` with no origin of its own. ⭐ SumoSharp change **H6**: `LiveCityConfig.StartTime` (the engine's `Begin`) | a per-node origin (slice 1 as built): each node a different SUMO time |
+| **N4** | the demand reaching the traffic node | `TrafficDemand` replicates on NED like `ScenarioClock` (a descriptor + egress/ingress translators), owned by the node that loaded the scenario | the traffic node loading the scenario itself: a second scenario-load path |
+| **N5** | the owner of a replica on another node | the traffic node's node id, found in the cluster roster as the node whose roles include `Traffic` (⛔ not measured yet) | each node owning its own replicas: a hit would go to the wrong owner |
+| **N6** | which hosts mirror | the MIRROR half (`TrafficNetCache` loader + mirror over `DdsSubscriber` + replicas + the road layer) on every map and sim host — SimHost, CGF, IG, Player; the traffic node and the editor compose BOTH halves | only map hosts: SimHost's sensors and rounds would not see cars |
+| **N7** | the traffic node's own view | its mirror reads the in-memory wire while `LiveCitySim`'s existing record tee publishes the same steps to DDS (EM-2) | reading its own DDS: a round trip to see itself |
+| **N8** | the editor | unchanged composition (both halves, in-memory) — and since N2/N3 live in the shared pack, it obeys the network's rules without a network | a separate editor path: the thing R-4053 exists to prevent |
 
 ## 7. ⛔ HISTORY
 
