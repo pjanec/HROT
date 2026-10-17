@@ -114,6 +114,18 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3219 (civilians B-1) — a person's stored non-lethal effects, beside Health (Brain → every node).
             yield return new EntityEffectStateEgressTranslator(participant);
             yield return new EntityEffectStateIngressTranslator(participant, entityMap);
+            // ⭐⭐ CE-1148 S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — the world events on EVERY node: a shot, a burst, a
+            //   round's mark. The egress sends only this node's local events (IsRemote false) stamped with SourceNodeId; the ingress drops
+            //   this node's own samples, so no role needs an exclusion and a node with two shooters' worth of events gets each once.
+            yield return new Hrot.Network.NED.SimHost.WeaponFireNotificationEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MunitionDetonationEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.MunitionDetonationIngressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.RoundImpactEgressTranslator(participant, entityMap, localNodeId);
+            yield return new Hrot.Network.NED.SimHost.RoundImpactIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
+            yield return new EntityGestureEgressTranslator(participant);
+            yield return new EntityGestureIngressTranslator(participant, entityMap);
             // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
             //   (the Muscle → every node).
             yield return new EntityPartDamageEgressTranslator(participant);
@@ -145,7 +157,7 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-2171 (Air Ops E2) — a route's plan, its owner → every node. Moved here from KinematicTranslatorPack (egress) and
             //   added (ingress) beside the overlay pair, for the same reason: a SCENARIO route is created and owned by CGF (Brain), and
             //   the egress existed only on the Muscle ⇒ SimHost, where the route is followed, never had the plan. 📄 ROUTES1 §6.1/6.2.
-            //   The pure IG keeps its own ingress in EntityStatesIngressPack (the `!pureIg` guard skips this pack's ingress there).
+            //   ⭐ CE-1148 S1 — every node, the IG included, polls this pack's ingress (no second IG list).
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new MapRouteIngressTranslator(participant, entityMap, geoTransform);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);

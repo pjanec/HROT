@@ -115,6 +115,14 @@ public interface ILoadPartProvider
     bool PreparesOffFrameThread => false;
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2242</c> — frame thread, once per load, BEFORE any step prepares (after the world-boundary clear). For the
+    /// little a step must have in place while its own prepare still runs, because other nodes commit and replicate in
+    /// during that window (the terrain's geo origin). ⚠ Unlike <see cref="PrepareAsync"/> it may write the world; an
+    /// abort does not undo it, so a step writes here only what is harmless to keep. Default: nothing.
+    /// </summary>
+    void BeforePrepare(LoadPhaseContext context, EntityRepository? world) { }
+
+    /// <summary>
     /// ⭐ The ECS half — main thread, and the only place ECS is written.
     ///
     /// <para>🔴 <c>ClusterSlave</c> commits with <c>repo: null</c> at both of its dispatch sites, so

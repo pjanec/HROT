@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015, CE-1148): the shot / detonation ingress moves to every node with an own-sample skip, replacing §3a's Perception && !MuscleGround branch and its named limit.
   - docs/designs/weather/DESIGN_Weather_And_Time.md — S2 gives thermal and hearing the weather and the time of day (row F's "not asked")
   - docs/designs/audio/DESIGN_FPS_Audio.md — PLAYS sound to the FPS operator; reuses this file's AcousticSignatureDto ranges and SoundSourceClass as its audible ranges and movement-sound classes (AU-4), so the operator hears what the AI hears
   - docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md — the Rotor sound class (7) and an airborne flyer audible at any speed
@@ -130,6 +131,8 @@ published for them.** `ThermalHeatSystem` and `SoundEmissionSystem` are composed
 ⇒ `CE-3065`: add the `WeaponFire` and `MunitionDetonation` ingress for a node that is Perception WITHOUT MuscleGround (with it, the
 local events already exist — ingesting them too would count each shot twice). ⭐ Both arrive `IsRemote = true`; heat and sound
 accept remote events (only `DamageCalculationSystem` skips them).
+
+⛔ **SUPERSEDED `2026-10-17` by [Node Roles §3.5](DESIGN_Node_Roles_And_Policies.md) (CE-1148 S2, R-3015):** the shot / burst / mark pairs are in the shared pack on EVERY node and the ingress drops the node's own samples by `SourceNodeId`; no role branch or exclusion remains. The text below is the prior as-built.
 
 ⭐ **As-built `CE-3065` (`2026-10-05`)** — `SimHostAuxiliaryTranslatorPack`: Perception && !MuscleGround ⇒ `WeaponFireIngressTranslator`
 + `MunitionDetonationIngressTranslator`; ⚠ **one correction found while building it:** the heard-contact EGRESS

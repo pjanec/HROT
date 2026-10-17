@@ -956,5 +956,10 @@ namespace Fdp.Core
         /// <summary><c>EffectState</c> — ⭐ CE-3219 (civilians B-1, CV-6; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3): a person's stored
         /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
         public const int EffectState = 397;
+
+        /// <summary><c>Gesture</c> — ⭐ CE-3224 (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7): what a person
+        /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
+        /// <c>dtGesture</c> (143).</summary>
+        public const int Gesture = 398;
     }
 }
