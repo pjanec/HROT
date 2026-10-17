@@ -540,7 +540,7 @@ namespace Hrot.UI.Common.Map3D
             {
                 var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, m);
                 var line = new System.Text.StringBuilder();
-                line.Append(selected ? "> " : "  ").Append(key ?? m + 1).Append(' ').Append(KindOf(dto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown));
+                line.Append(selected ? "> " : "  ").Append(key ?? m + 1).Append(' ').Append(dto is { Hands: true } ? HandsKind : KindOf(dto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown));
                 long loaded = a.LoadedOf(m) != 0 ? a.LoadedOf(m) : unchecked((long)(dto?.AmmoGuid ?? 0UL));
                 if (RoundName(w, loaded) is { } round)
                 {
@@ -579,6 +579,10 @@ namespace Hrot.UI.Common.Map3D
             }
 
             /// <summary>⭐ CE-1079 — a weapon's kind, as the HUD names it.</summary>
+            /// <summary>⭐ CE-1168 — a person's HANDS mount (backend's B-8, <c>PersonHands</c>: every person ends with one, empty until he picks
+            ///   something up) is shown as his hands, not as the grenade category it throws on.</summary>
+            public const string HandsKind = "HANDS";
+
             public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
             {
                 Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => "RIFLE",
