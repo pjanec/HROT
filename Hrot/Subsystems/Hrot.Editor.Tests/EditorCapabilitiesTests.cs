@@ -101,7 +101,16 @@ public class EditorCapabilitiesTests : IDisposable
         return pack;
     }
 
-    /// <summary>⭐ AQ93 R-4047 — the editor composes SUMO traffic, last (module-only: every pinned slot is unchanged).</summary>
+    /// <summary>⭐ AQ93 §12.1 — the system SHAPE of a resolved set, with no node context. The traffic pack is skipped: it composes from the
+    /// node's context (its kernel, participant and allocator), and <see cref="DefaultArm_ComposesTraffic_Last_AQ93"/> rails it.</summary>
+    private static void PopulateShape(IEnumerable<INodeCapability> resolved, List<IEcsModuleSystem> input, List<IEcsModuleSystem> sim,
+                                      List<IEcsModuleSystem> postSim)
+    {
+        foreach (INodeCapability c in resolved)
+            if (c is not Hrot.Traffic.TrafficPack) c.PopulateSystems(context: null!, input, sim, postSim);
+    }
+
+    /// <summary>⭐ AQ93 R-4047 — the editor composes SUMO traffic, last (last in the plan; its systems need a node context).</summary>
     [Fact]
     public void DefaultArm_ComposesTraffic_Last_AQ93()
     {
@@ -162,8 +171,7 @@ public class EditorCapabilitiesTests : IDisposable
         var input = new List<IEcsModuleSystem>();
         var sim = new List<IEcsModuleSystem>();
         var postSim = new List<IEcsModuleSystem>();
-        foreach (INodeCapability c in resolved)
-            c.PopulateSystems(context: null!, input, sim, postSim);
+        PopulateShape(resolved, input, sim, postSim);
 
         Type[] planInput = Fdp.ModuleHost.Scheduling.SystemComposition
             .DistinctByType(input, Array.Empty<IEcsModuleSystem>()).Select(s => s.GetType()).ToArray();
@@ -326,7 +334,7 @@ public class EditorCapabilitiesTests : IDisposable
             var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
             Assert.Single(resolved, c => c.Key == CapabilityKeys.Interactions);
             var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
-            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            PopulateShape(resolved, input, sim, post);
             Assert.Single(input, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkedStateSystem);
             Assert.Single(sim, s => s is Fdp.Toolkit.Behavior.Systems.EmbarkationSystem);
             Assert.Single(sim, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
@@ -355,7 +363,7 @@ public class EditorCapabilitiesTests : IDisposable
             Assert.Equal(CapabilityKeys.HealthApplication, resolved[0].Key);
             Assert.Single(resolved, c => c.Key == CapabilityKeys.HealthApplication);
             var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
-            foreach (var c in resolved) c.PopulateSystems(context: null!, input, sim, post);
+            PopulateShape(resolved, input, sim, post);
             Assert.IsType<Fdp.Toolkit.Combat.Systems.HealthApplicationSystem>(sim[0]);
             Assert.Single(sim, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
         }
