@@ -119,7 +119,8 @@ namespace Fdp.Core.FlightRecorder
             long chunkCountPos = writer.BaseStream.Position;
             writer.Write(0); // Placeholder for ChunkCount
             int actualChunkCount = 0;
-            
+            BuildStructuralPrefix(entityIndex, prevTick);   // ⭐ CE-3243 — once per delta, before any chunk asks
+
             // ----------------------------------------------------------------
             // 3.1 FLUSH ENTITY INDEX (Structural Data)
             // MUST be written before components so receiver can revive entities first?
@@ -491,36 +492,50 @@ namespace Fdp.Core.FlightRecorder
             writer.BaseStream.Position = endPos;
         }
         
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — did any entity in [<paramref name="startId"/>, +<paramref name="count"/>) change structurally since
+        /// <paramref name="sinceVersion"/>? Answered from <see cref="_structuralPrefix"/>, built ONCE per delta frame by
+        /// <see cref="BuildStructuralPrefix"/>: it was a walk of the range per call, and a delta asks it for every chunk of every
+        /// recordable table — O(tables × entities) per frame.
+        /// </summary>
         private bool ChunkHasStructuralChanges(EntityIndex index, int startId, int count, uint sinceVersion)
         {
-            int endId = startId + count;
-            int max = index.MaxIssuedIndex;
-            
-            for (int i = startId; i < endId && i <= max; i++)
-            {
-                // Optimization: could skip blocks of stable entities if we had a hierarchy
-            ref readonly var metaCS = ref index.GetMetadata(i);
-                if (metaCS.LastChangeTick > sinceVersion) return true;
-                
-                // Also check if it became inactive recently?
-                // IsActive change also updates LastChangeTick via DestroyEntity/CreateEntity
-            }
-            return false;
+            if (_structuralPrefixFor != sinceVersion || _structuralPrefixMax != index.MaxIssuedIndex)
+                BuildStructuralPrefix(index, sinceVersion);
+            int end = Math.Min(startId + count, _structuralPrefixMax + 1);
+            if (startId >= end) return false;
+            return _structuralPrefix[end] - _structuralPrefix[startId] > 0;
         }
-        
-        private bool HasChunkChanged(IComponentTable table, int chunkIndex, int chunkCapacity, uint sinceVersion)
+
+        // ⭐ CE-3243 — prefix count of entities whose LastChangeTick is past the frame's prevTick: [i] = changed entities below i.
+        //   Grown, never shrunk, so the steady state allocates nothing.
+        private int[] _structuralPrefix = new int[1];
+        private uint _structuralPrefixFor = uint.MaxValue;
+        private int _structuralPrefixMax = -2;
+
+        private void BuildStructuralPrefix(EntityIndex index, uint sinceVersion)
         {
-            int startId = chunkIndex * chunkCapacity;
-            int endId = startId + chunkCapacity;
-            
-            // We can't iterate table entities directly easily without access to internal array.
-            // But IComponentTable.GetVersionForEntity works.
-            for (int i = startId; i < endId; i++)
+            int max = index.MaxIssuedIndex;
+            if (_structuralPrefix.Length < max + 2) _structuralPrefix = new int[Math.Max(max + 2, _structuralPrefix.Length * 2)];
+            int changed = 0;
+            _structuralPrefix[0] = 0;
+            for (int i = 0; i <= max; i++)
             {
-                if (table.GetVersionForEntity(i) > sinceVersion) return true;
+                if (index.GetMetadata(i).LastChangeTick > sinceVersion) changed++;
+                _structuralPrefix[i + 1] = changed;
             }
-            return false;
+            _structuralPrefixFor = sinceVersion;
+            _structuralPrefixMax = max;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — a table's chunk version is per CHUNK (<see cref="IComponentTable.GetVersionForEntity"/> maps the
+        /// entity to its chunk), so one read of the chunk's first slot answers it — the same rule as
+        /// <c>EntityRepository.DeltaQuery</c>. It was a call per slot over the whole chunk capacity (16 384 for a 4-byte
+        /// component) for every recordable table every frame, changed or not: 📐 ~25 ms/frame on every node, flat with the crowd.
+        /// </summary>
+        private bool HasChunkChanged(IComponentTable table, int chunkIndex, int chunkCapacity, uint sinceVersion)
+            => table.GetVersionForEntity(chunkIndex * chunkCapacity) > sinceVersion;
         
         // Helpers
         private int GetCapacityForType(Type type)
