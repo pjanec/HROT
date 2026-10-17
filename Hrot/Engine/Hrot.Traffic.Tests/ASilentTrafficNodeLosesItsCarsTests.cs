@@ -50,6 +50,19 @@ public sealed class ASilentTrafficNodeLosesItsCarsTests
         subscriber.Dispose();
     }
 
+    /// <summary>⭐ The silence clock runs at wall rate while the cluster runs, holds while it is paused, and ignores how far the cluster
+    /// clock JUMPS (📌 IG's slave clock corrects in jumps on a loaded box — on cluster time that dropped every car, CE-4021).</summary>
+    [Fact]
+    public void TheSilenceClock_HoldsWhilePaused_AndIgnoresAClockJump()
+    {
+        var c = new SilenceClock();
+        c.Tick(10.0, 0.0);
+        Assert.Equal(0.5, c.Tick(10.5, 0.5), 6);     // running: wall rate
+        Assert.Equal(0.5, c.Tick(10.5, 3.0), 6);     // paused 2.5 s wall: holds
+        Assert.Equal(0.6, c.Tick(140.0, 3.1), 6);    // the cluster clock jumps 129.5 s: 0.1 s of wall
+        Assert.Equal(1.6, c.Tick(141.0, 6.1), 6);    // a 3 s hitch counts at most one second
+    }
+
     private static VehicleRecord Car(uint index)
         => new(new VehicleHandle(index, 1), DrModel.LaneArc, laneHandle: 0, pos: index, posLat: 0, speed: 10, accel: 0, latSpeed: 0,
                upcoming: default);

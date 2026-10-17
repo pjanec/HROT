@@ -75,11 +75,13 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
     private EntityRepository? _replicaWorld;
     private DdsMultiSourceSubscriber? _dds;
     private double _wireNow;
+    private SilenceClock _silence;
+    private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
 
     /// <summary>
-    /// ⭐ CE-4021 (AQ93 E10, R-4027) — a traffic node that falls silent for this long, in CLUSTER time, is gone: its cars go.
-    /// 📌 Measured 2026-10-17: the subscriber had no timeout, so after the traffic node was killed every mirror kept its cars, frozen,
-    /// for good. ⭐ Cluster time, not wall time: a paused cluster steps no SUMO and sends nothing, and must keep its cars.
+    /// ⭐ CE-4021 (AQ93 E10, R-4027) — a traffic node that falls silent for this long, on the <see cref="SilenceClock"/>, is gone:
+    /// its cars go. 📌 Measured 2026-10-17: the subscriber had no timeout, so after the traffic node was killed every mirror kept its
+    /// cars, frozen, for good. ⭐ Not wall time: a paused cluster steps no SUMO and sends nothing, and must keep its cars.
     /// </summary>
     public const double SilentSourceSeconds = 5.0;
 
@@ -170,7 +172,7 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
         }
         if (_participant is not null)
         {
-            _wireNow = now;
+            _wireNow = _silence.Tick(now, _wall.Elapsed.TotalSeconds);
             _dds ??= NewSubscriber(_participant, () => _wireNow);
             _dds.Pump();
             foreach (var (src, source) in _dds.Sources)
@@ -249,4 +251,30 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
 
     private static ITkbDatabase? TkbOf(EntityRepository world)
         => world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
+}
+
+/// <summary>
+/// ⭐ CE-4021 — the clock a silent traffic node is measured on: WALL seconds that pass only while the cluster clock advances.
+/// </summary>
+/// <remarks>
+/// 📌 Measured 2026-10-17: on cluster time itself IG lost every car for over 100 s — IG's slave clock discards sync results whose round
+/// trip exceeds 200 ms (a loaded box) and corrects in JUMPS, and a jump of more than 5 s read as 5 s of silence, every time.
+/// ⭐ So: paused (the cluster clock holds) ⇒ this clock holds; running ⇒ it runs at wall rate, at most one second a frame, whatever
+/// the cluster clock jumps by.
+/// </remarks>
+public struct SilenceClock
+{
+    private double _lastCluster, _lastWall, _seconds;
+    private bool _started;
+
+    /// <summary>The clock after one frame: <paramref name="clusterSeconds"/> is the node's cluster time, <paramref name="wallSeconds"/>
+    /// any monotonic wall clock.</summary>
+    public double Tick(double clusterSeconds, double wallSeconds)
+    {
+        if (_started && clusterSeconds > _lastCluster) _seconds += Math.Clamp(wallSeconds - _lastWall, 0.0, 1.0);
+        _started = true;
+        _lastCluster = clusterSeconds;
+        _lastWall = wallSeconds;
+        return _seconds;
+    }
 }
