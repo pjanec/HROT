@@ -439,7 +439,7 @@
       },
       "EntityInfo": {
         "Name": "Gunman's rifle",
-        "ForceId": "Hostile"
+        "ForceId": "Neutral"
       },
       "IsEmbarkedTag": {
         "Vehicle": "c2390006-0000-4000-8000-000000000009",

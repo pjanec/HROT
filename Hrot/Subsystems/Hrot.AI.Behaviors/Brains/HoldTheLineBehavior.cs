@@ -130,7 +130,8 @@ namespace Hrot.AI.Behaviors.Brains
                 var e = new Entity((ulong)mem.EntityIds[i]);
                 if (e.IsNull || !world.IsAlive(e) || !CombatLife.IsAlive(world, e) || ThreatDanger.IsNeutral(world, e)
                     || ThreatDanger.IsOutOfTheFight(world, e) || ThreatDanger.ShowsHandsUp(world, e) || Effects.IsKnockedDown(world, e)
-                    || Effects.IsStunned(world, e)) continue;   // ⭐ a stunned man is out of the fight for its seconds: not beaten while he cannot fight (live: a stunned instigator in reach was struck to death)
+                    || Effects.IsStunned(world, e)
+                    || CarryStations.SeatOf(world, e, out var carrier) >= 0 && CarryStations.Hands(world, carrier) >= 0) continue;   // ⭐ CE-2239 part 3 — a weapon a PERSON carries is never the target, he is (twin: 17 rounds at the gunman's rifle)   // ⭐ a stunned man is out of the fight for its seconds: not beaten while he cannot fight (live: a stunned instigator in reach was struck to death)
                 float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
                 float d = dx * dx + dy * dy;
                 if (d > reach * reach) continue;

@@ -1012,13 +1012,14 @@ public sealed class PostureScenarioTests : IDisposable
         var cop = ByName(cgf, "Police patrol");
         var copRifle = ByName(cgf, "Patrol rifle");
         int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponentRO<WeaponState>(e).Ammo : -1;
-        int his0 = Ammo(hisRifle), cop0 = Ammo(copRifle), copLast = cop0, atHim = 0, roundsWhileVolley = 0;
+        int his0 = -1, cop0 = Ammo(copRifle), copLast = cop0, atHim = 0, roundsWhileVolley = 0;
         bool volley = false, warned = false;
         double? aimedAt = null;
         void Sample()
         {
             bool aimsAtCop = cgf.HasComponent<WeaponPosture>(man) && cgf.GetComponentRO<WeaponPosture>(man).Kind == WeaponPostureKind.Aimed
                              && cgf.GetComponentRO<WeaponPosture>(man).Target == cop;
+            if (his0 < 0) his0 = Ammo(hisRifle);                                     // his WeaponState comes a frame or so after the spawn
             if (aimsAtCop) aimedAt ??= cgf.SimulationTime;
             if (aimedAt == null && Ammo(hisRifle) < his0) volley = true;
             if (volley && aimedAt == null && Gestures.Of(cgf, cop) == GestureKind.Warning) warned = true;
