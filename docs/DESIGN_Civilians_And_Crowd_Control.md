@@ -1352,6 +1352,84 @@ mutants (no lay-down · no take-up · never held · no `AllLaidDown` term · no 
 `PostureScenarioTests.CE2241_ArmedSurrender_…`: surrendered on CGF/SimHost/IG at 1.6 s, 0 rounds, unhurt, rose at 21.6 s, fired on at
 22.4 s.
 
+### 5h.6 AW-22 — a known combatant, per unit *(behaviors, `CE-2238` part 3 / handoff A5, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-22's KNOWLEDGE half: a civilian who commits a LETHAL hostile act becomes a known combatant to the units that witnessed it
+and to their squad, sticky for the exercise; everyone else still sees a civilian (the conduct rules). The act's REPLICATED kind is
+backend's B-16 (§7.16, `CE-3238`); the knowledge is brain-local and needs nothing from it. ⏳ No brain commits a lethal act yet (the
+covert insurgent's trigger is B3) ⇒ rails now, `ua-armed-blend-back` with B3.
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` — `.*Combatant.*` ⇒ `Armament.IsCombatant` only (+ two notes);
+`.*HostileAct.*` ⇒ `HostileActs` only; grep for every call site; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| who asks "armed?" with an OBSERVER | `Armament.Judge` — ONE production caller, `ThreatDanger.Of` | `Perception/ThreatDanger.cs:36` |
+| the status / conduct split | `IsCombatant` (not Civilian class, not Neutral) ⇒ status; else `Conduct` (counted, AW-24) | `Combat/Armament.cs:188, 252, 268` |
+| what a hidden weapon reads as | `ArmedByStatus` excludes a CONCEALED controlled weapon (ST-6); `LethalInHand` (the truth form) still counts it | `Armament.cs:201-218, 224` |
+| where a unit's contacts live | `TargetMemory` (per unit, brain-local, never replicated; scenario-saved by a keyed translator) | `Perception/Components/PerceptionComponents.cs:45` |
+| ⚠ a slot's lifetime | `AddOrUpdateTarget` evicts the weakest when full; `Forget` drops a slot; ⇒ a per-SLOT byte dies with the slot | same file, `:195-215`, `:386` |
+| a unit's squad | `UnitSubordinate.Commander` → the commander's `UnitRoster.SubordinateEntities` | `Fdp.Core/CommandHierarchy/UnitSubordinate.cs:21` |
+| the act today | `HostileActs.Commit(repo, actor)` — once, brain-local stamp + side flip; callers: the stone and the blow (`CivilianBehavior.cs:580, 590`) | `Civilians/HostileActs.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class TargetMemory { <<existing, grows>> + KnownCombatantIds[8] · KnownCombatantCount }
+  class KnownCombatants { <<NEW, Fdp.Toolkits/Combat>> Mark(world, observer, man) · Knows(view, observer, man) · MarkWitnesses(world, actor) }
+  class HostileActKind { <<NEW enum, the one §7.16 draws>> None · NonLethal · Lethal }
+  class HostileActs { <<existing, grows>> Commit(repo, actor, kind) }
+  class Armament { <<existing>> Judge: + a known combatant reads on what he carries }
+  class UnitSubordinate { <<existing>> Commander }
+  class UnitRoster { <<existing>> SubordinateEntities }
+  HostileActs --> HostileActKind
+  HostileActs ..> KnownCombatants : Lethal ⇒ MarkWitnesses
+  KnownCombatants ..> TargetMemory : the list, per unit
+  KnownCombatants ..> UnitSubordinate : his squad
+  KnownCombatants ..> UnitRoster : the mates' lists
+  Armament ..> KnownCombatants : Knows(observer, man)
+```
+*What the picture shows that prose hid:* the knowledge sits beside the contacts it is about (`TargetMemory`), but as a LIST, not a slot
+field — so forgetting a contact does not forget that he fired; and the squad's knowledge is read from the mates, never copied.
+
+```mermaid
+sequenceDiagram
+  participant A as the civilian (CGF brain)
+  participant H as HostileActs.Commit
+  participant K as KnownCombatants
+  participant P as patrol A rifleman (CGF)
+  participant Q as patrol B rifleman (CGF, other squad)
+  A->>H: Commit(actor, Lethal)
+  H->>K: MarkWitnesses(actor)
+  K->>P: his memory holds the actor, seen within 1 s ⇒ add to his list
+  A->>A: hides the rifle (B-11 HIDDEN), walks into the crowd
+  P->>K: ThreatDanger.Of ⇒ Judge ⇒ Knows(P, actor) yes ⇒ LethalInHand ⇒ IdentifiedLethal
+  Q->>K: Knows(Q, actor) no ⇒ Conduct ⇒ nothing seen ⇒ a civilian
+```
+*What the picture shows that prose hid:* the same man is judged twice in one frame with two answers — the rule is per OBSERVER, which is
+why it is a property of the witness's memory and not of the man.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> CIV[civilian brain: the lethal act]
+  CIV --> HA[HostileActs.Commit]
+  HA --> MW[KnownCombatants.MarkWitnesses: every TargetMemory on this node]
+  BT --> SOL[soldier brain] --> TD[ThreatDanger.Of] --> J[Armament.Judge] --> KN[KnownCombatants.Knows]
+```
+*Caption:* nothing new is registered or scheduled; both edges run inside the brain tick on the node that owns the brains (CGF), where
+every witness's `TargetMemory` lives.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **KC-1** | ⭐ the knowledge is a sticky per-unit LIST in `TargetMemory` (8 ids; full ⇒ the oldest goes) | a byte per memory SLOT (the ruling's sketch): eviction and `Forget` drop it — not "sticky for the exercise" · a new component: needs an id from the shared block for what is perception knowledge |
+| **KC-2** | ⭐ the WITNESSES are every unit on the actor's brain node whose memory holds him IDENTIFIED and perceived within 1 s of the act | a line-of-sight test at the act: duplicates the sensors that already decided what each unit perceives |
+| **KC-3** | ⭐ the SQUAD knows it by reading the mates' lists (`UnitSubordinate.Commander` → `UnitRoster`), never by copying | a flag through `SquadPerceptionMergeSystem`'s pool: bounded to 16 pooled contacts, lost when he leaves the pool, on the merge cadence |
+| **KC-4** | ⭐ to an observer who KNOWS, a civilian reads on what he CARRIES — `LethalInHand` (a hidden rifle counts: they saw it) ⇒ IdentifiedLethal, else Nothing; the conduct path is skipped | `ArmedByStatus`: a hidden weapon arms nobody by sight ⇒ he escapes the very patrol that watched him hide it |
+| **KC-5** | ⭐ `HostileActKind` defined now in `HostileActs` (the enum §7.16 draws); `Commit(repo, actor, kind)` takes it with NO default; a Lethal act marks the witnesses even after an earlier non-lethal one (HA-2's upgrade) | wait for B-16: the knowledge is brain-local; only the replicated kind is backend's · an optional `kind`: a caller that knows the kind must pass it (the silent-default rule) |
+
+⚠ **Known limits:** ① heard-only witnesses (an anonymous acoustic contact) learn nothing — there is no identity to mark; ② the knowledge is
+not on the wire (another node's brain has its own); ③ "for such time" stays simplified — sticky for the exercise (AW-22).
+
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
