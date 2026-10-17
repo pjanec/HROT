@@ -4,7 +4,7 @@ build-state: BUILDING — H1, H2, H3 BUILT 2026-10-10 (§5a, §5b as-built); H4 
   question settled by the Q0 spike (DESIGN_World_Query_Seam.md §5a: Bepu for objects, the height stays a grid).
 updated: 2026-10-10 (rev 5 — §5b H2 + H3 as built. Rev 4 — §5a H1 as built, with its deviations argued. Rev 3 — §7 corrected by R-250/R-251: a real interface, Bepu not Jolt. Rev 2 — all leans approved; grounding is the entity's clamping flag + motion model, no zero rule
   (R-249, §4a); §7 the library question. Rev 1 — R-248: the flat ground is a temporary simplification; this file plans its removal)
-current-answer: §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
+current-answer: §8 (lean, 2026-10-17) the AMBIENT GROUND outside the terrain, from a SUMO net · §1 why · §2 INVENTORY · §3 the diagrams · §4 decisions with leans · §5 slices · §6 not verified.
 stale-below: nothing.
 known-rot: §7's rev-1 lean (Jolt; TerrainWorld's methods as the seam; Bepu rejected) — corrected by R-250/R-251, see its banner.
 known-conflict: none. (Resolved 2026-10-15: CE-3086 built basic-desert's ridge and wadi as TH-G's grid, §5d — the Utility demo
@@ -29,6 +29,7 @@ related-designs:
   - DESIGN_Utility_AI_Demo_Scenarios.md — basic-desert's ridge and wadi (TH-G).
   - designs/promote-to-3d/3D_Cognitive_Spatial_Awareness_Promotion_Design_v1_1.md — "SimTransform.Position.Z is
     authoritative"; relief is what makes that true outdoors.
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §11.1/§11.2 (V7/V8): the SUMO net's ambient ground lattice that §8 here proposes as the height fallback outside the terrain.
 -->
 
 # DESIGN — terrain height (removing the flat ground)
@@ -421,3 +422,40 @@ library and its optimized raycasts and similar capabilities?"*
 | ✅ grid cell size vs the mesher's cells — resolved: with a grid the mesher uses the grid's cells (§5a) | H1 |
 | ✅ `GroundTrace` as a grid march: 11.9 µs for a 300 m line on a 2 km grid at 2 m, no extra memory, exact vs a full triangle scan (Debug, cloud) — and a Bepu mesh is NOT the way (+477 MB for that grid) — `DESIGN_World_Query_Seam.md` §5a | measured in Q0 |
 | ✅ scenarios that saved Z = 0: no special case — the clamping flag and the motion model decide (`R-249`, §4a) | ruled |
+
+
+## 8. The ambient ground OUTSIDE the terrain — **heights from a SUMO net** *(lean, `2026-10-17`, not ruled)*
+
+> 🔒 **User, `2026-10-17`:** *"what would it take to use these outer areas, at least for hate queries? allowing our characters
+> and vehicles to drive off-road in the outer areas, as well as the aircraft that are shot down to fall on dead artificial
+> surface. I expect the road network to be larger than our terrain, so this is a cheap way how to create some kind of artificial
+> terrain outside of our terrain area."*
+
+📐 **Measured — the seam is ONE function, and it already answers everywhere:** `TerrainWorld.GroundHeightAt(x, y) =>
+Height?.Sample(x, y) ?? GroundZ` (`TerrainWorld.cs:103`); outside the grid *"the edge holds"* (`TerrainHeightGrid.cs:45-49`,
+a clamp), and the ground trace clips the same way (`:117`). So today the world outside the terrain is the grid's edge
+extruded to infinity. **28** production files read heights through `GroundHeightAt` / `SurfaceZ` — among them air motion
+(`AirMotionSystem.cs:113`), drone impact (`DroneImpactSystem.cs:81`), round impact (`BallisticsSystem.cs:191`) and bomb release
+(`AimAndFireExecutor.cs:597`). The navmesh, by contrast, is baked over the world's bounds only (`TerrainWorldMesh.cs:25,67`).
+The ambient lattice it would read is SumoSharp's `TerrainField` (AQ93 §11.2: 40 m cells, ≤ 512 corners per axis ⇒ ≤ ~2 MB,
+lane-z measured, filled and smoothed between), moved into `Sim.Scene` by AQ93 V7.
+
+```mermaid
+graph TD
+  Q["GroundHeightAt / SurfaceZ / the ground trace (28 readers)"] --> IN{"inside our terrain's footprint?"}
+  IN -->|yes| G["our height grid, or GroundZ (unchanged)"]
+  IN -->|no, a SUMO net is loaded| A["the ambient lattice, bilinear (NEW fallback)"]
+  IN -->|no net| E["the edge holds (today's clamp)"]
+  A --> B["the seam ring blends to our ground at the edge (AQ93 V8-c) - the SAME numbers the map draws"]
+```
+
+*What the picture shows that prose hid:* one fallback behind the existing query answers every height reader at once — the
+falling aircraft, the round, the vehicle, the soldier — and it is the SAME surface the map draws (V8), so what you see is
+what things land on; nothing changes inside our terrain.
+
+| id | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **A1** heights | outside the footprint, `GroundHeightAt` and the ground trace fall back to the ambient lattice (with V8-c's blended seam), built at terrain load on every node from the same net file — so every node answers the same height | a second query API for "outside": 28 readers to change · the edge clamp (today): an aircraft shot down 5 km out lands on an imaginary plane |
+| **A2** movement off-road | units outside move on **straight legs over open ground**: `RoutePlanner` returns a direct leg when the start or the goal lies outside the navmesh footprint (there are no buildings or obstacles out there), Z from A1; inside, the navmesh as today | baking a navmesh over the whole net: cost grows with the net (a 350 km net) for terrain with nothing on it · our own road graph out there: R-4026 keeps it separate from SUMO |
+| **A3** fidelity | outside the terrain is outside every zone ⇒ low fidelity (R-4042): coarse 40 m ground, no buildings, no cover; sensors may see nothing there | — |
+| **A4** what it does NOT give | no physics surfaces, buildings, water or materials outside — just a height; R-252 still holds (the brain may not assume this coarse ground) | — |

@@ -36,6 +36,7 @@ related-designs:
     MODE — supersedes §8 P5's single type), the Neutral targeting gate (§8 P6 ⇒ its CIV-0) and the riot/non-lethal work.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — owns the civilian behaviours (CIV-2 panic flight, CIV-7 shelter; ruling D3 civilians as HSM crowd agents) that §8 P5 hands panicked pedestrians to.
   - docs/DESIGN_Ownership_Groups_And_Grants.md — owns ownership and the send gate (HasAuthority); §10 EM-4 adds the general replication route beside it (R-4045).
+  - docs/DESIGN_Terrain_Height.md — §8 (lean): the ambient ground as the HEIGHT fallback outside our terrain (aircraft, rounds, off-road units); owns the ground query.
 -->
 
 # Architect Question 93 — **a SUMO traffic node: SumoSharp's own wire, local mirrors everywhere, roads from the terrain**
@@ -56,6 +57,7 @@ related-designs:
 - *"And the first thing to build later is the embedded sumo sharp module inside the editor, . But of course, being ready for creating a new networked node with traffic role. Also, the sumo sharp module is not necessary if the scenario or the terrain doesn't contain sumo sharp network  or scenario settings."*
 - *"Well, maybe there is one more alternatively, depending on how big the SumoSharp project is. We could treat it in a similar manner like B-trees or HSM, And simply copy its sources, the parts that matter, into the extdeps folder of the HROT"*
 - *"Sumo Sharp itself works quite well, so by vendoring it into the external dependencies folder I meant taking just the sources that are already proven working, so we do not need to develop Sumo Sharp on there and run their tests, just make the sources that hrot needs  available as part of Hrot repository, so we can very easily switch to previous version using Git and so on."*
+- *"V7 and V8 approved.  By the way, what would it take to use these outer areas, at least for hate queries? […]"* (answered in `DESIGN_Terrain_Height.md` §8)
 - *"Good! The sumo network visualization in the viewer now uses some approximation of the terrain that sits in between the roads, so the scene doesn't look empty and has a feeling of some solid terrain, not just roads flying in the air. This can be used as well in our 3D map, but I am not sure if this is fine with the areas where our terrain is built and is overlapping with the roadmap. In such areas, this 'ambient terrain surface' feature will need to be turned off, most likely."*
 - *"When rendering the sources, there is no need to have an off switch anymore because the sources are always available. What about the rendering part of the road network that is now living in the … citylib, Is that something that can be generalized a little bit? So it's not usable just as part of Godot?"*
 - *"EM-1 to EM-5 approved. The converted civilian should be created by usual request to a brain node, which is as now sent as local FDP bus event, so there is no change if the CGF is running on different node or inside the editor. The ignoring of publishing sumo entities over the network should not be something sumo specific. This concept needs to be generalized, meaning that some entities, even if owned, will use different network publishing mechanism, different from the usual NED one. Regarding the threading, the Sumo uses quite optimized multi-threaded techniques, so please check how this could be made working inside the editor as well. So only the stepping from the editor will be done from the main thread, but inside the Sumo this could be done in whatever optimized way."*
@@ -554,7 +556,7 @@ optional pack" edges are SUPERSEDED by R-4048 (no build switch): the traffic cod
 | **V5** | when it runs | ✅ **RULED (R-4047)** — the pack is idle unless the data asks for it: the **road layer draws** when the terrain names a SUMO net; the **SUMO engine is created and stepped** only when the scenario also has the traffic settings entity (R-4021); with neither, the pack costs nothing per frame. (⛔ the "switch OFF" case is gone with V4) | failing the load: a scenario would be unusable on a build without SUMO |
 | **V6** | the first slice | ✅ **RULED (R-4047)** — **SUMO embedded in the networkless editor first** (EM-1…EM-5), built so a dedicated traffic node is only a composition step later: the same `TrafficPack`, the in-memory bus, every input a local event | a dedicated traffic node first: the networked path before the embedded one the user wants to see |
 
-### 11.1 V7 — the road and traffic-light geometry, **generalised out of the Godot demo** *(lean, 2026-10-17)*
+### 11.1 V7 — the road and traffic-light geometry, **generalised out of the Godot demo** *(✅ APPROVED 2026-10-17, R-4049)*
 
 📐 **Measured:** CityLib (`demos/City3D/CityLib`, ~4 600 lines, not packaged, not in `Traffic.sln`) already holds no
 Godot type (`CityLib.csproj` header: *"Plain net8.0 classlib; NO Godot type anywhere"*), and its geometry builders —
@@ -587,7 +589,7 @@ The Stride host and a future production engine take the same triangles.
 | keeping the Godot axes and swapping back in HROT | two swaps that cancel, on every vertex, for every host |
 | drawing roads as per-frame gizmo triangles | tens of thousands of static triangles re-sent every frame; the terrain already proved the build-once mesh path |
 
-### 11.2 V8 — the **ambient terrain surface** between the roads, and where it must give way to ours *(lean, 2026-10-17)*
+### 11.2 V8 — the **ambient terrain surface** between the roads, and where it must give way to ours *(✅ APPROVED 2026-10-17, R-4049; ⚠ V8-a's "render only" is re-opened by `DESIGN_Terrain_Height.md` §8 — the same lattice as the HEIGHT fallback outside the terrain, a lean)*
 
 📐 **Measured (upstream commit `65a9d80`):** the viewer's ground is `CityLib.TerrainField` — a corner lattice (40 m cells,
 capped at 512 corners per axis so a 350 km net stays bounded) whose heights are **measured at lane vertices** (`Lane.ShapeZ`)
