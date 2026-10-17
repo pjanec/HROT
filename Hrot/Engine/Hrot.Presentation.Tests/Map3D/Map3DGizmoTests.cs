@@ -76,6 +76,22 @@ public sealed class Map3DGizmoTests
         Assert.Equal((1, 1, 1, 1), (triage.CulledByTarget, triage.CulledByLayer, triage.CulledByLod, triage.DanglingAnchors));
     }
 
+    /// <summary>⭐ AQ93 §12.4 — a 2-D symbol (<see cref="PipelineTarget.FlatOnly"/>, the SUMO road layer) is never drawn by the 3-D pass,
+    /// where the triangle road mesh stands; a plain <see cref="PipelineTarget.Map2D"/> gizmo still is (§7).</summary>
+    [Fact]
+    public void FlatOnly_IsCulledBy3D_AndPlainMap2D_IsNot()
+    {
+        var triage = new DebugPrimitiveTriage3D { AcceptedTargets = PipelineTarget.Map2D | PipelineTarget.Viewport3D, ZoomAt = _ => 2f };
+        var mapGizmo = DebugPrimitive.MakeLine(Vector3.Zero, Vector3.UnitX, Red, target: PipelineTarget.Map2D);
+        var roadSymbol = DebugPrimitive.MakeLine(Vector3.Zero, Vector3.UnitX, Red, target: PipelineTarget.Map2D | PipelineTarget.FlatOnly);
+
+        var into = Triage(triage, mapGizmo, roadSymbol);
+
+        Assert.Single(into);
+        Assert.Equal(PipelineTarget.Map2D, into[0].Primitive.TargetView);
+        Assert.Equal(1, triage.CulledByTarget);
+    }
+
     [Fact]
     public void S3_AGroundLine_IsDrapedOverAHill_Subdivided_NotCutThroughIt()
     {

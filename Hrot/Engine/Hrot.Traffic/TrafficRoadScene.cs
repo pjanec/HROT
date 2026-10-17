@@ -42,7 +42,7 @@ public sealed class TrafficRoadScene
 
     public IReadOnlyList<TrafficSignal> Signals { get; }
 
-    /// <summary>The same roads as the 2-D map draws them (lane strips, ground rows) — <see cref="TrafficRoadPlan"/>.</summary>
+    /// <summary>The same roads as the 2-D map draws them — a symbol (centrelines, light dots), never the meshes: <see cref="TrafficRoadPlan"/>.</summary>
     public TrafficRoadPlan Plan { get; }
 
     public int TriangleCount => Meshes.Sum(m => m.TriangleCount);
@@ -78,9 +78,7 @@ public sealed class TrafficRoadScene
                 Local(frame, placement, h.PoleX, h.PoleY, h.PoleZ),
                 Local(frame, placement, h.HeadX, h.HeadY, h.HeadZ)));
 
-        var plan = new TrafficRoadPlan(TrafficRoadPlan.LaneStrips(net, placement),
-            TrafficRoadPlan.GroundRows(meshes.FirstOrDefault(m => m.Kind == SceneKind.AmbientGround)));
-        return new TrafficRoadScene(meshes, signals, plan);
+        return new TrafficRoadScene(meshes, signals, TrafficRoadPlan.For(net, placement, signals.Count));
     }
 
     private static TrafficRoadMesh ToLocal(SceneKind kind, SceneMesh mesh, SceneFrame frame, SumoNetPlacement placement)
