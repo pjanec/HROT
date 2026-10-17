@@ -860,6 +860,10 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
             tkbDb.Register(new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion));
+            // ⭐ CE-3235 (B-13, AW-8) — a Stone Source: an area like the Weather Region; its template names what a hand takes there
+            var stones = new TkbTemplate("Stone Source", TkbEntityTypes.StoneSource);
+            stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });
+            tkbDb.Register(stones);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             tkbDb.Register(new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand));

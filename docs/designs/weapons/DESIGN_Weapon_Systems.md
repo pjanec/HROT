@@ -21,6 +21,7 @@ related-designs:
   - docs/DESIGN_Entity_Control.md — possession of the gunner seat (a player firing a pickup's HMG) is a later item here
   - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Weapon_Systems.md · HANDOFF_Behaviors_To_Ui_Weapon_Systems.md — the dispatches of WS-1…WS-4 and WS-5
   - ../../DESIGN_Civilians_And_Crowd_Control.md — CV-4: an armed hostile civilian picks up a separable weapon (PickUp, FireWhileCarried).
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — §5h (R-2025): pick-up rifle/pistol and explosive-charge types, the LAID-DOWN flag on built-in mounts, Hands/Back/Hidden carry stations, a built-in pistol (W-A kept: issued weapons stay type data).
 -->
 
 # Weapon systems — weapons you can place, mount, carry, deploy and man

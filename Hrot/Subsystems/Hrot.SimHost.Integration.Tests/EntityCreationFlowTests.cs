@@ -6,6 +6,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common;
 using Hrot.SimHost.Integration.Tests.Infrastructure;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Integration.Tests
 {

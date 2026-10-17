@@ -60,7 +60,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref readonly var evt = ref events[i];
                 if (evt.IsRemote || evt.Ammo == 0) continue;
                 var (warhead, source, _) = ParameterResolver.Warhead(db, evt.Ammo);
-                if (warhead == null || !warhead.HasAreaEffect) continue;
+                if (warhead == null) continue;
+                if (warhead.HasCloud) RequestCloud(repo, in evt, warhead);   // ⭐ CE-3219 part 3 — tear gas / smoke: a cloud that drifts
+                if (!warhead.HasAreaEffect) continue;
                 if (!built)
                 {
                     terrain = repo.HasSingletonManaged<TerrainWorld>() ? repo.GetSingletonManaged<TerrainWorld>() : null;
@@ -74,6 +76,25 @@ namespace Fdp.Toolkit.Combat.Systems
                 Assess(repo, in evt, warhead, source, world, terrain, doors);
                 Assessed++;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3219</c> part 3 (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — a tear-gas or smoke burst asks for a cloud where it
+        /// burst (the entity-creation request on the FDP bus, owner 0: the system picks); its owner drifts it, irritates with it and ends it.
+        /// </summary>
+        private static void RequestCloud(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w)
+        {
+            bool gas = w.Kind == Tkb.Domain.WarheadKind.Irritant;
+            AreaEffectClouds.Request(repo, new Vector3(evt.HitX, evt.HitY, evt.HitZ), new AreaEffectCloud
+            {
+                Kind = gas ? CloudKind.TearGas : CloudKind.Smoke,
+                Radius = w.CloudRadiusM,
+                Height = w.CloudHeightM > 0f ? w.CloudHeightM : 3f,
+                SightTransmittance = gas ? 0.4f : 0.1f,
+                IrritantSeconds = gas ? MathF.Max(w.EffectSeconds, (float)AreaEffectCloudSystem.StepSeconds + 0.5f) : 0f,
+                BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime,
+                Seconds = w.CloudSeconds,
+            });
         }
 
         /// <summary>The point of segment <paramref name="a"/>–<paramref name="b"/> closest to <paramref name="q"/>.</summary>

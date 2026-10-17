@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Combat
             ActionReason.Aiming or ActionReason.Firing or ActionReason.Cooldown or ActionReason.BlindFire
                 or ActionReason.HoldFriendlyOnLine or ActionReason.HoldRoe or ActionReason.Slewing or ActionReason.Guiding
                 or ActionReason.Turning   // ⭐ CE-3195 — held while the body turns, still aimed (the gait turns him toward it)
+                or ActionReason.HoldNeutralOnLine   // ⭐ AW-20 — still aimed, waiting for a civilian to clear the line
                 or ActionReason.AwaitingRelease   // ⭐ Air Ops slice 4 — a bomb on the run-in, waiting for its cue
                 or ActionReason.AwaitingFireTime  // ⭐ IF-1 — laid, waiting for the time on target
                 => WeaponPostureKind.Aimed,
@@ -31,6 +32,8 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed   // ⭐ WS-3 — the weapon system holds
                 or ActionReason.OutOfRange or ActionReason.Masked   // ⭐ IF-1 — no fire solution
                 or ActionReason.WrongDomain   // ⭐ CE-2187 — a SAM held at a truck: the weapon stays ready
+                or ActionReason.HoldNeutral   // ⭐ CE-2233 — a civilian: the weapon stays ready, never fired
+                or ActionReason.HoldSurrender // ⭐ CV-13a — hands up: covered, ready, never fired
                 => WeaponPostureKind.Ready,
             _ => null,
         };

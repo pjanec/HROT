@@ -72,7 +72,7 @@ namespace Hrot.SimHost.Integration.Tests
                 eventBus: eventBus,
                 scenarioSerializer:  new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("SimHost").Build(),
                 scenarioExtractor:   new Hrot.CGF.Orchestration.StagingEntityExtractor(),
-                scenarioSource:      new Hrot.Core.Network.ScenarioEntityCreationRequestSource(),
+                scenarioSource:      _world.Bus,   // ⭐ CE-3228 — the bus the scenario requests are published on
                 scenarioIdAllocator: new Hrot.SimHost.Integration.Tests.Infrastructure.StubIdAllocator(),
                 localTempRoot:       _tempDir);
 

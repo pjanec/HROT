@@ -113,6 +113,54 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.True(_repo.GetComponent<SimTransform>(entity).Position.Y > 0.05f, "drives once the path is in");
         }
 
+        /// <summary>⭐ CE-2245 — a MoveTo STOPPED while its path is pending stays stopped when the late path comes back: the answer
+        /// must not revive the cancelled move (measured on a cluster: a casualty crawling 2 m along the walk he was shot out of).</summary>
+        [Fact]
+        public void CE2245_AMoveToStoppedWhileItsPathIsPending_StaysStopped_WhenThePathArrives()
+        {
+            _repo.RegisterComponent<VehicleState>();
+            _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<global::CarKinem.Spatial.SpatialGridData>();
+            _repo.RegisterEvent<PathfindingResultEvent>();
+            _repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1f });
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = SimMath.FacingNorth });
+            _repo.SetAuthority<SimTransform>(entity, true);
+            _repo.AddComponent(entity, new SimVelocity());
+            _repo.AddComponent(entity, new VehicleState());
+            _repo.AddComponent(entity, new VehicleParams
+            {
+                WheelBase = 2.7f, MaxSpeedFwd = 30f, MaxAccel = 3f, MaxDecel = 6f, MaxSteerAngle = 0.6f,
+                LookaheadTimeMin = 2f, LookaheadTimeMax = 10f, AccelGain = 2.0f, AvoidanceRadius = 2.5f,
+            });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(0f, 100f, 0f)));
+            _system.Execute(_repo, 0.016f);
+
+            var stop = _repo.GetComponent<NavigationIntent>(entity);
+            stop.IntentId = 2;
+            stop.Mode = NavigationMode.None;
+            stop.TargetSpeed = 0f;
+            _repo.SetComponent(entity, stop);
+            _system.Execute(_repo, 0.016f);
+
+            _pool.RegisterTrajectoryWithKey(new[] { new Vector2(0f, 0f), new Vector2(0f, 100f) }, 7);
+            _repo.Bus.Publish(new PathfindingResultEvent
+            {
+                RequestId = ((long)entity.Index << 32) | 1L, IsReachable = true, RouteHandle = 7, TotalDistanceMeters = 100f,
+            });
+            _repo.Bus.SwapBuffers();
+            new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathResponseSystem(
+                new Fdp.Toolkit.Navigation.EngineBacked.EngineBackedPathRegistry(_pool)).Execute(_repo, 0.016f);
+
+            Assert.Equal(KinematicsMode.None, _repo.GetComponent<NavState>(entity).Mode);
+            var grid = new global::CarKinem.Systems.SpatialHashSystem();
+            var kinematics = new global::CarKinem.Systems.CarKinematicsSystem(_pool);
+            for (int i = 0; i < 30; i++) { grid.Execute(_repo, 0.016f); kinematics.Execute(_repo, 0.016f); }
+            Assert.InRange(_repo.GetComponent<SimTransform>(entity).Position.Length(), 0f, 0.01f);
+        }
+
         /// <summary>⭐ CE-3026 — DirectPoint means STRAIGHT: no path request, the vehicle drives at once.</summary>
         [Fact]
         public void DirectPoint_DrivesStraight_PublishesNoPathRequest()

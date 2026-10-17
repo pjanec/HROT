@@ -358,7 +358,7 @@ Hrot.Blueprints.Editor/
 |   |-- BlueprintSelectionBridgeHelper.cs   -- bridges AiShared selection <-> BlueprintNodeSelection
 |   |-- LiteralValueJson.cs                 -- LiteralNode.ValueJson <-> canvas inline-editor value conversions
 |   |-- FunctionCallTooltip.cs              -- resolved CLR signature + XML-doc summary for FunctionCallNode hover
-|   |-- ClrSourceLocator.cs / ClrXmlDocSource.cs / SourceFileOpener.cs / VisualStudioDteOpener.cs
+|   |-- ClrXmlDocSource.cs   (CE-1011: ClrSourceLocator / SourceFileOpener / VisualStudioDteOpener moved to Hrot.Editor.AiShared/Source/)
 |   |                                       -- "open in IDE" support for FunctionCallNode's resolved CLR source
 |
 |-- Inspector/

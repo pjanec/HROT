@@ -6,6 +6,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common.Replication.Utils;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Network.NED.CGF;
 

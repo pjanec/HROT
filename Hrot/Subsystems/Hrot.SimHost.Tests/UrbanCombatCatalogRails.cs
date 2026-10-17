@@ -152,7 +152,8 @@ namespace Hrot.SimHost.Tests
             ITkbDatabase tkb = HrotEnvironment.CreateTkb();
 
             var rpgMan = tkb.GetByType(UrbanCombatTkbCatalog.TkbInsurgent).GetDescriptor<WeaponSuiteDto>()!.Mounts;
-            Assert.Equal(2, rpgMan.Count);
+            Assert.Equal(3, rpgMan.Count);
+            Assert.True(rpgMan[2].Hands);   // ⭐ CE-3230 (H-1) — every person ends with his hands
             Assert.Equal((ulong)MunitionTkbCatalog.TkbRpg7Rocket, rpgMan[0].AmmoGuid);
             Assert.Equal(4, rpgMan[0].InitialAmmunition);
             Assert.Equal(2f, rpgMan[0].AimSeconds);

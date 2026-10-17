@@ -394,17 +394,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     //    ClusterConformanceRails.The_cluster_offers_the_asset_perspectives. ⚠ An internal accessor with
     //    no caller is the "built and unreachable" shape this codebase keeps finding; ⭐ better absent.
 
-    // ── Scenario entity creation source (shared with load handlers in Phases 3-4) ──
-    private ScenarioEntityCreationRequestSource? _scenarioSource;
-
     // ── Blueprint materialization (BSA-203) ────────────────────────────────────
     private BlueprintRegistry? _blueprintRegistry;
-
-    /// <summary>
-    /// Exposes the scenario entity creation request source for load handlers (Phases 3-4).
-    /// Available after <see cref="Initialize"/> has been called.
-    /// </summary>
-    internal ScenarioEntityCreationRequestSource? ScenarioEntityCreationSource => _scenarioSource;
 
     // ── Visualization ─────────────────────────────────────────────────────────
     private MapCanvas?                 _canvas;
@@ -881,7 +872,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    kinematics handover. It adopts on three hosts of evidence, not on nerve.
         //
         // ⚠ HOISTED. The construction used to sit ~25 lines BELOW, after CgfLogicPack. It has to run here
-        //    because `_scenarioSource` is now `creation.LocalRequests`, and CgfLogicPack consumes it. The
+        //    because the creation pack had to exist before CgfLogicPack (it once consumed the pack's queue — CE-3228 retired it). The
         //    inputs are all already in scope: `nodeFactory` at :601, and TkbDb/IdAllocator/BaseModules on
         //    `_context`. ⛔ Nothing between the old and new position wrote any of them.
         //
@@ -932,10 +923,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         });
         EntityCreation = creation;   // CE-515
 
-        // Shared with the load handlers in Phases 3-4 via CgfLogicPack.ScenarioSource.
-        // ⭐ Now the pack's own in-memory source, merged behind CompositeEntityCreationRequestSource with
-        //   the DDS ingress — the same two-source arrangement this host hand-built, from one place.
-        _scenarioSource = creation.LocalRequests;
+        // ⭐⭐ CE-3228 (Entity Creation §3.4d) — the load handlers PUBLISH their requests on this world's bus; the pack's bus source,
+        //   merged behind CompositeEntityCreationRequestSource with the DDS ingress, reads them. No queue to hand around.
 
 
         // Expose the blueprint registry to the Entity Inspector renderers so
@@ -961,7 +950,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐ It is NOT flipped in EditorSubsystem's CgfLogicPack: the editor is offline
         //    (NullReplicationModule), receives no ghosts, and has no role policy — so for it the gate
         //    would only ever subtract.
-        var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap, _scenarioSource,
+        var cgfLogicPack = new CgfLogicPack(behaviorRegistry, _entityMap,
             mapperRegistry, _blueprintRegistry!, vehicleApi: null, gateOnAuthority: true);
 
         // ⭐⭐⭐ B4b step 2, HOST (c) — CGF's units come from a DECLARED PLAN, not a hand-written block.
@@ -1255,7 +1244,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   step, one set of collaborators, so the two targets cannot diverge in what they were handed.
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
         cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
-            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator,
+            scenarioSerializer, scenarioLoader, extractor, _context.World.Bus, cgfIdAllocator,
             behaviorRemapper: behaviorRemapper));
 
         // ⭐⭐⭐ L2 — ONE participant for the whole load step, composed from this node's ROLES.
@@ -1281,7 +1270,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             scenarioSerializer, _context.World, _context.NodeId);
 
         newClusterSlave.RegisterHandler(new Hrot.CGF.Orchestration.Handlers.CgfEpisodeLoadHandler(
-            scenarioSerializer, scenarioLoader, extractor, _scenarioSource!, cgfIdAllocator, _context.World, behaviorRemapper));
+            scenarioSerializer, scenarioLoader, extractor, cgfIdAllocator, _context.World, behaviorRemapper));
 
         // 3. Fallback Live Load Handler (claims PrepareLive ONLY if scenario handlers didn't)
         newClusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
@@ -1392,7 +1381,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   no submenu. No SuspendedReason: CGF has no Preview state (its world ticks from boot).
                 EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                     Tkb:          () => _context?.TkbDb,
-                    Requests:     () => _scenarioSource,
+                    Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                     GeoTransform: () => _context?.GeoTransform)
                 {
                     HostPickers = () => _shellPickers,

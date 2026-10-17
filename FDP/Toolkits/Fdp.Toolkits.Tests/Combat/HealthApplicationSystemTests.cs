@@ -472,5 +472,33 @@ namespace Fdp.Toolkit.Combat.Tests
             _sys.Execute(_world, 0f);
             Assert.False(_world.HasComponent<EffectState>(replica));
         }
+
+        /// <summary>⭐ ui finding F-3 (civilians design §7.6) — cowering is a MODE the behaviour sets and clears: a hit's timed effect neither
+        /// clears it nor is cleared by it, and it holds with no clock running out.</summary>
+        [Fact]
+        public void CE3219_F3_Cowering_IsAModeTheBehaviourSets_AndAHitLeavesIt()
+        {
+            _world.RegisterComponent<EffectState>();
+            _world.SetSingleton(new GlobalTime { TotalTime = 100d });
+            var man = SpawnTarget(currentHealth: 100f);
+            Assert.True(Effects.SetCowering(_world, man, false));
+            Assert.False(_world.HasComponent<EffectState>(man));   // clearing what was never set adds nothing
+
+            Assert.True(Effects.SetCowering(_world, man, true));
+            Assert.True(Effects.IsCowering(_world, man));
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = man, TotalDamage = 0f, Effect = HitEffect.Stun, EffectSeconds = 5f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0f);
+            Assert.True(Effects.IsCowering(_world, man));
+            Assert.True(Effects.IsStunned(_world, man));
+
+            _world.SetSingleton(new GlobalTime { TotalTime = 1000d });
+            Assert.True(Effects.IsCowering(_world, man));
+
+            Assert.True(Effects.SetCowering(_world, man, false));
+            Assert.False(Effects.IsCowering(_world, man));
+            Assert.Equal(105d, _world.GetComponentRO<EffectState>(man).StunnedUntil);
+        }
     }
 }

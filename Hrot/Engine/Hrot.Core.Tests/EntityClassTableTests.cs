@@ -31,6 +31,21 @@ namespace Hrot.Map.Common.Tests
             Assert.True(ties.Count == 0, string.Join(", ", ties));
         }
 
+        /// <summary>⭐ <c>CE-3229</c> (Civilians §7.8 A-1) — the toolkit's armed rule tests the <c>Civilian</c> class with its own constant
+        /// (the toolkit cannot reference this table); the two must name the same DIS types. Probed on the class's corners and on its
+        /// neighbours (SecurityForce 3.1.*.3, a soldier 3.1.*.1, a land platform 1.1.*.2).</summary>
+        [Fact]
+        public void CE3229_TheArmedRulesCivilianClass_IsTheTablesCivilianClass()
+        {
+            var civilian = EntityClassTable.Default.Find("Civilian");
+            Assert.NotNull(civilian);
+            foreach (var dis in new[] { "3.1.0.2.0.0.0", "3.1.225.2.1.1.0", "3.1.0.3.0.0.0", "3.1.0.1.0.0.0", "1.1.0.2.0.0.0", "3.2.0.2.0.0.0" })
+            {
+                Assert.True(DISEntityType.TryParse(dis, out var t), dis);
+                Assert.Equal(civilian!.Mask.Matches(t), Fdp.Toolkit.Combat.Armament.IsCivilianClass(t));
+            }
+        }
+
         /// <summary>A duplicate name or an identical mask refuses to build (the default table built, so it has neither).</summary>
         [Fact]
         public void CE2138_ADuplicateNameOrMask_IsRefused()
@@ -89,6 +104,21 @@ namespace Hrot.Map.Common.Tests
             {
                 var dis = db.GetByType(type)!.DisType;
                 Assert.Equal(new[] { "Person", "LandPerson", cls }, EntityClassTable.Default.Chain(dis).Select(c => c.Name));
+            }
+
+            // ⭐ ui finding F-4 (§7.6) — each person type says who it is, so the outfits need not guess from a name or a height
+            foreach (var (type, age, sex) in new[]
+            {
+                (CivilianTkbCatalog.TkbCivilianAdultMale, AgeBand.Adult, PersonSex.Male),
+                (CivilianTkbCatalog.TkbCivilianAdultFemale, AgeBand.Adult, PersonSex.Female),
+                (CivilianTkbCatalog.TkbCivilianChild, AgeBand.Child, PersonSex.Unspecified),
+                (CivilianTkbCatalog.TkbCivilianElderly, AgeBand.Elderly, PersonSex.Unspecified),
+                (CivilianTkbCatalog.TkbSecurityLauncher, AgeBand.Adult, PersonSex.Unspecified),
+            })
+            {
+                var person = db.GetByType(type)!.GetDescriptor<PersonDto>();
+                Assert.NotNull(person);
+                Assert.Equal((age, sex), (person!.Age, person.Sex));
             }
         }
 

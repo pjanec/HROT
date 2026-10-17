@@ -162,12 +162,12 @@ namespace Hrot.SimHost
         /// and <paramref name="scenarioIdAllocator"/>.
         /// </param>
         /// <param name="scenarioExtractor">
-        /// Extracts <see cref="Hrot.Core.Network.EntityCreationRequest"/> items from raw scenario JSON.
+        /// Extracts <see cref="Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest"/> items from raw scenario JSON.
         /// Required when <paramref name="scenarioSerializer"/> is non-null.
         /// </param>
         /// <param name="scenarioSource">
-        /// Queue through which extracted entity creation requests are fed into the genesis pipeline.
-        /// Required when <paramref name="scenarioSerializer"/> is non-null.
+        /// ⭐ <c>CE-3228</c> — the bus the extracted entity creation requests are published on (the world's, which the creation pack
+        /// reads; Entity Creation §3.4d). Required when <paramref name="scenarioSerializer"/> is non-null.
         /// </param>
         /// <param name="scenarioIdAllocator">
         /// Allocates stable network IDs for newly created entities during scenario load.
@@ -214,7 +214,7 @@ namespace Hrot.SimHost
             Fdp.Core.FdpEventBus? eventBus = null,
             Fdp.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
             IScenarioEntityExtractor? scenarioExtractor = null,
-            ScenarioEntityCreationRequestSource? scenarioSource = null,
+            Fdp.Core.FdpEventBus? scenarioSource = null,
             INetworkIdAllocator? scenarioIdAllocator = null,
             string? localTempRoot = null,
             ITkbDatabase? tkbDb = null,             // TKB-020: used by TkbLoadClusterStateHandler

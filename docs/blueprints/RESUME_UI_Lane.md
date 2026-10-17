@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
-current-answer: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" directly below this STATUS block (what is
+updated: 2026-10-17
+current-answer: ⭐⭐⭐ 2026-10-15 — START AT THE SECTION "SESSION 2026-10-15 — RESUME HERE" (its 2026-10-17 overnight table is the latest) directly below this STATUS block (what is
   built, what is waiting on other lanes, what to do next). The programme is still the 3-D world and combat realism
   (../PLAN_3D_World_And_Realism.md); the live design is ../DESIGN_Map_3D_Mode.md §6n–§6u.
   ⛔ OLDER: 2026-10-10 — THE ui LANE'S CURRENT PROGRAMME IS THE 3-D WORLD AND COMBAT REALISM ⇒ read
@@ -208,6 +208,19 @@ Gates at `67f432f6c`: Presentation 635/0, `Map3DFrameRail` 20/20, Core 29/0, Sim
 | CE-1161 (+CE-3217) | ✅ BUILT `2026-10-16` overnight — backend's weather/time handoff U1–U4: empty-map click → Details shows the Scenario view (start time, global weather via the inspector) and the Zones view; Weather Region area tool (born with standard weather) | [Weather and Time §7](../designs/weather/DESIGN_Weather_And_Time.md), [tracker](Blueprint_Issues_Tracker.md) |
 | CE-1159 | ✅ BUILT `2026-10-16` overnight — `scenarios/ua-weather-regions` (dusk, fog bank + overcast overlapping, IFV + rifleman); railed through the production serializer. 3-D screenshots left for the user's live look | [Weather and Time §7.4](../designs/weather/DESIGN_Weather_And_Time.md) |
 | CE-1162…1165 | 📐 DESIGNED `2026-10-16` overnight — civilian display U-1…U-4 (behaviors' frame): class-driven person kit + police/elderly looks · live side colour (= CE-125 §3.1) + IG override precedence · `EffectState` poses + 2-D text · gas/smoke clouds in `EffectLayer` with terrain skipping see-through prisms. ⛔ no build until the user rules CV-1/CV-4/CV-6 and backend B-1/B-2/B-3 exist; four findings sent to backend (F-1…F-4) | [Civilians §8](../DESIGN_Civilians_And_Crowd_Control.md), [findings handoff](batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md) |
+
+### `2026-10-17` overnight (ui) — the civilian display finished, go-to-definition, a BTree picker defect
+
+| id | what | where |
+|---|---|---|
+| CE-1162 / CE-1164 | ✅ DONE — the elderly look (`PersonDto.Age`), the cower pose (`EffectState.Cowering`, COWERING in 2-D), police armed only with a HELD weapon (B-5's stun grenades are thrown) | [Civilians §8.6](../DESIGN_Civilians_And_Crowd_Control.md) |
+| CE-1166 | ✅ DONE — gestures + the placard (behaviors' frame U-6): `BlockFigure.GestureArms`, wired to backend's B-6 `Gesture` (`EntityBodyLayer3D.Gestured`), HANDS UP / PROTEST in 2-D (`GestureGizmo`) | [Civilians §8.7](../DESIGN_Civilians_And_Crowd_Control.md) |
+| CE-1009 / CE-1011 | ✅ DONE — Go to Definition opens a C# method's source: the Blueprint command on a library call, and the binding's method field (right-click); the opener moved to `Hrot.Editor.AiShared/Source` | [AI shared §7.1c](AI_Editor_Shared_Infrastructure.md) |
+| CE-1167 | ✅ DONE (found building CE-1011) — the BTree binding's method list offered behaviour NAMES; now the exporter's BTree methods of the slot's kind, one `ActionBindingMethods.For` with HSM | [AI shared §7.1c G-5](AI_Editor_Shared_Infrastructure.md) |
+| CE-1165 | ⏳ U4-a (the gas cloud drawn in `EffectLayer`) still waits on backend's `AreaEffectCloud` (B-1 part 3) | [Civilians §8](../DESIGN_Civilians_And_Crowd_Control.md) |
+| CE-1158 | ⏳ the use key's station + HUD are BUILT; the live cluster run is still owed | [Entity Control §8h.9](../DESIGN_Entity_Control.md) |
+
+⭐ Lanes: check `origin/backend` and `origin/behaviors` at the end of each piece of work (CLAUDE.md: no scheduled check-ins). ui next free id `CE-1168`.
 
 ### Waiting on other lanes (handoffs written by ui — check their state first)
 

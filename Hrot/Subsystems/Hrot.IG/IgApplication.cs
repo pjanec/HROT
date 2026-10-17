@@ -319,8 +319,6 @@ public class IgApplication : IDisposable
     /// <summary>⭐ CE-515 — this node's entity-creation pack, for the subsystem to expose.</summary>
     internal Hrot.Common.EntityCreation.EntityCreation? EntityCreation => _igBootstrapper?.EntityCreation;
 
-    internal ScenarioEntityCreationRequestSource? LocalEntityCreationRequests
-        => _igBootstrapper?.LocalEntityCreationRequests;
 
     // -- Task 5: IG-to-ExCon event translator state ----------------------------------------------
 
@@ -864,14 +862,14 @@ public class IgApplication : IDisposable
                             ?? Hrot.ScenarioEditor.Gizmos.MeasureDisplayUnits.Meters,
                     // ⭐⭐⭐ CE-1017 — the ENTITY-AUTHORING surface from the PACK, the same as Editor, CGF and SimHost:
                     //   the shared spawn adapter (also the toolbar's Spawn tool, which IG never serviced), the Add Entity
-                    //   picker + submenu, the canvas menu. 📐 Equivalent to IG's own path: the shared adapter enqueues
-                    //   onto the SAME LocalRequests queue with OwnerAppInstanceId 0 — untargeted, exactly what
+                    //   picker + submenu, the canvas menu. 📐 Equivalent to IG's own path: the shared adapter publishes
+                    //   on the SAME bus (CE-3228) with OwnerAppInstanceId 0 — untargeted, exactly what
                     //   IgEntityCreationRequests.FromSpawnCommand writes. MapCommandController stays for what is IG's
                     //   alone: servicing ExCon's remote CMD_PLACE_ENTITY / CMD_START_AUTHORING and acking them.
                     EntityAuthoring = _headless ? null : new Hrot.UI.Common.AddEntity.EntityAuthoringInputs(
                         Tkb:          () => ctx.World.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
                                             ? ctx.World.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null,
-                        Requests:     () => LocalEntityCreationRequests,
+                        Requests:     () => EntityCreation?.World.Bus,   // ⭐ CE-3228 — the creation pack reads this world's bus
                         GeoTransform: () => ctx.GeoTransform),
                 });
             _igMapInteraction = igMapInteraction;
@@ -952,14 +950,16 @@ public class IgApplication : IDisposable
                 _contextMenuSystem.SetCacheMissWriter(
                     (reqId, mapId, sel) => _networkAdapter?.WriteContextMenuRequest(reqId, mapId, sel),
                     _effectiveInstanceId);
+                // ⭐ CE-3228 — the tools publish requests on ctx.World.Bus; the creation pack must exist to read them.
+                if (EntityCreation is null)
+                    throw new InvalidOperationException(
+                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
+                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
+                        + ":111 vs :139); if that order changed, IG's authoring tools have no reader.");
                 _mapCommandController = new MapCommandController(
                     _canvas,
                     ctx.World.Bus,
                     dto => _networkAdapter?.WriteMapCommandAck(dto),
-                    LocalEntityCreationRequests ?? throw new InvalidOperationException(
-                        "The entity-creation pack has not been composed yet. RegisterSpawningPipeline "
-                        + "must run before RegisterApplicationSystems (SharedApplicationBootstrapper "
-                        + ":111 vs :139); if that order changed, IG's authoring tools have no sink."),
                     _effectiveInstanceId,
                     globalGizmoManager: _globalGizmoManager,
                     // 🔒 UXI-07 step 4a — the arbiter, so an incoming remote creation request

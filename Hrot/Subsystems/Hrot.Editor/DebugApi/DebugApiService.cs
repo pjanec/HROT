@@ -1738,8 +1738,8 @@ namespace Hrot.Editor.DebugApi
 
         /// <summary>
         /// ⭐⭐⭐ <c>CE-271</c> seam ⑤ — <c>POST /entities/create-request {tkbType, ownerNodeId, transform?,
-        /// attributesJson?}</c>. Enqueues an <see cref="Hrot.Core.Network.EntityCreationRequest"/> onto the
-        /// node's LOCAL creation source, so it flows through the real request path
+        /// attributesJson?}</c>. Publishes an <see cref="Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest"/> on the
+        /// node's bus (<c>CE-3228</c>), so it flows through the real request path
         /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>).
         ///
         /// <para>With <c>ownerNodeId</c> = this node, the node creates + owns the entity and grants its role groups;
@@ -1755,7 +1755,7 @@ namespace Hrot.Editor.DebugApi
         {
             var (creation, noPack) = ResolveEntityCreation();
             if (creation == null) return (null, noPack);
-            Action<Hrot.Core.Network.EntityCreationRequest> enqueue = creation.LocalRequests.Enqueue;
+            Action<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> enqueue = creation.Publish;
 
             List<object>? initialComponents = null;
             if (transform != null)
@@ -1774,7 +1774,7 @@ namespace Hrot.Editor.DebugApi
                 }
             }
 
-            var request = new Hrot.Core.Network.EntityCreationRequest
+            var request = new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId             = Guid.NewGuid(),
                 OwnerAppInstanceId    = ownerNodeId,

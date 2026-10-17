@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Vis2D.Defaults;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.IG.Tests;
 
@@ -93,7 +94,7 @@ public class MapEventTranslatorTests
     {
         const long expectedTkb = 100L;
         var state    = new MiniExConPanelState { TkbType = expectedTkb };
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
 
         EntityCreationRequest? captured = null;
         state.OnRequestEnqueued += cmd => captured = cmd;

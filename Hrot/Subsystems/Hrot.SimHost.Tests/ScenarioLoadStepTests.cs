@@ -14,6 +14,7 @@ using Hrot.Core.Network;
 using Hrot.Map.Common.ClusterLoad;
 using Hrot.Map.Common.Services;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Tests;
 
@@ -56,7 +57,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
 
     private static ScenarioLoadStep MakeStep(
         string? json,
-        ScenarioEntityCreationRequestSource source,
+        FdpEventBus source,
         TerrainLoadService? terrain = null)
         => new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
@@ -77,11 +78,18 @@ public sealed class ScenarioLoadStepTests : IDisposable
     private string SerializeGold()
         => _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();
 
-    private static List<EntityCreationRequest> Drain(ScenarioEntityCreationRequestSource source)
+    /// <summary>⭐ <c>CE-3228</c> — the step publishes on a bus; the request system would read it after the frame's swap.</summary>
+    private static FdpEventBus NewBus()
     {
-        var collected = new List<EntityCreationRequest>();
-        source.ProcessRequests(r => collected.Add(r));
-        return collected;
+        var bus = new FdpEventBus();
+        bus.RegisterManaged<EntityCreationRequest>();
+        return bus;
+    }
+
+    private static List<EntityCreationRequest> Drain(FdpEventBus source)
+    {
+        source.SwapBuffers();
+        return source.ReadManaged<EntityCreationRequest>().ToList();
     }
 
     // ── extraction and enqueue ────────────────────────────────────────────────────────────────
@@ -93,7 +101,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         _goldRepo.CreateEntity();
         _goldRepo.CreateEntity();
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(SerializeGold(), source);
         var ctx    = Ctx(Guid.NewGuid());
 
@@ -113,7 +121,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     [Fact]
     public async Task AnUnreadableScenario_FailsLOUDLY_RatherThanLoadingAnEmptyWorld()
     {
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(null, source);
         var ctx    = Ctx(Guid.NewGuid());
 
@@ -129,7 +137,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     [Fact]
     public async Task ANewScenario_ReadsNoFile_AndEnqueuesNothing()
     {
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         // ⚠ A loader that would THROW if consulted — the claim is that it never is.
         var step = new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
@@ -150,7 +158,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     {
         _goldRepo.CreateEntity();
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(SerializeGold(), source);
         var ctx    = Ctx(Guid.NewGuid());
 
@@ -170,7 +178,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     {
         _goldRepo.CreateEntity();
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(SerializeGold(), source);
         var prepared = Ctx(Guid.NewGuid());
 
@@ -210,7 +218,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     public async Task Stage5b_ANewScenario_GetsOneDoorEntityPerTerrainDoor_InKeyOrder()
     {
         using var world = TerrainRepo();
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step = new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
             new LambdaScenarioLoader(_ => throw new InvalidOperationException("must not be read")),
@@ -243,7 +251,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         var existing = world.CreateEntity();
         world.SetManagedComponent(existing, new Fdp.Toolkit.Terrain.TerrainObjectKey { Key = "range/H/hall" });
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(SerializeGold(), source);
         var ctx    = Ctx(Guid.NewGuid());
         await step.PrepareAsync(ctx, CancellationToken.None);
@@ -276,7 +284,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         Assert.Contains("\"TerrainObjects\"", json);
 
         using var loading = TerrainRepo();
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(json, source);
         var ctx    = Ctx(Guid.NewGuid());
         await step.PrepareAsync(ctx, CancellationToken.None);
@@ -300,7 +308,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     [Fact]
     public async Task CE3216_C3_ANewScenario_GetsTheDefaultWorldEnvironment_AtTheFixedBuiltInStart()
     {
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step = new ScenarioLoadStep(
             new ScenarioSerializerBuilder(SubsystemType).Build(),
             new LambdaScenarioLoader(_ => throw new InvalidOperationException("must not be read")),
@@ -339,7 +347,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         string json = new ScenarioSerializerBuilder(SubsystemType).Build().Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();
         Assert.Contains(authored.ToString(), json);   // saved exactly as authored
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(json, source);
         var ctx    = Ctx(Guid.NewGuid());
         await step.PrepareAsync(ctx, CancellationToken.None);
@@ -356,25 +364,31 @@ public sealed class ScenarioLoadStepTests : IDisposable
     /// <summary>⭐ Nothing prepared and nothing queued ⇒ resolved. The trivial arm, stated so the rest mean something.</summary>
     [Fact]
     public void AnEmptySource_WithNoWorld_IsResolved()
-        => Assert.True(MakeStep(null, new ScenarioEntityCreationRequestSource()).IsResolved(null));
+        => Assert.True(MakeStep(null, NewBus()).IsResolved(null));
 
-    /// <summary>⭐ Re-homed from all three suites: a source still holding requests is NOT resolved.</summary>
+    /// <summary>
+    /// ⭐ Re-homed from all three suites: requests not yet consumed ⇒ NOT resolved. ⭐⭐ <c>CE-3228</c> — the requests ride the bus, which
+    /// shows them after the next swap, and the request system reads them in the Input phase of the frame after that; so readiness ①
+    /// holds only TWO kernel ticks after the commit published.
+    /// </summary>
     [Fact]
     public async Task ASourceStillHoldingRequests_IsNotResolved()
     {
         _goldRepo.CreateEntity();
+        using var world = new EntityRepository();
 
-        var source = new ScenarioEntityCreationRequestSource();
+        var source = NewBus();
         var step   = MakeStep(SerializeGold(), source);
         var ctx    = Ctx(Guid.NewGuid());
 
         await step.PrepareAsync(ctx, CancellationToken.None);
-        step.Commit(ctx, null);
+        step.Commit(ctx, world);
 
-        Assert.False(step.IsResolved(null));
-
-        Drain(source);
-        Assert.True(step.IsResolved(null));
+        Assert.False(step.IsResolved(world));   // published, not yet visible
+        world.Tick();
+        Assert.False(step.IsResolved(world));   // visible after this frame's swap, read next frame
+        world.Tick();
+        Assert.True(step.IsResolved(world));    // the request system has read them
     }
 
     /// <summary>
@@ -389,7 +403,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         using var world = new EntityRepository();
         world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
 
-        var step = MakeStep(null, new ScenarioEntityCreationRequestSource());
+        var step = MakeStep(null, NewBus());
         Assert.True(step.IsResolved(world));
 
         var entity = world.CreateEntity();
@@ -407,7 +421,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     [Fact]
     public void EverySixCrossReferenceIntentTypes_BlockReadiness()
     {
-        var step = MakeStep(null, new ScenarioEntityCreationRequestSource());
+        var step = MakeStep(null, NewBus());
 
         AssertBlocks(w => { w.RegisterManagedComponent<InitialPassengersIntent>();
                             w.SetManagedComponent(w.CreateEntity(), new InitialPassengersIntent()); });
@@ -440,7 +454,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         using var world = new EntityRepository();
 
         var probe = new CountingZoneTileLoader();
-        var step  = MakeStep(null, new ScenarioEntityCreationRequestSource(),
+        var step  = MakeStep(null, NewBus(),
                              terrain: new TerrainLoadService(probe));
 
         Assert.True(step.IsResolved(world));
@@ -455,7 +469,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
     public void AHostWithNoTerrainService_StillResolves()
     {
         using var world = new EntityRepository();
-        Assert.True(MakeStep(null, new ScenarioEntityCreationRequestSource()).IsResolved(world));
+        Assert.True(MakeStep(null, NewBus()).IsResolved(world));
     }
 
     // ── stubs ─────────────────────────────────────────────────────────────────────────────────

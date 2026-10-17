@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT — A–F built 2026-10-08 (CE-3126); §4 is the as-built, C deviated (no GeoOrigin class). §5 (CE-3118, the Replay Browser loads the recording's terrain) BUILT 2026-10-09 as designed
-updated: 2026-10-09
+updated: 2026-10-17 (§4 ⑨ CE-2242 — the origin before the bake)
 current-answer: §5 CE-3118 (Replay Browser terrain) · §2 the decisions · §3 the UML (as-built) · §4 as-built notes
 stale-below: §2 row C's "GeoOrigin" wording is SUPERSEDED by §4 ① — the class was not needed
 known-rot: none
@@ -9,7 +9,7 @@ known-conflict: none
 related-designs:
   - docs/designs/weather/DESIGN_Weather_And_Time.md — the sun position reads this file's geographic transform (latitude / longitude of a point)
   - DESIGN_Terrain_Zones_And_Assets.md — owns the terrain asset and TerrainResidency's prepare/commit; this adds an origin to the asset and one line to Commit.
-  - DESIGN_Cluster_Load_Phase.md — owns the cluster-wide load transaction the terrain step runs in; it is what makes every node switch origin together.
+  - DESIGN_Cluster_Load_Phase.md — owns the cluster-wide load transaction the terrain step runs in; its commit is per node (not a barrier), which is why §4 ⑨ sets the origin before the bake.
   - DESIGN_Terrain_World.md — terrain coordinates are local metres (X east, Y north, Z up); the origin is what ties them to lat/lon.
   - DESIGN_Terrain_Combat_Tuning.md §5a — CE-3118 (Replay Browser loads the recording's terrain by name) is where the recording learns its terrain; this adds the origin beside the name.
   - DESIGN_Uniform_Gizmo_Membership.md §10 — the map's MapServices; the Replay Browser's missing geo transform (mission lines) closes here.
@@ -96,7 +96,12 @@ sequenceDiagram
   participant G as World singleton IGeographicTransform
   participant X as DDS translators
   O->>T: prepare(terrain name)
-  T->>R: Prepare (off-thread) reads terrain.json incl. origin
+  opt empty world: world boundary or late-joiner catch-up (CE-2242)
+    T->>R: BeforePrepare (frame thread) ApplyOriginAhead
+    R->>G: SetOrigin(definition.Origin), before the bake
+  end
+  T->>R: Prepare (off-thread) reads terrain.json, bakes the navmesh
+  Note over X: other nodes commit now, their entities arrive
   O->>T: commit
   T->>R: Commit (main thread)
   R->>G: ApplyGeoOrigin, SetOrigin(definition.Origin or 0,0,0)
@@ -104,7 +109,7 @@ sequenceDiagram
   X->>G: ToGeodetic / ToCartesian (next frame, new origin)
 ```
 
-*What it shows:* the origin rides the terrain's own two-phase commit — no node can hold the new terrain with the old origin.
+*What it shows:* the origin rides the terrain's own two-phase commit — no node can hold the new terrain with the old origin. ⭐ `CE-2242`: the commit is per node, not a cluster barrier, so on an empty world the origin goes in BEFORE the bake — an entity that replicates in while this node bakes is already converted with the right origin.
 
 ### Modules — who creates it, who sets it, who reads it
 
@@ -140,6 +145,16 @@ graph TD
 | ⑧ ⭐ `2026-10-09` (CE-3139, R-240) | **a flat terrain `berlin`** (`Recipes/Terrain/berlin/terrain.json`: the Berlin origin, no world ⇒ flat, empty ground) and **every shipped scenario names a terrain**: the eight that named none (`hill-attack`, `hill-attack-close`, `hill-attack-close-bp`, `test-move`, `test-fire`, `hsm-channel-e2e`, `mission-demo-bp`, recipe `sop-demo`) now name `berlin`. `test-move`'s target is re-expressed for the Berlin origin (52.5226598, 13.4122044 — the same local (489, 296)); the hill-attack missions were authored in Berlin lat/lon and need no change. 🔒 User: *"'no default berlin' still applies - without terrain the geo reference zero; scenarios without terrain should be converted to scenarios with 'berlin' terrain."* ⇒ B (missing = 0,0,0) is KEPT; the fix is data, not a code default. 📌 Found by the T3 rail `PlatoonBaselineRails` (red: the baseline's "local" was 902 km east) — green after | `Recipes/Terrain/berlin`, 8 scenarios |
 
 ⚠ **Left, flagged:** `NodeConfiguration.GeodeticOrigin` (a config default, Tel Aviv) is read by nothing but its own config tests — a second origin source in name only. Lean: retire it with the next SimHost config change; not removed here (no rush removals).
+
+✅ **FIXED `2026-10-17` (backend, `CE-2242`, ⑨ below) — the paragraph that follows is the measurement that led to it.** ⛔ ~~Known limit, measured `2026-10-17` (behaviors, `CE-2242`):~~ ③'s "set FIRST, in the same commit" holds per node, but **not
+across the cluster**. `Commit` runs after `Prepare`, and `Prepare` carries the navmesh bake (`TerrainResidency.cs:200`, ~0.5–0.6 s on
+test-town). A node with no bake commits at once, CGF spawns the scenario, and a node still baking receives those entities'
+GEODETIC positions with its origin unset — they land at `(901880, 5038392)`, outside every grid, and a static entity is never re-sent.
+Seen on 5 of ~10 fresh `--mode all` loads (log: the third "geo origin set" line comes after "Navmesh … baked", the
+`ProcessSpawn` lines before it). Leans, unmeasured: set the origin in an early commit before the bake (it needs only
+`Definition.Origin`), or hold the scenario's entity requests until every node has committed its terrain.
+
+| ⑨ ⭐ `2026-10-17` (`CE-2242`) | **the origin goes in before the bake on an empty world.** `ILoadPartProvider.BeforePrepare(context, world)` (default nothing) runs on the frame thread once per load, after the world-boundary clear and before any step prepares (`LoadPhaseChain.PrepareAsync`); `TerrainLoadStep` implements it only for a world boundary or a late joiner's catch-up and calls `TerrainResidency.ApplyOriginAhead` (reads just the definition; a missing one is left to `Prepare` to report). `Commit` still sets it (a no-op when equal), so ③ holds for every other load — there the world holds entities placed under the old origin and the change stays inside the commit. Rejected: holding the scenario's entity requests until every node committed (a new cluster barrier for a value one file read gives). Rail `TerrainLoadStepTests.CE2242_OnAFreshWorld_TheGeoOriginIsSetBeforeTheBakeFinishes_OtherLoadsWaitForCommit` (the bake held open: boundary / catch-up have the origin, a plain load does not) | `LoadPhaseContracts.cs`, `LoadPhaseChain.cs`, `TerrainLoadStep.cs`, `TerrainResidency.cs` |
 
 ⚠ **Not done here:** loading the recording's terrain BY NAME in the Replay Browser is `CE-3118` — the metadata now carries the name it needs.
 

@@ -95,6 +95,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (weapon.Ammo == 0) { channel.Status = fired > 0 ? NodeStatus.Success : NodeStatus.Failure; Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfAmmo); return; }
             var mountDto = CombatTkb.MountOf(world, shooter, fireIndex);
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
+            // ⭐⭐ CE-3230 (H-5; Civilians §7.9) — the LOADED round is the one that flies, is spent and decides "arc or straight". A hand has
+            //   no breech: a spent kind gives way to the next one at once. (Before, a loadout thrown at a point flew its mount's default.)
+            long loadedAmmo = PersonHands.IsHands(mountDto) ? PersonHands.ReadyNext(world, mountEntity) : AmmoChoice.LoadedAmmo(world, mountEntity);
             // ⭐⭐ IF-1 (I1, I3) — a mount that declares an indirect arc gets a FIRE SOLUTION: the lowest charge that reaches, low or high
             //   (FireSolution.For); the intent carries it and the SimHost flies exactly that. No solution ⇒ the action fails with why.
             //   ⭐ ui handoff P2 (DESIGN_Indirect_Fire §3.9) — solved BEFORE the fire-time hold, so the gun is LAID while it waits.
@@ -153,14 +156,17 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
             var reason = ShootAtPoint(world, entity, fireIndex, ref weapon, p.Point, p.CooldownSeconds, dt, obeyRoe: true, obeyArc: !bomb,
-                                      weaponEntity: shooter, charge: charge, highArc: high,
-                                      raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d);   // ⭐ CE-2180
+                                      ammo: loadedAmmo, weaponEntity: shooter, charge: charge, highArc: high,
+                                      raisedAt: bomb ? AimAndFireExecutor.ReleaseAt(world, entity, p.Point) : 0d,   // ⭐ CE-2180
+                                      fuzeSeconds: PersonHands.IsHands(mountDto) ? RoundPickUp.FuzeLeft(world, entity, loadedAmmo) : 0f);   // ⭐ CE-3235
             if (reason != Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
             {
                 channel.Status = NodeStatus.Running;
                 SayHeld(world, entity, p.Point, reason, in weapon);
                 return;
             }
+            if (loadedAmmo != 0) AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ CE-3230 (H-5) — and that kind's count
+            if (PersonHands.IsHands(mountDto)) RoundPickUp.Thrown(world, entity, loadedAmmo);   // ⭐ CE-3235 (PU-6) — the live round left his hand
             fixed (byte* st = channel.State) *(int*)st = fired + 1;
             channel.Status = p.Rounds > 0 && fired + 1 >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
             Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing, fired + 1, p.Rounds);   // ⭐ CE-3136 — blind fire: no aim, no sight gate
@@ -218,7 +224,7 @@ namespace Fdp.Toolkit.Combat.Executors
         /// </summary>
         public static Fdp.Toolkit.Behavior.Diagnostics.ActionReason ShootAtPoint(EntityRepository world, Entity unit, int mountIndex,
             ref WeaponState weapon, Vector3 point, float cooldownSeconds, float dt, bool obeyRoe, bool obeyArc, long ammo = 0L,
-            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d)
+            Entity weaponEntity = default, byte charge = 0, byte highArc = 0, double raisedAt = 0d, float fuzeSeconds = 0f)
         {
             // ⭐ IF-1 (I6) — a controlled weapon system fires as itself (its mount 0); the unit keeps the ROE and the line-of-fire check
             var firing = weaponEntity.IsNull ? unit : weaponEntity;
@@ -232,9 +238,16 @@ namespace Fdp.Toolkit.Combat.Executors
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
-            if (CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, firing, mountIndex)) is not { Indirect: true }
+            //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own
+            var roundWarhead = ammo != 0 ? CombatTkb.WarheadOf(world, ammo) : CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, firing, mountIndex));
+            if (roundWarhead is not { Indirect: true }
                 && LineOfFire.BlockedByFriendly(world, unit, point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldFriendlyOnLine;
+            // ⭐ AW-20 (R-2026) — the AI's direct round neither, while a NEUTRAL person is on the line or in the spread (an operator — obeyRoe
+            //   false — decides himself, as for the neutral target, CE-2233)
+            if (obeyRoe && CombatTkb.MountOf(world, firing, mountIndex) is var aimed && roundWarhead is not { Indirect: true }
+                && LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world))))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
             // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
             if (!Magazine.Ready(weapon))
             {
@@ -247,6 +260,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 AmmoGuid = ammo,   // ⭐ CE-1079 — the loaded round (0 = the mount's own)
                 Charge = charge, HighArc = highArc,   // ⭐ IF-1 (I3) — the brain's fire solution
                 RaisedAt = raisedAt > 0d ? raisedAt : HitModel.Now(world),   // ⭐ CE-2180 — when it was raised (a bomb: its cue's moment)
+                FuzeSeconds = fuzeSeconds,   // ⭐ CE-3235 (PU-6) — a thrown-back live round's fuze left (0 = its own)
             });
             Magazine.Spend(ref weapon);   // ⭐ CE-3136 P-5
             weapon.CooldownSecondsRemaining = cooldownSeconds;

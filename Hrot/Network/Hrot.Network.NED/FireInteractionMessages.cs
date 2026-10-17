@@ -57,6 +57,10 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a, R-169 — APPENDED) — the synced sim time (s) the brain raised the shot; 0 = now. A bomb
         /// starts from its carrier as it was then, flown forward to the SimHost's now.</summary>
         public double RaisedAt;
+
+        /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6, R-169 — APPENDED) — the fuze a time-fuzed round flies with (s); 0 = its warhead's
+        /// own. A live round picked up and thrown back keeps what it had left.</summary>
+        public float FuzeSeconds;
     }
 
     /// <summary>
@@ -98,6 +102,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>⭐ CE-1111 — the synced sim time (s) it was fired.</summary>
         public double FiredAt;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
@@ -155,6 +162,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
         public byte Kind;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     // ── Air defence (CE-2189, DESIGN_Missiles_And_Ammo §3c) ───────────
@@ -209,6 +219,9 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ Stage 6 (<c>CE-1032</c>, W-2) — the TKB type id of the munition (0 = unknown); a receiver looks its warhead up.
         /// ⛔ Never the warhead numbers (§3e — one source). <see cref="HitEntityId"/> 0 = it detonated on the terrain.</summary>
         public long MunitionType;
+
+        /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
+        public long SourceNodeId;
     }
 
     /// <summary>

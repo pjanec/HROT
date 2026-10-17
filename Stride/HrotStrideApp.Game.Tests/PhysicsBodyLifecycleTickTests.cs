@@ -10,6 +10,7 @@ using Hrot.Stride.Core;
 using HrotStrideApp;
 using SMath = Stride.Core.Mathematics;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -160,7 +161,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
     public void Tick_AfterSpawnAndVisualReady_LifecycleCreatesBody()
     {
         // Spawn an InfantrySoldier (capsule shape).
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -213,7 +214,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
         // On frame 3 the entity is authoritative; SplitSync runs at the END of the frame's
         // Tick (Step 5), creating the visual ref AFTER lifecycle (Step 2) already ran
         // for that frame. So Bodies must be empty after exactly 3 ticks.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -251,7 +252,7 @@ public sealed class PhysicsBodyLifecycleTickTests : IDisposable
     [Fact]
     public void Tick_RepeatTicks_DoNotDoubleCreateBody()
     {
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

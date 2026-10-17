@@ -19,7 +19,7 @@ namespace Hrot.CGF.Orchestration.Handlers
     ///
     /// <para>
     /// On <c>StartEpisode</c>, extracts episode entities via <see cref="StagingEntityExtractor"/>
-    /// and enqueues them into <see cref="ScenarioEntityCreationRequestSource"/> at Commit time.
+    /// and publishes them on the world's FDP bus at Commit time (<c>CE-3228</c>, Entity Creation §3.4d).
     /// On <c>StopEpisode</c>, collects the network IDs of live/constructing entities tagged with
     /// the episode and publishes a <see cref="DestroyEntityCommand"/> per entity at Commit time.
     /// Uses the event bus so proper ELM lifecycle teardown is triggered rather than
@@ -31,7 +31,6 @@ namespace Hrot.CGF.Orchestration.Handlers
         private readonly ScenarioSerializer _serializer;
         private readonly IScenarioLoader _scenarioLoader;
         private readonly StagingEntityExtractor _extractor;
-        private readonly ScenarioEntityCreationRequestSource _source;
         private readonly INetworkIdAllocator _idAllocator;
         private readonly EntityRepository _world;
         private readonly ScenarioBehaviorRemapper? _remapper;
@@ -45,7 +44,6 @@ namespace Hrot.CGF.Orchestration.Handlers
             ScenarioSerializer serializer,
             IScenarioLoader scenarioLoader,
             StagingEntityExtractor extractor,
-            ScenarioEntityCreationRequestSource source,
             INetworkIdAllocator idAllocator,
             EntityRepository world,
             ScenarioBehaviorRemapper? remapper = null)
@@ -53,7 +51,6 @@ namespace Hrot.CGF.Orchestration.Handlers
             _serializer    = serializer    ?? throw new ArgumentNullException(nameof(serializer));
             _scenarioLoader = scenarioLoader ?? throw new ArgumentNullException(nameof(scenarioLoader));
             _extractor     = extractor     ?? throw new ArgumentNullException(nameof(extractor));
-            _source        = source        ?? throw new ArgumentNullException(nameof(source));
             _idAllocator   = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
             _world         = world         ?? throw new ArgumentNullException(nameof(world));
             _remapper      = remapper;
@@ -142,7 +139,7 @@ namespace Hrot.CGF.Orchestration.Handlers
             try
             {
                 foreach (var request in _pendingRequests)
-                    _source.Enqueue(request);
+                    _world.Bus.PublishManaged(request);
             }
             finally
             {

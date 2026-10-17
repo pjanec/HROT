@@ -6,6 +6,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Lifecycle;
 using Fdp.Toolkit.NetworkSpawning;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.NetworkSpawning.Systems;
 using Fdp.Toolkit.Replication.Abstractions;
 using Fdp.Toolkit.Replication.Patching;
@@ -115,10 +116,11 @@ namespace Hrot.Common.EntityCreation
             var obstacleBake = new Hrot.Map.Common.Services.StaticObstacleBakeSystem();
 
             // ⭐⭐ The LOCAL request source. This is what makes path 2 (a node creating an entity it
-            //   OWNS) possible without a DDS round trip: an authoring site enqueues a request targeted
-            //   at this node, and the request system below drains it on the next tick.
-            //   📌 CGF already composed exactly this shape; the pack generalises it.
-            var localRequests = new ScenarioEntityCreationRequestSource();
+            //   OWNS) possible without a DDS round trip: an author PUBLISHES a request on this world's FDP bus and the
+            //   request system below reads it on the next tick. ⭐⭐⭐ CE-3228 (§3.4d) — the bus, not a queue singleton:
+            //   every local author runs on the frame thread, and the request type is the wire's own.
+            ctx.World.RegisterManagedEvent<EntityCreationRequest>();
+            var localRequests = new BusEntityCreationRequestSource(ctx.World.Bus);
 
             // ⭐⭐⭐ D1 — when the host can reach the cluster, the LOCAL source is WRAPPED so a request
             //   addressed to another node is sent there instead of being silently dropped by the
@@ -246,13 +248,12 @@ namespace Hrot.Common.EntityCreation
                     new Fdp.Toolkit.Replication.Systems.LightweightRoundIdentitySystem(ctx.IdAllocator, ctx.EntityMap, ctx.NodeId),
                 };
 
-            // ⭐ CE-1033 S5 (R-260) — the LOCAL request source on the world, so shared code that only holds the world (a map layer
-            //   asking for the scenario's camera entity) can REQUEST an entity the way R-140 prescribes — unowned, for the default
-            //   processor to create and own — with no per-host wiring: every host that creates entities composes THIS pack.
-            ctx.World.SetSingletonManaged(localRequests);
+            // ⭐ CE-1033 S5 (R-260) / ⭐⭐ CE-3228 — shared code that only holds the world (a map layer asking for the scenario's camera
+            //   entity) REQUESTS an entity by publishing on that world's bus — no singleton: every host that creates entities composes THIS
+            //   pack, so its bus has the reader.
 
             return new EntityCreation(
-                translators, ctx.Elm, localRequests, requestSystem, finalization, spawnSystem,
+                translators, ctx.Elm, requestSystem, finalization, spawnSystem,
                 promotionSystem, ctx.NodeId, networkSystems, ctx.World, obstacleBake,
                 new SeatPresetSystem(ctx.EntityMap));   // ⭐ WS-4 (W-I) — boards the presets CreateEntityRequestSystem spawns
         }

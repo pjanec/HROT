@@ -15,6 +15,7 @@ using Hrot.Stride.Core;
 using HrotStrideApp;
 using SMath = Stride.Core.Mathematics;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -186,7 +187,7 @@ public sealed class ReverseSyncOrderingTests : IDisposable
         subsystem.Initialize(_fakeFactory);
 
         // Spawn a single entity (InfantrySoldier, CapsuleTkbType 2001).
-        subsystem.ScenarioSource.Enqueue(new EntityCreationRequest
+        subsystem.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

@@ -68,7 +68,7 @@ public class EditorCapabilitiesTests : IDisposable
     {
         var entityMap  = new NetworkEntityMap();
         var mapper     = new TacticalIntentMapperRegistry();
-        var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, new ScenarioEntityCreationRequestSource(), mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
+        var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
         var muscle     = new SimHostCoreLogicPack(entityMap);
         Track(cgf); Track(muscle);
         return (cgf, muscle);
@@ -207,7 +207,8 @@ public class EditorCapabilitiesTests : IDisposable
                             // ⭐ Weapon systems WS-1 (W-C) — the deploy state's applier, the same Interactions capability. Added in
                             //   5c3fe8974 (2026-10-14); this block was not updated then (found red in the airborne B-5 gates).
                             typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),
-                            typeof(Hrot.Common.EntityCreation.EjectionSystem) })   // ⭐ airborne insertion B-8 — same capability
+                            typeof(Hrot.Common.EntityCreation.EjectionSystem),   // ⭐ airborne insertion B-8 — same capability
+                            typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem) })   // ⭐ CE-3219 part 3 — same capability
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -295,7 +296,8 @@ public class EditorCapabilitiesTests : IDisposable
                                typeof(Fdp.Toolkit.Terrain.DoorCommandSystem),               // CE-3110 — interaction infrastructure
                                typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
                                typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),          // WS-1 — same capability
-                               typeof(Hrot.Common.EntityCreation.EjectionSystem) }),   // airborne B-8 — same capability
+                               typeof(Hrot.Common.EntityCreation.EjectionSystem),   // airborne B-8 — same capability
+                               typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem) }),   // CE-3219 part 3 — same capability
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.

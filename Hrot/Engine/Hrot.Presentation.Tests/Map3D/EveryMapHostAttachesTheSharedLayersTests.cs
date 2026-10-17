@@ -77,14 +77,16 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     }
 
     /// <summary>⭐ CE-1033 S5 (R-260, R-140) — the camera entity needs NO per-host wiring: the shared map attach adds its layer, and the
-    /// shared <c>EntityCreationPack</c> (which every creating host composes) publishes the request source the layer asks through.</summary>
+    /// shared <c>EntityCreationPack</c> (which every creating host composes) registers the creation request on the world's bus, which the layer
+    /// publishes on (⭐ <c>CE-3228</c>: the bus, not a queue singleton — Entity Creation §3.4d).</summary>
     [Fact]
     public void S5_TheCameraNeedsNoPerHostWiring()
     {
         var pack = File.ReadAllText(Path.Combine(RepoRoot(), PackFile));
         Assert.Contains("new Hrot.UI.Common.Map3D.MapCameraLayer(viewSwitch, worldProvider)", pack);
         var creation = File.ReadAllText(Path.Combine(RepoRoot(), "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreationPack.cs"));
-        Assert.Contains("ctx.World.SetSingletonManaged(localRequests);", creation);
+        Assert.Contains("ctx.World.RegisterManagedEvent<EntityCreationRequest>();", creation);
+        Assert.Contains("new BusEntityCreationRequestSource(ctx.World.Bus)", creation);
         var hostMentions = ProductionFiles().Where(f => f.Rel.StartsWith("Hrot/Subsystems/") && System.Text.RegularExpressions.Regex.IsMatch(f.Text, @"MapCamera(Layer|Tkb|Pose)\b")).Select(f => f.Rel).ToList();
         Assert.True(hostMentions.Count == 0, "a host wires the map camera itself: " + string.Join(", ", hostMentions));
     }

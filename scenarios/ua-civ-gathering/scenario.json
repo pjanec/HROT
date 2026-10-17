@@ -1,0 +1,429 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "c2370001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 40,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8001
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Casualty",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          170,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8002
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          155,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8003
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          140,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8004
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          230,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8005
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 4",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          245,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8006
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 5",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          260,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8007
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 6",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          200,
+          170,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8008
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 7",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          200,
+          155,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8009
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 8",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          200,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8010
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 9",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          200,
+          230,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8011
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 10",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          200,
+          245,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8012
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 11",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370001-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          200,
+          260,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8013
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Onlooker 12",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

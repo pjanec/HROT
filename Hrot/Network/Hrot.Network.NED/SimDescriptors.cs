@@ -347,6 +347,35 @@ namespace Hrot.NED.Descriptors
         public double StunnedUntil;
         public double IrritatedUntil;
         public double KnockedDownUntil;
+        public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
+    }
+
+    // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,
+    //   like EntityEffectState: a late joiner must see who has his hands up.
+    [DdsTopic("EntityGesture")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityGesture
+    {
+        [DdsKey] public long EntityId;
+        public byte Kind;
+    }
+
+    // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud, its creator → every node. Reliable + TransientLocal + KeepLast 1:
+    //   a late joiner must see a cloud still hanging there. Its position is the entity's ordinary transform.
+    [DdsTopic("EntityAreaEffectCloud")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityAreaEffectCloud
+    {
+        [DdsKey] public long EntityId;
+        public byte Kind;
+        public float Radius;
+        public float Height;
+        public float SightTransmittance;
+        public float IrritantSeconds;
+        public double BornAtSimSeconds;
+        public float Seconds;
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner

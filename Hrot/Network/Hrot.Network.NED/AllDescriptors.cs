@@ -116,6 +116,12 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, beside Health (Brain group → every node).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3. Measured free on ui, behaviors, backend, coordinator.
         dtEffectState                 = 142,
+        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms (Brain group → every node).
+        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.7. Measured free on ui, behaviors, backend, coordinator.
+        dtGesture                     = 143,
+        // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud's description, its creator → every node (no group).
+        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b. Measured free on ui, behaviors, backend, coordinator.
+        dtAreaEffectCloud             = 144,
         // etc., all known descriptor types here
     }
 
@@ -141,6 +147,11 @@ namespace Hrot.NED.Descriptors
 
         [DdsCase(EDescriptorType.dtMapRoute)]
         public MapRoute MapRoute;
+
+        // ⭐ CE-3228 / CE-3219 part 3 — a gas / smoke cloud asked for on one node and created on another (owner 0 ⇒ the default
+        //   processor): the forwarded request must carry the cloud, or the creator builds a bare type-7202 entity nothing ends.
+        [DdsCase(EDescriptorType.dtAreaEffectCloud)]
+        public EntityAreaEffectCloud AreaEffectCloud;
 
     }
 }

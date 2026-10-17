@@ -14,11 +14,12 @@ namespace Hrot.UI.Common.AddEntity;
 /// CALL time — hosts compose their creation pack, TKB and picker shell after the map.
 /// </summary>
 /// <param name="Tkb">The host's TKB.</param>
-/// <param name="Requests">The host's entity-creation request queue (its creation pack's <c>LocalRequests</c>).</param>
+/// <param name="Requests">⭐ <c>CE-3228</c> — the bus the host's creation pack reads (its world's bus), once that pack is composed; null
+/// before. Every authoring affordance publishes an <c>EntityCreationRequest</c> on it (Entity Creation §3.4d).</param>
 /// <param name="GeoTransform">The host's geodetic transform (for the JSON attribute compiler: affiliation, geo coordinates).</param>
 public sealed record EntityAuthoringInputs(
     Func<ITkbDatabase?> Tkb,
-    Func<ScenarioEntityCreationRequestSource?> Requests,
+    Func<FdpEventBus?> Requests,
     Func<IGeographicTransform?> GeoTransform)
 {
     /// <summary>Why authoring is suspended now (Preview, loading), or null. Greys the Add Entity submenu.</summary>
@@ -43,7 +44,6 @@ public sealed record EntityAuthoringInputs(
 public sealed class EntityAuthoring
 {
     private readonly EntityAuthoringInputs _in;
-    private readonly FdpEventBus _worldBus;
     private readonly GlobalGizmoManager _gizmos;
     private readonly Hrot.ScenarioEditor.Tools.ToolController _tools;
     private readonly PickerRegistry? _ownPickers;
@@ -53,7 +53,7 @@ public sealed class EntityAuthoring
                              Hrot.ScenarioEditor.Tools.ToolController tools)
     {
         _in = inputs ?? throw new ArgumentNullException(nameof(inputs));
-        _worldBus = worldBus;
+        _ = worldBus;   // ⭐ CE-3228 — requests go on the creation pack's bus (Requests), which is this world's
         _gizmos = gizmos;
         _tools = tools;
         if (inputs.HostPickers is null) _ownPickers = CreatePickers();
@@ -61,7 +61,7 @@ public sealed class EntityAuthoring
         CanvasMenu = new Hrot.Presentation.Systems.CanvasMenuUpdateSystem(AddEntity);
     }
 
-    /// <summary>The shared spawn adapter, built on first use once the host's request queue exists; null before that.</summary>
+    /// <summary>The shared spawn adapter, built on first use once the host's creation pack exists; null before that.</summary>
     public ScenarioSpawnAdapter? Spawn
     {
         get
@@ -71,7 +71,7 @@ public sealed class EntityAuthoring
             if (requests is null) return null;
             var geo = _in.GeoTransform();
             var json = geo is null ? null : Fdp.Toolkit.Replication.Attributes.AttributeCompilerFactory.Build(geo);
-            _spawn = new ScenarioSpawnAdapter(_worldBus, json, _in.Tkb(), requests, _gizmos, _tools);
+            _spawn = new ScenarioSpawnAdapter(requests, json, _in.Tkb(), _gizmos, _tools);
             return _spawn;
         }
     }

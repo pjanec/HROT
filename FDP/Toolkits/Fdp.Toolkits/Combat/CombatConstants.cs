@@ -58,6 +58,13 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-1128</c> — <see cref="Contracts.RoundImpactNotification"/>: a round marked a surface (docs/DESIGN_Visual_Effects.md §10).</summary>
         public const int RoundImpactNotificationEventId = 5010;
 
+        /// <summary>⭐ <c>CE-3235</c> (B-13) — <see cref="PickUpRoundEvent"/>: a man asks the round's owner for a lying round.</summary>
+        public const int PickUpRoundEventId = 5011;
+
+        /// <summary>⭐ <c>CE-3235</c> (B-13) — <see cref="PickUpGrantEvent"/>: the round's owner gives it to the man's brain owner.</summary>
+        public const int PickUpGrantEventId = 5012;
+
+
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;
 

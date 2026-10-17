@@ -1,0 +1,82 @@
+{
+    "$meta": {
+        "docType": "Hrot.Scenario",
+        "schemaVersion": 1
+    },
+    "header": {
+        "subsystemType": "Hrot.Scenario",
+        "schemaVersion": "1.0",
+        "terrainName": "test-town"
+    },
+    "entities": {
+        "c2380001-0000-4000-8000-000000000001": {
+            "SimTransform": {
+                "Position": [
+                    100,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9801
+            },
+            "TkbIdentity": {
+                "TkbType": 1202
+            },
+            "EntityInfo": {
+                "Name": "Policeman",
+                "ForceId": "Friend"
+            },
+            "TargetMemory": {
+                "Entries": []
+            }
+        },
+        "c2380001-0000-4000-8000-000000000002": {
+            "SimTransform": {
+                "Position": [
+                    106,
+                    200,
+                    0
+                ],
+                "Rotation": [
+                    0,
+                    0,
+                    0,
+                    1
+                ]
+            },
+            "Health": {
+                "Current": 100,
+                "Max": 100
+            },
+            "NetworkIdentity": {
+                "Value": 9802
+            },
+            "TkbIdentity": {
+                "TkbType": 1101
+            },
+            "EntityInfo": {
+                "Name": "Rioter",
+                "ForceId": "Neutral"
+            },
+            "TargetMemory": {
+                "Entries": []
+            },
+            "Behavior": {
+                "Name": "CivilianHsm",
+                "Params": "{\"Protest\":true,\"ProtestAt\":[108,200,0],\"Instigator\":true}",
+                "Origin": "Superior"
+            }
+        }
+    }
+}

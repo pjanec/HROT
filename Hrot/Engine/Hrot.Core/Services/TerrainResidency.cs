@@ -519,6 +519,27 @@ public sealed class TerrainResidency
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2242</c> — sets the origin of the terrain a load is ABOUT to commit, ahead of <see cref="Prepare"/>'s navmesh
+    /// bake: other nodes commit at once and their entities replicate in while this node still bakes, and a geodetic position
+    /// converted before the origin is set lands hundreds of km out (never re-sent if the entity is static). Reads only the
+    /// definition; a missing one is left to <see cref="Prepare"/> to report. ⛔ Call it only where the world holds nothing
+    /// the old origin placed (a world boundary, a late joiner's catch-up) — <see cref="Commit"/> sets the same value again.
+    /// 📄 docs/DESIGN_Geo_Origin.md §4.
+    /// </summary>
+    public void ApplyOriginAhead(EntityRepository? world, string? terrainName)
+    {
+        if (string.IsNullOrWhiteSpace(terrainName))
+        {
+            ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);
+            return;
+        }
+        string? definitionPath = _catalog.ResolveDefinition(terrainName);
+        if (definitionPath == null) return;
+        var definition = TerrainDefinitionParser.Parse(File.ReadAllText(definitionPath));
+        ApplyGeoOrigin(world, definition.Origin, terrainName);
+    }
+
+    /// <summary>
     /// The newest write time of anything in the terrain folder — the idempotency key, so editing the world
     /// file (not just the definition) makes the next load re-ingest.
     /// </summary>

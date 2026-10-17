@@ -72,6 +72,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
+        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
+        world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();     // ⭐ CE-3210 — where rounds struck (dtHitMarks)
@@ -103,7 +105,14 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
-        world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
+        // ⭐ CE-1148 S2 (Node Roles §3.5) — the world events every node now receives (a shot, a burst, a round's mark).
+        world.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.Contracts.RoundImpactNotification>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.DoorCommandEvent>();
+        // ⭐ CE-3235 (B-13) — picking a round up: the ask (to the round's flier) and the grant (to the man's brain owner), on EVERY host
+        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();   // ⭐ 5d — door commands: raised anywhere, applied by the door's owner
         // ⭐ CE-3110 I-2a — the embarkation interaction kinds: raised on any node, carried to the vehicle's owner (R-221 needs each
         //   kind's event on EVERY host — the ingress republishes it wherever a request lands).
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
@@ -176,6 +185,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedEvent<SetTimeScaleIntent>();
         world.RegisterManagedEvent<SlaveNodeSetUpdatedEvent>();
         world.RegisterManagedEvent<SpawnEntityCommand>();
+        world.RegisterManagedEvent<EntityCreationRequest>();   // ⭐ CE-3228 — the creation request, published on the bus by every local author
         world.RegisterManagedEvent<UpdateEntityCommand>();
         world.RegisterManagedEvent<DestroyEntityCommand>();
         world.RegisterManagedEvent<DeferredTakeOwnershipCommand>();

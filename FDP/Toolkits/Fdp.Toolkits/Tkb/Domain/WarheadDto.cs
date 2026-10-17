@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Irritant = 5,
         /// <summary>⭐ <c>CE-3219</c> — a stun grenade: one stun hit to everyone in its radius.</summary>
         Stun = 6,
+        /// <summary>⭐ <c>CE-3219</c> part 3 — a smoke round: a cloud that blocks sight (<see cref="WarheadDto.CloudRadiusM"/>), no harm.</summary>
+        Smoke = 7,
     }
 
     /// <summary>When a warhead detonates. v1: impact and time (W-4); airburst is later.</summary>
@@ -125,7 +127,23 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float EffectSeconds { get; init; }
 
         /// <summary>True when the warhead has any area effect.</summary>
+        [EditUnit("m")]
+        [Description("⭐ CE-3219 — the cloud an Irritant or Smoke burst leaves: its radius (0 = no cloud).")]
+        public float CloudRadiusM { get; init; }
+
+        [EditUnit("m")]
+        [Description("The cloud's height above the burst (0 = 3 m).")]
+        public float CloudHeightM { get; init; }
+
+        [EditUnit("s")]
+        [Description("How long the cloud lasts (it thins over its last third).")]
+        public float CloudSeconds { get; init; }
+
         [JsonIgnore]
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;
+
+        /// <summary>⭐ <c>CE-3219</c> part 3 — the burst leaves a gas / smoke cloud.</summary>
+        [JsonIgnore]
+        public bool HasCloud => CloudRadiusM > 0f && CloudSeconds > 0f && (Kind == WarheadKind.Irritant || Kind == WarheadKind.Smoke);
     }
 }

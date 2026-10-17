@@ -75,10 +75,6 @@ namespace Hrot.CGF
         // each plan so they keep their tail-of-Simulation position. Carrying them here made every
         // Brain+Muscle node register them twice.
 
-        // ── Shared scenario source (constructed once by CgfApplication / CgfSubsystem) ─
-        // Held here for future hand-off to load handlers (Phases 3-4).
-        internal ScenarioEntityCreationRequestSource ScenarioSource { get; }
-
         /// <summary>Systems to wrap in TogglableInputGroup.</summary>
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
@@ -115,11 +111,6 @@ namespace Hrot.CGF
         /// Network entity map forwarded to <see cref="ActionDispatchModule"/> via
         /// <see cref="JoinFormationExecutor"/>.
         /// </param>
-        /// <param name="scenarioSource">
-        /// In-memory entity creation request source shared by CGF load handlers (Phases 3-4)
-        /// and multiplexed alongside the live NED source by <c>CgfSubsystem</c>.
-        /// Must not be null.
-        /// </param>
         /// <param name="mapperRegistry">
         /// Registry of <see cref="ITacticalOrderMapper"/> implementations used by
         /// <see cref="TacticalIntentResolutionSystem"/> to translate generic tactical
@@ -139,7 +130,6 @@ namespace Hrot.CGF
         public CgfLogicPack(
             BehaviorRegistry                     behaviorRegistry,
             NetworkEntityMap                     entityMap,
-            ScenarioEntityCreationRequestSource  scenarioSource,
             TacticalIntentMapperRegistry         mapperRegistry,
             BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
@@ -147,11 +137,8 @@ namespace Hrot.CGF
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
-            if (scenarioSource    == null) throw new ArgumentNullException(nameof(scenarioSource));
             if (mapperRegistry    == null) throw new ArgumentNullException(nameof(mapperRegistry));
             if (blueprintRegistry == null) throw new ArgumentNullException(nameof(blueprintRegistry));
-
-            ScenarioSource = scenarioSource;
 
             // ⭐⭐⭐ P3 step 3b — the EXECUTION gate, threaded to BOTH cognitive modules from ONE flag so
             //   they cannot disagree. 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.5.
@@ -238,6 +225,12 @@ namespace Hrot.CGF
             //   declared in every host's plan (like UnitHierarchy).
             simList.Add(_activeSensorTracksUpdateSystem);
             simList.Add(_cgfThreatEvaluationSystem);
+            // ⭐ CE-2235 (docs/DESIGN_Civilians_And_Crowd_Control.md §5d) — every civilian's fear from what he heard this frame, before
+            //   the brain tick, so his CivilianHsm reads this frame's fright.
+            simList.Add(new Fdp.Toolkit.Civilians.CivilianFearSystem());
+            // ⭐ CE-2237 (§5f) — the crowds: who an incident draws, who stands with whom, and the fear that spreads among them —
+            //   after the fear system, before the brain tick, so a guard reads this frame's contagion.
+            simList.Add(new Fdp.Toolkit.Civilians.CrowdSystem());
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
             // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft: SensorChange.MissileWarning + details.

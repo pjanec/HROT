@@ -205,6 +205,12 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (context.IsWorldBoundary && _world != null)
             WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
 
+        var steps = StepsFor(context).ToArray();
+
+        // ⭐⭐ CE-2242 — what must be in place before entities replicate in (the geo origin), still on the frame thread.
+        foreach (var step in steps)
+            step.BeforePrepare(context, _world);
+
         // ── The content itself. ⭐⭐ P4 (Q91 §4-B2, R-4001) — THE FRAME THREAD COORDINATES; only pure work leaves it.
         //    📐 Before: every step was awaited inline with no prior yield (the comment here said "off the main thread";
         //    the code did not), so a long TKB/terrain read stopped the frame — and the heartbeat — for its whole length.
@@ -212,7 +218,6 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //    ② the pure steps (they build private objects; every shared write is in Commit) run on a worker, in order,
         //    so this method returns an incomplete task and ClusterSlave polls it every frame (_pendingPrepare).
         //    ⚠ The order change is safe: the scenario extraction reads template ids from the scenario JSON, not the TKB.
-        var steps = StepsFor(context);
         foreach (var step in steps)
             if (!step.PreparesOffFrameThread)
                 await step.PrepareAsync(context, ct).ConfigureAwait(false);

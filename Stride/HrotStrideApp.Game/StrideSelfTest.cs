@@ -9,6 +9,7 @@ using Fdp.Toolkit.Time.Controllers;
 using Hrot.Core.Network;
 using Hrot.Stride.Core.TestHarness;
 using Stride.Engine;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp;
 
@@ -229,7 +230,7 @@ public sealed class StrideSelfTest
         // CreateEntityRequestSystem → NetworkSpawningSystem → translators →
         // PhysicsBodyLifecycleSystem → BulletPhysicsBodyService.CreateBody.
         // PreAllocatedNetworkId=9001 lets us deterministically look the entity up later.
-        _ctx.ScenarioSource.Enqueue(new EntityCreationRequest
+        _ctx.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId             = Guid.NewGuid(),
             OwnerAppInstanceId    = 0,            // localNodeId=0 → WithOwned authority granted

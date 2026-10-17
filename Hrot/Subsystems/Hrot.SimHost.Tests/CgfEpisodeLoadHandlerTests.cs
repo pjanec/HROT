@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
 
         private CgfEpisodeLoadHandler MakeHandler(
             string? json,
-            ScenarioEntityCreationRequestSource source,
+            BusEntityCreationRequestSource source,   // ⭐ CE-3228 — the handler publishes on _world.Bus; the test reads it here
             out StubIdAllocator allocator)
         {
             allocator = new StubIdAllocator(200);
@@ -62,7 +62,6 @@ namespace Hrot.SimHost.Tests
                 new ScenarioSerializerBuilder(SubsystemType).Build(),
                 new LambdaScenarioLoader(_ => json),
                 new StagingEntityExtractor(),
-                source,
                 allocator,
                 _world);
         }
@@ -101,7 +100,7 @@ namespace Hrot.SimHost.Tests
             _goldRepo.CreateEntity();
             _goldRepo.CreateEntity();
             var json   = SerializeGold();
-            var source = new ScenarioEntityCreationRequestSource();
+            var source = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(json, source, out _);
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -111,6 +110,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Equal(3, collected.Count);
 
@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
                 _world.SetComponent(e, new NetworkIdentity(999L + i));
             }
 
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);
             var txId    = Guid.NewGuid();
             var intent  = MakeStopIntent(txId, episodeId);
@@ -181,7 +181,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CanHandle_ReturnsTrue_ForStartAndStopEpisode()
         {
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);
 
             Assert.True(handler.CanHandle(NodeOpType.StartEpisode));
@@ -201,7 +201,7 @@ namespace Hrot.SimHost.Tests
         {
             _goldRepo.CreateEntity();
             var json    = SerializeGold();
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(json, source, out _);
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -212,6 +212,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);  // must be a no-op
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Empty(collected);
         }
@@ -225,7 +226,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task StartEpisode_MissingJson_NoRequestsEnqueued()
         {
-            var source  = new ScenarioEntityCreationRequestSource();
+            var source  = new BusEntityCreationRequestSource(_world.Bus);
             var handler = MakeHandler(null, source, out _);  // loader always returns null
             var txId    = Guid.NewGuid();
             var episodeId = Guid.NewGuid();
@@ -235,6 +236,7 @@ namespace Hrot.SimHost.Tests
             handler.Commit(intent, null);
 
             var collected = new List<EntityCreationRequest>();
+            _world.Bus.SwapBuffers();   // ⭐ CE-3228 — visible after the frame's swap
             source.ProcessRequests(r => collected.Add(r));
             Assert.Empty(collected);
         }

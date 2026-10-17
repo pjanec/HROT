@@ -7,6 +7,7 @@ using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Common;
 using Hrot.NED.Messages;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Network.NED.CGF;
 

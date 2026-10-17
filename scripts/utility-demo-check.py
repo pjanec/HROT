@@ -274,6 +274,11 @@ def run_threat_ranking(c, timeout):
     c.ok("Armed Hidden" not in names, "the contact hidden behind the Tower is not ranked (never seen)")
     if "Civilian Near" in names and "Armed Near" in names:
         c.ok(names.index("Civilian Near") > names.index("Armed Near"), "the unarmed civilian ranks below the armed contact")
+    # ⭐ CE-2233 (CIV-0, Civilians CV-8) — the civilian is NEUTRAL: seen and remembered (a soldier sees civilians), but no danger
+    #   (ThreatDanger 0 ⇒ score 0) and never the pick
+    if "Civilian Near" in names:
+        c.ok(scores[names.index("Civilian Near")] == 0, f"the neutral civilian scores 0 (no danger): {scores[names.index('Civilian Near')]}")
+    c.ok((d.get("winner") or {}).get("name") != "Civilian Near", "the neutral civilian is never the winner")
     if "Armed Far" in names and "Armed Near" in names:
         c.ok(names.index("Armed Far") > names.index("Armed Near"), "the farther armed contact ranks below the nearer")
 
@@ -2591,7 +2596,527 @@ def run_drone_shelter(c, timeout):
     c.ok((health(open_tank) or 0) < (h0[open_tank] or 0), f"② ★ the tank in the open is hit from above — {h0[open_tank]} → {health(open_tank)}")
 
 
-SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking, "ua-danger-crossing": run_danger_crossing,
+# ── CIV-0 (CE-2233) — the safety gate: a soldier never engages a NEUTRAL ────────────────────────────────────────────────
+#   docs/DESIGN_Civilians_And_Crowd_Control.md §5c (the demo table) / §5b (as-built). Cast: a rifleman (Friend); an unarmed
+#   Neutral civilian; an ARMED Neutral nearest of all (were the gate missing, he is the top pick: armed, near, in sight); a
+#   Hostile farther off. The armed bodies have no brain (TKB 2002 has no default behaviour), so only the rifleman fires.
+#   ⭐ The rifleman's mission: CombatPosture (the fight) → Sentry (MinDanger 0.5 — the neutrals' danger is 0, so it keeps watching)
+#   → CombatPosture again once something dangerous appears (the side flip). ⛔ Not a Sop component: a scenario with one shows an
+#   empty Scenario perspective (CE-2243, measured on ua-universal-soldier too).
+#   PASS = ① he SEES both neutrals (memory) — the gate, not blindness, spares them · ② the Hostile dies · ③ neither neutral
+#   loses health, sampled for the whole run · ④ the neutrals score 0 in the threat ranking · ⑤ with only neutrals left he
+#   fires no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged (the gate reads the side LIVE).
+
+def _memory_ids(nid):
+    return {x.get("networkId") for x in (data(call("GET", f"/entities/{nid}/memory")) or {}).get("slots") or []}
+
+
+def run_civ_neutral_gate(c, timeout):
+    ids = ids_by_name()
+    rifle, civ, armed, hostile = (ids.get(n) for n in ("Rifleman", "Civilian", "Armed Neutral", "Hostile"))
+    if not c.ok(None not in (rifle, civ, armed, hostile), "the rifleman, the civilian, the armed neutral and the hostile are loaded"):
+        return
+    # ⓪ PRECONDITION — the cast stands where the scenario put it. ⚠ Measured 2026-10-17 (CE-2242): on some fresh loads every entity
+    #   lands ~900 km out ((901880, 5038392) — a projected coordinate, outside the perception grid), nobody sees anybody, and every
+    #   later line would fail for a reason that is not CIV-0's. Report THAT, and stop.
+    p0 = position(rifle)
+    if not c.ok(p0 is not None and 0 <= p0[0] <= 1000 and 0 <= p0[1] <= 1000,
+                f"⓪ the cast is on the terrain where the scenario put it (rifleman at {p0}; ⛔ off-terrain = CE-2242, a load race, not CIV-0)"):
+        return
+    full = {n: health(n) for n in (civ, armed)}
+    low = dict(full)
+    zero_scores, ranked_seen = True, False
+
+    def sample():
+        nonlocal zero_scores, ranked_seen
+        for n in (civ, armed):
+            h = health(n)
+            if h is not None and low[n] is not None:
+                low[n] = min(low[n], h)
+        d = decision(utility(rifle), RANKING)
+        for r in (d or {}).get("ranked") or []:
+            if r.get("networkId") in (civ, armed) or r.get("name") in ("Civilian", "Armed Neutral"):
+                ranked_seen = True
+                zero_scores = zero_scores and (r.get("score") or 0) == 0
+
+    call("POST", "/trace/observe", {"networkId": rifle, "on": True})
+    call("POST", "/sim/play", {})
+
+    seen = wait_for(lambda: (sample(), {civ, armed} <= _memory_ids(rifle))[1], timeout)
+    c.ok(seen is not None, "① the rifleman sees (remembers) both neutrals")
+    # ② OUT OF THE FIGHT, not "health 0": an incapacitated man bleeds out and is not shot again (Injury.IsInTheFight, I4) —
+    #   measured live 2026-10-17: the Hostile sat at 1.1 HP, incapacitated, the rifleman rightly holding fire
+    th = ((data(call("GET", f"/entities/{hostile}")) or {}).get("Components") or {}).get("InjuryThresholds") or {}
+    down_below = (th.get("IncapacitatedBelow") or 0.25) * 100
+    down = wait_for(lambda: (sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
+    c.ok(down is not None, f"② the Hostile is put out of the fight (health {health(hostile)} < {down_below:.0f})")
+    c.ok(low[civ] == full[civ], f"③ the unarmed civilian is never hit: {full[civ]} → lowest {low[civ]}")
+    c.ok(low[armed] == full[armed], f"③ the ARMED neutral is never hit: {full[armed]} → lowest {low[armed]}")
+    c.ok(ranked_seen and zero_scores, f"④ the neutrals are ranked and score 0 (ranked: {ranked_seen})")
+
+    # ⑤ measured live 2026-10-17: the burst at the falling Hostile runs on for a few rounds after he drops below the threshold — so
+    #   SETTLE first (ammo unchanged for 3 s), then nothing for 8 s; and his weapon's target is never a neutral, sampled all along.
+    targets = set()
+
+    def weapon_target():
+        t = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("target")
+        if t is not None:
+            targets.add(t)
+
+    last = {"a": ammo(rifle)[0], "t": time.time()}
+
+    def settled():
+        sample(); weapon_target()
+        a = ammo(rifle)[0]
+        if a != last["a"]:
+            last["a"], last["t"] = a, time.time()
+        return time.time() - last["t"] >= 3
+
+    c.ok(wait_for(settled, 30) is not None, f"⑤ his fire stops once the Hostile is down (rounds now {ammo(rifle)[0]})")
+    a0, _ = ammo(rifle)
+    t_end = time.time() + 8
+    while time.time() < t_end:
+        sample(); weapon_target()
+        time.sleep(0.5)
+    a1, _ = ammo(rifle)
+    c.ok(a0 is not None and a0 == a1, f"⑤ with only neutrals left he fires nothing for 8 s (rounds {a0} → {a1})")
+    c.ok(not (targets & {civ, armed}), f"⑤ his weapon never takes a neutral as its target (targets seen: {sorted(targets)})")
+    c.ok(low[civ] == full[civ] and low[armed] == full[armed], "⑤ …and both neutrals are still unhurt")
+
+    # ⑥ through the ONE write path that reaches the owner and the wire (EntityWriteRouter, CE-3221) — ⛔ not /component: that is a
+    #   StructEdit of this node's world, never sent (measured live 2026-10-17: "ok", and nobody else saw the flip)
+    r = call("POST", f"/entities/{armed}/attribute", {"patchJson": {"Affiliation": "FORCE_OPPOSING"}})
+    route = ((data(r) or {}).get("write") or {}).get("route") if "http" not in r else None
+    if not c.ok(route in ("direct", "requested"), f"⑥ the armed neutral's side flips to Hostile (route {route}; {r if 'http' in r else ''})"):
+        return
+    hit = wait_for(lambda: (h := health(armed)) is not None and full[armed] is not None and h < full[armed], timeout)
+    c.ok(hit is not None, f"⑥ ★ once Hostile he is engaged at once — health {full[armed]} → {health(armed)}")
+    c.ok(health(civ) == full[civ], f"⑥ …and the unarmed civilian is still unhurt ({health(civ)})")
+
+
+# ── CE-2235 CIV-1 — the civilian's routine, alarm and casualty (Civilians §5c, §5d) ───────────────────────────────────
+
+_CIV_MODES = {0: "None", 1: "Routine", 2: "Alarmed", 3: "Panic", 4: "Shelter", 5: "Inside", 6: "Cower", 7: "Casualty",
+              8: "Protest", 9: "Riot", 10: "Dispersing", 11: "ArmedHostile", 12: "Gather"}
+
+
+def civ_mode(nid):
+    """The CivilianHsm's mode as the brain (CGF) holds it — CivilianState is brain-local, never replicated."""
+    call("POST", "/perspective", {"name": "CGF"})
+    try:
+        m = (((data(call("GET", f"/entities/{nid}")) or {}).get("Components") or {}).get("CivilianState") or {}).get("Mode")
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return _CIV_MODES.get(m, m) if isinstance(m, int) else m
+
+
+def run_civ_routine_alarm(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    near = [ids.get(f"Near Civilian {i}") for i in (1, 2)]
+    far = [ids.get(f"Far Civilian {i}") for i in (1, 2, 3, 4)]
+    civs = near + far
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile, 2 near and 4 far civilians are loaded"):
+        return
+    p0 = position(rifle)
+    if not c.ok(p0 is not None and 0 <= p0[0] <= 1000 and 0 <= p0[1] <= 1000,
+                f"⓪ the cast is on the terrain where the scenario put it (rifleman at {p0}; off-terrain = CE-2242)"):
+        return
+    start = {n: position(n) for n in civs}
+    far_alarmed = set()
+    call("POST", "/sim/play", {})
+
+    routine = wait_for(lambda: all(civ_mode(n) == "Routine" for n in civs), 30)
+    c.ok(routine is not None, f"① all 6 civilians run CivilianHsm from their type's default and start in Routine "
+                              f"({[civ_mode(n) for n in civs]})")
+
+    # ② the first shot, then: every civilian within hearing alarmed within 2 s; none beyond it, sampled all run
+    a0 = (ammo(rifle) or (None,))[0]
+    shot = wait_for(lambda: (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0, timeout)
+    if not c.ok(shot is not None, "② the rifleman opens fire on the Hostile"):
+        return
+    t_shot = sim_time() or 0.0
+
+    def far_sample():
+        for n in far:
+            if civ_mode(n) not in ("Routine", None):
+                far_alarmed.add(n)
+
+    # ⭐ CE-2236 — more shots take him past PanicAt (Panic, then Cower: test-town's buildings are solid); a 0.2 s poll can miss
+    #   the alarm on the way, so "alarmed or beyond" — the in-process twin samples every frame and asserts Alarmed itself
+    frightened = ("Alarmed", "Panic", "Shelter", "Cower")
+    alarmed = wait_for(lambda: (far_sample(), all(civ_mode(n) in frightened for n in near))[1], 20, every=0.2)
+    t_alarm = sim_time() or 0.0
+    c.ok(alarmed is not None and t_alarm - t_shot <= 2.5,
+         f"② both near civilians (40 m from the shooter) are Alarmed or beyond {t_alarm - t_shot:.1f} s of sim time after the "
+         f"first shot ({[civ_mode(n) for n in near]})")
+    th = (comps(hostile).get("InjuryThresholds") or {})
+    down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
+    wait_for(lambda: (far_sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
+
+    # ③ quiet again: each alarmed man goes back to his routine
+    calm = wait_for(lambda: (far_sample(), all(civ_mode(n) == "Routine" for n in near))[1], 90)
+    c.ok(calm is not None, f"③ once the firing stops, both near civilians go back to Routine ({[civ_mode(n) for n in near]})")
+    far_sample()
+    c.ok(not far_alarmed, f"② …and none of the 4 far civilians (150+ m, beyond hearing) was ever alarmed ({sorted(far_alarmed)})")
+    moved = [n for n in far if start[n] and (p := position(n)) and flat(p, start[n]) > 1.0]
+    c.ok(len(moved) >= 3, f"① the far civilians live their routine: {len(moved)} of 4 walked from where they started")
+
+    # ④ wounded ⇒ a casualty: he lies where he is and stays there
+    victim = near[0]
+    call("POST", "/perspective", {"name": "CGF"})   # ⭐ Health is Brain group: CGF owns it, so the patch is the owner's write
+    patched = set_health(victim, 40)
+    call("POST", "/perspective", {"name": "Scenario"})
+    c.ok(patched, "④ the near civilian's health is set to 40 on its owner")
+    cas = wait_for(lambda: civ_mode(victim) == "Casualty", 10, every=0.2)
+    c.ok(cas is not None, f"④ wounded (40 %), he is a Casualty ({civ_mode(victim)})")
+    pa = position(victim)
+    time.sleep(4)
+    pb = position(victim)
+    c.ok(pa and pb and flat(pa, pb) < 0.5 and civ_mode(victim) == "Casualty",
+         f"④ …and stays one, where he fell (moved {flat(pa, pb) if pa and pb else None} m in 4 s)")
+
+
+
+# ── CE-2236 CIV-2 — panic, shelter, inside, cower (Civilians §5c, §5e) ─────────────────────────────────────────────────
+
+def comps_on(perspective, nid):
+    """The entity's components as `perspective`'s node holds them; None when that node does not have it."""
+    call("POST", "/perspective", {"name": perspective})
+    try:
+        d = data(call("GET", f"/entities/{nid}"))
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+    return (d or {}).get("Components") if d else None
+
+
+def cowering_on(perspective, nid):
+    return ((comps_on(perspective, nid) or {}).get("EffectState") or {}).get("Cowering") == 1
+
+
+def _footprint_a():
+    # bt-range House A: house-2f (10 x 8 m) placed with its south-west corner at (100, 100), rotation 0
+    return (100.0, 100.0, 110.0, 108.0)
+
+
+def _in_a(p):
+    x0, y0, x1, y1 = _footprint_a()
+    return p is not None and x0 < p[0] < x1 and y0 < p[1] < y1
+
+
+def run_civ_shelter(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in (1, 2, 3, 4)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 4 civilians are loaded"):
+        return
+    front, back = "bt-range/House A/front", "bt-range/House A/back"
+    d = wait_for(lambda: (x := doors_by_key()) and all((x.get(k) or {}).get("runtimeId") for k in (front, back)) and x, timeout)
+    if not c.ok(d is not None, "House A's doors exist as entities"):
+        return
+    c.ok(d[front]["state"] == "Closed" and d[back]["state"] == "Closed",
+         f"⓪ House A's doors are Closed, not locked (TerrainObjects) — front {d[front]['state']}, back {d[back]['state']}")
+    bdoors = {k: v["state"] for k, v in d.items() if k.startswith("bt-range/House B/") and not k.endswith("/hall")}
+    c.ok(bdoors and all(v == "Locked" for v in bdoors.values()), f"⓪ House B's outer doors are Locked — {bdoors}")
+    call("POST", "/sim/play", {})
+    routine = wait_for(lambda: all(civ_mode(n) == "Routine" for n in civs), 30)
+    c.ok(routine is not None, f"① the 4 civilians start in Routine ({[civ_mode(n) for n in civs]})")
+
+    seen, inside_at, gone_at, in_b = {n: set() for n in civs}, {}, {}, set()
+    def watch():
+        now = sim_time() or 0.0
+        for n in civs:
+            if n in gone_at:
+                continue
+            m = civ_mode(n)
+            if m is None and comps_on("CGF", n) is None:
+                gone_at[n] = now
+                continue
+            seen[n].add(m)
+            p = position(n)
+            if m == "Inside" and n not in inside_at:
+                inside_at[n] = (now, p)
+            if p is not None and 160 <= p[0] <= 168 and 100 <= p[1] <= 110:
+                in_b.add(n)
+        return len(gone_at) == len(civs)
+
+    a0 = (ammo(rifle) or (None,))[0]
+    shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
+    if not c.ok(shot is not None, "① the rifleman opens fire, 28 m from the civilians"):
+        return
+    done = wait_for(watch, timeout * 3, every=0.25)
+    # ⭐ Panic can last a few frames (the shelter query answers fast) — a 0.25 s poll misses it; Shelter, Inside and Cower are reached
+    #   ONLY through Panic in the machine (§5e), so any of them proves it. The in-process twin samples every frame.
+    panicked = ("Panic", "Shelter", "Inside", "Cower")
+    c.ok(all(seen[n] & set(panicked) for n in civs), f"① each civilian panics ({ {n: sorted(x for x in seen[n] if x) for n in civs} })")
+    c.ok(all(n in inside_at for n in civs), f"② each reaches Inside ({sorted(inside_at)})")
+    c.ok(all(_in_a(inside_at[n][1]) for n in inside_at),
+         f"② …standing inside House A's footprint ({ {n: inside_at[n][1] for n in inside_at} })")
+    st = {k: (doors_by_key().get(k) or {}).get("state") for k in (front, back)}
+    c.ok("Open" in st.values(), f"② a door of House A was opened to let them in — {st}")
+    c.ok(not in_b, f"③ none enters the locked House B ({sorted(in_b)})")
+    c.ok(done is not None, f"④ each deletes himself after hiding ({len(gone_at)} of 4 gone)")
+    waits = {n: round(gone_at[n] - inside_at[n][0], 1) for n in civs if n in gone_at and n in inside_at}
+    c.ok(waits and all(18.0 <= w <= 23.0 for w in waits.values()), f"④ …about 20 s (the scenario's hide time) after going in — {waits}")
+    for host in ("SimHost", "IG"):
+        left = [n for n in civs if comps_on(host, n) is not None]
+        c.ok(not left, f"④ …and is gone on {host} too ({left})")
+
+
+def run_civ_cower(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in (1, 2, 3)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 3 civilians are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    routine = wait_for(lambda: all(civ_mode(n) == "Routine" for n in civs), 30)
+    c.ok(routine is not None, f"① the 3 civilians start in Routine ({[civ_mode(n) for n in civs]})")
+    cower = wait_for(lambda: all(civ_mode(n) == "Cower" for n in civs), timeout, every=0.25)
+    if not c.ok(cower is not None, f"① under fire, with no building to enter (test-town's are solid), each cowers ({[civ_mode(n) for n in civs]})"):
+        return
+    for host in ("CGF", "SimHost", "IG"):
+        c.ok(all(cowering_on(host, n) for n in civs), f"① EffectState.Cowering is set on {host} ({[cowering_on(host, n) for n in civs]})")
+    pa = {n: position(n) for n in civs}
+    time.sleep(1.5)
+    still = {n: round(flat(pa[n], position(n)), 2) for n in civs if pa[n] and position(n)}
+    c.ok(all(civ_mode(n) == "Cower" for n in civs) and all(v < 0.3 for v in still.values()),
+         f"① …and stands still where he is (moved {still} m in 1.5 s)")
+
+    th = (comps(hostile).get("InjuryThresholds") or {})
+    down_below = (th.get("IncapacitatedBelow") or 0.3) * 100
+    wait_for(lambda: (h := health(hostile)) is not None and h < down_below, timeout * 2)
+    over = wait_for(lambda: all(civ_mode(n) not in ("Cower", "Panic") for n in civs), 60, every=0.25)
+    c.ok(over is not None, f"② the firing over, each leaves Cower as his fear fades ({[civ_mode(n) for n in civs]})")
+    for host in ("CGF", "SimHost", "IG"):
+        c.ok(not any(cowering_on(host, n) for n in civs), f"② …and Cowering is cleared on {host}")
+
+
+# ── CE-2237 CIV-3 — crowds: onlookers gather, fear spreads (Civilians §5c, §5f) ────────────────────────────────────────
+
+def civ_mind(nid):
+    """The civilian's CivilianState as the brain (CGF) holds it — brain-local, never replicated."""
+    return (comps_on("CGF", nid) or {}).get("CivilianState") or {}
+
+
+def run_civ_gathering(c, timeout):
+    ids = ids_by_name()
+    casualty = ids.get("Casualty")
+    onlookers = [ids.get(f"Onlooker {i}") for i in range(1, 13)]
+    if not c.ok(None not in [casualty] + onlookers, "the casualty and 12 onlookers are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    cas = wait_for(lambda: civ_mode(casualty) == "Casualty", 30)
+    c.ok(cas is not None, f"⓪ the hurt civilian (health 40) is a Casualty — the incident ({civ_mode(casualty)})")
+    focus = position(casualty)
+    t0 = sim_time() or 0.0
+    gathered = set()
+
+    def mean_dist():
+        ds = [flat(p, focus) for n in onlookers if (p := position(n))]
+        return sum(ds) / len(ds) if ds else 1e9
+
+    def watch():
+        for n in onlookers:
+            if civ_mode(n) == "Gather":
+                gathered.add(n)
+        return mean_dist() < 15.0
+    close = wait_for(watch, 90, every=0.5)
+    t_close = (sim_time() or 0.0) - t0
+    c.ok(len(gathered) == len(onlookers), f"① every onlooker (30–60 m out, calm) is drawn to it — Gather ({len(gathered)} of 12)")
+    c.ok(close is not None and t_close <= 60.0, f"② their mean distance to the casualty falls below 15 m within 60 s "
+                                                 f"({mean_dist():.1f} m at {t_close:.0f} s)")
+    # ⭐ the mean falls under 15 m while the 60 m ones are still walking (measured: 25 s) — let the last ones arrive first
+    arrived = wait_for(lambda: all((p := position(n)) and flat(p, focus) <= 11.0 for n in onlookers), 60, every=0.5)
+    c.ok(arrived is not None, "④ every onlooker arrives (within 11 m of him)")
+    minds = {n: civ_mind(n) for n in onlookers}
+    crowd_ids = [m.get("CrowdId") or 0 for m in minds.values()]
+    best = max(set(crowd_ids), key=crowd_ids.count)
+    c.ok(best != 0 and crowd_ids.count(best) >= 8, f"③ one crowd holds at least 8 of them (crowd ids {crowd_ids})")
+    ring = [round(flat(position(n), focus), 1) for n in onlookers if position(n)]
+    c.ok(all(2.5 <= r <= 11.0 for r in ring), f"④ …standing round it on a ring, not on top of him ({sorted(ring)} m)")
+
+
+def run_civ_contagion(c, timeout):
+    ids = ids_by_name()
+    rifle, hostile = ids.get("Rifleman"), ids.get("Hostile")
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 16)]
+    if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 15 civilians are loaded"):
+        return
+    frightened = ("Panic", "Shelter", "Inside", "Cower")
+    heard, panicked, modes0, crowd = set(), set(), {}, {}
+    last = [-1.0]
+
+    def watch():
+        # ⭐ CE-2246 — ONE read per civilian per sweep (CivilianState carries the mode), and a trace each sim-second shaped like the
+        #   twin's, so a live miss can be compared hop by hop with the in-process run
+        row = []
+        call("POST", "/perspective", {"name": "CGF"})   # ⭐ one switch per sweep, not three calls per civilian: measured ~4 s a sweep
+        try:
+            seen = {n: ((data(call("GET", f"/entities/{n}")) or {}).get("Components") or {}) for n in civs}
+        finally:
+            call("POST", "/perspective", {"name": "Scenario"})
+        for n in civs:
+            cs = seen[n]
+            m = cs.get("CivilianState") or {}
+            if (m.get("HeardAt") or 0) > 0:
+                heard.add(n)
+            mode = m.get("Mode")
+            mode = _CIV_MODES.get(mode, mode) if isinstance(mode, int) else mode
+            modes0.setdefault(n, mode)
+            crowd[n] = m.get("CrowdId") or 0
+            if mode in frightened:
+                panicked.add(n)
+            x = ((cs.get("SimTransform") or {}).get("Position") or [None])[0] if isinstance((cs.get("SimTransform") or {}).get("Position"), list) \
+                else ((cs.get("SimTransform") or {}).get("Position") or {}).get("X")
+            row.append(f"{civs.index(n) + 1}:{mode}{'h' if n in heard else ''}{m.get('Fear') or 0:.2f}/c{m.get('CrowdId') or 0}/x{x if x is None else int(x)}")
+        t = sim_time() or 0.0
+        if t - last[0] >= 1.0:
+            last[0] = t
+            print(f"    t={t:6.1f} " + " ".join(row))
+        return False
+    a0 = (ammo(rifle) or (None,))[0]   # ⭐ before play: the fight is over in seconds, faster than one sweep of 15 civilians
+    call("POST", "/sim/play", {})
+    one = wait_for(lambda: (watch(), len(set(crowd.values()) - {0}) == 1 and all(crowd.values()))[1], 20, every=0.2)
+    c.ok(one is not None, f"⓪ they stand as ONE crowd along the street ({[crowd.get(n) for n in civs]})")
+    shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
+    if not c.ok(shot is not None, "① the rifleman opens fire at the west end"):
+        return
+    wait_for(watch, 40, every=0.25)
+    deaf = [n for n in civs if n not in heard]
+    c.ok(len(heard) >= 5, f"① the near ones hear it ({len(heard)} of 15 heard: {sorted(heard)})")
+    c.ok(len(deaf) >= 4, f"⓪ the far ones (100+ m from the fire) hear nothing ({len(deaf)} never heard: {deaf})")
+    caught = [n for n in deaf if n in panicked]
+    c.ok(len(caught) >= 3, f"② fear reaches the ones who heard nothing: ≥ 3 of them panic, from the crowd ({caught}; "
+                           f"modes now { {n: civ_mode(n) for n in deaf} })")
+
+
+# ── CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g) ─────────────────────────────────────────────────
+
+_GESTURES = {0: "None", 1: "HandsUp", 2: "FistRaised", 3: "HoldSign", 4: "Waving", 5: "Throwing"}
+
+
+def gesture_on(perspective, nid):
+    g = ((comps_on(perspective, nid) or {}).get("Gesture") or {}).get("Kind")
+    return _GESTURES.get(g, g) if isinstance(g, int) else (g or "None")
+
+
+def run_civ_protest(c, timeout):
+    ids = ids_by_name()
+    civs = [ids.get(f"Protester {i}") for i in range(1, 13)]
+    if not c.ok(None not in civs, "12 protesters are loaded"):
+        return
+    call("POST", "/sim/play", {})
+    t0 = sim_time() or 0.0
+    seen = {h: {"FistRaised": set(), "HoldSign": set()} for h in ("CGF", "SimHost", "IG")}
+    bad = set()
+
+    def watch():
+        for n in civs:
+            m = civ_mode(n)
+            if m == "Riot":
+                bad.add((n, "Riot"))
+            side = (comps(n).get("EntityInfo") or {}).get("ForceId")
+            if side not in (None, "Neutral", 0):
+                bad.add((n, f"side {side}"))
+            for h in seen:
+                g = gesture_on(h, n)
+                if g in seen[h]:
+                    seen[h][g].add(n)
+        return False
+    protest = wait_for(lambda: (watch(), all(civ_mode(n) == "Protest" for n in civs))[1], 30, every=0.5)
+    c.ok(protest is not None, f"① the crowd reaches Protest ({[civ_mode(n) for n in civs]})")
+    wait_for(lambda: (watch(), (sim_time() or 0.0) - t0 >= 120.0)[1], 400, every=0.5)
+    crowd = [civ_mind(n).get("CrowdId") or 0 for n in civs]
+    best = max(set(crowd) - {0}, key=crowd.count, default=0)
+    c.ok(best != 0 and crowd.count(best) >= 10, f"① …standing as one crowd round the point ({crowd})")
+    for h in seen:
+        c.ok(len(seen[h]["FistRaised"]) >= 3 and len(seen[h]["HoldSign"]) >= 3,
+             f"② on {h} members show FistRaised ({len(seen[h]['FistRaised'])}) and HoldSign ({len(seen[h]['HoldSign'])}) — ≥ 3 of each")
+    c.ok(not bad, f"③ in 120 s nobody turns Hostile and nobody riots ({sorted(bad)})")
+
+
+# ── CE-2238 CIV-4 part 1 — the riot, the blow, the side flip (Civilians §5c, §5i) ──────────────────────────────────────────
+
+def run_civ_melee(c, timeout):
+    """test-town: an instigator protester 6 m from a policeman. ⓪ he riots · ① his blow knocks the policeman down
+    (EffectState.KnockedDownUntil ahead of sim time) on CGF, SimHost and IG · ② the rioter is Hostile on CGF, SimHost and IG."""
+    ids = ids_by_name()
+    cop, rioter = ids.get("Policeman"), ids.get("Rioter")
+    if not c.ok(None not in (cop, rioter), "the policeman and the rioter are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+    down, hostile = set(), set()
+
+    def watch():
+        t = sim_time() or 0.0
+        for h in hosts:
+            cc = comps_on(h, cop) or {}
+            if ((cc.get("EffectState") or {}).get("KnockedDownUntil") or 0) > t:
+                down.add(h)
+            side = ((comps_on(h, rioter) or {}).get("EntityInfo") or {}).get("ForceId")
+            if side in ("Hostile", 2):
+                hostile.add(h)
+        return len(down) == len(hosts) and len(hostile) == len(hosts)
+    call("POST", "/sim/play", {})
+    riot = wait_for(lambda: civ_mode(rioter) == "Riot", 30, every=0.25)
+    c.ok(riot is not None, f"⓪ the instigator riots ({civ_mode(rioter)})")
+    wait_for(watch, timeout + 30, every=0.25)
+    c.ok(len(down) == len(hosts), f"① his blow knocks the policeman down on every node (seen down on {sorted(down)})")
+    c.ok(len(hostile) == len(hosts), f"② the blow was a hostile act: the rioter is Hostile on every node ({sorted(hostile)})")
+
+
+# ── AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h) ───────────────────────────────────────
+
+def run_armed_shield(c, timeout):
+    """test-town: a rifleman 60 m from an insurgent, four civilians standing in the line between them and two beside him. ① the
+    rifleman is seen holding with a civilian beside the line, inside his spread ('hold: neutral on line'); ② he fires once it is clear and the
+    insurgent goes down (out of the fight); ③ no civilian is hit (sampled from play). The twin (PostureScenarioTests.AW20_ArmedShield_…) checks every frame."""
+    ids = ids_by_name()
+    rifle, ins = ids.get("Rifleman"), ids.get("Insurgent")
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 7)]
+    if not c.ok(None not in [rifle, ins] + civs, "the rifleman, the insurgent and 6 civilians are loaded"):
+        return
+    a0 = (ammo(rifle) or (None,))[0]   # ⭐ before play
+    held, hurt = [0], set()
+
+    def watch():
+        reason = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("reason") or ""
+        if reason == "hold: neutral on line":
+            held[0] += 1
+        for n in civs:
+            h = health(n)
+            if h is not None and h < 100:
+                hurt.add(n)
+        return False
+    call("POST", "/sim/play", {})
+    fired = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1],
+                     timeout + 60, every=0.25)
+    c.ok(held[0] > 0, f"① the rifleman holds his fire while a civilian stands in the line ({held[0]} samples 'hold: neutral on line')")
+    c.ok(fired is not None, "② …and fires once the line is clear")
+    th = (comps(ins).get("InjuryThresholds") or {})
+    down_below = (th.get("IncapacitatedBelow") or 0.3) * 100   # ⭐ OUT OF THE FIGHT, not health 0 (Injury, I4): he is not shot again
+    down = wait_for(lambda: (watch(), (h := health(ins)) is not None and h < down_below)[1], 120, every=0.5)
+    c.ok(down is not None, f"② the insurgent is engaged and goes down — out of the fight (health {health(ins)}, below {down_below:.0f})")
+    wait_for(watch, 5, every=0.5)
+    c.ok(not hurt, f"③ no civilian is hit ({sorted(hurt)}; health {[health(n) for n in civs]})")
+
+
+SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
+             # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
+             "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
+             # ⭐ CE-2235 CIV-1 — the civilian HSM: routine, alarm, casualty (Civilians §5c, §5d)
+             "ua-civ-routine-alarm": run_civ_routine_alarm,
+             # ⭐ CE-2236 CIV-2 — panic, shelter and cower (Civilians §5c, §5e)
+             "ua-civ-shelter": run_civ_shelter, "ua-civ-cower": run_civ_cower,
+             # ⭐ CE-2237 CIV-3 — crowds: onlookers gather, fear spreads (Civilians §5c, §5f)
+             "ua-civ-gathering": run_civ_gathering, "ua-civ-contagion": run_civ_contagion,
+             # ⭐ CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g)
+             "ua-civ-protest": run_civ_protest,
+             # ⭐ AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h)
+             "ua-armed-shield": run_armed_shield,
+             # ⭐ CE-2238 CIV-4 — the riot, the blow, the side flip (Civilians §5c, §5i)
+             "ua-civ-melee": run_civ_melee,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

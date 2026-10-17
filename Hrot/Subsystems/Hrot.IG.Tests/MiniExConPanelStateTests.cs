@@ -61,7 +61,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_PublishesCommandWithCorrectTkbType()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
         EntityCreationRequest? captured = null;
@@ -83,7 +83,7 @@ public class MiniExConPanelStateTests
     [InlineData(999L)]
     public void Submit_VariousTkbTypes_CommandReflectsFormValue(long tkbType)
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState { TkbType = tkbType };
 
         EntityCreationRequest? captured = null;
@@ -105,7 +105,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_CommandHasLocalNodeId()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
         EntityCreationRequest? captured = null;
@@ -134,7 +134,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_HostileAffiliation_SymbolOverrideIsHostile()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
@@ -158,7 +158,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_FriendAffiliation_SymbolOverrideIsFriend()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
@@ -182,7 +182,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_NeutralAffiliation_SymbolOverrideIsNeutral()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState
         {
             TkbType     = TkbTank,
@@ -209,7 +209,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_SpawnPosition_TransformXMatchesFormPositionX()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState
         {
             TkbType   = TkbTank,
@@ -233,7 +233,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_SpawnPosition_TransformYMatchesFormPositionY()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState
         {
             TkbType   = TkbTank,
@@ -261,7 +261,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_TwiceSameState_ProducesDistinctRequestIds()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
         var ids = new List<System.Guid>();
@@ -284,7 +284,7 @@ public class MiniExConPanelStateTests
     [Fact]
     public void Submit_InitialComponents_ContainsTransformAndSymbolOverride()
     {
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
         var state = new MiniExConPanelState { TkbType = TkbTank };
 
         EntityCreationRequest? captured = null;
@@ -316,7 +316,7 @@ public class MiniExConPanelStateTests
     public void Submit_FiresOnRequestEnqueuedEvent()
     {
         var state = new MiniExConPanelState { TkbType = 301L };
-        var requests = new ScenarioEntityCreationRequestSource();
+        var requests = new FdpEventBus()   /* CE-3228 — the request goes on the bus */;
 
         EntityCreationRequest? captured = null;
         state.OnRequestEnqueued += req => captured = req;

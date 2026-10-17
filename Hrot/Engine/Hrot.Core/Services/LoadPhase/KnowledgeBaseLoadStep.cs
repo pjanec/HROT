@@ -109,6 +109,8 @@ public sealed class KnowledgeBaseLoadStep : ILoadPartProvider
         var deserializer = new TkbDeserializer();
         foreach (var entityFile in loader.EnumerateEntityFiles())
             deserializer.ParseAndRegister(entityFile, _tkbDb);
+        // ⭐ CE-3230 (B-8, H-1; DESIGN_Civilians_And_Crowd_Control §7.9) — every person a file names has hands, as the built-in ones do
+        Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(_tkbDb);
 
         _lastLoadedTkbName   = requested;
         _lastLoadedTimestamp = currentFileTime;

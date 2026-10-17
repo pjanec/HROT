@@ -87,6 +87,14 @@ namespace Fdp.Toolkit.Combat.Systems
             ref var clock = ref repo.GetComponentRW<WeaponMuscleState>(part);
             if (clock.CooldownRemaining > 0f) return;
             if (!task.Target.IsNull && LineOfFire.BlockedByFriendly(repo, hull, task.Target)) return;
+            // ⭐ AW-20 (R-2026; DESIGN_Civilians_And_Crowd_Control §5h) — nor while a NEUTRAL person is on the line or in the spread (the
+            //   turret's direct rounds; an indirect warhead arcs over, as for the friendly check at a point)
+            if (CombatTkb.WarheadOf(repo, unchecked((long)task.AmmoGuid)) is not { Indirect: true })
+            {
+                float sigma = HitModel.Sigma(repo, hull, CombatTkb.MountOf(repo, hull, task.MountIndex), HitModel.Now(repo));
+                if (task.Target.IsNull ? LineOfFire.BlockedByNeutral(repo, hull, task.Point, sigma)
+                                       : LineOfFire.BlockedByNeutral(repo, hull, task.Target, sigma)) return;
+            }
 
             repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireIntent
             {

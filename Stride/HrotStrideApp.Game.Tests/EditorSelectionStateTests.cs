@@ -7,6 +7,7 @@ using Fdp.Toolkit.Replication.Components;
 using Hrot.Core.Network;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -241,7 +242,7 @@ public sealed class EditorSelectionStateTests : IDisposable
     public void Tick_AfterEntityDies_ClearsSelection()
     {
         // Spawn an entity.
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -283,7 +284,7 @@ public sealed class EditorSelectionStateTests : IDisposable
     /// <summary>Spawns one entity via the Brain path and pumps three ticks until alive.</summary>
     private Entity SpawnOneEntity()
     {
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

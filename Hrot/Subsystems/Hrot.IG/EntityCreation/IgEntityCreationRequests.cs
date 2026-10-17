@@ -16,8 +16,8 @@ namespace Hrot.IG.EntityCreation;
 /// rich <c>SpawnEntityCommand</c> carrying geometry, an anchor transform and a request id. The retarget
 /// changes WHERE that shape is posted — the shared request seam instead of the event bus — and this is the
 /// ONE place that knows how to translate it, rather than four sites each doing it slightly differently.
-/// ⛔ Nothing here publishes: the caller enqueues onto its
-/// <see cref="ScenarioEntityCreationRequestSource"/>, exactly as the Editor's scenario path does.</para>
+/// ⛔ Nothing here publishes: the caller publishes the request on its node's bus (<c>CE-3228</c>), exactly as the Editor's
+/// scenario path does.</para>
 ///
 /// <para>🔴 <b>Why the owner is 0 and not the command's <c>OwnerNodeId</c> — measured, and deliberate.</b>
 /// The retired <c>SpawnEntityCommandEgressTranslator</c> wrote <c>Owner = default</c> onto every wire

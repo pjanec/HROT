@@ -120,7 +120,7 @@ namespace Hrot.SimHost.Tests
             }
 
             // ⭐ the production mapper list and the CGF gate, as CgfSubsystem builds them
-            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
                 Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create(), new Fdp.Toolkit.Blueprints.BlueprintRegistry(),
                 gateOnAuthority: true);
 
@@ -152,7 +152,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE2068_BuildingThePack_FillsTheUtilityDecisionCatalog()
         {
-            _ = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+            _ = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             const string threatRanking = "1a4f7c20-3b9e-4d18-8a01-threat0000001";
             var reference = Fdp.Toolkit.Utility.UtilityDecisionRef.FromAssetId(threatRanking);
@@ -167,9 +167,7 @@ namespace Hrot.SimHost.Tests
             using var world   = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack    = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
+            var pack    = new CgfLogicPack(behaviorRegistry, entityMap,
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             var view = (ISimulationView)world;
             var ex = Record.Exception(() =>
@@ -218,7 +216,7 @@ namespace Hrot.SimHost.Tests
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
             // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
-            Assert.Equal(21, pack.SimulationSystems.Count);
+            Assert.Equal(23, pack.SimulationSystems.Count);   // ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
@@ -248,9 +246,7 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap,
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // MissionControlModule systems in InputSystems + SimulationSystems
             Assert.Contains(pack.InputSystems,      s => s is BehaviorIngressSystem);
@@ -274,28 +270,14 @@ namespace Hrot.SimHost.Tests
             var pack = new CgfLogicPack(
                 new BehaviorRegistry(),
                 new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource(),
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             Assert.Equal("CgfLogicPack", pack.Name);
         }
 
         // -- Tests (TASK-C003) --
 
-        /// <summary>
-        /// C003 success condition 4: CgfLogicPack rejects null scenarioSource.
-        /// </summary>
-        [Fact]
-        public void CgfLogicPack_NullScenarioSource_ThrowsArgumentNullException()
-        {
-            var ex = Assert.Throws<ArgumentNullException>(() =>
-                new CgfLogicPack(
-                    new BehaviorRegistry(),
-                    new NetworkEntityMap(),
-                    scenarioSource: null!,
-                    mapperRegistry: new TacticalIntentMapperRegistry(), blueprintRegistry: new Fdp.Toolkit.Blueprints.BlueprintRegistry()));
-
-            Assert.Equal("scenarioSource", ex.ParamName);
-        }
+        // ⛔ CE-3228 — "C003 success condition 4: CgfLogicPack rejects null scenarioSource" is GONE with the parameter: the pack holds no
+        //   request queue (it never read it), requests ride the world's bus (docs/DESIGN_Entity_Creation_Unification.md §3.4d).
 
         /// <summary>
         /// C003 success condition 1: requests from the NED stub source reach
@@ -307,7 +289,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -335,7 +317,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -344,7 +326,8 @@ namespace Hrot.SimHost.Tests
                 composite, new StubAckSink(), tkb,
                 new StubIdAllocator(startId: 200), C003LocalNodeId);
 
-            scenarioSource.Enqueue(MakeValidRequest());
+            repo.Bus.PublishManaged(MakeValidRequest());
+            repo.Bus.SwapBuffers();   // ⭐ CE-3228 — read after the frame's swap
 
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
@@ -363,7 +346,7 @@ namespace Hrot.SimHost.Tests
             var repo    = CreateWorldForRequestSystem();
             var tkb     = CreateTkb();
             var nedStub = new StubRequestSource();
-            var scenarioSource = new ScenarioEntityCreationRequestSource();
+            var scenarioSource = new BusEntityCreationRequestSource(repo.Bus);   // ⭐ CE-3228 — the local intake is the bus
 
             var composite = new CompositeEntityCreationRequestSource(
                 new IEntityCreationRequestSource[] { nedStub, scenarioSource });
@@ -373,7 +356,8 @@ namespace Hrot.SimHost.Tests
                 new StubIdAllocator(startId: 300), C003LocalNodeId);
 
             nedStub.Enqueue(MakeValidRequest());
-            scenarioSource.Enqueue(MakeValidRequest());
+            repo.Bus.PublishManaged(MakeValidRequest());
+            repo.Bus.SwapBuffers();   // ⭐ CE-3228 — read after the frame's swap
 
             system.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
@@ -397,9 +381,7 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack       = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
+            var pack       = new CgfLogicPack(behaviorRegistry, entityMap,
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // SC1: MissionControlExecutionSystem is in InputSystems.
             Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
@@ -448,7 +430,7 @@ namespace Hrot.SimHost.Tests
             //   (CoreInfrastructureCapabilities.HealthApplication, declared FIRST by LiveSimulationPlan on every host).
             // ⭐ CE-2176 IF-3 (2026-10-15) — 1 MORE: DetonationMemorySystem (the bursts a fire-mission observer judges).
             // ⭐ CE-2189 (2026-10-15) — 1 MORE: MissileWarningSensingSystem (a missile launched at an aircraft → SensorChange.MissileWarning).
-            Assert.Equal(21, pack.SimulationSystems.Count);
+            Assert.Equal(23, pack.SimulationSystems.Count);   // ⭐ CE-2235: +1 (CivilianFearSystem) · CE-2237: +1 (CrowdSystem)
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem);
             Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.DetonationMemorySystem);
             Assert.DoesNotContain(pack.SimulationSystems, x => x is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
@@ -470,9 +452,7 @@ namespace Hrot.SimHost.Tests
             using var world      = CreateEmptyWorld();
             var behaviorRegistry = new BehaviorRegistry();
             var entityMap        = new NetworkEntityMap();
-            var scenarioSource   = new ScenarioEntityCreationRequestSource();
-
-            var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
+            var pack     = new CgfLogicPack(behaviorRegistry, entityMap,
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
             // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
@@ -487,7 +467,7 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
             // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
-            Assert.Equal(26, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
+            Assert.Equal(28, pack.InputSystems.Count + pack.SimulationSystems.Count);   // ⭐ CE-2237: +1 (CrowdSystem) · ⭐ CE-2235: +1 (CivilianFearSystem) · ⭐ CE-2189: +1 (MissileWarningSensingSystem) · ⭐ CE-2176 IF-3: +1 (DetonationMemorySystem) · ⛔ CE-2144: −1 (HealthApplicationSystem → the shared plan head) · ⭐ CE-3110: the interaction appliers (embarkation, and 5d-1's DoorCommandSystem) left the pack for the cross-role capability · CE-2125: +1 (UnitCentroidSystem) · CE-2074 + CE-2076: +2 · CE-3064: +1 (NearMissSensingSystem) · CE-3172: +1 (PossessionSystem) · CE-3174: +1 (WeaponAmmoMirrorSystem)
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────
@@ -500,7 +480,6 @@ namespace Hrot.SimHost.Tests
             => new CgfLogicPack(
                 new BehaviorRegistry(),
                 new NetworkEntityMap(),
-                new ScenarioEntityCreationRequestSource(),
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
         private static System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>
@@ -668,7 +647,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3167_TheResolutionSystem_HoldsThePacksClearRegistry_WithTheMissionPlanProvider()
         {
-            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
                 new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
             var resolution = pack.SimulationSystems.OfType<TacticalIntentResolutionSystem>().Single();

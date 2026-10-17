@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.Terrain;
 using Hrot.Core.Network;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Map.Common.ClusterLoad;
 

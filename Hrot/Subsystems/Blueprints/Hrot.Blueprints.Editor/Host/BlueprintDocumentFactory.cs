@@ -1261,8 +1261,11 @@ public static class BlueprintDocumentFactory
         Func<Graph>         currentGraph,
         Action<Guid>        goToGraph,
         IEditorIndicators?  indicators = null,
-        Action?             markDirty  = null)
+        Action?             markDirty  = null,
+        Func<string, int, bool>? openSource = null)
     {
+        // ⭐ CE-1009 — a library call's C# source opens through the one opener (Visual Studio first); a rail passes its own
+        openSource ??= Hrot.Editor.AiShared.Source.SourceFileOpener.Open;
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(asset);
@@ -1293,6 +1296,13 @@ public static class BlueprintDocumentFactory
                 var node  = graph.Nodes.FirstOrDefault(n => n.Id == id);
 
                 var targetId = TargetGraphIdOf(node);
+                // ⭐ CE-1009 (AI_Editor_Shared_Infrastructure §7.1c G-4) — no graph to go to, but a library call whose C# method has a
+                //   source: open it at its line (the "⋯" button's opener, now reachable from the command, F12 and the menu)
+                if (targetId is null && SourceOfClrCall(node) is { } at)
+                {
+                    openSource(at.File, at.Line);
+                    return;
+                }
                 if (targetId is null)
                 {
                     indicators?.Notify(new EditorNotification(
@@ -1308,8 +1318,15 @@ public static class BlueprintDocumentFactory
                 goToGraph(targetId.Value);
             },
             isEnabled: () => view.Selection.Nodes.Count() == 1,
-            description: "Opens the graph this call node targets.");
+            description: "Opens the graph this call node targets, or the C# source of the library method it calls.");
     }
+
+    /// <summary>⭐ CE-1009 — the source file and line of the C# method a library call node calls; null for any other node, an unresolved
+    /// method, or no PDB.</summary>
+    internal static Hrot.Editor.AiShared.Source.ClrSourceLocator.SourceLocation? SourceOfClrCall(Node? node)
+        => node is FunctionCallNode fc && NodePinSchema.ResolveClrMethod(fc) is { } method
+            ? Hrot.Editor.AiShared.Source.ClrSourceLocator.Resolve(method)
+            : null;
 
     /// <summary>
     /// BP-76 — the in-blueprint graph a call node points at, or null when it points outside the asset
@@ -1339,7 +1356,8 @@ public static class BlueprintDocumentFactory
         null                  => "Select a call node first.",
         CallCustomEventNode   => "A custom event is opened from the My Blueprint panel — double-click "
                                  + "it under Custom Events. It resolves by name, not by a graph id.",
-        FunctionCallNode      => "This node calls a library method, not a graph in this blueprint.",
+        FunctionCallNode      => "This node calls a library method whose C# source cannot be found (no PDB next to its "
+                                 + "assembly, or the method did not resolve).",
         _                     => "This node has no definition inside this blueprint.",
     };
 

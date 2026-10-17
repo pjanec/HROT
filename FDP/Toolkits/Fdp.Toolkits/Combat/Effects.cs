@@ -36,6 +36,9 @@ namespace Fdp.Toolkit.Combat
         public double StunnedUntil;
         public double IrritatedUntil;
         public double KnockedDownUntil;
+        /// <summary>⭐ ui finding F-3 (design §7.6) — 1 while the person cowers: a MODE its behaviour sets and clears (the CivilianHsm's
+        /// Cower state), not a timed effect of a hit. Written through <see cref="Effects.SetCowering"/> on the brain owner.</summary>
+        public byte Cowering;
     }
 
     /// <summary>⭐ <c>CE-3219</c> — the one reader and the one writer rule of <see cref="EffectState"/>.</summary>
@@ -60,6 +63,21 @@ namespace Fdp.Toolkit.Combat
         public static bool IsStunned(EntityRepository repo, Entity e)     => Read(repo, e, out var s) && s.StunnedUntil > HitModel.Now(repo);
         public static bool IsIrritated(EntityRepository repo, Entity e)   => Read(repo, e, out var s) && s.IrritatedUntil > HitModel.Now(repo);
         public static bool IsKnockedDown(EntityRepository repo, Entity e) => Read(repo, e, out var s) && s.KnockedDownUntil > HitModel.Now(repo);
+        public static bool IsCowering(EntityRepository repo, Entity e)    => Read(repo, e, out var s) && s.Cowering != 0;
+
+        /// <summary>⭐ F-3 — the behaviour's writer of <see cref="EffectState.Cowering"/>; call it on the node that owns the person's brain
+        /// (and so <c>dtEffectState</c>). Leaves the timed effects as they are. False when the type is not registered or the entity is gone.</summary>
+        public static bool SetCowering(EntityRepository repo, Entity e, bool on)
+        {
+            if (!repo.IsAlive(e) || !repo.IsComponentTypeRegistered<EffectState>()) return false;
+            if (!repo.HasComponent<EffectState>(e))
+            {
+                if (!on) return true;
+                repo.AddComponent(e, default(EffectState));
+            }
+            repo.GetComponentRW<EffectState>(e).Cowering = on ? (byte)1 : (byte)0;
+            return true;
+        }
 
         private static bool Read(EntityRepository repo, Entity e, out EffectState state)
         {

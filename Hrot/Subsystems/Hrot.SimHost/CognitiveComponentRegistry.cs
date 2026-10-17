@@ -32,6 +32,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<Roe>();            // CE-2074 — rules of engagement (R-200)
             world.RegisterComponent<RecentSenses>();   // CE-2076 — when each sensing change last happened
+            world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
+            world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
             world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
             world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();

@@ -10,6 +10,7 @@ using Hrot.Core.Network;
 using Hrot.Core.Tkb;
 using Hrot.Map.Common;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.SimHost.Tests
 {
@@ -51,8 +52,8 @@ namespace Hrot.SimHost.Tests
 
         private sealed class RecordingEgress : Hrot.Core.Network.IEntityCreationRequestEgress
         {
-            public List<Hrot.Core.Network.EntityCreationRequest> Sent { get; } = new();
-            public void Send(Hrot.Core.Network.EntityCreationRequest request) => Sent.Add(request);
+            public List<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest> Sent { get; } = new();
+            public void Send(Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest request) => Sent.Add(request);
         }
 
         /// <summary>
@@ -75,13 +76,14 @@ namespace Hrot.SimHost.Tests
             var ctx      = MinimalContext(out var world, egress: egress);
             var creation = EntityCreationPack.Build(ctx);
 
-            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = 99,              // ⭐ NOT this node (NodeId = 7)
                 TkbType            = ctx.TkbDb.GetAll().First().TkbType,
             });
 
+            world.Bus.SwapBuffers();   // ⭐ CE-3228 — the request is read after the frame's swap
             creation.RequestSystem.Execute(world, 0f);
             world.Bus.SwapBuffers();
 
@@ -102,13 +104,14 @@ namespace Hrot.SimHost.Tests
             var ctx      = MinimalContext(out var world);
             var creation = EntityCreationPack.Build(ctx);
 
-            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = 99,
                 TkbType            = ctx.TkbDb.GetAll().First().TkbType,
             });
 
+            world.Bus.SwapBuffers();   // ⭐ CE-3228 — the request is read after the frame's swap
             creation.RequestSystem.Execute(world, 0f);
             world.Bus.SwapBuffers();
 
@@ -134,7 +137,8 @@ namespace Hrot.SimHost.Tests
             Assert.NotNull(creation.RequestSystem);
             Assert.NotNull(creation.SpawnSystem);
             Assert.NotNull(creation.FinalizationSystem);
-            Assert.NotNull(creation.LocalRequests);
+            // ⭐ CE-3228 — the local intake is the bus: the pack registers the request event its source reads.
+            Assert.True(ctx.World.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>());
         }
 
         /// <summary>
@@ -552,12 +556,13 @@ namespace Hrot.SimHost.Tests
             var ctx      = WithAdapters(MinimalContext(out var world), adapters);
             var creation = EntityCreationPack.Build(ctx);
 
-            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            creation.Publish(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
             {
                 RequestId          = Guid.NewGuid(),
                 OwnerAppInstanceId = 99,              // NOT this node (NodeId = 7)
                 TkbType            = ctx.TkbDb.GetAll().First().TkbType,
             });
+            world.Bus.SwapBuffers();   // ⭐ CE-3228 — the request is read after the frame's swap
             creation.RequestSystem.Execute(world, 0f);
 
             Assert.Equal(99, Assert.Single(adapters.Egress.Sent).OwnerAppInstanceId);
@@ -673,14 +678,12 @@ namespace Hrot.SimHost.Tests
         //    member of what the pack produces, and every one of these asserts through a PRODUCTION-built
         //    pack (acceptance ④'s own wording) rather than a hand-made EntityCreation.
 
-        /// <summary>⭐ Drains whatever the affordance enqueued. ⚠ Asserting on the QUEUE rather than on a
-        /// returned object is deliberate: it is the same channel a translator uses, so the rail cannot
-        /// pass while the real enqueue path is broken.</summary>
-        private static Hrot.Core.Network.EntityCreationRequest DrainOne(EntityCreation creation)
+        /// <summary>⭐ Reads whatever the affordance published. ⚠ Asserting on the BUS rather than on a returned object is deliberate:
+        /// it is the same channel a translator uses (<c>CE-3228</c>), so the rail cannot pass while the real publish path is broken.</summary>
+        private static Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest DrainOne(EntityCreation creation)
         {
-            var drained = new List<Hrot.Core.Network.EntityCreationRequest>();
-            creation.LocalRequests.ProcessRequests(drained.Add);
-            return Assert.Single(drained);
+            creation.World.Bus.SwapBuffers();
+            return Assert.Single(creation.World.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>());
         }
 
         /// <summary>
@@ -770,6 +773,7 @@ namespace Hrot.SimHost.Tests
                 isTransient: true,
                 disType:     0xABCDUL);
 
+            world.Bus.SwapBuffers();   // ⭐ CE-3228 — the request is read after the frame's swap
             creation.RequestSystem.Execute(world, 0f);
             world.Bus.SwapBuffers();
 

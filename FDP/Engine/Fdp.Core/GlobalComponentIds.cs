@@ -746,8 +746,9 @@ namespace Fdp.Core
         /// per-instance value saved in the scenario (<c>CE-1033</c> S5c, docs/DESIGN_Map_3D_Mode.md §3.7, M15).</summary>
         public const int EntityAppearance = 348;
 
-        /// <summary><c>ScenarioEntityCreationRequestSource</c> — a node's LOCAL entity-creation request queue, as a managed world singleton
-        /// (published by <c>EntityCreationPack</c>), so shared code holding only the world can request an entity (<c>CE-1033</c> S5, R-260).</summary>
+        /// <summary>⛔ RETIRED by <c>CE-3228</c> (2026-10-17) — was <c>ScenarioEntityCreationRequestSource</c>, a node's LOCAL entity-creation
+        /// request queue as a managed world singleton (<c>CE-1033</c> S5, R-260). A request is now an <c>EntityCreationRequest</c> on the
+        /// FDP bus (docs/DESIGN_Entity_Creation_Unification.md §3.4d). ⛔ Never reuse this id.</summary>
         public const int EntityCreationRequestSource = 349;
 
         /// <summary><c>TurretPose</c> — a turret part's traverse and gun elevation (WL-1, docs/DESIGN_Weapon_Layers.md W-9). ⚠ 350 is
@@ -957,6 +958,30 @@ namespace Fdp.Core
         /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
         public const int EffectState = 397;
 
+        /// <summary><c>Gesture</c> — ⭐ CE-3224 (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7): what a person
+        /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
+        /// <c>dtGesture</c> (143).</summary>
+        public const int Gesture = 398;
+
+        /// <summary><c>CivilianState</c> — ⭐ CE-2235 (civilians CIV-1, CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d): a civilian's
+        /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
+        /// saved). ⚠ 399 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int CivilianState = 399;
+
+        /// <summary><c>Crowd</c> — ⭐ CE-2237 (civilians CIV-3, CV-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5f): one crowd of civilians
+        /// (members, mean fear and anger, focus), a bodiless BRAIN-LOCAL entity on the node that runs its members' brains (never replicated,
+        /// never saved). ⚠ 400 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int Crowd = 400;
+
+        /// <summary><c>AreaEffectCloud</c> — ⭐ CE-3219 part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b): a
+        /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).
+        /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is behaviors' <c>Crowd</c> (test-only components in Fdp.Core.Tests also use 400 — their own registry).</summary>
+        public const int AreaEffectCloud = 401;
+
+        /// <summary><c>HeldFuze</c> — ⭐ CE-3235 (civilians B-13, AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-6): a LIVE round in a
+        /// man's hands and the fuze it has left — on the man, on his brain's node (never replicated, never saved). ⚠ 402 measured free on
+        /// backend, ui and behaviors 2026-10-17.</summary>
+        public const int HeldFuze = 402;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

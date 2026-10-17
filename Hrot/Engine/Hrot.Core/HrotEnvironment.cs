@@ -50,7 +50,10 @@ namespace Hrot.Map.Common
             Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
             Hrot.Core.Tkb.SoundTkbCatalog.RegisterAll(tkb);      // ⭐ CE-1120 — the FPS sound types (docs/designs/audio/DESIGN_FPS_Audio.md AU-5)
             Hrot.Core.Tkb.MapCameraTkb.RegisterAll(tkb);         // ⭐ CE-1033 S5 — the map camera entity's type (R-260)
+            Hrot.Core.Tkb.AreaEffectCloudTkb.RegisterAll(tkb);   // ⭐ CE-3219 part 3 — a gas / smoke cloud entity's type
             RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
+            // ⭐ CE-3230 (B-8, H-1; DESIGN_Civilians_And_Crowd_Control §7.9) — every person type ends with its HANDS mount (AW-7)
+            Fdp.Toolkit.Combat.PersonHands.EnsureOnPersons(tkb);
         }
 
         /// <summary>

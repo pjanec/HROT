@@ -95,7 +95,7 @@ public sealed class AnimationHarnessIntegrationTests : IDisposable
     {
         var sut = CreateSut();
 
-        sut.ScenarioSource.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+        sut.ScenarioSource.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,
@@ -123,7 +123,7 @@ public sealed class AnimationHarnessIntegrationTests : IDisposable
     public void Subsystem_Tick_UnregistersMannequin_OnDeath()
     {
         var sut = CreateSut();
-        sut.ScenarioSource.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+        sut.ScenarioSource.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

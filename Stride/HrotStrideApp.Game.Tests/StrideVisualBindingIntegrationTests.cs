@@ -8,6 +8,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -229,11 +230,11 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
             new Vector3(-20f, 60f, 0f),
         };
 
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[0]));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[1]));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[2]));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianPedestrian, spawnPositions[3]));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianPedestrian, spawnPositions[4]));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[0]));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[1]));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, spawnPositions[2]));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianPedestrian, spawnPositions[3]));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianPedestrian, spawnPositions[4]));
 
         PumpFrames(sut);
 
@@ -259,7 +260,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         var (sut, factory) = CreateSut();
         Track(sut);
 
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
         PumpFrames(sut);
 
         Assert.True(factory.ModelCalls.Count > 0, "InfantrySoldier must produce a model visual.");
@@ -275,7 +276,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         Track(sut);
 
         // CivilianCar uses "Models/Box2x1x1" as ModelAssetRef in the UrbanCombat templates.
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianCar, Vector3.Zero));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianCar, Vector3.Zero));
         PumpFrames(sut);
 
         // Verify the visual set recorded the correct ShapeKind on the reference.
@@ -309,7 +310,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
 
         // Known FDP position: X=10 East, Y=25 North, Z=3 Up.
         var fdpPos = new Vector3(10f, 25f, 3f);
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, fdpPos));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, fdpPos));
         PumpFrames(sut);
 
         Assert.True(factory.ModelCalls.Count > 0);
@@ -334,7 +335,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         var (sut, factory) = CreateSut();
         Track(sut);
 
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
         PumpFrames(sut);
 
         Assert.NotNull(sut.VisualBindingSystem);
@@ -372,9 +373,9 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         var callerThreadId = Environment.CurrentManagedThreadId;
 
         // Spawn several entities across different TKB types.
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier,    new Vector3(0f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianPedestrian, new Vector3(5f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianCar,        new Vector3(10f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier,    new Vector3(0f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianPedestrian, new Vector3(5f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianCar,        new Vector3(10f, 0f, 0f)));
 
         // Pump 10 frames to accumulate creates + updates.
         PumpFrames(sut, 10);
@@ -417,7 +418,7 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         Assert.Null(sut.VisualBindingSystem);
 
         // Existing tests use headless mode (null factory); verify Tick still works.
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier, Vector3.Zero));
         for (int i = 0; i < 5; i++)
             sut.Tick(1f / 60f);
 
@@ -435,11 +436,11 @@ public sealed class StrideVisualBindingIntegrationTests : IDisposable
         Track(sut);
 
         // Spawn entities of all 5 UrbanCombat types.
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianPedestrian, new Vector3(1f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbCivilianCar,        new Vector3(2f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbMilitaryApc,        new Vector3(3f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInfantrySoldier,    new Vector3(4f, 0f, 0f)));
-        sut.ScenarioSource.Enqueue(MakeSpawnRequest(TkbInsurgent,          new Vector3(5f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianPedestrian, new Vector3(1f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbCivilianCar,        new Vector3(2f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbMilitaryApc,        new Vector3(3f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInfantrySoldier,    new Vector3(4f, 0f, 0f)));
+        sut.ScenarioSource.PublishManaged(MakeSpawnRequest(TkbInsurgent,          new Vector3(5f, 0f, 0f)));
 
         PumpFrames(sut, 8);
 

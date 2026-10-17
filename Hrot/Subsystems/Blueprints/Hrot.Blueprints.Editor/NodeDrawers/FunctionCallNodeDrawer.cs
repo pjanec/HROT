@@ -1,6 +1,7 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Editor.Host;
+using Hrot.Editor.AiShared.Source;
 
 namespace Hrot.Blueprints.Editor.NodeDrawers;
 

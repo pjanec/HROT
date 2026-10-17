@@ -1,0 +1,216 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "c2370000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          320,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7341
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c2370000-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[205,320,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2370000-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "Sentry",
+              "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2370000-0000-4000-8000-000000000103",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[205,320,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "c2370000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          260,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7342
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          215,
+          342,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7351
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          226,
+          305,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7352
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          205,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 7353
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

@@ -7,7 +7,7 @@ current-answer: §2 the steps, §3 acceptance, §4 gates.
 stale-below: nothing.
 known-conflict: none (AQ93 §6 was re-cut to match, 2026-10-17).
 known-rot: step 2's "a `.net.xml` in `terrain.json` `roadNetworks[]`" — as built it is its own key, `sumoNet { file, anchor }`
-  (AQ93 §3.0); step 5's "the civilian-car TKB type" — as built a new inert "SUMO car" type (8813); step 6's `NedPublishable()`
+  (AQ93 §3.0); step 5's "the civilian-car TKB type" — as built a new inert "SUMO car" type (8851); step 6's `NedPublishable()`
   and "18" — as built `DefaultRoutePublishable()` at 29 NED query sites.
 related-designs:
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — THE DESIGN this plan builds: §3 class/sequence diagrams,

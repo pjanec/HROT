@@ -105,6 +105,64 @@ namespace Hrot.SimHost.Tests
         /// unit's brain sends its request, frame and release; the brain owner receives the same typed events, marked remote, with the
         /// station's node id and every control axis intact.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3235</c> (B-13, docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-4) — a pick-up crosses as two union cases: the
+        /// brain's node (which does not fly the round) sends the ASK (target = the round, actor = the man); the round's flier (which does
+        /// not run his brain) sends the GRANT (target = the man) with the munition, the count and the fuze left; each arrives as the same
+        /// typed event, marked remote.
+        /// </summary>
+        [Fact]
+        public void CE3235_APickUpAskAndItsGrant_CrossAsTheirUnionCases_AndArriveAsTheSameEvents_MarkedRemote()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
+                w.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
+                return w;
+            }
+            using var brain = Node();
+            using var simHost = Node();
+            var brainMap = new NetworkEntityMap();
+            var hostMap = new NetworkEntityMap();
+            Entity brainsMan = brain.CreateEntity(), brainsRound = brain.CreateEntity();   // a replica round: no flight here
+            Entity hostsMan = simHost.CreateEntity(), hostsRound = simHost.CreateEntity(); // a replica man: no brain here
+            brainMap.Register(500L, brainsMan); brainMap.Register(600L, brainsRound);
+            hostMap.Register(500L, hostsMan); hostMap.Register(600L, hostsRound);
+
+            // ① the ask: brain → the round's flier
+            var askWriter = new CapturingWriter<EntityInteractionRequest>();
+            brain.Bus.Publish(new Fdp.Toolkit.Combat.PickUpRoundEvent { Round = brainsRound, Man = brainsMan });
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(askWriter, brainMap).ScanAndPublish(brain);
+            var ask = Assert.Single(askWriter.Written);
+            Assert.Equal((EInteractionKind.PickUpRound, 600L, 500L), (ask.Payload.Kind, ask.TargetId, ask.ActorId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, hostMap).ProcessSample(in ask, cmd);
+                cmd.Playback(simHost);
+            }
+            simHost.Bus.SwapBuffers();
+            var arrived = Assert.Single(simHost.Bus.Read<Fdp.Toolkit.Combat.PickUpRoundEvent>().ToArray());
+            Assert.Equal((hostsRound, hostsMan, true), (arrived.Round, arrived.Man, arrived.IsRemote));
+
+            // ② the grant: the flier → the brain
+            var grantWriter = new CapturingWriter<EntityInteractionRequest>();
+            simHost.Bus.Publish(new Fdp.Toolkit.Combat.PickUpGrantEvent { Man = hostsMan, Ammo = 6038L, Rounds = 1, FuzeSeconds = 2.5f });
+            simHost.Bus.SwapBuffers();
+            new InteractionEgressTranslator(grantWriter, hostMap).ScanAndPublish(simHost);
+            var sent = Assert.Single(grantWriter.Written);
+            Assert.Equal((EInteractionKind.PickUpGrant, 500L), (sent.Payload.Kind, sent.TargetId));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                new InteractionIngressTranslator(participant: null, brainMap).ProcessSample(in sent, cmd);
+                cmd.Playback(brain);
+            }
+            brain.Bus.SwapBuffers();
+            var grant = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Combat.PickUpGrantEvent>().ToArray());
+            Assert.Equal((brainsMan, 6038L, 1, 2.5f, true), (grant.Man, grant.Ammo, grant.Rounds, grant.FuzeSeconds, grant.IsRemote));
+        }
+
         [Fact]
         public void CE3172_PossessControlRelease_CrossAsTheirUnionCases_AndArriveAsTheSameEvents_MarkedRemote()
         {

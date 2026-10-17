@@ -35,6 +35,7 @@ related-designs:
   - DESIGN_Entity_Control.md — OWNS operator fire: AimAndFireExecutor's point target + operator mode (M-8, C-2)
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162): LD-1 reuses W-14's body turn (HumanGait.FacingTurn) for a look direction, LD-2 points the vision cone along it
   - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-6/CV-9: non-lethal warhead kinds and the thrown stone/Molotov reuse the grenade throw (W-12e/f).
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h (R-2025): the HANDS mount (throwables picked up, AmmoLoadout), W-13 posture graded by the CV-8 ladder, the one Armament rule.
 -->
 
 # Weapon layers — behaviour brain, weapon brain, weapon muscle

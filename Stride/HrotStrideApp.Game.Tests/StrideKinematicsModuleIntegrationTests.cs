@@ -11,6 +11,7 @@ using Hrot.Core.Network;
 using Hrot.Stride.Core;
 using HrotStrideApp;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace HrotStrideApp.Tests;
 
@@ -61,7 +62,7 @@ public sealed class StrideKinematicsModuleIntegrationTests : IDisposable
     // Spawn via the Brain path and pump 3 frames to materialise the entity.
     private void SpawnAndPump(long tkbType, SimTransform tf, SimVelocity vel)
     {
-        _sut.ScenarioSource.Enqueue(new EntityCreationRequest
+        _sut.ScenarioSource.PublishManaged(new EntityCreationRequest
         {
             RequestId          = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

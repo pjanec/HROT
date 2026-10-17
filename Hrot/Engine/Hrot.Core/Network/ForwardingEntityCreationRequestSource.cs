@@ -1,4 +1,5 @@
 using System;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Core.Network;
 
@@ -59,7 +60,7 @@ public sealed class ForwardingEntityCreationRequestSource : IEntityCreationReque
     public int ForwardedCount { get; private set; }
 
     /// <param name="local">
-    /// ⛔ The node's LOCAL request source ONLY — typically the <c>ScenarioEntityCreationRequestSource</c>
+    /// ⛔ The node's LOCAL request source ONLY — typically the <c>BusEntityCreationRequestSource</c> (<c>CE-3228</c>)
     /// that authoring code enqueues into. Passing a composite that includes the network source
     /// re-introduces the bounce this class exists to prevent.
     /// </param>

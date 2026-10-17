@@ -118,6 +118,7 @@ namespace Hrot.Network.NED.SimHost
                     Charge          = evt.Charge,     // ⭐ IF-1 (I3, R-169 appended) — the fire solution
                     HighArc         = evt.HighArc,
                     RaisedAt        = evt.RaisedAt,   // ⭐ CE-2180 (R-169 appended) — when the brain raised it
+                    FuzeSeconds     = evt.FuzeSeconds,   // ⭐ CE-3235 (R-169 appended) — a thrown-back live round's fuze left
                 });
                 SentSampleCount++;
             }

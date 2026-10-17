@@ -30,7 +30,7 @@ namespace Hrot.SimHost.Tests
             var view = (ISimulationView)world;
             var cmd = (EntityCommandBuffer)view.GetCommandBuffer();
 
-            new RoundImpactIngressTranslator(participant: null, map).ProcessSample(new RoundImpact
+            new RoundImpactIngressTranslator(participant: null, map, localNodeId: 0).ProcessSample(new RoundImpact
             {
                 ShooterEntityId = 7L, X = 1f, Y = 2f, Z = 3f, NormalY = -1f, TravelY = 4f, MunitionType = 6003L, Kind = 1,
             }, cmd);
@@ -43,22 +43,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((1f, 2f, 3f, -1f, 4f, 6003L, (byte)1), (e.X, e.Y, e.Z, e.NormalY, e.TravelY, e.Ammo, e.Kind));
         }
 
-        private static Type[] Compose(DdsParticipant participant, NodeRole role)
-            => SimHostAuxiliaryTranslatorPack
-                .Create(participant, new NetworkEntityMap(), new FdpEventBus(), localNodeId: 1, role)
-                .Select(t => t.GetType()).ToArray();
-
-        [Theory]
-        [InlineData(NodeRole.MuscleGround, 1, 0)]                          // the muscle writes, never reads (no loopback)
-        [InlineData(NodeRole.Perception | NodeRole.MuscleGround, 1, 0)]
-        [InlineData(NodeRole.Perception, 0, 1)]                            // a viewer reads
-        [InlineData(NodeRole.Brain, 0, 1)]
-        public void CE1128_TheMuscleWritesTheMarks_EveryViewerReadsThemOnce(NodeRole role, int egress, int ingress)
+        /// <summary>⭐ CE-1148 S2 (Node Roles §3.5) — every node reads the marks; its OWN mark comes back from the wire and is dropped by
+        /// SourceNodeId, so a marking node draws each mark once. (Replaces the CE-1128 role rail: the pair is in the shared pack now.)</summary>
+        [Fact]
+        public void CE1148_ANodesOwnMark_IsDropped_AnotherNodesIsKept()
         {
-            using var participant = new DdsParticipant(231u);
-            var set = Compose(participant, role);
-            Assert.Equal(egress, set.Count(t => t == typeof(RoundImpactEgressTranslator)));
-            Assert.Equal(ingress, set.Count(t => t == typeof(RoundImpactIngressTranslator)));
+            using var world = new EntityRepository();
+            world.RegisterEvent<RoundImpactNotification>();
+            var view = (ISimulationView)world;
+            var cmd = (EntityCommandBuffer)view.GetCommandBuffer();
+            var ingress = new RoundImpactIngressTranslator(participant: null, new NetworkEntityMap(), localNodeId: 5);
+
+            ingress.ProcessSample(new RoundImpact { X = 1f, SourceNodeId = 5 }, cmd);   // mine
+            ingress.ProcessSample(new RoundImpact { X = 2f, SourceNodeId = 7 }, cmd);   // another node's
+            cmd.Playback(world);
+            world.Bus.SwapBuffers();
+
+            var e = Assert.Single(world.Bus.Read<RoundImpactNotification>().ToArray());
+            Assert.Equal(2f, e.X);
         }
     }
 }

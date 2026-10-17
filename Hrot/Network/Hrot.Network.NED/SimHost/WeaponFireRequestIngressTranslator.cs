@@ -113,6 +113,7 @@ namespace Hrot.Network.NED.SimHost
                 Charge      = request.Charge,     // ⭐ IF-1 (I3)
                 HighArc     = request.HighArc,
                 RaisedAt    = request.RaisedAt,   // ⭐ CE-2180
+                FuzeSeconds = request.FuzeSeconds,   // ⭐ CE-3235
             });
         }
 

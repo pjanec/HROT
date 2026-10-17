@@ -624,6 +624,30 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(bradley, mount);
         }
 
+        /// <summary>⭐⭐ <c>CE-3230</c> (B-8, H-4, AW-24) — a rifleman whose HANDS hold stones (mount 1, five rounds, in range of a man 20 m
+        /// away) still fires his RIFLE: the weapon brain never chooses the hands unless they hold a lethal round.</summary>
+        [Fact]
+        public void CE3230_ARiflemanWithStonesInHisHands_StillFiresHisRifle()
+        {
+            const long riflemanWithHands = 9310;
+            var t = new Fdp.Interfaces.TkbTemplate("Rifleman with hands", riflemanWithHands);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 30, Range = 500, Penetration = 5, DamagePerHit = 10 },
+                global::Fdp.Toolkit.Combat.PersonHands.Mount(),
+            } });
+            _world.UseTkb(t, UtilityTestWorld.InfantryTemplate());
+            var rifleman = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 30);
+            _world.SetType(rifleman, riflemanWithHands);
+            var hands = _world.SpawnWeaponMount(rifleman, mountIndex: 1, weaponGuid: 0, effRange: 25f, ammo01: 1f, initialAmmunition: 5);
+            var man = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 20f, maxHealth: 100f);
+
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, rifleman, man, out var mount));
+            Assert.Equal(rifleman, mount);
+            Assert.NotEqual(hands, mount);
+        }
+
         /// <summary>⭐ The executor on <c>Mount = Auto</c> fires <c>WeaponIndex 1</c> at a tank and spends the CHILD's round;
         /// <c>Mount = 0</c> (every other writer) still fires the primary. ✅ Red-proof: keep <c>WeaponIndex = 0</c> ⇒ red.</summary>
         [Fact]

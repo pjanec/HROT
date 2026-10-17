@@ -25,6 +25,9 @@ namespace Hrot.Network.NED.SimHost;
 /// to avoid double-registration.
 /// </para>
 ///
+/// <para>⭐ <c>CE-1148</c> (R-3015) — EVERY NED host builds this pack (CGF, SimHost, Stride, and since S3 the IG); the role gates
+/// below decide what each one takes. ⛔ The combat event pairs listed above moved to <c>SharedTranslatorPack</c> in S2.</para>
+///
 /// <para>
 /// <see cref="SimHostApp.OnLoad"/> calls <see cref="Create"/> after building the
 /// <c>HrotNodeContext</c> and registers the resulting translators via
@@ -93,14 +96,11 @@ public static class SimHostAuxiliaryTranslatorPack
         // ── Combat egress — Muscle / AllInOne emits notifications and receives requests ──
         if (role.HasFlag(NodeRole.MuscleGround))
         {
-            translators.Add(new WeaponFireNotificationEgressTranslator(participant, entityMap));
-            translators.Add(new MunitionDetonationEgressTranslator(participant, entityMap));
-            translators.Add(new RoundImpactEgressTranslator(participant, entityMap));   // ⭐ CE-1128 — the marks rounds leave (VE §10)
+            // (⭐ CE-1148 S2 — the WeaponFire / MunitionDetonation / RoundImpact pairs are in SharedTranslatorPack, on every node.)
             translators.Add(new DamageAssessedEgressTranslator(participant, entityMap));
             translators.Add(new NearMissEgressTranslator(participant, entityMap));   // CE-3064
             translators.Add(new MissileWarningEgressTranslator(participant, entityMap));          // ⭐ CE-2189
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));
-            translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
         }
 
         // ── EQS pipeline — solver side. ⭐ R-179: keyed on PERCEPTION, the role whose capability registers the solver
@@ -115,27 +115,10 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));
         }
 
-        // ── Sensor inputs for a Perception node WITHOUT MuscleGround (CE-3065, S7 design §3a) ──
-        //    Heat and sound are derived where the sensor solves (EqsSolverStartup.PopulateSystems). Positions replicate
-        //    everywhere; shots and detonations are events, so a node that does not fire them itself must read them back.
-        //    ⛔ Not with MuscleGround: there the shots are already local events, and its own samples would loop back
-        //    through the reader and heat each shooter twice. Both arrive IsRemote = true; heat and sound accept them.
-        if (role.HasFlag(NodeRole.Perception) && !role.HasFlag(NodeRole.MuscleGround))
-        {
-            translators.Add(new Hrot.Network.NED.IG.WeaponFireIngressTranslator(participant, entityMap));
-            translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
-            translators.Add(new RoundImpactIngressTranslator(participant, entityMap));   // ⭐ CE-1128 — a map host's marks
-        }
-
-        // ── ⭐ CE-2176 IF-3 — where a round burst, for a fire-mission OBSERVER's brain (DESIGN_Indirect_Fire §3.8). A Brain with
-        //    neither MuscleGround nor Perception gets no detonation otherwise (the two branches above). On the Brain only the burst
-        //    memory (DetonationMemorySystem) and the map's effects read it — no damage, no heat, no sound runs there.
-        if (role.HasFlag(NodeRole.Brain) && !role.HasFlag(NodeRole.MuscleGround) && !role.HasFlag(NodeRole.Perception))
-        {
-            translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
-            // ⭐ CE-1128 (VE §10) — the marks rounds leave, for this node's map; ⛔ never on a MuscleGround node (its own would loop back)
-            translators.Add(new RoundImpactIngressTranslator(participant, entityMap));
-        }
+        // ⭐⭐ CE-1148 S2 (Node Roles §3.5, R-3015) — the two branches that were here ("Perception && !MuscleGround" for heat and sound,
+        //   CE-3065; "Brain && !MuscleGround && !Perception" for a fire-mission observer's burst memory, IF-3) existed only because a
+        //   node would re-ingest its own shots and bursts. The pairs now sit in SharedTranslatorPack on every node, and the ingress drops
+        //   this node's own samples by SourceNodeId, so neither exclusion is needed.
 
         return translators;
     }

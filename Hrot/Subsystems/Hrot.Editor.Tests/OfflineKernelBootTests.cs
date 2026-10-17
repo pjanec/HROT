@@ -42,7 +42,7 @@ public class OfflineKernelBootTests : IDisposable
         var fileService      = EditorBootstrap.CreateFileService();
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        _kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap, new ScenarioEntityCreationRequestSource(),
+        _kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap,
             new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry()));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));

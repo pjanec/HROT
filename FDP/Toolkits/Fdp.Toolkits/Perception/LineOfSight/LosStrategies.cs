@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
                 colliderRadiusReader, colliderHeightReader, stanceReader, hullHeightReader) { }
 
         private static Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> OverTerrain(Func<TerrainWorld?> source)
-            => view => source() is { } w ? TerrainWorldQuery.For(w, w.Doors.Count > 0 ? DoorStates.Of(view, w) : null) : null;
+            => view => source() is { } w ? TerrainWorldQuery.ForView(view, w) : null;   // ⭐ CE-3219 part 3 — doors AND clouds
 
         public static TerrainWorldLosStrategy ForLiveWorld(
             EntityRepository world, Func<ISimulationView, Entity, StanceId>? stanceReader = null)

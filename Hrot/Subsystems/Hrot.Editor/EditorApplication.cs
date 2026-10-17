@@ -35,7 +35,7 @@ public sealed class EditorApplication : IEditorLogic
     //    the behaviour is unchanged by construction because the logic MOVED rather than being rewritten.
     private readonly Hrot.Editor.AiShared.Scenarios.EditorScenarioSession _session;
     private readonly FdpEventBus         _simBus;
-    private readonly DerRepo             _view = new(localNodeId: 0);
+    private readonly DerRepo             _view = new(localNodeId: EditorSubsystem.EditorNodeId);   // CE-3228 — no node is 0
 
     private readonly HotReloadMessageLogSource? _hotReloadSource;
     private readonly string[]                   _aiProjectPathSegments;

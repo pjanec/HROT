@@ -748,4 +748,81 @@ public sealed class TerrainLoadStepTests : IDisposable
         residency.Unload(world);
         Assert.Same(holder, live());
     }
+
+    /// <summary>A bake that waits until the test lets it finish — the slow navigation node of CE-2242.</summary>
+    private sealed class GatedNavmeshFactory : Fdp.Toolkit.Navigation.INavmeshFactory
+    {
+        public readonly ManualResetEventSlim Entered = new(false);
+        public readonly ManualResetEventSlim Release = new(false);
+        public Fdp.Toolkit.Navigation.INavmeshProvider? Build(TerrainWorld world)
+        {
+            Entered.Set();
+            Release.Wait(TimeSpan.FromSeconds(10));
+            return new Fdp.Toolkit.Navigation.Fake.FakeNavmeshProvider();
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-2242 — 📐 measured live: a node still baking its navmesh received the scenario's entities (other nodes had
+    /// committed and CGF spawned) with its geo origin unset, so every geodetic position landed ~900 km out. On a load into an
+    /// empty world (the world boundary, a late joiner's catch-up) the origin is in place BEFORE the bake; any other load still
+    /// changes it only at commit (docs/DESIGN_Geo_Origin.md §2 D, §4).
+    /// </summary>
+    [Fact]
+    public void CE2242_OnAFreshWorld_TheGeoOriginIsSetBeforeTheBakeFinishes_OtherLoadsWaitForCommit()
+    {
+        foreach (var (boundary, catchUp) in new[] { (true, false), (false, true), (false, false) })
+        {
+            string folder = Path.Combine(_terrainDir, "placed");
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName),
+                """{"schemaVersion":2,"world":"w.geojson","origin":{"lat":48.1,"lon":11.5,"alt":500}}""", new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"kind":"building","height":10},
+                   "geometry":{"type":"Polygon","coordinates":[[[0,0],[10,0],[10,10],[0,10],[0,0]]]}}]}
+                """, new UTF8Encoding(false));
+
+            using var holder = new RoadNetworkHolder();
+            using var world  = NewWorld();
+            var geo = new Fdp.Modules.Geographic.Transforms.WGS84Transform();
+            world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
+            var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+            var bake = new GatedNavmeshFactory();
+            residency.AttachNavmesh(bake, new Fdp.Toolkit.Navigation.SwitchableNavmeshProvider());
+
+            var chain = Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
+                NodeRole.MuscleGround,
+                new Hrot.Map.Common.ClusterLoad.ILoadPartProvider[]
+                {
+                    new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(Hrot.Map.Common.HrotEnvironment.CreateTkb(), _stagingRoot),
+                    new TerrainLoadStep(residency, _stagingRoot),
+                },
+                world);
+
+            var intent = new ExecuteNodeOpIntent
+            {
+                Operation     = NodeOpType.PrepareLive,
+                TransactionId = Guid.NewGuid(),
+                DomainPayload = new Fdp.Toolkit.Orchestration.Handlers.EditLoadHandlerPayload(
+                    ScenarioId: "scn", TargetState: ClusterState.LoadingLive, TerrainName: "placed",
+                    IsWorldBoundary: boundary, IsCatchUp: catchUp),
+            };
+
+            var prepare = chain.PrepareAsync(intent, CancellationToken.None);
+            Assert.True(bake.Entered.Wait(TimeSpan.FromSeconds(10)), "the navmesh bake must start");
+            Assert.False(prepare.IsCompleted);
+
+            if (boundary || catchUp)
+                Assert.Equal(48.1, geo.Origin.lat, 9);           // ⭐ in place while the bake still runs
+            else
+                Assert.Equal((0.0, 0.0, 0.0), geo.Origin);       // ⛔ a load over a live world moves it only at commit
+
+            bake.Release.Set();
+            prepare.GetAwaiter().GetResult();
+            chain.Commit(intent, repo: null);
+            Assert.Equal(48.1, geo.Origin.lat, 9);
+            Assert.Equal(11.5, geo.Origin.lon, 9);
+        }
+    }
 }

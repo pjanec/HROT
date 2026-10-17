@@ -9,6 +9,7 @@ using Hrot.Map.Common.Dds;
 using Hrot.Network.NED.CGF;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.Map.Common.Tests.Replication.Egress;
 
@@ -210,5 +211,36 @@ public class NedEntityCreationRequestEgressRails
         Assert.Equal(level, sample.SpawnLevel);
         // The decode the NED ingress performs (NedCgfEntityLifecycleAdapters).
         Assert.Equal(height, Fdp.Toolkit.NetworkSpawning.SpawnHeight.FromWire(sample.SpawnHeightMode, sample.SpawnLevel));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3228</c> — a gas / smoke cloud asked for on one node (owner 0) is created by the default processor on ANOTHER, so the
+    /// forwarded request must carry the cloud: the egress writes a <c>dtAreaEffectCloud</c> descriptor and the NED ingress's mapper
+    /// (<c>DescriptorMapper.MapToComponents</c>) rebuilds the component. ⛔ Without it the creator builds a bare type-7202 entity that no
+    /// system ever ends (found by <c>EntityOrdersAcrossNodesTests.CE3219_…</c>: no cloud on any node).
+    /// </summary>
+    [Fact]
+    public void CE3228_ACloud_SurvivesTheWireRoundTrip()
+    {
+        var (egress, writer) = NewEgress();
+        var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
+            BornAtSimSeconds = 12.5, Seconds = 60f,
+        };
+
+        egress.Send(new EntityCreationRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            OwnerAppInstanceId = 0,
+            TkbType            = Fdp.Toolkit.Combat.AreaEffectClouds.TkbType,
+            InitialComponents  = new List<object> { new SimTransform { Position = new Vector3(5f, 5f, 0f) }, cloud },
+        });
+
+        var sample = Assert.Single(writer.Publishes);
+        Assert.Single(sample.InitialDescriptors, d => d._d == EDescriptorType.dtAreaEffectCloud);
+        var back = Assert.Single(Hrot.Map.Common.Replication.Utils.DescriptorMapper
+            .MapToComponents(sample.InitialDescriptors, geoTransform: null).OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
+        Assert.Equal(cloud, back);
     }
 }

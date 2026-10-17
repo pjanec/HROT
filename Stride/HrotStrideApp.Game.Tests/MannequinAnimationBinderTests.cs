@@ -81,7 +81,7 @@ public sealed class MannequinAnimationBinderTests : IDisposable
 
     private static void SpawnMannequin(EditorStrideSubsystem sut)
     {
-        sut.ScenarioSource.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+        sut.ScenarioSource.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest
         {
             RequestId = Guid.NewGuid(),
             OwnerAppInstanceId = 0,

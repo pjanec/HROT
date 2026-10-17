@@ -438,6 +438,37 @@ public sealed partial class PossessionStationTests
         }
     }
 
+    /// <summary>⭐ CE-1168 — a person's HANDS mount (backend's B-8: every person type ends with one, empty until he picks something up) is
+    /// shown in the HUD as HANDS, not as the grenade category it throws on; his rifle keeps its line.</summary>
+    [Fact]
+    public void CE1168_TheHud_ShowsAPersonsHandsMount_AsHands()
+    {
+        var (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = 600 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var man = new Fdp.Interfaces.TkbTemplate("Rifleman", 600);
+            man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, AmmoGuid = 601 },
+                Fdp.Toolkit.Combat.PersonHands.Mount(),
+            } });
+            db.Register(man);
+            db.Register(new Fdp.Interfaces.TkbTemplate("5.56 ball", 601));
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var ammo = new WeaponAmmo { Count = 2 };
+            ammo.Set(0, new WeaponState { Ammo = 210, MaxAmmo = 210 });
+            ammo.Set(1, new WeaponState { Ammo = 0, MaxAmmo = 0 });
+            w.AddComponent(unit, ammo);
+
+            var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: false, hullLocked: false);
+            Assert.StartsWith("> 1 RIFLE", lines[1]);
+            Assert.StartsWith("  2 " + PossessionStation.Hud.HandsKind + "  ", lines[2]);
+        }
+    }
+
     /// <summary>
     /// ⭐ CE-1140 (supersedes CE-1079's "under the crosshair") — the HUD sits in the BOTTOM-LEFT corner of the VISIBLE map (the dockspace's
     /// open hole, so no docked panel covers it), out of the forward view; with no dockspace, the view's own corner. Each kind of line has

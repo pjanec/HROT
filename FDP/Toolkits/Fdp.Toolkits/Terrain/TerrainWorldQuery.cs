@@ -19,21 +19,31 @@ namespace Fdp.Toolkit.Terrain
         [ThreadStatic] private static TerrainWorldQuery? t_last;
         [ThreadStatic] private static List<TerrainWorld.FireCrossing>? t_fire;
 
-        public TerrainWorldQuery(TerrainWorld world, DoorStates? doors = null)
+        /// <summary>⭐ <c>CE-3219</c> part 3 — the gas / smoke clouds of the same view (null = none): sight through one is multiplied by its
+        /// transmittance (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b). Fire and movement ignore them.</summary>
+        public Fdp.Toolkit.Combat.CloudTable? Clouds { get; }
+
+        public TerrainWorldQuery(TerrainWorld world, DoorStates? doors = null, Fdp.Toolkit.Combat.CloudTable? clouds = null)
         {
             World = world ?? throw new ArgumentNullException(nameof(world));
             Doors = doors;
+            Clouds = clouds;
         }
 
         /// <summary>The query for <paramref name="world"/> under <paramref name="doors"/> — this thread's previous one when both are the
         /// same objects (⭐ R-220: <see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/> hands back the same table while no
         /// door changed, so a per-tick lookup allocates nothing).</summary>
-        public static TerrainWorldQuery For(TerrainWorld world, DoorStates? doors = null)
+        public static TerrainWorldQuery For(TerrainWorld world, DoorStates? doors = null, Fdp.Toolkit.Combat.CloudTable? clouds = null)
         {
             var last = t_last;
-            if (last != null && ReferenceEquals(last.World, world) && ReferenceEquals(last.Doors, doors)) return last;
-            return t_last = new TerrainWorldQuery(world, doors);
+            if (last != null && ReferenceEquals(last.World, world) && ReferenceEquals(last.Doors, doors) && ReferenceEquals(last.Clouds, clouds)) return last;
+            return t_last = new TerrainWorldQuery(world, doors, clouds);
         }
+
+        /// <summary>⭐ <c>CE-3219</c> part 3 — the query for <paramref name="world"/> as <paramref name="view"/> sees it: its doors (R-219) and
+        /// its clouds. The one place both are read, so every sight caller gets the same answer.</summary>
+        public static TerrainWorldQuery ForView(Fdp.ModuleHost.Abstractions.ISimulationView view, TerrainWorld world)
+            => For(world, world.Doors.Count > 0 ? DoorStates.Of(view, world) : null, Fdp.Toolkit.Combat.AreaEffectClouds.Of(view));
 
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y);   // ⭐ CE-1034 H1 — the height grid, else the flat ground
 
@@ -56,7 +66,14 @@ namespace Fdp.Toolkit.Terrain
             return true;
         }
 
-        public bool SightBlocked(Vector3 from, Vector3 to) => World.SegmentBlocked(from, to, Doors);
+        public bool SightBlocked(Vector3 from, Vector3 to)
+        {
+            // ⭐ CE-3219 part 3 — a cloud the line crosses multiplies in; with none crossed this is the terrain's own fast answer
+            float cloud = Clouds?.Transmittance(from, to) ?? 1f;
+            if (cloud >= 1f) return World.SegmentBlocked(from, to, Doors);
+            if (cloud < TerrainWorld.SightThreshold) return true;
+            return World.QuerySight(from, to, Doors).Transmittance * cloud < TerrainWorld.SightThreshold;
+        }
 
         public void Trace(Vector3 from, Vector3 to, TracePurpose purpose, List<TraceCrossing> into)
         {
@@ -83,6 +100,16 @@ namespace Fdp.Toolkit.Terrain
                     foreach (var c in r.Crossed)
                         into.Add(new TraceCrossing(length > 0f ? c.Along / length : 0f, 0f, c.Transmittance, 0f, IsClosedBarrier(c.Kind, c.Building),
                             c.Kind, c.Label, c.Material, c.Building, c.Storey));
+                    if (Clouds is { } clouds)   // ⭐ CE-3219 part 3 — each cloud crossed, where the line enters it
+                    {
+                        for (int i = 0; i < clouds.Count; i++)
+                        {
+                            var cl = clouds[i];
+                            if (!Fdp.Toolkit.Combat.CloudTable.Crosses(in cl, from, to, out float along)) continue;
+                            into.Add(new TraceCrossing(along, 0f, cl.Transmittance, cl.TopZ, false, "cloud", null, "cloud", null, 0));
+                        }
+                        into.Sort(static (x, y) => x.T.CompareTo(y.T));
+                    }
                     break;
                 }
                 default:

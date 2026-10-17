@@ -62,6 +62,52 @@ public sealed class EffectTests
         return e;
     }
 
+    /// <summary>
+    /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8 U4-a′, U4-e) — a gas cloud (backend's replicated
+    /// <c>AreaEffectCloud</c>, no <c>Lifespan</c>) is drawn where it IS now (it drifts), as dense as it looks now (dense for two thirds of
+    /// its life, then thinning), and not once its time is up; its 3-D puffs all lie inside its cylinder and are the same on every call.
+    /// </summary>
+    [Fact]
+    public void CE1165_ACloud_IsDrawnWhereItIs_AsDenseAsItLooks_UntilItsTimeIsUp()
+    {
+        var (world, tkb) = World();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
+        var gas = Unit(world, AreaEffectCloudTkb.Type, new Vector3(10f, 20f, 2f));
+        world.AddComponent(gas, new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, BornAtSimSeconds = 100.0, Seconds = 60f,
+        });
+        var layer = new EffectLayer(() => world, () => tkb);
+
+        At(world, 100.0);
+        var c = Assert.Single(layer.ResolveClouds());
+        Assert.Equal((new Vector3(10f, 20f, 2f), 6f, 3f, Fdp.Toolkit.Combat.CloudKind.TearGas), (c.Centre, c.Radius, c.Height, c.Kind));
+        Assert.Equal(0.6f, c.Density, 3);
+        Assert.Empty(layer.Resolve());   // not a Lifespan effect
+
+        world.GetComponentRW<SimTransform>(gas).Position = new Vector3(13f, 21f, 2f);   // its owner drifted it on the wind
+        At(world, 130.0);
+        c = Assert.Single(layer.ResolveClouds());
+        Assert.Equal((new Vector3(13f, 21f, 2f), 0.6f), (c.Centre, MathF.Round(c.Density, 3)));
+
+        At(world, 155.0);   // in its last third: thinning
+        float thin = Assert.Single(layer.ResolveClouds()).Density;
+        Assert.InRange(thin, 0.05f, 0.3f);
+
+        var puffs = EffectLayer.CloudPuffs(c);
+        Assert.InRange(puffs.Count, 8, EffectLayer.MaxCloudPuffs);
+        Assert.Equal(puffs, EffectLayer.CloudPuffs(c));
+        foreach (var p in puffs)
+        {
+            Assert.True(Vector2.Distance(new Vector2(p.At.X, p.At.Y), new Vector2(c.Centre.X, c.Centre.Y)) + p.Radius <= c.Radius + 1e-3f);
+            Assert.True(p.At.Z - p.Radius >= c.Centre.Z - 1e-3f && p.At.Z + p.Radius <= c.Centre.Z + c.Height + 1e-3f);
+        }
+        Assert.NotEqual(EffectLayer.CloudColour(Fdp.Toolkit.Combat.CloudKind.TearGas), EffectLayer.CloudColour(Fdp.Toolkit.Combat.CloudKind.Smoke));
+
+        At(world, 160.5);
+        Assert.Empty(layer.ResolveClouds());
+    }
+
     [Fact]
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
@@ -664,7 +710,8 @@ public sealed class EffectTests
                                             MunitionTkbCatalog.Tkb105mmHowitzerHe, MunitionTkbCatalog.Tkb155mmHowitzerHe,
                                             MunitionTkbCatalog.TkbStingerMissile, MunitionTkbCatalog.TkbIglaMissile,   // ⭐ CE-2187 — the MANPADS' proximity-fused warheads (new types on new mounts): no number moved
                                             MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
-                                            MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade };   // ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
+                                            MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade,     // ⭐ CE-3223
+                                            MunitionTkbCatalog.TkbTearGasGrenade };   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())
         {
@@ -672,6 +719,7 @@ public sealed class EffectTests
             if (suite == null) continue;
             foreach (var m in suite.Mounts)
             {
+                if (m.Hands) continue;   // ⭐ CE-3230 (H-2) — a person's HANDS name no round of their own: they hold what he picked up
                 mounts++;
                 Assert.True(m.AmmoGuid != 0, $"{t.Name}: a mount with no munition type");
                 Assert.True(tkb.TryGetByType(unchecked((long)m.AmmoGuid), out var ammo) && ammo != null, $"{t.Name}: munition {m.AmmoGuid} not registered");

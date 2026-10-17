@@ -106,6 +106,23 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(1f, ThreatDanger.Of(_world.Repo, soldier, rifleOnTheSide));
         }
 
+        /// <summary>⭐⭐ <c>CE-2233</c> (CIV-0) — a NEUTRAL is no danger to anyone (like a body, CE-3080), whatever it carries; its side is
+        /// read live, so a flip to Hostile makes the same armed man dangerous again; no <c>EntityInfo</c> = not neutral. ✅ Red-proof: the
+        /// neutral line removed from <c>ThreatDanger.Of</c> ⇒ the armed neutral reads 1 ⇒ red.</summary>
+        [Fact]
+        public void CE2233_ANeutralIsNoDanger_UntilItsSideFlips_AndNoSideIsNotNeutral()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) _world.Repo.RegisterComponent<Fdp.Core.EntityInfo>();
+            var me = Soldier();
+            var armed = Shooter(RiflemanType, new Vector3(50f, 0f, 0f));
+            Assert.Equal(1f, ThreatDanger.Of(_world.Repo, me, armed));                                    // no side: armed = 1
+            _world.Repo.AddComponent(armed, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });
+            Assert.Equal(0f, ThreatDanger.Of(_world.Repo, me, armed));
+            Assert.True(ThreatDanger.IsNeutral(_world.Repo, armed));
+            _world.Repo.GetComponentRW<Fdp.Core.EntityInfo>(armed).ForceId = Fdp.Core.ForceId.Hostile;
+            Assert.Equal(1f, ThreatDanger.Of(_world.Repo, me, armed));
+        }
+
         /// <summary>
         /// ⭐ Beyond his weapon's range his danger fades to the floor: the TOW (3750 m) in front at 4000 m is 2/3
         /// (range fade 3750 → 4500 m), at 4600 m only the floor; the RPG on the side at 400 m (beyond its 360 m fade) is the

@@ -221,8 +221,32 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new EjectPassengersCommand { Vehicle = target, IsRemote = true });
 
+        /// <summary>⭐ CE-3235 (B-13, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.10) — a man asks for a lying round; the node that
+        /// FLIES it decides (one winner).</summary>
+        public static readonly IInteractionCodec PickUpRound = new InteractionCodec<Fdp.Toolkit.Combat.PickUpRoundEvent>(
+            EInteractionKind.PickUpRound,
+            target:      static (in Fdp.Toolkit.Combat.PickUpRoundEvent e) => e.Round,
+            actor:       static (in Fdp.Toolkit.Combat.PickUpRoundEvent e) => e.Man,
+            isRemote:    static (in Fdp.Toolkit.Combat.PickUpRoundEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, round) => Fdp.Toolkit.Combat.RoundPickUp.OwnsRound(repo, round),
+            toPayload:   static (in Fdp.Toolkit.Combat.PickUpRoundEvent e) => new InteractionPayload { PickUpRound = default },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Combat.PickUpRoundEvent { Round = target, Man = actor, IsRemote = true });
+
+        /// <summary>⭐ CE-3235 — the round is his: to the node that runs his brain (his hands are there).</summary>
+        public static readonly IInteractionCodec PickUpGrant = new InteractionCodec<Fdp.Toolkit.Combat.PickUpGrantEvent>(
+            EInteractionKind.PickUpGrant,
+            target:      static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => e.Man,
+            actor:       static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => Entity.Null,
+            isRemote:    static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, man) => PossessionSystem.OwnsBrain(repo, man),
+            toPayload:   static (in Fdp.Toolkit.Combat.PickUpGrantEvent e) => new InteractionPayload
+                { PickUpGrant = new PickUpGrantInteractionPayload { Ammo = e.Ammo, Rounds = e.Rounds, FuzeSeconds = e.FuzeSeconds } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new Fdp.Toolkit.Combat.PickUpGrantEvent
+                { Man = target, Ammo = p.PickUpGrant.Ammo, Rounds = p.PickUpGrant.Rounds, FuzeSeconds = p.PickUpGrant.FuzeSeconds, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant };
     }
 
     /// <summary>

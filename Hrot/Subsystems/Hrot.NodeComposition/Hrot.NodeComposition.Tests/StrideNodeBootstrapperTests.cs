@@ -18,6 +18,7 @@ using Hrot.Core.Network;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
 using Xunit;
+using Fdp.Toolkit.NetworkSpawning.Events;
 
 namespace Hrot.NodeComposition.Tests;
 

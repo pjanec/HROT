@@ -309,7 +309,7 @@ public sealed class EditorHarness : IDisposable
         if (productionBehaviors)
             Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(behaviorRegistry, BlueprintRegistry);   // CE-3167
         var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, EntityMap,
-            new ScenarioEntityCreationRequestSource(), mapperRegistry, BlueprintRegistry);
+            mapperRegistry, BlueprintRegistry);
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys);
 

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 
-namespace Hrot.Blueprints.Editor.Host;
+namespace Hrot.Editor.AiShared.Source;
 
 /// <summary>
 /// Editor punch-list #6 — resolves the source file + line of a reflected CLR method from the
@@ -10,13 +10,13 @@ namespace Hrot.Blueprints.Editor.Host;
 /// inspector's "open in editor" button can jump straight to the definition.
 ///
 /// <para>
-/// Like <see cref="ClrXmlDocSource"/>, this is a static-build disk artifact: the <c>.pdb</c> sits
+/// Like the Blueprint editor's <c>ClrXmlDocSource</c>, this is a static-build disk artifact: the <c>.pdb</c> sits
 /// next to the <c>.dll</c> found via <see cref="Assembly.Location"/>. Dynamic / in-memory
 /// hot-reload assemblies have an empty location (and their PDB never hits disk) → this returns
 /// <c>null</c> and the caller disables the button. Every failure path is swallowed to null.
 /// </para>
 /// </summary>
-internal static class ClrSourceLocator
+public static class ClrSourceLocator
 {
     /// <summary>A resolved source location.</summary>
     public readonly record struct SourceLocation(string File, int Line);

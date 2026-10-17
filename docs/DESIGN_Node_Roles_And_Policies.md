@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
+updated: 2026-10-17 (§3.5 NEW — R-3015: one translator set on every node; CE-1148's slices S1–S3 + the event own-sample skip) · 2026-10-15 (§3.4 NEW — R-4005: a role is what a host DOES, never a network fact; the editor's NodeRole.None vs EditorCapabilities.DefaultRole contradiction measured and the one-line fix scoped) · 2026-10-15 (§3.3 NEW — R-4000: one code path on every node, behaviour differs by ROLE, never by a missing handler; the Player node's 2PC robustness recorded as OPEN) · 2026-09-13
 known-rot: ⛔ §4's role-affinity ownership (IG passing a Map2D policy; create/promote legs claiming by role, e.g. the §4.1 seam ② row) is RETIRED 2026-10-02 by push-only ownership — DESIGN_Ownership_Groups_And_Grants.md §5.6 S4 (no host passes a policy; the creator claims all and grants role groups).
 current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a role never denies a
   capability), ⭐ §3.3 is ONE CODE PATH ON EVERY NODE (R-4000 — behaviour differs by role, never by a missing
   handler), ⭐ §3.4 is A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT (R-4005 — an all-in-one host declares
   the union of its roles; NodeRole.None means "plays no role", not "is not networked"),
+  ⭐ §3.5 is ONE TRANSLATOR SET ON EVERY NODE (R-3015 — what a node receives never depends on its host kind),
   ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
@@ -35,6 +36,10 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - docs/DESIGN_Visual_Effects.md — §10: the RoundImpact pair §3.5 S2 moved to every node.
+  - docs/designs/indirect-fire/DESIGN_Indirect_Fire.md — §3.8: the observer's burst ingress §3.5 S2 folded into the shared pack.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §7.3a: the gas cloud (R-3014) is the case that surfaced §3.5; it owns the cloud, this owns who receives the detonation.
+  - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — §3a's Perception-only event ingress and its named limit ("a second MuscleGround node") are what §3.5 S2 replaces.
   - docs/blueprints/Architect_Question_91_Player_Nodes.md — the multiplayer Player node (an IG node, no new role): which
     nodes may fail or hang a 2PC round is derived from the ROLE (§4-A there), the open item at the end of §3.3 here.
   - docs/DESIGN_Unified_Cluster_Handler_Registration.md — owns WHICH cluster handlers each host registers and in
@@ -334,6 +339,98 @@ the name survives only in a `.dev` batch review as a deviation. ⭐ `EditorCapab
 `GET /cluster/roster` on a headless editor reads `"roles":"Brain, MuscleGround, Perception, NavigationSolver"` (was `None`); a
 `hill-attack` live load still succeeds (32 entities) — the new `needs:scenario` advert only stages a COPY into the editor's own
 staging folder (`/tmp/FDP_Temp/nodes/node-0/scenarios/…`), nothing is overwritten.
+
+---
+
+### 3.5 ⭐⭐⭐ ONE TRANSLATOR SET ON EVERY NODE — **what a node RECEIVES never depends on its host kind** *(user, `2026-10-17`, `R-3015`; `CE-1148`)*
+
+> 🔒 **User, verbatim:** *"the fact that the detonations are not received by CGF is alarming. We need to unify this. Every node
+> needs to receive that. The difference are driven by the roles. The code should be the same on the nodes."* (The premise was
+> a mis-measurement — CGF does receive them, through a host-shaped list; the rule stands on its own.)
+
+`build-state: BUILDING` — S1–S3 below; S4 is inventory only. ✅ **S1 BUILT `2026-10-17`**: the IG registers the shared ingress; `EntityStatesIngressPack`, both `pureIg` branches and seam ⑥'s separate registration are deleted. Rail `NedReplicationModuleTests.CE1148_EveryRole_PollsTheSharedIngress_OneReaderPerTopic` (red on Map2D before: the IG lacked the shared pairs). ✅ **S2 BUILT `2026-10-17`**: `SourceNodeId` appended on `WeaponFire`, `MunitionDetonation`, `RoundImpact`; the three pairs in `SharedTranslatorPack` (node id a REQUIRED constructor argument on the production constructors); the three events registered by `HrotSharedComponentRegistry`; every event branch in `SimHostAuxiliaryTranslatorPack` and the event ingresses in `NedIgTranslators` deleted. Rails: the module rail (each pair exactly once per role), an own-sample rail per ingress, the rewritten aux-pack and round-impact rails, cross-node `EntityOrdersAcrossNodesTests.CE1148_ABurstOnSimHost_ReachesTheBrainExactlyOnce`. Superseded statements marked in Thermal §3a, Visual Effects §10, Indirect Fire §3.8. 📐 Measured while gating (pre-existing, unchanged): `MunitionDetonationEgressTranslator.cs:82` skips a detonation whose SHOOTER is not in `NetworkEntityMap` — a shooterless burst (a scripted / scenario burst) never leaves its node, so only the simulating node feels it. ⚠ Open question, not decided here: whether such a burst should travel with `ShooterEntityId = 0` as a terrain hit already does for the target. ✅ **S3 BUILT `2026-10-17`**: `IgNodeBootstrapper.RegisterNetworkTranslators` builds the auxiliary pack (`CreateSimHostAuxiliaryTranslators().RegisterOn`) like CGF, SimHost and Stride; for `Map2D` its role gates give exactly the order egress, so `NedIgTranslators` drops its `TacticalIntentEgress` copy (it keeps only the S4 map ingresses). Rails: `SimHostAuxiliaryTranslatorPackTests.CE3167_…` (+`Map2D`), `CE1148_TheIgsOwnList_CarriesNoOrderEgress`, cross-node `EntityOrdersAcrossNodesTests.CE3167_…` (a release given on the IG reaches the brain — red with the bootstrapper line removed).
+
+#### INVENTORY — `search_graph(name_pattern=".*(TranslatorPack|IngressPack|Translators)$", label="Class")` → **30 classes** (12 NED packs, the rest Null/BDC stubs)
+
+| list | built by | what decides its content | measured |
+|---|---|---|---|
+| `SharedTranslatorPack` | every NED host | nothing: always all pairs | `NedReplicationModule.cs:389` |
+| `EntityStatesIngressPack` | **pure IG only** (`pureIg`) | host kind | `NedReplicationModule.cs:421-455` — its 21 ingresses are **all** in the shared pack; the shared ingress is skipped there, so the IG misses `ManualDrive`, `WeaponTask`, `WeaponTaskStatus`, `FireInteractionEvent` (and missed `OwnershipUpdate` until seam ⑥) |
+| `SimHostAuxiliaryTranslatorPack` | CGF, SimHost, Stride (`CgfSubsystem.cs:1103`, `SimHostNodeBootstrapper.cs:612`, `StrideNodeBootstrapper.cs:535`) — ⛔ **not the IG** | role branches, two of them **exclusions** (`Perception && !MuscleGround`, `Brain && !MuscleGround && !Perception`) | the exclusions exist only because a node would re-ingest its OWN event samples (CE-3065, IF-3, VE §10 captions) |
+| `NedIgTranslators` | **IG only** | host kind | duplicates `TacticalIntentEgress`, `WeaponFireIngress`, `MunitionDetonationIngress`, `RoundImpactIngress`; plus 3 map-only ingresses (S4) |
+| `CreateIgEgressTranslators` | **IG only** | host kind | `UpdateEntityCommand` / `DestroyEntityCommand` egress (S4) |
+| `RegisterStanceOn` / `RegisterStanceViewerOn` | CGF / SimHost / IG by hand | host kind | `CE-1147` (ui) |
+
+```mermaid
+graph TD
+  subgraph BEFORE
+    IG1[IG] --> EIP[EntityStatesIngressPack]
+    IG1 --> NIG[NedIgTranslators: events + map]
+    CGF1[CGF] --> AUX1[SimHostAuxiliaryTranslatorPack]
+    SH1[SimHost] --> AUX1
+    AUX1 --> RB[role branches with exclusions]
+    SHP1[SharedTranslatorPack ingress]:::dead
+    IG1 -. built, never polled .-> SHP1
+  end
+  subgraph AFTER
+    ANY[every NED host] --> SHP2[SharedTranslatorPack: entity pairs + event pairs]
+    ANY --> AUX2[auxiliary pack: role-gated, no exclusions]
+    SHP2 --> SKIP[event ingress drops SourceNodeId == self]
+  end
+  classDef dead fill:#f88
+```
+*What the picture shows that prose hid:* before, **which host you are** picks the list; after, every host builds the same two
+lists and only the **role** gates inside one of them. The red box is the shared ingress the IG builds and never polls.
+
+```mermaid
+classDiagram
+  class SharedTranslatorPack { <<existing, grows>> }
+  class MunitionDetonationEgressTranslator { <<existing>> }
+  class MunitionDetonationIngressTranslator { <<existing>> }
+  class MunitionDetonation { <<wire, appended>> }
+  class SimHostAuxiliaryTranslatorPack { <<existing, shrinks>> }
+  class NedIgTranslators { <<existing, shrinks>> }
+  class EntityStatesIngressPack { <<DELETED>> }
+  SharedTranslatorPack --> MunitionDetonationEgressTranslator : + event pairs
+  SharedTranslatorPack --> MunitionDetonationIngressTranslator
+  MunitionDetonationEgressTranslator ..> MunitionDetonation : local events only, stamps SourceNodeId
+  MunitionDetonationIngressTranslator ..> MunitionDetonation : drops SourceNodeId == self
+```
+*(`WeaponFire` and `RoundImpact` take the same shape. The auxiliary pack keeps only role-gated commands and EQS; `NedIgTranslators`
+keeps only the S4 map ingresses.)*
+
+```mermaid
+sequenceDiagram
+  participant A as SimHost A (fires)
+  participant D as DDS
+  participant B as any other node
+  A->>A: DetonationNotification (IsRemote false) - damage, area effect, sound
+  A->>D: MunitionDetonation (SourceNodeId = A)
+  D-->>A: own sample
+  A->>A: ingress drops it (SourceNodeId == A)
+  D-->>B: sample
+  B->>B: DetonationNotification (IsRemote true) - sound, burst memory, effects
+```
+*The loop-back the role exclusions guarded against is now dropped by the ingress itself, so every node can register the pair.*
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the IG's list adds nothing the shared pack lacks | ✅ diff of the two files: 21 of 21 in the shared pack; `EntityMasterIngressTranslator` built with the same arguments (`EntityStatesIngressPack.cs:52`, `SharedTranslatorPack.cs:71`) | ✅ `CE-1148`; Q65 §4 *"one pipeline"* |
+| "self-ghosting" does not apply to the IG | ✅ the note concerns a node that SIMULATES entities receiving its own `EntityMaster` (`NedReplicationModule.cs:427-431`) | ✅ `.dev/_DONE/mod-init/reviews/BATCH-03-REVIEW.md:77` — the guard avoided **two** `EntityMaster` readers, which unifying also removes |
+| a remote copy harms no consumer | ✅ damage and area effect skip `IsRemote` (`DamageCalculationSystem.cs:50`, `AreaEffectSystem.cs:61`); sound and burst memory want one copy per detonation | ✅ Thermal_And_Acoustic §3a's named limit (*"a second MuscleGround node — then the ingress skips … instead of keying on the role"*) is what this does |
+| egresses never re-send a remote copy | ✅ `MunitionDetonationEgressTranslator.cs:78`, `WeaponFireNotificationEgressTranslator.cs:74`, `RoundImpactTranslators.cs:43` | — |
+| the own-sample test needs a field | ✅ the wrapper exposes no `ignorelocal` QoS (native has `dds_qset_ignorelocal`); sender tracking is async with a measured miss window (`EntityMasterIngressTranslator.cs:36`) | ⛔ searched, none found |
+
+| slice | does | removes |
+|---|---|---|
+| **S1** | the IG registers the shared `CycloneNetworkIngressSystem` like every node | `EntityStatesIngressPack`, both `pureIg` branches, seam ⑥'s separate registration |
+| **S2** | `SourceNodeId` appended on `WeaponFire`, `MunitionDetonation`, `RoundImpact`; the three pairs move into `SharedTranslatorPack` | every event branch and exclusion in `SimHostAuxiliaryTranslatorPack`; the event ingresses in `NedIgTranslators` |
+| **S3** | the IG builds the auxiliary pack like every node (role-gated) | `NedIgTranslators`' `TacticalIntentEgress` copy |
+| S4 *(inventory only)* | the IG's map-only ingresses (`EntityMission`, `GroundClampingOverride`, `ContextActionsUpdate`) and command egresses (`UpdateEntityCommand`, `DestroyEntityCommand`): which roles need them | — |
+
+⭐ **Rejected:** *sender tracking for the own-sample test* — async; a sample can arrive before its writer is identified (CE-517's
+measured window), so a node would sometimes take its own event twice. *Keep the role exclusions* — they hard-code "a node that fires
+never needs another node's shot", which is false with two MuscleGround nodes.
 
 ## 4. ⭐⭐ OWNERSHIP — **a role is an EXPECTATION, the mask is the fact**
 

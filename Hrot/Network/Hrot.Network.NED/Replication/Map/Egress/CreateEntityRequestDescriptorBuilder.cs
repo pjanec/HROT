@@ -124,6 +124,13 @@ namespace Hrot.Map.Common.Replication.Egress
                     if      (component is EditablePolyline ep) polyline = ep;
                     else if (component is MapOverlayStyle  ms) style    = ms;
                     else if (component is RoutePlan        rp) route    = rp;
+                    // ⭐ CE-3228 — a cloud rides the forwarded request (Entity Creation §3.4d; the wire form carries what the local one does)
+                    else if (component is Fdp.Toolkit.Combat.AreaEffectCloud cloud)
+                        descriptors.Add(new EntityDescriptorUnion
+                        {
+                            _d              = EDescriptorType.dtAreaEffectCloud,
+                            AreaEffectCloud = Hrot.Map.Common.Replication.Egress.EntityAreaEffectCloudEgressTranslator.ToSample(0, cloud),
+                        });
                 }
 
                 if (polyline != null)

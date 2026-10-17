@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -102,6 +103,19 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var now = cgf.GetComponentRO<BehaviorState>(onBrain);
         _out.WriteLine($"brain node runs hash {now.ActiveBehaviorHash} origin {now.Origin}; Idle = {idle}");
         Assert.True(ran, "the order issued on SimHost must reach the CGF brain and run there at origin Operator");
+
+        // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG station takes the order egress from the same auxiliary
+        //   pack as every node: a release given on the IG reaches the brain and ends the operator's order there.
+        var ig = harness.Ig.App.World;
+        var igMap = harness.Ig.App.TestHook_EntityMap;
+        Assert.True(harness.PumpUntil(() => igMap.TryGetEntity(id, out _), timeoutFrames: 600), "the Rifleman must exist on the IG");
+        previousStrict = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try { result = new EntityOrders(ig, igMap, geo: null).Release(id); }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrict; }
+        Assert.True(result.Accepted, result.Detail);
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Operator, timeoutFrames: 600),
+            "a release issued on the IG must reach the CGF brain and end the operator's order");
     }
 
     /// <summary>
@@ -281,6 +295,224 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
     /// through <c>AirMotionSystem</c> → <c>RotorcraftModel.Manual</c>. 🔒 User: <i>"Drone will need to be controllable also from FPS
     /// possess mode."</i> The scenario is <c>ua-grenade-or-rifle</c> plus one drone (no drone scenario ships yet).
     /// </summary>
+    /// <summary>⭐ <c>CE-3224</c> (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7) — a gesture the brain sets on
+    /// CGF is seen on SimHost and on the IG, and lowering it is seen too.</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3224_AGestureSetOnTheBrain_ReachesSimHostAndTheIg()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull && !ByName(ig, "Rifleman").IsNull,
+            timeoutFrames: 2000), "the Rifleman must exist on CGF, SimHost and the IG");
+        var onBrain = ByName(cgf, "Rifleman");
+
+        Assert.True(Fdp.Toolkit.Combat.Gestures.Set(cgf, onBrain, Fdp.Toolkit.Combat.GestureKind.HandsUp));
+        Assert.True(harness.PumpUntil(() =>
+            Fdp.Toolkit.Combat.Gestures.Of(sim, ByName(sim, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.HandsUp
+            && Fdp.Toolkit.Combat.Gestures.Of(ig, ByName(ig, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.HandsUp, timeoutFrames: 600),
+            "hands up on CGF must reach SimHost and the IG");
+
+        Assert.True(Fdp.Toolkit.Combat.Gestures.Set(cgf, onBrain, Fdp.Toolkit.Combat.GestureKind.None));
+        Assert.True(harness.PumpUntil(() =>
+            Fdp.Toolkit.Combat.Gestures.Of(sim, ByName(sim, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None
+            && Fdp.Toolkit.Combat.Gestures.Of(ig, ByName(ig, "Rifleman")) == Fdp.Toolkit.Combat.GestureKind.None, timeoutFrames: 600),
+            "lowering the hands must reach both too");
+    }
+
+    private static int Clouds(EntityRepository world)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) return 0;
+        int n = 0;
+        foreach (var _ in world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().Build()) n++;
+        return n;
+    }
+
+    private static Entity FirstCloud(EntityRepository world)
+    {
+        foreach (var e in world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().Build()) return e;
+        return Entity.Null;
+    }
+
+    /// <summary>⭐⭐ <c>CE-3219</c> part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) + <c>CE-3228</c> (§3.4d) —
+    /// a cloud a burst asks for on SimHost (the entity-creation request on the bus, owner 0) is forwarded to the default processor, which
+    /// creates and owns it; it reaches SimHost and the IG with its fields, and when its time is up its owner ends it and it is gone on every
+    /// node (no node but the owner ends it).</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3219_ACloudAskedForOnSimHost_ReachesEveryNode_AndEndsEverywhere()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.Equal(0, Clouds(sim) + Clouds(cgf) + Clouds(ig));
+
+        Fdp.Toolkit.Combat.AreaEffectClouds.Request(sim, new System.Numerics.Vector3(5, 5, 0), new Fdp.Toolkit.Combat.AreaEffectCloud
+        {
+            Kind = Fdp.Toolkit.Combat.CloudKind.TearGas, Radius = 6f, Height = 3f, SightTransmittance = 0.4f, IrritantSeconds = 2f,
+            BornAtSimSeconds = Fdp.Toolkit.Time.SimClock.Of(sim).TotalTime, Seconds = 3f,
+        });
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 1 && Clouds(cgf) == 1 && Clouds(ig) == 1, timeoutFrames: 600),
+            $"the cloud must exist on SimHost, CGF and the IG (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
+        foreach (var w in new[] { cgf, ig })
+        {
+            var c = w.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(FirstCloud(w));
+            Assert.Equal(Fdp.Toolkit.Combat.CloudKind.TearGas, c.Kind);
+            Assert.Equal(6f, c.Radius);
+            Assert.Equal(3f, c.Seconds);
+        }
+        // ⭐ CE-3228 — asked for with owner 0 on SimHost (not the default processor) ⇒ forwarded; the default processor (CGF) creates and owns it
+        Assert.True(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(cgf, FirstCloud(cgf)), "the default processor (CGF) owns it");
+        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(sim, FirstCloud(sim)), "a replica is not its owner");
+        Assert.False(Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(ig, FirstCloud(ig)), "a replica is not its owner");
+
+        Assert.True(harness.PumpUntil(() => Clouds(sim) == 0 && Clouds(cgf) == 0 && Clouds(ig) == 0, timeoutFrames: 2000),
+            $"its owner ends it at its time and it is gone everywhere (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
+    }
+
+    private static Entity Stone(EntityRepository world)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()) return Entity.Null;
+        foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                     .With<Fdp.Toolkit.Replication.Components.TkbIdentity>().Build())
+            if (world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType == Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone) return e;
+        return Entity.Null;
+    }
+
+    /// <summary>⭐⭐ <c>CE-3235</c> (B-13, AW-8; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-3/PU-4) — a stone LYING on SimHost (the
+    /// node that flies it) is seen on the brain's node (CGF); the Rifleman's brain asks for it twice in one frame; SimHost grants it ONCE and
+    /// removes it everywhere; the grant crosses back and his hands on CGF hold exactly one stone.</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on CGF and SimHost");
+        var onBrain = ByName(cgf, "Rifleman");
+        Assert.Equal(0, Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone));
+
+        // a stone lying at his feet, as the flight leaves one (Landed, lingering) — on SimHost, which flies it; seen because it has a look
+        var at = sim.GetComponentRO<SimTransform>(ByName(sim, "Rifleman")).Position;
+        var stone = sim.CreateEntity();
+        sim.AddComponent(stone, new SimTransform { Position = at + new System.Numerics.Vector3(0.3f, 0f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+        sim.AddComponent(stone, new SimVelocity());
+        sim.AddComponent(stone, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+        {
+            PreviousPosition = at, Muzzle = at, SpawnTick = 1, StoppedTick = 1, TerrainFlags = 1, Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone,
+            Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.Lingers
+                             | Fdp.Toolkit.Combat.Components.WarheadRound.Landed),
+            FuzeRemaining = 60f,
+        });
+        Assert.True(Fdp.Toolkit.Combat.Systems.FireProcessingSystem.MarkIfVisible(sim, stone, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone),
+            "the stone has a look ⇒ it replicates");
+        Assert.True(harness.PumpUntil(() => !Stone(cgf).IsNull, timeoutFrames: 600), "the lying stone must be seen on the brain's node");
+
+        // two asks in one frame (as two men reaching at once): one grant
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Combat.RoundPickUp.CanAsk(cgf, onBrain, Stone(cgf)), timeoutFrames: 300),
+            "the Rifleman can ask for the stone at his feet");
+        var replica = Stone(cgf);
+        Assert.True(Fdp.Toolkit.Combat.RoundPickUp.Ask(cgf, onBrain, replica));
+        Assert.True(Fdp.Toolkit.Combat.RoundPickUp.Ask(cgf, onBrain, replica));
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone) > 0,
+            timeoutFrames: 600), "the grant must reach his hands on CGF");
+        Assert.True(harness.PumpUntil(() => Stone(sim).IsNull && Stone(cgf).IsNull && Stone(ig).IsNull, timeoutFrames: 600),
+            "the stone is gone on every node");
+        harness.PumpFrames(30);
+        Assert.Equal(1, Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone));   // ⭐ ONE winner
+    }
+
+    /// <summary>⭐⭐ <c>CE-1148</c> S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — a burst simulated on SimHost reaches the
+    /// brain node through the ONE shared event pair, exactly once, and stays once (no loop-back, no second list).</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE1148_ABurstOnSimHost_ReachesTheBrainExactlyOnce()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        const long Tag = 987_654_321L;   // a munition id no scenario uses, so only this burst is counted
+        int Seen()
+        {
+            Span<Fdp.Toolkit.Combat.RecentBurst> kept = stackalloc Fdp.Toolkit.Combat.RecentBurst[Fdp.Toolkit.Combat.RecentDetonations.Capacity];
+            int n = Fdp.Toolkit.Combat.RecentDetonations.Since(cgf, double.MinValue, kept), hits = 0;
+            for (int i = 0; i < n; i++) if (kept[i].Ammo == Tag) hits++;
+            return hits;
+        }
+
+        // the shooter must be a network entity: the egress drops a burst nobody fired (MunitionDetonationEgressTranslator)
+        Assert.True(harness.PumpUntil(() => !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000), "the Rifleman must exist on SimHost");
+        sim.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification
+        {
+            Shooter = ByName(sim, "Rifleman"), HitX = 3f, HitY = 4f, HitZ = 0f, Ammo = Tag,
+        });
+        Assert.True(harness.PumpUntil(() => Seen() >= 1, timeoutFrames: 600), "a burst simulated on SimHost must reach the brain node");
+        harness.PumpFrames(120);
+        Assert.Equal(1, Seen());
+    }
+
     [Fact(Timeout = 600_000)]
     public async Task M7_APossessedDrone_FollowsTheStation_AcrossNodes()
     {

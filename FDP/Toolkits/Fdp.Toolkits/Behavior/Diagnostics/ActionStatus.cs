@@ -68,6 +68,15 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-2187</c> (DESIGN_Missiles_And_Ammo §3c) — the loaded missile is for the other domain (a MANPADS at a truck, an
         /// ATGM at a flying helicopter): the weapon holds.</summary>
         WrongDomain,
+        /// <summary>⭐ <c>CE-2233</c> (CIV-0; DESIGN_Civilians_And_Crowd_Control CV-8) — the target is a NEUTRAL (a civilian whose side has
+        /// not flipped): the AI's weapon holds. An operator's (a human's) fire is not held.</summary>
+        HoldNeutral,
+        /// <summary>⭐ <c>AW-20</c> (R-2026; DESIGN_Civilians_And_Crowd_Control §5h) — a NEUTRAL person is on the line of fire or within the
+        /// weapon's spread: the round is held (Running, nothing spent) until the line is clear.</summary>
+        HoldNeutralOnLine,
+        /// <summary>⭐ <c>CV-13a</c> (R-2024; DESIGN_Civilians_And_Crowd_Control §4) — the target shows HANDS UP: the AI's weapon holds, even
+        /// at a Hostile. An operator's fire is not held.</summary>
+        HoldSurrender,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -145,6 +154,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldMoving         => "hold: moving",
             ActionReason.AwaitingRelease    => "release: waiting for the cue",
             ActionReason.WrongDomain        => "hold: wrong target domain",
+            ActionReason.HoldNeutral        => "hold: neutral",              // ⭐ CE-2233 — a civilian
+            ActionReason.HoldNeutralOnLine  => "hold: neutral on line",      // ⭐ AW-20 — a civilian in the line or the spread
+            ActionReason.HoldSurrender      => "hold: hands up",             // ⭐ CV-13a — a surrender
             ActionReason.NotControlled      => "hold: not controlled",       // ⭐ WS-3 — the weapon system
             ActionReason.NoGunner           => "hold: no gunner",
             ActionReason.NotDeployed        => "hold: not deployed",
@@ -159,7 +171,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.HoldRoe or ActionReason.OutOfAmmo or ActionReason.Failed or ActionReason.OutOfArc
             or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
-            or ActionReason.Masked;   // ⭐ CE-2218 — the gizmo drew these unlabelled and not amber
+            or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
+            or ActionReason.HoldSurrender;   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 
         private static void Write(ref ActionStatusRow row, ushort actionId, ActionReason reason, Entity target, float progress,
             float needed, double now)
