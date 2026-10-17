@@ -103,15 +103,9 @@ namespace Fdp.Toolkit.Perception.Components
         /// follow ONE heard contact across ticks.</summary>
         public int AnonymousSerial;
 
-        // ── ⭐ CE-2238 part 3 (AW-22, R-2028) — KNOWN COMBATANTS: civilians this unit SAW commit a lethal act. A list, not a slot
-        //    field: forgetting a contact does not forget that he fired. One writer, Fdp.Toolkit.Combat.KnownCombatants.
-        //    📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1.
-
-        /// <summary>Entity ids (packed, as <see cref="EntityIds"/>) of the known combatants; [0, <see cref="KnownCombatantCount"/>) valid.</summary>
-        public fixed long KnownCombatantIds[8];
-
-        /// <summary>How many of <see cref="KnownCombatantIds"/> are valid.</summary>
-        public byte KnownCombatantCount;
+        // ⛔ CE-2238 part 4 — the KNOWN COMBATANTS list moved OUT of this component to Fdp.Toolkit.Combat.KnownCombatantList: the
+        //    ThreatEvaluationSystem copies this memory and writes the copy back through the command buffer, which erased a mark made
+        //    later in the same frame (measured: ua-armed-blend-back). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1.
 
         /// <summary>⭐ The ONE rule every reader calls: true when slot <paramref name="slot"/> is a heard, unidentified
         /// contact. ⛔ An ENTITY reader (aim, fire, entity reads) skips it; a POSITION reader may use it.</summary>

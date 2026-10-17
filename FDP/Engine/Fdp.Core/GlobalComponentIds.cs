@@ -992,6 +992,10 @@ namespace Fdp.Core
         /// act — when he first committed one and the gravest kind so far; Brain group, replicated as <c>dtHostileAct</c> (145). ⚠ 404 measured
         /// free on backend, ui, behaviors and coordinator 2026-10-17.</summary>
         public const int HostileAct = 404;
+        /// <summary><c>KnownCombatantList</c> — ⭐ CE-2238 part 4 (AW-22; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1, as revised): the
+        /// civilians a unit SAW commit a lethal act — brain-local, never saved, its own component so the memory's copy-and-write-back cannot
+        /// erase it. ⚠ 405 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int KnownCombatantList = 405;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

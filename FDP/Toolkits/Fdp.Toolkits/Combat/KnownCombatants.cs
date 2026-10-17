@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
@@ -7,9 +8,24 @@ using Fdp.Toolkit.Perception.Components;
 namespace Fdp.Toolkit.Combat
 {
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 4 (AW-22; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1, as revised) — the civilians a unit SAW commit a
+    /// lethal act (packed entity ids; full ⇒ the oldest goes). Brain-local, never saved, ONE writer: <see cref="KnownCombatants"/>.
+    /// ⛔ Was a list inside <see cref="TargetMemory"/>: the <c>ThreatEvaluationSystem</c> copies the memory and writes the copy back through
+    /// the command buffer, so a mark made later in the same frame was erased — measured on <c>ua-armed-blend-back</c>.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.KnownCombatantList)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public unsafe struct KnownCombatantList
+    {
+        public fixed long Ids[KnownCombatants.Max];
+        public byte Count;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2238</c> part 3 (AW-22, R-2028; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6) — a civilian who commits a LETHAL hostile
     /// act is a KNOWN COMBATANT to the units that witnessed it and to their squad, sticky for the exercise; to everyone else he is still a
-    /// civilian. Knowledge per OBSERVER, kept in his <see cref="TargetMemory"/> (KC-1), read by <see cref="Armament.Judge"/>.
+    /// civilian. Knowledge per OBSERVER, kept in his <see cref="KnownCombatantList"/>, read by <see cref="Armament.Judge"/>.
     /// Brain-local: it runs where the brains and their memories are, never on the wire.
     /// </summary>
     public static unsafe class KnownCombatants
@@ -20,48 +36,47 @@ namespace Fdp.Toolkit.Combat
         /// <summary>How recently a witness must have perceived the actor (ticks, ~1 s at 60 Hz) — KC-2.</summary>
         public const uint WitnessWindowTicks = 60;
 
-        /// <summary>TEMP diagnostic (blend-back) — what the last MarkWitnesses saw. Remove.</summary>
-        public static string LastProbe = "";
+        [System.ThreadStatic] private static System.Collections.Generic.List<Entity>? _witnesses;
 
         /// <summary><paramref name="observer"/> now knows <paramref name="man"/> is a combatant. False when the observer has no memory.</summary>
         public static bool Mark(EntityRepository world, Entity observer, Entity man)
         {
             if (man.IsNull || !world.IsAlive(observer) || !world.IsComponentTypeRegistered<TargetMemory>()
                 || !world.HasComponent<TargetMemory>(observer)) return false;
-            ref var mem = ref world.GetComponentRW<TargetMemory>(observer);
+            if (!world.IsComponentTypeRegistered<KnownCombatantList>()) world.RegisterComponent<KnownCombatantList>();
+            if (!world.HasComponent<KnownCombatantList>(observer)) world.AddComponent(observer, new KnownCombatantList());
+            ref var list = ref world.GetComponentRW<KnownCombatantList>(observer);
             long id = (long)man.PackedValue;
-            for (int i = 0; i < mem.KnownCombatantCount; i++)
-                if (mem.KnownCombatantIds[i] == id) return true;
-            if (mem.KnownCombatantCount == Max)
+            for (int i = 0; i < list.Count; i++)
+                if (list.Ids[i] == id) return true;
+            if (list.Count == Max)
             {
-                for (int i = 1; i < Max; i++) mem.KnownCombatantIds[i - 1] = mem.KnownCombatantIds[i];   // the oldest goes
-                mem.KnownCombatantCount--;
+                for (int i = 1; i < Max; i++) list.Ids[i - 1] = list.Ids[i];   // the oldest goes
+                list.Count--;
             }
-            mem.KnownCombatantIds[mem.KnownCombatantCount++] = id;
+            list.Ids[list.Count++] = id;
             return true;
         }
 
         /// <summary>KC-2 — every unit on this node whose memory holds <paramref name="actor"/> IDENTIFIED and perceived within
-        /// <see cref="WitnessWindowTicks"/> learns he is a combatant. Returns how many witnesses.</summary>
+        /// <see cref="WitnessWindowTicks"/> witnessed his act: each is <see cref="Mark"/>ed. Returns how many.</summary>
         public static int MarkWitnesses(EntityRepository world, Entity actor)
         {
             if (actor.IsNull || !world.IsComponentTypeRegistered<TargetMemory>()) return 0;
             long id = (long)actor.PackedValue;
             uint now = world.SimulationTick;   // what ThreatEvaluationSystem stamps LastSeenTick with (ISimulationView.Tick)
-            int n = 0;
-            var probe = new System.Text.StringBuilder($"now {now}:");   // TEMP diagnostic (blend-back) — remove
+            var witnesses = _witnesses ??= new System.Collections.Generic.List<Entity>();
+            witnesses.Clear();
             foreach (var e in world.Query().With<TargetMemory>().Build())
             {
                 if (e == actor) continue;
                 ref readonly var mem = ref world.GetComponentRO<TargetMemory>(e);
                 for (int k = 0; k < mem.Count; k++)
-                    if (mem.EntityIds[k] == id) probe.Append($" [{e} slot {k} seen {mem.LastSeenTick[k]} anon {TargetMemory.IsAnonymous(in mem, k)}]");
-                bool witnessed = false;
-                for (int k = 0; k < mem.Count && !witnessed; k++)
-                    witnessed = mem.EntityIds[k] == id && !TargetMemory.IsAnonymous(in mem, k) && now - mem.LastSeenTick[k] <= WitnessWindowTicks;
-                if (witnessed && Mark(world, e, actor)) n++;
+                    if (mem.EntityIds[k] == id && !TargetMemory.IsAnonymous(in mem, k) && now - mem.LastSeenTick[k] <= WitnessWindowTicks)
+                    { witnesses.Add(e); break; }
             }
-            LastProbe = probe.Append($" => {n}").ToString();
+            int n = 0;
+            foreach (var e in witnesses) if (Mark(world, e, actor)) n++;   // ⭐ after the walk: Mark may add the list (a structural change)
             return n;
         }
 
@@ -89,10 +104,10 @@ namespace Fdp.Toolkit.Combat
 
         private static bool Holds(EntityRepository world, Entity unit, long id)
         {
-            if (!world.IsAlive(unit) || !world.HasComponent<TargetMemory>(unit)) return false;
-            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(unit);
-            for (int i = 0; i < mem.KnownCombatantCount; i++)
-                if (mem.KnownCombatantIds[i] == id) return true;
+            if (!world.IsAlive(unit) || !world.IsComponentTypeRegistered<KnownCombatantList>() || !world.HasComponent<KnownCombatantList>(unit)) return false;
+            ref readonly var list = ref world.GetComponentRO<KnownCombatantList>(unit);
+            for (int i = 0; i < list.Count; i++)
+                if (list.Ids[i] == id) return true;
             return false;
         }
     }

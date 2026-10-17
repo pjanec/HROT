@@ -305,7 +305,7 @@ namespace Fdp.Toolkit.Tests.Combat
             for (int i = 0; i < KnownCombatants.Max; i++)
                 KnownCombatants.Mark(_world.Repo, witness, Man(PhoneCivType, new Vector3(30f + i, 0f, 0f), ForceId.Neutral, civilian: true));
             Assert.False(KnownCombatants.Knows(_world.Repo, witness, civ));                                // the oldest went
-            Assert.Equal(KnownCombatants.Max, (int)_world.Repo.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(witness).KnownCombatantCount);
+            Assert.Equal(KnownCombatants.Max, (int)_world.Repo.GetComponentRO<KnownCombatantList>(witness).Count);
         }
 
         /// <summary>⭐ KC-5 — the act's KIND decides: a NON-lethal act (a stone) marks nobody; a LETHAL one by the same man marks his witness
@@ -322,6 +322,54 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.False(KnownCombatants.Knows(_world.Repo, witness, civ));
             Fdp.Toolkit.Civilians.HostileActs.Commit(_world.Repo, civ, Fdp.Toolkit.Civilians.HostileActKind.Lethal);
             Assert.True(KnownCombatants.Knows(_world.Repo, witness, civ));
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 4 (KC-1 revised; measured on <c>ua-armed-blend-back</c>) — a mark survives the memory's own
+        /// write-back in the SAME frame: <c>ThreatEvaluationSystem</c> copies the witness's memory and queues the copy, the act marks him,
+        /// then the queue plays back. ✅ Red-proof: the list kept inside <c>TargetMemory</c> (the copy is from before the mark) ⇒ red.</summary>
+        [Fact]
+        public void CE2238_AMark_SurvivesTheMemorysWriteBack_InTheSameFrame()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            var civ = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var witness = Watcher(Vector3.Zero, civ, ticksAgo: 0);
+            ISimulationView view = _world.Repo;
+            new Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem().Execute(view, 0.1f);   // copies the memory, queues the decayed copy
+            Assert.Equal(1, KnownCombatants.MarkWitnesses(_world.Repo, civ));
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world.Repo);
+            Assert.True(KnownCombatants.Knows(_world.Repo, witness, civ));
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 4 (AW-21/AW-22, R-2027/R-2028; §5h.7b CH-1) — the CONDUCT hold: a LETHAL round at a Hostile civilian
+        /// who shows nothing lethal is held for a unit that does not know him, and fired by one that does (it saw his act); a non-lethal round
+        /// is never held; a soldier target is never held (status); a civilian aiming a pistol at the unit lifts it. ✅ Red-proofs: the
+        /// combatant shortcut removed ⇒ an unarmed soldier target is held ⇒ red; the Judge line removed ⇒ the witness is held ⇒ red; the
+        /// aim line removed ⇒ the aiming civilian is held ⇒ red.</summary>
+        [Fact]
+        public void CE2238_TheConductHold_NoLethalRoundAtAnUnarmedCivilian_UnlessKnownOrAimingAtMe()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            if (!_world.Repo.IsComponentTypeRegistered<WeaponPosture>()) _world.Repo.RegisterComponent<WeaponPosture>();
+            var civ = Man(StonesCivType, new Vector3(20f, 0f, 0f), ForceId.Hostile, civilian: true);   // Hostile, nothing lethal on him
+            var stranger = Observer();
+            var witness = Watcher(new Vector3(0f, 5f, 0f), civ, ticksAgo: 0);
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, stranger, civ, lethal: true));
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, civ, lethal: false));            // non-lethal force only
+            Assert.True(KnownCombatants.Mark(_world.Repo, witness, civ));
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, witness, civ, lethal: true));             // he knows him — but stones are nothing lethal
+
+            var hid = Man(PistolCivType, new Vector3(150f, 5f, 0f), ForceId.Hostile, civilian: true);   // 150 m by day: his pistol unidentified
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, stranger, hid, lethal: true));
+            Assert.True(KnownCombatants.Mark(_world.Repo, witness, hid));
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, witness, hid, lethal: true));              // known: read on what he carries
+
+            var soldier = Man(RiflemanType, new Vector3(30f, 0f, 0f), ForceId.Hostile);
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, soldier, lethal: true));         // status
+
+            var aiming = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Hostile, civilian: true);  // 150 m: his pistol unidentified
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, stranger, aiming, lethal: true));
+            _world.Repo.AddComponent(aiming, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = stranger });
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, aiming, lethal: true));           // he aims at me
         }
         /// <summary>⭐ <c>CE-2238</c> part 4 (AW-16, §5h.7 CO-1) — AIMING at the forces is the hostile act, drawing is not: a civilian whose
         /// weapon is READY at a soldier commits nothing; aimed at another civilian, nothing; aimed at the SOLDIER — a LETHAL act; an enemy
