@@ -735,7 +735,7 @@ public sealed class PostureScenarioTests : IDisposable
                 if (why == ActionReason.HoldNeutralOnLine) held++;
             }
             if (onLineBefore) onLineFrames++;
-            if (frame % 120 == 0)
+            if (frame % 120 == 0 || (frame < 1200 && frame % 30 == 0))
                 _out.WriteLine($"f{frame} onLine={onLineBefore} reason={(cgf.HasComponent<ActionStatus>(rifle) ? cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason : ActionReason.None)} ammo={Ammo()} "
                     + string.Join(" ", civs.Select(c => cgf.IsAlive(c) ? $"({cgf.GetComponent<SimTransform>(c).Position.X:F0},{cgf.GetComponent<SimTransform>(c).Position.Y:F1})" : "-")));
             int now = Ammo();
