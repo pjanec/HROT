@@ -71,7 +71,14 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         }
         Mirror = new TrafficMirrorSystem(Runtime, context.Participant, context.EntityMap, context.NodeId);
         input.Add(Mirror);
-        if (Runtime is not null) input.Add(new TrafficBodyFeedSystem(Runtime));   // ⭐ AQ93 §13 — our bodies into SUMO (E4)
+        if (Runtime is not null)
+        {
+            input.Add(new TrafficBodyFeedSystem(Runtime));   // ⭐ AQ93 §13 — our bodies into SUMO (E4)
+            // ⭐ AQ93 §14 G2 — the intents this node reads (NED ingress on the traffic node, local in the editor)
+            if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>())
+                context.World.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            input.Add(new TrafficHandoverSystem(Runtime));
+        }
         simulation.Add(new TrafficShadowFollowSystem());   // ⭐ AQ93 §14 — a handed-over body follows its SUMO shadow where it is moved
     }
 

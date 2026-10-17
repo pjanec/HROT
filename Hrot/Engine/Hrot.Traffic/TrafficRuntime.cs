@@ -81,6 +81,11 @@ public sealed class TrafficRuntime : IDisposable
     public IReadOnlyList<TrafficBody> Bodies => Volatile.Read(ref _bodies);
     private TrafficBody[] _bodies = Array.Empty<TrafficBody>();
 
+    /// <summary>⭐ AQ93 §14 G3 — our vehicles handed to SUMO, as of this frame; the stepping thread spawns and despawns their shadows.
+    /// ⛔ Main thread only.</summary>
+    public void SetHandovers(TrafficHandover[] handovers) => Volatile.Write(ref _handovers, handovers ?? Array.Empty<TrafficHandover>());
+    private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();
+
     /// <summary>How far SUMO may run (cluster sim time); also the time a NEW session starts at (N3). ⛔ Main thread only.</summary>
     public void SetTarget(TrafficSessionKey key, double clusterTime)
     {
@@ -124,6 +129,7 @@ public sealed class TrafficRuntime : IDisposable
             }
         }
         have.SetBodies(Volatile.Read(ref _bodies));
+        have.SetHandovers(Volatile.Read(ref _handovers));
         Interlocked.Add(ref _steps, have.StepTo(target));
     }
 

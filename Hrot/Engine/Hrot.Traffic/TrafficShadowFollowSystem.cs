@@ -23,8 +23,10 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
     /// <summary>A SUMO shadow car's name: the handed-over body's network id.</summary>
     public const string ShadowPrefix = "hrot:";
 
-    /// <summary>How near the destination the shadow must vanish for an arrival (SUMO ends it at the destination's lane offset).</summary>
-    public const float ArrivalSlackMetres = 15f;
+    /// <summary>How near the destination the shadow must vanish for an arrival. 📐 SUMO ends it at the destination's lane offset
+    /// (H13) but up to one step SHORT of it (≤ 7 m at 14 m/s, Dt 0.5), and the mirror resolves one step behind the clock (another
+    /// ≤ 7 m): a shadow that arrived is last seen ~14 m short (measured 2026-10-17, demo-city). 25 m keeps the margin.</summary>
+    public const float ArrivalSlackMetres = 25f;
 
     private readonly Dictionary<long, (bool Seen, Vector2 Last, double At)> _follow = new();
     private readonly Dictionary<string, TrafficCarPose> _shadows = new(StringComparer.Ordinal);

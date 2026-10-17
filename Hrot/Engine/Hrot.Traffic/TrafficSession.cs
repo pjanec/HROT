@@ -94,6 +94,57 @@ public sealed class TrafficSession : IDisposable
     /// <summary>What SUMO made of our bodies (SumoSharp H12): lane obstacles and crowd discs. Null until bodies were first told.</summary>
     public Sim.Core.Bridge.ExternalBodyFeed? Feed => _sim.ExternalBodies;
 
+    /// <summary>⭐ AQ93 §14 G3 — the vehicles handed to SUMO, for the next step (stepping thread).</summary>
+    public void SetHandovers(TrafficHandover[] handovers) => _handovers = handovers ?? Array.Empty<TrafficHandover>();
+    private TrafficHandover[] _handovers = Array.Empty<TrafficHandover>();
+    private TrafficHandover[]? _appliedHandovers;
+
+    // id → the intent its shadow serves; a shadow that ARRIVED stays here (not respawned) until the intent changes.
+    private readonly Dictionary<long, uint> _shadows = new();
+    private readonly Dictionary<long, double> _refused = new();   // id → when SUMO last refused it (retried after RetrySeconds)
+    private readonly HashSet<long> _wanted = new();
+    private readonly List<long> _drop = new();
+
+    /// <summary>A refused hand-over (no lane near the vehicle, no route) is retried after this long, in SUMO time.</summary>
+    public const double RetrySeconds = 2.0;
+
+    /// <summary>The shadows SUMO is driving now (or has just arrived), by network id — rails and diagnostics.</summary>
+    public IReadOnlyCollection<long> Shadows => _shadows.Keys;
+
+    // ⭐ SumoSharp H13 (f252ddc): SpawnExternalVehicle routes "hrot:<id>" from the vehicle's lane to the destination's lane offset;
+    //   DespawnExternalVehicle takes it back. Ownership never moves — the body's owner follows the shadow (TrafficShadowFollowSystem).
+    private void ApplyHandovers()
+    {
+        var want = _handovers;
+        if (ReferenceEquals(want, _appliedHandovers) && _refused.Count == 0) return;
+        _appliedHandovers = want;
+        _wanted.Clear();
+        foreach (var h in want)
+        {
+            _wanted.Add(h.NetworkId);
+            if (_shadows.TryGetValue(h.NetworkId, out var intent) && intent == h.IntentId) continue;   // driving, or arrived for this intent
+            if (_shadows.ContainsKey(h.NetworkId))
+            {
+                _sim.DespawnExternalVehicle(TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId));   // a NEW Traffic intent: a new route
+                _shadows.Remove(h.NetworkId);
+            }
+            if (_refused.TryGetValue(h.NetworkId, out var at) && _sim.Time - at < RetrySeconds) continue;
+            string id = TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId);
+            bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t)
+                      || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY);   // an unmapped type: SUMO's default car
+            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); }
+            else _refused[h.NetworkId] = _sim.Time;
+        }
+        _drop.Clear();
+        foreach (var id in _shadows.Keys) if (!_wanted.Contains(id)) _drop.Add(id);
+        foreach (var id in _refused.Keys) if (!_wanted.Contains(id)) _drop.Add(id);
+        foreach (var id in _drop)
+        {
+            if (_shadows.Remove(id)) _sim.DespawnExternalVehicle(TrafficShadowFollowSystem.ShadowIdOf(id));   // the intent changed: take it back
+            _refused.Remove(id);
+        }
+    }
+
     private TrafficBody[]? _applied;
     private Sim.Core.Bridge.ExternalBody[] _external = Array.Empty<Sim.Core.Bridge.ExternalBody>();
 
@@ -126,7 +177,7 @@ public sealed class TrafficSession : IDisposable
             int steps = 0;
             while (steps < MaxStepsPerCall && _sim.Time + _sim.Dt <= clusterTime + 1e-9)
             {
-                if (steps == 0) ApplyBodies();   // ⭐ AQ93 §13 — SUMO hears about our bodies before it moves its cars
+                if (steps == 0) { ApplyBodies(); ApplyHandovers(); }   // ⭐ AQ93 §13/§14 — before SUMO moves its cars
                 _sim.Step();
                 steps++;
             }

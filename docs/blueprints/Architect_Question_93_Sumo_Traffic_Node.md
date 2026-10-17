@@ -426,7 +426,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
-| 4 | R-4023 handover (`KinematicsMode.Traffic`) | ⭐ BUILDING — §14.6 (follow side built; spawn side waits for SumoSharp H13) |
+| 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT — §14.6 (SumoSharp H13); ⏳ live check |
 | 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
@@ -1085,7 +1085,7 @@ Rails: upstream `HrotExternalBodyTests` (7, two of them inverse-proven by detach
 | live | demo-city: a SUMO car brakes behind our vehicle parked on its lane (its speed drops to ~0 behind it) |
 
 
-## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILDING; §3.3 is its sequence; §14.6 what is built)*
+## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILT, ⏳ live; §3.3 is its sequence; §14.6 the as-built)*
 
 ### 14.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
 
@@ -1164,9 +1164,11 @@ spawn); ownership never moves.
 | G1 | ✅ `NavigationMode.Traffic` = 7 → the bridge sets `KinematicsMode.Traffic` = 9 with `FinalDestination`, `ArrivalRadius`, `TargetSpeed`; `CarKinematicsSystem` returns early for it |
 | G4 | ✅ `TrafficShadowFollowSystem` (Simulation phase, composed by `TrafficPack` on every node, acting only on bodies whose `SimTransform` it owns — the `CarKinematicsSystem` filter): shadow pose → `SimTransform`, velocity from successive poses → `SimVelocity` + `VehicleState.Speed`. ⭐ **Deviation:** the result is never written here — no shadow yet ⇒ `NavState.IsBlocked` (the executor's deliberate hold, not "stuck"); gone within `max(ArrivalRadius, 15 m)` of the destination ⇒ `HasArrived` ⇒ `NavigationExecutionSystem` writes `Arrived`; gone elsewhere ⇒ mode `None`, the executor's normal blocked / replan path. So §14.2 G5's "`FailedBlocked`" comes from the executor, not from a second writer |
 | G6 | ✅ `TrafficReplicas.IsShadow` — no replica for an `hrot:` car, and `TrafficFrame.IsEntity` covers it so neither map layer draws it; the body feed skips a body whose intent or kinematics are `Traffic` |
-| G2, G3 | ⏳ `TrafficHandoverSystem` + `NavigationIntent` ingress on the traffic node — waiting for SumoSharp **H13** (`SpawnExternalVehicle` / `DespawnExternalVehicle`, arrival at the destination's lane offset), in progress upstream |
+| G2 | ✅ the wire carries it: `ENavigationMode.NAV_TRAFFIC` = 7 both ways (`EveryMode_RoundTripsTheWire` covers it). ✅ A node with role `Traffic` and no Muscle builds ONE read-only translator, `NavigationIntentIngressTranslator` (`NedReplicationModule._trafficTranslators`), and `TrafficPack.Serving` registers `NavigationIntent` — the R-3015 role gate kept everything else out |
+| G3 | ✅ SumoSharp **H13** (`f252ddc`, vendored): `LiveCitySim.SpawnExternalVehicle(id, x, y, heading, speed, destX, destY, vType?)` (x, y = FRONT bumper; heading = atan2, 0 east) — start lane ≤ 10 m within 90° of the heading, route by SUMO's router, arrival at the destination's lane offset (a new `arrivalPos`, ≤ one step short); `DespawnExternalVehicle`; `ExternalVehicleArrived`. HROT: `TrafficHandoverSystem` (serving node, Input phase) → `TrafficRuntime.SetHandovers` → `TrafficSession.ApplyHandovers` (spawn per new intent id; an unmapped TKB type falls back to SUMO's default car; a refusal retried every 2 s SUMO time; a withdrawn intent despawns; an ARRIVED shadow is not respawned while its intent stands) |
+| G5 slack | ⭐ `ArrivalSlackMetres` = 25 m, measured: a shadow that arrived is last seen ~14 m short (H13 ends it ≤ one step before the point, the mirror resolves one step behind the clock) — the first 15 m was too tight |
 
-Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica).
+Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica) · `AVehicleHandedToSumoArrivesTests` (demo-city: the shadow drives a route a SUMO car drove and vanishes at the destination; revoking it takes it back) · upstream `HrotExternalVehicleTests` (4). ⏳ live: a vehicle in the editor / cluster handed over and taken back.
 
 ### 14.5 Acceptance
 

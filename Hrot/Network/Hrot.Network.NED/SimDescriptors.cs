@@ -544,6 +544,7 @@ namespace Hrot.NED.Descriptors
         NAV_ROAD_GRAPH      = 4,
         NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
         NAV_MANUAL          = 6,   // ⭐ CE-3173 — the operator drives the body (ManualDrive); entered once
+        NAV_TRAFFIC         = 7,   // ⭐ AQ93 R-4023 — SUMO drives the body (a shadow car); the owner follows it
     }
 
     /// <summary>
