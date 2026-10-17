@@ -967,9 +967,11 @@ public sealed class PostureScenarioTests : IDisposable
     {
         if (!w.HasComponent<TargetMemory>(observer)) return "no memory";
         ref readonly var mem = ref w.GetComponentRO<TargetMemory>(observer);
+        string commit = w.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(man)
+            ? $"brain-local act at {w.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(man).HostileActAt:F2}" : "no CivilianState";
         for (int i = 0; i < mem.Count; i++)
             if (mem.EntityIds[i] == (long)man.PackedValue)
-                return $"slot {i}/{mem.Count}, anon {TargetMemory.IsAnonymous(in mem, i)}, lastSeen {mem.LastSeenTick[i]}, now {w.SimulationTick}";
+                return $"slot {i}/{mem.Count}, anon {TargetMemory.IsAnonymous(in mem, i)}, lastSeen {mem.LastSeenTick[i]}, now {w.SimulationTick}, known {mem.KnownCombatantCount}, {commit}";
         return $"absent ({mem.Count} slots, now {w.SimulationTick})";
     }
 
