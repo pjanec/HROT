@@ -2934,7 +2934,7 @@ and `…_AVentingCanistersBurst_AsksForACloud_…` · `RoundPickUpTests.CE3236_A
 `InteractionTransportTests.CE3235_APickUpAskAndItsGrant_…`, `BodyPartReplicationTests.CE3219_ACloud_…` (each gained the new field).
 11 red-proofs, each red.
 
-### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: B-15 BUILT — as-built §7.16a; B-16 READY-TO-BUILD)*
+### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: BUILT — as-built §7.16a (B-15) and §7.16b (B-16))*
 
 INVENTORY *(grep at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*HostileAct.*` → `HostileActs` only)*:
 
@@ -3005,7 +3005,19 @@ graph TD
 
 ⭐ A thrown-back grenade names the man who threw it back (the round's shooter is whoever fired it last). `DamageAssessedEvent` grew 24 → 32
 bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.CE3237_…`, `DamageAssessedEgressTranslatorTests.CE3237_…`,
-`EntityHitDamageIngressTranslatorTests.CE3237_…` — five red-proofs.
+`EntityHitDamageIngressTranslatorTests.CE3237_…` — red-proved: the hit, the blow, a burst's per-part damage, the egress, the ingress. ⚠ The burst's WHOLE-BODY publish (a target with no body plan — a vehicle) is not railed: a soldier always takes the per-part split, so removing its `Source` stays green.
+
+#### 7.16b AS-BUILT `CE-3238` (B-16) *(2026-10-17)* — built as HA-1/HA-2 draw it
+
+| built | where |
+|---|---|
+| `HostileAct { double SinceSimTime; HostileActKind Kind }` (`None · NonLethal · Lethal`), component **404**, `NoScenario` (recorded, never authored), Brain group | `Civilians/HostileActs.cs`, `HrotOwnershipGroups` |
+| `HostileActs.Commit(repo, actor, kind)` — the first act stamps the time and flips the side once (the one write path, as before); a graver one UPGRADES the kind and keeps the time; a lesser one changes nothing (returns false). `Commit(repo, actor)` = `NonLethal` (a blow, a stone — what behaviors' callers commit today). `CivilianState.HostileActAt` kept in step | same |
+| `HostileActs.Of(view, actor)` the kind on any node · `Committed` true from the replicated component OR the brain's own stamp | same |
+| `dtHostileAct` **145**, topic `EntityHostileAct { EntityId, SinceSimTime, Kind }` (Reliable, TransientLocal, KeepLast 1), egress on change from the `dtHostileAct` owner, ingress skips the recorded owner — the `dtGesture` shape, in the shared pack | `EntityHostileActTranslators.cs`, `SharedTranslatorPack` |
+
+Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
+and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

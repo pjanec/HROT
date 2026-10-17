@@ -287,7 +287,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtWeather),               // ⭐ CE-3216 S1 — authored weather
                     D(Hrot.NED.Descriptors.EDescriptorType.dtOperatorUseStatus),     // ⭐ CE-1153 — the use verdict, for the HUD
                     D(Hrot.NED.Descriptors.EDescriptorType.dtEffectState),           // ⭐ CE-3219 — non-lethal effects
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtGesture) },             // ⭐ CE-3224 — a person's gesture
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtGesture),               // ⭐ CE-3224 — a person's gesture
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtHostileAct) },          // ⭐ CE-3238 — a man's hostile act
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

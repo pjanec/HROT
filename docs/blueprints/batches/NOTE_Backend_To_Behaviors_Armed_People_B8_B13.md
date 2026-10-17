@@ -79,5 +79,12 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 |---|---|
 | `DamageAssessedEvent.Source` (on the victim's Health owner, after the wire) | who caused it: the round's shooter for a hit or a burst — a person, a vehicle, or a weapon system (`WeaponSystems.ControllerOf(world, source)` names the man who works it) — the striker of a melee blow. `Entity.Null` = unknown: a gas cloud, a canister in hand, a crash, an ejection, or a shooter this node has no entity for |
 
-**Ids allocated:** CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
+**⑩ B-16 — the hostile act carries its kind** ([CE-3238](../Blueprint_Issues_Tracker.md), at `backend@B16SHA`; design [§7.16b](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-22 (civilian → combatant) can tell a stone from a shot, on every node.**
+
+| what you call | what it does |
+|---|---|
+| `HostileActs.Commit(world, actor, HostileActKind.Lethal)` — a shot, a grenade, a charge | records his act (or UPGRADES a non-lethal one; never down), flips his side once as before. ⚠ `Commit(world, actor)` — your blow and stone calls — is `NonLethal` |
+| `HostileActs.Of(view, actor)` · `HostileActs.Committed(world, actor)` | the gravest act so far, on ANY node (the act now replicates — `dtHostileAct`); `Committed` reads it too, so a soldier's brain on another CGF sees who acted |
+
+**Ids allocated:** component 404 (`HostileAct`), descriptor 145 (`dtHostileAct`), CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812
 (Stone Source). **Next free:** CE-3240.
