@@ -139,6 +139,45 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// DISPENSER's release interval is 60 ÷ this (<c>Countermeasures.Release</c>).</summary>
         [EditUnit("rpm")]
         public float RateOfFire { get; init; }
+
+        /// <summary>⭐ <c>CE-3229</c> (B-7, AW-15 / AW-24; docs/DESIGN_Civilians_And_Crowd_Control.md §7.8 A-3) — what this weapon LOOKS like
+        /// to an observer judging a civilian. <b>null = by <see cref="Category"/></b> (<c>ItemAppearances.Of</c>): only an odd item sets it — a toy
+        /// gun (looks like a rifle, fires nothing), a disguised weapon. Appended.</summary>
+        public ItemAppearanceDto? Appearance { get; init; }
+    }
+
+    /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>
+    public enum ItemLook : byte
+    {
+        /// <summary>Nothing to see.</summary>
+        None = 0,
+        Rifle = 1,
+        Pistol = 2,
+        /// <summary>Something long he cannot name from afar (a stick, a tool, a rifle in the dark).</summary>
+        LongObject = 3,
+        /// <summary>Something small in the hand (a phone, a stone, a grenade).</summary>
+        SmallObject = 4,
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3229</c> (B-7, AW-15 / AW-19; Civilians §7.8 A-3, A-5) — an item's APPEARANCE: what an observer concludes once he can identify
+    /// it, which is not always what it is (a toy gun looks lethal). Named so beside <c>Fdp.Core.EntityAppearance</c> (a body's colour).
+    /// </summary>
+    public record ItemAppearanceDto
+    {
+        public ItemLook Look { get; init; }
+
+        /// <summary>Its size, m — the identification range grows with it (§7.8 A-4). 0 = by <see cref="Look"/>.</summary>
+        [EditUnit("m")]
+        public float SizeM { get; init; }
+
+        /// <summary>Does it LOOK lethal once identified? null = by the rounds the mount fires (lethal unless every one is Blunt, Irritant,
+        /// Stun or Smoke).</summary>
+        public bool? Lethal { get; init; }
+
+        /// <summary>A REACH weapon (a knife, a machete, AW-19): lethal only within this many metres; 0 = a ranged weapon.</summary>
+        [EditUnit("m")]
+        public float ReachM { get; init; }
     }
 
     /// <summary>⭐ Indirect fire IF-1 (I2, IF-C) — the arcs a mount's indirect round may fly.</summary>

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -1604,6 +1604,113 @@ file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` afte
 | F-4 | no elderly carrier | ✅ built as asked: the TKB descriptor `PersonDto` (`Body.Person`), holding `Age` (Adult / Child / Elderly) and `Sex` (Unspecified / Male / Female). It is on the four civilian types (male, female, minor, elderly), and the security types say Adult. No descriptor means an adult of unspecified sex, so soldiers need none. Read it with `template.GetDescriptor<PersonDto>()` |
 
 ⭐ Ruled `2026-10-16` (R-3013). Tracker: B-1 `CE-3219` · B-2 `CE-3220` · B-3 `CE-3221` · B-4 `CE-3222` · B-5 `CE-3223`.
+
+### 7.8 B-7 — `Armament`, the one armed rule *(AW-15, AW-19, AW-21, AW-24 — R-2026, R-2027, R-2029; `CE-3229`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.8a)*
+
+INVENTORY *(codebase-memory CLI re-indexed at `backend@d84808237`, + grep `HasComponent<WeaponState>` and `WeaponOf(`; `check_index_coverage` is
+not reachable through the CLI)*. ⭐ **Behaviors' "27 readers" are 27 READS, and only TWO of them mean "armed".** The rest ask whether a mount
+can fire, or how much ammunition it holds, and keep their test:
+
+| the read means | sites | routed? |
+|---|---|---|
+| ⭐ **is the TARGET armed** (to this observer) | `ThreatDanger.Of:32` — and through it every threat reader (`TopThreat`, ranking, the Sentry, utility inputs, EQS) | ✅ → `Armament.Judge` |
+| ⭐ **am I armed** (my own strength) | `ThreatDanger.OwnStrength:243` | ✅ → `Armament.LethalInHand` |
+| does he HOLD a weapon (the figure's pose) | `PersonBody.PoseOf:69` | ⛔ unchanged — a police launcher is held too; the figure draws what he holds, not what an observer concludes |
+| can this mount fire / what is its ammo | `FireAtPointExecutor` ×3, `AimAndFireExecutor` ×5, `FireProcessingSystem`, `WeaponChoice` ×2, `HiddenTargetThrow`, `WeaponMountQuery`, `WeaponAmmoMirrorSystem`, `UtilityScorer` ×2 (weapon selection), `IndirectFireBehaviors`, `SquadGates` ×2, `SquadInputs.SquadAmmoRollup`, `SquadEventIngressSystem` (shot fired), `StandardInputs` ×4 and `PeekAndFireNodes` / `VehicleFightFromCoverNodes` (via `WeaponOf`: own ammo), `DebugApiService.Orders` (ammo row) | ⛔ unchanged |
+| the dispenser and the translator themselves | `Countermeasures.DispenserOnly`, `CombatTkbTranslator` (stamps `WeaponState`) | ⛔ unchanged |
+
+```mermaid
+classDiagram
+  direction LR
+  class Armament { <<NEW static, Fdp.Toolkits/Combat>> Judge(view, observer, man) ArmedJudgement · Judge(world, observer, man, seeing) · IsCombatant(view, man) · ArmedByStatus(view, man) · LethalInHand(view, man) · IsCivilianClass(dis) · ConductJudgements counter }
+  class ArmedJudgement { <<NEW enum>> Nothing · Unidentified · IdentifiedLethal }
+  class SeeingConditions { <<NEW struct>> RelativeLight · VisibilityM · Optics · Of(world, observer, man) }
+  class Identification { <<NEW static>> RangeM(sizeM, seeing) = 300 x size x light x optics, capped by visibility }
+  class ItemAppearanceDto { <<NEW TKB, appended to WeaponMountDto>> Look · SizeM · Lethal? · ReachM }
+  class ItemAppearances { <<NEW static>> Of(world, mount) resolved, defaulted from Category }
+  class ItemLook { <<NEW enum>> None Rifle Pistol LongObject SmallObject }
+  class ThreatDanger { <<existing>> Of: status or Judge · OwnStrength: LethalInHand }
+  class WeaponOf { <<existing, unchanged>> }
+  class DispenserOnly { <<existing, unchanged>> }
+  class WeatherField { <<existing, CE-3216>> At(world, p).RelativeLight · VisibilityM }
+  class EntityClassTable { <<existing, Hrot.Core>> Civilian = 3.1.*.2 }
+  ThreatDanger ..> Armament
+  Armament ..> WeaponOf : ArmedByStatus = today's test
+  Armament ..> DispenserOnly
+  Armament ..> ItemAppearances : conduct path only
+  Armament ..> Identification
+  Identification ..> SeeingConditions
+  SeeingConditions ..> WeatherField
+  ItemAppearances ..> ItemAppearanceDto
+  ItemAppearanceDto ..> ItemLook
+  Armament ..> EntityClassTable : the same mask, a rail keeps them equal
+```
+*What the picture shows that prose hid:* the status branch and the conduct branch share NOTHING below `Armament` — `ArmedByStatus` is
+today's three-line test moved, untouched, and only the conduct path reaches the TKB appearance, the weather and the identification range;
+so a soldier against an enemy combatant pays one DIS-type read and one side read (AW-24), and the counter proves it.
+
+```mermaid
+sequenceDiagram
+  participant R as a threat reader (TopThreat, Sentry, ranking)
+  participant TD as ThreatDanger.Of(view, self, target)
+  participant A as Armament.Judge
+  participant W as WeatherField / ItemAppearances
+  R->>TD: danger of target to self
+  TD->>TD: out of the fight? 0 · Neutral? 0 (CIV-0, unchanged)
+  TD->>A: Judge(view, self, target)
+  A->>A: IsCombatant (not 3.1.*.2, side not Neutral)?
+  alt combatant (AW-21) — the simple path
+    A-->>TD: ArmedByStatus ? IdentifiedLethal : Nothing
+  else Civilian class, or a neutral or unknown non-civilian (conduct)
+    A->>A: ConductJudgements++
+    A->>W: seeing at the man (light, visibility) · his items' appearances
+    A->>A: per visible item: in its identification range? looks lethal? within its reach?
+    A-->>TD: the strongest of IdentifiedLethal · Unidentified · Nothing
+  end
+  TD-->>R: IdentifiedLethal ⇒ 1 (or ToMe for a vehicle) · else Unarmed 0.3
+```
+*What the picture shows that prose hid:* a Neutral still returns 0 BEFORE the rule (CIV-0) — so today the conduct path is reached only by
+a Hostile-flipped civilian (or a non-civilian with no side); and `Unidentified` gives the same danger as unarmed, because danger drives
+engagement and "never fire on it alone" (AW-15). The ladder (`CE-2239`, behaviors) reads `Judge` directly to warn.
+
+```mermaid
+graph TD
+  subgraph AnyNode["every node that runs a brain (CGF, SimHost twins, tests)"]
+    BR[weapon brain, utility inputs, EQS TopThreat, Sentry] --> TD[ThreatDanger.Of / OwnStrength]
+    TD --> AR[Armament - a pure function, no system]
+    LAD[CE-2239 ladder - behaviors, later] -.-> AR
+  end
+  AR --> REP[reads replicated data only: EntityInfo, the DIS header, WeaponState, controlled weapons, TkbIdentity]
+  style LAD stroke-dasharray: 5 5
+```
+*What the picture shows that prose hid:* there is no system to register and no host on which it "never ticks" — `Armament` is called
+inside the readers' own frames, on whatever node runs them, and everything it reads is replicated (so every node gives the same answer
+for the same observer). The dashed reader is not built yet.
+
+| id | decision *(backend lean, inside the ruled AW rows)* | rejected — one line each |
+|---|---|---|
+| **A-1** | `Armament` is a static in `Fdp.Toolkits/Combat` beside `WeaponOf` / `DispenserOnly`; the class test is the DIS mask `3.1.*.2` held as a toolkit constant, and a rail asserts it equals `EntityClassTable.Default`'s "Civilian" | reference `Hrot.Core`'s table from the toolkit: the toolkit cannot depend on Hrot |
+| **A-2** | **combatant = not Civilian class and side not Neutral** (an entity with no `EntityInfo` is a combatant, as `ThreatDanger` reads it today); ⇒ `ArmedByStatus` = today's test exactly (a weapon not only a dispenser, or a working controlled weapon) | AW-2's non-lethal rule for combatants too: a baton-launcher police unit is SecurityForce class, and AW-24 says the status branch is today's |
+| **A-3** | **the items** a man shows are his template's built-in mounts and his controlled weapon systems' mount 0; each has an `ItemAppearanceDto` (named so beside `Fdp.Core.EntityAppearance`, the body colour) on its `WeaponMountDto` — **null ⇒ defaulted from `Category`** (AW-24): SmallArms / MachineGun / Atgm / Sam ⇒ Rifle 1.0 m; Grenade (a thrown item: a grenade, a stone) ⇒ SmallObject 0.15 m; Countermeasure and the vehicle-borne categories ⇒ none; its `Lethal` defaults to "any round it fires is not Blunt / Irritant / Stun / Smoke" | a separate appearance table per type: a second place to keep in step with the mounts |
+| **A-4** | **identification range = 300 × size(m) × light × optics, capped by the visibility at the man** — light = 1 at `RelativeLight` ≥ 0.3 (day), falling to 0.1 at night; optics = 1 until B-12's binoculars (`Judge` takes an explicit `SeeingConditions` for them); ⭐ a world with no World Environment (every scenario that predates the clock) reads a CLEAR DAY — the default clock's 06:00 UTC would put a test world without a geo origin at sunrise. ⇒ by day a pistol (0.2 m) is identified at 60 m, a rifle at 300 m; at night a pistol at 6 m; binoculars ×4 identify the pistol at 240 m | Johnson criteria per sensor: the sensors have no optics model yet (CE-3216 S2), and one constant is checkable against the acceptance rows |
+| **A-5** | **per item**: hidden ⇒ skipped (B-11's Hidden station); beyond its range ⇒ Unidentified; identified and lethal-looking ⇒ IdentifiedLethal, **but a REACH item (`ReachM` > 0, a knife) only within its reach**, else Unidentified (warn); identified non-lethal ⇒ Nothing. The man's answer is the strongest item's | a knife lethal at any range: AW-19 says within its reach |
+| **A-6** | **`Unidentified` reads `ThreatDanger.Unarmed`** (0.3); only `IdentifiedLethal` is danger 1 | Unidentified = armed: AW-15 "never fire on this alone", and danger feeds the Sentry's fire threshold |
+| **A-7** | **`OwnStrength` reads `LethalInHand`** (truth: a lethal round on a built-in mount or a working controlled weapon) — a soldier reads exactly as before; a unit with only non-lethal rounds is unarmed to its own strength (AW-2) | own strength by status: a stone-thrower's strength would equal a rifleman's |
+| **A-8** | **the counter** `Armament.ConductJudgements` (a process-wide `Interlocked` count of conduct-path entries) is the AW-24 rail's probe; it costs one atomic add, only on the conduct path | a debug flag: the rail must run on production code |
+
+#### 7.8a AS-BUILT `CE-3229` *(2026-10-17)* — built as §7.8 draws it
+
+| what | where |
+|---|---|
+| `Armament` (`Judge` ×2, `IsCombatant`, `ArmedByStatus`, `LethalInHand`, `IsCivilianClass`, `OfItem`, `ConductJudgements`), `ArmedJudgement`, `SeeingConditions`, `Identification`, `ItemAppearance` + `ItemAppearances` | `FDP/Toolkits/Fdp.Toolkits/Combat/Armament.cs` |
+| `ItemAppearanceDto` + `ItemLook`, appended to `WeaponMountDto.Appearance` (null = by category) | `Tkb/Domain/WeaponSuiteDto.cs` |
+| `ThreatDanger.Of` → `Judge` (A-6); `OwnStrength` → `LethalInHand` (A-7) | `Perception/ThreatDanger.cs` |
+| rails: `ArmamentTests` (9, a non-parallel collection because the counter is process-wide) · `EntityClassTableTests.CE3229_…` (the mask equals the table's "Civilian") | toolkit tests · `Hrot.Core.Tests` |
+
+⚠ Not yet reachable, by design: a pistol, the hands mount, Hidden stations, binoculars and laid-down weapons are B-8…B-12 — `Judge` sees
+today's items (built-in mounts and controlled weapon systems) and takes optics through `SeeingConditions`. The live `ua-armed-status`
+scenario (§5c) does not exist yet; its in-process twin is `ArmamentTests.CE3229_AnEnemyRiflemanAtNight_…` (status at 300 m at night,
+danger 1, the counter unmoved).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
