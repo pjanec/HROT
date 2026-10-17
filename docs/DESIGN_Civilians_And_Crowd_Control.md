@@ -2550,10 +2550,16 @@ for 93 s and CGF gave up waiting on 267 acks. Now an index per world: 📐 **the
 | `RecorderTickSystem` CGF / SimHost / IG | 29.4 / 24.0 / 15.3 | 33.4 / 27.3 / 15.9 ⇒ `CE-3243` |
 | ⭐ `RecorderTickSystem` after **`CE-3243`** (one chunk-version read; `LastChangeTick` structural only) | **8.5 / 2.8 / 1.2** | — |
 | `OwnershipRecomputeSystem` CGF / SimHost | 9.6 / 11.4 | 16.3 / 19.1 — linear |
+| ⭐ `OwnershipRecomputeSystem` after **`CE-3244`** (descriptor masks; CGF / SimHost / IG) | **4.7 / 6.9 / 3.8** | — |
+| ⭐ `EqsSensorConfig` egress translator (CGF) after **`CE-3245`** (TKB-default skip first) | **1.64** *(was 4.8)* | — |
 | frames in 60 s of sim | 448 *(was 382)* | 322 |
 
 📐 **After the behaviors `CrowdSystem` grid** (`2026-10-17`, same command, 500): `CrowdSystem` **2.79 ms** (max 5.2) — was 103.6;
 CGF all systems **88.8** (was 338.0), 494 frames in 60 s (was 322). The cause was every-pair work inside one town-sized crowd (§5f.1).
+
+📐 **After `CE-3243`/`CE-3244`/`CE-3245` + the `CrowdSystem` grid** (300, 30 s): CGF all systems **70.2**, SimHost **52.8**, IG **15.0**.
+CGF's next: `TogglableSimulationGroup` 17.4 (a group — its children's time), `CycloneEgressSystem` 11.3 (all egress translators;
+the costliest `EntityWeaponAmmo` 2.3, `EqsSensorConfig` 1.6, `EntityWeaponPosture` 1.3), `RecorderTickSystem` 8.8.
 
 ⚠ **No budget is set yet** — the harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
 

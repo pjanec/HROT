@@ -66,6 +66,11 @@ namespace Fdp.Toolkit.Replication.Systems
 
         // Parts pass: every non-master descriptor with its components (translator targets + group links), built once.
         private (long Ordinal, int[] Components)[]? _descriptorComponents;
+        // ⭐ CE-3244 — the same components as masks: one per descriptor, and their union. The two per-frame passes test a whole
+        //   entity, then a whole descriptor, with a few 512-bit operations instead of a presence + claim lookup per component.
+        //   📐 300 civilians: 600 parts × 36 descriptors + 301 roots × 36 cost 8–9 ms/frame on SimHost and CGF.
+        private BitMask512[]? _descriptorMasks;
+        private BitMask512 _anyDescriptorComponent;
         private EntityQuery? _parts;
         private EntityQuery? _roots;
 
@@ -126,13 +131,17 @@ namespace Fdp.Toolkit.Replication.Systems
 
             foreach (var part in _parts)
             {
+                ref readonly var mask = ref repo.GetComponentMask(part.Index);
+                if (!BitMask512.HasAny(mask, _anyDescriptorComponent)) continue;   // CE-3244 — no descriptor component at all
                 ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(part);
                 Entity root = meta.ParentEntity;
                 if (!repo.IsAlive(root) || !repo.HasComponent<NetworkAuthority>(root)) continue;
                 int instance = meta.InstanceId;
 
-                foreach (var (ordinal, components) in _descriptorComponents!)
+                for (int d = 0; d < _descriptorComponents!.Length; d++)
                 {
+                    if (!BitMask512.HasAny(mask, _descriptorMasks![d])) continue;  // CE-3244 — none of d's components present
+                    var (ordinal, components) = _descriptorComponents[d];
                     bool known = false, desired = false;
                     foreach (int componentId in components)
                     {
@@ -168,17 +177,20 @@ namespace Fdp.Toolkit.Replication.Systems
 
             foreach (var entity in _roots)
             {
+                // ⭐ CE-3244 — present AND unclaimed, as one mask: almost every root, every frame, has nothing to claim.
+                var unclaimedMask = repo.GetComponentMask(entity.Index);
+                unclaimedMask.BitwiseAnd(_anyDescriptorComponent);
+                unclaimedMask.BitwiseAndNot(repo.GetMetadata(entity.Index).AuthorityMask);
+                if (!BitMask512.HasAny(unclaimedMask, _anyDescriptorComponent)) continue;
+
                 OutgoingGrantsPending? pending = null;
                 bool pendingRead = false;
 
-                foreach (var (ordinal, components) in _descriptorComponents!)
+                for (int d = 0; d < _descriptorComponents!.Length; d++)
                 {
                     // Cheap first: is any component of d present and unclaimed? Only then read the record.
-                    bool unclaimed = false;
-                    foreach (int componentId in components)
-                        if (repo.HasComponentByTypeId(entity, componentId) && !repo.HasAuthority(entity, componentId))
-                        { unclaimed = true; break; }
-                    if (!unclaimed) continue;
+                    if (!BitMask512.HasAny(unclaimedMask, _descriptorMasks![d])) continue;
+                    var (ordinal, components) = _descriptorComponents[d];
 
                     if (!pendingRead)
                     {
@@ -212,6 +224,14 @@ namespace Fdp.Toolkit.Replication.Systems
                 if (ids.Length > 0) list.Add((ordinal, ids));
             }
             _descriptorComponents = list.ToArray();
+            _descriptorMasks = new BitMask512[_descriptorComponents.Length];
+            _anyDescriptorComponent = default;
+            for (int d = 0; d < _descriptorComponents.Length; d++)
+                foreach (int componentId in _descriptorComponents[d].Components)
+                {
+                    _descriptorMasks[d].SetBit(componentId);
+                    _anyDescriptorComponent.SetBit(componentId);
+                }
         }
 
         private void Touch(Entity entity)
