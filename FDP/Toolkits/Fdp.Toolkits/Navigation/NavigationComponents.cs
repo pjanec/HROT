@@ -185,6 +185,10 @@ namespace Fdp.Toolkit.Navigation
         Prefer = 3,
         /// <summary>Road metres count a quarter (a convoy over distance).</summary>
         StronglyPrefer = 4,
+        /// <summary>⭐ AQ93 R-4023 — drive IN THE CIVILIAN TRAFFIC: the vehicle is handed to SUMO (a shadow car on SUMO's roads, its
+        /// lights and queues) and follows it to the destination; ownership never moves. <c>MoveToExecutor</c> asks
+        /// <see cref="NavigationMode.Traffic"/> instead of planning a path.</summary>
+        InTraffic = 5,
     }
 
     /// <summary>
