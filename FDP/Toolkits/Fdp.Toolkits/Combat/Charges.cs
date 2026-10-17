@@ -68,8 +68,31 @@ namespace Fdp.Toolkit.Combat
                 Shooter = shooter, Target = Entity.Null, HitX = at.X, HitY = at.Y, HitZ = at.Z, Penetration = pen, Damage = dmg, Ammo = ammo,
             });
             Release(world, charge);
-            world.DestroyEntity(charge);
+            End(world, charge);
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ A REPLICATED charge ends through the one teardown path (<see cref="Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand"/>, Entity
+        /// Creation §3.4c) so every replica goes too — a local destroy leaves them behind (measured on the cloud, <c>AreaEffectCloudSystem.End</c>).
+        /// It is SPENT at once (no longer a charge here), so an ask arriving before the teardown does not burst it twice. An offline one is
+        /// destroyed now.
+        /// </summary>
+        private static void End(EntityRepository world, Entity charge)
+        {
+            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                && world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge)
+                && world.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+            {
+                world.GetComponentRW<WeaponSystemParams>(charge).Charge = 0;
+                world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+                {
+                    NetworkId = world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge).Value,
+                    Reason    = "Charge detonated",
+                });
+                return;
+            }
+            world.DestroyEntity(charge);
         }
 
         private static Entity CarrierOf(EntityRepository world, Entity thing)

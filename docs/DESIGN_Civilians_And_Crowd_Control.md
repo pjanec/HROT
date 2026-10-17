@@ -2681,7 +2681,7 @@ is checked at seat 1 (`CE2187_…`).
 |---|---|
 | `WeaponSystemDto.Charge` + `MountKinds.Cargo = 16` (appended); `WeaponSystemParams.Charge` (type fact, not on the wire) | `WeaponSystemDto.cs`, `WeaponSystemComponents.cs` |
 | `WeaponSystems.CanFire`: a charge ⇒ `NotDeployed` — it is never fired | `WeaponSystems.cs` |
-| `Charges` — `IsCharge`, `Ask`, `Detonate` (on the POSITION owner: mount 0's round as one `DetonationNotification` where it stands, shooter = who set it off, else its carrier, else itself; out of the carrier's list where this node owns it; destroyed); `DetonateChargeEvent` (5014); `ChargeSystem` in the `Interactions` capability | `Combat/Charges.cs`, `CoreInfrastructureCapabilities.cs` |
+| `Charges` — `IsCharge`, `Ask`, `Detonate` (on the POSITION owner: mount 0's round as one `DetonationNotification` where it stands, shooter = who set it off, else its carrier, else itself; out of the carrier's list where this node owns it; ⭐ a REPLICATED charge is spent at once and ends through ONE `DestroyEntityCommand` — the teardown — so every replica goes; an offline one is destroyed); `DetonateChargeEvent` (5014); `ChargeSystem` in the `Interactions` capability | `Combat/Charges.cs`, `CoreInfrastructureCapabilities.cs` |
 | I-1 kind 12 **`DetonateCharge`** (target the charge, actor who set it off; owner = `OwnsPosition`) | `InteractionMessages.cs`, `InteractionTransport.cs` |
 | charge **618** (one man, Ground \| Carried \| Cargo, breakable) and its round **6043** "8 kg demolition charge" — its warhead from the reference library's entry of that name (`explosiveKg 8`) | `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `MunitionTkbCatalog.cs`, `ammo.json` |
 | the civilian car **1002**: a fifth seat, a cargo station — stowed, concealed, not exposed (the boot) | `UrbanCombatTkbCatalog.cs` |
@@ -2696,6 +2696,9 @@ Rails: `ChargesTests` — a vest worn hidden arms nobody, fires nothing, set off
 one off, only a charge (a real rifle refused) · a charge on a truck's OPEN station is still no weapon its crew fires · a car bomb rides in the boot, the car unarmed · `InteractionTransportTests.CE3233_ADetonateCharge_…` ·
 `NedTkbBuilderCombatTests.CE3233_TheCharge_IsDetonatedOnly_…` (its blast wider than the M67's; the boot is the car's last seat). Pin moved:
 the type-catalogue golden gains 618; `LR1_EveryBuiltInMount…` lists 6043 among the rounds with a warhead (a new type on a new mount).
+⚠ **Found after the first B-11b push:** `Detonate` destroyed the charge LOCALLY — the handoff's trap (a local destroy leaves every replica
+behind, measured on the cloud). Fixed to the teardown command, rail `ChargesTests.CE3233_AReplicatedCharge_EndsThroughTheTeardown_Once`
+(red-proofs: a local destroy ⇒ red; not spent ⇒ two bursts ⇒ red).
 8 red-proofs, each red: no charge check · no `CanFire` gate · no ownership check · the boot not concealed (fixture and catalogue) · no hidden-station
 fallback · the library entry renamed · the codec out of `All`.
 

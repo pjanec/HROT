@@ -208,5 +208,27 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, vest, wearer));
             Assert.True(Charges.Ask(_world, vest, wearer));   // his own: no phone needed
         }
+
+        /// <summary>
+        /// ⭐ A REPLICATED charge (it has a network identity) ends through the teardown command — ONE <c>DestroyEntityCommand</c>, never a local
+        /// destroy (which leaves every replica behind) — and is spent at once: a second ask before the teardown bursts nothing.
+        /// ✅ Red-proof: <c>End</c> destroying locally ⇒ no command ⇒ red; not spent ⇒ two bursts ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3233_AReplicatedCharge_EndsThroughTheTeardown_Once()
+        {
+            _world.RegisterComponent<NetworkIdentity>();
+            _world.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>();
+            var placed = Spawn(ChargeType, new Vector3(5f, 0f, 0f));
+            _world.AddComponent(placed, new NetworkIdentity { Value = 4242 });
+
+            Assert.True(Charges.Detonate(_world, placed));
+            Assert.False(Charges.Detonate(_world, placed));   // spent: the teardown is under way
+            _world.Bus.SwapBuffers();
+            Assert.Single(_world.Bus.Read<DetonationNotification>().ToArray());
+            var asked = Assert.Single(_world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>().ToArray());
+            Assert.Equal(4242, asked.NetworkId);
+            Assert.True(_world.IsAlive(placed));              // the teardown removes it, everywhere
+        }
     }
 }
