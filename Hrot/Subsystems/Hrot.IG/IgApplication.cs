@@ -1029,9 +1029,7 @@ public class IgApplication : IDisposable
 
         _world     = _context.World;
         _entityMap = _context.EntityMap;
-        // ⭐ CE-3169 — as SimHost, CGF and the editor do: the map's menu orders (and any resolver taking an entity reference) read
-        //   the node's entity map from this world singleton. 📐 IG was the one map host that never published it.
-        if (!_world.HasSingletonManaged<NetworkEntityMap>()) _world.SetSingletonManaged<NetworkEntityMap>(_entityMap);
+        // ⭐ CE-3169 — the map's menu orders read the node's entity map from the world singleton. ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
         _kernel    = _context.Kernel;
         _geoTransform = _context.GeoTransform as WGS84Transform;
         _ghostCreationSystem = _context.GhostCreationSystem;

@@ -36,6 +36,7 @@
     <!-- Orchestration DDS types and IClusterStateHandler -->
     <ProjectReference Include="..\..\Network\Hrot.Network.Orchestration\Hrot.Network.Orchestration.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />    <!-- AQ93 N6: TrafficPack.Mirroring() -->
     <!-- FdpLog<T> + FdpEventBus -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Universal breakpoints library (UBP-P10T2) -->

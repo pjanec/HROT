@@ -106,6 +106,7 @@ public sealed class ThereIsOneSequentialIdAllocatorTests
             var rel = Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel == SharedAllocatorPath) continue;
             if (rel.Contains(".Tests/")) continue;   // test doubles are not production implementations
+            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {

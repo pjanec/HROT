@@ -144,8 +144,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     {
         // ⭐ CE-197 — remember the role so the capability set can be resolved FROM it (B4b step 3).
         //   ⚠ Captured HERE, at boot phase 1, because every later step declares `requires: ["context"]`
-        //     — so the plan cannot run one before this has run. That is the same ordering argument the
-        //     lazy resolve in GetAdditionalModules rests on, and it is why this is not a hidden channel.
+        //     — so the plan cannot run one before this has run (the base's `capabilities` step among them, CE-4013).
         _declaredRole = role;
 
         // ⭐⭐⭐ CE-141 CLOSED 2026-09-03 — THE TRANSLATOR LIST IS NOT BUILT HERE, AND NOT PER-HOST.
@@ -190,8 +189,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override void RegisterDomainComponents(EntityRepository world)
     {
-        var tkb = HrotEnvironment.CreateTkb();
-        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        // ⛔ CE-4013 D4 — this host published a FRESH catalogue here, so its world read a different TKB than the one its load step fills
+        //   (context.TkbDb). HrotNodeBuilder now publishes the context's, on every node.
 
         //  Shared foundation 
         // Registers network replication, geographic, shared definitions, and
@@ -216,56 +215,29 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 4a: Populate togglable system groups ────────────────────────────
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ CE-2150 (R-2010) — IG composes its capabilities' systems like every other host; 🔒 user, 2026-10-13: "IG is no different".
+    /// ⭐ CE-4013 — the base walks them right after this hook (and their modules after <c>additional-modules</c>), so IG keeps no
+    /// loop of its own: it has no systems besides its capabilities'. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+    /// </remarks>
     protected override void PopulateSystems(
         HrotNodeContext context,
         List<IEcsModuleSystem> input,
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // ⭐⭐ CE-2150 (R-2010) — IG walks its capabilities' systems like every other host (Stride: StrideNodeBootstrapper.cs:351).
-        //   🔒 User, 2026-10-13: "IG is no different (just having different role but most of the entity related capabilities should
-        //   dbe same as on other nodes)". ⛔ Until now this hook was EMPTY, so the cross-role capabilities IG declares (HealthApplication,
-        //   UnitHierarchy, Interactions) resolved here and ticked nowhere. Resolved lazily (ResolveCapabilities), so the step order
-        //   between this hook and GetAdditionalModules cannot matter. Each system gates on what IG registered (an unregistered event
-        //   reads empty), so a capability whose data IG does not carry costs nothing. 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
-        foreach (INodeCapability capability in ResolveCapabilities())
-            capability.PopulateSystems(context, input, sim, postSim);
     }
-
-    // ── Phase 4b: Additional ECS modules ─────────────────────────────────────
 
     /// <inheritdoc/>
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>B4b</c> step 2, host (b) — IG's modules come from a RESOLVED capability set.</b>
-    ///
-    /// <para>The five module constructions that stood here inline now live in
-    /// <c>IgCapabilities.Presentation</c>, and this hook walks whatever the plan resolved. 📄
-    /// <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1t.</para>
-    ///
-    /// <para>⛔⛔ <b>The plan is resolved LAZILY, not stashed by an earlier phase.</b> The obvious shape
-    /// — build it in <c>PopulateSystems</c> as SimHost does, and read the field here — is a trap on this
-    /// host: the base declares <c>additional-modules</c> with <c>requires: ["context"]</c> only, NOT
-    /// <c>"system-groups"</c> (<c>SharedApplicationBootstrapper.cs:148</c>), so the boot plan is free to
-    /// run this step before <c>PopulateSystems</c>. The field would then be empty and IG would register
-    /// <i>no presentation modules at all</i> — silently, with a healthy boot. Resolving on first use
-    /// depends on nothing but this object, so no step ordering can break it.</para>
-    ///
-    /// <para>⚠ <b>The role is not consulted, deliberately</b> — the same stance
-    /// <c>SimHostNodeBootstrapper:254</c> takes. This host IS the image generator, and <c>B4b</c> is
-    /// behaviour-preserving, so the set must not narrow at the switchover. Selecting BY the declared
-    /// role flags is the next step and needs its own measurement of what each deployed role carries.</para>
-    /// </summary>
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
+    /// <remarks>
+    /// <para>⭐⭐⭐ <c>B4b</c> step 2, host (b) — IG's units come from a RESOLVED plan: the five presentation modules in
+    /// <c>IgCapabilities.Presentation</c> plus the cross-role infrastructure. 📄 §4.1t.</para>
+    /// <para>⭐ CE-4013 — resolved once in the base's <c>capabilities</c> step. ⛔ The lazy resolution this replaced existed only because
+    /// <c>additional-modules</c> did not require <c>system-groups</c>; the base now orders them, for every host.</para>
+    /// <para>⚠ The role is not narrowed — the same stance <c>SimHostNodeBootstrapper</c> takes: this host IS the image generator.</para>
+    /// </remarks>
+    protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
     {
-        foreach (INodeCapability capability in ResolveCapabilities())
-            foreach (IEcsModule module in capability.ProvideModules())
-                yield return module;
-    }
-
-    /// <summary>Builds the node's composition plan and resolves it, once.</summary>
-    private IReadOnlyList<INodeCapability> ResolveCapabilities()
-    {
-        if (_capabilities != null) return _capabilities;
 
         // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head. ⚠ IG's PopulateSystems walks no capability today (CE-2150), so nothing
         //    here ticks on IG yet; the plan is shared so that fixing that walk is the only change IG needs.
@@ -281,7 +253,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             //    not reference Hrot.SimHost where that system lives. Its system set is unchanged.
             .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.UnitHierarchy())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
-            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions());
+            .Capability(NodeRole.Map2D, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars mirrored for the map (the road layer and the car layer read its frame); idle without a net.
+            .Capability(NodeRole.Map2D, Hrot.Traffic.TrafficPack.Mirroring());
 
         // ⭐⭐⭐ CE-197 — resolved from the DECLARED role, not a constant (B4b step 3).
         //    📐 Provably a no-op here: IgApplication.cs:923 passes the literal NodeRole.Map2D,
@@ -290,7 +264,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    safe — IG's declaration was already true.
         NodeRole composed = _declaredRole;
 
-        _capabilities = plan.Resolve(composed);
+        var capabilities = plan.Resolve(composed);
 
         // ⭐⭐ CE-199 — the resource half is no longer refused here; it simply has nothing to do.
         //
@@ -313,10 +287,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                 $"capabilities need [{string.Join(", ", needed)}]. Add the key to DeclaredResourceKeys so " +
                 "the node-resources boot step allocates it — see CE-199.");
 
-        return _capabilities;
+        return capabilities;
     }
-
-    private IReadOnlyList<INodeCapability>? _capabilities;
 
     /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
     private NodeRole _declaredRole = NodeRole.Map2D;
@@ -390,18 +362,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    🔒 User, `2026-09-18`: "every ECS enable node should be able to create entities so every needs
         //    the TKB loaded" · "load nothing where nothing reads it".
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1, §4.1a, §4.1b.
-        var igLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
-        {
-            // ⭐ Unconditional: this host SUPPLIES the default catalogue when none was composed, because
-            //   the knowledge base is required by being an ECS node rather than by the Map2D role.
-            new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), storageDirectory),
-
-            // ⭐⭐ 2026-10-03 — terrain is now UNIVERSAL (R-182): IG's map draws the terrain world, so the
-            //   holder this host always carried finally has a producer. 📄 docs/DESIGN_Terrain_World.md §5.
-            new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
-                new Hrot.Map.Common.Services.TerrainResidency(storageDirectory, RoadNetworkHolder), storageDirectory),
-        };
+        // ⭐ The knowledge base (required by being an ECS node, not by the Map2D role) and the terrain (UNIVERSAL since 2026-10-03, R-182:
+        //   IG's map draws the terrain world) — from the ONE shared factory every ECS host uses (CE-4013, §4.1ae T2).
+        var (igLoadProviders, _) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+            context.TkbDb, storageDirectory, RoadNetworkHolder, context.TerrainContent);
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
             Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World,
@@ -511,6 +475,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
+        // ⭐ CE-4013 — the capabilities' Register hook, FIRST (Stride's and the editor's point). ⛔ IG never called it: a capability
+        //   composing through Register did nothing here. None in IG's plan implements it today, so this changes no order.
+        RegisterCapabilities(context);
+
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = context.World,
@@ -539,56 +507,22 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             IsBroadcastArbiter = false,
         });
 
-        // ⭐⭐⭐ CE-271 seam ④ / S2b — the cluster-cache pump (DDS NodeHeartbeat) is one of the pack's
-        //    NetworkSystems now, registered below like on every host. WITHOUT it the ownership strategy has
-        //    an empty cache and a Map2D-created tank's grant set is EMPTY. ⛔ IgApplication no longer polls.
-        foreach (var sys in creation.NetworkSystems)
-            context.Kernel.RegisterGlobalSystem(sys);
-
         // ⭐ RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems (SharedApplicationBootstrapper.cs:111 vs :139), so the
         //    registrar callback that constructs MapCommandController always sees the pack. ⭐ CE-3228 — the tools publish their
         //    requests on this world's bus, which the pack reads.
         EntityCreation              = creation;   // CE-515
 
-        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input
-        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
-
-        // ⭐⭐⭐ CE-144 RESOLVED 2026-09-03 — the spawn system IS scheduled, and IG's private
-        //    GhostDestructionSystem is GONE. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
-        //
-        // 📐 What the old shortcut broke, measured: the wire dispose is written by
-        //    CycloneNetworkCleanupSystem (phase Export), and it triggers on DestructionOrder — which only
-        //    EntityLifecycleModule.BeginDestruction publishes. GhostDestructionSystem destroyed the entity
-        //    WITHOUT the ELM, so no DestructionOrder, so no translator.Dispose(netId), so no DDS dispose
-        //    sample. For an entity IG OWNS that means peers keep the instance forever, silently.
-        //
-        // ⇒ ONE consumer of DestroyEntityCommand on every host: NetworkSpawningSystem.ProcessDestroy,
-        //    which sets TearDown and calls BeginDestruction. The map entry is then removed by the shared
-        //    DisposalMonitoringSystem (NedReplicationModule.cs:420), which is exactly what the ghost path
-        //    was doing eagerly.
-        //
-        // ⚠ The one behavioural difference: a ghost now outlives its dispose by ~1 frame
-        //    (ELM.DrainInstantComplete requires currentFrame > StartFrame). That is the same latency every
-        //    other host already has, and uniformity is the point.
-        context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);         // BeforeSync
-
-        // ⭐⭐⭐ P2 — ghost promotion now comes from the pack, not from NedReplicationModule.
-        //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.7. ⚠ IG is the host this matters most for: as a
-        //   pure ImageGenerator it receives ghosts of entities other nodes originate, so losing promotion
-        //   would leave every received entity stuck in EntityLifecycle.Ghost with no TKB projection.
-        //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
-        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-        context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            FdpLog<IgNodeBootstrapper>.Info(
-                "[IG] entity-creation pieces not scheduled: {0}", unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn). What it carries
+        //   that matters most here:
+        //   · CE-271 seam ④ — the cluster-cache pump (NodeHeartbeat) is one of the NetworkSystems; without it a Map2D-created tank's
+        //     grant set is EMPTY.
+        //   · CE-144 — NetworkSpawningSystem is the ONE consumer of DestroyEntityCommand (it begins the ELM teardown, so the wire
+        //     dispose is written); IG's private GhostDestructionSystem is gone. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
+        //   · P2 — ghost promotion comes from the pack; IG, which receives ghosts of everything, would otherwise keep every received
+        //     entity in EntityLifecycle.Ghost. 📄 DESIGN_Role_Affinity_Ownership.md §3.7.
+        //   ⚠ The spawner was a GLOBAL system on this host (a module on SimHost, Stride, the editor); it is the module now, like
+        //     everywhere — the one ordering it must keep (LocalAuthorityYieldSystem after it) is declared by [UpdateAfter].
+        creation.RegisterOn(context.Kernel);
 
         // ⭐ CE-221 — the standalone SingleSystemModule registration that used to sit here was the
         //    PRECEDENT for treating UnitHierarchySystem as cross-role infrastructure rather than pack

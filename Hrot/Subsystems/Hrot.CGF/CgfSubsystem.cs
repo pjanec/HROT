@@ -104,6 +104,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private IReadOnlyList<INodeCapability> _capabilities =
         System.Array.Empty<INodeCapability>();
 
+    /// <summary>⭐ CE-4013 — the ONE capability walk every host runs (§4.1ae); asserted complete before the kernel initializes.</summary>
+    private NodeCapabilityWalk? _capabilityWalk;
+
     /// <summary>
     /// ⭐⭐⭐ <c>CE-046</c> (Axis-C <b>E1</b>) — <b>the SAME scenario session the editor runs, over CGF's own
     /// world and orchestration bus.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3 ③.
@@ -731,28 +734,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Build();
 
         _entityMap = _context.EntityMap;
-        _context.World.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
-        // Behavior resolvers (Phase 2b) reach the geographic transform through this world singleton
-        // rather than a registration-time closure, so the CGF node — where the PlatoonHillAttack
-        // commander and its vehicles activate — must publish it here (mirrors SimHostApp). Without it
-        // geo-aware params (hill/baseline positions) resolve to 0,0,0.
-        if (_context.GeoTransform != null)
-            _context.World.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(_context.GeoTransform);
-
-        // ⭐⭐⭐ CE-111 — THE TKB CATALOG AS A WORLD SINGLETON, and this is the same omission the comment
-        //    directly above documents for the geo transform: CGF held the dependency and never published it.
-        // 📐 Measured 2026-08-28: SimHostNodeBootstrapper:179 and IgNodeBootstrapper:133 both register it;
-        //    CGF passed `_context.TkbDb` straight to CreateEntityRequestSystem and NetworkSpawningSystem
-        //    (line ~650/~659) and registered NOTHING ⇒ every consumer that resolves it FROM THE WORLD found
-        //    nothing and degraded SILENTLY, because all of them guard with HasSingletonManaged:
-        //      · DisEntityTypeTranslator:38    — DIS entity types not translated on CGF
-        //      · EntityPresentationGizmoShared:60 — the map's per-entity presentation falls back
-        // ⚠ Both are `if (has) …` with no else, so there was no log line and no failure — 📌 the shape
-        //   ruling 53 exists to catch, and a direct `cgf==editor` violation.
-        // ⛔ NOT a fix for the empty /tkb answer (that was CE-110's silent default); this is the production
-        //   half found while measuring it, and the two are independent.
-        if (_context.TkbDb != null)
-            _context.World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(_context.TkbDb);
+        // ⭐ CE-4013 D4/D5 — the entity map, the geo transform (behaviour resolvers: hill/baseline positions) and the TKB (CE-111: DIS
+        //   types, the map's presentation) are world singletons on every node, published by HrotNodeBuilder; this host used to repeat all three.
 
         CgfComponentRegistry.RegisterAll(_context.World);
                 v.Set("node-config", nodeConfig);
@@ -975,11 +958,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Capability(CgfSubsystem.DefaultRole, new Hrot.SimHost.EqsResultUpdateCapability())
             // ⭐ CE-3110 (R-221/R-224) — interactions (doors, embarkation) are cross-role too: any node that can own a live entity can own a door, a vehicle or a passenger.
             .Capability(CgfSubsystem.DefaultRole, new Hrot.Common.Infrastructure.CoreInfrastructureCapabilities.Interactions())
+            // ⭐ AQ93 §12 N6 (R-4056) — SUMO cars from every traffic node, mirrored (vicinity replicas the brains see); idle without a net.
+            .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
             .Resolve(CgfSubsystem.DefaultRole);
 
-        foreach (INodeCapability capability in _capabilities)
-            foreach (IEcsModule module in capability.ProvideModules())
-                _context.Kernel.RegisterModule(module);
+        _capabilityWalk = new NodeCapabilityWalk(_capabilities);
 
         // Execute the Brain systems every frame via two togglable phase groups.
         var cgfInputSystems   = new List<IEcsModuleSystem>();
@@ -993,8 +976,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (nodeFactory != null)
             cgfInputSystems.AddRange(nodeFactory.CreateSimHostAttributeUpdateSystems());
 
-        foreach (INodeCapability capability in _capabilities)
-            capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+        // ⭐ CE-4013 — the shared walk, in the base's phase order: systems into the lists, then the provided modules onto the kernel.
+        //   ⚠ The kernel order is unchanged — BehaviorDiagnosticsModule, CgfLogicPack, then the two groups below — because the lists
+        //   only register after the modules (it used to ask ProvideModules first; nothing reads the lists before they register).
+        _capabilityWalk.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+        foreach (IEcsModule module in _capabilityWalk.ProvideModules())
+            _context.Kernel.RegisterModule(module);
 
         // ⛔⛔ CGF builds NO post-simulation group. A capability contributing one would have its systems
         //    SILENTLY DROPPED — refuse instead, naming the count. Every defect this design chased was
@@ -1010,6 +997,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _context.Kernel.RegisterGlobalSystem(_toggleInput);
         _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));
+
+        // ⭐ CE-4013 — the capabilities' Register hook, which this host never asked (a capability composing through it did nothing on
+        //   CGF). None in CGF's plan implements it today, so no order changes. CGF runs no NodeBootPlan, so the bag is its own.
+        _capabilityWalk.Register(_context, new NodeBootValues());
 
         // ⭐ Still needed by the scenario load handlers below (:879 `cgfIdAllocator`). ⚠ The `tkbDb` local
         //   that stood beside it is GONE — the pack reads TkbDb off the context directly, so a second
@@ -1043,37 +1034,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   networked entities … not removing capabilities by design." ⇒ no `if (adapters != null)`
         //   guards any of these three; only the DELETION routing below is network-dependent, and that
         //   was already true.
-        _context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.RequestSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
-        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-        //    ⚠ CGF is the host whose module came from NedNetworkFactory.CreateReplicationModule(), which
-        //    omits tkbEntityTranslators — so its promotion used the ELM fallback. The pack now hands it
-        //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
-        //    true by construction for all three rather than two.
-        _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-        _context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
-        //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack (its network systems too, which this host used to register further down), scheduled
+        //   by the ONE shared registration. ⚠ The spawner was a GLOBAL system here; it is the module now, as on SimHost, Stride, the editor.
+        creation.RegisterOn(_context.Kernel);
 
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
 
-        // 4. ⭐ S2b — the pack's network systems: the delete-request system (sharing the pack's finalization
-        //    instance) and the cluster-cache poll, which this host used to call from Update(). Empty offline.
-        foreach (var sys in creation.NetworkSystems)
-            _context.Kernel.RegisterGlobalSystem(sys);
+        // 4. ⭐ S2b — the pack's network systems (delete requests, the cluster-cache poll) are registered by creation.RegisterOn above (CE-4013).
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep
@@ -1126,20 +1096,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    scenario entities — ⛔ and NOT terrain: nothing on this host reads the road graph.
         //    🔒 User, `2026-09-18`: "load nothing where nothing reads it".
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §2.2, §4.1, §4.1a · DESIGN_Node_Roles_And_Policies.md §3.2.
-        var cgfLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
-
-        // ⚠ Offered only when this host actually has a database. ⛔ That is NOT a way to opt out: the
-        //   knowledge base is unconditional for every ECS node, so a null database here makes the chain
-        //   throw at composition with a message naming the missing part — which is the designed loud
-        //   failure, and far better than the silence it replaces.
-        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-            _context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot));
-
-        // ⭐⭐ 2026-10-03 — terrain is UNIVERSAL (R-182, CGF == editor): CGF's map draws the terrain world and
-        //   its own residency is what the terrain picker (W13) and a save (CE-3015) read. The holder is the one
-        //   this host already carries. 📄 docs/DESIGN_Terrain_World.md §5, §7.3.
-        TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _cgfRoadNetworkHolder);
-        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
+        // ⭐ The knowledge base (unconditional for every ECS node) and the terrain (UNIVERSAL, R-182, CGF == editor: its own residency is
+        //   what the terrain picker (W13) and a save (CE-3015) read) — from the ONE shared factory every ECS host uses (CE-4013, §4.1ae T2).
+        //   📄 docs/DESIGN_Terrain_World.md §5, §7.3.
+        var (cgfLoadProviders, cgfResidency) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+            _context.TkbDb, isolatedTempRoot, _cgfRoadNetworkHolder, _context.TerrainContent);
+        TerrainResidency = cgfResidency;
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
@@ -1654,6 +1616,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Fdp.ModuleHost.Time.ResumeAndDrainSystem(_bpManager));
         // ─────────────────────────────────────────────────────────────────────────
 
+        _capabilityWalk!.AssertComplete(Name);   // ⭐ CE-4013 — a skipped capability phase fails here, named
         _context.Kernel.Initialize();
 
         // ⭐⭐⭐ Slice 4 item ③ — DQ30-C: no WORLD-STATE ingress while the debugger holds the world

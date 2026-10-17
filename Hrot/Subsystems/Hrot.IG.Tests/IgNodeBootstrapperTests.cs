@@ -32,19 +32,28 @@ public class IgNodeBootstrapperTests
             hrotConfig:            new HrotNodeConfig { NodeId = 300, SubsystemName = "IG" });
 
     /// <summary>
-    /// Invokes the protected <c>GetAdditionalModules()</c> via reflection so tests
-    /// can validate the returned set without changing the access modifier.
+    /// ⭐ CE-4013 — the modules the BASE registers at <c>additional-modules</c> for this host: IG's resolved capabilities (protected
+    /// <c>ResolveCapabilities</c>, via reflection) through the same <see cref="NodeCapabilityWalk"/> the base runs, after its systems
+    /// phase (the null-context shape probe every host rail uses).
     /// </summary>
     private static IReadOnlyList<IEcsModule> InvokeGetAdditionalModules(IgNodeBootstrapper bootstrapper)
     {
-        var method = typeof(IgNodeBootstrapper)
-            .GetMethod("GetAdditionalModules", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("GetAdditionalModules not found via reflection.");
+        var walk = Walk(bootstrapper, out _, out _, out _);
+        return walk.ProvideModules();
+    }
 
-        var result = method.Invoke(bootstrapper, null)
-            ?? throw new InvalidOperationException("GetAdditionalModules returned null.");
-
-        return ((IEnumerable<IEcsModule>)result).ToList();
+    /// <summary>⭐ CE-4013 — IG's capabilities walked through their systems phase, exactly as the base does at <c>system-groups</c>.</summary>
+    private static NodeCapabilityWalk Walk(IgNodeBootstrapper bootstrapper,
+        out List<IEcsModuleSystem> input, out List<IEcsModuleSystem> sim, out List<IEcsModuleSystem> post)
+    {
+        var resolve = typeof(IgNodeBootstrapper)
+            .GetMethod("ResolveCapabilities", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("ResolveCapabilities not found via reflection.");
+        var capabilities = (IReadOnlyList<INodeCapability>)resolve.Invoke(bootstrapper, new object?[] { null, Fdp.Core.NodeRole.Map2D })!;
+        var walk = new NodeCapabilityWalk(capabilities);
+        input = new List<IEcsModuleSystem>(); sim = new List<IEcsModuleSystem>(); post = new List<IEcsModuleSystem>();
+        walk.PopulateSystems(null!, input, sim, post);
+        return walk;
     }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
@@ -153,10 +162,7 @@ public class IgNodeBootstrapperTests
     public void PopulateSystems_WalksTheCrossRoleCapabilities_HealthFirst_CE2150()
     {
         var sut = CreateBootstrapper(headless: true);
-        var input = new List<IEcsModuleSystem>(); var sim = new List<IEcsModuleSystem>(); var post = new List<IEcsModuleSystem>();
-        typeof(IgNodeBootstrapper)
-            .GetMethod("PopulateSystems", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(sut, new object?[] { null, input, sim, post });
+        Walk(sut, out var input, out var sim, out var post);   // ⭐ CE-4013 — the base's walk, not a host loop
 
         Assert.IsType<Fdp.Toolkit.Combat.Systems.HealthApplicationSystem>(sim[0]);
         Assert.Contains(sim, s => s is Hrot.Common.Systems.UnitHierarchySystem);

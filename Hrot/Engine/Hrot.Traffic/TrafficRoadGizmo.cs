@@ -67,7 +67,7 @@ public sealed class TrafficRoadGizmo : IGlobalStatelessGizmo
         }
         foreach (var car in frame.Cars)
         {
-            if (frame.IsEntity(car.Handle)) continue;
+            if (frame.IsEntity(car)) continue;
             draw.DrawBox2D(new Vector2(car.X, car.Y), new Vector2(car.Length * 0.5f, car.Width * 0.5f), CarFill,
                 car.YawRad * 180f / MathF.PI, 0f, SizeMode.WorldMeters, PipelineTarget.Map2D, RoadLayer, CarFill);
         }
