@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-16
 build-state: DESIGN — cars: all decisions RULED 2026-10-16 (§0, R-4020…R-4031) except E7b (no LFS, lean). Pedestrians and
-  panic (§8): P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1's promotion zones (lean: drop them). The civilians themselves
+  panic (§8): P1–P8 ACCEPTED (R-4032); §8.6 promotion zones DROPPED for now (R-4037); §8.7 SUMO entities in the combat world (leans). The civilians themselves
   (P5, P6) moved to docs/DESIGN_Civilians_And_Crowd_Control.md, a separate programme built first (R-4033). Nothing is dispatched; §6 is the slice plan.
 current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
@@ -51,6 +51,7 @@ related-designs:
 - *"A local entities ok, B ok, C ok, D1 and D7 ok."*
 - *"we can store the sumo road network as part of the terrain and synchronize this the same way as the terrain."*
 - *"Lets discuss pedestrians. I need them and also their panic mode if there is some incident like military/terrorist shootout."* · *"Panicking ones coukd.become.our entities and never returned to sumo"*
+- *"§8.6 lean accepted, drop promotion zones, at lest for now. Will our fire and detonation and entities be able to interact with sumo entities, in a way that if they are hit they will take damage, will be removed from sumo and become our entity with brain, like the panic mode? We need sumo entities to show up in eqs/raycast queries etc"*
 - *"We can extend sumosharp as needed, it is my project. If ckeaned up, i could publish on nuget.org. E2b ok."*
 - *"E1 ok. E2 no,.keep height from sumo, as roads are rendeded from sumo net. E3 no, keep them separate and independent, sumo ones are complex, ours are simple. E4 ok.E5 ok. To ensure unique network ids, sumo could use our allocator. E5 ok. E7 packages ok, just need to be compiled and stored as part of hrot repo (lfs?) as they are not on nuget.org. E9 ok. E10 ok."*
 
@@ -365,7 +366,7 @@ handover, which is what lets every receiver swap its mirror for the real entity 
 - High-power ORCA peds have no walls (`PedLodManager.cs:216-218`) — they follow waypoints only.
 - No panic state on the wire — a panicked ped that stays in SumoSharp (P7) shows only as a new leg and a promotion.
 
-### 8.6 ⚠ P1 re-examined — **do we need promotion zones?** *(user: "I would carefully consider if we really need promotion zones"; lean, not ruled)*
+### 8.6 ✅ P1 re-examined — **promotion zones DROPPED, at least for now** *(R-4037, 2026-10-17; the lean below was accepted. ⚠ Its "and with them the pedestrian mirror entities" is SUPERSEDED by §8.7 G2: pedestrians near our units ARE mirrored, by an HROT-side radius, with no SumoSharp promotion)*
 
 📐 **Measured:** cars see EVERY pedestrian on a crosswalk, promoted or not — crossing occupancy covers everyone
 (`TUTORIAL-LIVE-CITY.md`, "The coupling: one seam"); only a low-power pedestrian standing in the road ELSEWHERE is unseen,
@@ -378,6 +379,47 @@ S5 stay). ⚠ The accepted cost: a pedestrian may walk through one of our vehicl
 not dodge each other outside SumoSharp's own default promotion.
 ⛔ Rejected — keep the zones: ORCA cost and two SumoSharp changes for avoidance that only matters where no shooting is
 happening yet.
+
+### 8.7 SUMO entities in the combat world — **hits, blasts, EQS, raycasts** *(DESIGN 2026-10-17; leans G1–G6, not ruled)*
+
+📐 **Measured — what happens TODAY to a shot at a mirror (R-4022 A):**
+
+| step | code | result for a mirror |
+|---|---|---|
+| the bullet finds it | `SpatialHashSystem` takes every `SimTransform + PhysicsCollider` (`SpatialHashSystem.cs:84-87`), no ownership filter; `RaycastSolverSystem` returns the entity (`:287`) | ✅ hit |
+| the damage leaves the shooter's node | `DamageAssessedEgressTranslator` drops a hit whose entity has no network id in the entity map (`DamageAssessedEgressTranslator.cs:67`) | ⛔ **silently dropped** — a mirror has no `NetworkIdentity` (by design, R-4029) |
+| a blast | `AreaEffectSystem` damages only entities with `Health` (`AreaEffectSystem.cs:103`) | ⛔ ignored — a mirror has no `Health` |
+| a soldier sees it | `VisionBroadphase` indexes only entities with `EntityInfo` (`VisionBroadphase.cs:184-186`) | ⚠ only if the mirror carries `EntityInfo` (Neutral) |
+| a pedestrian | §8.6 dropped the mirrors with the zones | ⛔ not in any query |
+
+```mermaid
+sequenceDiagram
+  participant SH as shooter's SimHost (mirror of the car or pedestrian)
+  participant TN as Traffic node
+  participant E as SumoSharp
+  participant CGF as CGF (creator, brain)
+  participant N as every node
+  SH->>SH: raycast or blast finds the mirror, damage computed by the existing pipeline
+  SH->>TN: TrafficHit with network id, damage, body part, hit effect, shooter, point
+  TN->>E: remove the car or pedestrian, returns its state (S1)
+  TN->>N: SUMO Despawn (S2)
+  TN->>CGF: CreateEntityRequest addressed to CGF, civilian family type, pose, same network id, initial damage and effect
+  CGF->>N: our entity, Health already reduced, civilian HSM starts in Casualty or Panic
+  N->>N: each mirror sees its id on a real entity and drops itself
+```
+
+*What the picture shows that prose hid:* the damage is computed ONCE, by the existing pipeline on the shooter's node — the
+traffic node only converts; and the conversion is the SAME request as panic (§8.2), so a hit is just a panic whose
+civilian is born wounded.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **G1** | how a hit reaches SUMO | a new NED message **`TrafficHit {NetworkId, Damage, BodyPart, HitEffect, ShooterId, Point}`**, sent by the node that computed the damage when the hit entity is a mirror (`TrafficCar.NetworkId`, R-4029) — the sibling of `DamageAssessedEgressTranslator`'s dropped branch; blasts likewise: `AreaEffectSystem` also visits mirrors (no `Health` needed) and emits `TrafficHit` | giving mirrors `NetworkIdentity`: egress would publish them (R-4029) · the traffic node recomputing damage from detonations: a second damage implementation |
+| **G2** | pedestrians in EQS and raycasts | each node mirrors the pedestrians **within R of any of our units** (e.g. 300 m), from `PedRemoteReconstructor`'s poses — HROT-side, no SumoSharp promotion (R-4037 holds); cars stay all mirrored (R-4022) | all 20 000 pedestrians as entities on every node: entity and recording cost · none: bullets pass through pedestrians |
+| **G3** | what a mirror carries | `SimTransform`, `PhysicsCollider`, **`EntityInfo` (Neutral)**, `TrafficCar {NetworkId, Kind}`, its TKB type (civilian family) — so vision, EQS, the collider hash, LOS and near misses all see it like any neutral; ⚠ a rail must prove `EntityInfo` on a mirror is never egressed | no `EntityInfo`: soldiers would not perceive traffic |
+| **G4** | what a hit car becomes | the car leaves SUMO and becomes **our civilian car entity** (stopped, damaged); its driver (and passengers, from the car's seats) become civilians in Panic or Casualty | keeping a damaged car in SUMO: SUMO has no damage, it would drive on |
+| **G5** | hits during the conversion | the traffic node accumulates every `TrafficHit` for an id until CGF's entity appears, then forwards the sum as one damage | first hit only: a burst would lose all but one round |
+| **G6** | near misses and suppression | a round passing a mirrored pedestrian counts like a heard shot for panic (P2) — no new path | a NearMiss message per mirror: panic already covers it |
 
 ## 7. ⛔ HISTORY
 
