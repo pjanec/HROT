@@ -272,6 +272,6 @@ Key surfaces for this programme:
 | Behavior availability | `Hrot/Subsystems/Hrot.Editor/Adapters/EditorMissionService.cs` |
 | Blueprint attachment (tiers/slots) | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Editor/EntityBlueprints/` |
 | Window/perspective manager | `FDP/Engine/Fdp.Presentation/ImGui/WindowManager/WindowManager.cs` |
-| Scenario persistence translators | `Hrot/Subsystems/Hrot.SimHost/Serializers/` |
+| Scenario persistence translators | `Hrot/Engine/Hrot.EcsNode/Serializers/` |
 
 Run the editor: `Hrot.ClusterRunner.exe --mode editor` (or `run_Editor.bat` / `run_Editor.sh`).

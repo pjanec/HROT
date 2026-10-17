@@ -6496,3 +6496,31 @@ already existed in two to four hosts, in slightly different shapes. Each row is 
 | D16 | `Hrot.IG.Modules.SpawningModule` — a second `SingleSystemModule`-shaped wrapper for `NetworkSpawningSystem`, used only by its own tests | ⭐ **KEPT** — 🔒 user, `2026-10-17`: *"unused is not meaning undesired. All ecs nodes need to be able to spawn entities."* IG spawns through the pack (`EntityCreation.RegisterOn` → `SingleSystemModule("NetworkSpawning")`, pinned per host by `EntityCreationPackRails`); the wrapper is not removed | ⛔ no action |
 | D15 | ⛔ **every `NodeBootstrapper` host runs TWO cluster slaves and TWO slave translators** — `HrotNodeBuilder` step 8 builds one pair, `NodeBootstrapper.BuildOrchestration` builds a second (`NodeBootstrapper.cs:248-256`), the base swaps the second slave in, Stride and traffic HIDE `BootstrapNode` (`new`) to swap the second translator in; the builder's translator (a live `NedSlaveOrchestrationTranslator`, role-independent — `NedNetworkFactory.cs:357`) is never ticked, its DDS readers never drained | duplication + a latent DEFECT (CE-164's shape, quieter: an undrained reliable reader can back-pressure the writers) | ✅ BUILT: `BuildOrchestration` takes the context's slave and translator (builds its own only for a caller with no context); the base exposes `BootConfig`, `BootRole`, `NetworkFactory` and `Context`, so no subclass hides `BootstrapNode`. A rail: the traffic node's helper and context hold the SAME translator |
 | D17 | `BuildContext` identical on four hosts (the `HrotNodeBuilder` chain with `.WithReplication(role)`) | duplication — the base cannot hold it (Hrot.Common cannot see NED, `SharedApplicationBootstrapper.cs:400`) | 📋 one helper in an assembly that sees both |
+
+
+### ⭐ §4.1ae.2 — NO HOST DEPENDS ON ANOTHER HOST: the shared node code lives in `Hrot.EcsNode` *(CE-4015, 2026-10-17)*
+
+🔒 **User:** *"IG for sure cannot depend on sim host. The host must not be dependent on each other."* · 📄 `.dev/_DONE/modular-2/feedback-3.md:209`:
+subsystems *"must never depend on each other, but only point inward toward the shared domain."*
+
+```mermaid
+graph TD
+    SH[Hrot.SimHost] --> EN
+    IG[Hrot.IG] --> EN
+    TN[Hrot.TrafficNode] --> EN
+    CGF[Hrot.CGF] -.->|debt CE-4015| SH
+    EN["Hrot.EcsNode<br/>NodeBootstrapper · scenario serializer · GenesisTail"] --> HP[Hrot.Presentation]
+    EN --> HC[Hrot.Common]
+    HP --> TR[Hrot.Traffic] --> HC
+    linkStyle 3 stroke:#c00,stroke-dasharray:4
+```
+
+*What the picture shows that prose hid:* `Hrot.Common` cannot hold this code — the scenario save handler it registers lives in
+`Hrot.Presentation`, and `Presentation → Traffic → Common` would close a cycle. ⇒ a library ABOVE both and BELOW every host.
+
+| ⭐ | |
+|---|---|
+| ✅ built | `NodeBootstrapper`, the 17 `Serializers/*` files, `GenesisTail` + `GenesisMaterializationSystem` + `InitialBrainMaterializationSystem` moved from `Hrot.SimHost` (they reference nothing else in it); `IG → SimHost` and `TrafficNode → SimHost` removed (both were added by D8/D9/D11) |
+| ⚠ kept | the moved files' `Hrot.SimHost.*` namespaces — the same misleading shape that hid the dependency; rename with Roslyn, not text |
+| ⛔ debt | CGF→SimHost · Editor→SimHost/CGF/Orchestrator/IG · ExCon→Orchestrator · NodeComposition→SimHost/IG · ReplayBrowser→CGF/SimHost · Stride Game→NodeComposition/Editor/Orchestrator/CGF/SimHost — railed as a ratchet (`OneBootstrapImplementationRails.NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt`) |
+| ⭐ D17 | `Hrot.EcsNode` is the natural home for the one `BuildContext` helper too, if it references NED |

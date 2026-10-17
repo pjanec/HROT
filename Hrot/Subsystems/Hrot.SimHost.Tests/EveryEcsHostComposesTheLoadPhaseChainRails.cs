@@ -46,7 +46,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>The three ECS composition roots that must each hold a terrain loader.</summary>
         public static TheoryData<string> EcsCompositionRoots => new()
         {
-            "Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs",
+            "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
             "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
         };
@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
             bool delegates = code.Contains("new Hrot.SimHost.NodeBootstrapper(", StringComparison.Ordinal)
                           && code.Contains("_nodeBootstrapper.BuildOrchestration(", StringComparison.Ordinal);
             return delegates
-                ? CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource("Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs"))
+                ? CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs"))
                 : code;
         }
 
@@ -101,7 +101,7 @@ namespace Hrot.SimHost.Tests
         {
             foreach (var path in new[]
             {
-                "Hrot/Subsystems/Hrot.SimHost/NodeBootstrapper.cs",
+                "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.IG/IgNodeBootstrapper.cs",
                 "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
                 "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",

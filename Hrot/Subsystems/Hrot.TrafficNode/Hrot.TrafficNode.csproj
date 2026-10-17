@@ -5,8 +5,8 @@
     It is a SharedApplicationBootstrapper like every other ECS node; the role and the one capability
     (TrafficPack.Serving) are the only differences. See docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.
 
-    Sits above Hrot.SimHost for the same reason Hrot.NodeComposition does: NodeBootstrapper (shared
-    orchestration) and HrotScenarioSerializerFactory live there.
+    ⛔ References NO other host (feedback-3: subsystems point inward, never at each other). NodeBootstrapper
+    (shared orchestration), the scenario serializer and the genesis tail live in Hrot.EcsNode (CE-4015).
   -->
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -21,6 +21,7 @@
   <ItemGroup>
     <!-- SharedApplicationBootstrapper, HrotNodeBuilder, EntityCreationPack -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.EcsNode\Hrot.EcsNode.csproj" />    <!-- CE-4015: the code every ECS host composes (no host-to-host reference) -->
     <!-- INetworkFactory, HrotNodeConfig -->
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <!-- SubsystemDebugProvider / IProvidesDebugSurface -->
@@ -30,7 +31,6 @@
     <!-- TrafficPack.Serving() -->
     <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />
     <!-- NodeBootstrapper (shared orchestration) and HrotScenarioSerializerFactory -->
-    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
     <!-- ECS world and core types -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- ClusterSlave, ScenarioSerializer, ISubsystem -->

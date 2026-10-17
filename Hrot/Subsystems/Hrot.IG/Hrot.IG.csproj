@@ -20,7 +20,7 @@
   <ItemGroup>
     <!-- Hrot-specific project references -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
-    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />    <!-- CE-4013 D9/D11: the shared scenario serializer and the genesis tail every ECS host composes -->
+    <ProjectReference Include="..\..\Engine\Hrot.EcsNode\Hrot.EcsNode.csproj" />    <!-- CE-4015: the code every ECS host composes (no host-to-host reference) -->
     <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />    <!-- AQ93 N6: TrafficPack.Mirroring() -->
     <ProjectReference Include="..\..\Engine\Hrot.Core\Hrot.Core.csproj" />
     <ProjectReference Include="..\..\Engine\Hrot.Presentation\Hrot.Presentation.csproj" />
