@@ -108,7 +108,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The nearest man he REMEMBERS (where he last saw him) within <paramref name="reach"/> m who is Hostile and still on his feet:
-        /// in the fight, not Neutral, not knocked down, his hands not up (the gate holds a ROUND at raised hands, CV-13a; nothing holds a baton
+        /// in the fight, not Neutral, not knocked down or stunned, his hands not up (the gate holds a ROUND at raised hands, CV-13a; nothing holds a baton
         /// blow, so the line asks it here). <see cref="Entity.Null"/> when none.</summary>
         internal static unsafe Entity Nearest(EntityRepository world, Entity self, Vector3 me, float reach)
         {
@@ -121,7 +121,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
                 if (e.IsNull || !world.IsAlive(e) || !CombatLife.IsAlive(world, e) || ThreatDanger.IsNeutral(world, e)
-                    || ThreatDanger.IsOutOfTheFight(world, e) || ThreatDanger.ShowsHandsUp(world, e) || Effects.IsKnockedDown(world, e)) continue;
+                    || ThreatDanger.IsOutOfTheFight(world, e) || ThreatDanger.ShowsHandsUp(world, e) || Effects.IsKnockedDown(world, e)
+                    || Effects.IsStunned(world, e)) continue;   // ⭐ a stunned man is out of the fight for its seconds: not beaten while he cannot fight (live: a stunned instigator in reach was struck to death)
                 float dx = mem.PositionsX[i] - me.X, dy = mem.PositionsY[i] - me.Y;
                 float d = dx * dx + dy * dy;
                 if (d <= bestDist) { bestDist = d; best = e; }

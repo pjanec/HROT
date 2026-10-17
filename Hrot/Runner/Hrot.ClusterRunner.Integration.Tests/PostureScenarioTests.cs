@@ -836,7 +836,7 @@ public sealed class PostureScenarioTests : IDisposable
         string State() => $"riot {riot}, forced at {forcedAt}, effected [{string.Join(",", effected)}], dead [{string.Join(",", dead)}], " +
                           $"modes [{string.Join(",", civs.Select(c => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, c)))}], " +
                           $"sides [{string.Join(",", civs.Select(c => cgf.GetComponentRO<EntityInfo>(c).ForceId))}], " +
-                          $"police ammo [{string.Join(",", police.Select(Ammo))}], police reasons [{string.Join(",", policeReasons)}]";
+                          $"health [{string.Join(",", civs.Select(c => cgf.GetComponentRO<Health>(c).Current))}], police ammo [{string.Join(",", police.Select(Ammo))}], police reasons [{string.Join(",", policeReasons)}]";
 
         harness.PumpUntil(() => { Sample(); return calmSince != null && cgf.SimulationTime - calmSince >= 10.0; }, timeoutFrames: 9000);
         _out.WriteLine(State());

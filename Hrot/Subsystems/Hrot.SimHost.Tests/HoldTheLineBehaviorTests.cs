@@ -131,8 +131,8 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        /// <summary>⭐ The nearest Hostile in reach is the one he fires at — a nearer NEUTRAL, a nearer Hostile already KNOCKED DOWN, a nearer
-        /// one with his HANDS UP and a Hostile beyond reach are not. ✅ Red-proof: the Neutral, knocked-down or hands-up skip removed from <c>Nearest</c> ⇒ red; the reach
+        /// <summary>⭐ The nearest Hostile in reach is the one he fires at — a nearer NEUTRAL, a nearer Hostile already KNOCKED DOWN or STUNNED, a nearer
+        /// one with his HANDS UP and a Hostile beyond reach are not. ✅ Red-proof: the Neutral, knocked-down, stunned or hands-up skip removed from <c>Nearest</c> ⇒ red; the reach
         /// bound removed ⇒ red once only the far one is left.</summary>
         [Fact]
         public void CE2239_HoldTheLine_FiresAtTheNearestHostileInReach_NeverANeutral_NorAManDown_NorRaisedHands_NorOneBeyondReach()
@@ -141,11 +141,13 @@ namespace Hrot.SimHost.Tests
             var neutral = w.Person(new Vector3(5, 0, 0), ForceId.Neutral);
             var down = w.Person(new Vector3(10, 0, 0), ForceId.Hostile);
             w.Repo.AddComponent(down, new EffectState { KnockedDownUntil = 1e6 });
+            var stunned = w.Person(new Vector3(12, 0, 0), ForceId.Hostile);
+            w.Repo.AddComponent(stunned, new EffectState { StunnedUntil = 1e6 });
             var handsUp = w.Person(new Vector3(15, 0, 0), ForceId.Hostile);
             Gestures.Set(w.Repo, handsUp, GestureKind.HandsUp);
             var rioter = w.Person(new Vector3(20, 0, 0), ForceId.Hostile);
             var far = w.Person(new Vector3(0, 60, 0), ForceId.Hostile);
-            foreach (var e in new[] { neutral, down, handsUp, rioter, far }) w.Sees(e);
+            foreach (var e in new[] { neutral, down, stunned, handsUp, rioter, far }) w.Sees(e);
             w.Start();
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal(rioter, w.Aiming);
