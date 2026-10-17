@@ -2051,6 +2051,93 @@ system, the police brain in the brain tick.
 - ⚠ **the three older riot demos pin their policeman to `Idle`** (`ua-civ-melee`, `ua-civ-riot-stone`, `ua-civ-surrender`) — they test
   the RIOTER against a passive target; with the new default he would fight back and change what they measure.
 
+## 5k. B2 — the escalation ladder: warn, then non-lethal, then lethal *(behaviors, `CE-2239` part 3 / handoff B2, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-10's ladder for the SECURITY FORCES (AW-24: soldiers never run it): against a civilian who is not a combatant on status,
+the force a police unit may use rises with what the man does — **armed at ease ⇒ Warn · ready ⇒ NonLethal, Lethal after an ignored
+warning · aimed at us or a lethal act ⇒ Lethal (FL-3, built)** — under the unit's `Roe.ForceLevel` cap; and the WARNING itself, an
+audible cue the police give and every node can see. Demos `ua-civ-escalation`, `ua-armed-self-defence`, `ua-armed-celebration` (§5c).
+⏳ Not here: `ua-armed-knife` (no knife item in any catalogue, and "closing fast" reads speed — slice ④ later) · `ua-armed-identify`
+(catalogue toy gun + binoculars — its own slice) · a civilian's COMPLIANCE with a warning (the demos author what he does).
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*(Warn|Ladder|Escalat|Demand|Shout).*` Class+Method ⇒ only
+`MissileWarning*`, migration and editor warnings — ⛔ **no warning act, no ladder in code**; an `Explore` sweep of `docs/`, `.dev/` and
+the toolkit; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the cap | `Roe.ForceLevel` {Unset, Warn, NonLethal, Lethal}; police types default NonLethal; `ForceLevels.Permits` / `AllowsMount` / `SelfDefence` (aimed at me, or a Lethal act) / `ConductPermits` (CH-1) | `Combat/ForceLevels.cs`, `CivilianTkbCatalog.cs:104-109` |
+| what he carries, to THIS observer | `Armament.Judge` ⇒ IdentifiedLethal · Unidentified · Nothing (range × light × optics; a reach weapon beyond its reach ⇒ Unidentified) | `Combat/Armament.cs:252-316` |
+| what he does with it | `WeaponPosture` {AtEase, Ready, Aimed} + Target/Point, ONE writer `WeaponPostureOf` (replicated). ⚠ A drawn weapon stays **AtEase** until a weapon action runs | `Combat/WeaponPostureOf.cs`, `StationWeaponBehavior.cs` |
+| a security-force unit | DIS `3.1.*.3` (`DisCategorySecurityForce`), class `SecurityForce`; ⛔ no toolkit helper — the class table and the uniform only | `CivilianTkbCatalog.cs:36`, `EntityClassTable.cs:181` |
+| the police brain | `HoldTheLine` — fires (`PostureNodes.Fire`, AimAndFire MountAuto) at the nearest Hostile in memory within reach; skips Neutral / out of the fight / hands up / down / stunned | `Brains/HoldTheLineBehavior.cs` |
+| a visible act | `Gesture` {None, HandsUp, FistRaised, HoldSign, Waving, Throwing}, replicated (`dtGesture`) | `Combat/Gestures.cs` |
+| fire into the air | `FireAtPoint` with a raised `z` ⇒ posture Aimed at a POINT ⇒ no act (CO-1 needs a target) | `FireAtPointExecutor.cs:233-303` |
+
+```mermaid
+classDiagram
+  direction LR
+  class ForceLevels { <<existing, grows>> Permits · AllowsMount · + LevelFor(unit, target) · SelfDefence · ConductPermits }
+  class EscalationLadder { <<NEW static, Fdp.Toolkits/Combat>> Applies(unit, target) · Level(unit, target) · Warn(unit, target) · WarnedAt }
+  class WarningLog { <<NEW component 406, brain-local>> TargetIds[8] · At[8] · Count }
+  class Armament { <<existing, grows>> Judge · IsCombatant · + IsSecurityForce }
+  class WeaponPosture { <<existing>> Kind · Target }
+  class Gestures { <<existing, grows>> + GestureKind.Warning }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldWarn }
+  class HoldTheLine { <<existing, grows>> + warns an armed man in reach }
+  ForceLevels ..> EscalationLadder : a graded unit at a civilian
+  EscalationLadder ..> Armament : Judge
+  EscalationLadder ..> WeaponPosture : at ease · ready
+  EscalationLadder --> WarningLog : the one writer
+  EscalationLadder ..> Gestures : the visible cue
+  AimAndFireExecutor ..> ForceLevels
+  HoldTheLine ..> EscalationLadder : Warn
+```
+*What the picture shows that prose hid:* the ladder is ONE function the existing cap asks, so a round and a weapon choice obey it the
+same way; the warning lives with the WARNER (he knows whom he warned), and only its visible cue crosses the wire.
+
+```mermaid
+sequenceDiagram
+  participant M as the armed man (CGF)
+  participant P as policeman (CGF)
+  participant N as every node
+  M->>M: draws — posture at ease
+  P->>P: ladder — identified lethal, at ease: Warn, no round
+  P->>N: Gesture Warning, WarningLog stamps him
+  M->>M: weapon READY (aims elsewhere, or waits)
+  P->>P: ladder — ready: NonLethal (a baton round)
+  P->>P: 5 s after the warning and still ready: Lethal
+  M->>P: or he AIMS at the policeman — self-defence: Lethal at once (FL-3)
+```
+*What the picture shows that prose hid:* the warning is a TIME, not an event the man must answer — the ladder re-reads his posture
+every tick, so lowering the weapon drops it back down without any "complied" flag.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HTL[HoldTheLine — the police brain]
+  HTL --> WARN[EscalationLadder.Warn — the cue]
+  HTL --> AF[AimAndFireExecutor — WeaponDispatcherSystem, CGF]
+  AF --> HO[HoldOf]
+  HO --> FL[ForceLevels.LevelFor]
+  FL --> EL[EscalationLadder.Level]
+  WARN --> G[Gesture — replicated to every node]
+```
+*Caption:* nothing new is scheduled — the ladder is asked inside the existing gate on the brain node, the warning is given by the police
+brain that already runs there; only the gesture crosses the wire.
+
+| id | decision *(lean — built; ⭐ for the user's review)* | rejected — one line each |
+|---|---|---|
+| **EL-1** | ⭐ the ladder applies to a unit of the **SecurityForce class** (`3.1.*.3`) facing a target who is **not a combatant on status** (`Armament.IsCombatant` false); soldiers never (AW-24) | every unit with a NonLethal cap: a soldier ordered non-lethal is not a police ladder · every unit: AW-24 |
+| **EL-2** | ⭐ the rung: Judge ≠ IdentifiedLethal ⇒ **NonLethal** (unarmed: non-lethal force only — CH-1 holds lethal anyway); IdentifiedLethal and **AtEase** ⇒ **Warn** (no round); **Ready** ⇒ **NonLethal**, and **Lethal once warned ≥ `IgnoredWarningSeconds` (5 s) ago and still ready**; aimed at me / a lethal act ⇒ Lethal (FL-3, before the ladder). Capped by `Roe.ForceLevel` except self-defence | a "complied" flag: a man who lowers his weapon drops back by posture alone · Lethal straight from Ready: AW-10 says "after an ignored warning" |
+| **EL-3** | ⭐ the WARNING: `EscalationLadder.Warn(unit, man)` — the warner's `Gesture.Warning` for `WarningShowSeconds` (2 s) and a stamp in his own `WarningLog` (8 men, oldest goes); given by the gate when the rung is Warn, and by `HoldTheLine` to an identified-armed man within its reach | a bus event only: nothing visible on IG, nothing for the man's brain to see · a stamp on the TARGET: two policemen would share one clock |
+| **EL-4** | ⭐ "warned" is PER WARNER — `WarnedAt(unit, man)`; ⚠ no squad sharing yet (a later rung) | the squad's: a neighbour's shout 40 m away would let this policeman fire lethal |
+| **EL-5** | ⭐ firing INTO THE AIR (posture Aimed at a point, no target) reads as **Ready** to the ladder (intent unknown ⇒ Warn first, AW-17) | as Aimed: a celebratory volley would be a lethal rung |
+| **EL-6** | ⭐ a new `ActionReason.HoldWarn` ("hold: warning") for a round held at the Warn rung | `HoldForceLevel`: hides that a warning was given |
+
+**Slices:** ① `EscalationLadder` + `WarningLog` + `GestureKind.Warning` + `HoldWarn`, through `ForceLevels.LevelFor` + rails · ②
+`HoldTheLine` warns + demo `ua-civ-escalation` (live + twin) · ③ `ua-armed-celebration` + `ua-armed-self-defence` · ④ (later) knife
+and "closing fast"; `ua-armed-identify`.
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
