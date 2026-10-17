@@ -50,8 +50,10 @@ owners = {}
 for nid in list(common)[:5]:
     for p in MIRRORS:
         owners.setdefault(nid, {})[MIRRORS[p]] = (comps(p, nid).get("NetworkAuthority") or {}).get("PrimaryOwnerId")
+gone = [n for n, v in owners.items() if all(x is None for x in v.values())]   # left the vicinity between the listing and the query
+for n in gone: owners.pop(n)
 one_owner = all(len(set(v.values())) == 1 and None not in v.values() for v in owners.values()) and owners
-check("① each car has ONE primary owner on every node (the traffic node)", one_owner, owners)
+check("① each car has ONE primary owner on every node (the traffic node)", one_owner, {"owners": owners, "gone meanwhile": gone})
 
 # ② cars move (IG)
 sample = list(common)[:10]
@@ -74,8 +76,11 @@ check("③ pose spread across CGF/SimHost/IG: median < 2 m", med is not None and
 call(8303, "POST", "/sim/pause", {}); time.sleep(1.5)
 a = {(p, n): pos(p, n) for p in MIRRORS for n in sample[:5]}; time.sleep(3)
 b = {k: pos(*k) for k in a}
-drift = max([math.dist(a[k], b[k]) for k in a if a[k] and b[k]] or [0])
-check("④ pause (from IG) holds every car still on every mirror", drift < 0.01, f"max drift {drift:.4f} m over 3 s")
+drifts = {f"{MIRRORS[k[0]]}:{k[1]}": round(math.dist(a[k], b[k]), 3) for k in a if a[k] and b[k]}
+drift = max(drifts.values() or [0])
+paused = {MIRRORS[p]: (data(call(p, "GET", "/sim/state")) or {}).get("isPaused") for p in MIRRORS}
+check("④ pause (from IG) holds every car still on every mirror", drift < 0.01,
+      f"max drift {drift:.4f} m over 3 s; moved: {[k for k, v in drifts.items() if v >= 0.01]}; isPaused: {paused}")
 call(8303, "POST", "/sim/play", {}); time.sleep(2)
 
 # ⑤ the map gizmo buffers drop nothing
