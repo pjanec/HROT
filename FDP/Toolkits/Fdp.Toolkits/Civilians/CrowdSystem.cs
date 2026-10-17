@@ -84,6 +84,15 @@ namespace Fdp.Toolkit.Civilians
         private readonly List<Vector3> _incidents = new();
         private readonly List<Entity> _incidentOf = new();
         private int[] _parent = Array.Empty<int>();
+        // ⭐ the 500-civilian scaling fix (backend note NOTE_Backend_To_Behaviors_CrowdSystem_Scaling): every pair this system compares is
+        // within CellMetres, so a 3 × 3 block of cells holds every partner — the passes are linear in the crowd, not quadratic.
+        private const float CellMetres = 20f;   // ≥ LinkMetres and ContagionMetres
+        private readonly Dictionary<long, List<int>> _cells = new();
+        private readonly Stack<List<int>> _cellPool = new();
+        private readonly List<int> _near = new();
+        private int[] _root = Array.Empty<int>();
+        private CivilianMode[] _mode = Array.Empty<CivilianMode>();
+        private byte[] _instigator = Array.Empty<byte>();
         private readonly Dictionary<int, List<int>> _groups = new();
         private readonly Dictionary<int, int> _votes = new();
         private readonly Dictionary<int, Entity> _crowdEntity = new();
@@ -108,6 +117,7 @@ namespace Fdp.Toolkit.Civilians
             }
 
             Attract(repo);
+            Bucket(repo);
             Link();
             Assign(repo, now);
             Spread(repo, deltaTime);
@@ -154,8 +164,11 @@ namespace Fdp.Toolkit.Civilians
             for (int i = 0; i < n; i++) _parent[i] = i;
             float link = CrowdRules.LinkMetres * CrowdRules.LinkMetres;
             for (int i = 0; i < n; i++)
-                for (int j = i + 1; j < n; j++)
-                    if (Flat2(_at[i], _at[j]) <= link) Union(i, j);
+            {
+                Near(i, sameCrowd: false);
+                foreach (int j in _near)
+                    if (j > i && Flat2(_at[i], _at[j]) <= link) Union(i, j);
+            }
 
             foreach (var g in _groups.Values) g.Clear();
             for (int i = 0; i < n; i++)
@@ -163,8 +176,50 @@ namespace Fdp.Toolkit.Civilians
                 int root = Find(i);
                 if (!_groups.TryGetValue(root, out var list)) _groups[root] = list = new List<int>();
                 list.Add(i);
+                _root[i] = root;
             }
         }
+
+        // the cells, and what the passes read of each civilian that no pass changes
+        private void Bucket(EntityRepository repo)
+        {
+            int n = _civs.Count;
+            if (_root.Length < n)
+            {
+                int size = Math.Max(n, _root.Length * 2);
+                _root = new int[size];
+                _mode = new CivilianMode[size];
+                _instigator = new byte[size];
+            }
+            foreach (var list in _cells.Values) { list.Clear(); _cellPool.Push(list); }
+            _cells.Clear();
+            for (int i = 0; i < n; i++)
+            {
+                ref readonly var mind = ref repo.GetComponentRO<CivilianState>(_civs[i]);
+                _mode[i] = mind.Mode;
+                _instigator[i] = mind.Instigator;
+                long key = Cell(_at[i]);
+                if (!_cells.TryGetValue(key, out var list)) _cells[key] = list = _cellPool.Count > 0 ? _cellPool.Pop() : new List<int>();
+                list.Add(i);
+            }
+        }
+
+        // every civilian in the 3 × 3 cells round i (i included), ascending — the order the all-pairs loops walked them in, so a tie
+        // resolves as it did; sameCrowd keeps only i's own group (Link must have run)
+        private void Near(int i, bool sameCrowd)
+        {
+            _near.Clear();
+            int cx = (int)MathF.Floor(_at[i].X / CellMetres), cy = (int)MathF.Floor(_at[i].Y / CellMetres);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    if (_cells.TryGetValue(Key(cx + dx, cy + dy), out var list))
+                        foreach (int j in list)
+                            if (!sameCrowd || _root[j] == _root[i]) _near.Add(j);
+            _near.Sort();
+        }
+
+        private static long Cell(Vector3 at) => Key((int)MathF.Floor(at.X / CellMetres), (int)MathF.Floor(at.Y / CellMetres));
+        private static long Key(int cx, int cy) => ((long)cx << 32) | (uint)cy;
 
         // ③ each group of MinMembers or more is a crowd; it keeps the id most of its members had
         private void Assign(EntityRepository repo, double now)
@@ -250,14 +305,13 @@ namespace Fdp.Toolkit.Civilians
                     var me = repo.GetComponentRO<CivilianState>(_civs[i]);
                     float bestPull = 0f, bestTarget = 0f;
                     int source = -1;
-                    foreach (int j in group)
+                    Near(i, sameCrowd: true);
+                    foreach (int j in _near)
                     {
-                        if (j == i) continue;
-                        ref readonly var other = ref repo.GetComponentRO<CivilianState>(_civs[j]);
-                        if (!CrowdRules.ShowsFear(other.Mode)) continue;
+                        if (j == i || !CrowdRules.ShowsFear(_mode[j])) continue;
                         float d2 = Flat2(_at[i], _at[j]);
                         if (d2 > reach) continue;
-                        float target = CrowdRules.ContagionShare * other.Fear;
+                        float target = CrowdRules.ContagionShare * repo.GetComponentRO<CivilianState>(_civs[j]).Fear;
                         if (target <= me.Fear) continue;
                         float near = 1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.ContagionMetres;
                         float pull = near * (target - me.Fear);
@@ -289,14 +343,17 @@ namespace Fdp.Toolkit.Civilians
                 ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
                 if (mind.Instigator != 0) { mind.Anger = 1f; continue; }
                 float best = 0f;
-                if (mind.CrowdId != 0 && _groups.TryGetValue(Find(i), out var group) && group.Count >= CrowdRules.MinMembers)
-                    foreach (int j in group)
+                if (mind.CrowdId != 0 && _groups.TryGetValue(_root[i], out var group) && group.Count >= CrowdRules.MinMembers)
+                {
+                    Near(i, sameCrowd: true);
+                    foreach (int j in _near)
                     {
-                        if (j == i || repo.GetComponentRO<CivilianState>(_civs[j]).Instigator == 0) continue;
+                        if (j == i || _instigator[j] == 0) continue;
                         float d2 = Flat2(_at[i], _at[j]);
                         if (d2 > reach) continue;
                         best = MathF.Max(best, 1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.ContagionMetres);
                     }
+                }
                 mind.Anger = best > 0f ? MathF.Min(1f, mind.Anger + CrowdRules.InstigateRate * best * dt)
                                        : MathF.Max(0f, mind.Anger - CrowdRules.AngerFade * dt);
             }

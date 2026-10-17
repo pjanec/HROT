@@ -410,7 +410,7 @@ shot" could mean "not seen").
 | **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
-| ARMED AW-16 · CE-2239 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) near a patrol; he draws, waits 10 s, then aims | ① after the draw: a warning, side still Neutral, no round (sampled) · ② after the aim: side Hostile on every node and he is engaged | ⏳ |
+| ARMED AW-16 · CE-2238 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) 25 m from a rifleman; his routine 8 s, he draws, waits 10 s, then aims (a mission: `CivilianHsm` → `StationWeapon` → `PersonAttack`) | ① after the draw: side still Neutral, no round (sampled) — ⏳ the soldier's WARNING is B2 · ② after the aim: side Hostile on every node and he is engaged | ✅ §5h.7a — twin green · live ⏳ |
 | ARMED AW-17 · CE-2239 | **`ua-armed-celebration`** | test-town · a wedding crowd; one man fires into the air, later at the patrol | ① fire into the air: a warning, no lethal round (sampled) · ② fire at the patrol: lethal | ⏳ |
 | ARMED AW-18 · CE-2239 | **`ua-armed-self-defence`** | test-town · a NonLethal police line; one rioter aims a rifle at it | ① lethal fire at THAT rioter only · ② every other rioter still gets non-lethal force only | ⏳ |
 | ARMED AW-19 · CE-2239 | **`ua-armed-knife`** | test-town · a man with a knife closing on a checkpoint from 15 m; a second throws a Molotov | ① a warning while he is beyond reach · ② lethal once he is within reach or closing fast · ③ the Molotov thrower reads lethal | ⏳ |
@@ -1440,7 +1440,7 @@ always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluati
 red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
 witness window · a known man always lethal).
 
-### 5h.7 B3 — draw, sling, conceal; the covert insurgent; aiming at the forces is the act *(behaviors, `CE-2238` part 4 / handoff B3, 2026-10-17; build-state: READY-TO-BUILD)*
+### 5h.7 B3 — draw, sling, conceal; the covert insurgent; aiming at the forces is the act *(behaviors, `CE-2238` part 4 / handoff B3, 2026-10-17; build-state: BUILT — as-built §5h.7a)*
 
 ⭐ **Scope.** AW-11's COVERT insurgent (a civilian, a pick-up pistol Hidden) and AW-16: drawing makes him armed but is NOT a hostile act;
 aiming at the forces IS — the act and the side flip. Demo `ua-armed-draw-aim` (§5c). ⏳ Not here: the soldier's WARNING after the draw
@@ -1518,6 +1518,22 @@ graph TD
 **Slices:** ① CO-1 + its rail (a civilian aiming at a soldier ⇒ Lethal, Hostile; a soldier aiming ⇒ nothing; a civilian aiming at a
 civilian ⇒ nothing) · ② `StationWeapon` + rails (draw, sling, conceal; finish after `Seconds`) · ③ demo `ua-armed-draw-aim` + live
 check + twin.
+
+#### 5h.7a AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as the diagrams above draw it — one refinement.** CO-1's target test is a forces PERSON: `ForceId.Friend` **and**
+`Armament.IsCombatant` — a Friend-side civilian (an interpreter, a contractor) is not the forces, and aiming at him commits nothing. ⭐ Police
+are combatants by this test (DIS category 3, Security Force, not the Civilian category 2), so a pistol aimed at a policeman IS the act.
+`StationWeapon` (`Hrot.AI.Behaviors/Brains/StationWeaponBehavior.cs`, DTO `StationWeaponParamsJsonDto` with the enum `WeaponStation`
+Hands·Back·Hidden) moves the first weapon system in his list the station takes; on a node that does not own the list it asks once and waits
+for the replicated slot; Failure when he carries nothing to put there.
+
+| proof | result |
+|---|---|
+| rail `ArmamentTests.CE2238_AimingAtTheForces_IsALethalAct_…` | ✅ — Ready at the soldier: none · aimed at a Neutral civilian: none · aimed at a Friend-side civilian: none · aimed at the soldier: Lethal · an enemy rifleman aiming: none. ✅ 3 mutants red: the call removed · the actor's combatant guard · the target's combatant test |
+| rails `StationWeaponBehaviorTests` ×3 (the shipped tree, real ingress + brain tick) | ✅ — draw Hidden → Hands, held `Seconds`, Success · sling to Back, conceal to Hidden · nothing to draw ⇒ Failure. ✅ 4 mutants red: no move · no `Seconds` hold · stations collapsed to Hands · `Place` lies |
+| demo `ua-armed-draw-aim` — twin `PostureScenarioTests.CE2238_DrawAim_…` | ✅ — hidden at 1.5 s; drawn at 9.5 s, still Neutral; no round at him while Neutral; Hostile at 19.7 s (10.2 s after the draw — when `PersonAttack` aimed) on CGF, SimHost and IG; the act Lethal; the rifleman fired at 20.5 s |
+| live `run_armed_draw_aim` | ⏳ |
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
