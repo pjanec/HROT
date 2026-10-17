@@ -102,6 +102,19 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         var now = cgf.GetComponentRO<BehaviorState>(onBrain);
         _out.WriteLine($"brain node runs hash {now.ActiveBehaviorHash} origin {now.Origin}; Idle = {idle}");
         Assert.True(ran, "the order issued on SimHost must reach the CGF brain and run there at origin Operator");
+
+        // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the IG station takes the order egress from the same auxiliary
+        //   pack as every node: a release given on the IG reaches the brain and ends the operator's order there.
+        var ig = harness.Ig.App.World;
+        var igMap = harness.Ig.App.TestHook_EntityMap;
+        Assert.True(harness.PumpUntil(() => igMap.TryGetEntity(id, out _), timeoutFrames: 600), "the Rifleman must exist on the IG");
+        previousStrict = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try { result = new EntityOrders(ig, igMap, geo: null).Release(id); }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrict; }
+        Assert.True(result.Accepted, result.Detail);
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<BehaviorState>(onBrain).Origin != BehaviorOrigin.Operator, timeoutFrames: 600),
+            "a release issued on the IG must reach the CGF brain and end the operator's order");
     }
 
     /// <summary>

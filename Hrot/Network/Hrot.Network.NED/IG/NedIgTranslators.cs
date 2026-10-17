@@ -23,14 +23,9 @@ public sealed class NedIgTranslators : IIgTranslators
         long localNodeId,
         bool headless)
     {
-        var translators = new List<INetworkTranslator>
-        {
-            // ⭐ CE-3169 (DESIGN_Entity_Control §2.3, §9) — an order given on THIS station (the map menu, the RTS tool, HTTP) is an
-            //   AssignTacticalIntentEvent on the IG's bus; the brain owner is elsewhere, so it must leave as TacticalIntentRequest.
-            //   📐 Every other node gets this egress from SimHostAuxiliaryTranslatorPack, which the IG never builds (no host builds
-            //   both packs, so it is never doubled).
-            new TacticalIntentEgressTranslator(participant, entityMap),
-        };
+        // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5) — the order egress (CE-3169) is no longer built here: the IG
+        //   builds the auxiliary pack like every node (IgNodeBootstrapper), and the pack gives every role that egress.
+        var translators = new List<INetworkTranslator>();
 
         if (ghostCreationSystem != null)
         {

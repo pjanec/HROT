@@ -331,6 +331,12 @@ namespace Fdp.Toolkit.Scenario
                 var compName = AutoSerializer.GetComponentName(bit);
                 if (compName == null) continue;
 
+                // ⭐ CE-3225 — a translator's key wins over a component of the same name: with the snapshot mask (the debug dump)
+                //   the brain snapshot's "Roe" (an ordered ROE) met the Roe component itself, and the duplicate key threw — the
+                //   whole entity, and GET /entities with it, failed. The translator's projection is the richer one (as in
+                //   EntityStateExtractionService, which never overwrites it either).
+                if (entityNode.ContainsKey(compName)) continue;
+
                 entityNode.Add(compName, fieldObj);
             }
 
