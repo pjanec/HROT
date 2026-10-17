@@ -3377,6 +3377,34 @@ def run_armed_draw_aim(c, timeout):
     c.ok(fired is not None, f"③ the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
 
 
+def run_armed_blend_back(c, timeout):
+    """test-town: a civilian with a rifle HIDDEN draws it and aims at patrol A from behind a row of civilians (the act — A sees it),
+    conceals it, walks along the line, then steps off it; patrol B (another unit, 170 m off at the act) comes up meanwhile. ① A holds
+    while a civilian is in the line and fires at him once it is clear — his rifle still hidden (A saw it) · ② B spends no round at him
+    while he is in the fight. The twin (PostureScenarioTests.CE2238_BlendBack_…) checks every frame."""
+    ids = ids_by_name()
+    man, a, b, rifle = ids.get("Insurgent"), ids.get("Patrol A"), ids.get("Patrol B"), ids.get("Rifle")
+    if not c.ok(None not in (man, a, b, rifle), "the insurgent, his rifle and both patrols are loaded"):
+        return
+
+    def seat():
+        return ((comps_on("CGF", rifle) or {}).get("IsEmbarkedTag") or {}).get("Seat")
+
+    def side():
+        return ((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId")
+    a0, b0 = (ammo(a) or (None,))[0], (ammo(b) or (None,))[0]
+    call("POST", "/sim/play", {})
+    hostile = wait_for(lambda: side() in ("Hostile", 2), timeout, every=0.1)
+    c.ok(hostile is not None, f"he aims at patrol A — the act flips him ({side()})")
+    concealed = wait_for(lambda: seat() == 3, 15, every=0.1)
+    c.ok(concealed is not None, f"he conceals the rifle again (seat {seat()})")
+    fired = wait_for(lambda: (ammo(a) or (None,))[0] not in (None, a0), 90, every=0.25)
+    c.ok(fired is not None and seat() == 3,
+         f"① patrol A fires at him once the line is clear, the rifle still hidden (ammo {a0} → {(ammo(a) or (None,))[0]}, seat {seat()})")
+    b1 = (ammo(b) or (None,))[0]
+    c.ok(b0 is not None and b1 == b0, f"② patrol B spends no round at him (ammo {b0} → {b1})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3404,6 +3432,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-armed-gas-throwback": run_armed_gas_throwback,
              # ⭐ CE-2238 part 4 AW-11/AW-16 — drawing is not the act, aiming at the forces is (Civilians §5c, §5h.7)
              "ua-armed-draw-aim": run_armed_draw_aim,
+             # ⭐ CE-2238 part 4 AW-22 — the witness engages the hidden rifleman, the other patrol sees a civilian (Civilians §5c, §5h.7b)
+             "ua-armed-blend-back": run_armed_blend_back,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
