@@ -298,7 +298,8 @@ namespace Fdp.Toolkit.Utility
                 //   so the old test excluded the primary weapon from every choice.
                 //   ⛔ CE-2188 (BS-1-DESIGN §5.4c) — not when mount 0 is a flare / chaff dispenser (an unarmed aircraft): nothing to choose
                 if ((repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
-                    && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self))
+                    && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self)
+                    && (!Fdp.Toolkit.Combat.PersonHands.HandsOnly(repo, self) || Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)))   // ⭐ CE-3230 (H-4)
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;
@@ -314,6 +315,10 @@ namespace Fdp.Toolkit.Utility
                     if (candidateCount >= MaxCandidates) break;
                     ref readonly var pm = ref repo.GetComponentRO<PartMetadata>(e);
                     if (!pm.ParentEntity.Equals(self)) continue;
+                    // ⭐ CE-3230 (H-4, AW-24) — the HANDS are never chosen as a weapon unless they hold a lethal round (a picked-up grenade)
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && Fdp.Toolkit.Combat.PersonHands.IsHands(Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex))
+                        && !Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)) continue;
                     candidates[candidateCount]  = e;
                     isSelfMount[candidateCount] = false;
                     candidateCount++;

@@ -673,6 +673,7 @@ public sealed class EffectTests
             if (suite == null) continue;
             foreach (var m in suite.Mounts)
             {
+                if (m.Hands) continue;   // ⭐ CE-3230 (H-2) — a person's HANDS name no round of their own: they hold what he picked up
                 mounts++;
                 Assert.True(m.AmmoGuid != 0, $"{t.Name}: a mount with no munition type");
                 Assert.True(tkb.TryGetByType(unchecked((long)m.AmmoGuid), out var ammo) && ammo != null, $"{t.Name}: munition {m.AmmoGuid} not registered");

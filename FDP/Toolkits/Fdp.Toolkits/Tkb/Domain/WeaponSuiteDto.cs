@@ -144,6 +144,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// to an observer judging a civilian. <b>null = by <see cref="Category"/></b> (<c>ItemAppearances.Of</c>): only an odd item sets it — a toy
         /// gun (looks like a rifle, fires nothing), a disguised weapon. Appended.</summary>
         public ItemAppearanceDto? Appearance { get; init; }
+
+        /// <summary>⭐ <c>CE-3230</c> (B-8, AW-7; Civilians §7.9) — this mount is a PERSON's HANDS: appended last to every person type by
+        /// <c>PersonHands.EnsureOnPersons</c>, empty at start, its loadout what he picked up. Appended.</summary>
+        public bool Hands { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>

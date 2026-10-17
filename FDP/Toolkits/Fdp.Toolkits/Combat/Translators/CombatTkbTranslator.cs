@@ -134,7 +134,10 @@ namespace Fdp.Toolkit.Combat.Translators
         /// <summary>⭐ M8 (D-I) — the mount's <see cref="AmmoLoadout"/> when its TKB mount declares one (the first round loaded).</summary>
         private static void AddLoadout(EntityRepository repo, Entity mountEntity, WeaponMountDto mount)
         {
-            if (mount.Loadout is not { Count: > 0 } || !repo.IsComponentTypeRegistered<AmmoLoadout>() || repo.HasComponent<AmmoLoadout>(mountEntity)) return;
+            if (!repo.IsComponentTypeRegistered<AmmoLoadout>() || repo.HasComponent<AmmoLoadout>(mountEntity)) return;
+            // ⭐ CE-3230 (H-2) — the HANDS start with an EMPTY loadout that PersonHands.Give fills with what he picks up
+            if (mount.Hands) { repo.AddComponent(mountEntity, new AmmoLoadout()); return; }
+            if (mount.Loadout is not { Count: > 0 }) return;
             repo.AddComponent(mountEntity, AmmoLoadout.From(mount.Loadout));
         }
 

@@ -276,9 +276,9 @@ namespace Hrot.Core.Tkb
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 4f }, damage: 5f);
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
-                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
             Register(tkb, StoneName, TkbStone, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
-                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f }, damage: 3f);
+                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f, Indirect = true }, damage: 3f);   // ⭐ CE-3230 — a stone arcs
             // ⭐⭐ CE-3219 part 3 (§7.3b) — the CLOUD rounds: no blast, no fragments; the warhead's Cloud* fields make AreaEffectSystem ask
             //   for an AreaEffectCloud where it bursts. A CS grenade's cloud ≈ 6 m across the first minute (public M7A3 figures, rounded);
             //   a smoke grenade's screen ≈ 8 m for about a minute (M18). Starter values — tuning starts here.

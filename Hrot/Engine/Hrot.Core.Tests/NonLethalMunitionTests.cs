@@ -28,6 +28,31 @@ namespace Hrot.Map.Common.Tests
             return db;
         }
 
+        /// <summary>⭐ <c>CE-3230</c> (B-8, H-1 / H-6 / H-7; DESIGN_Civilians_And_Crowd_Control §7.9) — on the BUILT-IN catalogue every person type
+        /// ends with exactly one HANDS mount, at an index the replicated per-mount ammo carries (≤ 3), and no other type has one; the stone
+        /// and the stun grenade are thrown on the ARC. ✅ Red-proof: the <c>EnsureOnPersons</c> call dropped from <c>RegisterBuiltInTkb</c> ⇒ red.</summary>
+        [Fact]
+        public void CE3230_EveryBuiltInPerson_EndsWithItsHands_AndStonesAndStunGrenadesArc()
+        {
+            var db = BuiltIn();
+            int persons = 0;
+            foreach (var t in db.GetAll())
+            {
+                var mounts = t.GetDescriptor<WeaponSuiteDto>()?.Mounts;
+                int hands = 0;
+                if (mounts != null) foreach (var m in mounts) if (m.Hands) hands++;
+                bool person = t.GetDescriptor<VehicleParametersDto>()?.VehicleClass == global::CarKinem.Core.VehicleClass.Pedestrian;
+                if (!person) { Assert.True(hands == 0, $"{t.Name}: not a person, yet it has hands"); continue; }
+                persons++;
+                Assert.True(hands == 1 && mounts![^1].Hands, $"{t.Name}: a person ends with exactly one hands mount");
+                Assert.True(mounts!.Count - 1 < Fdp.Toolkit.Combat.Components.WeaponAmmo.MaxMounts,
+                    $"{t.Name}: the hands at index {mounts.Count - 1} — dtWeaponAmmo carries mounts 0…{Fdp.Toolkit.Combat.Components.WeaponAmmo.MaxMounts - 1} only");
+            }
+            Assert.True(persons > 10, $"only {persons} person types found");
+            Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStone).Warhead!.Indirect);
+            Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStunGrenade).Warhead!.Indirect);
+        }
+
         [Fact]
         public void CE3223_EachNonLethalRound_ResolvesToItsEffect_AndNoneCarriesFragments()
         {

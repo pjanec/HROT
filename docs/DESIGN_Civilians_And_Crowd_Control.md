@@ -1589,6 +1589,96 @@ classDiagram
 (the behaviour that chooses it owns it); recorded like `EffectState` (`NoScenario` only — it reaches the replay, never a scenario
 file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` after a gesture is a change and is published.
 
+### 7.9 B-8 — the HANDS mount, and stones and stun grenades on the arc *(AW-7, AW-24 — R-2025, R-2029; `CE-3230`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.9a)*
+
+INVENTORY *(grep + reads at `backend@58d6e7a5c`; codebase-memory CLI as in §7.8)*:
+
+| question | measured | where |
+|---|---|---|
+| person types | every TKB type whose `VehicleParametersDto.VehicleClass` is `Pedestrian`: the urban catalog (civilian pedestrian/child 1001/1003, infantry, grenadier, mortar team, insurgent, the AT men), the civilian catalog (the family + security forces), the BDC builder's infantry, and any TKB FILE the knowledge-base step loads | `UrbanCombatTkbCatalog`, `CivilianTkbCatalog.Person`, `BdcTkbBuilder:541`, `KnowledgeBaseLoadStep` |
+| one place every TKB passes through | `HrotEnvironment.RegisterBuiltInTkb` (with a post-pass precedent: `RouteTkbExtensions.ApplyRoutePlanToBlueprint`) and `KnowledgeBaseLoadStep` (file TKB) | `HrotEnvironment.cs:41`, `KnowledgeBaseLoadStep.cs:70+` |
+| how a mount becomes state | `CombatTkbTranslator`: mount 0 ⇒ `WeaponState` on the OWNER, mount 1+ ⇒ a child; an `AmmoLoadout` only when the TKB mount lists one | `CombatTkbTranslator.cs:86-140` |
+| a civilian today | NO suite ⇒ no `WeaponState` ⇒ the hands mount would be his mount 0, on him | `CivilianTkbCatalog.cs:62` |
+| readers that take "a `WeaponState` on the unit" as "he has a weapon" | `PersonBody.PoseOf` (figure armed), `WeaponSystems.WeaponOf`, `Armament.ArmedByStatus`, `Armament.LethalInHand` (`FiresLethal` of a mount naming no round = lethal), the weapon-selection candidates (`UtilityScorer`) | §7.8 table |
+| throwing at a point from a LOADOUT | ⛔ `FireAtPointExecutor` sends the mount's own round (`AmmoGuid = 0`), never spends the loaded type, and checks `Indirect` on the mount's own round — a loadout is ignored on this path today | `FireAtPointExecutor.cs:235-260` |
+| the hand grenade today | the M67 is thrown as an `Indirect` round on a `Grenade` mount — the arc already works | `UrbanCombatTkbCatalog.cs:223`, `BallisticAim.IsIndirect` |
+| replicated per-mount ammo | `WeaponAmmo` (`dtWeaponAmmo`), the breech round of mounts 0…3 | `WeaponAmmo.cs` (`MaxMounts` 4) |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponMountDto { <<existing, + Hands bool>> Category Grenade · no AmmoGuid · empty Loadout }
+  class PersonHands { <<NEW static, Fdp.Toolkits/Combat>> Mount() the DTO · EnsureOnPersons(db) · IsHands(mount) · HandsOnly(view, unit) · Give(world, owner, ammo, n) · Rounds(world, owner, ammo) · HoldsLethal(world, owner) · MountIndex(world, owner) }
+  class CombatTkbTranslator { <<existing>> a Hands mount gets WeaponState 0/0 + an EMPTY AmmoLoadout }
+  class AmmoLoadout { <<existing>> up to 4 kinds; Give fills a free slot }
+  class FireAtPointExecutor { <<existing, fixed>> sends + spends the LOADED round; Indirect from it; an empty hands slot reloads the next kind at once }
+  class Armament { <<CE-3229>> hands judged by what it holds }
+  class UtilityScorer { <<existing>> never a hands candidate unless it holds a lethal round }
+  class PersonBody { <<existing>> armed pose: not for the hands }
+  class WeaponOf { <<existing>> a hands-only unit is unarmed }
+  class HrotEnvironment { <<existing>> RegisterBuiltInTkb → EnsureOnPersons }
+  class KnowledgeBaseLoadStep { <<existing>> a file TKB → EnsureOnPersons }
+  HrotEnvironment ..> PersonHands
+  KnowledgeBaseLoadStep ..> PersonHands
+  PersonHands ..> WeaponMountDto
+  CombatTkbTranslator ..> PersonHands : IsHands
+  PersonHands ..> AmmoLoadout
+  FireAtPointExecutor ..> AmmoLoadout
+  Armament ..> PersonHands
+  UtilityScorer ..> PersonHands
+  PersonBody ..> PersonHands
+  WeaponOf ..> PersonHands
+```
+*What the picture shows that prose hid:* the hands is an ordinary mount with one flag, so it rides every existing path (the translator, the
+loadout, `FireAtPoint`, the ammo mirror, the wire) — and the ONLY new behaviour is in the five readers that would otherwise read an empty
+hand as a weapon. The fix to `FireAtPoint` is not hands-specific: a loadout thrown at a point was simply never wired.
+
+```mermaid
+sequenceDiagram
+  participant B as rioter brain (CGF)
+  participant H as PersonHands
+  participant F as FireAtPointExecutor
+  participant S as SimHost FireProcessing
+  B->>H: Give(stone, 3) — B-13's grant, a test today
+  H->>H: free slot ← stone ×3, Loaded = it, WeaponState.Ammo += 3
+  B->>F: FireAtPoint(point, mount = hands)
+  F->>F: loaded = stone (Indirect) ⇒ the arc, no friendly or neutral line hold for an arcing round
+  F->>S: WeaponFireIntent { AmmoGuid = stone, AtPoint }
+  F->>F: Magazine.Spend + SpendLoaded ⇒ 2 left
+  Note over F: a slot emptied ⇒ the next kind with rounds is loaded at once (a hand has no breech)
+```
+*What the picture shows that prose hid:* the round that flies, the round that is spent and the round whose warhead decides "arc or
+straight" are now the SAME round — before, a loadout thrown at a point flew its mount's default and spent nothing of the loadout.
+
+| id | decision *(backend lean, inside AW-7 / AW-24)* | rejected — one line each |
+|---|---|---|
+| **H-1** | **the hands is a TKB mount with `Hands = true`, appended LAST by one pass** `PersonHands.EnsureOnPersons(db)` over every `Pedestrian` type, idempotent — run by `RegisterBuiltInTkb` and after a FILE TKB loads; a type already ending in a hands mount is left alone | a call in every person template: misses the BDC builder's and every file TKB · a synthesized mount the TKB never names: `MountOf(index)` would return null and every suite reader would disagree with the runtime |
+| **H-2** | **it starts empty**: `Category = Grenade`, no `AmmoGuid`, no `Loadout` entries; the translator gives a hands mount `WeaponState` 0/0 and an EMPTY `AmmoLoadout` (`Count = 0`) that `Give` fills (up to 4 kinds, AW-7) | a fixed 4-kind loadout (stone, stun, gas, grenade): a picked-up type outside the list could not be held |
+| **H-3** | **a hands-only unit has NO weapon** (`HandsOnly`: his mount 0 is the hands — exactly the dispenser rule CE-2188): `WeaponOf` ⇒ null, `ArmedByStatus` false, the figure's armed pose false. `LethalInHand` and `Judge` read the hands by WHAT IT HOLDS: empty ⇒ nothing; stones ⇒ a small object, not lethal; a grenade ⇒ lethal (AW-9) | a hands-only civilian read as armed by every "has a WeaponState" reader — the figure would carry a rifle |
+| **H-4** | **never CHOSEN as a weapon unless it holds a lethal round** (AW-24): the weapon-selection candidates skip it; an explicit `FireAtPoint` / `AimAndFire` on its index (behaviors' throw) is not affected | rely on "0 ammo scores 0": stones in a soldier's hand have ammo |
+| **H-5** | **`FireAtPoint` throws the LOADED round**: it sends it on the intent, spends its count, and takes `Indirect` / the line-of-fire exemption from its warhead; a hands slot that empties loads the next kind with rounds at once (no switch time) | a hands-only fire path: the frame's fence, "no second firing path" |
+| **H-6** | **6037 (stun) and 6038 (stone) get `Indirect`** — thrown on the arc like the M67; the security forces' stun grenades arc too | leave them straight: a stone would fly like a bullet (AW-7) |
+| ⚠ **H-7** | the hands index is the type's mount COUNT; every built-in person has ≤ 3 weapon mounts, so it is ≤ 3 and `dtWeaponAmmo` (4 mounts) carries what it holds to every node. A rail fails if a person type ever has more | widen `WeaponAmmo` now: no type needs it |
+
+#### 7.9a AS-BUILT `CE-3230` *(2026-10-17)* — built as §7.9 draws it
+
+| what | where |
+|---|---|
+| `PersonHands` (`Mount`, `EnsureOnPersons`, `IsHands`, `MountIndex`, `HandsOnly`, `MountEntity`, `Give`, `Rounds`, `ReadyNext`, `Holding`, `HoldsLethal`) | `FDP/Toolkits/Fdp.Toolkits/Combat/PersonHands.cs` |
+| `WeaponMountDto.Hands` (appended) | `Tkb/Domain/WeaponSuiteDto.cs` |
+| the pass, run twice: the built-in catalogue and a file TKB | `HrotEnvironment.RegisterBuiltInTkb`, `KnowledgeBaseLoadStep.PrepareAsync` |
+| an empty `AmmoLoadout` for a hands mount | `CombatTkbTranslator.AddLoadout` |
+| H-3 readers: `WeaponOf`, `PrimaryMount`, `Armament.ArmedByStatus` / `LethalInHand` / the conduct path (`OfHands`), `PersonBody.PoseOf` | as named |
+| H-4: the weapon-selection candidates (self and children) | `UtilityScorer` |
+| H-5: `FireAtPoint` sends, spends and judges the LOADED round (`ShootAtPoint`'s friendly / neutral exemptions read that round's warhead) | `FireAtPointExecutor` |
+| H-6: `Indirect` on 6037, 6038 | `MunitionTkbCatalog` |
+| rails: `PersonHandsTests` (5) · `StarterPackIntegrationTests.CE3230_ARiflemanWithStonesInHisHands_StillFiresHisRifle` · `NonLethalMunitionTests.CE3230_EveryBuiltInPerson_…` (every person ends with one hands mount at index ≤ 3; 6037 / 6038 arc) | toolkit tests · `Hrot.Core.Tests` |
+
+⚠ **Known limits.** ① Replicas see the hands' content only through `dtWeaponAmmo`'s breech round (the loaded kind) — enough for
+`Armament.Judge`; the full loadout stays on the brain's node. ② A civilian's hands ARE his mount 0, so `FireAtPoint` on mount 0 throws from
+his hands even when he also carries a weapon system (B-11): the throw names the hands' index, a carried weapon its controlled index — B-11
+decides whether a carried weapon should take mount 0 first. ③ `Give` is the only writer: the pick-up grant (B-13) calls it.
+
 ### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; [findings](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md))*
 
 | # | finding | answer |
