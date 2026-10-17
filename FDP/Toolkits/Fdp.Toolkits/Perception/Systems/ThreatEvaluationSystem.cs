@@ -51,6 +51,10 @@ namespace Fdp.Toolkit.Perception.Systems
         // destroyed unit's entry drops out instead of accumulating.
         private System.Collections.Generic.Dictionary<Entity, float> _lastHealth = new();
         private System.Collections.Generic.Dictionary<Entity, float> _nextHealth = new();
+        // ⭐ CE-2233 (CIV-0) — last frame's THREAT count per unit: the side is read live, so a neutral that turns Hostile changes the
+        //   count without changing the memory — the edge needs the previous frame's answer, as Hit needs the previous health.
+        private System.Collections.Generic.Dictionary<Entity, int> _lastThreats = new();
+        private System.Collections.Generic.Dictionary<Entity, int> _nextThreats = new();
 
         // ⭐ CE-3063 — this frame's heard contacts, grouped by the unit that heard them.
         private readonly System.Collections.Generic.Dictionary<Entity, System.Collections.Generic.List<SoundContactEvent>> _heard = new();
@@ -73,6 +77,7 @@ namespace Fdp.Toolkit.Perception.Systems
 
             // Iterate all entities that have TargetMemory: apply decay and optional boost.
             _nextHealth.Clear();
+            _nextThreats.Clear();
             var memQuery = view.Query().With<TargetMemory>().Build();
             foreach (var entity in memQuery)
             {
@@ -174,9 +179,16 @@ namespace Fdp.Toolkit.Perception.Systems
 
                 // ⭐ CE-3039 — the memory's edges, from the system that holds the memory (design §7.3). AllClear is reachable
                 //   since CE-3046 made the memory forget.
-                if (countBefore == 0 && mem.Count > 0)
+                // ⭐ CE-2233 (CIV-0, docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS, not contacts: a soldier
+                //   remembers the civilians he sees, and counted as contacts the first civilian took the one FirstThreat (the SOP
+                //   reacted, found nothing to engage, went idle) and a Hostile seen after it raised none — measured live on
+                //   ua-civ-neutral-gate. ⛔ SUPERSEDED: countBefore == 0 && mem.Count > 0 (any contact).
+                int threatsBefore = _lastThreats.TryGetValue(entity, out int tb) ? tb : ThreatCount(view, in memRO);
+                int threatsNow = ThreatCount(view, in mem);
+                _nextThreats[entity] = threatsNow;
+                if (threatsBefore == 0 && threatsNow > 0)
                     ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.FirstThreat });
-                else if (countBefore > 0 && mem.Count == 0)
+                else if (threatsBefore > 0 && threatsNow == 0)
                     ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AllClear });
 
                 // ⭐ CE-2165 V8 — AIR THREAT: more air contacts than before this frame (a flyer seen, rotors heard). A COUNT, not new
@@ -195,6 +207,19 @@ namespace Fdp.Toolkit.Perception.Systems
                 }
             }
             (_lastHealth, _nextHealth) = (_nextHealth, _lastHealth);
+            (_lastThreats, _nextThreats) = (_nextThreats, _lastThreats);
+        }
+
+        /// <summary>
+        /// ⭐ CE-2233 (CIV-0) — how many of the memory's contacts are THREATS: a heard (anonymous) contact always is (a sound has no
+        /// side); a seen one unless it is Neutral (<see cref="ThreatDanger.IsNeutral"/>, read live). What FirstThreat / AllClear count.
+        /// </summary>
+        public static int ThreatCount(ISimulationView view, in TargetMemory mem)
+        {
+            int n = 0;
+            for (int i = 0; i < mem.Count; i++)
+                if (TargetMemory.IsAnonymous(in mem, i) || !ThreatDanger.IsNeutral(view, new Entity((ulong)mem.EntityIds[i]))) n++;
+            return n;
         }
 
         /// <summary>What <paramref name="target"/> can sound like on this node (its <c>AcousticEmitter</c> classes); empty =
