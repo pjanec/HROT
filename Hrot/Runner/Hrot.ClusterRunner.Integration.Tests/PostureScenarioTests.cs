@@ -962,6 +962,17 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>Does <paramref name="observer"/>'s memory hold <paramref name="man"/>?</summary>
+    /// <summary>What <paramref name="observer"/>'s memory says of <paramref name="man"/>: present, anonymous, last-seen tick vs now.</summary>
+    private static unsafe string MemoryOf(EntityRepository w, Entity observer, Entity man)
+    {
+        if (!w.HasComponent<TargetMemory>(observer)) return "no memory";
+        ref readonly var mem = ref w.GetComponentRO<TargetMemory>(observer);
+        for (int i = 0; i < mem.Count; i++)
+            if (mem.EntityIds[i] == (long)man.PackedValue)
+                return $"slot {i}/{mem.Count}, anon {TargetMemory.IsAnonymous(in mem, i)}, lastSeen {mem.LastSeenTick[i]}, now {w.SimulationTick}";
+        return $"absent ({mem.Count} slots, now {w.SimulationTick})";
+    }
+
     private static unsafe bool Remembers(EntityRepository w, Entity observer, Entity man)
     {
         if (!w.HasComponent<TargetMemory>(observer)) return false;
@@ -993,10 +1004,15 @@ public sealed class PostureScenarioTests : IDisposable
         int a0 = -1, b0 = -1, bSpent = 0;
         double actAt = -1, concealedAt = -1, aHeldAt = -1, aFiredAt = -1, bSawAt = -1;
         bool hiddenWhenFired = false;
+        string aMemAtAct = "", bMemAtAct = "", aMemBefore = "", bWhy = "";
+        double bFiredAt = -1;
         void Sample()
         {
             if (a0 < 0) { a0 = Ammo(a); b0 = Ammo(b); }
-            if (actAt < 0 && Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man) == Fdp.Toolkit.Civilians.HostileActKind.Lethal) actAt = cgf.SimulationTime;
+            if (actAt < 0 && Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man) == Fdp.Toolkit.Civilians.HostileActKind.Lethal)
+            { actAt = cgf.SimulationTime; aMemAtAct = MemoryOf(cgf, a, man); bMemAtAct = MemoryOf(cgf, b, man); }
+            if (actAt < 0) aMemBefore = MemoryOf(cgf, a, man);
+            if (bFiredAt < 0 && Ammo(b) < b0) { bFiredAt = cgf.SimulationTime; bWhy = $"danger {Fdp.Toolkit.Perception.ThreatDanger.Of(cgf, b, man):F2}, judge {Armament.Judge(cgf, b, man)}, B target {cgf.GetComponent<ActionStatus>(b).Weapon.Reason}"; }
             bool hidden = CarryStations.IsConcealed(cgf, rifle);
             if (actAt >= 0 && concealedAt < 0 && hidden) concealedAt = cgf.SimulationTime;
             if (actAt >= 0 && aHeldAt < 0 && cgf.GetComponent<ActionStatus>(a).Weapon.Reason == ActionReason.HoldNeutralOnLine) aHeldAt = cgf.SimulationTime;
@@ -1008,7 +1024,8 @@ public sealed class PostureScenarioTests : IDisposable
         string State() => $"act {actAt:F1}, concealed {concealedAt:F1}, A held {aHeldAt:F1}, A fired {aFiredAt:F1} (hidden {hiddenWhenFired}), " +
                           $"B saw {bSawAt:F1}, B spent {bSpent}, A knows {KnownCombatants.Knows(cgf, a, man)}, B knows {KnownCombatants.Knows(cgf, b, man)}, " +
                           $"side {cgf.GetComponentRO<EntityInfo>(man).ForceId}, A {cgf.GetComponent<ActionStatus>(a).Weapon.Reason}, " +
-                          $"B {cgf.GetComponent<ActionStatus>(b).Weapon.Reason}, seat {CarryStations.SeatOf(cgf, rifle, out _)}, alive {Alive()}";
+                          $"B {cgf.GetComponent<ActionStatus>(b).Weapon.Reason}, seat {CarryStations.SeatOf(cgf, rifle, out _)}, alive {Alive()} | " +
+                          $"A mem before act [{aMemBefore}] at act [{aMemAtAct}] · B mem at act [{bMemAtAct}] · B fired {bFiredAt:F1} ({bWhy})";
 
         harness.PumpUntil(() => { Sample(); return aFiredAt >= 0 && cgf.SimulationTime > aFiredAt + 1 || cgf.SimulationTime > 120.0; }, timeoutFrames: 12000);
         _out.WriteLine(State());
