@@ -190,5 +190,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2235 (civilians CIV-1, CV-3; DESIGN_Civilians_And_Crowd_Control §5d) — a civilian's one behaviour: his routine,
         /// alarm and casualty (slice 1), later panic, shelter, protest and riot — modes of one HSM, never types.</summary>
         public const string CivilianHsm = "CivilianHsm";
+        /// <summary>⭐ <c>CE-2241</c> ① (AW-5, AW-21; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.5) — lay every weapon down and raise the hands; after
+        /// <c>Seconds</c> (0 = for good) take them up again and finish (the feint).</summary>
+        public const string Surrender = "Surrender";
     }
 }

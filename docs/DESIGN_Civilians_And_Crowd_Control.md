@@ -415,7 +415,7 @@ shot" could mean "not seen").
 | ARMED AW-18 · CE-2239 | **`ua-armed-self-defence`** | test-town · a NonLethal police line; one rioter aims a rifle at it | ① lethal fire at THAT rioter only · ② every other rioter still gets non-lethal force only | ⏳ |
 | ARMED AW-19 · CE-2239 | **`ua-armed-knife`** | test-town · a man with a knife closing on a checkpoint from 15 m; a second throws a Molotov | ① a warning while he is beyond reach · ② lethal once he is within reach or closing fast · ③ the Molotov thrower reads lethal | ⏳ |
 | ARMED AW-20 · CE-2239 | **`ua-armed-shield`** | test-town · a rifleman 60 m from an insurgent who walks east along the line, then 20 m out of it; six civilians standing in one row 0.45 m BESIDE the line (outside a 0.3 m body, inside the rifle's spread) — ⚠ *as built:* not "from inside a crowd": a civilian ON the line hides the target (no aimed shot is ever ready), and two rows are pushed ~1 m apart by pedestrian spacing | ① the rifleman holds ('hold: neutral on line') while a civilian is in the spread · ② he fires once clear and the insurgent goes down (out of the fight) · ③ zero neutral casualties (sampled) | ✅ live 5/5 · twin `PostureScenarioTests.AW20_ArmedShield_…` ✅ (every frame: held 2870 frames, no round left with a body on the line) |
-| ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ⏳ |
+| ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ✅ §5h.5 — live 7/7, twin green |
 | ARMED AW-2, AW-21 · B-7, B-8 | **`ua-armed-stones`** | test-town · stone-throwers (Hostile civilians) against a police line | ① non-lethal force only — zero lethal rounds counted · ② the throwers read unarmed on every node | ⏳ |
 | ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · a civilian fires at patrol A, hides his rifle, walks into a crowd; patrol B (another squad) arrives later | ① patrol A engages him on status when his line is clear · ② patrol B treats him as a civilian (warns, never fires first) | ⏳ |
 | ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ⏳ |
@@ -1263,6 +1263,94 @@ Protest — the existing Alarmed → Routine → Protest → Riot edges carry hi
 re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ no hands; a Hostile gunman covers nobody; beyond 100 m
 nobody). Red under 5 mutants (any covered man surrenders · an at-ease rifle covers · any side covers · no 5 s hold · Surrender outranks the wound — 📌 that one survived the first rail, which only checked the final state; the rail now checks every tick). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
 frames held; 150 → 150 rounds; 100 → 100 HP; Hostile); live 8/8 `2026-10-17` (sim 19.5 s).
+
+### 5h.5 AW-5 / AW-21 — a soldier lays his weapon down and raises his hands; a feint takes it up again *(behaviors, `CE-2241` ①, 2026-10-17; build-state: BUILT)*
+
+⭐ **Scope.** The ARMED half of `ua-armed-surrender` (§5c), now that backend landed B-10 (`WeaponLaying`, §7.11a): ① a library
+behaviour **`Surrender`** — he stops, lays every weapon down (`WeaponLaying.LayDownAll`) and raises his hands; after `Seconds` (0 = for
+good) he takes them up again and the behaviour FINISHES, so the next mission task (his fight) resumes — the feint; ② AW-21's "out of the
+fight" grows the case backend left to us: **laid down AND hands up** (`ThreatDanger.IsOutOfTheFight`).
+
+**INVENTORY** *(2026-10-17)*: `WeaponLaying.LayDownAll / IsLaidDown / AllLaidDown` (`Combat/WeaponLaying.cs`, replicated through
+`WeaponAmmo`; a laid-down mount holds with `NotDeployed`); `Gestures.Set` / `ThreatDanger.ShowsHandsUp` (§5h.2); `IsOutOfTheFight`'s 7
+callers measured — `ThreatDanger.Of`, `Covering.By`, `StandardInputs` ×2, `SquadInputs`, `AliveFilterTest`, `CivilianBehavior.Standing` —
+each reads it as "not a target / not a member who counts", which is exactly AW-21's meaning. A Final HSM state ends a behaviour
+(`HsmKernelCore.cs:368` — the `CombatPostureHsm` precedent, `PostureNodes.Arrived`). ⛔ No surrender behaviour exists (grep
+`Surrender` over `Brains/` ⇒ the civilian state only).
+
+```mermaid
+classDiagram
+  direction LR
+  class SurrenderBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> Surrender HSM: Surrendered then Done (Final) · Seconds }
+  class WeaponLaying { <<backend B-10>> LayDownAll(down) · AllLaidDown }
+  class Gestures { <<existing>> HandsUp }
+  class ThreatDanger { <<existing, grows>> IsOutOfTheFight: + laid down AND hands up }
+  class AimAndFireExecutor { <<existing>> HoldSurrender on hands up · NotDeployed on a laid-down mount }
+  SurrenderBehavior ..> WeaponLaying : down, then up
+  SurrenderBehavior ..> Gestures : HandsUp, then None
+  ThreatDanger ..> WeaponLaying : AllLaidDown
+  ThreatDanger ..> Gestures : ShowsHandsUp
+  AimAndFireExecutor ..> ThreatDanger
+```
+*What the picture shows that prose hid:* the surrender is two writes the engine already carries to every node (the laid-down mask, the
+gesture); the only reader that changes is the one AW-21 names.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Surrendered
+  Surrendered --> Done : Seconds elapsed (Seconds above 0)
+  Done --> [*]
+```
+*What the picture shows that prose hid:* leaving `Surrendered` — by time or because an order replaced the behaviour — always runs the one
+deactivator that takes the weapons up and lowers the hands, so a surrender never outlives its behaviour.
+
+```mermaid
+sequenceDiagram
+  participant M as mission plan (CGF)
+  participant S as Surrender (enemy soldier, CGF)
+  participant R as rifleman AimAndFire (CGF)
+  M->>S: task 1 Surrender, Seconds 20
+  S->>S: stop, LayDownAll, HandsUp
+  R->>R: HoldOf: HandsUp, HoldSurrender, no round
+  S->>S: 20 s: LayDownAll(down false), hands down, Done
+  M->>S: task 2 his fight (BehaviorFinished)
+  S->>R: aims and fires
+  R->>R: hands down and armed: engages again
+```
+*What the picture shows that prose hid:* the feint is not a special case anywhere — the rifleman's ordinary rules see hands up, then
+hands down and a weapon up, frame by frame (CV-13a: "the hands coming down is read the next frame").
+
+```mermaid
+graph TD
+  CGF[CGF node] --> BT[BrainTickSystem]
+  BT --> SUR[enemy soldier: Surrender HSM]
+  BT --> RIF[rifleman: his tree]
+  SUR --> WL[WeaponLaying: LaidDownWeapons mask, replicated]
+  SUR --> GE[Gestures: Gesture, replicated]
+  RIF --> AAF[AimAndFireExecutor reads HandsUp]
+```
+*What the picture shows that prose hid:* nothing is registered; the behaviour runs in the brain tick on the node that owns the soldier.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| who decides to surrender | ⭐ an ORDER — the scenario's mission task (or an operator) gives `Surrender`; a morale-driven decision is later | a morale model now: no design for it, and the demo needs a deterministic feint |
+| the feint | ⭐ `Seconds` > 0: weapons up and hands down when it elapses, then the behaviour finishes and the next task runs | a separate "re-arm" behaviour: two behaviours for one act |
+| out of the fight (AW-21) | ⭐ `IsOutOfTheFight` = incapacitated OR (all weapons laid down AND hands up) — the seven callers stop counting him | hands up alone: a feint with a weapon still up is not out of the fight (CV-13a holds fire, AW-21 does not discount him) |
+| a man with no weapon | ⭐ `AllLaidDown` needs at least one weapon mount — an unarmed rioter's hands up is CV-13a only, never AW-21 | count the unarmed as laid down: every civilian with hands up would read out of the fight |
+
+⚠ **Known limits:** ① no handover yet (AW-5's later half — the weapon stays on him, laid down); ② `Seconds` is per order, not a decision.
+
+⭐ **As built `2026-10-17`** *(matches the four diagrams; one fact the design did not state)*:
+`SurrenderBehavior` (`Brains/SurrenderBehavior.cs`, HSM `Surrender_HSM`, params `SurrenderParamsJsonDto {Seconds}`, `AllMilitary`); the
+activity re-asserts laid-down + hands-up EVERY tick (so a weapon taken up by anything else goes down again); `IsOutOfTheFight` widened in
+`ThreatDanger.cs`. ⭐ **The fact the design did not state:** `PersonAttack` (`ClassAttackOrders`) *succeeds* when its target is out of the
+fight — so a surrender ENDS an attack order on him. ⇒ the demo's rifleman has a second task, `CombatPosture`, and it is that posture which
+engages the feint (not a held-open attack order). Demo `ua-armed-surrender`: enemy soldier task 1 `Surrender {Seconds: 20}`, task 2
+`PersonAttack` on the rifleman; rifleman task 1 `PersonAttack` on him, task 2 `CombatPosture`.
+Rails: `SurrenderBehaviorTests` ×2 (SimHost, production registry) · `WeaponLayingTests.CE2241_OutOfTheFight_…` (toolkit) — red under 5
+mutants (no lay-down · no take-up · never held · no `AllLaidDown` term · no hands-up term). Twin
+`PostureScenarioTests.CE2241_ArmedSurrender_…`: surrendered on CGF/SimHost/IG at 1.6 s, 0 rounds, unhurt, rose at 21.6 s, fired on at
+22.4 s.
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 

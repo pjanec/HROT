@@ -3187,6 +3187,51 @@ def run_civ_surrender(c, timeout):
     c.ok(side() in ("Hostile", 2), f"⑤ his side stays Hostile ({side()})")
 
 
+def laid_down_on(perspective, nid):
+    """Has `perspective`'s node his weapons laid down — the replicated WeaponAmmo bit (B-10), or the brain's own mask."""
+    cs = comps_on(perspective, nid) or {}
+    return bool(((cs.get("WeaponAmmo") or {}).get("LaidDown") or 0) or ((cs.get("LaidDownWeapons") or {}).get("Mounts") or 0))
+
+
+def run_armed_surrender(c, timeout):
+    """test-town: an enemy soldier whose first task is Surrender {Seconds: 20} and whose second is to attack the rifleman 40 m off; the
+    rifleman's first task is to attack him, his second CombatPosture. ① he lays his rifle down and raises his hands on CGF, SimHost and IG
+    (AW-5) · ② while he is surrendered the rifleman spends no round and he is not hurt (AW-21: out of the fight) · ③ after 20 s he takes the
+    rifle up and lowers his hands (the feint) · ④ armed again, the rifleman engages him. The twin
+    (PostureScenarioTests.CE2241_ArmedSurrender_…) checks every frame."""
+    ids = ids_by_name()
+    enemy, rifle = ids.get("Enemy Soldier"), ids.get("Rifleman")
+    if not c.ok(None not in (enemy, rifle), "the enemy soldier and the rifleman are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+    seen = set()
+
+    def surrendered(h):
+        return gesture_on(h, enemy) == "HandsUp" and laid_down_on(h, enemy)
+
+    def everywhere():
+        for h in hosts:
+            if surrendered(h):
+                seen.add(h)
+        return len(seen) == len(hosts)
+    call("POST", "/sim/play", {})
+    first = wait_for(lambda: surrendered("CGF"), timeout, every=0.1)
+    c.ok(first is not None, "① he lays his rifle down and raises his hands")
+    t_up = sim_time() or 0.0
+    a0, h0 = (ammo(rifle) or (None,))[0], health(enemy)
+    wait_for(everywhere, 10, every=0.25)
+    c.ok(len(seen) == len(hosts), f"① …on every node ({sorted(seen)})")
+    rose = wait_for(lambda: not surrendered("CGF"), 40, every=0.25)
+    t_down = sim_time() or 0.0
+    a1, h1 = (ammo(rifle) or (None,))[0], health(enemy)
+    c.ok(a0 is not None and a1 == a0, f"② no round while he is surrendered (ammo {a0} → {a1})")
+    c.ok(h0 is not None and h1 is not None and h1 >= h0, f"② …and he is not hurt (health {h0} → {h1})")
+    c.ok(rose is not None and 15.0 <= t_down - t_up <= 25.0,
+         f"③ after ~20 s he takes the rifle up, hands down ({t_down - t_up:.1f} s; gesture {gesture_on('CGF', enemy)}, laid {laid_down_on('CGF', enemy)})")
+    fired = wait_for(lambda: (ammo(rifle) or (None,))[0] not in (None, a1), 30, every=0.25)
+    c.ok(fired is not None, f"④ armed again, the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3206,6 +3251,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-riot-stone": run_civ_riot_stone,
              # ⭐ CE-2241 ① CV-13a — a covered hostile raises his hands, the AI holds (Civilians §5c, §5h.3)
              "ua-civ-surrender": run_civ_surrender,
+             # ⭐ CE-2241 ① AW-5/AW-21 — a soldier lays his rifle down, hands up, then the feint (Civilians §5c, §5h.5)
+             "ua-armed-surrender": run_armed_surrender,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
