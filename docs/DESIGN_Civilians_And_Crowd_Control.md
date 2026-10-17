@@ -407,7 +407,7 @@ shot" could mean "not seen").
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
 | **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
-| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · a rifleman (Friend); a Hostile armed rioter who drops his weapon and raises his hands mid-fight | ① he is engaged while armed and fighting · ② from the frame his `Gesture` is HandsUp, no round is fired at him for 10 s, his side stays Hostile · ③ hands down + armed again ⇒ he is engaged again | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
 | ARMED AW-16 · CE-2239 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) near a patrol; he draws, waits 10 s, then aims | ① after the draw: a warning, side still Neutral, no round (sampled) · ② after the aim: side Hostile on every node and he is engaged | ⏳ |
@@ -1158,7 +1158,7 @@ review, each its own later item)* Friend → Hostile and disguise (insider attac
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
 the warning-shot step and time to comply; snatching a soldier's weapon.
 
-### 5h.3 CV-13a demo — a covered hostile raises his hands *(behaviors, `CE-2241` ①, 2026-10-17; build-state: READY-TO-BUILD)*
+### 5h.3 CV-13a demo — a covered hostile raises his hands *(behaviors, `CE-2241` ①, 2026-10-17; build-state: BUILT — as-built §5h.4)*
 
 ⭐ **Scope.** The §5h.2 deferral: SOMEONE who raises his hands, so `HoldSurrender` runs live. The unarmed half of `ua-civ-surrender`
 (§5c): a rioter who has struck a policeman (Hostile, §5i) and is then covered by a rifleman raises his hands; the rifleman holds. The
@@ -1199,7 +1199,7 @@ stateDiagram-v2
   Protest --> Surrender : covered and he committed an act
   Panic --> Surrender : covered and he committed an act
   Cower --> Surrender : covered and he committed an act
-  Surrender --> Protest : uncovered for 5 s
+  Surrender --> Alarmed : uncovered for 5 s
   Surrender --> Casualty : wounded
 ```
 *What the picture shows that prose hid:* Surrender is entered from the states where a hostile can still be engaged, and left only for a
@@ -1240,12 +1240,29 @@ the guard reads is written by the executor every frame it reports.
 | what "covered" is | ⭐ a FORCES person (`Friend`, `Armament.IsCombatant`, standing) within 100 m whose `WeaponPosture.Kind` is not `AtEase` and whose `Target` is him | the `ActionStatus` row: brain-local, never on the wire · a cone from the muzzle: the posture already names the target |
 | who raises his hands | ⭐ a man who has COMMITTED a hostile act (`HostileActs.Committed`) — he knows he is a target | every covered civilian: a Neutral is never fired at (CIV-0), and a crowd raising its hands at every soldier is a different behaviour |
 | fear | ⭐ not used — being covered is enough for him (deviates from §5h.2's "past `PanicAt`" lean: an aimed rifle is not a fear source yet, and making it one spreads panic through his crowd — CV-14's world) | a fear impulse while covered: changes every crowd near a soldier |
-| leaving | ⭐ 5 s with nobody covering him ⇒ back to Protest (from there his anger may riot him again, and he is engaged again) | stay for ever: a soldier who walks away leaves a statue |
+| leaving | ⭐ 5 s with nobody covering him ⇒ Alarmed, and from there the usual way back (calm ⇒ Routine ⇒ his protest ⇒ his anger may riot him again, and he is engaged again) | stay for ever: a soldier who walks away leaves a statue |
 | side | ⭐ unchanged — stays Hostile (CV-13a, AW-5) | flip back to Neutral: the act stays recorded |
 | priority | ⭐ Surrender's transitions at priority 1, Casualty raised to 2 — a wound still wins | rely on declaration order: invisible in the table |
 
 ⚠ **Known limits:** ① the armed half (B-10) · ② an operator's aim is a `WeaponPosture` too — a trainee covering a rioter makes him raise
 his hands, which is right · ③ he does not keep his hands up after the soldier leaves (5 s) — no "detained" state yet (SQD-13).
+
+### 5h.4 AS-BUILT — CV-13a demo *(behaviors, `CE-2241` ①, 2026-10-17)*
+
+⭐ **Built as §5h.3 draws it**, with two deviations, both folded into the diagrams above: ① Surrender leaves for **Alarmed**, not
+Protest — the existing Alarmed → Routine → Protest → Riot edges carry him back, so no new edge was needed; ② Casualty's priority is
+**2** and Surrender's entries **1**, as the decision table says.
+
+| | as built |
+|---|---|
+| where | `Covering.By` (`Fdp.Toolkits/Combat/Covering.cs`, reach 100 m) · `CivilianBehavior`: `Surrender` activity + `Deactivate_Surrender`, guards `Covered` / `Uncovered`, `SurrenderState { CoveredAt }`, `SurrenderHoldSeconds` 5 · `CivilianMode.Surrender` = 13 |
+| ⚠ the demo's rifleman is ORDERED | 📌 measured in the twin: under plain `CombatPosture` the rifleman never engaged the unarmed Hostile (danger 0.3): weapon reason `None`, 150 rounds for 80 s. ⇒ the scenario gives him `PersonAttack {Target: 9902}`. ⚠ This corrects §5i's "the AI may engage him": an UNORDERED soldier's posture decision does not pick an unarmed Hostile — that is the force ladder's (A6, `Roe.ForceLevel`) to decide, not this slice's |
+| hold vs cover | the rifleman's `WeaponPosture` reads `Ready` + target kept while he holds (`HoldSurrender`), so `Covering.By` keeps the hands up — measured: 760 frames of `HoldSurrender` in the twin |
+
+**Proof.** Rails `CivilianHsmTests.CE2241_ACoveredHostile_…` (raise, hold while Ready, stays Hostile, not down before 5 s, down after,
+re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ no hands; a Hostile gunman covers nobody; beyond 100 m
+nobody). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
+frames held; 150 → 150 rounds; 100 → 100 HP; Hostile); live 8/8 `2026-10-17` (sim 19.5 s).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
@@ -1346,7 +1363,7 @@ the brain tick and the crowd system that already run every frame on CGF.
 | who he goes for | ⭐ the nearest living, standing PERSON of the forces — `Friend`, not Neutral, not of the `Civilian` class — within `RiotReach` 30 m | anyone: a rioter beating a bystander is a different act (later) · the crowd's focus point: not every protest point is the police line |
 | the blow | ⭐ `Melee.Strike`: within `MeleeReach` 1.5 m, every `MeleeCooldown` 2 s, a `DamageAssessedEvent{5 hp, Blunt, 3 s}` on the CGF bus — applied by the Health owner (D5); a knocked-down victim is not struck again until he is up | a melee "round" through the ballistic path: a fist has no muzzle · damage on SimHost: CGF is where the brain decides and, for a scenario cast, where Health is claimed |
 | the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
-| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
+| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him (⚠ measured §5h.4: an UNORDERED soldier does not — only an attack order makes him) — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
 
 ⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
 scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
