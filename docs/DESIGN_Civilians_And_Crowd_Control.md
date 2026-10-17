@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.13 B-11 stations / pick-up weapons / charge designed, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -2470,6 +2470,97 @@ Rails *(the armed-people catalogue suite)*: `NonLethalMunitionTests.CE3231_TheSo
 rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, `CE3136_P8_WindowDuel`, `CE3094_UniversalSoldier`, plus
 `CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
 the correction.
+
+### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: READY-TO-BUILD — B-11a stations + pick-up weapons, then B-11b the charge)*
+
+INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-memory CLI only — `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| the person's seats today | ⚠ **TWO, not one** — seat 0 the casualty seat, seat 1 ONE `Station` accepting `Carried`; the Javelin preset fills "seat 1 = the carry station" BY INDEX | `CarrierDefDto.cs:45-51`, `BdcTkbCatalog.cs:179` |
+| how seats reach the runtime | `CarrierTkbTranslator` projects `CarrierSeats` (roles, `ExposedMask`) and `CarrierStations` (`StationMask`, per-seat `Accepts`) — **type facts, never on the wire**, on every node | `CarrierTkbTranslator.cs:32-120` |
+| how a carried thing knows its seat | its slot in the man's `PassengerBuffer` — **on the wire** (`EntityPassengers`); every node re-derives `IsEmbarkedTag.Seat` / `Exposed` from it (`EmbarkedStateSystem` re-boards when the slot changes) | `EntityPassengersTranslators.cs`, `EmbarkedStateSystem.cs:52-73` |
+| "hidden" today | `PhysicalPresence.IsHidden` — an enclosed passenger (`IsEmbarkedTag.Exposed == 0`) is not sensed, targeted or hit; ⛔ **no `Concealed` anywhere** | `PhysicalPresence.cs:25-35`, `Embarkation.cs:447` |
+| where a carried thing stands | `EmbarkedStateSystem` moves it with its carrier, at the station's offset — so a carried thing's OWN position is its carrier's | `EmbarkedStateSystem.cs:122-135` |
+| carry, controller, fire gate | `Embarkation.Check` / `FreeStation` (the first free accepting station) · `WeaponSystems.ControllerOf` (carried + `FireWhileCarried` ⇒ the carrier) · `CanFire` (:85) · `AimAndFireExecutor.SystemHold` | `Embarkation.cs:137-286`, `WeaponSystems.cs:41-93`, `AimAndFireExecutor.cs:722` |
+| a cross-node carry command | `EmbarkEntityCommand` applied where the CARRIER is owned (`Embarkation.OwnsVehicle`) | `EmbarkationSystem.cs:35` |
+| one-man fire-while-carried types | the `shoulder` preset (OneMan, Ground \| Carried, `FireWhileCarried`): Javelin, NLAW, LAW; ids 600–615, **616 free** | `BdcTkbCatalog.cs:264-334`, `TkbEntityTypes.cs:26-47` |
+| `Armament` and carried weapons | status (`WeaponOf`), lethal-in-hand and conduct (`Controlled`) ALREADY count a carried weapon — ⛔ none asks where it is carried | `Armament.cs:199-276` |
+| a burst with no round in flight | the FPV drone: the position owner publishes `DetonationNotification` from mount 0's round, then spends itself (`DamageAssessedEvent`) | `DroneImpactSystem.cs:105-119` |
+| the builder's mount | `WeaponMount` has `Category`, ⛔ no look — a pistol weapon system would read as a rifle | `SimCombatDef.cs:5-58`, `BdcTkbBuilder.cs:299-325` |
+
+```mermaid
+classDiagram
+  direction LR
+  class SeatDto { <<existing, + 2 fields>> + Stowed : cannot fire from it · + Concealed : nobody sees it }
+  class CarrierDefDto { <<existing>> PersonCarrier(): seat 0 casualty · 1 HANDS (unchanged) · + 2 BACK (Stowed) · + 3 HIDDEN (Stowed, Concealed, not exposed) }
+  class CarrierStations { <<existing type fact, + 2 masks>> + StowedMask · + ConcealedMask }
+  class CarryStations { <<NEW static>> Hands/Back/Hidden(view, man) · SeatOf(view, thing) · IsStowed · IsConcealed · Move(world, man, thing, seat) }
+  class Embarkation { <<existing>> FreeStation never picks a Concealed seat }
+  class WeaponSystems { <<existing>> CanFire: not from a Stowed seat }
+  class Armament { <<CE-3229>> a weapon in a Concealed seat arms nobody }
+  class UtilityScorer { <<existing>> no Stowed candidate }
+  class InteractionTransport { <<I-1>> + kind 11 Restation · + kind 12 DetonateCharge }
+  class Charges { <<NEW static, B-11b>> Detonate(world, charge) — on its position owner }
+  class BdcTkbCatalog { <<existing>> + 616 pick-up rifle · + 617 pick-up pistol · + 618 explosive charge (B-11b) }
+  CarrierDefDto --> SeatDto
+  CarrierStations ..> SeatDto : projected
+  CarryStations ..> CarrierStations
+  Embarkation ..> CarrierStations
+  WeaponSystems ..> CarryStations
+  Armament ..> CarryStations
+  UtilityScorer ..> CarryStations
+  InteractionTransport ..> CarryStations : Restation, on the man's list owner
+  InteractionTransport ..> Charges : DetonateCharge, on the charge's position owner
+```
+
+*What the picture shows that prose hid:* **concealment is a SEAT fact, and the seat already crosses the wire** — no new replicated
+component: two masks on a type fact, read through the slot every node already has.
+
+```mermaid
+sequenceDiagram
+  participant B as brain (CGF)
+  participant T as I-1 transport
+  participant O as the man's list owner
+  participant N as every node
+  B->>T: Restation(man, pistol, Hands)
+  T->>O: kind 11
+  O->>O: CarryStations.Move — the slot moves 3 → 1
+  O-->>N: EntityPassengers (the slot)
+  N->>N: EmbarkedStateSystem re-tags: Seat 1, Exposed 1
+  N-->>N: Armament: now armed · CanFire: yes
+  B->>T: DetonateCharge(vest)  (B-11b)
+  T->>O: kind 12, on the vest's position owner
+  O->>O: DetonationNotification at the vest = at the man
+```
+
+```mermaid
+graph TD
+  TKB[CarrierTkbTranslator — at spawn, every node] --> CS[CarrierStations + Stowed / Concealed masks]
+  EMB[EmbarkedStateSystem — every node, every frame] --> TAG[IsEmbarkedTag Seat / Exposed from the slot]
+  IA[Interactions capability — every node] --> RS[Restation applied on the list owner]
+  IA --> DC[DetonateCharge applied on the position owner]
+  AE[AreaEffectSystem — SimHost] --> BURST[the vest's warhead]
+```
+
+*Caption:* every edge exists today except the two I-1 kinds — which run in the `Interactions` capability every node already builds (B-13's
+pick-up runs there).
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **ST-1** | **seat 1 stays HANDS; BACK and HIDDEN are APPENDED** (seats 2, 3) | renumbering Hands to a new index: the Javelin preset and every saved slot name seat 1 |
+| **ST-2** | **two seat flags: `Stowed` (cannot fire from it) and `Concealed` (nobody sees it)** — Back = Stowed; Hidden = Stowed + Concealed + `Exposed = false` (so `IsHidden` keeps it from being sensed or hit — the existing rule) | one "Hidden" flag: a slung rifle is visible but cannot fire, so the two properties differ |
+| **ST-3** | **`FreeStation` never picks a Concealed seat** — a weapon goes Hidden only when asked (`Move`) | auto-filling Hidden third: a man picking up a third weapon would conceal it without deciding to |
+| **ST-4** | **draw / stow / conceal = `CarryStations.Move`**, applied on the man's list owner; from another node an I-1 **`Restation` (kind 11)**; every node follows the slot | a new replicated "station" component: the slot already IS the station |
+| **ST-5** | **cannot fire from a Stowed seat** (`CanFire` and the weapon-choice candidates) — **but it still ARMS by sight**: a slung rifle is armed to an observer | stowed = unarmed: a soldier with a slung rifle is armed (AW-21's status) |
+| **ST-6** | **a Concealed seat arms NOBODY** — status, lethal-in-hand, conduct (R-2025) | hiding by `Exposed` alone: `Armament` reads the controlled list, not presence |
+| **ST-7** | **pick-up rifle 616 and pistol 617** — the `shoulder` preset's one-man carry, their mount = the built-in `Rifle()` / `Pistol()` numbers; `WeaponMount.Look` appended so the pistol LOOKS like one | a new "item" entity kind: a weapon system already carries, fires while carried and changes hands |
+| **ST-8** *(B-11b)* | **the charge 618 is a weapon system with one mount (the charge round, 6043)**; `Charges.Detonate` on the charge's POSITION owner publishes its `DetonationNotification` where it stands and spends it — **worn, it stands at the man; in a car, at the car** (the carried-thing rule above); from another node an I-1 **`DetonateCharge` (kind 12)** | the round fired from a muzzle: a vest has none; "bursts at its controller" as a special case: its own position already is |
+| **ST-9** *(B-11b)* | **the VBIED: `MountKinds.Cargo` (16, appended) and ONE cargo station appended to the civilian car** | the charge in a passenger seat: seats hold people (`Seated` role) |
+
+⚠ **Stated before the build:** ① the 3-D figure draws a carried weapon in its hands today — Back (slung) and Hidden (not drawn) are ui's;
+② `Carriage` / `LoadOf` still return the FIRST load (the casualty seat first) — unchanged; ③ which car takes the cargo station is settled
+at B-11b against CE-3220 part 2 (the urban-combat car 1002 is being retired; the BDC `CivilianCar` 502 stays).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
