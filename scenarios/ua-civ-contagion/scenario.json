@@ -1,0 +1,600 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "c2370002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          10,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8051
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c2370002-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[12,190,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2370002-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "Sentry",
+              "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c2370002-0000-4000-8000-000000000103",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[12,190,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "c2370002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          10,
+          230,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8052
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hostile",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          40,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8061
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          48,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8062
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          56,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8063
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          64,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8064
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Civilian 4",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          72,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8065
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 5",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          80,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8066
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 6",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          88,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8067
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 7",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          96,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8068
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Civilian 8",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          104,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8069
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 9",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          112,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8070
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 10",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          120,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8071
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 11",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          128,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8072
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Civilian 12",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          136,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8073
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian 13",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          144,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8074
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Civilian 14",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c2370002-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          152,
+          210,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 8075
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Civilian 15",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

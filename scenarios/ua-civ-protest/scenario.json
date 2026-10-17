@@ -1,0 +1,457 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town"
+  },
+  "entities": {
+    "c2400000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9601
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          205,
+          258,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9602
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Protester 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          198,
+          266,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9603
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Protester 3",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          206,
+          274,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9604
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Protester 4",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          201,
+          282,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9605
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 5",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          194,
+          258,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9606
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Protester 6",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          190,
+          270,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9607
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Protester 7",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          195,
+          278,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9608
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Protester 8",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          210,
+          246,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9609
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Protester 9",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          212,
+          284,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9610
+      },
+      "TkbIdentity": {
+        "TkbType": 1102
+      },
+      "EntityInfo": {
+        "Name": "Protester 10",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          186,
+          262,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9611
+      },
+      "TkbIdentity": {
+        "TkbType": 1103
+      },
+      "EntityInfo": {
+        "Name": "Protester 11",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    },
+    "c2400000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          188,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9612
+      },
+      "TkbIdentity": {
+        "TkbType": 1104
+      },
+      "EntityInfo": {
+        "Name": "Protester 12",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"Protest\":true,\"ProtestAt\":[224,265,0]}",
+        "Origin": "Superior"
+      }
+    }
+  }
+}

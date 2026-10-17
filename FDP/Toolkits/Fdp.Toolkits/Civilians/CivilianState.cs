@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Civilians
     /// ⭐ <c>CE-2235</c> (CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §2.2, §5d) — what a civilian's HSM is doing, one value per state
     /// of the civilian machine. The HSM writes it from the state it is in, so a reader that is not the HSM (the crowd, a live check, a
     /// debugger) does not need the machine's metadata. Slice 1 runs <see cref="Routine"/>, <see cref="Alarmed"/> and <see cref="Casualty"/>;
-    /// the rest are the later slices' states (CE-2236 … CE-2238).
+    /// the rest are the later slices' states (CE-2236 … CE-2238); <see cref="Gather"/> is CE-2237's.
     /// </summary>
     public enum CivilianMode : byte
     {
@@ -25,6 +25,8 @@ namespace Fdp.Toolkit.Civilians
         Riot = 9,
         Dispersing = 10,
         ArmedHostile = 11,
+        /// <summary>⭐ <c>CE-2237</c> — an onlooker: he walked over to an incident and stands looking (§5f).</summary>
+        Gather = 12,
     }
 
     /// <summary>
@@ -57,6 +59,15 @@ namespace Fdp.Toolkit.Civilians
         /// valid when <see cref="HasFrightFrom"/> is 1. A panicking man runs away from it.</summary>
         public Vector3 FrightFrom;
         public byte HasFrightFrom;
+        /// <summary>⭐ <c>CE-2237</c> (§5f) — the crowd he stands in (<see cref="Crowd.Id"/>), 0 when none. Written by <see cref="CrowdSystem"/>.</summary>
+        public int CrowdId;
+        /// <summary>⭐ <c>CE-2237</c> — the incident that draws him (the nearest person hurt within <see cref="CrowdRules.AttractMetres"/>
+        /// while he is calm); valid when <see cref="HasFocus"/> is 1. Written by <see cref="CrowdSystem"/>, read by his Gather state.</summary>
+        public Vector3 Focus;
+        public byte HasFocus;
+        /// <summary>⭐ <c>CE-2237</c> — sim time (s) he last HEARD violence (a shot, a blast); 0 when he never has. Tells a fright he heard
+        /// from one he caught from his crowd.</summary>
+        public double HeardAt;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

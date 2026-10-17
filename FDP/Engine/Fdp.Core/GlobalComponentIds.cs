@@ -968,9 +968,14 @@ namespace Fdp.Core
         /// saved). ⚠ 399 measured free on backend, ui and behaviors 2026-10-17.</summary>
         public const int CivilianState = 399;
 
+        /// <summary><c>Crowd</c> — ⭐ CE-2237 (civilians CIV-3, CV-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5f): one crowd of civilians
+        /// (members, mean fear and anger, focus), a bodiless BRAIN-LOCAL entity on the node that runs its members' brains (never replicated,
+        /// never saved). ⚠ 400 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int Crowd = 400;
+
         /// <summary><c>AreaEffectCloud</c> — ⭐ CE-3219 part 3 (civilians B-1, R-3014; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b): a
         /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).
-        /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is taken by test-only components (Fdp.Core.Tests).</summary>
+        /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is behaviors' <c>Crowd</c> (test-only components in Fdp.Core.Tests also use 400 — their own registry).</summary>
         public const int AreaEffectCloud = 401;
     }
 }

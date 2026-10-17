@@ -228,6 +228,9 @@ namespace Hrot.CGF
             // ⭐ CE-2235 (docs/DESIGN_Civilians_And_Crowd_Control.md §5d) — every civilian's fear from what he heard this frame, before
             //   the brain tick, so his CivilianHsm reads this frame's fright.
             simList.Add(new Fdp.Toolkit.Civilians.CivilianFearSystem());
+            // ⭐ CE-2237 (§5f) — the crowds: who an incident draws, who stands with whom, and the fear that spreads among them —
+            //   after the fear system, before the brain tick, so a guard reads this frame's contagion.
+            simList.Add(new Fdp.Toolkit.Civilians.CrowdSystem());
             // ⭐ CE-3064 (R-206) — a near miss becomes the unit's SensorChange.NearMiss, beside Hit.
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
             // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft: SensorChange.MissileWarning + details.

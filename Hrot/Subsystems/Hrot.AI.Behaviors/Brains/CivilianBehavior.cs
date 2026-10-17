@@ -30,7 +30,12 @@ namespace Hrot.AI.Behaviors.Brains
     /// ⭐ <c>CE-2236</c> (CV-7, R-4035; §5e): <b>Panic</b> (he runs from the fright and looks for a building he can enter —
     /// <see cref="FindEnterableShelter"/>), <b>Shelter</b> (he runs in through a door that is not locked), <b>Inside</b> (he hides a while,
     /// then deletes himself — he is gone from every node) and <b>Cower</b> (no shelter in reach: he crouches where he is, cowering, until
-    /// the fear falls below panic). Protest and riot are states of this same machine in the later slices (CE-2237, CE-2238).
+    /// the fear falls below panic). Protest and riot are states of this same machine in the later slices (CE-2240, CE-2238).
+    /// ⭐ <c>CE-2237</c> (CV-5; §5f): <b>Gather</b> — calm, he walks over to an incident (a person hurt nearby,
+    /// <see cref="CivilianState.Focus"/>, found by <see cref="CrowdSystem"/>) and stands looking on, on a ring round it; walking there is
+    /// what makes the onlookers one crowd.
+    /// ⭐ <c>CE-2240</c> (CV-13; §5g): <b>Protest</b> — told to protest at a point, he stands on a ring round it, milling, his fist raised
+    /// or a sign held (<see cref="Gestures"/>, replicated — every map draws it); only fear past panic ends it.
     /// </summary>
     public static class CivilianBehavior
     {
@@ -52,6 +57,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const int ShelterSite = 0x22360001;
         public const float CrouchSeconds = 0.4f;
         public const float FallSeconds = 0.8f;
+        // ⭐ CE-2240 — the protest (§5g)
+        public const float ProtestRingMetres = 8f, ProtestRingJitterMetres = 7f, MillMetres = 3f, MillSpeed = 0.8f;
+        public const float MillMinSeconds = 8f, MillMaxSeconds = 15f, FistMinSeconds = 3f, FistMaxSeconds = 6f, RestMinSeconds = 2f, RestMaxSeconds = 5f;
+        /// <summary>The share of protesters who carry a sign the whole protest.</summary>
+        public const float SignShare = 0.4f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
@@ -60,6 +70,9 @@ namespace Hrot.AI.Behaviors.Brains
             public float AlarmAt, CalmBelow;
             // ⭐ CE-2236
             public float PanicAt, PanicSpeed, ShelterSearchRadius, FleeMetres, HideMinSeconds, HideMaxSeconds;
+            // ⭐ CE-2240
+            public Vector3 ProtestAt;
+            public byte HasProtest;
         }
 
         /// <summary>⭐ <c>CE-2236</c> — the panic's working memory, shared by Panic, Shelter and Inside: the shelter query, its answer,
@@ -72,6 +85,24 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Answered, Found, Moving, Arrived, Failed, Deleted;
             public Vector3 Shelter;
             public double HideUntil;
+        }
+
+        /// <summary>⭐ <c>CE-2240</c> — the protester's working memory: his spot on the ring, when he steps again, and his gesture's clock.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct ProtestState
+        {
+            public byte Started, Moving, Sign, FistUp;
+            public int Steps;
+            public Vector3 Spot;
+            public double NextMillAt, NextGestureAt;
+        }
+
+        /// <summary>⭐ <c>CE-2237</c> — the onlooker's working memory: the ring point he walks to round <see cref="FocusAt"/>.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct GatherState
+        {
+            public byte Moving, Arrived;
+            public Vector3 Target, FocusAt;
         }
 
         /// <summary>The routine's working memory: walking to <see cref="Target"/>, or lingering until <see cref="PauseUntil"/>.</summary>
@@ -90,6 +121,8 @@ namespace Hrot.AI.Behaviors.Brains
             public CivilianParams Params;
             public RoutineState Routine;
             public PanicState Panic;   // ⭐ CE-2236
+            public GatherState Gather;   // ⭐ CE-2237
+            public ProtestState Protest;   // ⭐ CE-2240
         }
 
         public static CivilianParams Defaults() => new CivilianParams
@@ -119,10 +152,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (authored.HideMinSeconds > 0f) p.HideMinSeconds = authored.HideMinSeconds;
             if (authored.HideMaxSeconds > 0f) p.HideMaxSeconds = authored.HideMaxSeconds;
             if (p.HideMaxSeconds < p.HideMinSeconds) p.HideMaxSeconds = p.HideMinSeconds;
+            if (authored.Protest) { p.ProtestAt = authored.ProtestAt; p.HasProtest = 1; }   // ⭐ CE-2240
             block = new CivilianBlackboard { Params = p };
         }
 
-        /// <summary>📄 §5d / §5e: Routine ⇄ Alarmed on his fear; Alarmed ⇒ Panic past <c>PanicAt</c>; Panic ⇒ Shelter (a building he can
+        /// <summary>📄 §5d / §5e / §5f: Routine ⇄ Alarmed on his fear; Routine ⇄ Gather on an incident nearby (fear first); Alarmed ⇒ Panic past <c>PanicAt</c>; Panic ⇒ Shelter (a building he can
         /// enter) or Cower (none); Shelter ⇒ Inside on arrival (or Cower when the way fails); Cower ⇒ Alarmed once his fear falls below
         /// panic. Wounded ⇒ Casualty from every state but Inside, first (priority) — a frightened wounded man lies down. Casualty and
         /// Inside have no way out (Inside ends in his deletion).</summary>
@@ -145,10 +179,19 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<CivilianBlackboard, CivilianParams>(bb => bb.Params, Cower);
             builder.State("Casualty")
                 .Activity<CivilianBlackboard, CivilianParams>(bb => bb.Params, Casualty);
+            var gather = builder.State("Gather")
+                .Activity<CivilianBlackboard, CivilianParams, GatherState>(bb => bb.Params, bb => bb.Gather, Gather);
+            var protest = builder.State("Protest")
+                .Activity<CivilianBlackboard, CivilianParams, ProtestState>(bb => bb.Params, bb => bb.Protest, Protest);
 
-            foreach (var s in new[] { routine, alarmed, panic, shelter, cower })
+            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest })
                 s.On(0).GoTo("Casualty").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(1);
             routine.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
+            routine.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Protesting).Polled();   // ⭐ CE-2240
+            protest.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
+            routine.On(0).GoTo("Gather").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Attracted).Polled();   // ⭐ CE-2237
+            gather.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
+            gather.On(0).GoTo("Routine").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, NotAttracted).Polled();
             alarmed.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
             alarmed.On(0).GoTo("Routine").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Calm).Polled();
             panic.On(0).GoTo("Shelter").Guard<CivilianBlackboard, CivilianParams, PanicState>(bb => bb.Params, bb => bb.Panic, ShelterFound).Polled();
@@ -341,6 +384,117 @@ namespace Hrot.AI.Behaviors.Brains
             StanceRequest.Set(world, self, StanceId.Standing, CrouchSeconds);
         }
 
+        /// <summary>⭐ <c>CE-2237</c> — Gather: he walks to a spot on a ring round the incident (his own bearing from it, the ring
+        /// <see cref="CrowdRules.RingMetres"/> plus a jitter that is his) and stands there looking on. A focus that moved sends him again. Running.</summary>
+        [SharedAiAction]
+        public static NodeStatus Gather(ref CivilianParams p, ref GatherState ws, Entity self, EntityRepository world)
+        {
+            CivilianMind.SetMode(world, self, CivilianMode.Gather);
+            if (!world.HasComponent<CivilianState>(self) || !world.HasComponent<SimTransform>(self)) return NodeStatus.Running;
+            ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
+            if (mind.HasFocus == 0) return NodeStatus.Running;
+            if (ws.Moving != 0 || ws.Arrived != 0)
+            {
+                if (Vector3.DistanceSquared(ws.FocusAt, mind.Focus) > 9f) { ws.Moving = 0; ws.Arrived = 0; }   // the focus moved: go again
+                else if (ws.Moving != 0)
+                {
+                    var status = LocomotionMoveTo.Status(world, self);
+                    if (status != NodeStatus.Running) { ws.Moving = 0; ws.Arrived = 1; }
+                    return NodeStatus.Running;
+                }
+                else return NodeStatus.Running;
+            }
+            ws.FocusAt = mind.Focus;
+            ws.Target = RingPoint(mind.Focus, world.GetComponentRO<SimTransform>(self).Position, (int)self.Index);
+            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true)) ws.Moving = 1;
+            else ws.Arrived = 1;   // nothing to walk with: he looks on from where he is
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the onlookers: he stops; a next gathering starts with a walk.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Gather")]
+        public static void Deactivate_Gather(ref CivilianParams p, ref GatherState ws, Entity self, EntityRepository world)
+        {
+            LocomotionMoveTo.Stop(world, self);
+            ws = default;
+        }
+
+        /// <summary>⭐ <c>CE-2240</c> — Protest: he walks to his spot on a ring round the protest point, then mills — a short slow step
+        /// every few seconds — with a sign held the whole time or his fist raised now and then (<see cref="Gestures"/>). Running until fear
+        /// past panic (or a wound) takes him out.</summary>
+        [SharedAiAction]
+        public static NodeStatus Protest(ref CivilianParams p, ref ProtestState ws, Entity self, EntityRepository world)
+        {
+            CivilianMind.SetMode(world, self, CivilianMode.Protest);
+            double now = world.SimulationTime;
+            if (ws.Started == 0)
+            {
+                if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Running;
+                ws = default;
+                ws.Started = 1;
+                var rng = SimRng.FromSim((int)self.Index, 0x22400, 0f);
+                ws.Sign = rng.NextSingle() < SignShare ? (byte)1 : (byte)0;
+                ws.Spot = RingPoint(p.ProtestAt, world.GetComponentRO<SimTransform>(self).Position, (int)self.Index, ProtestRingMetres, ProtestRingJitterMetres);
+                ws.Moving = LocomotionMoveTo.Issue(world, self, ws.Spot, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true) ? (byte)1 : (byte)0;
+                Gestures.Set(world, self, ws.Sign != 0 ? GestureKind.HoldSign : GestureKind.None);
+            }
+            if (ws.Moving != 0)
+            {
+                if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return Gesture(ref ws, self, world, now);
+                ws.Moving = 0;
+                var rng = SimRng.FromSim((int)self.Index, 0x22401 + ws.Steps, (float)now);
+                ws.NextMillAt = now + MillMinSeconds + rng.NextSingle() * (MillMaxSeconds - MillMinSeconds);
+            }
+            else if (now >= ws.NextMillAt && ws.NextMillAt > 0)
+            {
+                var rng = SimRng.FromSim((int)self.Index, 0x22402 + ws.Steps, (float)now);
+                float a = rng.NextSingle() * MathF.PI * 2f, r = MillMetres * MathF.Sqrt(rng.NextSingle());
+                var step = new Vector3(ws.Spot.X + r * MathF.Cos(a), ws.Spot.Y + r * MathF.Sin(a), ws.Spot.Z);
+                ws.Steps++;
+                if (LocomotionMoveTo.Issue(world, self, step, MillSpeed, 0.5f, MoveGait.Upright, onSurface: true)) ws.Moving = 1;
+                else ws.NextMillAt = now + MillMaxSeconds;
+            }
+            return Gesture(ref ws, self, world, now);
+        }
+
+        /// <summary>A sign carrier holds it; the others raise a fist a few seconds, then rest a few, on their own clock.</summary>
+        private static NodeStatus Gesture(ref ProtestState ws, Entity self, EntityRepository world, double now)
+        {
+            if (ws.Sign != 0 || now < ws.NextGestureAt) return NodeStatus.Running;
+            var rng = SimRng.FromSim((int)self.Index, 0x22403 + ws.Steps * 7 + ws.FistUp, (float)now);
+            ws.FistUp = ws.FistUp != 0 ? (byte)0 : (byte)1;
+            ws.NextGestureAt = now + (ws.FistUp != 0
+                ? FistMinSeconds + rng.NextSingle() * (FistMaxSeconds - FistMinSeconds)
+                : RestMinSeconds + rng.NextSingle() * (RestMaxSeconds - RestMinSeconds));
+            Gestures.Set(world, self, ws.FistUp != 0 ? GestureKind.FistRaised : GestureKind.None);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the protest: he stops, lowers his arms (the gesture goes out as None) and a next protest starts afresh.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Protest")]
+        public static void Deactivate_Protest(ref CivilianParams p, ref ProtestState ws, Entity self, EntityRepository world)
+        {
+            LocomotionMoveTo.Stop(world, self);
+            Gestures.Set(world, self, GestureKind.None);
+            ws = default;
+        }
+
+        /// <summary>⭐ <c>CE-2237</c> — where an onlooker stands: on his own bearing from the focus, <see cref="CrowdRules.RingMetres"/> out plus
+        /// a jitter of up to <see cref="CrowdRules.RingJitterMetres"/> in distance and ±30° in bearing, the same for the same man on every run.</summary>
+        public static Vector3 RingPoint(Vector3 focus, Vector3 me, int entityIndex)
+            => RingPoint(focus, me, entityIndex, CrowdRules.RingMetres, CrowdRules.RingJitterMetres);
+
+        /// <summary>A spot on a ring <paramref name="ring"/> + up to <paramref name="jitter"/> m round <paramref name="focus"/>, on his own bearing ±30°.</summary>
+        public static Vector3 RingPoint(Vector3 focus, Vector3 me, int entityIndex, float ring, float jitter)
+        {
+            var rng = SimRng.FromSim(entityIndex, 0x22370, 0f);
+            float bearing = MathF.Atan2(me.Y - focus.Y, me.X - focus.X);
+            if (float.IsNaN(bearing)) bearing = 0f;
+            bearing += (rng.NextSingle() - 0.5f) * (MathF.PI / 3f);
+            float r = ring + rng.NextSingle() * jitter;
+            return new Vector3(focus.X + r * MathF.Cos(bearing), focus.Y + r * MathF.Sin(bearing), focus.Z);
+        }
+
         /// <summary>One leg away from where the fright came from (or straight on when it is unknown), upright, at panic speed.</summary>
         private static void Flee(in CivilianParams p, Entity self, EntityRepository world)
         {
@@ -383,6 +537,20 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool BelowPanic(ref CivilianParams p, Entity self, EntityRepository world)
             => CivilianMind.FearOf(world, self) < p.PanicAt;
+
+        /// <summary>⭐ <c>CE-2240</c> — he was told to protest.</summary>
+        [SharedAiCondition]
+        public static bool Protesting(ref CivilianParams p, Entity self, EntityRepository world) => p.HasProtest != 0;
+
+        /// <summary>⭐ <c>CE-2237</c> — an incident draws him (<see cref="CrowdSystem"/> set his focus).</summary>
+        [SharedAiCondition]
+        public static bool Attracted(ref CivilianParams p, Entity self, EntityRepository world)
+            => world.HasComponent<CivilianState>(self) && world.GetComponentRO<CivilianState>(self).HasFocus != 0;
+
+        /// <summary>⭐ <c>CE-2237</c> — nothing draws him any more (the incident is gone, or out of reach).</summary>
+        [SharedAiCondition]
+        public static bool NotAttracted(ref CivilianParams p, Entity self, EntityRepository world)
+            => !Attracted(ref p, self, world);
 
         /// <summary>⭐ <c>CE-2236</c> — the shelter query found a building he can enter.</summary>
         [SharedAiCondition]
