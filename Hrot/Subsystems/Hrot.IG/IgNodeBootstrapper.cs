@@ -55,23 +55,16 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     private readonly INetworkFactory? _networkFactory;
 
     /// <summary>
-    /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder, mirroring <c>NodeBootstrapper.RoadNetworkHolder</c>.
-    /// It owns every published <c>RoadNetworkBlob</c> and is what makes a terrain reload safe against a
-    /// background reader.
-    /// <para>⚠ IG composes no <c>NavigationSolverModule</c> today, so the holder's only consumer is the
-    /// terrain loader below. It still has to EXIST: the loader publishes through it, and a blob published
-    /// with no owner is a leak plus a never-retired generation.</para>
+    /// ⭐⭐ <c>C8</c> — THIS node's road-graph holder (it owns every published <c>RoadNetworkBlob</c>, so a terrain reload is safe against
+    /// a background reader). ⭐ CE-4013 D8 — it IS the shared orchestration helper's, as on every host; IG used to keep a mirror copy.
     /// </summary>
-    public CarKinem.Road.RoadNetworkHolder RoadNetworkHolder { get; } = new CarKinem.Road.RoadNetworkHolder();
+    public CarKinem.Road.RoadNetworkHolder RoadNetworkHolder => _nodeBootstrapper.RoadNetworkHolder;
 
-    /// <summary>
-    /// ⭐⭐ <c>C8</c> — THIS node's terrain load service, mirroring <c>NodeBootstrapper.TerrainLoadService</c>.
-    /// 🔒 User ruling `2026-09-17`: <i>"IG/CGF get loaders in batch 3"</i> — a REAL loader, not a
-    /// scoped-down identity check. In slice 1 its tile loader is the announcing fake (design §6/§7).
-    /// </summary>
-    public Hrot.Map.Common.Services.TerrainLoadService TerrainLoadService { get; } =
-        new Hrot.Map.Common.Services.TerrainLoadService(
-            new Fdp.Toolkit.Terrain.AnnouncingZoneTileLoader());
+    /// <summary>⭐⭐ <c>C8</c> — THIS node's terrain load service (🔒 "IG/CGF get loaders in batch 3"); the shared helper's (CE-4013 D8).</summary>
+    public Hrot.Map.Common.Services.TerrainLoadService TerrainLoadService => _nodeBootstrapper.TerrainLoadService;
+
+    /// <summary>⭐ CE-4013 D8 — the ONE orchestration helper every bootstrapper host uses (SimHost, Stride, traffic, IG).</summary>
+    private readonly Hrot.SimHost.NodeBootstrapper _nodeBootstrapper;
 
     private readonly int _effectiveInstanceId;
     private readonly bool _headless;
@@ -122,6 +115,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         HrotNodeConfig hrotConfig)
     {
         _networkFactory = networkFactory;
+        _nodeBootstrapper = new Hrot.SimHost.NodeBootstrapper(networkFactory);
         _effectiveInstanceId = effectiveInstanceId;
         _headless = headless;
         _igTranslatorsProvider = igTranslatorsProvider;
@@ -287,142 +281,48 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         TogglablePostSimulationGroup postSimGroup,
         ScenarioSerializer serializer)
     {
-        // ⭐⭐⭐ CE-164 — the node's ONE orchestration bus, the one HrotNodeBuilder Step 8 created and put
-        //    this node's complete ISlaveOrchestrationTranslator on. ⛔ NOT a second `new FdpEventBus()`.
-        //
-        // ⚠ CMC-S016 ("each slave subsystem has its own orchestration bus + translator, Option C") is
-        //   SATISFIED by this, and always was: the ruling is about each SUBSYSTEM having its own bus —
-        //   true of every host, since each builds its own context — ⛔ NOT about a subsystem having TWO.
-        //   📐 Searched docs/ and .dev/ for a record justifying a second bus inside IG: none found.
-        //
-        // ⭐ Same shape as StrideNodeBootstrapper:278, which delegates with `eventBus: context.EventBus`,
-        //   and as SimHost/CGF. A FRESH ClusterSlave on the SHARED bus is the normal pattern
-        //   (SharedApplicationBootstrapper:104 then swaps it onto the context); what must never be fresh
-        //   is the BUS or the slave TRANSLATOR.
-        // 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1b.
-        var orchestrationBus = context.EventBus;
+        // ⭐⭐⭐ CE-4013 D8 — the SAME orchestration helper every bootstrapper host uses. 🔒 User (CE-164): "IG is no different from
+        //   cluster mgmt point of view. unification in as many places as possible". ⛔ This hand-built the whole handler set, a second
+        //   ClusterSlave ("IG" / Map2D hard-coded beside the builder's), a replay handler that toggled no group and suspended no time
+        //   push, and a preview handler with no world. ⇒ IG now gets exactly what every host gets: the context's ONE slave and
+        //   translator (CE-164's lesson, D15), its DECLARED role, replay that suspends its sim/post groups, preview that rewinds.
+        //   📄 DESIGN_Subsystem_Composition_Unification.md §4.1b/§4.1c (CE-164), §4.1ae.1 D8.
         MigrationServices = HrotMigrationBootstrap.BuildIg();
-
-        // CGF1-S0104: wire ClusterSlave once DDS participant is confirmed healthy.
-        // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)
-        // so the IG ClusterSlave always registers on a cluster-unique node ID.
-        // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
-        // P1/CE-285: advertise the declared role (as fdp.role.* tokens, derived back to the mask at ingest —
-        // CE-286) + the fdp.reliable-init feature token, since every NED node runs the reliable-init gateway.
-        var slave = new ClusterSlave(_effectiveInstanceId, "IG", orchestrationBus, Fdp.Core.NodeRole.Map2D,
-            capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(Fdp.Core.NodeRole.Map2D));   // + asset tokens, CE-3020
-
-        // ⛔ CE-164 — the hand-built `new NodeOpSlaveTranslator(...)` that stood here is DELETED.
-        //    context.SlaveTranslator already IS a NodeOpSlaveTranslator + ClusterOpEgressTranslator on this
-        //    very bus, built through INetworkFactory.CreateSlaveOrchestratorTranslators. Rebuilding the
-        //    ingress half by hand is what dropped the EGRESS half, and with it every transition intent IG
-        //    ever published. ⭐ IgApplication now ticks context.SlaveTranslator, like every other host.
-
-        // ⭐⭐ P5a (Q91 §4-G, R-4003/R-4011) — IG RECORDS like every ECS host: the same controller, composed the one way
-        //   (EcsRecordReplayController.ForNode). ⛔ Was: a listen-only ListenerRecordReplayController — "IG carries no ECS
-        //   frame data" predates the unification; IG holds a world and may own entities (R-4008). ExCon holds no controller at
-        //   all (C10): it has no world, so there is nothing to record — a missing dependency, not a role exception.
-        var igRrController = RecordReplayController = Hrot.SimHost.Modules.Orchestration.EcsRecordReplayController.ForNode(
-            context.Kernel, _effectiveInstanceId, context.World,
-            (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
-            context.BaseModules?.OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault());
 
         string storageDirectory = !string.IsNullOrWhiteSpace(_hrotConfig.LocalTempRoot)
             ? _hrotConfig.LocalTempRoot
             : OrchestrationConstants.ResolveStagingRoot();
-
-        // ⛔⛔⛔ SUPERSEDED `2026-09-18` — C8's standalone TerrainLoadClusterStateHandler is GONE from here.
-        //    Its own comment had the mechanism right ("ClusterSlave dispatches to the FIRST CanHandle-true
-        //    handler and then RETURNS") and the remedy wrong: registering FIRST does not mean "before the
-        //    others", it means "INSTEAD OF the others". Measured on CGF, where the same pattern shadowed the
-        //    scenario loader and the cluster loaded ZERO entities.
-        //
-        // ⭐⭐⭐ L2/L4 — ONE chain, composed from this node's ROLES. IG carries Map2D, which requires the
-        //    knowledge base (EVERY ECS node does — it composes the full genesis pipeline and must be able to
-        //    resolve the templates of entities it may be asked to create) and ⛔ NOT terrain: nothing on this
-        //    host reads the road graph, and it held a RoadNetworkHolder no consumer ever touched.
-        //    🔒 User, `2026-09-18`: "every ECS enable node should be able to create entities so every needs
-        //    the TKB loaded" · "load nothing where nothing reads it".
-        // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1, §4.1a, §4.1b.
-        // ⭐ The knowledge base (required by being an ECS node, not by the Map2D role) and the terrain (UNIVERSAL since 2026-10-03, R-182:
-        //   IG's map draws the terrain world) — from the ONE shared factory every ECS host uses (CE-4013, §4.1ae T2).
-        var (igLoadProviders, _) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
-            context.TkbDb, storageDirectory, RoadNetworkHolder, context.TerrainContent);
-
-        slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
-            Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World,
-            recordingController: igRrController,      // ⭐ P5a — the recording starts when the world is whole, as everywhere
-            storageDirectory:    storageDirectory,
-            hostLabel: "IG",
-            entityMap: context.EntityMap));   // CE-2101 — the world boundary clears it
-
-        // Wire ReferenceReplayLoadHandler (PrepareReplay / FinalizeReplay
-        // unconditional; PrepareLive only when replay active).
-        slave.RegisterHandler(new ReferenceReplayLoadHandler(
-            igRrController,
-            inputGroup:            null,
-            simGroup:              null,
-            postSimGroup:          null,
-            lifecycleGroup:        context.NedReplication?.NetworkLifecycleGroup,
-            bypassLifecycleToggle: null,
-            storageDirectory:      storageDirectory));
-
-        // Wire ReferenceLiveLoadHandler: PrepareLive / FinalizeLive with IG's own recording (P5a).
-        slave.RegisterHandler(new ReferenceLiveLoadHandler(
-            checkpointWorker: null,
-            controller:       igRrController,
-            storageDirectory: storageDirectory));
-
-        // ⭐⭐⭐ D3/D4 — the shared terrain/zone op handler REPLACES the bespoke IgZoneDummyHandler
-        //   (CGF1-BATCH-23 A.2), which existed only to ACK PrepareZone/CommitZone so IG would not stall
-        //   a round. The registrar does that by construction on every host.
-        //   ⭐ C8 — `service:` is NO LONGER null. IG composes a real TerrainLoadService above, so a zone
-        //   op does actual residency work here rather than ACKing with nothing to do.
-        //   📄 docs/DESIGN_Terrain_Zones_And_Assets.md §8.3.
-        Hrot.Map.Common.Services.TerrainAssetRegistrar.Register(
-            slave, TerrainLoadService, world: context.World, nodeId: _effectiveInstanceId,
-            localStagingRoot: storageDirectory);
-
-        // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
-        var igStorageProvider = new LocalDiskStorageProvider(storageDirectory);
-        slave.RegisterHandler(new ReferencePrefetchHandler(igStorageProvider));
-
-        // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
-        slave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
-
-        // ⭐⭐⭐ CE-275 ③ — IG registers the SAME scenario SAVE handler as every other host. 🔒 User ruling:
-        //   IG is a host that can create entities, so it must be able to save them; it just rarely owns
-        //   anything savable. When the cluster fans out SaveScenarioJson, this writes IG's OWNED slice via the
-        //   shared ScenarioSaveCore — usually empty (IG's authored entities carry ScenarioIgnoreTag / IG owns
-        //   no persistable), but a persistable entity IG owns IS saved. ⛔ There is no "IG registers no save
-        //   handler" rule any more; passivity is emergent from the ownership gate, not a missing handler.
-        //   ⚠ zoneService: null — IG composes no zone manager (the shared TerrainAssetRegistrar above).
-        //   📄 docs/DESIGN_Distributed_Scenario_Persistence.md §4 · DESIGN_Node_Roles_And_Policies §7.1.
-        //   CE-279 Layer A — registered via the shared registrar. IG reports no .fdp archive today, so its
-        //   archive handler is null; the save handler is placed first uniformly, payload-aware.
-        Fdp.Toolkit.Orchestration.SerializeLocalRegistrar.Register(
-            slave,
-            new Hrot.ScenarioEditor.Handlers.HrotScenarioSaveHandler(
-                serializer, context.World, _effectiveInstanceId),
-            recordingRoot: storageDirectory, nodeId: _effectiveInstanceId);   // ⭐ P5b — IG's recording is archived too
-
-        // Diagnostics dump support: IG must ACK CollectDiagnostics in cluster 2PC.
-        var archService = new ArchitectureDiagnosticsService(context.Kernel);
-        var entityService = new EntityStateExtractionService(context.World, context.EntityMap);
         string logDirectory = !string.IsNullOrWhiteSpace(_hrotConfig.LogDirectory)
             ? _hrotConfig.LogDirectory
             : System.IO.Path.Combine(System.AppContext.BaseDirectory, "logs");
-        var logService = new LogArchiveExtractionService(
-            logDirectory,
-            _hrotConfig.SubsystemName,
-            context.NodeId);
-        slave.RegisterHandler(new DiagnosticsDumpClusterOpHandler(
-            _eventHistoryService!,
-            archService,
-            entityService,
-            logService,
-            _hrotConfig));
 
+        var slave = _nodeBootstrapper.BuildOrchestration(
+            BootRole, context.Kernel, context.World, _effectiveInstanceId,
+            participant:         context.Participant,
+            subsystemName:       _hrotConfig.SubsystemName,
+            eventBus:            context.EventBus,
+            scenarioSerializer:  serializer,   // CE-275 ③ — IG saves its owned slice through the shared handler
+            localTempRoot:       storageDirectory,
+            tkbDb:               context.TkbDb,
+            simGroup:            simGroup,
+            postSimGroup:        postSimGroup,
+            lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
+            ghostCreationSystem: context.GhostCreationSystem,
+            eventAccumulator:    context.EventAccumulator,
+            afterSeek:           (context.NedReplication as Hrot.Common.Abstractions.INedReplicationModule)?.AfterSeekCallback,
+            // MD-002 — IG's diagnostics dump (its event history, architecture, entities, logs).
+            diagnosticsDumpHandler: new DiagnosticsDumpClusterOpHandler(
+                _eventHistoryService!,
+                new ArchitectureDiagnosticsService(context.Kernel),
+                new EntityStateExtractionService(context.World, context.EntityMap),
+                new LogArchiveExtractionService(logDirectory, _hrotConfig.SubsystemName, context.NodeId),
+                _hrotConfig),
+            elm:                 context.BaseModules?.OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>().FirstOrDefault(),
+            terrainContent:      context.TerrainContent,
+            clusterSlave:        context.ClusterSlave,
+            slaveTranslator:     context.SlaveTranslator);
+
+        RecordReplayController = _nodeBootstrapper.RecordReplayController;   // P5a — the same controller every ECS host composes
         return slave;
     }
 
