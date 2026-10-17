@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.12 B-9 pistol designed, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -2257,6 +2257,89 @@ Rails: `WeaponLayingTests` (3: all down arms nobody and taken up arms again · F
 `WeaponAmmo` and read on a replica) · `FireProcessingSystemTests.CE3232_…` (no round here or as a replica; taken up it fires) ·
 `PossessionReplicationTests.CE3174_…` now carries the bit across the wire; red-proved ×4. ⚠ No new ActionReason: a laid-down weapon reads
 "hold: not deployed" (the weapon-systems reason).
+
+### 7.12 B-9 — the PISTOL, a second built-in mount on the soldier types *(AW-4, AW-24 — R-2025, R-2029; `CE-3231`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+
+INVENTORY *(grep + reads at `backend@1e935427a`; codebase-memory CLI `search_graph` `.*(WeaponChoice|ChooseMount|SelectWeapon|PickMount|BestMount).*` → 10:
+`WeaponChoice` the one chooser; grep `Pistol` → only `ItemLook.Pistol` + its 0.2 m size; grep `9 mm|9x19` → nothing in code or the reference library)*:
+
+| question | measured | where |
+|---|---|---|
+| who the "soldier types" are | `UrbanCombatTkbCatalog`: InfantrySoldier 2002 (rifle), Grenadier 2004 (rifle + M67), MortarTeam 2005, JavelinTeam 2006 / NlawGunner 2007 (launcher + rifle), Insurgent 2003 (RPG + rifle). ⛔ **no Pilot type exists** (the frame's "planned Pilot"). BDC `InfantrySoldier` 504 takes its mounts from BDC data rows, not code | `UrbanCombatTkbCatalog.cs:193-306`, `BdcTkbBuilder.cs:280-300` |
+| which types the soldier rails spawn | `ua-posture`, `ua-threat-ranking`, `bt-window-duel` → 2002 (and 8806, a parked car) | `scenarios/*/scenario.json` |
+| who picks the weapon | `WeaponChoice.Choose` ← `AimAndFireExecutor.EngagementMount` (only for `MountAuto`; chosen ONCE per engagement, re-chosen when the chosen mount runs dry, W-12a) ← `PostureNodes` / `CgfNodes` aimed fire | `WeaponChoice.cs`, `AimAndFireExecutor.cs:99, 756-772`, `PostureNodes.cs:470` |
+| how it ranks a mount | `WeaponSelectionDecision`: ammo (step) × in range (logistic at distance / range = 1) × effectiveness (expected damage of one round through `ArmorModel` × hit chance from `HitModel`) × `RoundsLeft` (log scale, 300 = 1) | `WeaponSelectionDecision.cs`, `StandardInputs.cs:378-470` |
+| readers that loop over a man's mounts | `ThreatDanger.ToMe` / `ReachAgainst` take the **MAX** (never a sum) · `Armament` lethal-any / `Judge` max · `WeaponLaying` · `ParameterResolver` (per-mount provenance) | `ThreatDanger.cs:110, 133`, `Armament.cs:215, 261` |
+| where the hands go | `PersonHands.EnsureOnPersons` appends them LAST; `WeaponAmmo` carries mounts 0…3 (rail `CE3230_…` asserts hands ≤ 3) | `PersonHands.cs:40-60` |
+| a vest | `bodies.json` "Soldier": torso 5 mm front and rear, head 0 front | `Tkb/Reference/Data/bodies.json` |
+
+```mermaid
+classDiagram
+  direction LR
+  class UrbanCombatTkbCatalog { <<existing>> Rifle() · + Pistol() — InfantrySoldier, Grenadier }
+  class MunitionTkbCatalog { <<existing>> + TkbPistol9mm 6042 "9x19 ball" · Costs[9 mm] = 1 }
+  class WeaponMountDto { <<existing>> Category SmallArms · Appearance Look = Pistol }
+  class PersonHands { <<existing>> EnsureOnPersons appends the hands AFTER the pistol }
+  class CombatTkbTranslator { <<existing>> mount i ≥ 1 ⇒ a mount child with WeaponState }
+  class WeaponChoice { <<existing, unchanged>> Choose(repo, owner, target) }
+  class WeaponSelectionDecision { <<existing, unchanged>> ammo × in range × effectiveness × rounds left }
+  class AimAndFireExecutor { <<existing, unchanged>> MountAuto ⇒ EngagementMount }
+  class ItemAppearances { <<existing>> Look Pistol ⇒ a 0.2 m item to identify }
+  UrbanCombatTkbCatalog --> WeaponMountDto : Pistol()
+  WeaponMountDto ..> MunitionTkbCatalog : AmmoGuid 6042
+  PersonHands ..> UrbanCombatTkbCatalog : after its mounts
+  CombatTkbTranslator ..> WeaponMountDto : the pistol child
+  AimAndFireExecutor ..> WeaponChoice
+  WeaponChoice ..> WeaponSelectionDecision
+  ItemAppearances ..> WeaponMountDto
+```
+
+*What the picture shows that prose hid:* **nothing on the brain side is new** — the pistol is DATA (a mount + a munition); the existing
+chooser ranks it, the existing translator makes its child, the existing appearance reads its look.
+
+```mermaid
+sequenceDiagram
+  participant BT as soldier behaviour (CGF)
+  participant AF as AimAndFireExecutor
+  participant WC as WeaponChoice
+  participant SC as WeaponSelectionDecision
+  participant FP as FireProcessingSystem (SimHost)
+  BT->>AF: aimed fire, Mount = Auto, target 20 m
+  AF->>WC: EngagementMount (rifle ran dry, re-choose)
+  WC->>SC: rank mounts vs target
+  SC-->>WC: rifle 0 (no ammo), pistol > 0 (in 50 m)
+  WC-->>AF: mount 1, the pistol child
+  AF->>FP: WeaponFireIntent WeaponIndex 1
+  FP-->>FP: a 9 mm round from the pistol's WeaponState
+```
+
+```mermaid
+graph TD
+  ENV[HrotEnvironment.RegisterBuiltInTkb — every node, at load] --> UC[UrbanCombatTkbCatalog: + Pistol on 2002, 2004]
+  ENV --> MU[MunitionTkbCatalog: + 6042]
+  ENV --> PH[PersonHands.EnsureOnPersons: hands last]
+  SPAWN[CombatTkbTranslator — at spawn, every node] --> CH[the pistol mount child]
+  DISP[BTree dispatcher — CGF brain node, every frame] --> AF[AimAndFireExecutor MountAuto]
+  AF --> WC[WeaponChoice]
+  FPS[SimHost combat group, every frame] --> FP[FireProcessingSystem]
+```
+
+*Caption:* the catalogue runs at load on every node; the choice runs where the brain is; the round is made on SimHost — **no new system, no new
+frame edge.**
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **PI-1** | **the pistol on InfantrySoldier (2002) and Grenadier (2004)** — the soldier rails' types, as the frame names them | every person type: AW-24 bounds it to "the types that should carry it" · the Insurgent: his second weapon is a rifle · the AT and mortar crews: not in the frame, and a third mount for nothing measured · BDC 504: its weapons are BDC data rows · the Pilot: does not exist (it takes `Pistol()` when it is added) |
+| **PI-2** | **appended AFTER the existing mounts** — rifle stays 0, the grenade stays 1; the hands move to 2 / 3 (≤ 3, `WeaponAmmo` carries them) | the pistol at 1: every authored grenade index (`Mount = 1`) would fire the pistol |
+| **PI-3** | **a 9 mm ball round, 6042** (DIS 8.USA.2 — calibre fields 0, not invented, R-3011), cost 1; the mount: 15-round magazine × 3 = 45, 2 s reload, 360 m/s, **range 50 m**, 18 per hit, **penetration 2 mm** (a 5 mm vest stops it), dispersion 12 mils, `Look = Pistol` | reusing the 5.56 round: the cost table, the shot log and `/combat/shots` would name a rifle round |
+| **PI-4** | **no brain change** — `WeaponChoice` ranks it: while the rifle has ammo it wins (lower damage × lower hit chance × fewer rounds); the rifle empty ⇒ the pistol inside 50 m; out of the pistol's range ⇒ nothing better than the empty primary (held) | a "sidearm" rule in the executor: a second chooser (AW-4: the weapon brain switches by itself) |
+| **PI-5** | **accepted by re-running the soldier rails UNCHANGED** — U1 `ua-posture`, U2 `ua-threat-ranking`, `ua-universal-soldier`, `bt-window-duel` (a deviation is a finding, never a re-baseline) | — |
+
+⚠ **Known limits, stated before the build:** ① against a VESTED soldier seen from the front the pistol's expected damage is 0 (2 < 5 mm), so
+an empty rifleman facing one holds — the chooser falls back to the empty primary (realistic; an unvested target, a civilian or an insurgent,
+gets the pistol); ② the 3-D figure keeps drawing a rifle while he fires the pistol (`ActiveMount` = 1 is on the wire — the drawing is ui's);
+③ a rifle with only a few rounds left (≈ 8 at 20 m, by the numbers above) may lose to a full pistol at close range — a deliberate property
+of `RoundsLeft`, not a new rule.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
