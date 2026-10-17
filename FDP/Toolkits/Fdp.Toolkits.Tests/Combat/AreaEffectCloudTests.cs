@@ -215,6 +215,26 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(_w.IsAlive(cloud));
         }
 
+        /// <summary>⭐ <c>CE-3228</c> — a REPLICATED cloud (it has a network identity) ends through the one teardown path: a
+        /// <c>DestroyEntityCommand</c>, published ONCE, never a local destroy (which left every replica behind — the cross-node rail).
+        /// ✅ Red-proof: the direct destroy back ⇒ the cloud is gone here and no command is published ⇒ red.</summary>
+        [Fact]
+        public void CE3228_AReplicatedCloud_EndsThroughTheTeardownCommand_Once()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            _w.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>();
+            var cloud = Cloud(CloudKind.Smoke, Vector3.Zero, seconds: 2f);
+            _w.AddComponent(cloud, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 77 });
+
+            Frame(2.0);
+            var asked = _w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>().ToArray();
+            Assert.True(_w.IsAlive(cloud));                     // the teardown, not this system, removes it
+            Assert.Equal(77, Assert.Single(asked).NetworkId);
+
+            Frame(2.5);
+            Assert.Empty(_w.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>());   // asked once
+        }
+
         [Fact]
         public void ACloudThisNodeDoesNotOwn_IsNeitherMovedNorEnded()
         {

@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Combat.Systems
         public const double StepSeconds = 1.0;
 
         private readonly Dictionary<Entity, double> _lastStep = new();
+        private readonly HashSet<Entity> _ending = new();   // ⭐ a networked cloud whose end was asked for (once)
         private readonly List<Entity> _gone = new();
 
         /// <summary>Irritant hits this node published (a rail and a diagnostics counter read it).</summary>
@@ -40,6 +41,7 @@ namespace Fdp.Toolkit.Combat.Systems
             _gone.Clear();
             foreach (var e in _lastStep.Keys) if (!repo.IsAlive(e)) _gone.Add(e);
             foreach (var e in _gone) _lastStep.Remove(e);
+            _ending.RemoveWhere(e => !repo.IsAlive(e));
 
             foreach (var e in repo.Query().With<AreaEffectCloud>().With<SimTransform>().Build())
             {
@@ -47,7 +49,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 var cloud = repo.GetComponentRO<AreaEffectCloud>(e);
                 if (cloud.IsOver(now))
                 {
-                    cmd.DestroyEntity(e);
+                    End(repo, cmd, e);
                     _lastStep.Remove(e);
                     continue;
                 }
@@ -64,6 +66,29 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ② a tear-gas cloud irritates whoever stands in it
                 if (cloud.Kind == CloudKind.TearGas && cloud.IrritantSeconds > 0f) Pulse(repo, in cloud, tf.Position);
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3228</c> — a REPLICATED cloud ends through the one teardown path, <see cref="Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand"/>
+        /// (Entity Creation §3.4c): the lifecycle teardown deletes it on the wire, so every replica goes too. 📐 A direct
+        /// <c>DestroyEntity</c> removed only the owner's copy — measured by <c>EntityOrdersAcrossNodesTests.CE3219_…</c> once the default
+        /// processor owned it (gone on CGF, still on SimHost and the IG). A cloud with no network identity (an offline world) is destroyed here.
+        /// </summary>
+        private void End(EntityRepository repo, Fdp.Interfaces.IEntityCommandBuffer cmd, Entity e)
+        {
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                && repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+            {
+                if (!_ending.Add(e)) return;   // asked already; the teardown is under way
+                repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+                {
+                    NetworkId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value,
+                    Reason    = "AreaEffectCloud ended",
+                });
+                return;
+            }
+            cmd.DestroyEntity(e);
         }
 
         private void Pulse(EntityRepository repo, in AreaEffectCloud cloud, Vector3 at)
