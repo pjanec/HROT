@@ -281,50 +281,6 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Equal(1, factory.Calls);
     }
 
-    /// <summary>A content loader that counts its prepares.</summary>
-    private sealed class CountingContentLoader : ITerrainContentLoader
-    {
-        public int Prepares;
-        public object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world) { Prepares++; return null; }
-        public void Commit(EntityRepository world, object? prepared) { }
-        public void Unload(EntityRepository world) { }
-    }
-
-    /// <summary>⭐ CE-4013 (§4.1ae T1) — terrain content is the NODE's: a loader added to one node's registry loads on that node's
-    /// residency only, even when it was added after the residency was built (a capability composes after the host built it).</summary>
-    [Fact]
-    public void CE4013_TerrainContent_IsPerNode_AndAttachesWhenAddedLater()
-    {
-        WriteTerrainDefinition("plain");
-        using var holder = new RoadNetworkHolder();
-        var mine = new TerrainContentRegistry();
-        var other = new TerrainContentRegistry();
-        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder, mine);
-        var neighbour = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder, other);
-        var loader = new CountingContentLoader();
-
-        mine.Add("test-content", () => loader);   // after both residencies exist
-        residency.Prepare("plain");
-        neighbour.Prepare("plain");
-
-        Assert.Equal(1, loader.Prepares);
-        Assert.Same(mine, residency.Content);
-    }
-
-    /// <summary>⭐ CE-4013 (§4.1ae T2) — HROT's universal load parts are written once: the knowledge base, then the terrain, over the
-    /// node's terrain content.</summary>
-    [Fact]
-    public void CE4013_TheUniversalParts_AreTheKnowledgeBaseThenTheTerrain_OverTheNodesContent()
-    {
-        using var holder = new RoadNetworkHolder();
-        var content = new TerrainContentRegistry();
-
-        var (parts, residency) = HrotUniversalLoadParts.Build(null, _stagingRoot, holder, content);
-
-        Assert.Collection(parts, p => Assert.IsType<KnowledgeBaseLoadStep>(p), p => Assert.IsType<TerrainLoadStep>(p));
-        Assert.Same(content, residency.Content);
-    }
-
     /// <summary>
     /// ⭐ EQS §19 — a terrain commit publishes the terrain's COVER database (building edges), so a cover query has points on
     /// every node that loaded the terrain; unload replaces it with an empty one (never the previous terrain's cover).

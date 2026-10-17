@@ -333,12 +333,8 @@ namespace Hrot.SimHost.Tests
 
             // ⭐ CE-2144 (R-2008) — the plan starts from the ONE shared head (LiveSimulationPlanRails pins that no host bypasses it).
             Assert.Contains("CoreInfrastructureCapabilities.LiveSimulationPlan(", src);
-            // ⭐ CE-4013 — through the ONE shared walk, every phase of it (it used to loop over two of the three hooks by hand).
-            Assert.Contains("new NodeCapabilityWalk(", src);
-            Assert.Contains("_capabilityWalk.PopulateSystems(", src);
-            Assert.Contains("_capabilityWalk.ProvideModules()", src);
-            Assert.Contains("_capabilityWalk.Register(", src);
-            Assert.Contains("_capabilityWalk!.AssertComplete(", src);
+            Assert.Contains("capability.ProvideModules()", src);
+            Assert.Contains("capability.PopulateSystems(", src);
 
             // ⛔ The groups must be built from the POPULATED lists, never from the pack directly.
             Assert.DoesNotContain("cgfLogicPack.InputSystems", src);

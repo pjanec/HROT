@@ -25,7 +25,6 @@
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.LiveCity\Sim.LiveCity.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Viewer.Motion\Sim.Viewer.Motion.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Scene\Sim.Scene.csproj" />
-    <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Replication.Dds\Sim.Replication.Dds.csproj" />
   </ItemGroup>
 
 </Project>

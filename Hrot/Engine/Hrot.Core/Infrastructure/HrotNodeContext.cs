@@ -143,10 +143,4 @@ public sealed record HrotNodeContext : IDisposable
     /// ⭐ A host that needs the concrete master casts at its own site, as the editor already does.</para>
     /// </remarks>
     public ITimeController? TimeController { get; init; }
-
-    /// <summary>
-    /// ⭐ CE-4013 (<c>DESIGN_Subsystem_Composition_Unification.md</c> §4.1ae T1) — the extra terrain content THIS node loads with every
-    /// terrain; a capability adds to it (the traffic pack's SUMO net), the node's residency reads it. One per node, never per process.
-    /// </summary>
-    public Hrot.Map.Common.Services.TerrainContentRegistry TerrainContent { get; init; } = new();
 }

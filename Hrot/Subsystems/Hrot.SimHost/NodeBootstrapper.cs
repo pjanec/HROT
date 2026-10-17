@@ -232,9 +232,7 @@ namespace Hrot.SimHost
             //   ⛔ A caller that HAS an ELM must PASS it — an unpassed one is the silent-default defect, and
             //   the preview/replay boundary then leaves stale entries behind (CE-259ar) and restored
             //   Constructing entities undriven. 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
-            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null,
-            // ⭐ CE-4013 (§4.1ae T1) — the node's terrain content (HrotNodeContext.TerrainContent). ⛔ A caller that HAS a context passes it.
-            Hrot.Map.Common.Services.TerrainContentRegistry? terrainContent = null)
+            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -350,6 +348,8 @@ namespace Hrot.SimHost
             // ⚠ Providers are offered, not ordered — the chain orders them and drops what this role does
             //   not require (a Perception-only node needs no terrain; every ECS node needs the TKB).
             // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b, §4.1c · DESIGN_Node_Roles_And_Policies.md §3.2.
+            var loadProviders = new List<ILoadPartProvider>();
+
             // ⭐⭐⭐ The knowledge base is UNCONDITIONAL for an ECS node, so this host SUPPLIES a default
             //   rather than making every caller remember. 🔒 "every ECS enable node should be able to
             //   create entities so every needs the TKB loaded" — a node that can be asked to create an
@@ -358,9 +358,12 @@ namespace Hrot.SimHost
             //   starts anyway; a scenario that names one then replaces it through the step. ⛔ This is the
             //   host supplying a HOW, not the requirement being relaxed — the chain still throws if the
             //   part is genuinely unsatisfiable.
-            // ⭐ CE-4013 (§4.1ae T2) — the knowledge base and the terrain from the ONE shared factory every ECS host uses.
-            var (loadProviders, residency) = HrotUniversalLoadParts.Build(tkbDb, localTempRoot, RoadNetworkHolder, terrainContent);
+            loadProviders.Add(new KnowledgeBaseLoadStep(
+                tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot));
+
+            var residency = new TerrainResidency(localTempRoot, RoadNetworkHolder);
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
+            loadProviders.Add(new TerrainLoadStep(residency, localTempRoot));
 
             // ⭐⭐⭐ D3 — the ONE terrain/zone OP handler, via the shared registrar. Unconditional on every
             //   ECS host: a host with nothing to make resident still ACKs, which is what removes the

@@ -67,9 +67,8 @@ namespace Hrot.SimHost.Tests
               + "ClusterSlave gives the step to the first claimant and returns, and the losers vanish "
               + "silently. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b.");
 
-            // ⭐ CE-4013 — through the ONE shared factory (HrotUniversalLoadParts) or, for a host with its own provider, by hand.
             Assert.True(
-                CompositionRootSource.ConstructsType(code, "KnowledgeBaseLoadStep") || code.Contains("HrotUniversalLoadParts.Build(", StringComparison.Ordinal),
+                CompositionRootSource.ConstructsType(code, "KnowledgeBaseLoadStep"),
                 $"{relativePath} must offer a KnowledgeBaseLoadStep. ⭐ The knowledge base is required by "
               + "EVERY ECS node — not by any role — because every ECS node composes the full genesis "
               + "pipeline and must be able to resolve the templates of entities it may be asked to "
@@ -96,8 +95,7 @@ namespace Hrot.SimHost.Tests
             {
                 var code = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));
 
-                Assert.True(CompositionRootSource.ConstructsType(code, "TerrainLoadStep")
-                         || code.Contains("HrotUniversalLoadParts.Build(", StringComparison.Ordinal),   // ⭐ CE-4013 — the shared factory
+                Assert.True(CompositionRootSource.ConstructsType(code, "TerrainLoadStep"),
                     $"{path} must offer the terrain part — every ECS node reads the terrain world.");
                 Assert.True(CompositionRootSource.ConstructsType(code, "RoadNetworkHolder")
                          || code.Contains("RoadNetworkHolder", StringComparison.Ordinal),

@@ -83,16 +83,14 @@ public sealed class TerrainResidency
     /// The production constructor: resolves terrains through the standard node search list —
     /// <c>{staging}/Terrain</c>, then the shared NAS stand-in, then the shipped terrains (W12).
     /// </summary>
-    /// <param name="content">⭐ CE-4013 — the NODE's terrain content (<c>HrotNodeContext.TerrainContent</c>); null ⇒ none.</param>
-    public TerrainResidency(string localStagingRoot, RoadNetworkHolder roadNetworkHolder, TerrainContentRegistry? content = null)
-        : this(BuildNodeCatalog(localStagingRoot), roadNetworkHolder, content)
+    public TerrainResidency(string localStagingRoot, RoadNetworkHolder roadNetworkHolder)
+        : this(BuildNodeCatalog(localStagingRoot), roadNetworkHolder)
     {
     }
 
     /// <summary>Resolves through an explicit <paramref name="catalog"/> (tests, tools).</summary>
-    public TerrainResidency(TerrainCatalog catalog, RoadNetworkHolder roadNetworkHolder, TerrainContentRegistry? content = null)
+    public TerrainResidency(TerrainCatalog catalog, RoadNetworkHolder roadNetworkHolder)
     {
-        _content = content;
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _roadNetworkHolder = roadNetworkHolder
             ?? throw new ArgumentNullException(nameof(roadNetworkHolder),
@@ -137,21 +135,6 @@ public sealed class TerrainResidency
     /// </summary>
     public void AttachContent(ITerrainContentLoader loader)
         => _contentLoaders.Add(loader ?? throw new ArgumentNullException(nameof(loader)));
-
-    // ⭐ CE-4013 (§4.1ae T1) — the NODE's content registry, attached at Prepare (a capability may add to it after this residency was built).
-    //   ⛔ Not process-wide: in `--mode all` a node that composes no traffic must not load the SUMO net because another node does.
-    private readonly TerrainContentRegistry? _content;
-    private readonly HashSet<string> _attachedKeys = new();
-
-    /// <summary>The node's terrain content this residency loads (null ⇒ none).</summary>
-    public TerrainContentRegistry? Content => _content;
-
-    private void AttachRegisteredContent()
-    {
-        if (_content is null) return;
-        foreach (var (key, factory) in _content.Entries())
-            if (_attachedKeys.Add(key)) _contentLoaders.Add(factory());
-    }
 
     /// <summary>The navmesh this residency publishes into, when attached.</summary>
     public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? Navmesh => _navmesh;
@@ -263,7 +246,6 @@ public sealed class TerrainResidency
 
         // ⭐ AQ93 R-4021 — every attached content loader prepares its part of this terrain, off the main thread.
         string folder = Path.GetDirectoryName(definitionPath)!;
-        AttachRegisteredContent();
         foreach (var loader in _contentLoaders)
             staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? new TerrainWorld())));
 

@@ -21,6 +21,8 @@ namespace Sim.Replication.Dds;
 // consumer can be coded against Sim.Replication alone; the DDS-specific members below are unchanged.
 public sealed class DdsSubscriber : IReplicationSource
 {
+    private const int HistoryCap = 8;
+
     // Per-vehicle sample timestamped with the DDS sample's own source timestamp when the reader exposes one
     // (CycloneDDS.NET's DdsSampleInfo.SourceTimestamp, nanoseconds since the Unix epoch); falls back to the
     // frame's own sim-time field on the (untested-in-practice) chance the timestamp comes back <= 0. This is
@@ -34,10 +36,64 @@ public sealed class DdsSubscriber : IReplicationSource
     private readonly DdsReader<DdsVehicleLifecycle> _lifecycleReader;
     private readonly DdsReader<DdsTlState> _tlReader;
 
-    // docs/HROT-INTEGRATION-DESIGN.md H8: the decode/accumulate logic (geometry, history, dims, names, tags,
-    // TL) lives in DdsReplicationState so DdsMultiSourceSubscriber can keep one per publisher. This reader
-    // keeps exactly ONE and feeds it every sample regardless of its `Source` key -- unchanged behaviour.
-    private readonly DdsReplicationState _state;
+    private readonly Dictionary<int, GeometryCodec.LaneGeo> _geometryByHandle = new();
+    private readonly HashSet<int> _geometryChunksReceived = new();
+    private int _geometryTotalChunks = -1;
+
+    private readonly Dictionary<VehicleHandle, VehicleSampleHistory> _history = new();
+    private readonly Dictionary<VehicleHandle, (float Length, float Width)> _dims = new();
+    // docs/LIVE-CITY-VIEWERS-DESIGN.md §3.1, -TASKS.md E2: handle->SUMO-id, accumulated from the lifecycle
+    // topic's spawn events (Name), removed on despawn -- the "dictionary table sent once" a consumer reads
+    // to label a picked vehicle. Never touched by PumpVehicles (the per-frame path stays untouched).
+    private readonly Dictionary<VehicleHandle, string> _names = new();
+    private readonly Dictionary<int, byte> _tlState = new();
+
+    // Read-only adapter presenting `_history` (concrete VehicleSampleHistory values, needed internally for
+    // Append) as the transport-neutral IReadOnlyDictionary<VehicleHandle, IVehicleSampleHistory> a consumer
+    // (DrClock, LoopbackSelfTest) sees via the `History` property below. Thin forwarding wrapper -- no
+    // copying, so it stays cheap to read every render frame.
+    private sealed class HistoryView : IReadOnlyDictionary<VehicleHandle, IVehicleSampleHistory>
+    {
+        private readonly Dictionary<VehicleHandle, VehicleSampleHistory> _inner;
+
+        public HistoryView(Dictionary<VehicleHandle, VehicleSampleHistory> inner) => _inner = inner;
+
+        public IVehicleSampleHistory this[VehicleHandle key] => _inner[key];
+        public IEnumerable<VehicleHandle> Keys => _inner.Keys;
+        public IEnumerable<IVehicleSampleHistory> Values => _inner.Values;
+        public int Count => _inner.Count;
+        public bool ContainsKey(VehicleHandle key) => _inner.ContainsKey(key);
+
+        public bool TryGetValue(VehicleHandle key, out IVehicleSampleHistory value)
+        {
+            if (_inner.TryGetValue(key, out var v))
+            {
+                value = v;
+                return true;
+            }
+
+            value = default!;
+            return false;
+        }
+
+        public IEnumerator<KeyValuePair<VehicleHandle, IVehicleSampleHistory>> GetEnumerator()
+        {
+            foreach (var kv in _inner)
+            {
+                yield return new KeyValuePair<VehicleHandle, IVehicleSampleHistory>(kv.Key, kv.Value);
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private readonly HistoryView _historyView;
+
+    private byte[] _vehicleBytes = new byte[DdsWire.MaxPayload];
+    private VehicleRecord[] _vehicleRecs = new VehicleRecord[2048];
+    private byte[] _geometryBytes = new byte[DdsWire.MaxPayload];
+    private byte[] _tlBytes = new byte[DdsWire.MaxPayload];
+    private readonly bool _stampWithSimTime;
 
     // Must mirror DdsPublisher's per-topic QoS profile exactly (a RELIABLE reader will not match a
     // BEST_EFFORT writer) -- see DdsQos's doc comment.
@@ -52,11 +108,12 @@ public sealed class DdsSubscriber : IReplicationSource
     // keeps the existing wall-clock behaviour byte-for-byte.
     public DdsSubscriber(DdsParticipant participant, bool stampWithSimTime)
     {
+        _stampWithSimTime = stampWithSimTime;
         _vehicleReader = new DdsReader<DdsWireFrame>(participant, DdsTopicNames.Vehicles, DdsQos.VolatileLatest());
         _geometryReader = new DdsReader<DdsNetworkGeometry>(participant, DdsTopicNames.Geometry, DdsQos.DurableLatest());
         _lifecycleReader = new DdsReader<DdsVehicleLifecycle>(participant, DdsTopicNames.Lifecycle, DdsQos.DurableLatest());
         _tlReader = new DdsReader<DdsTlState>(participant, DdsTopicNames.Tl, DdsQos.VolatileLatest());
-        _state = new DdsReplicationState(stampWithSimTime, Pump, () => Connected);
+        _historyView = new HistoryView(_history);
     }
 
     // Drop all per-vehicle state (history + dims + latest-sample-time) so it rebuilds from the live stream.
@@ -64,41 +121,44 @@ public sealed class DdsSubscriber : IReplicationSource
     // reused handle's buffer would otherwise mix old-timeline samples (large Pos) with new ones (small Pos)
     // -> the DR flings that vehicle backward instead of the old one vanishing. Geometry + TL are kept (the
     // network didn't change).
-    public void ResetVehicles() => _state.ResetVehicles();
+    public void ResetVehicles()
+    {
+        _history.Clear();
+        _dims.Clear();
+        _names.Clear();
+        LatestVehicleSampleTime = null;
+    }
 
     // Decoded static lane geometry, keyed by lane handle. Empty until PublishGeometryOnce's chunk(s) have
     // arrived; see GeometryComplete.
-    public IReadOnlyDictionary<int, GeometryCodec.LaneGeo> Geometry => _state.Geometry;
+    public IReadOnlyDictionary<int, GeometryCodec.LaneGeo> Geometry => _geometryByHandle;
 
     // True once every announced chunk (0..TotalChunks-1) has been seen at least once.
-    public bool GeometryComplete => _state.GeometryComplete;
+    public bool GeometryComplete => _geometryTotalChunks >= 0 && _geometryChunksReceived.Count >= _geometryTotalChunks;
 
-    // Per-vehicle history, newest sample last, capped at 8 -- the raw material a later DR/interpolation
-    // consumer (P2b/DrClock) walks. Exposed as the transport-neutral IVehicleSampleHistory (Sim.Replication)
-    // so a consumer never needs this class's concrete type.
-    public IReadOnlyDictionary<VehicleHandle, IVehicleSampleHistory> History => _state.History;
+    // Per-vehicle history, newest sample last, capped at HistoryCap -- the raw material a later DR/
+    // interpolation consumer (P2b/DrClock) walks. Exposed as the transport-neutral IVehicleSampleHistory
+    // (Sim.Replication) so a consumer never needs this class's concrete type.
+    public IReadOnlyDictionary<VehicleHandle, IVehicleSampleHistory> History => _historyView;
 
     // Dims announced over the lifecycle topic (spawn), removed on despawn.
-    public IReadOnlyDictionary<VehicleHandle, (float Length, float Width)> Dims => _state.Dims;
+    public IReadOnlyDictionary<VehicleHandle, (float Length, float Width)> Dims => _dims;
 
-    // SUMO ids announced over the lifecycle topic (spawn), removed on despawn.
-    public IReadOnlyDictionary<VehicleHandle, string> Names => _state.Names;
-
-    // H7: external type + colour announced over the lifecycle topic (spawn, non-empty only), removed on despawn.
-    public IReadOnlyDictionary<VehicleHandle, VehicleTag> Tags => _state.Tags;
+    // SUMO ids announced over the lifecycle topic (spawn), removed on despawn -- see the field remark.
+    public IReadOnlyDictionary<VehicleHandle, string> Names => _names;
 
     // Latest TL signal char per controlled lane handle.
-    public IReadOnlyDictionary<int, byte> TlStateByLane => _state.TlStateByLane;
+    public IReadOnlyDictionary<int, byte> TlStateByLane => _tlState;
 
     // P2b (DrClock) — the newest per-vehicle sample timestamp seen so far across every decoded vehicle
     // frame (max of TimestampedSample.TimestampSeconds); null until the first vehicle frame arrives. All
     // vehicle records decoded from the SAME DDS sample share one timestamp, so this is exactly the
     // "current frame's sim-axis time" DrClock.Pump paces its render clock off.
-    public double? LatestVehicleSampleTime => _state.LatestVehicleSampleTime;
+    public double? LatestVehicleSampleTime { get; private set; }
 
     // P2b diagnostics — total vehicle records decoded across every Pump call so far (a monotonically
     // increasing counter; divide by elapsed wall time for a "DDS samples/s" HUD readout).
-    public long TotalVehicleSamplesReceived => _state.TotalVehicleSamplesReceived;
+    public long TotalVehicleSamplesReceived { get; private set; }
 
     // P3 ("remote mode + QoS") — true once THIS reader is currently matched with at least one live writer
     // on the Vehicles topic (DDS's own publication-matched bookkeeping, not an inference from whether data
@@ -107,7 +167,17 @@ public sealed class DdsSubscriber : IReplicationSource
     // CurrentCount drop back to 0 here even though TotalVehicleSamplesReceived stays nonzero.
     public bool Connected => _vehicleReader.CurrentStatus.CurrentCount > 0;
 
-    public bool TryGetLatest(VehicleHandle handle, out TimestampedSample sample) => _state.TryGetLatest(handle, out sample);
+    public bool TryGetLatest(VehicleHandle handle, out TimestampedSample sample)
+    {
+        if (_history.TryGetValue(handle, out var hist) && hist.Count > 0)
+        {
+            sample = hist[^1];
+            return true;
+        }
+
+        sample = default;
+        return false;
+    }
 
     // Pump every topic once. Call this at whatever cadence the host polls DDS (the loopback self-test polls
     // once per publish step).
@@ -122,6 +192,7 @@ public sealed class DdsSubscriber : IReplicationSource
     private void PumpGeometry()
     {
         using var loan = _geometryReader.Take(maxSamples: 16);
+        var decoded = new List<GeometryCodec.LaneGeo>();
         foreach (var sample in loan)
         {
             if (!sample.IsValid)
@@ -130,7 +201,16 @@ public sealed class DdsSubscriber : IReplicationSource
             }
 
             var f = sample.Data;
-            _state.ApplyGeometry(in f);
+            var n = f.ReadPayload(_geometryBytes);
+            decoded.Clear();
+            GeometryCodec.ReadGeometry(_geometryBytes.AsSpan(0, n), decoded);
+            foreach (var lane in decoded)
+            {
+                _geometryByHandle[lane.Handle] = lane;
+            }
+
+            _geometryTotalChunks = f.TotalChunks;
+            _geometryChunksReceived.Add(f.ChunkIndex);
         }
     }
 
@@ -145,7 +225,18 @@ public sealed class DdsSubscriber : IReplicationSource
             }
 
             var d = sample.Data;
-            _state.ApplyLifecycle(in d);
+            var handle = new VehicleHandle(d.Index, d.Generation);
+            if (d.Event == 0)
+            {
+                _dims[handle] = (d.Length, d.Width);
+                _names[handle] = d.Name.ToString();
+            }
+            else
+            {
+                _dims.Remove(handle);
+                _names.Remove(handle);
+                _history.Remove(handle);
+            }
         }
     }
 
@@ -160,7 +251,30 @@ public sealed class DdsSubscriber : IReplicationSource
             }
 
             var f = sample.Data;
-            _state.ApplyVehicleFrame(in f, sample.Info.SourceTimestamp);
+            var n = f.ReadPayload(_vehicleBytes);
+            var count = FrameCodec.ReadVehicleFrame(_vehicleBytes.AsSpan(0, n), _vehicleRecs);
+
+            var ts = sample.Info.SourceTimestamp;
+            var timestampSeconds = _stampWithSimTime ? (double)f.Time : ts > 0 ? ts / 1_000_000_000.0 : (double)f.Time;
+
+            if (LatestVehicleSampleTime is null || timestampSeconds > LatestVehicleSampleTime.Value)
+            {
+                LatestVehicleSampleTime = timestampSeconds;
+            }
+
+            for (var i = 0; i < count; i++)
+            {
+                var rec = _vehicleRecs[i];
+                if (!_history.TryGetValue(rec.Handle, out var hist))
+                {
+                    hist = new VehicleSampleHistory(HistoryCap);
+                    _history[rec.Handle] = hist;
+                }
+
+                hist.Append(new TimestampedSample(timestampSeconds, rec));
+            }
+
+            TotalVehicleSamplesReceived += count;
         }
     }
 
@@ -175,7 +289,14 @@ public sealed class DdsSubscriber : IReplicationSource
             }
 
             var f = sample.Data;
-            _state.ApplyTl(in f);
+            var n = f.ReadPayload(_tlBytes);
+            var maxEntries = Math.Max(1, (n - TlCodec.HeaderSize) / TlCodec.EntrySize);
+            var entries = new TlCodec.TlEntry[maxEntries];
+            var count = TlCodec.ReadTl(_tlBytes.AsSpan(0, n), entries);
+            for (var i = 0; i < count; i++)
+            {
+                _tlState[entries[i].LaneHandle] = entries[i].Signal;
+            }
         }
     }
 

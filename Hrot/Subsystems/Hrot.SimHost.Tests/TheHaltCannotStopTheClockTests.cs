@@ -153,8 +153,6 @@ public sealed class TheHaltCannotStopTheClockTests
 
             var rel = System.IO.Path.GetRelativePath(root!, file).Replace('\\', '/');
             if (rel.Contains(".Tests/", StringComparison.Ordinal)) continue;
-            // ⚠ Agent worktrees live under .claude/worktrees/ — a second copy of the tree, not more declarations.
-            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;
 
             foreach (var line in System.IO.File.ReadLines(file))
             {

@@ -763,7 +763,6 @@ class Program
             "ORCHESTRATOR" => 300,
             "CGF"          => 400,
             "CI"           => 500,
-            "TRAFFIC"      => 800,   // ⭐ AQ93 N1 — the SUMO traffic node (several may run: give each its own -n base)
             // ST-015: the "STRIDEMOCK" => 700 arm went with the subsystem. Not in the dispatch's
             // table, which recorded Program.cs:256 as the only StrideMock line in this file.
             _              => 600,

@@ -1,8 +1,8 @@
 # SumoSharp — vendored sources (READ-ONLY in HROT)
 
 - repository: https://github.com/pjanec/SumoSharp
-- ref: `hrot/slice2`
-- commit: `d2e7b98bc86c8798e893005e9bdd91e02eec1e03`
+- ref: `hrot/slice1`
+- commit: `b0fb0e187dbc9cfdc69016d187a5f6fe8a1ba124`
 - synced: 2026-10-17
 - projects: Sim.Core Sim.Ingest Sim.Replication Sim.Replication.Dds Sim.Pedestrians Sim.LiveCity Sim.Evac Sim.Viewer.Motion Sim.Host Sim.Scene (+ src/Shared packaging/SumoSharp)
 

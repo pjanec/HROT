@@ -25,8 +25,6 @@
     <ProjectReference Include="..\..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
     <!-- NedNetworkFactory for integration tests -->
     <ProjectReference Include="..\..\..\Network\Hrot.Network.NED\Hrot.Network.NED.csproj" />
-    <!-- AQ93 N1: the traffic node bootstrapper -->
-    <ProjectReference Include="..\..\Hrot.TrafficNode\Hrot.TrafficNode.csproj" />
     <!-- OfflineNetworkFactory for headless tests -->
     <ProjectReference Include="..\..\Hrot.Editor\Hrot.Editor.csproj" />
   </ItemGroup>

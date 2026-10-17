@@ -55,50 +55,6 @@ namespace Fdp.Network.Cyclone.Tests.Integration
             }
         }
 
-        /// <summary>
-        /// ⭐ CE-4013 D3 — two nodes of ONE subsystem (two traffic nodes, two SimHosts) must not share id chunks. With distinct client ids
-        /// (HrotNodeBuilder.AllocatorClientId puts the node id in) their ids are disjoint; the second test is the defect it fixes.
-        /// </summary>
-        [Fact]
-        public void TwoClients_WithDistinctIds_NeverHandOutTheSameId()
-        {
-            using var a = new DdsIdAllocator(_participant, "TrafficAllocator-801");
-            using var b = new DdsIdAllocator(_participant, "TrafficAllocator-802");
-            var (idsA, idsB) = AllocateBoth(a, b, 150);
-            Assert.Empty(System.Linq.Enumerable.Intersect(idsA, idsB));
-        }
-
-        /// <summary>⛔ The hazard, pinned: two clients sharing ONE id each keep every chunk sent to it, so ids repeat across them.</summary>
-        [Fact]
-        public void TwoClients_SharingOneId_HandOutTheSameIds()
-        {
-            using var a = new DdsIdAllocator(_participant, "TrafficAllocator");
-            using var b = new DdsIdAllocator(_participant, "TrafficAllocator");
-            var (idsA, idsB) = AllocateBoth(a, b, 150);
-            Assert.NotEmpty(System.Linq.Enumerable.Intersect(idsA, idsB));
-        }
-
-        private (System.Collections.Generic.List<long>, System.Collections.Generic.List<long>) AllocateBoth(DdsIdAllocator a, DdsIdAllocator b, int each)
-        {
-            bool keepRunning = true;
-            var serverTask = Task.Run(async () =>
-            {
-                while (keepRunning) { _server.ProcessRequests(); await Task.Delay(5); }
-            });
-            try
-            {
-                var idsA = new System.Collections.Generic.List<long>();
-                var idsB = new System.Collections.Generic.List<long>();
-                for (int i = 0; i < each; i++) { idsA.Add(a.AllocateId()); idsB.Add(b.AllocateId()); }
-                return (idsA, idsB);
-            }
-            finally
-            {
-                keepRunning = false;
-                serverTask.Wait(1000);
-            }
-        }
-
         [Fact]
         public void Server_Reset_ClearsAllClients()
         {

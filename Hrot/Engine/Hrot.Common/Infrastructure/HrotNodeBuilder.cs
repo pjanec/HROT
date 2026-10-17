@@ -121,9 +121,6 @@ public sealed class HrotNodeBuilder
     /// <see cref="HrotNodeContext"/>.  May only be called once per builder instance.
     /// </summary>
     /// <exception cref="InvalidOperationException">Thrown if <see cref="Build"/> has already been called.</exception>
-    /// <summary>⭐ CE-4013 D3 — the id-allocator client id: unique per node, so two nodes of one subsystem never share id chunks.</summary>
-    public static string AllocatorClientId(string subsystemName, int nodeId) => $"{subsystemName}Allocator-{nodeId}";
-
     public HrotNodeContext Build()
     {
         if (_built)
@@ -193,10 +190,6 @@ public sealed class HrotNodeBuilder
             // so the factory decides whether to return a DdsIdAllocator or a
             // SequentialIdAllocator (e.g. in offline/headless environments).
             // Without a factory, fall back to direct DDS instantiation (legacy path).
-            // ⭐⭐ CE-4013 D3 — the client id carries the NODE id. ⛔ It was SubsystemName + "Allocator", and DdsIdAllocator keeps every
-            //   response whose ClientId matches — so two nodes of one subsystem name (two traffic nodes, R-4055; two SimHosts; two Players)
-            //   took each other's id chunks and handed out the SAME network id. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ae.1.
-            string allocatorClientId = AllocatorClientId(_config.SubsystemName ?? _subsystemName, _config.NodeId);
             if (_networkFactory != null)
             {
                 // Factory path: delegate to factory regardless of participant availability.
@@ -204,13 +197,13 @@ public sealed class HrotNodeBuilder
                 // non-null, SequentialIdAllocator otherwise.  Offline/mock factories always
                 // return SequentialIdAllocator.
                 idAllocator = _networkFactory.CreateIdAllocator(
-                    allocatorClientId,
+                    (_config.SubsystemName ?? _subsystemName) + "Allocator",
                     skipRoutingWait: _config.SkipAllocatorRouting);
             }
             else if (participant != null)
             {
                 // Legacy path (no factory injected): create DdsIdAllocator directly.
-                var ddsAllocator = new DdsIdAllocator(participant, allocatorClientId);
+                var ddsAllocator = new DdsIdAllocator(participant, (_config.SubsystemName ?? _subsystemName) + "Allocator");
                 if (!_config.SkipAllocatorRouting)
                     DdsIdAllocatorHelper.EnsureRouting(participant, ddsAllocator);
                 idAllocator = ddsAllocator;
@@ -255,12 +248,6 @@ public sealed class HrotNodeBuilder
         // ⭐ ...and it is the world singleton on EVERY node (IG published none before): the terrain commit sets the origin
         //   THROUGH it (TerrainResidency.ApplyGeoOrigin), and the debug API, map pick and AI nodes read it.
         world.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geoTransform);
-        // ⭐⭐ CE-4013 D4/D5 — and the node's ONE catalogue and ONE entity map, the same way, on every node. ⛔ Hosts used to publish them
-        //   again after boot (four of them), IG published a FRESH catalogue (so its world read a different TKB than its load step filled)
-        //   and Stride published neither. The context's objects are THE ones: the load step loads into TkbDb, the replicas map into
-        //   EntityMap. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ae.1.
-        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkbDb);
-        world.SetSingletonManaged(entityMap);
         var elm         = new EntityLifecycleModule(tkbDb, new List<int>(), localNodeId: _config.NodeId);
         var geoModule   = new GeographicModule(geoTransform);
         var baseModules = new List<IEcsModule> { elm, geoModule };

@@ -187,17 +187,25 @@ namespace Hrot.CGF
                 //   composes. ⛔ CgfScenarioLoadHandler is gone; this host's difference (its behaviour
                 //   remapper) is an injected collaborator, which is the only kind of difference a host is
                 //   allowed to have. 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1c.
-                // ⭐ The knowledge base (this root held none — the measured gap; the built-in catalogue is its start, like IG) and the
-                //   terrain (universal, R-182; this root holds no road holder, so a fresh one) from the ONE shared factory (CE-4013).
-                //   ⚠ Content null: this root builds its own world and has no node context to carry a registry.
-                var (cgfAppParts, _) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
-                    null, localTempRoot, new CarKinem.Road.RoadNetworkHolder(), content: null);
-                cgfAppParts.Add(new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
-                    scenarioSerializer, scenarioLoader, extractor, _world.Bus,   // ⭐ CE-3228 — requests on the world's bus
-                    cgfIdAllocator, behaviorRemapper: behaviorRemapper));
                 _clusterSlave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
                     Fdp.Core.NodeRole.Brain,
-                    cgfAppParts,
+                    new Hrot.Map.Common.ClusterLoad.ILoadPartProvider[]
+                    {
+                        // ⭐ This composition root held NO knowledge base at all — the measured gap
+                        //   itself. An ECS host needs one unconditionally, so it gets the hard-coded
+                        //   catalogue as its starting point, exactly like IG; a scenario that names a TKB
+                        //   then replaces it through the step.
+                        new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
+                            Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot),
+                        // ⭐ Terrain is universal (R-182). This root holds no road-network holder of its
+                        //   own, so the step gets a fresh one. 📄 docs/DESIGN_Terrain_World.md §5.
+                        new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
+                            new Hrot.Map.Common.Services.TerrainResidency(
+                                localTempRoot, new CarKinem.Road.RoadNetworkHolder()), localTempRoot),
+                        new Hrot.Map.Common.ClusterLoad.ScenarioLoadStep(
+                            scenarioSerializer, scenarioLoader, extractor, _world.Bus,   // ⭐ CE-3228 — requests on the world's bus
+                            cgfIdAllocator, behaviorRemapper: behaviorRemapper),
+                    },
                     _world,
                     recordingController: rrController,
                     storageDirectory:    localTempRoot,

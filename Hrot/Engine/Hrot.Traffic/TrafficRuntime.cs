@@ -1,10 +1,11 @@
+using Fdp.Core;
 using Fdp.Toolkit.Traffic;
 
 namespace Hrot.Traffic;
 
 /// <summary>
 /// ⭐ AQ93 EM-5 (R-4045) — the hand-off between the MAIN thread (which decides what SUMO should run and how far) and the STEPPING
-/// thread (which builds and steps it). One per node that SERVES traffic.
+/// thread (which builds and steps it). One per node that composes the traffic pack.
 /// </summary>
 /// <remarks>
 /// ⭐ <b>The one invariant that makes it safe:</b> only the main thread writes the REQUEST; the stepping thread disposes a session
@@ -13,26 +14,12 @@ namespace Hrot.Traffic;
 /// </remarks>
 public sealed class TrafficRuntime : IDisposable
 {
-    private readonly TrafficServeOptions _options;
     private TrafficSessionKey? _requested;
-    private IReadOnlyList<TrafficVehicleType> _types = Array.Empty<TrafficVehicleType>();
     private TrafficSession? _session;
     private TrafficSessionKey? _targetKey;
     private double _target;
     private TrafficSessionKey? _failed;
     private readonly object _targetGate = new();
-
-    private readonly TrafficIdReservoir _ids;
-
-    public TrafficRuntime(TrafficServeOptions options)
-    {
-        if (options is null) throw new ArgumentNullException(nameof(options));
-        _ids = new TrafficIdReservoir(options.NextNetworkId);
-        _options = options with { NextNetworkId = _ids.Take };   // the stepping thread never calls the allocator itself (N2)
-    }
-
-    /// <summary>Ids ready for SUMO's next cars (diagnostics and rails).</summary>
-    public int IdsReady => _ids.Count;
 
     /// <summary>The session the stepping thread built last (may lag the request by a tick or two).</summary>
     public TrafficSession? Session => Volatile.Read(ref _session);
@@ -46,13 +33,10 @@ public sealed class TrafficRuntime : IDisposable
 
     // ── main thread ────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Asks for <paramref name="key"/> (null stops SUMO), its cars drawn from <paramref name="types"/> (T1, read from the TKB on
-    /// the main thread). ⛔ Main thread only.</summary>
-    public void Request(TrafficSessionKey? key, IReadOnlyList<TrafficVehicleType>? types = null)
+    /// <summary>Asks for <paramref name="key"/> (null stops SUMO). ⛔ Main thread only.</summary>
+    public void Request(TrafficSessionKey? key)
     {
-        if (Equals(Volatile.Read(ref _requested), key)) return;
-        Volatile.Write(ref _types, types ?? Array.Empty<TrafficVehicleType>());
-        Volatile.Write(ref _requested, key);
+        if (!Equals(Volatile.Read(ref _requested), key)) Volatile.Write(ref _requested, key);
     }
 
     /// <summary>The session for the current request, once the stepping thread has built it. ⛔ Main thread only.</summary>
@@ -66,17 +50,10 @@ public sealed class TrafficRuntime : IDisposable
         }
     }
 
-    /// <summary>Allocates network ids ahead of SUMO, enough for <paramref name="targetCars"/> to depart at once (a new session's first
-    /// catch-up). ⛔ Main thread only: it is the one caller of the cluster's allocator.</summary>
-    public void TopUpIds(int targetCars) => _ids.TopUp(Math.Max(0, targetCars) + IdHeadroom);
-
-    /// <summary>Ids kept beyond the target car count.</summary>
-    public const int IdHeadroom = 64;
-
-    /// <summary>How far SUMO may run (cluster sim time); also the time a NEW session starts at (N3). ⛔ Main thread only.</summary>
-    public void SetTarget(TrafficSessionKey key, double clusterTime)
+    /// <summary>How far the current session may run (SUMO seconds). ⛔ Main thread only.</summary>
+    public void SetTarget(TrafficSessionKey key, double sumoTime)
     {
-        lock (_targetGate) { _targetKey = key; _target = clusterTime; }
+        lock (_targetGate) { _targetKey = key; _target = sumoTime; }
     }
 
     // ── stepping thread ────────────────────────────────────────────────────────────────────────
@@ -93,18 +70,12 @@ public sealed class TrafficRuntime : IDisposable
             have = null;
         }
         if (want is null) return;
-
-        double target;
-        bool targeted;
-        lock (_targetGate) { targeted = Equals(_targetKey, want); target = _target; }
-        if (!targeted) return;   // the main thread has not said WHEN yet: a session must start at the cluster time (N3)
-
         if (have is null)
         {
             if (Equals(_failed, want)) return;   // a net SUMO could not load is not retried every tick
             try
             {
-                have = new TrafficSession(want, _options, Volatile.Read(ref _types), target);
+                have = new TrafficSession(want);
                 Volatile.Write(ref _session, have);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or ArgumentException
@@ -114,6 +85,13 @@ public sealed class TrafficRuntime : IDisposable
                 Fdp.Core.Logging.FdpLog<TrafficRuntime>.Warn("[Traffic] SUMO could not start on '{0}': {1}", want.NetFile, ex.Message);
                 return;
             }
+        }
+
+        double target;
+        lock (_targetGate)
+        {
+            if (!Equals(_targetKey, have.Key)) return;
+            target = _target;
         }
         Interlocked.Add(ref _steps, have.StepTo(target));
     }

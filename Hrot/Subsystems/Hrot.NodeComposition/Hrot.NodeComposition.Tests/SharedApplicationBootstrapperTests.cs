@@ -137,58 +137,10 @@ public sealed class SharedApplicationBootstrapperTests
         }
 
         protected override void RegisterSpawningPipeline(HrotNodeContext ctx)
-        {
-            CallLog.Add(nameof(RegisterSpawningPipeline));
-            if (!SkipRegisterCapabilities) RegisterCapabilities(ctx);
-        }
-
-        /// <summary>⭐ CE-4013 — the capabilities the base walks.</summary>
-        public IReadOnlyList<INodeCapability> TestCapabilities { get; init; } = Array.Empty<INodeCapability>();
-
-        /// <summary>⭐ CE-4013 — models a subclass that forgets the Register phase.</summary>
-        public bool SkipRegisterCapabilities { get; init; }
-
-        protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role) => TestCapabilities;
+            => CallLog.Add(nameof(RegisterSpawningPipeline));
 
         protected override void RegisterNetworkTranslators(HrotNodeContext ctx, INetworkFactory? factory)
             => CallLog.Add(nameof(RegisterNetworkTranslators));
-    }
-
-    /// <summary>⭐ CE-4013 — a capability contributing through ALL THREE hooks, recording which ran.</summary>
-    private sealed class AllHooksCapability : INodeCapability
-    {
-        public List<string> Calls { get; } = new();
-        public TestSimSystem System { get; } = new();
-        public string Key => "cap:test-all-hooks";
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-        public void PopulateSystems(HrotNodeContext c, List<IEcsModuleSystem> i, List<IEcsModuleSystem> s, List<IEcsModuleSystem> p)
-        { Calls.Add(nameof(PopulateSystems)); s.Add(System); }
-        public IEnumerable<IEcsModule> ProvideModules() { Calls.Add(nameof(ProvideModules)); return Array.Empty<IEcsModule>(); }
-        public void Register(HrotNodeContext c, NodeBootValues v) => Calls.Add(nameof(Register));
-    }
-
-    /// <summary>⭐⭐ CE-4013 — the base asks every hook, in its step order, on every subclass: no host can drop one.</summary>
-    [Fact]
-    public void CE4013_TheBaseWalksEveryCapabilityHook_InStepOrder()
-    {
-        var cap = new AllHooksCapability();
-        var factory = new Hrot.Editor.OfflineNetworkFactory();
-        var sut = new TestBootstrapper(factory) { TestCapabilities = new INodeCapability[] { cap } };
-
-        sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
-
-        Assert.Equal(new[] { "PopulateSystems", "ProvideModules", "Register" }, cap.Calls);
-    }
-
-    /// <summary>⭐⭐ CE-4013 — a subclass whose spawning pipeline never calls RegisterCapabilities fails at boot, naming the phase.</summary>
-    [Fact]
-    public void CE4013_ASubclassThatSkipsRegister_FailsAtBoot_NamingIt()
-    {
-        var factory = new Hrot.Editor.OfflineNetworkFactory();
-        var sut = new TestBootstrapper(factory) { TestCapabilities = new INodeCapability[] { new AllHooksCapability() }, SkipRegisterCapabilities = true };
-
-        var ex = Assert.Throws<InvalidOperationException>(() => sut.BootstrapNode(HeadlessConfig(), NodeRole.None, factory));
-        Assert.Contains("NodeCapabilityWalk.Register", ex.ToString());
     }
 
     /// <summary>
@@ -421,7 +373,6 @@ public sealed class SharedApplicationBootstrapperTests
             "PostInitialize",
             "DeclaredResourceKeys",
             "ResolveResources",
-            "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
