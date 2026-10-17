@@ -3625,7 +3625,8 @@ def run_armed_bomber(c, timeout):
     def watch():
         t = sim_time() or 0.0
         if st["burst"] is None:
-            if comps_on("CGF", vest):
+            hb = health(man)
+            if hb is None or hb >= 100:   # the blast is his first hurt (the spent vest's teardown is the twin's to check)
                 st["at"] = pos(man)
                 st["side"].append(((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId"))
                 a = (ammo(rifleman) or (None,))[0]

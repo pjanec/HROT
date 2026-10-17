@@ -1072,7 +1072,7 @@ public sealed class PostureScenarioTests : IDisposable
         void Sample()
         {
             if (ammo0 < 0) ammo0 = Ammo();
-            bool vestThere = cgf.IsAlive(vest) && Charges.IsCharge(cgf, vest);
+            bool vestThere = burstAt == null && cgf.GetComponentRO<Health>(man).Current >= 100f;   // the blast is his first hurt
             if (vestThere)
             {
                 burst = cgf.GetComponentRO<SimTransform>(man).Position;
@@ -1082,6 +1082,9 @@ public sealed class PostureScenarioTests : IDisposable
             else burstAt ??= cgf.SimulationTime;
         }
         harness.PumpUntil(() => { Sample(); return burstAt != null && cgf.SimulationTime - burstAt >= 2.0 || cgf.SimulationTime > 80.0; }, timeoutFrames: 8000);
+        var hostsAfter = new[] { ("CGF", cgf), ("SimHost", harness.SimHost.World!), ("IG", harness.Ig.App.World) };
+        string vestAfter = string.Join(", ", hostsAfter.Select(h => { var v = ByName(h.Item2, "Vest"); return $"{h.Item1} {(v.IsNull ? "gone" : Charges.IsCharge(h.Item2, v) ? "LIVE CHARGE" : "spent")}"; }));
+        _out.WriteLine($"the vest 2 s after the blast: {vestAfter}");
         var warhead = CombatTkb.WarheadOf(cgf, 6043L);
         float Flat(System.Numerics.Vector3 a, System.Numerics.Vector3 b) => System.Numerics.Vector2.Distance(new(a.X, a.Y), new(b.X, b.Y));
         var rows = civs.Select((c, i) => (name: civNames[i], d: Flat(cgf.GetComponentRO<SimTransform>(c).Position, burst), hp: cgf.GetComponentRO<Health>(c).Current)).ToArray();
@@ -1092,6 +1095,7 @@ public sealed class PostureScenarioTests : IDisposable
         _out.WriteLine(State());
         Assert.True(!seenArmed && roundsBefore == 0, $"① never armed to anyone before the blast; {State()}");
         Assert.True(burstAt != null && cgf.GetComponentRO<Health>(man).Current <= 0f, $"② the vest bursts and he is dead; {State()}");
+        Assert.True(!vestAfter.Contains("LIVE CHARGE"), $"② no node keeps it as a live charge (it cannot burst twice); {vestAfter}");
         Assert.True(warhead != null && warhead.BlastLethalRadiusM > 0f, $"the charge's warhead has a blast; {State()}");
         Assert.True(rows.Where(r => r.d <= warhead!.BlastLethalRadiusM).All(r => r.hp < 100f), $"③ everyone inside the lethal radius is hurt; {State()}");
         Assert.True(rows.Where(r => r.d > outer).All(r => r.hp >= 100f), $"③ nobody beyond the injury and fragment radii is; {State()}");
