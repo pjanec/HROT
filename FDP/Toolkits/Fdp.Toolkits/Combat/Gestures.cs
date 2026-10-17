@@ -17,6 +17,9 @@ namespace Fdp.Toolkit.Combat
         HoldSign = 3,
         Waving = 4,
         Throwing = 5,
+        /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-3) — a security-force WARNING: the audible cue of the escalation ladder ("drop
+        /// it!"), shown for a couple of seconds by the warner.</summary>
+        Warning = 6,
     }
 
     /// <summary>

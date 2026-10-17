@@ -19,9 +19,8 @@ namespace Fdp.Toolkit.Combat
         public static bool Permits(EntityRepository world, Entity unit, Entity target, long ammo, WeaponMountDto? mount = null)
         {
             if (!ConductPermits(world, unit, target, Lethal(world, ammo, mount))) return false;
-            if (!world.IsComponentTypeRegistered<Roe>()) return true;
-            var level = RoeOf.ForceLevel(world, unit);
-            if (level == RoeForceLevel.Lethal || SelfDefence(world, unit, target)) return true;
+            var level = LevelFor(world, unit, target);
+            if (level == RoeForceLevel.Lethal) return true;
             if (level == RoeForceLevel.Warn) return false;
             return !Lethal(world, ammo, mount);
         }
@@ -31,11 +30,28 @@ namespace Fdp.Toolkit.Combat
         public static bool AllowsMount(EntityRepository world, Entity unit, Entity target, WeaponMountDto? mount)
         {
             if (!ConductPermits(world, unit, target, mount == null || ItemAppearances.FiresLethal(world, mount))) return false;
-            if (!world.IsComponentTypeRegistered<Roe>()) return true;
-            var level = RoeOf.ForceLevel(world, unit);
-            if (level == RoeForceLevel.Lethal || SelfDefence(world, unit, target)) return true;
+            var level = LevelFor(world, unit, target);
+            if (level == RoeForceLevel.Lethal) return true;
             if (level == RoeForceLevel.Warn) return false;
             return mount == null || !ItemAppearances.FiresLethal(world, mount);
+        }
+
+        /// <summary>
+        /// The force <paramref name="unit"/> may use on <paramref name="target"/>: its <c>Roe.ForceLevel</c> (no ROE ⇒ Lethal), lifted to Lethal
+        /// by SELF-DEFENCE (FL-3), and — ⭐ <c>CE-2239</c> part 3 (B2, §5k EL-2) — for a security-force unit at a civilian, lowered to the
+        /// ESCALATION LADDER's rung (<see cref="EscalationLadder.Level"/>). A point (<see cref="Entity.Null"/>) gets the cap alone.
+        /// </summary>
+        public static RoeForceLevel LevelFor(EntityRepository world, Entity unit, Entity target)
+        {
+            var level = world.IsComponentTypeRegistered<Roe>() ? RoeOf.ForceLevel(world, unit) : RoeForceLevel.Lethal;
+            if (level == RoeForceLevel.ForceUnset) level = RoeForceLevel.Lethal;
+            if (SelfDefence(world, unit, target)) return RoeForceLevel.Lethal;
+            if (EscalationLadder.Applies(world, unit, target))
+            {
+                var rung = EscalationLadder.Level(world, unit, target);
+                if (rung < level) level = rung;
+            }
+            return level;
         }
 
         /// <summary>FL-3 (AW-18) — is firing on <paramref name="target"/> SELF-DEFENCE: he aims a lethal weapon at <paramref name="unit"/>

@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception;
@@ -377,6 +378,106 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.Repo.AddComponent(aiming, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = stranger });
             Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, aiming, lethal: true));           // he aims at me
         }
+        private static readonly DISEntityType PoliceDis = new() { Kind = 3, Domain = 1, Category = Armament.SecurityForceCategory };
+
+        private Entity Police(Vector3 at)
+        {
+            var e = Man(RiflemanType, at, ForceId.Friend);
+            _world.Repo.SetDisType(e, PoliceDis);
+            return e;
+        }
+
+        private void Pose(Entity man, WeaponPostureKind kind, Entity target = default)
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<WeaponPosture>()) _world.Repo.RegisterComponent<WeaponPosture>();
+            if (!_world.Repo.HasComponent<WeaponPosture>(man)) _world.Repo.AddComponent(man, new WeaponPosture());
+            ref var p = ref _world.Repo.GetComponentRW<WeaponPosture>(man);
+            p.Kind = kind;
+            p.Target = target;
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> part 3 (AW-10, AW-18, §5k EL-1/EL-2) — the LADDER, rung by rung, for a police unit at a Hostile civilian
+        /// with a pistol 20 m off (identified by day): AT EASE ⇒ Warn (no round, not even a baton round); READY ⇒ NonLethal; still ready
+        /// 5 s after the warning ⇒ Lethal; at ease again ⇒ Warn; AIMED at the policeman ⇒ Lethal at once (self-defence). An UNARMED one ⇒
+        /// NonLethal; a SOLDIER never runs it (his cap); a NonLethal cap stays the ceiling. ✅ Red-proofs: the at-ease rung removed ⇒ red; the
+        /// ignored-warning clock removed (Lethal from ready) ⇒ red; Applies without the SecurityForce test ⇒ the soldier is laddered ⇒ red;
+        /// the cap not applied to the rung ⇒ red.</summary>
+        [Fact]
+        public void CE2239_TheLadder_WarnAtEase_NonLethalWhenReady_LethalAfterAnIgnoredWarning_SelfDefenceAtOnce()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            _world.Repo.SetSimulationTime(10f);
+            var cop = Police(Vector3.Zero);
+            var soldier = Observer();
+            var armed = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Hostile, civilian: true);
+            var unarmed = Man(StonesCivType, new Vector3(15f, 0f, 0f), ForceId.Hostile, civilian: true);
+            RoeForceLevel Level(Entity unit, Entity man) => ForceLevels.LevelFor(_world.Repo, unit, man);
+
+            Assert.Equal(RoeForceLevel.Warn, Level(cop, armed));                                           // armed at ease
+            Assert.False(ForceLevels.Permits(_world.Repo, cop, armed, BatonRoundAmmo));
+            Assert.Equal(RoeForceLevel.NonLethal, Level(cop, unarmed));
+            Assert.Equal(RoeForceLevel.Lethal, Level(soldier, armed));                                     // AW-24: no ladder for a soldier
+
+            Pose(armed, WeaponPostureKind.Ready);
+            Assert.Equal(RoeForceLevel.NonLethal, Level(cop, armed));                                      // ready, not yet warned
+            Assert.True(EscalationLadder.WarnIfDue(_world.Repo, cop, armed));
+            Assert.Equal(10.0, EscalationLadder.WarnedAt(_world.Repo, cop, armed), 3);
+            _world.Repo.SetSimulationTime(13f);
+            Assert.Equal(RoeForceLevel.NonLethal, Level(cop, armed));                                      // 3 s — not yet ignored
+            Assert.True(EscalationLadder.WarnIfDue(_world.Repo, cop, armed));
+            Assert.Equal(10.0, EscalationLadder.WarnedAt(_world.Repo, cop, armed), 3);                     // a repeated shout keeps the clock
+            _world.Repo.SetSimulationTime(15.5f);
+            Assert.Equal(RoeForceLevel.Lethal, Level(cop, armed));                                         // ignored ⇒ lethal
+            Assert.True(ForceLevels.Permits(_world.Repo, cop, armed, BulletAmmo));
+
+            Pose(armed, WeaponPostureKind.AtEase);
+            Assert.Equal(RoeForceLevel.Warn, Level(cop, armed));                                           // lowered: back down by posture alone
+            Pose(armed, WeaponPostureKind.Aimed, cop);
+            Assert.Equal(RoeForceLevel.Lethal, Level(cop, armed));                                         // aimed at me: self-defence
+
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Roe>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Roe>();
+            _world.Repo.AddComponent(cop, new Fdp.Toolkit.Behavior.Components.Roe { ForceLevel = RoeForceLevel.NonLethal });
+            Pose(armed, WeaponPostureKind.Ready);
+            Assert.Equal(RoeForceLevel.NonLethal, Level(cop, armed));                                      // the cap is the ceiling
+        }
+
+        /// <summary>⭐ <c>CE-2239</c> part 3 (AW-16, §5k EL-3/EL-5) — the WARNING: the police watch warns an identified-armed man it remembers
+        /// within reach — a NEUTRAL too (drawn ⇒ warn) — and shows the cue for 2 s; not one beyond reach, not an unarmed one; firing into the
+        /// air (aimed at a point) reads ready. ✅ Red-proofs: the reach test removed ⇒ the far man is warned ⇒ red; the cue never lowered ⇒ red;
+        /// the point-is-ready rule removed ⇒ the volley reads Lethal-capable Aimed ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE2239_TheWarning_ArmedInReach_ANeutralToo_CueShowsTwoSeconds_AndFireIntoTheAirReadsReady()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            _world.Repo.SetSimulationTime(20f);
+            if (!_world.Repo.IsComponentTypeRegistered<Gesture>()) _world.Repo.RegisterComponent<Gesture>();
+            var cop = Police(Vector3.Zero);
+            var near = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var far = Man(PistolCivType, new Vector3(55f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var stones = Man(StonesCivType, new Vector3(10f, 0f, 0f), ForceId.Hostile, civilian: true);
+            var mem = new Fdp.Toolkit.Perception.Components.TargetMemory();
+            foreach (var (e, x) in new[] { (near, 20f), (far, 55f), (stones, 10f) })
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)e.PackedValue, x, 0f, 1f, _world.Repo.SimulationTick,
+                    Fdp.Toolkit.Perception.Components.SensorModality.Visual);
+            _world.Repo.AddComponent(cop, mem);
+
+            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            Assert.True(EscalationLadder.WarnedAt(_world.Repo, cop, near) > 0);
+            Assert.Equal(0.0, EscalationLadder.WarnedAt(_world.Repo, cop, far));                           // beyond reach
+            Assert.Equal(0.0, EscalationLadder.WarnedAt(_world.Repo, cop, stones));                        // nothing lethal on him
+            Assert.Equal(GestureKind.Warning, Gestures.Of(_world.Repo, cop));
+            _world.Repo.SetSimulationTime(21f);
+            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            Assert.Equal(GestureKind.Warning, Gestures.Of(_world.Repo, cop));
+            _world.Repo.SetSimulationTime(22.5f);
+            EscalationLadder.Watch(_world.Repo, cop, 40f);
+            Assert.Equal(GestureKind.None, Gestures.Of(_world.Repo, cop));                                 // the cue shown, lowered
+
+            var volley = Man(PistolCivType, new Vector3(25f, 5f, 0f), ForceId.Hostile, civilian: true);
+            Pose(volley, WeaponPostureKind.Aimed);                                                          // aimed at a POINT — into the air
+            Assert.Equal(RoeForceLevel.NonLethal, ForceLevels.LevelFor(_world.Repo, cop, volley));          // ready, not yet warned: never lethal
+        }
+
         /// <summary>⭐ <c>CE-2238</c> part 4 (AW-16, §5h.7 CO-1) — AIMING at the forces is the hostile act, drawing is not: a civilian whose
         /// weapon is READY at a soldier commits nothing; aimed at another civilian, nothing; aimed at the SOLDIER — a LETHAL act; an enemy
         /// soldier aiming at him (a combatant: his status already says it) commits none. ✅ Red-proof: the <c>AimedAtTheForces</c> call removed

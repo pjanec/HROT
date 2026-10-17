@@ -593,6 +593,13 @@ namespace Fdp.Toolkit.Combat.Executors
             if (Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(world, target)) return ActionReason.HoldSurrender;
             // ⭐ CE-2238 part 4 (AW-21/AW-22, §5h.7b CH-1) — CONDUCT: no lethal round at a civilian this unit neither sees armed nor knows
             if (!ForceLevels.ConductPermits(world, unit, target, ForceLevels.IsLethalRound(world, ammo, mount))) return ActionReason.HoldConduct;
+            // ⭐ CE-2239 part 3 (B2, §5k EL-3/EL-6) — the security forces' LADDER: warn an armed man before anything rises; at the Warn rung,
+            //   the warning is all — no round
+            if (EscalationLadder.Applies(world, unit, target))
+            {
+                EscalationLadder.WarnIfDue(world, unit, target);
+                if (ForceLevels.LevelFor(world, unit, target) == RoeForceLevel.Warn) return ActionReason.HoldWarn;
+            }
             // ⭐ CE-2239 part 1 (CV-8, §5j FL-2/FL-3) — the unit's FORCE LEVEL: no round above it, unless THIS target is a self-defence threat
             if (!ForceLevels.Permits(world, unit, target, ammo, mount)) return ActionReason.HoldForceLevel;
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values

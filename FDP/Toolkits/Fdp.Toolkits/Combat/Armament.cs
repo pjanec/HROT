@@ -176,6 +176,19 @@ namespace Fdp.Toolkit.Combat
         /// the world it must not move.</summary>
         public static long ConductJudgements => Interlocked.Read(ref _conductJudgements);
 
+        /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-1) — the <c>SecurityForce</c> class's category (<c>3.1.*.3</c>, the class table's
+        /// police; <c>CivilianTkbCatalog.DisCategorySecurityForce</c>).</summary>
+        public const byte SecurityForceCategory = 3;
+
+        /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-1) — is <paramref name="unit"/> of the <c>SecurityForce</c> class (<c>3.1.*.3</c>)?
+        /// The ladder runs for these units only (AW-24: never a soldier).</summary>
+        public static bool IsSecurityForce(ISimulationView view, Entity unit)
+        {
+            if (view is not EntityRepository world || unit.IsNull || !world.IsAlive(unit)) return false;
+            var dis = world.GetDisType(unit);
+            return dis.Kind == CivilianKind && dis.Domain == CivilianDomain && dis.Category == SecurityForceCategory;
+        }
+
         /// <summary>Is <paramref name="dis"/> of the <c>Civilian</c> class (<c>3.1.*.2</c>)?</summary>
         public static bool IsCivilianClass(DISEntityType dis)
             => dis.Kind == CivilianKind && dis.Domain == CivilianDomain && dis.Category == CivilianCategory;

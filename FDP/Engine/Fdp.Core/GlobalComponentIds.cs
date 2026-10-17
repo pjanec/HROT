@@ -996,6 +996,9 @@ namespace Fdp.Core
         /// civilians a unit SAW commit a lethal act — brain-local, never saved, its own component so the memory's copy-and-write-back cannot
         /// erase it. ⚠ 405 measured free on backend, ui and behaviors 2026-10-17.</summary>
         public const int KnownCombatantList = 405;
+        /// <summary><c>WarningLog</c> — ⭐ CE-2239 part 3 (B2; docs/DESIGN_Civilians_And_Crowd_Control.md §5k EL-3): the men a police unit has
+        /// WARNED and when — brain-local on the warner, never saved. ⚠ 406 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int WarningLog = 406;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;
