@@ -193,5 +193,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2241</c> ① (AW-5, AW-21; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.5) — lay every weapon down and raise the hands; after
         /// <c>Seconds</c> (0 = for good) take them up again and finish (the feint).</summary>
         public const string Surrender = "Surrender";
+        /// <summary>⭐ <c>CE-2239</c> part 2 (CV-11, FL-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5j) — a policeman holds his post in
+        /// the line, fires at the nearest Hostile within <c>Reach</c> (his ROE's force level picks the weapon) and strikes with the baton
+        /// within arm's reach. The security types run it by default.</summary>
+        public const string HoldTheLine = "HoldTheLine";
     }
 }

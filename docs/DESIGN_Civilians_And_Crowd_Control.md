@@ -1678,7 +1678,7 @@ stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he 
 the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
 at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
 
-## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: BUILDING — slices ①②③ BUILT, ④ the demo next)*
 
 ⭐ **Scope.** CV-8's second half: a unit's ROE carries a FORCE LEVEL {Warn, NonLethal, Lethal} that caps what its weapons may fire, with
 AW-18's self-defence over it; and CV-11's police, who today have no brain at all, get one: they hold a line and use their non-lethal
@@ -1712,7 +1712,7 @@ classDiagram
   class FireAtPointExecutor { <<existing>> its hold: + HoldForceLevel }
   class UtilityScorer { <<existing>> WeaponSelection: a mount above the cap is no candidate }
   class BehaviorProfileDto { <<existing, grows>> + DefaultRoeForceLevel }
-  class HoldTheLine { <<NEW library behaviour, Hrot.AI.Behaviors>> hold, face, non-lethal fire, the baton in reach }
+  class HoldTheLine { <<BUILT library BTree, Hrot.AI.Behaviors>> hold the post · fire at the nearest Hostile in reach · the baton in reach }
   class CivilianFearSystem { <<existing, grows>> + a stun or a gas cloud frightens }
   Roe --> RoeForceLevel
   ForceLevels ..> Roe
@@ -1769,6 +1769,24 @@ system, the police brain in the brain tick.
 
 **Slices:** ① FL-1 (the field, defaults, rails) · ② FL-2/3/4 (the cap, self-defence, the choice; rails red under mutants) · ③ FL-5/6
 (HoldTheLine, the fear) · ④ `ua-civ-police-line` + its twin.
+
+### 5j.1 As built *(2026-10-17 — slices ①②③)*
+
+| slice | built | rails *(red-proof)* |
+|---|---|---|
+| ① FL-1 | `Roe.ForceLevel` + `RoeForceLevel` (`Behavior/Components/Roe.cs`), CE-2095's recipe end to end; the three security types `DefaultRoeForceLevel = NonLethal` | `RoeAndRecentSensesTests.CE2239_AnOrderSetsTheForceLevel…` · `NonLethalMunitionTests.CE2239_TheSecurityForces_…` |
+| ② FL-2/3/4 | ⭐ ONE reader `Combat/ForceLevels.cs` — `Permits(world, unit, target, ammo, mount)`, `AllowsMount`, `SelfDefence`; asked in `AimAndFireExecutor.HoldOf` (after HoldSurrender) and `FireAtPointExecutor.ShootAtPoint` (obeyRoe) ⇒ `ActionReason.HoldForceLevel` ("hold: force level", posture Ready); the `UtilityScorer` WeaponSelection candidates drop a mount above the cap (mount 0, child mounts, controlled weapon systems) | `AimAndFireExecutorTests.CE2239_TheForceLevel_HoldsALethalRound_…` · `StarterPackIntegrationTests.CE2239_WeaponSelection_UnderANonLethalCap_…` — ✅ 5 mutants red: no gate · no self-defence · aimed-at-anyone · no choice filter · Warn as NonLethal |
+| ③ FL-5 | `HoldTheLineBehavior` — a curated BTree (the security brain tier), one stateful action: post = where it started, walk back past `Hold` (default 3 m), the nearest REMEMBERED Hostile within `Reach` (default 40 m) gets `PostureNodes.Fire` (AimAndFire MountAuto — the force level picks the weapon), one in `Melee.ReachMetres` gets `Melee.Strike` instead; skipped: Neutral, out of the fight, hands up, knocked down. The security types' `DefaultBehaviorHash = HoldTheLine` | `HoldTheLineBehaviorTests` ×3 (target choice · baton · walk back) · `NonLethalMunitionTests.CE2239_TheSecurityForces_…` (the default) |
+| ③ FL-6 | `CivilianFearSystem` — a NEW or LONGER stun / irritation (`EffectState`) frightens as a hit (`CivilianFear.EffectImpulse` = 1), remembered in `CivilianState.EffectFrightUntil` so a running effect frightens once | `CivilianFearSystemTests.CE2239_AStunOrGas_FrightensHimOnce_ANewOneAgain` |
+
+⚠ **Deviations from the table above, measured:**
+- ⛔ **FL-5's `Facing` is NOT built** — no seam turns a STANDING person's body to a heading (`HumanGait` turns him only to the aim
+  or the travel, `CarKinematicsSystem.cs:404-412`); he keeps the facing the scenario placed him with and turns to aim at his
+  target. A facing request is its own capability (the person motor's), not a police rule.
+- ⭐ **hands up is skipped by the BEHAVIOUR** — the gate holds a round at raised hands (CV-13a) but nothing holds a baton blow
+  (`Melee.Strike` checks no one), so `HoldTheLine` asks it.
+- ⚠ **the three older riot demos pin their policeman to `Idle`** (`ua-civ-melee`, `ua-civ-riot-stone`, `ua-civ-surrender`) — they test
+  the RIOTER against a passive target; with the new default he would fight back and change what they measure.
 
 ## 6. Known limits
 

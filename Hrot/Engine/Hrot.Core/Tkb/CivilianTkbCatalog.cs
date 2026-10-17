@@ -104,7 +104,9 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree,
                                                     CanMove = true, CanShoot = true, CanInteract = true,
                                                     // ⭐ CE-2239 part 1 (CV-8, §5j FL-1) — the police use non-lethal force; self-defence lifts it (AW-18)
-                                                    DefaultRoeForceLevel = Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal });
+                                                    DefaultRoeForceLevel = Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal,
+                                                    // ⭐ CE-2239 part 2 (behaviors, cross-lane; §5j FL-5) — placed with no task, a policeman holds the line
+                                                    DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.HoldTheLine) });
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 150f, HearingRange = 300f, FieldOfViewDegrees = 360f });
             var suite = new WeaponSuiteDto();
             foreach (var m in mounts) suite.Mounts.Add(m);

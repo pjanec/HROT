@@ -199,7 +199,11 @@ namespace Hrot.Map.Common.Tests
         {
             var db = BuiltIn();
             foreach (var type in new[] { CivilianTkbCatalog.TkbSecurityShield, CivilianTkbCatalog.TkbSecurityBaton, CivilianTkbCatalog.TkbSecurityLauncher })
+            {
                 Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal, db.GetByType(type)!.GetDescriptor<BehaviorProfileDto>()!.DefaultRoeForceLevel);
+                // ⭐ CE-2239 part 2 (FL-5) — placed with no task, a policeman holds the line
+                Assert.Equal(Fdp.Toolkit.Behavior.BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.HoldTheLine), db.GetByType(type)!.GetDescriptor<BehaviorProfileDto>()!.DefaultBehaviorHash);
+            }
             Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeForceLevel.ForceUnset, db.GetByType(2002)!.GetDescriptor<BehaviorProfileDto>()!.DefaultRoeForceLevel);
         }
 
