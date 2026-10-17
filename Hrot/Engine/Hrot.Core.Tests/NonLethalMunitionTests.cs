@@ -53,6 +53,66 @@ namespace Hrot.Map.Common.Tests
             Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStunGrenade).Warhead!.Indirect);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, §7.10 PU-2/PU-3) — on the BUILT-IN catalogue the hand items are the thrown rounds and the canister; each
+        /// has a LOOK (so a lying one replicates to the brain's node); only the stone lies a minute. ✅ Red-proof: the HandItems attach dropped
+        /// from <c>Register</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3235_TheHandItems_AreSeen_AndAStoneLiesAMinute()
+        {
+            var db = BuiltIn();
+            foreach (var ammo in new long[] { MunitionTkbCatalog.TkbStone, MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.TkbStunGrenade,
+                                              MunitionTkbCatalog.TkbTearGasGrenade, MunitionTkbCatalog.TkbTearGasCanister, MunitionTkbCatalog.TkbSmokeGrenade })
+            {
+                Assert.True(db.TryGetByType(ammo, out var t), $"{ammo}");
+                Assert.True(t!.GetDescriptor<HandItemDto>() != null, $"{t.Name}: a hand may pick it up");
+                Assert.True(t.GetDescriptor<MunitionVisualDto>() != null, $"{t.Name}: it must be SEEN to be picked up on another node");
+            }
+            Assert.Equal(60f, db.GetByType(MunitionTkbCatalog.TkbStone)!.GetDescriptor<HandItemDto>()!.LiesSeconds);
+            Assert.Null(db.GetByType(MunitionTkbCatalog.TkbBatonRound)!.GetDescriptor<HandItemDto>());   // a fired baton round is not picked up
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3235</c> (B-13, AW-8, §7.10 PU-7) — a man standing in a STONE SOURCE (the built-in area type 8812) is topped up to 5 stones;
+        /// outside it, nothing; a second refill takes nothing more. ✅ Red-proof: the point-in-area test inverted ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3235_AManInAStoneSource_IsToppedUpToFive_AndOutsideItGetsNone()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<Hrot.IG.Components.EditablePolyline>();
+            world.RegisterComponent<TkbIdentity>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            world.RegisterComponent<PartMetadata>();
+            var db = BuiltIn();
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            var source = world.CreateEntity();
+            world.AddComponent(source, new SimTransform { Position = new System.Numerics.Vector3(100, 100, 0), Rotation = System.Numerics.Quaternion.Identity });
+            world.AddComponent(source, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.StoneSource });
+            world.SetManagedComponent(source, new Hrot.IG.Components.EditablePolyline
+                { Points = new() { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
+
+            Entity Man(float x, float y)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, y, 0), Rotation = System.Numerics.Quaternion.Identity });
+                world.AddComponent(e, new TkbIdentity { TkbType = CivilianTkbCatalog.TkbCivilianAdultMale });
+                new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(world, e, db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale)!);
+                return e;
+            }
+            var inside = Man(102, 99);
+            var outside = Man(120, 100);
+            Assert.Equal(5, Fdp.Toolkit.Combat.ItemSources.Refill(world, inside));
+            Assert.Equal(5, Fdp.Toolkit.Combat.PersonHands.Rounds(world, inside, MunitionTkbCatalog.TkbStone));
+            Assert.Equal(0, Fdp.Toolkit.Combat.ItemSources.Refill(world, inside));   // already full
+            Assert.Equal(0, Fdp.Toolkit.Combat.ItemSources.Refill(world, outside));
+            Assert.Equal(0, Fdp.Toolkit.Combat.PersonHands.Rounds(world, outside, MunitionTkbCatalog.TkbStone));
+        }
+
         [Fact]
         public void CE3223_EachNonLethalRound_ResolvesToItsEffect_AndNoneCarriesFragments()
         {

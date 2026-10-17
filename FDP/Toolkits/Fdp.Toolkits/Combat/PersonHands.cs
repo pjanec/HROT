@@ -111,6 +111,46 @@ namespace Fdp.Toolkit.Combat
             return true;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13) — could <see cref="Give"/> put a round of <paramref name="ammo"/> in <paramref name="owner"/>'s hands: he
+        /// has hands and a slot holds that kind, is empty, or is still free.
+        /// </summary>
+        public static bool HasRoom(EntityRepository world, Entity owner, long ammo)
+        {
+            if (ammo == 0 || !world.IsComponentTypeRegistered<AmmoLoadout>()) return false;
+            var mount = MountEntity(world, owner, MountIndex(world, owner));
+            if (mount.IsNull || !world.HasComponent<AmmoLoadout>(mount)) return false;
+            ref readonly var load = ref world.GetComponentRO<AmmoLoadout>(mount);
+            if (load.Count < AmmoLoadout.MaxTypes) return true;
+            for (int i = 0; i < load.Count; i++) if (load.AmmoAt(i) == ammo || load.RoundsAt(i) <= 0) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, PU-6) — take <paramref name="rounds"/> of <paramref name="ammo"/> out of <paramref name="owner"/>'s hands
+        /// (the slot holding that kind and the mount's total); false when he holds none of it.
+        /// </summary>
+        public static bool Take(EntityRepository world, Entity owner, long ammo, int rounds = 1)
+        {
+            if (ammo == 0 || rounds <= 0 || !world.IsComponentTypeRegistered<AmmoLoadout>()) return false;
+            var mount = MountEntity(world, owner, MountIndex(world, owner));
+            if (mount.IsNull || !world.HasComponent<AmmoLoadout>(mount)) return false;
+            ref var load = ref world.GetComponentRW<AmmoLoadout>(mount);
+            for (int i = 0; i < load.Count; i++)
+            {
+                if (load.AmmoAt(i) != ammo || load.RoundsAt(i) <= 0) continue;
+                int n = Math.Min(rounds, load.RoundsAt(i));
+                load.SetRounds(i, load.RoundsAt(i) - n);
+                if (world.HasComponent<WeaponState>(mount))
+                {
+                    ref var weapon = ref world.GetComponentRW<WeaponState>(mount);
+                    weapon.Ammo = Math.Max(0, weapon.Ammo - n);
+                }
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>How many rounds of <paramref name="ammo"/> <paramref name="owner"/> holds in his hands (0 = none, or no hands).</summary>
         public static int Rounds(EntityRepository world, Entity owner, long ammo)
         {

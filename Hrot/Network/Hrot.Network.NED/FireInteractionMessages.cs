@@ -57,6 +57,10 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-2180</c> (Air Ops §8a, R-169 — APPENDED) — the synced sim time (s) the brain raised the shot; 0 = now. A bomb
         /// starts from its carrier as it was then, flown forward to the SimHost's now.</summary>
         public double RaisedAt;
+
+        /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-6, R-169 — APPENDED) — the fuze a time-fuzed round flies with (s); 0 = its warhead's
+        /// own. A live round picked up and thrown back keeps what it had left.</summary>
+        public float FuzeSeconds;
     }
 
     /// <summary>

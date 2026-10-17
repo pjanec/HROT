@@ -95,7 +95,9 @@ namespace Fdp.Toolkit.Combat.Systems
                     proj.FuzeRemaining -= deltaTime;
                     if (proj.FuzeRemaining <= 0f)
                     {
-                        Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
+                        // ⭐ CE-3235 (B-13, §7.10 PU-1) — a LINGERING inert round (a stone) has lain its time and goes without a burst
+                        if ((proj.Warhead & WarheadRound.Lingers) == 0)
+                            Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick);
                         repo.DestroyEntity(entity);
                     }
                     continue;
@@ -118,7 +120,12 @@ namespace Fdp.Toolkit.Combat.Systems
                     {
                         if (shot != null && (proj.Warhead & WarheadRound.Spent) == 0)
                             ShotLog.EndCarried(shot, ShotOutcome.StoppedByTerrain, currentTick, proj.PreviousPosition, terrain, in proj);
-                        repo.DestroyEntity(entity);
+                        // ⭐ CE-3235 (B-13, §7.10 PU-1) — an inert HAND ITEM (a stone) LIES where it stopped for its lying time (carried in
+                        //   FuzeRemaining): a hand may pick it up (RoundPickUp) — the Landed branch above ends it without a burst.
+                        if ((proj.Warhead & (WarheadRound.Lingers | WarheadRound.Spent)) == WarheadRound.Lingers && proj.FuzeRemaining > 0f)
+                            proj.Warhead |= WarheadRound.Landed;
+                        else
+                            repo.DestroyEntity(entity);
                     }
                     continue;
                 }

@@ -401,6 +401,75 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
             $"its owner ends it at its time and it is gone everywhere (sim {Clouds(sim)}, cgf {Clouds(cgf)}, ig {Clouds(ig)})");
     }
 
+    private static Entity Stone(EntityRepository world)
+    {
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()) return Entity.Null;
+        foreach (var e in world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>()
+                     .With<Fdp.Toolkit.Replication.Components.TkbIdentity>().Build())
+            if (world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType == Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone) return e;
+        return Entity.Null;
+    }
+
+    /// <summary>⭐⭐ <c>CE-3235</c> (B-13, AW-8; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-3/PU-4) — a stone LYING on SimHost (the
+    /// node that flies it) is seen on the brain's node (CGF); the Rifleman's brain asks for it twice in one frame; SimHost grants it ONCE and
+    /// removes it everywhere; the grant crosses back and his hands on CGF hold exactly one stone.</summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once()
+    {
+        Directory.CreateDirectory(NasScenarioStaging.DirectoryOf(_scenarioId));
+        File.Copy(Path.Combine(RepoRoot(), "scenarios", "ua-grenade-or-rifle", "scenario.json"),
+            Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json"), overwrite: true);
+
+        using var harness = new HrotRunnerHarness("simhost,ig,excon,cgf", NextDomainId());
+        var master = harness.OrchestratorSvc.TestHook_ClusterMaster!;
+        var rosterDeadline = DateTime.UtcNow.AddSeconds(10.0);
+        while (master.NodeRoster.ActiveNodes.Count == 0 && DateTime.UtcNow < rosterDeadline) { harness.PumpFrames(1); Thread.Sleep(10); }
+        await master.HandleClusterOpRequestAsync(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = JsonSerializer.Serialize(new { TargetState = nameof(ClusterState.OperatingLive), ScenarioId = _scenarioId }),
+        }).ConfigureAwait(false);
+        Assert.True(harness.PumpUntil(() => (int)master.CurrentClusterState == 31, timeoutFrames: 4000), "cluster must reach OperatingLive");
+
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(sim, "Rifleman").IsNull, timeoutFrames: 2000),
+            "the Rifleman must exist on CGF and SimHost");
+        var onBrain = ByName(cgf, "Rifleman");
+        Assert.Equal(0, Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone));
+
+        // a stone lying at his feet, as the flight leaves one (Landed, lingering) — on SimHost, which flies it; seen because it has a look
+        var at = sim.GetComponentRO<SimTransform>(ByName(sim, "Rifleman")).Position;
+        var stone = sim.CreateEntity();
+        sim.AddComponent(stone, new SimTransform { Position = at + new System.Numerics.Vector3(0.3f, 0f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+        sim.AddComponent(stone, new SimVelocity());
+        sim.AddComponent(stone, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+        {
+            PreviousPosition = at, Muzzle = at, SpawnTick = 1, StoppedTick = 1, TerrainFlags = 1, Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone,
+            Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Arc | Fdp.Toolkit.Combat.Components.WarheadRound.Lingers
+                             | Fdp.Toolkit.Combat.Components.WarheadRound.Landed),
+            FuzeRemaining = 60f,
+        });
+        Assert.True(Fdp.Toolkit.Combat.Systems.FireProcessingSystem.MarkIfVisible(sim, stone, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone),
+            "the stone has a look ⇒ it replicates");
+        Assert.True(harness.PumpUntil(() => !Stone(cgf).IsNull, timeoutFrames: 600), "the lying stone must be seen on the brain's node");
+
+        // two asks in one frame (as two men reaching at once): one grant
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Combat.RoundPickUp.CanAsk(cgf, onBrain, Stone(cgf)), timeoutFrames: 300),
+            "the Rifleman can ask for the stone at his feet");
+        var replica = Stone(cgf);
+        Assert.True(Fdp.Toolkit.Combat.RoundPickUp.Ask(cgf, onBrain, replica));
+        Assert.True(Fdp.Toolkit.Combat.RoundPickUp.Ask(cgf, onBrain, replica));
+        Assert.True(harness.PumpUntil(() => Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone) > 0,
+            timeoutFrames: 600), "the grant must reach his hands on CGF");
+        Assert.True(harness.PumpUntil(() => Stone(sim).IsNull && Stone(cgf).IsNull && Stone(ig).IsNull, timeoutFrames: 600),
+            "the stone is gone on every node");
+        harness.PumpFrames(30);
+        Assert.Equal(1, Fdp.Toolkit.Combat.PersonHands.Rounds(cgf, onBrain, Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone));   // ⭐ ONE winner
+    }
+
     /// <summary>⭐⭐ <c>CE-1148</c> S2 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — a burst simulated on SimHost reaches the
     /// brain node through the ONE shared event pair, exactly once, and stays once (no loop-back, no second list).</summary>
     [Fact(Timeout = 600_000)]

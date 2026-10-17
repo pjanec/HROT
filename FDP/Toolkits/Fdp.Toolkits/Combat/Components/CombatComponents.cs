@@ -149,6 +149,9 @@ namespace Fdp.Toolkit.Combat.Components
         public const byte Landed = 8;
         /// <summary>Already burst: a late raycast of an earlier segment must not detonate it a second time.</summary>
         public const byte Spent = 16;
+        /// <summary>⭐ <c>CE-3235</c> (B-13, §7.10 PU-1) — an INERT round a hand may pick up (<see cref="Fdp.Toolkit.Tkb.Domain.HandItemDto"/>):
+        /// once it stops it lies <see cref="Landed"/> for its lying time (carried in <c>FuzeRemaining</c>), then goes without a burst.</summary>
+        public const byte Lingers = 32;
 
         /// <summary>
         /// ⭐ The ONE derivation of a fired round's bits from its warhead (<c>FireProcessingSystem</c>). ⭐⭐ <c>CE-3239</c> — a CLOUD warhead
@@ -163,6 +166,22 @@ namespace Fdp.Toolkit.Combat.Components
             if (warhead.HasAreaEffect || warhead.HasCloud) bits |= Area;
             if (warhead.Fuze == Fdp.Toolkit.Tkb.Domain.FuzeKind.Time && warhead.FuzeDelayS > 0f) { bits |= TimeFuze; fuzeSeconds = warhead.FuzeDelayS; }
             if (warhead.Indirect) bits |= Arc;
+            return bits;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, §7.10 PU-1) — <see cref="BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto?, out float)"/> plus the munition's
+        /// <see cref="Fdp.Toolkit.Tkb.Domain.HandItemDto"/>: an INERT hand item with a lying time <see cref="Lingers"/>, and its lying time
+        /// rides in <paramref name="fuzeSeconds"/> (an inert round has no fuze of its own; a round that bursts keeps its fuze).
+        /// </summary>
+        public static byte BitsOf(Fdp.Toolkit.Tkb.Domain.WarheadDto? warhead, Fdp.Toolkit.Tkb.Domain.HandItemDto? hand, out float fuzeSeconds)
+        {
+            byte bits = BitsOf(warhead, out fuzeSeconds);
+            if (hand is { LiesSeconds: > 0f } && (bits & (Area | TimeFuze)) == 0)
+            {
+                bits |= Lingers;
+                fuzeSeconds = hand.LiesSeconds;
+            }
             return bits;
         }
     }

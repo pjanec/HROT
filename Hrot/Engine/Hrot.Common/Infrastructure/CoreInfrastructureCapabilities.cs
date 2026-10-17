@@ -137,13 +137,15 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.WeaponDeploySystem            _deploy        = new();   // ⭐ Weapon systems WS-1 (W-C)
         private readonly Hrot.Common.EntityCreation.EjectionSystem        _ejection      = new();   // ⭐ Airborne insertion B-8 (§7d D-14)
         private readonly Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem _clouds    = new();   // ⭐ CE-3219 part 3 — the owner drifts, irritates, ends it
+        private readonly Fdp.Toolkit.Combat.Systems.RoundPickUpSystem     _pickUp    = new();   // ⭐ CE-3235 — the round's flier grants, the brain owner receives
+        private readonly Fdp.Toolkit.Combat.Systems.HandsFuzeSystem       _handsFuze = new();   // ⭐ CE-3235 — a live round burns in the hand
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -159,6 +161,8 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_deploy);
             simulation.Add(_ejection);
             simulation.Add(_clouds);
+            simulation.Add(_pickUp);
+            simulation.Add(_handsFuze);
         }
     }
 }
