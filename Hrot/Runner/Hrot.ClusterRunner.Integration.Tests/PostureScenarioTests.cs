@@ -1046,6 +1046,59 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 5 (AW-12, B5; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5l) — <c>ua-armed-bomber</c> in-process: a civilian
+    /// with a charge HIDDEN walks into a crowd of ten and sets it off (<c>DetonateCharge</c>); a rifleman 30 m off watches. Sampled every frame
+    /// on CGF: ① until the blast nobody sees him armed (<c>Armament.Judge</c> from the rifleman and from a civilian) and the rifleman spends no
+    /// round · ② the vest bursts: it is gone, he is dead · ③ the casualties follow the warhead: every civilian inside its lethal radius is
+    /// hurt, nobody beyond its injury and fragment radii is.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_Bomber_NeverArmedToAnyone_TheVestBursts_CasualtiesFollowTheWarhead()
+    {
+        using var harness = await StartShippedScenario("ua-armed-bomber");
+        var cgf = harness.Cgf!.World!;
+        var civNames = Enumerable.Range(1, 10).Select(i => $"Civilian {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => civNames.Append("Bomber").Append("Vest").Append("Rifleman").All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var civs = civNames.Select(n => ByName(cgf, n)).ToArray();
+        var man = ByName(cgf, "Bomber");
+        var vest = ByName(cgf, "Vest");
+        var rifleman = ByName(cgf, "Rifleman");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifleman) ? cgf.GetComponentRO<WeaponState>(rifleman).Ammo : -1;
+        int ammo0 = -1, roundsBefore = 0;
+        bool seenArmed = false;
+        double? burstAt = null;
+        System.Numerics.Vector3 burst = default;
+        void Sample()
+        {
+            if (ammo0 < 0) ammo0 = Ammo();
+            bool vestThere = cgf.IsAlive(vest) && Charges.IsCharge(cgf, vest);
+            if (vestThere)
+            {
+                burst = cgf.GetComponentRO<SimTransform>(man).Position;
+                if (Armament.Judge(cgf, rifleman, man) != ArmedJudgement.Nothing || Armament.Judge(cgf, civs[0], man) != ArmedJudgement.Nothing) seenArmed = true;
+                roundsBefore = Math.Max(roundsBefore, ammo0 - Ammo());
+            }
+            else burstAt ??= cgf.SimulationTime;
+        }
+        harness.PumpUntil(() => { Sample(); return burstAt != null && cgf.SimulationTime - burstAt >= 2.0 || cgf.SimulationTime > 80.0; }, timeoutFrames: 8000);
+        var warhead = CombatTkb.WarheadOf(cgf, 6043L);
+        float Flat(System.Numerics.Vector3 a, System.Numerics.Vector3 b) => System.Numerics.Vector2.Distance(new(a.X, a.Y), new(b.X, b.Y));
+        var rows = civs.Select((c, i) => (name: civNames[i], d: Flat(cgf.GetComponentRO<SimTransform>(c).Position, burst), hp: cgf.GetComponentRO<Health>(c).Current)).ToArray();
+        float outer = warhead == null ? 0f : Math.Max(warhead.BlastInjuryRadiusM, warhead.FragmentRadiusM);
+        string State() => $"seen armed {seenArmed}, rounds before {roundsBefore}, burst at {burstAt} ({burst.X:F1},{burst.Y:F1}), bomber health {cgf.GetComponentRO<Health>(man).Current}, " +
+                          $"warhead lethal {warhead?.BlastLethalRadiusM} injury {warhead?.BlastInjuryRadiusM} frag {warhead?.FragmentRadiusM}, " +
+                          $"civilians [{string.Join(", ", rows.Select(r => $"{r.name} {r.d:F1} m {r.hp:F0}"))}]";
+        _out.WriteLine(State());
+        Assert.True(!seenArmed && roundsBefore == 0, $"① never armed to anyone before the blast; {State()}");
+        Assert.True(burstAt != null && cgf.GetComponentRO<Health>(man).Current <= 0f, $"② the vest bursts and he is dead; {State()}");
+        Assert.True(warhead != null && warhead.BlastLethalRadiusM > 0f, $"the charge's warhead has a blast; {State()}");
+        Assert.True(rows.Where(r => r.d <= warhead!.BlastLethalRadiusM).All(r => r.hp < 100f), $"③ everyone inside the lethal radius is hurt; {State()}");
+        Assert.True(rows.Where(r => r.d > outer).All(r => r.hp >= 100f), $"③ nobody beyond the injury and fragment radii is; {State()}");
+        Assert.True(cgf.GetComponentRO<Health>(rifleman).Current >= 100f || Flat(cgf.GetComponentRO<SimTransform>(rifleman).Position, burst) <= outer, $"③ the rifleman beyond it is unhurt; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2239</c> part 3 (B2, CIV-5 ③; §5k EL-7) — <c>ua-civ-escalation-warn</c> in-process: the same line and riot under a WARN
     /// ceiling. Sampled every frame on CGF for 40 s: no police round and no baton blow at all (every mount's ammo kept, no rioter stunned,
     /// irritated, down or hurt by the police) — the warning cue only, shown, and the rounds held as "hold: warning".

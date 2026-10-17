@@ -3602,6 +3602,54 @@ def run_armed_celebration(c, timeout):
     c.ok(st["aimed"] is not None and st["at_him"] > 0, f"② once he aims at the patrol, it fires at him (aimed at {st['aimed']}, {st['at_him']} rounds)")
     c.ok(all(h is not None and h >= 100 for h in hp), f"③ no other guest is hurt ({hp})")
 
+
+# ── CE-2238 part 5 B5 — the bomber sets off his worn charge (Civilians §5c, §5l) ─────────────────────────────────────────────
+
+def run_armed_bomber(c, timeout):
+    """test-town: a civilian with a charge HIDDEN walks into a crowd of ten and sets it off (DetonateCharge); a rifleman 30 m off. ① until the
+    blast he stays Neutral and the rifleman spends no round · ② the vest bursts: it is gone and he is dead · ③ the casualties follow the
+    burst: everyone within 3 m of it is hurt, nobody beyond 25 m is (the rifleman unhurt). The twin (PostureScenarioTests.CE2238_Bomber_…)
+    checks every frame against the warhead's own radii."""
+    ids = ids_by_name()
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 11)]
+    man, vest, rifleman = ids.get("Bomber"), ids.get("Vest"), ids.get("Rifleman")
+    if not c.ok(None not in civs + [man, vest, rifleman], "the bomber, his vest, ten civilians and the rifleman are loaded"):
+        return
+    a0 = (ammo(rifleman) or (None,))[0]
+    st = {"burst": None, "at": None, "side": [], "rounds": 0}
+
+    def pos(n):
+        p = ((comps_on("CGF", n) or {}).get("SimTransform") or {}).get("Position") or [0, 0, 0]
+        return p[0], p[1]
+
+    def watch():
+        t = sim_time() or 0.0
+        if st["burst"] is None:
+            if comps_on("CGF", vest):
+                st["at"] = pos(man)
+                st["side"].append(((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId"))
+                a = (ammo(rifleman) or (None,))[0]
+                if a is not None and a0 is not None:
+                    st["rounds"] = max(st["rounds"], a0 - a)
+            else:
+                st["burst"] = t
+        return st["burst"] is not None and t - st["burst"] >= 2.0
+    call("POST", "/sim/play", {})
+    wait_for(watch, timeout + 90, every=0.25)
+    c.ok(st["rounds"] == 0 and all(s in ("Neutral", 0, None) for s in st["side"]),
+         f"① until the blast he stays Neutral and the rifleman spends no round (rounds {st['rounds']}, sides {sorted(set(map(str, st['side'])))})")
+    hb = health(man)
+    c.ok(st["burst"] is not None and hb is not None and hb <= 0, f"② the vest bursts and he is dead (at {st['burst']}, health {hb})")
+    bx, by = st["at"] or (0, 0)
+    rows = []
+    for n in civs + [rifleman]:
+        x, y = pos(n)
+        rows.append((n, ((x - bx) ** 2 + (y - by) ** 2) ** 0.5, health(n)))
+    near = [r for r in rows if r[1] <= 3.0]
+    far = [r for r in rows if r[1] > 25.0]
+    c.ok(near and all(h is not None and h < 100 for _, _, h in near), f"③ everyone within 3 m is hurt ({[(n, round(d, 1), h) for n, d, h in near]})")
+    c.ok(far and all(h is not None and h >= 100 for _, _, h in far), f"③ nobody beyond 25 m is ({[(n, round(d, 1), h) for n, d, h in far]})")
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3634,6 +3682,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2239 part 3 B2 — the escalation ladder: warn, then non-lethal, then lethal; a Warn ceiling holds every round (Civilians §5c, §5k)
              "ua-civ-escalation": run_civ_escalation, "ua-civ-escalation-warn": run_civ_escalation_warn,
              "ua-armed-self-defence": run_armed_self_defence, "ua-armed-celebration": run_armed_celebration,
+             # ⭐ CE-2238 part 5 B5 — the bomber (Civilians §5c, §5l)
+             "ua-armed-bomber": run_armed_bomber,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

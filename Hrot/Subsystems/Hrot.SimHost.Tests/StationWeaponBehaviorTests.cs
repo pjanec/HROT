@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class StationWeaponBehaviorTests
     {
-        private sealed class World
+        internal sealed class World
         {
             public readonly EntityRepository Repo = new();
             public readonly BehaviorRegistry Registry = new();
@@ -86,6 +86,22 @@ namespace Hrot.SimHost.Tests
                 return e;
             }
 
+            /// <summary>⭐ <c>CE-2238</c> part 5 — a worn CHARGE (B-11b: a weapon system with <c>Charge</c>), boarded on him, moved to
+            /// <paramref name="seat"/>.</summary>
+            public Entity Charge(int seat)
+            {
+                if (!Repo.Bus.IsRegistered<DetonateChargeEvent>()) Repo.Bus.Register<DetonateChargeEvent>();
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new SimTransform { Rotation = Quaternion.Identity });
+                Repo.AddComponent(e, new WeaponState { Ammo = 1 });
+                var t = new TkbTemplate("Charge", 4352L);
+                t.AddDescriptor(new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Carried | MountKinds.Cargo, Portable = WeaponPortability.OneMan, Charge = true });
+                new WeaponSystemTkbTranslator().Inject(Repo, e, t);
+                Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(Repo, e, Man));
+                Assert.True(CarryStations.Move(Repo, Man, e, seat));
+                return e;
+            }
+
             public int SeatOf(Entity thing) => CarryStations.SeatOf(Repo, thing, out _);
 
             public void Tick()
@@ -100,10 +116,12 @@ namespace Hrot.SimHost.Tests
                 Repo.FlushCommandBuffers();
             }
 
-            public void Start(string json)
+            public void Start(string json) => Start(BehaviorNames.StationWeapon, json);
+
+            public void Start(string behaviorName, string json)
             {
                 Finished = null;
-                Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Man, BehaviorName = BehaviorNames.StationWeapon, JsonParams = json, Origin = BehaviorOrigin.Superior });
+                Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = Man, BehaviorName = behaviorName, JsonParams = json, Origin = BehaviorOrigin.Superior });
             }
         }
 
@@ -153,6 +171,50 @@ namespace Hrot.SimHost.Tests
         {
             var w = new World();
             w.Start("{\"Station\":\"Hands\"}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal(NodeStatus.Failure, w.Finished);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2238</c> part 5 (AW-12, B5; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5l BM-1/BM-2) — the SHIPPED <c>DetonateCharge</c>
+    /// through the real ingress and brain tick: a man with a charge HIDDEN stands still <c>Seconds</c>, then asks it to go off (one
+    /// <see cref="DetonateChargeEvent"/>, by him) and finishes with Success; the charge never leaves its hidden station; a man with no charge
+    /// fails.
+    /// </summary>
+    public sealed class DetonateChargeBehaviorTests
+    {
+        private static int Asks(StationWeaponBehaviorTests.World w, Entity charge, Entity by)
+        {
+            int n = 0;
+            foreach (var e in w.Repo.Bus.Read<DetonateChargeEvent>()) if (e.Charge == charge && e.By == by) n++;
+            return n;
+        }
+
+        /// <summary>⭐ HIDDEN vest, 1 s: no ask before the second has passed, then ONE ask by him, Success; the vest stays hidden (never drawn).
+        /// ✅ Red-proofs: the <c>Seconds</c> hold removed ⇒ the ask comes on the first tick ⇒ red; <c>by</c> = null ⇒ the ask names no one ⇒ red.</summary>
+        [Fact]
+        public void CE2238_DetonateCharge_StandsStillSeconds_ThenAsksHisHiddenChargeOnce_AndSucceeds()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var vest = w.Charge(CarryStations.Hidden(w.Repo, w.Man));
+            w.Start(BehaviorNames.DetonateCharge, "{\"Seconds\":1}");
+            int asked = 0;
+            for (int i = 0; i < 5; i++) { w.Tick(); asked += Asks(w, vest, w.Man); }
+            Assert.Equal(0, asked);
+            Assert.Null(w.Finished);
+            for (int i = 0; i < 10; i++) { w.Tick(); asked += Asks(w, vest, w.Man); }
+            Assert.Equal(1, asked);
+            Assert.Equal(NodeStatus.Success, w.Finished);
+            Assert.True(CarryStations.IsConcealed(w.Repo, vest), "never drawn: it stays hidden until it goes off");
+        }
+
+        /// <summary>⭐ Nothing worn: the behaviour FAILS, it does not hang. ✅ Red-proof: <c>ChargeOf</c> null ⇒ Running ⇒ red.</summary>
+        [Fact]
+        public void CE2238_DetonateCharge_NoCharge_Fails()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            w.Start(BehaviorNames.DetonateCharge, "{}");
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal(NodeStatus.Failure, w.Finished);
         }

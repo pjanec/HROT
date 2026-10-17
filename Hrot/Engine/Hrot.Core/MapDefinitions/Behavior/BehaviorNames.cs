@@ -200,5 +200,7 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2238</c> part 4 (AW-11, AW-16; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.7 CO-2) — put the carried weapon in a
         /// carry station: Hands (draw), Back (sling) or Hidden (conceal); hold still <c>Seconds</c>, then finish.</summary>
         public const string StationWeapon = "StationWeapon";
+        /// <summary>⭐ <c>CE-2238</c> part 5 (AW-12, §5l BM-1) — he sets off the charge he carries.</summary>
+        public const string DetonateCharge = "DetonateCharge";
     }
 }
