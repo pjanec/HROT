@@ -844,6 +844,60 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2241</c> ① (AW-5, AW-21; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.5) — <c>ua-armed-surrender</c> in-process (the
+    /// live check's twin): the enemy soldier's first task is <c>Surrender {Seconds: 20}</c>, the rifleman's is to attack him. Sampled every
+    /// frame: ① his rifle is laid down and his hands are up on CGF, SimHost and IG · ② while so, no round is spent and he is not hurt ·
+    /// ③ 15–25 s later he takes the rifle up and lowers his hands (the feint) · ④ armed again, the rifleman spends a round within 30 s.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2241_ArmedSurrender_HeLaysHisRifleDown_NoRoundWhileHeIs_AndTheFeintIsEngaged_OnEveryNode()
+    {
+        using var harness = await StartShippedScenario("ua-armed-surrender");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Enemy Soldier").IsNull) && !ByName(cgf, "Rifleman").IsNull,
+            timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        var enemy = ByName(cgf, "Enemy Soldier");
+        var rifle = ByName(cgf, "Rifleman");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        float Hp() => cgf.HasComponent<Health>(enemy) ? cgf.GetComponent<Health>(enemy).Current : -1f;
+        static bool Surrendered(EntityRepository w, Entity e)
+            => !e.IsNull && WeaponLaying.AllLaidDown(w, e) && Gestures.Of(w, e) == GestureKind.HandsUp;
+        var everywhere = new System.Collections.Generic.HashSet<string>();
+        int firstAmmo = -1, spentWhileDown = 0, roseAmmo = -1;
+        float firstHp = -1f, hurtWhileDown = 0f;
+        double firstAt = -1, roseAt = -1, firedAt = -1;
+        void Sample()
+        {
+            foreach (var (name, w) in hosts)
+                if (Surrendered(w, ByName(w, "Enemy Soldier"))) everywhere.Add(name);
+            bool down = Surrendered(cgf, enemy);
+            if (down && firstAt < 0) { firstAt = cgf.SimulationTime; firstAmmo = Ammo(); firstHp = Hp(); }
+            if (down && roseAt < 0)
+            {
+                spentWhileDown = Math.Max(spentWhileDown, firstAmmo - Ammo());
+                hurtWhileDown = Math.Max(hurtWhileDown, firstHp - Hp());
+            }
+            if (!down && firstAt >= 0 && roseAt < 0) { roseAt = cgf.SimulationTime; roseAmmo = Ammo(); }
+            if (roseAt >= 0 && firedAt < 0 && Ammo() < roseAmmo) firedAt = cgf.SimulationTime;
+        }
+        string State() => $"down [{string.Join(",", everywhere)}], first {firstAt:F1}, rose {roseAt:F1}, fired {firedAt:F1}, " +
+                          $"spent-while-down {spentWhileDown}, hurt {hurtWhileDown}, rifle {cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason}, " +
+                          $"ammo {Ammo()}, hp {Hp()}, gesture {Gestures.Of(cgf, enemy)}, laid {WeaponLaying.AllLaidDown(cgf, enemy)}";
+
+        harness.PumpUntil(() => { Sample(); return firedAt >= 0 || (roseAt >= 0 && cgf.SimulationTime - roseAt > 30.0); }, timeoutFrames: 6000);
+        _out.WriteLine(State());
+        Assert.True(firstAt >= 0, $"① he surrenders; {State()}");
+        Assert.Equal(3, everywhere.Count);                             // ① on every node
+        Assert.Equal(0, spentWhileDown);                               // ② no round while he is surrendered
+        Assert.Equal(0f, hurtWhileDown);
+        Assert.True(roseAt >= 0 && roseAt - firstAt is >= 15.0 and <= 25.0, $"③ the feint after ~20 s; {State()}");
+        Assert.True(firedAt >= 0, $"④ armed again, he is engaged; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>AW-20</c> (R-2026) — <c>ua-armed-shield</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
     /// §5c, §5h): a rifleman 60 m from an insurgent with four civilians standing in the line between them and two beside him. Sampled every
     /// frame on CGF: ① he holds with <c>HoldNeutralOnLine</c> at least once, and every round he spends leaves with no living civilian's body
