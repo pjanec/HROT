@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Perception.Components;
 
