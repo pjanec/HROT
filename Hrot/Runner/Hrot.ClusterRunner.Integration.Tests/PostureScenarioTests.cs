@@ -1012,7 +1012,7 @@ public sealed class PostureScenarioTests : IDisposable
         {
             if (a0 < 0) { a0 = Ammo(a); b0 = Ammo(b); }
             if (actAt < 0 && Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man) == Fdp.Toolkit.Civilians.HostileActKind.Lethal)
-            { actAt = cgf.SimulationTime; aMemAtAct = MemoryOf(cgf, a, man); bMemAtAct = MemoryOf(cgf, b, man); }
+            { actAt = cgf.SimulationTime; aMemAtAct = MemoryOf(cgf, a, man) + " probe " + KnownCombatants.LastProbe + $" A={a}"; bMemAtAct = MemoryOf(cgf, b, man); }
             if (actAt < 0) aMemBefore = MemoryOf(cgf, a, man);
             if (bFiredAt < 0 && Ammo(b) < b0) { bFiredAt = cgf.SimulationTime; bWhy = $"danger {Fdp.Toolkit.Perception.ThreatDanger.Of(cgf, b, man):F2}, judge {Armament.Judge(cgf, b, man)}, B target {cgf.GetComponent<ActionStatus>(b).Weapon.Reason}"; }
             bool hidden = CarryStations.IsConcealed(cgf, rifle);
