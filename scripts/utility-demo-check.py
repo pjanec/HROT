@@ -2993,7 +2993,7 @@ def run_civ_contagion(c, timeout):
 
 # ── CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g) ─────────────────────────────────────────────────
 
-_GESTURES = {0: "None", 1: "HandsUp", 2: "FistRaised", 3: "HoldSign", 4: "Waving", 5: "Throwing"}
+_GESTURES = {0: "None", 1: "HandsUp", 2: "FistRaised", 3: "HoldSign", 4: "Waving", 5: "Throwing", 6: "Warning"}
 
 
 def gesture_on(perspective, nid):
@@ -3187,6 +3187,116 @@ def run_civ_surrender(c, timeout):
     c.ok(side() in ("Hostile", 2), f"⑤ his side stays Hostile ({side()})")
 
 
+# ── CE-2239 A6 CV-8/CV-11 — the force level and the police line (Civilians §5c, §5j) ──────────────────────────────────────
+
+def run_civ_police_line(c, timeout):
+    """test-town: three policemen (shield, baton, launcher) placed with NO task — so on their default, HoldTheLine under a NonLethal ROE —
+    12 m from an instigator and four protesters around a stone source. ⓪ the riot starts · ① the police use force, and only
+    non-lethal force (their only rounds are stun, gas and baton rounds; a mount's ammo drops) · ② a rioter is stunned, irritated or
+    knocked down · ③ the riot breaks up: after force, no civilian riots for 10 s · ④ nobody dies. (A rifleman in the line would COVER the
+    rioters and they would surrender instead — §5h.3; his cap is railed, §5j.1.) The twin (PostureScenarioTests.CE2239_PoliceLine_…)
+    checks every frame."""
+    ids = ids_by_name()
+    police = [ids.get(n) for n in ("Police shield", "Police baton", "Police launcher")]
+    civs = [ids.get(n) for n in ("Instigator", "Protester 1", "Protester 2", "Protester 3", "Protester 4")]
+    if not c.ok(None not in police + civs, "three policemen and five civilians are loaded"):
+        return
+    p0 = [(ammo(n) or (None,))[0] for n in police]
+    effected, dead, forced = set(), set(), [None]
+
+    def watch():
+        t = sim_time() or 0.0
+        for n in civs:
+            fx = (comps(n) or {}).get("EffectState") or {}
+            if any((fx.get(k) or 0) > t for k in ("StunnedUntil", "IrritatedUntil", "KnockedDownUntil")):
+                effected.add(n)
+        for n in civs + police:
+            h = health(n)
+            if h is not None and h <= 0:
+                dead.add(n)
+        if forced[0] is None and (effected or any(a0 is not None and (a := (ammo(n) or (None,))[0]) is not None and a < a0
+                                                  for n, a0 in zip(police, p0))):
+            forced[0] = t
+        return False
+    call("POST", "/sim/play", {})
+    riot = wait_for(lambda: (watch(), any(civ_mode(n) == "Riot" for n in civs))[1], 40, every=0.25)
+    c.ok(riot is not None, f"⓪ the riot starts ({[civ_mode(n) for n in civs]})")
+    wait_for(lambda: (watch(), forced[0] is not None)[1], timeout + 60, every=0.25)
+    c.ok(forced[0] is not None, f"① the police use force (at {forced[0]}; ammo {p0} → {[(ammo(n) or (None,))[0] for n in police]})")
+    start = [None]
+
+    def calm():
+        watch()
+        t = sim_time() or 0.0
+        if any(civ_mode(n) == "Riot" for n in civs):
+            start[0] = None
+            return False
+        start[0] = start[0] if start[0] is not None else t
+        return t - start[0] >= 10.0
+    calmed = wait_for(calm, timeout + 90, every=0.5)
+    c.ok(effected, f"② a rioter is stunned, irritated or knocked down ({sorted(effected)})")
+    c.ok(calmed is not None, f"③ the riot breaks up: no civilian riots for 10 s ({[civ_mode(n) for n in civs]})")
+    c.ok(not dead, f"④ nobody dies ({sorted(dead)})")
+
+
+# ── CE-2238 part 3 AW-8/AW-9 — a lying throwable picked up, the canister thrown back (Civilians §5c, §5i.3) ─────────────────
+
+def clouds_on(perspective):
+    """{networkId: (x, y, SourceNetworkId)} for every gas / smoke cloud `perspective`'s node holds."""
+    call("POST", "/perspective", {"name": perspective})
+    try:
+        out = {}
+        for r in data(call("GET", "/entities?component=AreaEffectCloud")) or []:
+            nid = r.get("networkId")
+            cs = comps(nid) or {}
+            c, pos = cs.get("AreaEffectCloud") or {}, (cs.get("SimTransform") or {}).get("Position") or [0, 0, 0]
+            out[nid] = (pos[0], pos[1], c.get("SourceNetworkId") or 0)
+        return out
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def run_armed_gas_throwback(c, timeout):
+    """test-town: a policeman puts ONE tear-gas canister down in front of a riot (FireAtPoint, mount 2), then holds the line; a
+    HARDENED rioter (PanicAt 1.5 — the gas irritates him, it does not turn him) picks it up and throws it back. ⓪ a cloud sits on the
+    canister · ① he holds it (HeldFuze burning) and that cloud lets go of its source · ③ he is irritated while he holds it · ② thrown, a
+    new cloud rises nearer the policeman. The twin (PostureScenarioTests.CE2238_GasThrowback_…) checks every frame."""
+    ids = ids_by_name()
+    cop, rioter = ids.get("Policeman"), ids.get("Hardened rioter")
+    if not c.ok(None not in (cop, rioter), "the policeman and the hardened rioter are loaded"):
+        return
+    cx, cy = ((comps(cop) or {}).get("SimTransform") or {}).get("Position", [90, 200, 0])[:2]
+    first, sat, letgo, held, irritated, second = [None], [False], [False], [False], [False], [None]
+
+    def watch():
+        t = sim_time() or 0.0
+        cl = clouds_on("CGF")
+        for nid, (x, y, src) in cl.items():
+            if first[0] is None:
+                first[0] = (nid, math.hypot(x - cx, y - cy))
+            if nid == first[0][0]:
+                if src:
+                    sat[0] = True
+                elif sat[0] and held[0]:
+                    letgo[0] = True
+            elif held[0] and second[0] is None:
+                second[0] = (nid, math.hypot(x - cx, y - cy))
+        cs = comps_on("CGF", rioter) or {}
+        if ((cs.get("HeldFuze") or {}).get("BurnSeconds") or 0) > 0:
+            held[0] = True
+            if ((cs.get("EffectState") or {}).get("IrritatedUntil") or 0) > t:
+                irritated[0] = True
+        return second[0] is not None
+    call("POST", "/sim/play", {})
+    wait_for(watch, timeout + 60, every=0.25)
+    c.ok(sat[0], f"⓪ a cloud sits on the canister where it lies ({first[0]})")
+    c.ok(held[0], "① the hardened rioter picks the canister up (it burns on in his hands)")
+    c.ok(letgo[0], "① picked up, the first cloud lets go of its source and drifts")
+    c.ok(irritated[0], "③ he is irritated while he holds it")
+    c.ok(second[0] is not None and first[0] is not None and second[0][1] < first[0][1],
+         f"② thrown, a new cloud rises nearer the policeman (first {first[0]}, second {second[0]})")
+
+
 def laid_down_on(perspective, nid):
     """Has `perspective`'s node his weapons laid down — the replicated WeaponAmmo bit (B-10), or the brain's own mask."""
     cs = comps_on(perspective, nid) or {}
@@ -3232,6 +3342,315 @@ def run_armed_surrender(c, timeout):
     c.ok(fired is not None, f"④ armed again, the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
 
 
+def run_armed_draw_aim(c, timeout):
+    """test-town: a covert insurgent (a civilian, a pick-up pistol HIDDEN, seat 3) goes about his routine for 8 s, draws the pistol
+    (StationWeapon Hands, 10 s), then attacks the rifleman (PersonAttack). ① drawn (seat 1), he is still Neutral and the rifleman spends
+    no round while he is · ② he turns Hostile on CGF, SimHost and IG only once he aims (≥ 8 s after the draw, AW-16) · ③ the rifleman
+    engages him. The twin (PostureScenarioTests.CE2238_DrawAim_…) checks every frame."""
+    ids = ids_by_name()
+    man, rifle, pistol = ids.get("Covert insurgent"), ids.get("Rifleman"), ids.get("Pistol")
+    if not c.ok(None not in (man, rifle, pistol), "the insurgent, his pistol and the rifleman are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+
+    def seat():
+        return ((comps_on("CGF", pistol) or {}).get("IsEmbarkedTag") or {}).get("Seat")
+
+    def side(h):
+        return ((comps_on(h, man) or {}).get("EntityInfo") or {}).get("ForceId")
+    c.ok(seat() == 3, f"the pistol starts hidden (seat {seat()})")
+    a0 = (ammo(rifle) or (None,))[0]
+    call("POST", "/sim/play", {})
+    drawn = wait_for(lambda: seat() == 1, timeout + 15, every=0.1)
+    t_draw = sim_time() or 0.0
+    side_at_draw = side("CGF")
+    c.ok(drawn is not None and side_at_draw in ("Neutral", 0), f"① drawn (seat {seat()}), he is still Neutral ({side_at_draw})")
+    hostile = wait_for(lambda: side("CGF") in ("Hostile", 2), 30, every=0.1)
+    t_hostile = sim_time() or 0.0
+    a1 = (ammo(rifle) or (None,))[0]
+    c.ok(a0 is not None and a1 == a0, f"① no round while he is Neutral (ammo {a0} → {a1})")
+    c.ok(hostile is not None and t_hostile - t_draw >= 8.0,
+         f"② Hostile only once he aims — not at the draw ({t_hostile - t_draw:.1f} s after it)")
+    every = wait_for(lambda: all(side(h) in ("Hostile", 2) for h in hosts), 10, every=0.25)
+    c.ok(every is not None, f"② …on every node ({[side(h) for h in hosts]})")
+    fired = wait_for(lambda: (ammo(rifle) or (None,))[0] not in (None, a1), 30, every=0.25)
+    c.ok(fired is not None, f"③ the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
+
+
+def run_armed_blend_back(c, timeout):
+    """test-town: a civilian with a rifle HIDDEN draws it and aims at patrol A from behind a row of civilians (the act — A sees it),
+    conceals it, walks along the line, then steps off it; patrol B (another unit, 170 m off at the act) comes up meanwhile. ① A holds
+    while a civilian is in the line and fires at him once it is clear — his rifle still hidden (A saw it) · ② B spends no round at him
+    while he is in the fight. The twin (PostureScenarioTests.CE2238_BlendBack_…) checks every frame."""
+    ids = ids_by_name()
+    man, a, b, rifle = ids.get("Insurgent"), ids.get("Patrol A"), ids.get("Patrol B"), ids.get("Rifle")
+    if not c.ok(None not in (man, a, b, rifle), "the insurgent, his rifle and both patrols are loaded"):
+        return
+
+    def seat():
+        return ((comps_on("CGF", rifle) or {}).get("IsEmbarkedTag") or {}).get("Seat")
+
+    def side():
+        return ((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId")
+    a0, b0 = (ammo(a) or (None,))[0], (ammo(b) or (None,))[0]
+    call("POST", "/sim/play", {})
+    hostile = wait_for(lambda: side() in ("Hostile", 2), timeout, every=0.1)
+    c.ok(hostile is not None, f"he aims at patrol A — the act flips him ({side()})")
+    concealed = wait_for(lambda: seat() == 3, 15, every=0.1)
+    c.ok(concealed is not None, f"he conceals the rifle again (seat {seat()})")
+    fired = wait_for(lambda: (ammo(a) or (None,))[0] not in (None, a0), 90, every=0.25)
+    c.ok(fired is not None and seat() == 3,
+         f"① patrol A fires at him once the line is clear, the rifle still hidden (ammo {a0} → {(ammo(a) or (None,))[0]}, seat {seat()})")
+    b1 = (ammo(b) or (None,))[0]
+    c.ok(b0 is not None and b1 == b0, f"② patrol B spends no round at him (ammo {b0} → {b1})")
+
+
+
+# ── CE-2239 part 3 B2 — the security forces' escalation ladder: warn, then non-lethal, then lethal (Civilians §5c, §5k) ─────
+
+def weapon_status(nid):
+    """The weapon row of nid's ActionStatus on the Brain node: (reason, target networkId)."""
+    st = (data(call("GET", f"/entities/{nid}/weapons")) or {}).get("status") or {}
+    return st.get("reason") or "", st.get("target")
+
+
+def posture_kind(nid):
+    k = ((comps_on("CGF", nid) or {}).get("WeaponPosture") or {}).get("Kind")
+    return {0: "AtEase", 1: "Ready", 2: "Aimed"}.get(k, k) if isinstance(k, int) else (k or "AtEase")
+
+
+def run_civ_escalation(c, timeout):
+    """test-town: a police line under a LETHAL ceiling (the ladder grades it) — a rifleman (a rifle in his hands, stun grenades), a baton
+    man and a launcher man — an instigator and three protesters around a stone source, and a Hostile GUNMAN who draws a hidden rifle,
+    holds it at ease 6 s, then fires it into the air. ⓪ the riot starts · ① drawn and at ease, he is WARNED (a policeman shows the
+    Warning cue) and the police rifle stays silent · ② every police rifle round goes at the gunman, and at least one does · ③ he is
+    hit · ④ the unarmed rioters get non-lethal force only: one is stunned, irritated or down, none dies. The twin
+    (PostureScenarioTests.CE2239_Escalation_…) checks every frame."""
+    ids = ids_by_name()
+    police = [ids.get(n) for n in ("Police rifleman", "Police baton", "Police launcher")]
+    civs = [ids.get(n) for n in ("Instigator", "Protester 1", "Protester 2", "Protester 3")]
+    gun, his_rifle, cop_rifle = ids.get("Gunman"), ids.get("Gunman's rifle"), ids.get("Police rifle")
+    if not c.ok(None not in police + civs + [gun, his_rifle, cop_rifle], "the police line, four rioters and the gunman are loaded"):
+        return
+    st = {"drawn": False, "warned": False, "riot": False, "hit": None, "at_ease_rounds": 0, "at_him": 0, "elsewhere": [],
+          "effected": set(), "dead": set(), "rifle": (ammo(cop_rifle) or (None,))[0]}
+
+    def watch():
+        t = sim_time() or 0.0
+        if any(civ_mode(n) == "Riot" for n in civs):
+            st["riot"] = True
+        st["drawn"] |= ((comps_on("CGF", his_rifle) or {}).get("IsEmbarkedTag") or {}).get("Seat") == 1
+        at_ease = st["drawn"] and posture_kind(gun) == "AtEase"
+        if at_ease and any(gesture_on("CGF", p) == "Warning" for p in police):
+            st["warned"] = True
+        a = (ammo(cop_rifle) or (None,))[0]
+        _, tgt = weapon_status(police[0])
+        if a is not None and st["rifle"] is not None and a < st["rifle"]:
+            if at_ease:
+                st["at_ease_rounds"] += 1
+            if gun in (tgt, st.get("prev")):   # the round left between two 0.25 s samples: his target on either side of it
+                st["at_him"] += 1
+            else:
+                st["elsewhere"].append(tgt)
+        st["prev"] = tgt
+        st["rifle"] = a if a is not None else st["rifle"]
+        for n in civs:
+            fx = (comps(n) or {}).get("EffectState") or {}
+            if any((fx.get(k) or 0) > t for k in ("StunnedUntil", "IrritatedUntil", "KnockedDownUntil")):
+                st["effected"].add(n)
+            h = health(n)
+            if h is not None and h <= 0:
+                st["dead"].add(n)
+        hg = health(gun)   # ③/② count a hit only from the first police rifle round at him on (non-lethal force may hit him before)
+        if st["at_him"] == 0:
+            st["hp0"] = hg
+        elif st["hit"] is None and hg is not None and st.get("hp0") is not None and hg < st["hp0"]:
+            st["hit"] = t
+        return False
+    call("POST", "/sim/play", {})
+    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 120, every=0.25)
+    c.ok(st["riot"], "⓪ the riot starts")
+    c.ok(st["warned"] and st["at_ease_rounds"] == 0,
+         f"① drawn and at ease, he is warned and the police rifle stays silent (warned {st['warned']}, rounds {st['at_ease_rounds']})")
+    c.ok(st["at_him"] > 0 and not st["elsewhere"], f"② every police rifle round goes at the gunman ({st['at_him']} at him, else {st['elsewhere']})")
+    c.ok(st["hit"] is not None, f"③ the gunman is hit (at {st['hit']}, health {health(gun)})")
+    c.ok(st["effected"] and not st["dead"],
+         f"④ the unarmed rioters get non-lethal force only (effected {sorted(st['effected'])}, dead {sorted(st['dead'])})")
+
+
+def run_civ_escalation_warn(c, timeout):
+    """test-town: ua-civ-escalation's line and riot under a WARN ceiling. For 40 s: no police round and no baton blow at all (every
+    police mount's ammo kept, no rioter stunned, irritated, down or hurt) — the Warning cue only, and rounds held as 'hold: warning'.
+    The twin (PostureScenarioTests.CE2239_EscalationWarn_…) checks every frame."""
+    ids = ids_by_name()
+    police = [ids.get(n) for n in ("Police rifleman", "Police baton", "Police launcher")]
+    civs = [ids.get(n) for n in ("Instigator", "Protester 1", "Protester 2", "Protester 3", "Gunman")]
+    cop_rifle = ids.get("Police rifle")
+    if not c.ok(None not in police + civs + [cop_rifle], "the police line, four rioters and the gunman are loaded"):
+        return
+    mounts = police + [cop_rifle]
+    a0 = [(ammo(n) or (None,))[0] for n in mounts]
+    st = {"riot": False, "cue": False, "held": 0, "effected": set()}
+
+    def watch():
+        t = sim_time() or 0.0
+        if any(civ_mode(n) == "Riot" for n in civs):
+            st["riot"] = True
+        if any(gesture_on("CGF", p) == "Warning" for p in police):
+            st["cue"] = True
+        if any(weapon_status(p)[0] == "hold: warning" for p in police):
+            st["held"] += 1
+        for n in civs:
+            fx = (comps(n) or {}).get("EffectState") or {}
+            if any((fx.get(k) or 0) > t for k in ("StunnedUntil", "IrritatedUntil", "KnockedDownUntil")):
+                st["effected"].add(n)
+        return (sim_time() or 0.0) >= 40.0
+    call("POST", "/sim/play", {})
+    wait_for(watch, timeout + 90, every=0.5)
+    a1 = [(ammo(n) or (None,))[0] for n in mounts]
+    hp = [health(n) for n in civs]
+    c.ok(st["riot"], "the riot starts")
+    c.ok(a1 == a0, f"no police round at all (ammo {a0} → {a1})")
+    c.ok(not st["effected"] and all(h is not None and h >= 100 for h in hp),
+         f"no blow, no stun — nobody hurt by the police (effected {sorted(st['effected'])}, health {hp})")
+    c.ok(st["cue"], "the Warning cue is shown")
+    c.ok(st["held"] > 0, f"rounds held as 'hold: warning' ({st['held']} samples)")
+
+
+def run_armed_self_defence(c, timeout):
+    """test-town: ua-civ-escalation's line on its DEFAULT NonLethal ceiling, the same riot, and a gunman (NEUTRAL until his act) who draws and AIMS his
+    rifle at the police rifleman. ① lethal fire (the police rifle) goes at THAT man only, and does · ② he is hit · ③ every other rioter
+    gets non-lethal force only: one is stunned, irritated or down, none dies. The twin (PostureScenarioTests.CE2239_SelfDefence_…)
+    checks every frame."""
+    ids = ids_by_name()
+    civs = [ids.get(n) for n in ("Instigator", "Protester 1", "Protester 2", "Protester 3")]
+    gun, officer, rifle = ids.get("Gunman"), ids.get("Police rifleman"), ids.get("Police rifle")
+    if not c.ok(None not in civs + [gun, officer, rifle], "the police rifleman, four rioters and the gunman are loaded"):
+        return
+    st = {"hit": None, "at_him": 0, "elsewhere": [], "effected": set(), "dead": set(), "rifle": (ammo(rifle) or (None,))[0]}
+
+    def watch():
+        t = sim_time() or 0.0
+        a = (ammo(rifle) or (None,))[0]
+        _, tgt = weapon_status(officer)
+        if a is not None and st["rifle"] is not None and a < st["rifle"]:
+            if gun in (tgt, st.get("prev")):   # the round left between two 0.25 s samples: his target on either side of it
+                st["at_him"] += 1
+            else:
+                st["elsewhere"].append(tgt)
+        st["prev"] = tgt
+        st["rifle"] = a if a is not None else st["rifle"]
+        for n in civs:
+            fx = (comps(n) or {}).get("EffectState") or {}
+            if any((fx.get(k) or 0) > t for k in ("StunnedUntil", "IrritatedUntil", "KnockedDownUntil")):
+                st["effected"].add(n)
+            h = health(n)
+            if h is not None and h <= 0:
+                st["dead"].add(n)
+        hg = health(gun)   # ③/② count a hit only from the first police rifle round at him on (non-lethal force may hit him before)
+        if st["at_him"] == 0:
+            st["hp0"] = hg
+        elif st["hit"] is None and hg is not None and st.get("hp0") is not None and hg < st["hp0"]:
+            st["hit"] = t
+        return False
+    call("POST", "/sim/play", {})
+    wait_for(lambda: (watch(), st["hit"] is not None and (sim_time() or 0) - st["hit"] >= 3.0)[1], timeout + 120, every=0.25)
+    c.ok(st["at_him"] > 0 and not st["elsewhere"], f"① lethal fire at the man who aims, only ({st['at_him']} at him, else {st['elsewhere']})")
+    c.ok(st["hit"] is not None, f"② he is hit (at {st['hit']}, health {health(gun)})")
+    c.ok(st["effected"] and not st["dead"],
+         f"③ every other rioter gets non-lethal force only (effected {sorted(st['effected'])}, dead {sorted(st['dead'])})")
+
+
+def run_armed_celebration(c, timeout):
+    """test-town: a police patrol (a rifle, a Lethal ceiling) 24 m from a wedding party; a Neutral guest fires his rifle into the air
+    (8 rounds), then aims it at the patrol. ① he is WARNED (the Warning cue — at once, his rifle is in his hands) and while he fires into
+    the air the patrol spends no round · ② once
+    he aims at it, the patrol's rifle fires at him · ③ no other guest is hurt. The twin (PostureScenarioTests.CE2239_Celebration_…)
+    checks every frame."""
+    ids = ids_by_name()
+    guests = [ids.get(f"Guest {i}") for i in range(1, 7)]
+    man, his_rifle, cop, cop_rifle = ids.get("Celebrant"), ids.get("Celebrant's rifle"), ids.get("Police patrol"), ids.get("Patrol rifle")
+    if not c.ok(None not in guests + [man, his_rifle, cop, cop_rifle], "the patrol, the celebrant and six guests are loaded"):
+        return
+    his0, cop0 = (ammo(his_rifle) or (None,))[0], (ammo(cop_rifle) or (None,))[0]
+    st = {"volley": False, "warned": False, "rounds_volley": 0, "aimed": None, "at_him": 0, "cop": cop0}
+
+    def watch():
+        t = sim_time() or 0.0
+        wp = (comps_on("CGF", man) or {}).get("WeaponPosture") or {}
+        if st["aimed"] is None and wp.get("Kind") in (2, "Aimed") and wp.get("Target") not in (None, 0, "0") \
+                and ((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId") in ("Hostile", 2):
+            st["aimed"] = t
+        h = (ammo(his_rifle) or (None,))[0]
+        if st["aimed"] is None and h is not None and his0 is not None and h < his0:
+            st["volley"] = True
+        if st["aimed"] is None and gesture_on("CGF", cop) == "Warning":   # armed in his hands from the start: warned at once (EL-3)
+            st["warned"] = True
+        a = (ammo(cop_rifle) or (None,))[0]
+        if a is not None and st["cop"] is not None and a < st["cop"]:
+            if st["aimed"] is None:
+                st["rounds_volley"] += 1
+            elif weapon_status(cop)[1] == man:
+                st["at_him"] += 1
+        st["cop"] = a if a is not None else st["cop"]
+        return False
+    call("POST", "/sim/play", {})
+    wait_for(lambda: (watch(), st["at_him"] > 0)[1], timeout + 60, every=0.25)
+    hp = [health(n) for n in guests]
+    c.ok(st["volley"] and st["warned"], f"① he fires into the air and the patrol warns (volley {st['volley']}, warned {st['warned']})")
+    c.ok(st["rounds_volley"] == 0, f"① …and spends no round ({st['rounds_volley']})")
+    c.ok(st["aimed"] is not None and st["at_him"] > 0, f"② once he aims at the patrol, it fires at him (aimed at {st['aimed']}, {st['at_him']} rounds)")
+    c.ok(all(h is not None and h >= 100 for h in hp), f"③ no other guest is hurt ({hp})")
+
+
+# ── CE-2238 part 5 B5 — the bomber sets off his worn charge (Civilians §5c, §5l) ─────────────────────────────────────────────
+
+def run_armed_bomber(c, timeout):
+    """test-town: a civilian with a charge HIDDEN walks into a crowd of ten and sets it off (DetonateCharge); a rifleman 30 m off. ① until the
+    blast he stays Neutral and the rifleman spends no round · ② the vest bursts: it is gone and he is dead · ③ the casualties follow the
+    burst: everyone within 3 m of it is hurt, nobody beyond 25 m is (the rifleman unhurt). The twin (PostureScenarioTests.CE2238_Bomber_…)
+    checks every frame against the warhead's own radii."""
+    ids = ids_by_name()
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 11)]
+    man, vest, rifleman = ids.get("Bomber"), ids.get("Vest"), ids.get("Rifleman")
+    if not c.ok(None not in civs + [man, vest, rifleman], "the bomber, his vest, ten civilians and the rifleman are loaded"):
+        return
+    a0 = (ammo(rifleman) or (None,))[0]
+    st = {"burst": None, "at": None, "side": [], "rounds": 0}
+
+    def pos(n):
+        p = ((comps_on("CGF", n) or {}).get("SimTransform") or {}).get("Position") or [0, 0, 0]
+        return p[0], p[1]
+
+    def watch():
+        t = sim_time() or 0.0
+        if st["burst"] is None:
+            hb = health(man)
+            if hb is None or hb >= 100:   # the blast is his first hurt (the spent vest's teardown is the twin's to check)
+                st["at"] = pos(man)
+                st["side"].append(((comps_on("CGF", man) or {}).get("EntityInfo") or {}).get("ForceId"))
+                a = (ammo(rifleman) or (None,))[0]
+                if a is not None and a0 is not None:
+                    st["rounds"] = max(st["rounds"], a0 - a)
+            else:
+                st["burst"] = t
+        return st["burst"] is not None and t - st["burst"] >= 2.0
+    call("POST", "/sim/play", {})
+    wait_for(watch, timeout + 90, every=0.25)
+    c.ok(st["rounds"] == 0 and all(s in ("Neutral", 0, None) for s in st["side"]),
+         f"① until the blast he stays Neutral and the rifleman spends no round (rounds {st['rounds']}, sides {sorted(set(map(str, st['side'])))})")
+    hb = health(man)
+    c.ok(st["burst"] is not None and hb is not None and hb <= 0, f"② the vest bursts and he is dead (at {st['burst']}, health {hb})")
+    bx, by = st["at"] or (0, 0)
+    rows = []
+    for n in civs + [rifleman]:
+        x, y = pos(n)
+        rows.append((n, ((x - bx) ** 2 + (y - by) ** 2) ** 0.5, health(n)))
+    near = [r for r in rows if r[1] <= 3.0]
+    far = [r for r in rows if r[1] > 25.0]
+    c.ok(near and all(h is not None and h < 100 for _, _, h in near), f"③ everyone within 3 m is hurt ({[(n, round(d, 1), h) for n, d, h in near]})")
+    c.ok(far and all(h is not None and h >= 100 for _, _, h in far), f"③ nobody beyond 25 m is ({[(n, round(d, 1), h) for n, d, h in far]})")
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3253,6 +3672,19 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-surrender": run_civ_surrender,
              # ⭐ CE-2241 ① AW-5/AW-21 — a soldier lays his rifle down, hands up, then the feint (Civilians §5c, §5h.5)
              "ua-armed-surrender": run_armed_surrender,
+             # ⭐ CE-2239 A6 CV-8/CV-11 — the force level and the police line (Civilians §5c, §5j)
+             "ua-civ-police-line": run_civ_police_line,
+             # ⭐ CE-2238 part 3 AW-8/AW-9 — a lying throwable picked up, the canister thrown back (Civilians §5c, §5i.3)
+             "ua-armed-gas-throwback": run_armed_gas_throwback,
+             # ⭐ CE-2238 part 4 AW-11/AW-16 — drawing is not the act, aiming at the forces is (Civilians §5c, §5h.7)
+             "ua-armed-draw-aim": run_armed_draw_aim,
+             # ⭐ CE-2238 part 4 AW-22 — the witness engages the hidden rifleman, the other patrol sees a civilian (Civilians §5c, §5h.7b)
+             "ua-armed-blend-back": run_armed_blend_back,
+             # ⭐ CE-2239 part 3 B2 — the escalation ladder: warn, then non-lethal, then lethal; a Warn ceiling holds every round (Civilians §5c, §5k)
+             "ua-civ-escalation": run_civ_escalation, "ua-civ-escalation-warn": run_civ_escalation_warn,
+             "ua-armed-self-defence": run_armed_self_defence, "ua-armed-celebration": run_armed_celebration,
+             # ⭐ CE-2238 part 5 B5 — the bomber (Civilians §5c, §5l)
+             "ua-armed-bomber": run_armed_bomber,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

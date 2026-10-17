@@ -34,6 +34,9 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.WrongDomain   // ⭐ CE-2187 — a SAM held at a truck: the weapon stays ready
                 or ActionReason.HoldNeutral   // ⭐ CE-2233 — a civilian: the weapon stays ready, never fired
                 or ActionReason.HoldSurrender // ⭐ CV-13a — hands up: covered, ready, never fired
+                or ActionReason.HoldForceLevel // ⭐ CE-2239 — the ROE caps the force: covered, ready, never fired
+                or ActionReason.HoldConduct   // ⭐ CE-2238 part 4 — an unarmed civilian: covered, ready, never fired
+                or ActionReason.HoldWarn      // ⭐ CE-2239 part 3 — warned, covered, ready, never fired
                 => WeaponPostureKind.Ready,
             _ => null,
         };
@@ -48,6 +51,22 @@ namespace Fdp.Toolkit.Combat
             p.Target = target;
             p.Point = target.IsNull ? point : default;
             p.IdleSeconds = 0f;
+            if (kind == WeaponPostureKind.Aimed) AimedAtTheForces(world, unit, target);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2238</c> part 4 (AW-16, CO-1; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.7) — AIMING at the forces is the hostile act
+        /// (drawing is not): a unit that is not a combatant (a civilian, a neutral — <see cref="Armament.IsCombatant"/>) whose weapon goes
+        /// Aimed at a forces person (Friend, a combatant) commits a LETHAL act, once — his side flips (B-16). Here, in the one writer of an
+        /// aimed posture, so every behaviour that aims commits it the same way.
+        /// </summary>
+        private static void AimedAtTheForces(EntityRepository world, Entity unit, Entity target)
+        {
+            if (target.IsNull || !world.IsAlive(target) || !world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(target)
+                || world.GetComponentRO<EntityInfo>(target).ForceId != ForceId.Friend || !Armament.IsCombatant(world, target)) return;
+            if (Armament.IsCombatant(world, unit)
+                || Fdp.Toolkit.Civilians.HostileActs.Of(world, unit) == Fdp.Toolkit.Civilians.HostileActKind.Lethal) return;
+            Fdp.Toolkit.Civilians.HostileActs.Commit(world, unit, Fdp.Toolkit.Civilians.HostileActKind.Lethal);
         }
 
         /// <summary>⭐ ui handoff P4 (W-13e) — the weapon brain names the mount it fires with this frame (written only when it changes).</summary>

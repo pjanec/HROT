@@ -99,7 +99,24 @@ public sealed class EqsFlatTerrainGoldenTests
                         Min = new Vector2(5, 0), Max = new Vector2(15, 10), MinZ = 4.5f, MaxZ = 4.5f,
                     },
                 })),
+            // ⭐ CE-2236 (civilians CV-7) — a way INTO a building: two houses on flat ground (bt-range's house-2f), the north one's doors
+            //   as authored, the south one's front LOCKED (no way in through it); no navmesh, so reachability keeps every candidate.
+            [FindEnterableShelter.BlueprintId] = (nameof(FindEnterableShelter),
+                () => CaptureOnFlatGround(nameof(FindEnterableShelter), FindEnterableShelter.BlueprintId, 40f, terrain: TwoHouses())),
         };
+
+    /// <summary>Two bt-range <c>house-2f</c> buildings on flat ground, one 20 m north of the self, one 25 m south with its front locked.</summary>
+    private static Fdp.Toolkit.Terrain.TerrainWorld TwoHouses()
+    {
+        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors"))) dir = dir.Parent;
+        var folder = System.IO.Path.Combine(dir!.FullName, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "bt-range");
+        const string geojson = "{\"type\":\"FeatureCollection\",\"features\":["
+            + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"North House\",\"baseZ\":0,\"rotation\":0},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,20]}},"
+            + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"template\":\"house-2f\",\"label\":\"South House\",\"baseZ\":0,\"rotation\":0,\"doors\":{\"front\":\"locked\"}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,-25]}}"
+            + "]}";
+        return Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(geojson, "two-houses", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+    }
 
     [Fact]
     public void RegisteredTemplates_AllHaveAGoldenScenario()
@@ -142,6 +159,7 @@ public sealed class EqsFlatTerrainGoldenTests
     [InlineData(nameof(FindVehicleHide))]
     [InlineData(nameof(FindVehicleFiringPoint))]
     [InlineData(nameof(FindShelter))]
+    [InlineData(nameof(FindEnterableShelter))]
     public void TerrainStarterTemplate_FlatTerrain_MatchesGolden(string template) => RunGoldenForTemplate(template);
 
     [Fact]
@@ -357,7 +375,8 @@ public sealed class EqsFlatTerrainGoldenTests
     /// <see cref="CaptureEntitiesOfForceInArea"/>), so the templates are the ones a blueprint gets.
     /// </summary>
     private static EqsGoldenTemplate CaptureOnFlatGround(string name, uint blueprintId, float radius, ForceId? threats = null,
-        ICoverProvider? cover = null, bool tankSelf = false, bool terrainCover = false, Fdp.Toolkit.Terrain.TerrainWalkable[]? walkables = null)
+        ICoverProvider? cover = null, bool tankSelf = false, bool terrainCover = false, Fdp.Toolkit.Terrain.TerrainWalkable[]? walkables = null,
+        Fdp.Toolkit.Terrain.TerrainWorld? terrain = null)
     {
         using var repo = new EntityRepository();
         Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
@@ -372,7 +391,7 @@ public sealed class EqsFlatTerrainGoldenTests
                 Min = new Vector2(-20, -10), Max = new Vector2(20, -9.5f),
             },
         };
-        var world = new Fdp.Toolkit.Terrain.TerrainWorld
+        var world = terrain ?? new Fdp.Toolkit.Terrain.TerrainWorld
         {
             BoundsMin = new Vector2(-100, -100), BoundsMax = new Vector2(100, 100), Prisms = prisms.ToArray(),
             Walkables = walkables ?? Array.Empty<Fdp.Toolkit.Terrain.TerrainWalkable>(),

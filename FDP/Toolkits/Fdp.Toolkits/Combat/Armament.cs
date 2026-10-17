@@ -176,6 +176,19 @@ namespace Fdp.Toolkit.Combat
         /// the world it must not move.</summary>
         public static long ConductJudgements => Interlocked.Read(ref _conductJudgements);
 
+        /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-1) — the <c>SecurityForce</c> class's category (<c>3.1.*.3</c>, the class table's
+        /// police; <c>CivilianTkbCatalog.DisCategorySecurityForce</c>).</summary>
+        public const byte SecurityForceCategory = 3;
+
+        /// <summary>⭐ <c>CE-2239</c> part 3 (B2, §5k EL-1) — is <paramref name="unit"/> of the <c>SecurityForce</c> class (<c>3.1.*.3</c>)?
+        /// The ladder runs for these units only (AW-24: never a soldier).</summary>
+        public static bool IsSecurityForce(ISimulationView view, Entity unit)
+        {
+            if (view is not EntityRepository world || unit.IsNull || !world.IsAlive(unit)) return false;
+            var dis = world.GetDisType(unit);
+            return dis.Kind == CivilianKind && dis.Domain == CivilianDomain && dis.Category == SecurityForceCategory;
+        }
+
         /// <summary>Is <paramref name="dis"/> of the <c>Civilian</c> class (<c>3.1.*.2</c>)?</summary>
         public static bool IsCivilianClass(DISEntityType dis)
             => dis.Kind == CivilianKind && dis.Domain == CivilianDomain && dis.Category == CivilianCategory;
@@ -253,6 +266,7 @@ namespace Fdp.Toolkit.Combat
         {
             if (IsCombatant(view, man)) return ArmedByStatus(view, man) ? ArmedJudgement.IdentifiedLethal : ArmedJudgement.Nothing;
             var world = (EntityRepository)view;   // IsCombatant is true for every other view
+            if (KnownCombatants.Knows(world, observer, man)) return AsKnown(world, man);   // ⭐ CE-2238 part 3 (AW-22, §5h.6 KC-4)
             return Conduct(world, observer, man, SeeingConditions.Of(world, observer, man));
         }
 
@@ -261,8 +275,15 @@ namespace Fdp.Toolkit.Combat
         public static ArmedJudgement Judge(EntityRepository world, Entity observer, Entity man, in SeeingConditions seeing)
         {
             if (IsCombatant(world, man)) return ArmedByStatus(world, man) ? ArmedJudgement.IdentifiedLethal : ArmedJudgement.Nothing;
+            if (KnownCombatants.Knows(world, observer, man)) return AsKnown(world, man);   // ⭐ CE-2238 part 3 (AW-22, §5h.6 KC-4)
             return Conduct(world, observer, man, seeing);
         }
+
+        /// <summary>⭐ <c>CE-2238</c> part 3 (AW-22, §5h.6 KC-4) — a civilian this observer KNOWS is a combatant (he saw him commit a lethal act,
+        /// or his squad did) is judged on what he CARRIES, the truth form: a rifle he hid is still a rifle to the patrol that watched him hide
+        /// it. Never counted as conduct (AW-24's probe).</summary>
+        private static ArmedJudgement AsKnown(EntityRepository world, Entity man)
+            => LethalInHand(world, man) ? ArmedJudgement.IdentifiedLethal : ArmedJudgement.Nothing;
 
         /// <summary>The CONDUCT path (A-5): the strongest answer over the man's visible items.</summary>
         private static ArmedJudgement Conduct(EntityRepository world, Entity observer, Entity man, in SeeingConditions seeing)

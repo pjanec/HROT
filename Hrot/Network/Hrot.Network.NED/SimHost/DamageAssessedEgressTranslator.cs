@@ -65,6 +65,8 @@ namespace Hrot.Network.NED.SimHost
                 if (evt.IsRemote) continue;
 
                 if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
+                // ⭐ CE-3237 (B-15, DS-2) — who caused it, by network id; an unmapped or unknown source reads 0 on the wire
+                long sourceId = !evt.Source.IsNull && _entityMap.TryGetNetworkId(evt.Source, out long s) ? s : 0L;
                 _writer.Write(new EntityHitDamage
                 {
                     HitEntityId = netId,
@@ -72,6 +74,7 @@ namespace Hrot.Network.NED.SimHost
                     BodyPart    = evt.HasBodyPart != 0 ? (byte)(evt.BodyPart + 1) : (byte)0,   // ⭐ CE-3210 — id + 1, 0 = none
                     EffectKind    = (byte)evt.Effect,   // ⭐ CE-3219 — the non-lethal effect rides the same hit
                     EffectSeconds = evt.EffectSeconds,
+                    SourceEntityId = sourceId,
                 });
                 SentSampleCount++;
             }

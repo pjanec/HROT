@@ -103,6 +103,10 @@ namespace Fdp.Toolkit.Perception.Components
         /// follow ONE heard contact across ticks.</summary>
         public int AnonymousSerial;
 
+        // ⛔ CE-2238 part 4 — the KNOWN COMBATANTS list moved OUT of this component to Fdp.Toolkit.Combat.KnownCombatantList: the
+        //    ThreatEvaluationSystem copies this memory and writes the copy back through the command buffer, which erased a mark made
+        //    later in the same frame (measured: ua-armed-blend-back). 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1.
+
         /// <summary>⭐ The ONE rule every reader calls: true when slot <paramref name="slot"/> is a heard, unidentified
         /// contact. ⛔ An ENTITY reader (aim, fire, entity reads) skips it; a POSITION reader may use it.</summary>
         public static bool IsAnonymous(in TargetMemory mem, int slot)

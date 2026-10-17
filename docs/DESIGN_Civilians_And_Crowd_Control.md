@@ -403,22 +403,22 @@ shot" could mean "not seen").
 | CIV-3 | **`ua-civ-contagion`** | test-town · 15 civilians 8 m apart along the street, 30–142 m from a firefight (a rifleman and a hostile) at its west end · ⚠ *deviation:* small-arms fire, not a blast — no scenario-scriptable blast exists; the hearing edge (100 m) splits the crowd the same way | ⓪ ONE crowd · ① ≥ 5 hear it (`HeardAt`) · ⓪ ≥ 4 never hear anything · ② ≥ 3 of those who never heard panic, from the crowd | ✅ live 3 of 3 in a row after `CE-2246` (§5f: the crowd split by wandering; the demo's civilians wander 3 m) · twin `PostureScenarioTests.CE2237_CivContagion_…` ✅ (samples `HeardAt` and `Panic` every frame) |
 | **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · ⭐ *as built:* an instigator and two protesters inside a stone source (TKB 8812, a polyline area), a policeman 12 m off | ⓪ the instigator riots · ① he fills his hands at the source · ② he throws · ③ the side follows the ACT: nobody Hostile without his act; every thrower Hostile on CGF, SimHost and IG within 3 s | ✅ live 6/6 `2026-10-17` (sim 7.9 s) · twin green (§5i.2a) · ⏳ the soldier line and "no soldier hits a Neutral rioter" wait on A6 (`Roe.ForceLevel`) |
 | CIV-4 · `CE-2238` | **`ua-civ-melee`** | test-town · an instigating protester (Neutral) 6 m from a policeman (Friend) | ⓪ he riots · ① his blow knocks the policeman down (`EffectState.KnockedDownUntil` > now) on CGF, SimHost and IG · ② the rioter is Hostile on all three | ✅ live 4/4 `2026-10-17` (simTime 8.6 s) · twin `PostureScenarioTests.CE2238_CivMelee_…` green (§5i.1) |
-| **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
-| CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
+| **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ✅ §5j.1 — live 6/6 (force at 4.1 s, four stun grenades, all five stunned, the riot broken: a Casualty and four Cower), twin green |
+| CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ✅ §5k.1 — ⭐ *as built:* the armed rioter is a Hostile GUNMAN who draws a hidden rifle, holds it at ease 6 s (warned, no round), then fires into the air (ready ⇒ lethal after the ignored warning); ③ is its own scenario `ua-civ-escalation-warn` · live 6/6 + 6/6, twins green |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
 | **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
 | **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
-| ARMED AW-16 · CE-2239 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) near a patrol; he draws, waits 10 s, then aims | ① after the draw: a warning, side still Neutral, no round (sampled) · ② after the aim: side Hostile on every node and he is engaged | ⏳ |
-| ARMED AW-17 · CE-2239 | **`ua-armed-celebration`** | test-town · a wedding crowd; one man fires into the air, later at the patrol | ① fire into the air: a warning, no lethal round (sampled) · ② fire at the patrol: lethal | ⏳ |
-| ARMED AW-18 · CE-2239 | **`ua-armed-self-defence`** | test-town · a NonLethal police line; one rioter aims a rifle at it | ① lethal fire at THAT rioter only · ② every other rioter still gets non-lethal force only | ⏳ |
+| ARMED AW-16 · CE-2238 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) 25 m from a rifleman; his routine 8 s, he draws, waits 10 s, then aims (a mission: `CivilianHsm` → `StationWeapon` → `PersonAttack`) | ① after the draw: side still Neutral, no round (sampled) — ⛔ SUPERSEDED: "the soldier's WARNING is B2" — B2 (§5k EL-1, AW-24) is the security forces' ladder; a soldier gives no warning · ② after the aim: side Hostile on every node and he is engaged | ✅ §5h.7a — live 7/7, twin green |
+| ARMED AW-17 · CE-2239 | **`ua-armed-celebration`** | test-town · a wedding crowd; one man fires into the air, later at the patrol | ① fire into the air: a warning, no lethal round (sampled) · ② fire at the patrol: lethal | ✅ §5k.1 — ⭐ *as built:* a police patrol (the ladder is the security forces', AW-24); his rifle in his hands from the start, so he is warned at once · live 5/5, twin green |
+| ARMED AW-18 · CE-2239 | **`ua-armed-self-defence`** | test-town · a NonLethal police line; one rioter aims a rifle at it | ① lethal fire at THAT rioter only · ② every other rioter still gets non-lethal force only | ✅ §5k.1 — ⭐ *as built:* the gunman is NEUTRAL until he aims (the act flips him; a Hostile-from-the-start man was beaten down by non-lethal force first) · live 4/4, twin green |
 | ARMED AW-19 · CE-2239 | **`ua-armed-knife`** | test-town · a man with a knife closing on a checkpoint from 15 m; a second throws a Molotov | ① a warning while he is beyond reach · ② lethal once he is within reach or closing fast · ③ the Molotov thrower reads lethal | ⏳ |
 | ARMED AW-20 · CE-2239 | **`ua-armed-shield`** | test-town · a rifleman 60 m from an insurgent who walks east along the line, then 20 m out of it; six civilians standing in one row 0.45 m BESIDE the line (outside a 0.3 m body, inside the rifle's spread) — ⚠ *as built:* not "from inside a crowd": a civilian ON the line hides the target (no aimed shot is ever ready), and two rows are pushed ~1 m apart by pedestrian spacing | ① the rifleman holds ('hold: neutral on line') while a civilian is in the spread · ② he fires once clear and the insurgent goes down (out of the fight) · ③ zero neutral casualties (sampled) | ✅ live 5/5 · twin `PostureScenarioTests.AW20_ArmedShield_…` ✅ (every frame: held 2870 frames, no round left with a body on the line) |
 | ARMED AW-5, CV-13a · B-10, CE-2241 | **`ua-armed-surrender`** | test-town · an enemy soldier lays his weapon down and raises his hands; later re-arms and aims | ① no round while laid down (sampled) · ② engaged again once armed and aiming | ✅ §5h.5 — live 7/7, twin green |
 | ARMED AW-2, AW-21 · B-7, B-8 | **`ua-armed-stones`** | test-town · stone-throwers (Hostile civilians) against a police line | ① non-lethal force only — zero lethal rounds counted · ② the throwers read unarmed on every node | ⏳ |
-| ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · a civilian fires at patrol A, hides his rifle, walks into a crowd; patrol B (another squad) arrives later | ① patrol A engages him on status when his line is clear · ② patrol B treats him as a civilian (warns, never fires first) | ⏳ |
-| ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ⏳ |
+| ARMED AW-22 · CE-2238, B-16 | **`ua-armed-blend-back`** | test-town · ⭐ *as built:* a civilian draws a pick-up rifle and AIMS at patrol A from behind a row of civilians (the act — no round: both sides are held by the row), conceals it, walks along the line and then off it; patrol B (another unit, 170 m off at the act) comes up | ① patrol A knows him, holds while a civilian is in the line, fires once it is clear — the rifle still hidden · ② patrol B holds (`HoldConduct`), 0 rounds | ✅ §5h.7b — live 5/5 (A fired with the rifle hidden, 150 → 149; B 150 → 150), twin green |
+| ARMED AW-8, AW-9 · B-13, B-14 | **`ua-armed-gas-throwback`** | test-town · police gas a riot; a rioter picks the canister up and throws it back | ① the cloud stays where it was picked up and drifts · ② a new cloud rises where it lands · ③ the rioter is irritated while he holds it | ✅ §5i.3a — live 6/6 (the cloud 12.9 m from the police, the new one 0.1 m), twin green |
 | ARMED AW-23 · B-15, CE-2238 | **`ua-player-fratricide`** | test-town · a first-person player in a squad shoots two friends; a second run, one accidental wound | ① flipped Hostile on every node · ② the friendly AI engage him · ③ the instructor event names both victims · ④ the one-wound run flags nothing | ⏳ |
 | ARMED AW-12 · B-11, CE-2238 | **`ua-armed-bomber`** | test-town · a civilian with a Hidden charge walks into a crowd and sets it off | ① never armed to any observer before the blast (sampled) · ② the casualties match the warhead's numbers | ⏳ |
 | CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
@@ -796,6 +796,16 @@ hearers peaked at 0.97–1.00 live as in-process, and the poll was ~4 s a sweep 
 within 8 + 2 × 3 = 14 m < 15 m — a crowd standing in the street, which is what the demo means. ⛔ The rule is unchanged: contagion within
 one crowd is CV-5's, and a crowd that walks apart SHOULD stop passing fear. The check now sweeps all 15 under one perspective switch
 (~1.7 s) and prints the same per-second trace as the twin. Live after the fix: PASS 3 of 3 in a row (4 of 6 who heard nothing caught it in the first).
+
+#### 5f.1 AS-BUILT — the spatial grid *(behaviors, 2026-10-17; backend's [scaling note](blueprints/batches/NOTE_Backend_To_Behaviors_CrowdSystem_Scaling.md))*
+
+⭐ **Measured cause:** `Link` compared every pair of civilians, and `Spread` / `Rouse` every pair INSIDE a crowd with a component read per
+pair — at 500 the town links into one crowd, so both became ~250 k reads a frame (×33 for ×1.7). ⭐ **Fix:** a 20 m cell grid
+(≥ `LinkMetres` 15 and `ContagionMetres` 20, so every partner is in the 3 × 3 block round a man); `Mode` and `Instigator` read once per
+frame. ⛔ **No behaviour change by construction:** union-find roots are the component's lowest index whatever the pair order, and the
+neighbour list is sorted ascending so a tie resolves as the all-pairs loop did. 📐 500 civilians: **103.6 → 2.79 ms** (§7.4a). Proof:
+`CrowdSystemTests` + civilian unit suites green; twins `CE2237_CivGathering`, `CE2237_CivContagion`, `CE2238_CivMelee`,
+`CE2238_RiotStone`, `CE2238_GasThrowback`, `CE2239_PoliceLine`, `CE2240_CivProtest` 7/7.
 
 ## 5g. CIV-3 behaviour — the protest and its gestures *(behaviors, `CE-2240`, 2026-10-17; build-state: READY-TO-BUILD)*
 
@@ -1258,6 +1268,7 @@ Protest — the existing Alarmed → Routine → Protest → Riot edges carry hi
 | where | `Covering.By` (`Fdp.Toolkits/Combat/Covering.cs`, reach 100 m) · `CivilianBehavior`: `Surrender` activity + `Deactivate_Surrender`, guards `Covered` / `Uncovered`, `SurrenderState { CoveredAt }`, `SurrenderHoldSeconds` 5 · `CivilianMode.Surrender` = 13 |
 | ⚠ the demo's rifleman is ORDERED | 📌 measured in the twin: under plain `CombatPosture` the rifleman never engaged the unarmed Hostile (danger 0.3): weapon reason `None`, 150 rounds for 80 s. ⇒ the scenario gives him `PersonAttack {Target: 9902}`. ⚠ This corrects §5i's "the AI may engage him": an UNORDERED soldier's posture decision does not pick an unarmed Hostile — that is the force ladder's (A6, `Roe.ForceLevel`) to decide, not this slice's |
 | hold vs cover | the rifleman's `WeaponPosture` reads `Ready` + target kept while he holds (`HoldSurrender`), so `Covering.By` keeps the hands up — measured: 760 frames of `HoldSurrender` in the twin |
+| ⭐ a COVERING weapon is LETHAL *(CE-2239, 2026-10-17)* | `Covering.By` also needs `Armament.LethalInHand` — 📌 measured on `ua-civ-police-line`'s first twin: the security types are combatants (class 3.1.*.3), so a policeman aiming his BATON LAUNCHER covered the rioters and every one surrendered; a police line could only ever end in hands up. A rifle aimed at him still does it. Rail `CivilianHsmTests.CE2239_ABatonLauncherAimedAtHim_DoesNotCoverHim_ARifleDoes` |
 
 **Proof.** Rails `CivilianHsmTests.CE2241_ACoveredHostile_…` (raise, hold while Ready, stays Hostile, not down before 5 s, down after,
 re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ no hands; a Hostile gunman covers nobody; beyond 100 m
@@ -1351,6 +1362,240 @@ Rails: `SurrenderBehaviorTests` ×2 (SimHost, production registry) · `WeaponLay
 mutants (no lay-down · no take-up · never held · no `AllLaidDown` term · no hands-up term). Twin
 `PostureScenarioTests.CE2241_ArmedSurrender_…`: surrendered on CGF/SimHost/IG at 1.6 s, 0 rounds, unhurt, rose at 21.6 s, fired on at
 22.4 s.
+
+### 5h.6 AW-22 — a known combatant, per unit *(behaviors, `CE-2238` part 3 / handoff A5, 2026-10-17; build-state: BUILT)*
+
+⭐ **Scope.** AW-22's KNOWLEDGE half: a civilian who commits a LETHAL hostile act becomes a known combatant to the units that witnessed it
+and to their squad, sticky for the exercise; everyone else still sees a civilian (the conduct rules). The act's REPLICATED kind is
+backend's B-16 (§7.16, `CE-3238`); the knowledge is brain-local and needs nothing from it. ⏳ No brain commits a lethal act yet (the
+covert insurgent's trigger is B3) ⇒ rails now, `ua-armed-blend-back` with B3.
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` — `.*Combatant.*` ⇒ `Armament.IsCombatant` only (+ two notes);
+`.*HostileAct.*` ⇒ `HostileActs` only; grep for every call site; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| who asks "armed?" with an OBSERVER | `Armament.Judge` — ONE production caller, `ThreatDanger.Of` | `Perception/ThreatDanger.cs:36` |
+| the status / conduct split | `IsCombatant` (not Civilian class, not Neutral) ⇒ status; else `Conduct` (counted, AW-24) | `Combat/Armament.cs:188, 252, 268` |
+| what a hidden weapon reads as | `ArmedByStatus` excludes a CONCEALED controlled weapon (ST-6); `LethalInHand` (the truth form) still counts it | `Armament.cs:201-218, 224` |
+| where a unit's contacts live | `TargetMemory` (per unit, brain-local, never replicated; scenario-saved by a keyed translator) | `Perception/Components/PerceptionComponents.cs:45` |
+| ⚠ a slot's lifetime | `AddOrUpdateTarget` evicts the weakest when full; `Forget` drops a slot; ⇒ a per-SLOT byte dies with the slot | same file, `:195-215`, `:386` |
+| a unit's squad | `UnitSubordinate.Commander` → the commander's `UnitRoster.SubordinateEntities` | `Fdp.Core/CommandHierarchy/UnitSubordinate.cs:21` |
+| the act today | `HostileActs.Commit(repo, actor)` — once, brain-local stamp + side flip; callers: the stone and the blow (`CivilianBehavior.cs:580, 590`) | `Civilians/HostileActs.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class TargetMemory { <<existing, grows>> + KnownCombatantIds[8] · KnownCombatantCount }
+  class KnownCombatants { <<NEW, Fdp.Toolkits/Combat>> Mark(world, observer, man) · Knows(view, observer, man) · MarkWitnesses(world, actor) }
+  class HostileActKind { <<NEW enum, the one §7.16 draws>> None · NonLethal · Lethal }
+  class HostileActs { <<existing, grows>> Commit(repo, actor, kind) }
+  class Armament { <<existing>> Judge: + a known combatant reads on what he carries }
+  class UnitSubordinate { <<existing>> Commander }
+  class UnitRoster { <<existing>> SubordinateEntities }
+  HostileActs --> HostileActKind
+  HostileActs ..> KnownCombatants : Lethal ⇒ MarkWitnesses
+  KnownCombatants ..> TargetMemory : the list, per unit
+  KnownCombatants ..> UnitSubordinate : his squad
+  KnownCombatants ..> UnitRoster : the mates' lists
+  Armament ..> KnownCombatants : Knows(observer, man)
+```
+*What the picture shows that prose hid:* the knowledge sits beside the contacts it is about (`TargetMemory`), but as a LIST, not a slot
+field — so forgetting a contact does not forget that he fired; and the squad's knowledge is read from the mates, never copied.
+
+```mermaid
+sequenceDiagram
+  participant A as the civilian (CGF brain)
+  participant H as HostileActs.Commit
+  participant K as KnownCombatants
+  participant P as patrol A rifleman (CGF)
+  participant Q as patrol B rifleman (CGF, other squad)
+  A->>H: Commit(actor, Lethal)
+  H->>K: MarkWitnesses(actor)
+  K->>P: his memory holds the actor, seen within 1 s ⇒ add to his list
+  A->>A: hides the rifle (B-11 HIDDEN), walks into the crowd
+  P->>K: ThreatDanger.Of ⇒ Judge ⇒ Knows(P, actor) yes ⇒ LethalInHand ⇒ IdentifiedLethal
+  Q->>K: Knows(Q, actor) no ⇒ Conduct ⇒ nothing seen ⇒ a civilian
+```
+*What the picture shows that prose hid:* the same man is judged twice in one frame with two answers — the rule is per OBSERVER, which is
+why it is a property of the witness's memory and not of the man.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> CIV[civilian brain: the lethal act]
+  CIV --> HA[HostileActs.Commit]
+  HA --> MW[KnownCombatants.MarkWitnesses: every TargetMemory on this node]
+  BT --> SOL[soldier brain] --> TD[ThreatDanger.Of] --> J[Armament.Judge] --> KN[KnownCombatants.Knows]
+```
+*Caption:* nothing new is registered or scheduled; both edges run inside the brain tick on the node that owns the brains (CGF), where
+every witness's `TargetMemory` lives.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **KC-1** | ⭐ the knowledge is a sticky per-unit LIST (8 ids; full ⇒ the oldest goes). ⭐ *Revised `2026-10-17` (§5h.7b):* its OWN component `KnownCombatantList` (id 405, brain-local, NoScenario) beside the memory. ⛔ SUPERSEDED: "in `TargetMemory`" — `ThreatEvaluationSystem` copies the memory and writes the copy back through the command buffer, which erased a mark made later in the same frame (measured on `ua-armed-blend-back`) | a byte per memory SLOT (the ruling's sketch): eviction and `Forget` drop it — not "sticky for the exercise" · a new component: needs an id from the shared block for what is perception knowledge |
+| **KC-2** | ⭐ the WITNESSES are every unit on the actor's brain node whose memory holds him IDENTIFIED and perceived within 1 s of the act | a line-of-sight test at the act: duplicates the sensors that already decided what each unit perceives |
+| **KC-3** | ⭐ the SQUAD knows it by reading the mates' lists (`UnitSubordinate.Commander` → `UnitRoster`), never by copying | a flag through `SquadPerceptionMergeSystem`'s pool: bounded to 16 pooled contacts, lost when he leaves the pool, on the merge cadence |
+| **KC-4** | ⭐ to an observer who KNOWS, a civilian reads on what he CARRIES — `LethalInHand` (a hidden rifle counts: they saw it) ⇒ IdentifiedLethal, else Nothing; the conduct path is skipped | `ArmedByStatus`: a hidden weapon arms nobody by sight ⇒ he escapes the very patrol that watched him hide it |
+| **KC-5** | ⭐ the kind decides: a Lethal act marks the witnesses EVERY time, even after an earlier non-lethal one (HA-2's upgrade). ⚠ *As built:* backend's B-16 (`CE-3238`) landed the same day with `HostileActKind`, the replicated `HostileAct` and the upgrade-aware `Commit` (its `kind` defaults to NonLethal, every behaviors caller passes it) — behaviors' part is the ONE line in `Commit` that calls `MarkWitnesses`. ⛔ SUPERSEDED: "`HostileActKind` defined by behaviors, `Commit` with no default" | wait for B-16: the knowledge is brain-local · mark only on the first act: a stone-thrower who later fires would never be marked |
+
+⚠ **Known limits:** ① heard-only witnesses (an anonymous acoustic contact) learn nothing — there is no identity to mark; ② the knowledge is
+not on the wire (another node's brain has its own); ③ "for such time" stays simplified — sticky for the exercise (AW-22).
+
+⭐ **As built `2026-10-17`** *(matches the four diagrams; two facts the design did not state)*: `KnownCombatants` (`Combat/KnownCombatants.cs`),
+`TargetMemory.KnownCombatantIds[8]`, the `MarkWitnesses` line in backend's B-16 `HostileActs.Commit` (KC-5), `Armament.Judge` +
+`AsKnown`. ⭐ **① a COMMANDER reads his own roster** — he has no `UnitSubordinate`, so the first build missed him (a rail caught it);
+`Knows` takes the observer himself as the commander when he answers to nobody. ⭐ **② the neutral gate comes first** — `ThreatDanger.Of`
+returns 0 for a Neutral before `Judge` is asked (CE-2233), so the knowledge matters once the act has flipped him Hostile (CV-4), which it
+always does. Witness window = 60 ticks of `SimulationTick` (what `ThreatEvaluationSystem` stamps). Rails: `ArmamentTests.CE2238_…` ×3 —
+red under 6 mutants (no `Knows` in `Judge` · no squad-mate read · knowledge dying with the memory · lethal marks only a first act · no
+witness window · a known man always lethal).
+
+### 5h.7 B3 — draw, sling, conceal; the covert insurgent; aiming at the forces is the act *(behaviors, `CE-2238` part 4 / handoff B3, 2026-10-17; build-state: BUILT — as-built §5h.7a)*
+
+⭐ **Scope.** AW-11's COVERT insurgent (a civilian, a pick-up pistol Hidden) and AW-16: drawing makes him armed but is NOT a hostile act;
+aiming at the forces IS — the act and the side flip. Demo `ua-armed-draw-aim` (§5c). ⏳ Not here: the soldier's WARNING after the draw
+(the ladder's intent rows, B2) · `ua-armed-blend-back` (fire, conceal, walk into a crowd — next, on the same pieces).
+
+**INVENTORY** *(2026-10-17; grep `HostileActKind.Lethal` ⇒ readers only (`ForceLevels.SelfDefence`, `HostileActs.MarkWitnesses`) — ⛔ NO
+producer of a lethal act; grep `CarryStations\.(Move|Ask)` ⇒ no behaviour caller; codebase-memory CLI `search_graph`
+`.*(Draw|Stow|Conceal|Holster|Restation).*` ⇒ editor drawers only; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the stations | a person carries in seat 1 HANDS, 2 BACK (stowed: seen, cannot fire), 3 HIDDEN (stowed + concealed: arms nobody, not sensed); `CarryStations.Move` on the list's owner, `Ask` from anywhere (I-1 kind 11) | `Behavior/CarryStations.cs`, §7.13a |
+| the weapon | pick-up pistol **617** / rifle **616** — one man, fire while carried; a weapon system the man controls (`WeaponChoice` candidates include it) | §7.13a, `WeaponChoice.cs:29-37` |
+| a scenario that carries one | `PassengerBuffer { Passengers: [guid], Seats: [3] }` on the man (the air-assault scenarios author passengers this way) | `scenarios/ua-air-assault` |
+| the ONE writer of an aimed posture | `WeaponPostureOf.Report` — every executor reports "aiming / firing" there | `Combat/WeaponPostureOf.cs:45` |
+| who is a combatant | `Armament.IsCombatant`: not the Civilian class, not Neutral | `Armament.cs:188` |
+| ⛔ the lethal act | ⛔ no producer — `HostileActs.Commit(…, Lethal)` is called by nobody; ⇒ a civilian who shoots at the forces stays Neutral today | INVENTORY grep |
+| a mission's timer | `TimerElapsed {seconds}` ends a task | `MissionTriggerHelper.cs:39` |
+| a civilian running a soldier behaviour | categories are UI only — the ingress does not refuse `PersonAttack` on a civilian; civilians `CanShoot` (§5i.2a) | `BehaviorCategory` readers (none in the ingress) |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponPostureOf { <<existing, grows>> Report: + a NON-combatant Aimed at a forces person ⇒ HostileActs.Commit(Lethal) }
+  class HostileActs { <<existing B-16>> Commit(repo, actor, kind) · Of }
+  class StationWeapon { <<NEW library BTree, Hrot.AI.Behaviors>> Station Hands·Back·Hidden · Seconds }
+  class CarryStations { <<backend B-11, existing>> Hands · Back · Hidden · SeatOf · Move · Ask }
+  class PersonAttack { <<existing soldier behaviour>> AimAndFire at the named target }
+  class MissionPlan { <<existing>> cover (CivilianHsm) · TimerElapsed · StationWeapon Hands · PersonAttack }
+  WeaponPostureOf ..> HostileActs : the AW-16 act
+  StationWeapon ..> CarryStations : Move / Ask
+  MissionPlan ..> StationWeapon
+  MissionPlan ..> PersonAttack
+  PersonAttack ..> WeaponPostureOf : its executor reports Aimed
+```
+*What the picture shows that prose hid:* the insurgent is a MISSION — three existing pieces and one new behaviour; and the act is decided
+in the ONE posture writer, so any behaviour that aims — PersonAttack, CombatPosture, a player — commits it the same way.
+
+```mermaid
+sequenceDiagram
+  participant I as covert insurgent (CGF)
+  participant N as every node
+  participant S as soldier (CGF)
+  Note over I: task 1 CivilianHsm routine — his pistol in seat 3, armed to nobody
+  I->>I: TimerElapsed — task 2 StationWeapon Hands
+  I->>N: the pistol to his hands (CarryStations.Move) — armed, side still Neutral
+  S->>S: a Neutral: HoldNeutral, no round
+  I->>I: 10 s later — task 3 PersonAttack the soldier
+  I->>I: AimAndFire reports Aimed — WeaponPostureOf: a non-combatant aims at the forces
+  I->>N: HostileActs.Commit(Lethal) — side Hostile everywhere
+  S->>S: armed, Hostile, aimed at me: engages (self-defence lifts any cap)
+```
+*What the picture shows that prose hid:* nobody detects an "insurgent" — the soldier reacts to what crossed the wire, and the draw buys the
+man a hold, not a bullet, until he aims.
+
+```mermaid
+graph TD
+  MP[MissionPlan task chain — CGF] --> HSM[CivilianHsm routine]
+  MP --> SW[StationWeapon — BrainTickSystem]
+  MP --> PA[PersonAttack — BrainTickSystem]
+  SW --> CS[CarryStations.Move — the list owner CGF / Ask elsewhere]
+  PA --> AF[AimAndFireExecutor — WeaponDispatcherSystem]
+  AF --> WP[WeaponPostureOf.Report — the act rule]
+  WP --> HA[HostileActs.Commit — the side flip, B-16 replicated]
+```
+*Caption:* nothing new is scheduled — the act rule runs inside the existing posture write; the behaviour runs in the brain tick.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **CO-1** | ⭐ **AW-16 in the ONE posture writer**: `WeaponPostureOf.Report` — a unit that is NOT a combatant (`Armament.IsCombatant` false: a civilian, a neutral) whose weapon goes **Aimed** at a FORCES person (Friend, combatant) commits a **Lethal** hostile act, once (`HostileActs.Of` already Lethal ⇒ nothing) | in the attack behaviour: the next behaviour (CombatPosture, a player's order) forgets it · on the round fired: AW-16 makes the AIM the act — he may never fire |
+| **CO-2** | ⭐ ONE library behaviour **`StationWeapon {Station, Seconds}`** — Hands (draw) · Back (sling) · Hidden (conceal): moves his carried weapon there (`Move` where his list is owned, else `Ask`), holds still `Seconds` (0 ⇒ finishes at once) | three behaviours Draw/Sling/Conceal: one parameter · an `ArmedHostile` HSM state: it would re-implement the soldier's fight (AW-11 says reuse it) |
+| **CO-3** | ⭐ the covert insurgent is a **mission**: task 1 `CivilianHsm` (his cover) until `TimerElapsed`, task 2 `StationWeapon` Hands, task 3 a soldier's attack (`PersonAttack`) — no type, no detector | a covert type: a type per role (CV-1, AW-11) · a trigger vocabulary in the civilian's params: the mission already has timers |
+| **CO-4** | ⭐ the scenario carries the pistol in seat 3 (`PassengerBuffer`) | spawning it at run time: the scenario is the author's place |
+
+**Slices:** ① CO-1 + its rail (a civilian aiming at a soldier ⇒ Lethal, Hostile; a soldier aiming ⇒ nothing; a civilian aiming at a
+civilian ⇒ nothing) · ② `StationWeapon` + rails (draw, sling, conceal; finish after `Seconds`) · ③ demo `ua-armed-draw-aim` + live
+check + twin.
+
+#### 5h.7a AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as the diagrams above draw it — one refinement.** CO-1's target test is a forces PERSON: `ForceId.Friend` **and**
+`Armament.IsCombatant` — a Friend-side civilian (an interpreter, a contractor) is not the forces, and aiming at him commits nothing. ⭐ Police
+are combatants by this test (DIS category 3, Security Force, not the Civilian category 2), so a pistol aimed at a policeman IS the act.
+`StationWeapon` (`Hrot.AI.Behaviors/Brains/StationWeaponBehavior.cs`, DTO `StationWeaponParamsJsonDto` with the enum `WeaponStation`
+Hands·Back·Hidden) moves the first weapon system in his list the station takes; on a node that does not own the list it asks once and waits
+for the replicated slot; Failure when he carries nothing to put there.
+
+| proof | result |
+|---|---|
+| rail `ArmamentTests.CE2238_AimingAtTheForces_IsALethalAct_…` | ✅ — Ready at the soldier: none · aimed at a Neutral civilian: none · aimed at a Friend-side civilian: none · aimed at the soldier: Lethal · an enemy rifleman aiming: none. ✅ 3 mutants red: the call removed · the actor's combatant guard · the target's combatant test |
+| rails `StationWeaponBehaviorTests` ×3 (the shipped tree, real ingress + brain tick) | ✅ — draw Hidden → Hands, held `Seconds`, Success · sling to Back, conceal to Hidden · nothing to draw ⇒ Failure. ✅ 4 mutants red: no move · no `Seconds` hold · stations collapsed to Hands · `Place` lies |
+| demo `ua-armed-draw-aim` — twin `PostureScenarioTests.CE2238_DrawAim_…` | ✅ — hidden at 1.5 s; drawn at 9.5 s, still Neutral; no round at him while Neutral; Hostile at 19.7 s (10.2 s after the draw — when `PersonAttack` aimed) on CGF, SimHost and IG; the act Lethal; the rifleman fired at 20.5 s |
+| live `run_armed_draw_aim` | ✅ 7/7 — hidden (seat 3), drawn (seat 1) still Neutral, no round (150 → 150), Hostile 10.5 s after the draw on CGF, SimHost and IG, engaged (150 → 149) |
+| the neighbours re-run (`CrowdSystem` grid, same commit range) | twins `CE2237_CivGathering` · `CE2237_CivContagion` · `CE2238_CivMelee` · `CE2238_RiotStone` · `CE2238_GasThrowback` · `CE2239_PoliceLine` · `CE2240_CivProtest` ✅ 7/7 |
+
+### 5h.7b The conduct hold, and the known-combatant list's own home *(behaviors, `CE-2238` part 4, 2026-10-17; build-state: BUILT; ✅ CH-1 approved by the user)*
+
+⭐ **Found by `ua-armed-blend-back`** (two defects, one demo): ① the patrol that SAW the act did not know him — its mark was erased the same
+frame; ② a patrol that never saw it fired at him with his rifle hidden — the R-2027/R-2028 rule ("unarmed: non-lethal force only";
+"everyone else sees a civilian and applies the conduct rules") was never enforced for a unit with a Lethal force level.
+
+```mermaid
+classDiagram
+  direction LR
+  class ForceLevels { <<existing, grows>> Permits · AllowsMount · + ConductPermits(unit, target, lethal) }
+  class Armament { <<existing>> IsCombatant · Judge(observer, man) }
+  class KnownCombatants { <<existing, revised>> Mark · MarkWitnesses · Knows }
+  class KnownCombatantList { <<NEW component 405>> Ids[8] · Count }
+  class TargetMemory { <<existing, shrinks>> − KnownCombatantIds · − KnownCombatantCount }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldConduct before HoldForceLevel }
+  ForceLevels ..> Armament : status first, then Judge
+  Armament ..> KnownCombatants : Knows
+  KnownCombatants --> KnownCombatantList : the one writer
+  AimAndFireExecutor ..> ForceLevels
+```
+*What the picture shows that prose hid:* the hold reuses the ONE judgement every threat reader already asks (`Judge`), so "I know him"
+and "I see a rifle" lift it the same way; and the list moves out of the component another system copies wholesale.
+
+```mermaid
+sequenceDiagram
+  participant TE as ThreatEvaluationSystem
+  participant WD as WeaponDispatcher (the aim)
+  participant ECB as command buffer
+  TE->>ECB: SetComponent(witness, copy of his memory) — queued
+  WD->>WD: CO-1 — a Lethal act, MarkWitnesses marks the witness
+  ECB->>ECB: playback — the queued copy overwrites the memory
+  Note over ECB: before the fix the mark lived in that copy and was erased, now it lives in KnownCombatantList, which no one copies
+```
+*What the picture shows that prose hid:* the erase is ORDER, not logic — every rail that marked without a memory system running between
+mark and read passed.
+
+| id | decision | rejected — one line each |
+|---|---|---|
+| **CH-1** | ⭐ *(user, `2026-10-17`: "add the conduct hold")* a LETHAL round at a target who is not a combatant on status (`Armament.IsCombatant` false) is held — `HoldConduct`, "hold: unarmed civilian" — unless this unit's `Judge` reads him IdentifiedLethal (something that looks lethal, or a known combatant: KC-4) or he aims a lethal weapon at this unit. Non-lethal rounds are never held; a point has no target. In `ForceLevels.Permits` / `AllowsMount` (both round and weapon choice) | in the ladder (B2): AW-24 runs the ladder only for graded units, so a soldier would never obey it · on danger alone: danger 0.3 still lets a utility engage |
+| **KC-1′** | ⭐ the known-combatant list is its own component `KnownCombatantList` (405), added beside `TargetMemory` by the perception translator, registered with it; `Mark` adds it when missing (after the witness walk) | a merge in `ThreatEvaluationSystem`'s write-back: the copy is taken before the mark, nothing at record time can see it · writing marks through the same buffer: the later playback then erases the memory's own update |
+
+⭐ **AW-24 holds:** a combatant target costs one class-and-side lookup before the hold returns; the conduct path (`Judge` → conduct) is
+reached only for civilian-class targets.
+
+| proof | result |
+|---|---|
+| rail `ArmamentTests.CE2238_TheConductHold_…` | ✅ — an unarmed Hostile civilian held for a stranger, fired on by the witness when known and carrying; never held: a non-lethal round, an armed soldier, an UNARMED combatant (status); lifted by an aim. ✅ 3 mutants red (status shortcut · Judge line · aim line) |
+| rail `ArmamentTests.CE2238_AMark_SurvivesTheMemorysWriteBack_…` | ✅ — `ThreatEvaluationSystem` queued, mark, playback ⇒ still known. 📌 Its red is the measured live defect: before the fix the twin's probe showed the witness marked (`=> 1`) and known 0 one frame later |
+| demo `ua-armed-blend-back` — twin + live | ✅ twin green; live 5/5 — A (Sentry → CombatPosture) fired at him with the rifle hidden; B held (`HoldConduct`), 0 rounds |
+| the neighbours on the hold | twins `CE2238_DrawAim`, `CE2241_*`, `CE2238_CivMelee`, `CE2238_RiotStone`, `CE2238_GasThrowback`, `CE2239_PoliceLine`, `AW20_*`, `CE2233_*` ✅; live `ua-armed-draw-aim` 7/7 · `ua-civ-police-line` 6/6 · `ua-civ-surrender` 8/8 · `ua-civ-riot-stone` 6/6 · `ua-armed-shield` 5/5 |
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
@@ -1451,7 +1696,7 @@ the brain tick and the crowd system that already run every frame on CGF.
 | who he goes for | ⭐ the nearest living, standing PERSON of the forces — `Friend`, not Neutral, not of the `Civilian` class — within `RiotReach` 30 m | anyone: a rioter beating a bystander is a different act (later) · the crowd's focus point: not every protest point is the police line |
 | the blow | ⭐ `Melee.Strike`: within `MeleeReach` 1.5 m, every `MeleeCooldown` 2 s, a `DamageAssessedEvent{5 hp, Blunt, 3 s}` on the CGF bus — applied by the Health owner (D5); a knocked-down victim is not struck again until he is up | a melee "round" through the ballistic path: a fist has no muzzle · damage on SimHost: CGF is where the brain decides and, for a scenario cast, where Health is claimed |
 | the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
-| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him (⚠ measured §5h.4: an UNORDERED soldier does not — only an attack order makes him) — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
+| a hostile rioter and the soldiers | ⭐ he is Hostile and unarmed (danger 0.3). ⭐ *As of `2026-10-17` (§5h.7b CH-1, user-approved):* no unit fires a LETHAL round at him unless it sees something lethal on him, knows him (it or its squad saw a lethal act) or he aims at it — non-lethal force only (the R-2027 flow's UNARMED arm); a police unit's force level (A6) caps it further. ⛔ SUPERSEDED: "the AI may engage him" | special-casing rioters in the threat rules: the ladder's job |
 
 ⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
 scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
@@ -1569,7 +1814,7 @@ graph TD
 | the act | ⭐ the first THROW commits it (`HostileActs.Commit`, once) | on the hit: a stone that misses is still an attack (AW-16) |
 | the throwers' arms | ⭐ the gesture stays `FistRaised`; the throw shows through the executor's `Throwing` status | a Throwing gesture byte per throw: the figure already reads the weapon status |
 
-⚠ **Known limits:** ① no lying-stone pick-up yet (`RoundPickUp.Ask` — next step); ② one target at a time, the nearest; ③ a thrown
+⚠ **Known limits:** ① ~~no lying-stone pick-up yet~~ — built, §5i.3 (`CE-2238` part 3); ② one target at a time, the nearest; ③ a thrown
 stone never hits a neutral on purpose — the executor's neutral exemption for an arcing round (H-5) means he may hit one by accident.
 
 #### 5i.2a AS-BUILT *(behaviors, 2026-10-17)*
@@ -1590,6 +1835,395 @@ stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he 
 `PostureScenarioTests.CE2238_RiotStone_…` green (25 s, after the `CanShoot` fix: he filled at the source; 6 throws, 6 stones spent — weapon status `Turning` then `Firing`;
 the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
 at 8.5 s — none Hostile before his act); live 6/6 (the instigator's hands dropped to 4, Hostile everywhere at his act, 3.5 s).
+
+### 5i.3 CIV-4 behaviour, part 3 — picking a lying throwable up, the canister thrown back *(behaviors, `CE-2238` part 3 / handoff B1, 2026-10-17; build-state: BUILT — as-built in §5i.3a)*
+
+⭐ **Scope.** AW-8's second source and AW-9: a rioter with empty hands and someone to throw at goes for the nearest LYING throwable —
+a stone that missed, a gas canister still venting — asks for it (backend's `RoundPickUp`, B-13 §7.10) and throws it with the riot's one
+throw. A canister thrown back carries its burn left (B-14 §7.15 VC-5…VC-7). Demo `ua-armed-gas-throwback` (§5c). ⛔ Not here: a live
+grenade (`HoldsLethal` ⇒ the armed path, B3), a crowd fetching stones from far off, a stone source further than his reach.
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*(Lying|Throwable|Scaveng|NearestRound).*` ⇒ no production finder,
+only `RoundPickUpTests` and the CE-3235 integration rail; grep `RoundPickUp\.(IsLying|Ask|CanAsk)` ⇒ no production caller;
+`check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the pick-up | `RoundPickUp.CanAsk` (lying · hand item · in reach 1.5 m · room) and `Ask` publish the request; the round's owner grants ONE asker and destroys the round; the grant lands in his hands (`PersonHands.Give`, a canister with `HeldFuze.BurnSeconds`) | `Combat/RoundPickUp.cs:131-145`, `RoundPickUpSystem` |
+| a lying round on the brain's node | a lightweight replica: `LightweightRound` + `TkbIdentity` (the ammo) + `SimTransform`; lying = speed < 0.2 m/s. On its owner: `BallisticProjectile` `Landed` and not `Spent` | `RoundPickUp.IsLying:103` |
+| who finds one today | ⛔ nobody — no production caller of `IsLying` / `Ask` | INVENTORY query |
+| the throw | `Stones.InHand` (holding anything NOT lethal — a stone or a canister) + `Stones.Throw` (one FireAtPoint from the hands mount); `FireAtPointExecutor` already sends a held round's fuze / burn left | `Civilians/Stones.cs`, §7.15a |
+| the riot's order of things | bend at a source → (no target ⇒ stand) → throw (4–20 m, stones in hand) → strike (in reach) → walk to the target | `CivilianBehavior.Riot:542-598` |
+| ⚠ gas frightens him first | FL-6 (§5j.1): a new irritation frightens as a hit (impulse 1) ⇒ `Panicked` (fear ≥ `PanicAt`, default 0.6) ⇒ Riot → Panic before he reaches the canister | `CivilianFearSystem`, `CivilianBehavior.cs:244, 724` |
+| ⭐ a hardened rioter | `PanicAt` is an authored per-civilian param; fear is capped at 1 ⇒ `PanicAt` > 1 never panics (the gas still irritates him) | `CivilianBehavior.Resolve:189`, `CivilianFear` |
+
+```mermaid
+classDiagram
+  direction LR
+  class Throwables { <<NEW static, Fdp.Toolkits/Civilians>> SearchMetres 15 · Nearest(world, man, radius, out round) }
+  class RoundPickUp { <<backend B-13, existing>> IsLying · IsHandItem · InReach · CanAsk · Ask }
+  class Stones { <<existing>> InHand · Throw }
+  class PersonHands { <<backend B-8, existing>> HasRoom · Holding · HoldsLethal }
+  class ItemAppearances { <<existing>> IsLethal(world, ammo) }
+  class CivilianBehavior_Riot { <<existing, grows>> + scavenge arm: walk to it, bend, Ask }
+  class RiotState { <<existing, grows>> + Pickup (Entity) }
+  Throwables ..> RoundPickUp : IsLying · IsHandItem · AmmoOf
+  Throwables ..> PersonHands : HasRoom
+  Throwables ..> ItemAppearances : skips a lethal round
+  CivilianBehavior_Riot ..> Throwables : Nearest
+  CivilianBehavior_Riot ..> RoundPickUp : CanAsk · Ask
+  CivilianBehavior_Riot ..> Stones : InHand · Throw (unchanged)
+  CivilianBehavior_Riot *-- RiotState
+```
+*What the picture shows that prose hid:* the throw-back needs NO new throw and NO new pick-up path — the riot gains one FINDER and one
+arm; what is thrown, how the burn travels and who wins a contested round are all backend's, already built.
+
+```mermaid
+sequenceDiagram
+  participant P as policeman (CGF)
+  participant S as SimHost (flies the round)
+  participant R as hardened rioter, Riot (CGF)
+  participant C as the cloud (CGF)
+  P->>S: FireAtPoint the gas canister at the crowd
+  S->>S: it lands, bursts, LIES and VENTS
+  S->>C: a cloud, sitting on its canister
+  R->>R: empty hands, a target 4–20 m: Throwables.Nearest — the canister
+  R->>R: walks to it — in reach: crouch, RoundPickUp.Ask
+  S->>R: the grant: the canister in his hands, its burn left
+  C->>C: its source is gone — the cloud drifts free
+  R->>R: irritated each second while he holds it (HandsFuze)
+  R->>S: Stones.Throw at the policeman (FireAtPoint, the burn left)
+  S->>C: it lands: a NEW cloud by the police
+```
+*What the picture shows that prose hid:* acceptance ①②③ are each one backend hop already railed in one world; the behaviour's part is
+the middle three lines — find, walk, ask.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> RIOT[CivilianHsm Riot]
+  RIOT --> TH[Throwables.Nearest — a library call]
+  RIOT --> ASK[RoundPickUp.Ask — the request on the bus]
+  ASK -.I-1 kind 9.-> RPS[RoundPickUpSystem — Interactions capability, the round's owner]
+  RPS -.I-1 kind 10.-> HANDS[PersonHands.Give — the brain's node]
+```
+*Caption:* nothing new is registered or scheduled — the finder is a library call inside the existing Riot activity; the request and the
+grant ride backend's existing `RoundPickUpSystem`, which every node builds.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **PK-1** | ⭐ the riot SCAVENGES when his hands are empty, he has a target and nobody in arm's reach: the nearest lying, non-lethal hand item within `Throwables.SearchMetres` (15 m) with room in his hands | always, target or not: a man with no one to throw at has no reason to · any distance: a riot that leaves its line to fetch is a later behaviour (§5i.2) |
+| **PK-2** | ⭐ walk to it (`MoveTo`, arrival 0.5 m); in reach: crouch and `Ask` ONCE, then the existing bend (`BendSeconds`) — the grant lands while he is down; if another man won it, the next look finds the next | a separate "pick up" state in the HSM: it is one arm of the riot, like the stone source's bend · ask every frame: one request per bend is the backend's contract (one winner) |
+| **PK-3** | ⭐ a LETHAL round (a live M67) is skipped (`ItemAppearances.IsLethal`) — picking up a live grenade is the armed path (AW-9 second half, B3) | pick it up and throw it: the riot would hold a lethal round with no rule for it |
+| **PK-4** | ⭐ the THROWER of a canister is a **hardened** rioter: authored `PanicAt` > 1 (fear never reaches it), so FL-6's gas fright does not turn him; the crowd around him still breaks | exempt instigators from FL-6: a riot with an instigator would never break under gas · a smaller gas impulse: gas would break no riot (FL-6's reason) |
+| **PK-5** | ⭐ the throw is the riot's existing `Stones.Throw` (a canister is "in hand, not lethal"); its first throw is his hostile act, as a stone's | a separate canister throw: two firing paths (§5i.2 rejected it) |
+
+**Slices:** ① `Throwables` + the scavenge arm + rails (a missed stone picked up and thrown · a canister picked up, the burn in hand ·
+a live grenade skipped · no target ⇒ no scavenging) · ② demo `ua-armed-gas-throwback` + live check + twin.
+
+#### 5i.3a AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as the diagrams above draw it — no deviation.** `Throwables.Nearest` (`Fdp.Toolkits/Civilians/Throwables.cs`) walks the
+lightweight replicas AND, on the node that flies them, the rounds themselves; `CivilianBehavior.Riot` gains `Scavenge` (after the throw
+and strike arms, before the walk to the target) and `RiotState.Pickup`. A round someone else won is "not lying" any more, so the next
+tick looks again.
+
+| proof | result |
+|---|---|
+| rail `CivilianHsmTests.CE2238_ARioterWithEmptyHands_PicksTheLyingStoneUp_NotALiveGrenade_AndThrowsIt` (through backend's real `RoundPickUpSystem`) | ✅ — no target ⇒ the stone lies · he walks to the stone, not the nearer live grenade · granted (gone, one in his hands) · thrown at the policeman · his act. ✅ 3 mutants red: no scavenge arm · no lethal skip · no Ask |
+| demo `ua-armed-gas-throwback` — twin `PostureScenarioTests.CE2238_GasThrowback_…` | ✅ — the cloud sat on the canister 12.9 m from the policeman; picked up at 3.6 s, it let go and drifted; he was irritated while he held it; thrown, a new cloud rose 0.1 m from the policeman; he stayed in Riot (PanicAt 1.5) and his throw flipped him Hostile |
+| live `run_armed_gas_throwback` | ✅ 6/6 (the same numbers: 12.9 m → 0.1 m) |
+| the neighbours re-run (the riot changed under them) | twins `CE2238_RiotStone` · `CE2238_CivMelee` · `CE2239_PoliceLine` ✅; live `ua-civ-riot-stone` 6/6 |
+
+## 5j. CV-8 / CV-11 — the force level and the police line *(behaviors, `CE-2239` part 1 / handoff A6, 2026-10-17; build-state: BUILT — slices ①–④, the demo's twin green)*
+
+⭐ **Scope.** CV-8's second half: a unit's ROE carries a FORCE LEVEL {Warn, NonLethal, Lethal} that caps what its weapons may fire, with
+AW-18's self-defence over it; and CV-11's police, who today have no brain at all, get one: they hold a line and use their non-lethal
+weapons on Hostile people. Demo `ua-civ-police-line` (§5c). ⏳ Not here: the ladder's intent rows (AW-10, B2), `Lethal also needs the
+target armed or a lethal act` (B2 with the identification rows), a squad Line formation (CE-2124).
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*Roe.*`, `.*WeaponChoice.*`, `.*ForceLevel.*|.*NonLethal.*` ⇒ no force
+level exists; an Explore sweep for the police half; grep for every call site; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the ROE | `Roe {Fire, Reactions, SetBy, ReturnFireWindowSeconds}` — JSON-carried in the brain intent and the scenario save (no wire change, CE-2095's recipe: 11 files) | `Behavior/Components/Roe.cs`; commit `2d85ef59f` |
+| where the ROE is enforced | ONCE per path: `AimAndFireExecutor.RoePermitsFire` (`:35`) inside its gate, and `FireAtPointExecutor`'s hold (`:246`) | `Combat/Executors/*` |
+| the last gate before a round | `AimAndFireExecutor.HoldOf` — the neutral (CE-2233), hands up (CV-13a), domain, min range… | `AimAndFireExecutor.cs:585` |
+| what chooses the weapon | `WeaponChoice.Choose` → `WeaponSelectionDecision`; the candidates are filtered in `UtilityScorer` (hands H-4, laid down B-10) | `Utility/Core/UtilityScorer.cs:294-330` |
+| lethal or not | `ItemAppearances.FiresLethal(world, mount)` (a mount whose rounds are all Blunt/Irritant/Stun/Smoke is not) | `Combat/Armament.cs:136` |
+| self-defence signals | aimed at = the target's replicated `WeaponPosture {Aimed, Target = me}`; a lethal act = B-16's replicated `HostileAct.Kind` (`HostileActs.Of`); ⚠ fired upon (`RecentSensesOf` Hit/NearMiss) names no shooter | `Combat/Components/WeaponPosture.cs`; `Civilians/HostileActs.cs` |
+| the police | types 1201 shield, 1202 baton, 1203 launcher — class `SecurityForce` 3.1.*.3, ONLY non-lethal mounts (stun 6037, gas 6039, the 40 mm baton round 6036 on 1203); no default behaviour; in every scenario a brainless Friend | `Hrot.Core/Tkb/CivilianTkbCatalog.cs:51-104` |
+| a police behaviour | ⛔ none (searched PoliceLine, HoldTheLine, RiotControl, Cordon, SecurityForce, Police) | Explore sweep, 2026-10-17 |
+| the baton | `Melee.Strike` — Blunt, knocks down 3 s; called only by the rioter; nothing checks who strikes | `Combat/Melee.cs:42` |
+| what a non-lethal hit does to a civilian | a baton round hurts ⇒ `Hit` ⇒ fear +1.0 ⇒ Panic (`CivilianFearSystem.cs:84`); ⚠ a stun grenade or gas does NO damage and is not heard ⇒ no fear, so a riot under gas does not break | `CivilianFearSystem.cs:83-84`, `AreaEffectSystem.cs:221`, `AreaEffectCloudSystem.cs:116` |
+| ⚠ "an unordered soldier does not engage an unarmed Hostile" (§5h.4) | no danger threshold exists on that path (`HaveLiveTarget`, `TopThreat`, `HoldOf` all pass him) — the measurement stands, its cause is not found (a candidate: the unauthored `Objective` (0,0,0) ending AdvanceAndAttack, `PostureNodes.cs:263-269`) | not load-bearing here — the police get their own behaviour |
+
+```mermaid
+classDiagram
+  direction LR
+  class Roe { <<existing, grows>> + ForceLevel (last) }
+  class RoeForceLevel { <<NEW enum>> ForceUnset · Warn · NonLethal · Lethal }
+  class ForceLevels { <<NEW, Fdp.Toolkits/Combat>> Of(view, unit) · Permits(world, unit, target, ammo) · SelfDefence(world, unit, target) }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldForceLevel }
+  class FireAtPointExecutor { <<existing>> its hold: + HoldForceLevel }
+  class UtilityScorer { <<existing>> WeaponSelection: a mount above the cap is no candidate }
+  class BehaviorProfileDto { <<existing, grows>> + DefaultRoeForceLevel }
+  class HoldTheLine { <<BUILT library BTree, Hrot.AI.Behaviors>> hold the post · fire at the nearest Hostile in reach · the baton in reach }
+  class CivilianFearSystem { <<existing, grows>> + a stun or a gas cloud frightens }
+  Roe --> RoeForceLevel
+  ForceLevels ..> Roe
+  AimAndFireExecutor ..> ForceLevels
+  FireAtPointExecutor ..> ForceLevels
+  UtilityScorer ..> ForceLevels
+  HoldTheLine ..> AimAndFireExecutor : AimAndFire MountAuto
+  HoldTheLine ..> Melee : Strike in reach
+```
+*What the picture shows that prose hid:* the cap is ONE reader (`ForceLevels.Permits`) asked at the two places a round can leave and at
+the one place a weapon is chosen — so no behaviour, a police line's or a soldier's, can forget it; and the police behaviour itself
+contains no force rule at all.
+
+```mermaid
+sequenceDiagram
+  participant R as rioter (CGF)
+  participant P as policeman HoldTheLine (CGF)
+  participant W as WeaponChoice
+  participant X as AimAndFireExecutor
+  R->>R: throws a stone, Hostile (§5i)
+  P->>P: the nearest Hostile in reach
+  P->>W: AimAndFire MountAuto
+  W->>W: candidates above NonLethal dropped (a rifle, if he had one)
+  W-->>X: the baton launcher
+  X->>X: HoldOf: ForceLevels.Permits(baton round) yes
+  X-->>R: a baton round: Hit, fear +1, Panic
+  R->>P: closes to 1.5 m
+  P->>R: Melee.Strike (the baton)
+  Note over P,X: a rifle aimed at him, or a lethal act, lifts the cap against THAT man (AW-18)
+```
+*What the picture shows that prose hid:* the choice and the gate ask the same question, so a unit whose only weapon is lethal holds
+(`HoldForceLevel`) instead of firing — and self-defence is asked at the gate, per shot, not decided once by the behaviour.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HTL[policeman: HoldTheLine]
+  HTL --> AF[WeaponChannel: AimAndFire]
+  HTL --> ML[Melee.Strike]
+  WD[WeaponDispatcherSystem — CGF] --> X[AimAndFireExecutor.HoldOf + ForceLevels]
+  WD --> FP[FireAtPointExecutor hold + ForceLevels]
+  CF[CivilianFearSystem — CGF] --> FE[reads Effects: stunned or irritated]
+```
+*Caption:* nothing new is registered or scheduled: the cap runs inside the two existing executors, the fear inside the existing fear
+system, the police brain in the brain tick.
+
+| id | decision *(lean)* | rejected — one line each |
+|---|---|---|
+| **FL-1** | ⭐ `Roe.ForceLevel` {ForceUnset 0, Warn 1, NonLethal 2, Lethal 3} — ordered most restrictive first, like `RoeFire`; **unset ⇒ Lethal** (today's behaviour); the field LAST; CE-2095's recipe end to end (SetRoeEvent, RoeSystem, TKB `DefaultRoeForceLevel`, the JSON intent/save, hand-over, materialisation); the security types default **NonLethal** | a separate component: the ROE already owns "what may I fire" and its plumbing · a per-weapon flag: CV-8 rejects weapon-per-target hard-coding |
+| **FL-2** | ⭐ enforced ONCE per path, at the gate: `HoldOf` and `FireAtPoint`'s hold ask `ForceLevels.Permits(world, unit, target, ammo)` ⇒ `HoldForceLevel` — Warn ⇒ no round at all; NonLethal ⇒ no lethal round; Lethal ⇒ anything | in each behaviour: the next behaviour forgets it (why the ROE is enforced in the executor, CE-2075) |
+| **FL-3** | ⭐ AW-18 SELF-DEFENCE lifts the cap to Lethal **against THAT target only**: he AIMS a lethal weapon at me (`WeaponPosture` Aimed, Target = me, `LethalInHand`) or he committed a LETHAL hostile act (B-16 `HostileActs.Of` = Lethal); a point (FireAtPoint) has no target ⇒ the cap holds | "I was hit or near-missed" (the ReturnFire signal): one stone would lift the cap against the whole riot — and `ua-civ-escalation` ① needs lethal fire at the armed man ONLY · the cap always binding: no ROE card denies self-defence (AW-18) · any armed target: that is the ladder's intent row (B2) |
+| **FL-4** | ⭐ the weapon CHOICE drops a mount above the cap (the `UtilityScorer` candidate filter, beside H-4 and B-10), so a unit with a non-lethal weapon uses it rather than holding | only the gate: a soldier with a rifle and a baton launcher would pick the rifle and hold forever |
+| **FL-5** | ⭐ the police brain is a NEW library behaviour **`HoldTheLine {Facing, Reach, Hold}`**: stay at the post (or within `Hold` m of it), face `Facing`, engage the nearest Hostile within `Reach` with `AimAndFire MountAuto`, strike with the baton (`Melee`) within 1.5 m; the security types run it by default | `CombatPosture`: it advances, takes cover and flees — a police line does none · a squad formation now: CE-2124 owns the Line formation |
+| **FL-6** | ⭐ a civilian who is STUNNED or IRRITATED is frightened as if hit (`CivilianFearSystem` reads `Effects`, a one-off impulse per new effect) — so gas and a stun grenade break a riot as the design intends | leave it: the demo's "the riot breaks up" would rest on the baton round alone, and tear gas would do nothing to a crowd |
+
+**Slices:** ① FL-1 (the field, defaults, rails) · ② FL-2/3/4 (the cap, self-defence, the choice; rails red under mutants) · ③ FL-5/6
+(HoldTheLine, the fear) · ④ `ua-civ-police-line` + its twin.
+
+### 5j.1 As built *(2026-10-17 — slices ①②③)*
+
+| slice | built | rails *(red-proof)* |
+|---|---|---|
+| ① FL-1 | `Roe.ForceLevel` + `RoeForceLevel` (`Behavior/Components/Roe.cs`), CE-2095's recipe end to end; the three security types `DefaultRoeForceLevel = NonLethal` | `RoeAndRecentSensesTests.CE2239_AnOrderSetsTheForceLevel…` · `NonLethalMunitionTests.CE2239_TheSecurityForces_…` |
+| ② FL-2/3/4 | ⭐ ONE reader `Combat/ForceLevels.cs` — `Permits(world, unit, target, ammo, mount)`, `AllowsMount`, `SelfDefence`; asked in `AimAndFireExecutor.HoldOf` (after HoldSurrender) and `FireAtPointExecutor.ShootAtPoint` (obeyRoe) ⇒ `ActionReason.HoldForceLevel` ("hold: force level", posture Ready); the `UtilityScorer` WeaponSelection candidates drop a mount above the cap (mount 0, child mounts, controlled weapon systems) | `AimAndFireExecutorTests.CE2239_TheForceLevel_HoldsALethalRound_…` · `StarterPackIntegrationTests.CE2239_WeaponSelection_UnderANonLethalCap_…` — ✅ 5 mutants red: no gate · no self-defence · aimed-at-anyone · no choice filter · Warn as NonLethal |
+| ③ FL-5 | `HoldTheLineBehavior` — a curated BTree (the security brain tier), one stateful action: post = where it started, walk back past `Hold` (default 3 m), the nearest REMEMBERED Hostile within `Reach` (default 40 m) gets `PostureNodes.Fire` (AimAndFire MountAuto — the force level picks the weapon), one in `Melee.ReachMetres` gets `Melee.Strike` instead; skipped: Neutral, out of the fight, hands up, knocked down. The security types' `DefaultBehaviorHash = HoldTheLine` | `HoldTheLineBehaviorTests` ×3 (target choice · baton · walk back) · `NonLethalMunitionTests.CE2239_TheSecurityForces_…` (the default) — ✅ 7 mutants red: no Neutral skip · no hands-up skip · no knocked-down skip · no reach bound · no baton arm · no walk back · no default |
+| ③ FL-6 | `CivilianFearSystem` — a NEW or LONGER stun / irritation (`EffectState`) frightens as a hit (`CivilianFear.EffectImpulse` = 1), remembered in `CivilianState.EffectFrightUntil` so a running effect frightens once | `CivilianFearSystemTests.CE2239_AStunOrGas_FrightensHimOnce_ANewOneAgain` — ✅ 2 mutants red: no effect fright · not once per effect |
+
+| ④ demo | `ua-civ-police-line` (§5c): three policemen placed with NO task (their default `HoldTheLine`, NonLethal), an instigator and four protesters around a stone source; live check `run_civ_police_line` + twin `PostureScenarioTests.CE2239_PoliceLine_…` | live ✅ 6/6 + twin ✅ — force at 4.0 s (four stun grenades, the launcher holding its baton rounds for the weapon choice), all five rioters stunned, the riot broken (the instigator a Casualty at health 30, four Alarmed), nobody dead |
+
+⚠ **Deviations from the table above, measured:**
+- ⛔ **FL-5's `Facing` is NOT built** — no seam turns a STANDING person's body to a heading (`HumanGait` turns him only to the aim
+  or the travel, `CarKinematicsSystem.cs:404-412`); he keeps the facing the scenario placed him with and turns to aim at his
+  target. A facing request is its own capability (the person motor's), not a police rule.
+- ⭐ **hands up is skipped by the BEHAVIOUR** — the gate holds a round at raised hands (CV-13a) but nothing holds a baton blow
+  (`Melee.Strike` checks no one), so `HoldTheLine` asks it.
+- ⭐ **a STUNNED man is skipped too** — 📌 twin run 2: a stunned instigator in arm's reach was beaten to death by three batons
+  (5 per blow); the stun grenade does no damage (`BlastLethalDamage` 0). Out of the fight for its seconds, as a knocked-down man.
+- ⭐ **covering needs a lethal weapon** (§5h.3's row) — 📌 twin run 1: a rifleman in the line under the NonLethal cap, and the
+  policemen's own launchers, made every rioter raise his hands, so no force was used and the riot never "broke". The demo's
+  rifleman is dropped (his cap is railed); a soldier in a police line would still make them surrender — his rifle is lethal.
+- ⚠ **the three older riot demos pin their policeman to `Idle`** (`ua-civ-melee`, `ua-civ-riot-stone`, `ua-civ-surrender`) — they test
+  the RIOTER against a passive target; with the new default he would fight back and change what they measure.
+
+## 5k. B2 — the escalation ladder: warn, then non-lethal, then lethal *(behaviors, `CE-2239` part 3 / handoff B2, 2026-10-17; build-state: BUILT — §5k.1)*
+
+⭐ **Scope.** AW-10's ladder for the SECURITY FORCES (AW-24: soldiers never run it): against a civilian who is not a combatant on status,
+the force a police unit may use rises with what the man does — **armed at ease ⇒ Warn · ready ⇒ NonLethal, Lethal after an ignored
+warning · aimed at us or a lethal act ⇒ Lethal (FL-3, built)** — under the unit's `Roe.ForceLevel` cap; and the WARNING itself, an
+audible cue the police give and every node can see. Demos `ua-civ-escalation`, `ua-armed-self-defence`, `ua-armed-celebration` (§5c).
+⏳ Not here: `ua-armed-knife` (no knife item in any catalogue, and "closing fast" reads speed — slice ④ later) · `ua-armed-identify`
+(catalogue toy gun + binoculars — its own slice) · a civilian's COMPLIANCE with a warning (the demos author what he does).
+
+**INVENTORY** *(2026-10-17; codebase-memory CLI `search_graph` `.*(Warn|Ladder|Escalat|Demand|Shout).*` Class+Method ⇒ only
+`MissileWarning*`, migration and editor warnings — ⛔ **no warning act, no ladder in code**; an `Explore` sweep of `docs/`, `.dev/` and
+the toolkit; `check_index_coverage` NOT run — CLI only)*:
+
+| question | measured | where |
+|---|---|---|
+| the cap | `Roe.ForceLevel` {Unset, Warn, NonLethal, Lethal}; police types default NonLethal; `ForceLevels.Permits` / `AllowsMount` / `SelfDefence` (aimed at me, or a Lethal act) / `ConductPermits` (CH-1) | `Combat/ForceLevels.cs`, `CivilianTkbCatalog.cs:104-109` |
+| what he carries, to THIS observer | `Armament.Judge` ⇒ IdentifiedLethal · Unidentified · Nothing (range × light × optics; a reach weapon beyond its reach ⇒ Unidentified) | `Combat/Armament.cs:252-316` |
+| what he does with it | `WeaponPosture` {AtEase, Ready, Aimed} + Target/Point, ONE writer `WeaponPostureOf` (replicated). ⚠ A drawn weapon stays **AtEase** until a weapon action runs | `Combat/WeaponPostureOf.cs`, `StationWeaponBehavior.cs` |
+| a security-force unit | DIS `3.1.*.3` (`DisCategorySecurityForce`), class `SecurityForce`; ⛔ no toolkit helper — the class table and the uniform only | `CivilianTkbCatalog.cs:36`, `EntityClassTable.cs:181` |
+| the police brain | `HoldTheLine` — fires (`PostureNodes.Fire`, AimAndFire MountAuto) at the nearest Hostile in memory within reach; skips Neutral / out of the fight / hands up / down / stunned | `Brains/HoldTheLineBehavior.cs` |
+| a visible act | `Gesture` {None, HandsUp, FistRaised, HoldSign, Waving, Throwing}, replicated (`dtGesture`) | `Combat/Gestures.cs` |
+| fire into the air | `FireAtPoint` with a raised `z` ⇒ posture Aimed at a POINT ⇒ no act (CO-1 needs a target) | `FireAtPointExecutor.cs:233-303` |
+
+```mermaid
+classDiagram
+  direction LR
+  class ForceLevels { <<existing, grows>> Permits · AllowsMount · + LevelFor(unit, target) · SelfDefence · ConductPermits }
+  class EscalationLadder { <<NEW static, Fdp.Toolkits/Combat>> Applies(unit, target) · Level(unit, target) · Warn(unit, target) · WarnedAt }
+  class WarningLog { <<NEW component 406, brain-local>> TargetIds[8] · At[8] · Count }
+  class Armament { <<existing, grows>> Judge · IsCombatant · + IsSecurityForce }
+  class WeaponPosture { <<existing>> Kind · Target }
+  class Gestures { <<existing, grows>> + GestureKind.Warning }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldWarn }
+  class HoldTheLine { <<existing, grows>> + warns an armed man in reach }
+  ForceLevels ..> EscalationLadder : a graded unit at a civilian
+  EscalationLadder ..> Armament : Judge
+  EscalationLadder ..> WeaponPosture : at ease · ready
+  EscalationLadder --> WarningLog : the one writer
+  EscalationLadder ..> Gestures : the visible cue
+  AimAndFireExecutor ..> ForceLevels
+  HoldTheLine ..> EscalationLadder : Warn
+```
+*What the picture shows that prose hid:* the ladder is ONE function the existing cap asks, so a round and a weapon choice obey it the
+same way; the warning lives with the WARNER (he knows whom he warned), and only its visible cue crosses the wire.
+
+```mermaid
+sequenceDiagram
+  participant M as the armed man (CGF)
+  participant P as policeman (CGF)
+  participant N as every node
+  M->>M: draws — posture at ease
+  P->>P: ladder — identified lethal, at ease: Warn, no round
+  P->>N: Gesture Warning, WarningLog stamps him
+  M->>M: weapon READY (aims elsewhere, or waits)
+  P->>P: ladder — ready: NonLethal (a baton round)
+  P->>P: 5 s after the warning and still ready: Lethal
+  M->>P: or he AIMS at the policeman — self-defence: Lethal at once (FL-3)
+```
+*What the picture shows that prose hid:* the warning is a TIME, not an event the man must answer — the ladder re-reads his posture
+every tick, so lowering the weapon drops it back down without any "complied" flag.
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> HTL[HoldTheLine — the police brain]
+  HTL --> WARN[EscalationLadder.Warn — the cue]
+  HTL --> AF[AimAndFireExecutor — WeaponDispatcherSystem, CGF]
+  AF --> HO[HoldOf]
+  HO --> FL[ForceLevels.LevelFor]
+  FL --> EL[EscalationLadder.Level]
+  WARN --> G[Gesture — replicated to every node]
+```
+*Caption:* nothing new is scheduled — the ladder is asked inside the existing gate on the brain node, the warning is given by the police
+brain that already runs there; only the gesture crosses the wire.
+
+| id | decision *(lean — built; ⭐ for the user's review)* | rejected — one line each |
+|---|---|---|
+| **EL-1** | ⭐ the ladder applies to a unit of the **SecurityForce class** (`3.1.*.3`) facing a target who is **not a combatant on status** (`Armament.IsCombatant` false); soldiers never (AW-24) | every unit with a NonLethal cap: a soldier ordered non-lethal is not a police ladder · every unit: AW-24 |
+| **EL-2** | ⭐ the rung: Judge ≠ IdentifiedLethal ⇒ **NonLethal** (unarmed: non-lethal force only — CH-1 holds lethal anyway); IdentifiedLethal and **AtEase** ⇒ **Warn** (no round); **Ready** ⇒ **NonLethal**, and **Lethal once warned ≥ `IgnoredWarningSeconds` (5 s) ago and still ready**; aimed at me / a lethal act ⇒ Lethal (FL-3, before the ladder). Capped by `Roe.ForceLevel` except self-defence | a "complied" flag: a man who lowers his weapon drops back by posture alone · Lethal straight from Ready: AW-10 says "after an ignored warning" |
+| **EL-3** | ⭐ the WARNING: `EscalationLadder.Warn(unit, man)` — the warner's `Gesture.Warning` for `WarningShowSeconds` (2 s) and a stamp in his own `WarningLog` (8 men, oldest goes); given by the gate when the rung is Warn, and by `HoldTheLine` to an identified-armed man within its reach | a bus event only: nothing visible on IG, nothing for the man's brain to see · a stamp on the TARGET: two policemen would share one clock |
+| **EL-4** | ⭐ "warned" is PER WARNER — `WarnedAt(unit, man)`; ⚠ no squad sharing yet (a later rung) | the squad's: a neighbour's shout 40 m away would let this policeman fire lethal |
+| **EL-5** | ⭐ firing INTO THE AIR (posture Aimed at a point, no target) reads as **Ready** to the ladder (intent unknown ⇒ Warn first, AW-17) | as Aimed: a celebratory volley would be a lethal rung |
+| **EL-6** | ⭐ a new `ActionReason.HoldWarn` ("hold: warning") for a round held at the Warn rung | `HoldForceLevel`: hides that a warning was given |
+
+**Slices:** ① `EscalationLadder` + `WarningLog` + `GestureKind.Warning` + `HoldWarn`, through `ForceLevels.LevelFor` + rails · ②
+`HoldTheLine` warns + demo `ua-civ-escalation` (live + twin) · ③ `ua-armed-celebration` + `ua-armed-self-defence` · ④ (later) knife
+and "closing fast"; `ua-armed-identify`.
+
+### 5k.1 As built *(2026-10-17)*
+
+⭐ The class and sequence diagrams above hold as drawn. Slices ①–③ are BUILT; ④ (knife, closing fast, `ua-armed-identify`) is not.
+The build found five things the design had not drawn; each is now a decision row (EL-7…EL-9) or a fix:
+
+| id | as built *(⭐ lean, for the user's review)* | found by |
+|---|---|---|
+| **EL-5′** | ⛔ SUPERSEDED: "firing into the air reads as Ready" as a posture conversion in the ladder. 📐 It was dead code — the rung only tells AT EASE apart, and `ForceLevels.SelfDefence` already asks aimed AT THIS unit (`AimsAt`'s `Target == unit`), so a volley into the air is the ready rung and never self-defence with nothing in `EscalationLadder` | mutant M7: the conversion removed, every rail green |
+| **EL-7** | ⭐ the BATON is non-lethal force: `HoldTheLine` strikes only when `LevelFor(unit, man) ≥ NonLethal` — under a Warn ceiling, or at the Warn rung, no blow (`Roe.ForceLevel`'s own doc: "NonLethal — … and the baton") | `ua-civ-escalation-warn`: `Melee.Strike` asked no force rule |
+| **EL-8** | ⭐ `HoldTheLine` engages the man it may use the MOST force on (`LevelFor`: a gunman past his ignored warning before a stone thrower; a man it may only warn last), the nearest among those | `ua-civ-escalation`: a gunman behind the stone throwers was never engaged (nearest only) |
+| **EL-9** | ⭐ `AimAndFireExecutor`'s kept mount choice is valid only under the force level it was made at (`AimState.HasChoice` = 1 + that level): a raised weapon after an ignored warning gets the rifle, not the next stun grenade; a lowered one gets the baton round, not a held rifle | review: a kept rifle would hold `HoldForceLevel` for ever once the level fell |
+| fix | `HoldTheLine` never targets a weapon a PERSON carries (its carrier is the target) | twin run 2: 17 police rifle rounds at the gunman's rifle ITEM (side Hostile) |
+| fix | `FireAtPoint` mount 0 with EMPTY hands fires the weapon the person carries (`WeaponSystems.PrimaryMount`, the weapon choice's own hands rule, CE-3230) | twin: a civilian's FireAtPoint failed at once — no volley, no fire into the air |
+
+⚠ **Known limit (filed with this section):** other shooters than `HoldTheLine` read a carried item with a SIDE as a target of its own
+(threat ranking, the soldier's posture). The demos carry their items Neutral (as `ua-armed-blend-back` does); `ua-civ-escalation`
+keeps a Hostile item on purpose, to prove the line's guard.
+
+| proof | result |
+|---|---|
+| rails `ArmamentTests.CE2239_TheLadder_…` + `CE2239_TheWarning_…` | ✅ green; **mutants 8/8 killed** — the at-ease rung · the ignored-warning clock · the SecurityForce test · the cap · the reach · the cue lowered · `AimsAt`'s target test · a repeated shout re-raising the cue |
+| toolkit suites (Armament, AimAndFire, Civilians, StarterPack, Perception, PersonHands, WeaponLaying) | ✅ 303/303 and 186/186 |
+| twins `PostureScenarioTests.CE2239_Escalation_…` · `_EscalationWarn_…` · `_SelfDefence_…` · `_Celebration_…` · `_PoliceLine_…` | ✅ all five green; neighbours `CE2238_GasThrowback`, `RiotStone`, `CE2238_*` green |
+| live checks `utility-demo-check.py --launch` | ✅ `ua-civ-escalation` 6/6 (warned at ease, rifle silent; 1 rifle round, at him; hit at 12.8 s; rioters stunned, none dead) · `ua-civ-escalation-warn` 6/6 (no round, no blow, the cue, 22 'hold: warning' samples) · `ua-armed-self-defence` 4/4 (2 rounds at him, hit at 12.7 s) · `ua-armed-celebration` 5/5 (warned, 0 rounds during the volley, fired on once he aimed at 19.7 s, guests unhurt) |
+
+## 5l. B5 — the bomber sets off his worn charge *(behaviors, `CE-2238` part 5 / handoff B5, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-12's worn charge, the BEHAVIOUR half: a person who carries a charge (B-11b, built — `Charges`, TKB 618) walks where his plan
+sends him and sets it off. Demo `ua-armed-bomber` (§5c). ⏳ Not here: D4's suspicion sensor (what gives a bomber away), a search, the
+remote phone trigger as a demo (HI-6 is built and railed), a dead-man switch.
+
+**INVENTORY** *(2026-10-17; codebase-memory MCP `search_graph` `.*(Detonat|Charge|Bomber|Suicide).*` Class ⇒ 26: `Charges`, `ChargeSystem`,
+`DetonateChargeEvent`, the I-1 `DetonateChargeInteractionPayload`, and the detonation pipeline (`DetonationNotification`, `DetonationLog`,
+`RecentDetonations`, the NED translators) — ⛔ **no behaviour sets a charge off**: grep `Charges\.(Ask|Detonate)` outside `Combat/` and
+its rails ⇒ only `BdcTkbCatalog` (the type) · `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| how a charge goes off | `Charges.Ask(world, charge, by)` publishes `DetonateChargeEvent`; `ChargeSystem` (Interactions capability) calls `Detonate` on the charge's POSITION owner — its round's `DetonationNotification` where it stands (worn: at the man), shooter = `by`; then the one teardown | `Combat/Charges.cs:45-111` |
+| who may ask | his OWN charge, or a timer (`by` null): always; another man's: only with a phone in hand (HI-6) | `Charges.cs:47` |
+| where he carries it | a carry station: Hidden ⇒ concealed, it arms nobody (`Armament.Judge` ⇒ Nothing) | §7.13, `CarryStations` |
+| the pattern to mirror | `StationWeapon` — a StatefulAction over the man's `PassengerBuffer` | `Brains/StationWeaponBehavior.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class DetonateChargeBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> DetonateCharge(Seconds) · Set(p, ws, self, world) }
+  class DetonateChargeParamsJsonDto { <<NEW, Hrot.Core MapDefinitions>> Seconds }
+  class Charges { <<existing>> IsCharge · Ask(charge, by) · Detonate }
+  class ChargeSystem { <<existing, Interactions capability>> }
+  class PassengerBuffer { <<existing>> what he carries }
+  class StationWeaponBehavior { <<existing — the pattern>> }
+  DetonateChargeBehavior ..> PassengerBuffer : the first charge he carries
+  DetonateChargeBehavior ..> Charges : Ask(charge, self)
+  Charges ..> ChargeSystem : DetonateChargeEvent
+  DetonateChargeBehavior ..|> StationWeaponBehavior : same shape
+```
+*What the picture shows that prose hid:* the behaviour owns no burst — it only ASKS; the existing charge pipeline (position owner, teardown,
+detonation event on every node) does the rest, so the brain node need not own the charge.
+
+```mermaid
+sequenceDiagram
+  participant B as bomber (CGF brain)
+  participant C as ChargeSystem (position owner)
+  participant N as every node
+  B->>B: MoveToLocation into the crowd (his plan)
+  B->>B: DetonateCharge — still for Seconds
+  B->>C: Charges.Ask(vest, by self)
+  C->>N: DetonationNotification at the vest (= at him), the charge torn down
+  N->>N: blast damage — him and everyone in its radius
+```
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> DC[DetonateCharge — the bomber's plan step]
+  DC --> ASK[Charges.Ask — DetonateChargeEvent]
+  ASK --> CS[ChargeSystem — Interactions capability, the charge's position owner]
+  CS --> DN[DetonationNotification — replicated to every node]
+```
+*Caption:* nothing new is scheduled — the brain asks, the existing Interactions capability bursts it where it stands.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **BM-1** | ⭐ a library behaviour `DetonateCharge {Seconds}`: he stands still `Seconds` (0 = at once), then asks the FIRST charge he carries (any station) with `by` = himself; Success once asked; Failure when he carries none | a bomber HSM: a mission plan already composes "walk there, then set it off" · `Detonate` directly: only the position owner may burst it |
+| **BM-2** | ⭐ the charge stays HIDDEN until it goes off — never drawn, so `Armament.Judge` reads him Nothing to every observer (AW-12) | a "drawn" vest: AW-12 says never drawn |
+| **BM-3** | ⭐ no reaction of his own to being shot first (a dead-man switch is §5h's later knob) | — |
 
 ## 6. Known limits
 
@@ -1952,7 +2586,7 @@ too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as dra
 `NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
 like any area round — the effects layer draws what it draws for one (ui's to decide).
 
-#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
+#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: BUILT (backend half) — §7.3d-B/C)*
 
 🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
 gas) so the gas is something like a dangerous area to be avoided by not stepping into and rather taking cover farther from its current or
@@ -1998,6 +2632,61 @@ replicates (the danger-area result, `EffectState`). No navmesh change.
 
 ⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
 
+##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: BUILT — as-built §7.3d-C)
+
+📐 Measured at `backend@1ba6e036d`: `DangerAlongRouteClassifier.Classify` is a pure function of (route, road graph, terrain, cover) and
+returns 0 at once when the node has NO road graph (`:50`) — and `DangerAlongRouteSolve.Solve` too (`:43`); the Brain's
+`DangerAreaSensorSystem` keeps only the kinds a sensor asked for (`:74`) and re-rates every area every tick from the unit's memory,
+overwriting `ThreatRating` (`:116`); `DangerAreaKindsOf.Wants` stops at `CrestLine`; `DangerAreaKinds` is a byte with bits 1–3 used.
+
+```mermaid
+sequenceDiagram
+  participant B as Brain (CGF) — DangerAreaSensorSystem
+  participant S as SimHost — EqsSolverSystem
+  participant V as DangerAlongRouteSolve
+  participant C as DangerAlongRouteClassifier
+  S->>V: Solve(sensor) — the route, as before
+  V->>V: GasFootprints.Of(repo, T) — every TearGas cloud now, and its centre moved by WindAt·T (not while it sits on its canister)
+  V->>C: Classify(route, roads, terrain, cover, corridor, gas, areas)
+  C->>C: a run of route samples inside a footprint = one GasCloud area (handles before / after it) · areas sorted by DistanceAlongRoute
+  S-->>B: DangerAreaResultEvent (unchanged wire)
+  B->>B: Wants(Kinds, GasCloud) · rate it 1 — the gas IS the threat
+```
+
+```mermaid
+graph TD
+  ES[EqsSolverSystem — SimHost, every solve] --> V[DangerAlongRouteSolve.Solve]
+  V --> GF[GasFootprints.Of — NEW, reads AreaEffectCloud + WeatherField.WindAt]
+  V --> C[DangerAlongRouteClassifier.Classify — grows a gas pass]
+  DS[DangerAreaSensorSystem — Brain, every tick] --> W[DangerAreaKindsOf.Wants — + GasCloud]
+  DS --> R[Rate — GasCloud ⇒ 1]
+```
+*What the pictures show that prose hid:* nothing new is scheduled and nothing new crosses the wire — the gas pass rides the solve that
+already runs, and a node with no road graph must still answer for gas (today it answers nothing).
+
+| id | decision *(backend lean)* | rejected — one line each |
+|---|---|---|
+| **G-1** | `DangerAreaKind.GasCloud = 6`, `DangerAreaKinds.GasCloud = 1 << 6`; `Wants` accepts kinds up to `GasCloud`; never in the v1 default (`Crossings`) | in the default: a squad that never asked would stop at gas it has no reaction for |
+| **G-2** | **the footprint** = a capsule from the cloud's centre now to its centre moved by `WindAt × 15 s` (no drift while it sits on its canister), radius + 2 m; only `TearGas` (smoke is cover, §7.3d) | the cylinder now: the cloud drifts onto the chosen cover |
+| **G-3** | **the area** = the run of route samples inside any footprint: Center at its middle, ExtentsXY from the run, handles `StandOff` before / after — the detour points; `FeatureId` from the cloud's network id, stable while it drifts | one area per cloud regardless of the route: the reaction needs where the ROUTE enters it |
+| **G-4** | **no road graph ⇒ gas still answers** (the road passes skip; the gas pass runs) | keep the early return: gas on a roadless map would be invisible |
+| **G-5** | **the Brain rates a GasCloud 1** (the gas is the threat, whoever sees it) so `AreaThreatened` fires | 0 like every unseen area: no edge, a behaviour would have to poll the kind |
+| **G-6** | the result is in route order — the gas pass may overlap a crossing, so the written areas are sorted by `DistanceAlongRoute` | emit order: a long gas run ending after a crossing would sit behind it |
+
+##### 7.3d-C AS-BUILT `CE-3227` *(2026-10-17)* — built as G-1…G-6 draw it
+
+| built | where |
+|---|---|
+| `DangerAreaKind.GasCloud = 6` · `DangerAreaKinds.GasCloud = 1 << 6` · `Wants` accepts up to `GasCloud`; never in the v1 default | `DangerAreaDescriptor.cs`, `DangerAreaSettings.cs` |
+| `GasFootprint` (capsule `From → To`, `Radius`, a height band) and `GasFootprints.Of(repo, span)`: every live `TearGas` cloud, `To` = its centre + `WindAt × min(15 s, its time left)`, no drift while `SourceNetworkId ≠ 0`, radius + 2 m, band 2 m below / above | `Squad/DangerArea/GasFootprints.cs` |
+| `DangerAlongRouteClassifier.Classify(…, gas)`: a run of samples inside any footprint = one `GasCloud` area (handles `StandOff` before / after, `FeatureId = GasFeatureId(cloud id)`); the road and open-ground passes skip on a node with no road graph; the result sorted by `DistanceAlongRoute` | `DangerAlongRouteClassifier.cs` |
+| `DangerAlongRouteSolve`: up to 16 footprints per solve; no road graph and no gas ⇒ 0 as before | `DangerAlongRouteSolve.cs` |
+| the Brain rates a `GasCloud` area **1** (`AreaThreatened` fires) | `DangerAreaSensorSystem.Rate` |
+
+Rails: `DangerAlongRouteClassifierTests.CE3227_…` ×2 (one area, handles, stable id, route order; no roads still answers, a miss is
+nothing, `Wants`) · `AreaEffectCloudTests.CE3227_…` (the drift, the canister, smoke skipped). ⚠ Not railed: the Brain's rating of 1 and
+the solve's wiring end to end (a SimHost solve over a live cloud) — the behaviors reactions' rails will exercise it.
+
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
 One command (`scripts/perf-civilians.sh <count>`) runs the ClusterRunner `--mode all` headless on test-town with N civilians
@@ -2005,6 +2694,55 @@ spawned by a generated scenario, reads the scheduler's per-system `SystemProfile
 of sim time on CGF and SimHost, and prints ms/frame for `BrainTickSystem`, the perception systems and `CarKinematicsSystem`
 at 100 / 300 / 500. ⭐ It reads the existing diagnostics route — no new timing code. ⛔ Not built until B-2 gives it a type
 with a brain.
+
+#### 7.4a AS-BUILT `CE-3222` *(2026-10-17)* — the harness, and what it measured
+
+| built | where |
+|---|---|
+| ⚠ **deviation:** the route did NOT carry timing (it serialised each system's name only) — it now adds `executions`, `avgMs`, `recentAvgMs`, `maxMs`, `errors` from the scheduler's own `SystemProfileData`. Still no new timing code | `DebugApiService.Diagnostics.cs`, route doc |
+| ⚠ **deviation:** a Python harness, not a shell script — it reuses `utility-demo-check.py`'s launch / load / call helpers. `python3 scripts/perf-civilians.py 100 300 500 [--seconds 60] [--budget-ms N]`: generates `scenarios/perf-civ-N/` (gitignored, removed after), CIV-1 types on a jittered grid over test-town, a fresh `--mode all` per count; prints the crowd-scaling systems, each subsystem's top 8 and sum, and the frames run | `scripts/perf-civilians.py` |
+
+📐 **Measured** (`--mode all`, one process runs CGF, SimHost and IG in turn; ms/frame, recent average):
+
+| | 100 | 300 | ×3 civilians ⇒ |
+|---|---|---|---|
+| CGF all systems | 54.9 | 138.8 | ×2.5 |
+| SimHost all systems | 54.2 | 157.4 | ×2.9 |
+| `BrainTickSystem` | 1.70 | 4.79 | ×2.8 — linear |
+| `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame): 📐 **2.41 at 300 after**; CGF's sum 138.8 → 100.2, frames 382 → 512 |
+| `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ **`CE-3241` — fixed** (per-frame key maps instead of a sensor scan per result): 📐 **below SimHost's top 8 (< 1.5) at 300 after** |
+| `CrowdSystem` (CGF, behaviors) | 0.45 | 3.06 | ×6.8 ⇒ behaviors note |
+| `RecorderTickSystem` CGF / SimHost / IG | 25.0 / 22.1 / 15.5 | 29.4 / 24.6 / 16.8 | flat but the biggest ⇒ `CE-3243` |
+| frames in 60 s of sim | 690 | 382 | |
+
+~~⛔ **500 did not load:** not settled in the load route's 30 s (1059 entities) ⇒ `CE-3242`.~~ ⭐ **`CE-3242` — fixed.** Measured
+with the route's new per-translator ms and a stopwatch inside promotion: SimHost promoted 2–5 civilians/s because the perception
+translator's `SensorChildFactory.Find` scanned every sensor child per call (1.1 ms a call at 1 500 entities) — the load trickled in
+for 93 s and CGF gave up waiting on 267 acks. Now an index per world: 📐 **the 500 load lands in 13 s** and the load route settles.
+
+📐 **After `CE-3240`/`CE-3241`/`CE-3242`** (same harness; ms/frame recent average):
+
+| | 300 | 500 |
+|---|---|---|
+| CGF all systems | 95.2 | 338.0 |
+| SimHost all systems | 71.4 *(was 157.4)* | 104.1 |
+| IG all systems | 30.0 | 38.1 |
+| `CrowdSystem` (CGF, behaviors) | 3.16 | ⛔ **103.6** (max 159) — now CGF's biggest ⇒ behaviors note |
+| `RecorderTickSystem` CGF / SimHost / IG | 29.4 / 24.0 / 15.3 | 33.4 / 27.3 / 15.9 ⇒ `CE-3243` |
+| ⭐ `RecorderTickSystem` after **`CE-3243`** (one chunk-version read; `LastChangeTick` structural only) | **8.5 / 2.8 / 1.2** | — |
+| `OwnershipRecomputeSystem` CGF / SimHost | 9.6 / 11.4 | 16.3 / 19.1 — linear |
+| ⭐ `OwnershipRecomputeSystem` after **`CE-3244`** (descriptor masks; CGF / SimHost / IG) | **4.7 / 6.9 / 3.8** | — |
+| ⭐ `EqsSensorConfig` egress translator (CGF) after **`CE-3245`** (TKB-default skip first) | **1.64** *(was 4.8)* | — |
+| frames in 60 s of sim | 448 *(was 382)* | 322 |
+
+📐 **After the behaviors `CrowdSystem` grid** (`2026-10-17`, same command, 500): `CrowdSystem` **2.79 ms** (max 5.2) — was 103.6;
+CGF all systems **88.8** (was 338.0), 494 frames in 60 s (was 322). The cause was every-pair work inside one town-sized crowd (§5f.1).
+
+📐 **After `CE-3243`/`CE-3244`/`CE-3245` + the `CrowdSystem` grid** (300, 30 s): CGF all systems **70.2**, SimHost **52.8**, IG **15.0**.
+CGF's next: `TogglableSimulationGroup` 17.4 (a group — its children's time), `CycloneEgressSystem` 11.3 (all egress translators;
+the costliest `EntityWeaponAmmo` 2.3, `EqsSensorConfig` 1.6, `EntityWeaponPosture` 1.3), `RecorderTickSystem` 8.8.
+
+⚠ **No budget is set yet** — the harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
 
 ### 7.5 B-5 — the weapons *(CV-9)*
 
@@ -2893,7 +3631,7 @@ and `…_AVentingCanistersBurst_AsksForACloud_…` · `RoundPickUpTests.CE3236_A
 `InteractionTransportTests.CE3235_APickUpAskAndItsGrant_…`, `BodyPartReplicationTests.CE3219_ACloud_…` (each gained the new field).
 11 red-proofs, each red.
 
-### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: READY-TO-BUILD)*
+### 7.16 B-15 + B-16 — who caused the damage, and what kind of hostile act *(AW-22, AW-23 — R-2028; `CE-3237`, `CE-3238`; backend, `2026-10-17`; build-state: BUILT — as-built §7.16a (B-15) and §7.16b (B-16))*
 
 INVENTORY *(grep at `backend@e6eec6145`; codebase-memory CLI `search_graph` `.*HostileAct.*` → `HostileActs` only)*:
 
@@ -2951,6 +3689,32 @@ graph TD
 | **DS-2** | **`EntityHitDamage.SourceEntityId`** (appended; 0 = unknown), mapped through the entity map both ways | sending the source only for lethal damage: AW-23 counts friendly hits of every kind |
 | **HA-1** | **`HostileAct { SinceSimTime, Kind }`** — its own component (404), Brain group, `dtHostileAct` (145), the `Gesture` wiring | a field on `CivilianState`: behaviors' brain-local struct, not on the wire |
 | **HA-2** | **`HostileActs.Commit(repo, actor, kind)`** — stamps once, UPGRADES Non-lethal → Lethal (never down), keeps `CivilianState.HostileActAt` in step, flips the side once (as before) | a second writer per kind: the one write path stays one |
+
+#### 7.16a AS-BUILT `CE-3237` (B-15) *(2026-10-17)* — built as DS-1/DS-2 draw it
+
+| producer | `Source` | where |
+|---|---|---|
+| the hit | the detonation's `Shooter` — the entity that FIRED: a person, a vehicle, or a weapon system (`WeaponSystems.ControllerOf` names who works it; the reader resolves, the event does not) | `DamageCalculationSystem` |
+| the burst — whole body, per part, blast, stun | the detonation's `Shooter` | `AreaEffectSystem.Assess` (4 sites) |
+| a melee blow | the striker | `Melee.Strike` |
+| a cloud, a canister in hand, a drone's crash, an ejection | `Null` — unknown | unchanged |
+| the wire | `EntityHitDamage.SourceEntityId` (APPENDED, 0 = unknown): egress maps `Source` through the entity map (unmapped ⇒ 0); ingress maps it back (0, or an id this node does not know ⇒ `Null`; the damage still applies) | `DamageAssessedEgressTranslator`, `EntityHitDamageIngressTranslator` |
+
+⭐ A thrown-back grenade names the man who threw it back (the round's shooter is whoever fired it last). `DamageAssessedEvent` grew 24 → 32
+bytes. Rails: `DamageCalculationSystemTests.CE3237_…`, `AreaEffectSystemTests.CE3237_…`, `DamageAssessedEgressTranslatorTests.CE3237_…`,
+`EntityHitDamageIngressTranslatorTests.CE3237_…` — red-proved: the hit, the blow, a burst's per-part damage, the egress, the ingress. ⚠ The burst's WHOLE-BODY publish (a target with no body plan — a vehicle) is not railed: a soldier always takes the per-part split, so removing its `Source` stays green.
+
+#### 7.16b AS-BUILT `CE-3238` (B-16) *(2026-10-17)* — built as HA-1/HA-2 draw it
+
+| built | where |
+|---|---|
+| `HostileAct { double SinceSimTime; HostileActKind Kind }` (`None · NonLethal · Lethal`), component **404**, `NoScenario` (recorded, never authored), Brain group | `Civilians/HostileActs.cs`, `HrotOwnershipGroups` |
+| `HostileActs.Commit(repo, actor, kind)` — the first act stamps the time and flips the side once (the one write path, as before); a graver one UPGRADES the kind and keeps the time; a lesser one changes nothing (returns false); a `Lethal` one marks the witnesses every time (behaviors' `KnownCombatants`, §5h.6). `HostileActKind` is behaviors' enum (CE-2238 part 3) — one enum, reused. `CivilianState.HostileActAt` kept in step | same |
+| `HostileActs.Of(view, actor)` the kind on any node · `Committed` true from the replicated component OR the brain's own stamp | same |
+| `dtHostileAct` **145**, topic `EntityHostileAct { EntityId, SinceSimTime, Kind }` (Reliable, TransientLocal, KeepLast 1), egress on change from the `dtHostileAct` owner, ingress skips the recorded owner — the `dtGesture` shape, in the shared pack | `EntityHostileActTranslators.cs`, `SharedTranslatorPack` |
+
+Rails: `CivilianHsmTests.CE3238_…` (upgrade, never down, flip once, a replica reads committed) · `BodyPartReplicationTests.CE3238_…` (kind
+and time cross; an upgrade is a change) · the two Brain-group descriptor pins.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

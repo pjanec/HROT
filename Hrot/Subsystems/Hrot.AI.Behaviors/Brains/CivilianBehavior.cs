@@ -104,6 +104,7 @@ namespace Hrot.AI.Behaviors.Brains
             public double NextLookAt, NextStrikeAt;
             public double NextThrowAt;   // ⭐ CE-2238 part 2
             public double BendUntil;     // ⭐ CE-2238 part 2 — 0 = not bending
+            public Entity Pickup;        // ⭐ CE-2238 part 3 (§5i.3) — the lying throwable he goes for, Null = none
         }
 
         /// <summary>⭐ <c>CE-2241</c> ① — when someone last covered him (sim seconds).</summary>
@@ -577,7 +578,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 if (now >= ws.NextThrowAt && Stones.Throw(world, self, target))
                 {
-                    HostileActs.Commit(world, self);   // the first stone is his act, as the blow is
+                    HostileActs.Commit(world, self, HostileActKind.NonLethal);   // the first stone is his act, as the blow is
                     ws.NextThrowAt = now + ThrowCooldownSeconds;
                 }
                 return NodeStatus.Running;
@@ -587,15 +588,40 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 if (now >= ws.NextStrikeAt && !Effects.IsKnockedDown(world, ws.Target) && Melee.Strike(world, self, ws.Target))
                 {
-                    HostileActs.Commit(world, self);
+                    HostileActs.Commit(world, self, HostileActKind.NonLethal);
                     ws.NextStrikeAt = now + Melee.CooldownSeconds;
                 }
                 return NodeStatus.Running;
             }
+            // ⭐ CE-2238 part 3 (§5i.3 PK-1, PK-2) — empty hands, someone to throw at, nobody in reach: the nearest LYING throwable (a stone
+            //   that missed, a venting canister); in reach, crouch and ask once (backend's RoundPickUp) — the grant lands during the bend
+            if (!Stones.InHand(world, self) && Scavenge(world, self, ref ws, now)) return NodeStatus.Running;
             var at = world.GetComponentRO<SimTransform>(ws.Target).Position;
             if (ws.Moving == 0 || Vector2.Distance(new Vector2(ws.Goal.X, ws.Goal.Y), new Vector2(at.X, at.Y)) > 1f)
                 if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.8f, MoveGait.Upright, onSurface: true)) { ws.Moving = 1; ws.Goal = at; }
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> part 3 (§5i.3) — goes for the nearest lying throwable within <see cref="Throwables.SearchMetres"/>: walks
+        /// to it, and in reach crouches and asks for it (the bend that follows is the stone source's). False when there is none.</summary>
+        private static bool Scavenge(EntityRepository world, Entity self, ref RiotState ws, double now)
+        {
+            if (ws.Pickup.IsNull || !RoundPickUp.IsLying(world, ws.Pickup))   // a round someone else took is gone: look again
+                ws.Pickup = Throwables.Nearest(world, self, Throwables.SearchMetres, out var round) ? round : Entity.Null;
+            if (ws.Pickup.IsNull) return false;
+            if (RoundPickUp.CanAsk(world, self, ws.Pickup))
+            {
+                if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                RoundPickUp.Ask(world, self, ws.Pickup);
+                ws.Pickup = Entity.Null;
+                StanceRequest.Set(world, self, StanceId.Crouched, CrouchSeconds);
+                ws.BendUntil = now + BendSeconds;
+                return true;
+            }
+            var at = world.GetComponentRO<SimTransform>(ws.Pickup).Position;
+            if (ws.Moving == 0 || Vector2.Distance(new Vector2(ws.Goal.X, ws.Goal.Y), new Vector2(at.X, at.Y)) > 0.5f)
+                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.5f, MoveGait.Upright, onSurface: true)) { ws.Moving = 1; ws.Goal = at; }
+            return true;
         }
 
         /// <summary>Leaving the riot: he stops and lowers his fist; a next riot looks afresh.</summary>

@@ -278,6 +278,12 @@ namespace Hrot.Editor.DebugApi
                         ["phase"]      = sys.Phase,
                         ["module"]     = sys.ModuleName,
                         ["systemName"] = sys.Profile?.SystemName,
+                        // ⭐ CE-3222 (civilians B-4, §7.4) — the scheduler's own profile of it (ms per execution): the perf gate reads these
+                        ["executions"]  = sys.Profile?.ExecutionCount ?? 0,
+                        ["avgMs"]       = Math.Round(sys.Profile?.AverageMs ?? 0.0, 4),
+                        ["recentAvgMs"] = Math.Round(sys.Profile?.GetRecentAverageMs() ?? 0.0, 4),
+                        ["maxMs"]       = Math.Round(sys.Profile?.MaxMs ?? 0.0, 4),
+                        ["errors"]      = sys.Profile?.ErrorCount ?? 0,
                     }).ToArray()),
                     ["translators"] = new JsonArray(snapshot.Translators.Select(t => (JsonNode)new JsonObject
                     {
@@ -287,6 +293,12 @@ namespace Hrot.Editor.DebugApi
                         ["descriptorOrdinal"] = t.DescriptorOrdinal,
                         ["receivedSamples"]   = t.ReceivedSamples,
                         ["sentSamples"]       = t.SentSamples,
+                        // ⭐ CE-3242 — the translator's own profile (ms per poll/scan), as the systems carry theirs; a translator
+                        //   the hosting system does not profile reads 0 executions
+                        ["executions"]  = t.Profile?.ExecutionCount ?? 0,
+                        ["avgMs"]       = Math.Round(t.Profile?.AverageMs ?? 0.0, 4),
+                        ["recentAvgMs"] = Math.Round(t.Profile?.GetRecentAverageMs() ?? 0.0, 4),
+                        ["maxMs"]       = Math.Round(t.Profile?.MaxMs ?? 0.0, 4),
                     }).ToArray()),
                     ["moduleCount"]     = snapshot.Modules.Count,
                     ["systemCount"]     = snapshot.Systems.Count,

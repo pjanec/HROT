@@ -66,7 +66,10 @@ namespace Fdp.Toolkit.Combat.Executors
             int fireIndex = p.Mount;
             Entity mountEntity;
             int controlledIndex = WeaponSystems.IsControlledIndex(p.Mount) ? p.Mount
-                                : p.Mount == 0 && (!world.HasComponent<WeaponState>(entity) || Countermeasures.DispenserOnly(world, entity))   // ⛔ CE-2188
+                                : p.Mount == 0 && (!world.HasComponent<WeaponState>(entity) || Countermeasures.DispenserOnly(world, entity)   // ⛔ CE-2188
+                                                   // ⭐ CE-2239 part 3 — nor EMPTY hands: a civilian's mount 0 is his hands; with nothing in them his
+                                                   //   primary is the weapon he carries (it failed at once, no round — ua-armed-celebration's volley)
+                                                   || PersonHands.HandsOnly(world, entity) && world.GetComponentRO<WeaponState>(entity).Ammo == 0)
                                     ? WeaponSystems.PrimaryMount(world, entity, out _) : -1;
             // ⭐ ui handoff P4 (DESIGN_Weapon_Layers W-13e) — the weapon in his hands, on the wire (also while a hold keeps it silent)
             WeaponPostureOf.SetActiveMount(world, entity, controlledIndex >= 0 && WeaponSystems.IsControlledIndex(controlledIndex) ? controlledIndex : p.Mount);
@@ -244,6 +247,9 @@ namespace Fdp.Toolkit.Combat.Executors
             if (obeyArc && BodyAim.OutsideFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
+            // ⭐ CE-2239 part 1 (CV-8, §5j FL-2) — the FORCE LEVEL, for a round at a point (no target ⇒ no self-defence lift); an operator decides himself
+            if (obeyRoe && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
             //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own

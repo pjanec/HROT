@@ -5,7 +5,7 @@ namespace Fdp.Toolkit.Combat
 {
     /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a demo; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.3) — who COVERS a man: the nearest forces person
-    /// (<c>Friend</c>, <see cref="Armament.IsCombatant"/>, still in the fight) whose <see cref="WeaponPosture"/> is raised (not
+    /// (<c>Friend</c>, <see cref="Armament.IsCombatant"/>, a LETHAL weapon in hand — <see cref="Armament.LethalInHand"/>, CE-2239 — still in the fight) whose <see cref="WeaponPosture"/> is raised (not
     /// <see cref="WeaponPostureKind.AtEase"/>) and names him as its <see cref="WeaponPosture.Target"/>. Reads the replicated posture
     /// (WL-6's one writer, <see cref="WeaponPostureOf"/>), so it answers the same on every node; a soldier who HOLDS at raised hands
     /// (<c>HoldSurrender</c> ⇒ Ready, the target kept) still covers him.
@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Combat
                 ref readonly var posture = ref world.GetComponentRO<WeaponPosture>(e);
                 if (posture.Kind == WeaponPostureKind.AtEase || posture.Target != target) continue;
                 if (world.GetComponentRO<EntityInfo>(e).ForceId != ForceId.Friend || !Armament.IsCombatant(world, e)) continue;
+                if (!Armament.LethalInHand(world, e)) continue;   // ⭐ CE-2239 (§5j.1) — a COVERING weapon is a lethal one: a baton launcher aimed at a rioter does not make him surrender
                 if (world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) continue;
                 if (Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, e)) continue;
                 var at = world.GetComponentRO<SimTransform>(e).Position;

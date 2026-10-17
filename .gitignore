@@ -64,4 +64,5 @@ build-output.txt
 .debug/
 .type_index.json
 __pycache__/
+scenarios/perf-civ-*/
 .claude/worktrees/

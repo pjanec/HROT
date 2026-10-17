@@ -386,6 +386,18 @@ namespace Hrot.NED.Descriptors
         public byte Kind;
     }
 
+    // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, the brain owner → every node. Reliable + TransientLocal + KeepLast 1, like
+    //   EntityGesture: a late joiner must know who has acted, and how gravely.
+    [DdsTopic("EntityHostileAct")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityHostileAct
+    {
+        [DdsKey] public long EntityId;
+        public double SinceSimTime;
+        public byte Kind;
+    }
+
     // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud, its creator → every node. Reliable + TransientLocal + KeepLast 1:
     //   a late joiner must see a cloud still hanging there. Its position is the entity's ordinary transform.
     [DdsTopic("EntityAreaEffectCloud")]

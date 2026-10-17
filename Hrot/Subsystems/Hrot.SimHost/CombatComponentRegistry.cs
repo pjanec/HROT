@@ -30,6 +30,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<PerceptionReceptor>();
             world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
             world.RegisterComponent<TargetMemory>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.KnownCombatantList>();   // ⭐ CE-2238 part 4 — AW-22's knowledge, beside the memory (§5h.6 KC-1)
+            world.RegisterComponent<Fdp.Toolkit.Combat.WarningLog>();           // ⭐ CE-2239 part 3 — whom a police unit warned (§5k EL-3)
             world.RegisterComponent<SensorContactList>();
             world.RegisterComponent<HeardTraces>();   // ⭐ CE-3117 — a listener's heard estimates, for the map (R-226)
             world.RegisterComponent<WeaponState>();

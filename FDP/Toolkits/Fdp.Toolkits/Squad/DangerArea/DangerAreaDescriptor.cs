@@ -14,7 +14,10 @@ namespace Fdp.Toolkit.Squad.DangerArea
         StreetCrossing = 2,
         Intersection  = 3,
         ChokePoint    = 4,
-        CrestLine     = 5
+        CrestLine     = 5,
+        /// <summary>⭐ <c>CE-3227</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-1) — tear gas on or near the route: where the cloud
+        /// is and where the wind takes it. An area NOT to enter (the handles are the detour points), never one to cross.</summary>
+        GasCloud      = 6,
     }
 
     /// <summary>

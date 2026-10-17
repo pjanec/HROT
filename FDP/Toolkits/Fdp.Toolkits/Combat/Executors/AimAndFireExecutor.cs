@@ -591,6 +591,17 @@ namespace Fdp.Toolkit.Combat.Executors
             if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target)) return ActionReason.HoldNeutral;
             // ⭐ CV-13a (R-2024) — nor at a man showing HANDS UP, even Hostile (a surrender is honoured; a feint is read live)
             if (Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(world, target)) return ActionReason.HoldSurrender;
+            // ⭐ CE-2238 part 4 (AW-21/AW-22, §5h.7b CH-1) — CONDUCT: no lethal round at a civilian this unit neither sees armed nor knows
+            if (!ForceLevels.ConductPermits(world, unit, target, ForceLevels.IsLethalRound(world, ammo, mount))) return ActionReason.HoldConduct;
+            // ⭐ CE-2239 part 3 (B2, §5k EL-3/EL-6) — the security forces' LADDER: warn an armed man before anything rises; at the Warn rung,
+            //   the warning is all — no round
+            if (EscalationLadder.Applies(world, unit, target))
+            {
+                EscalationLadder.WarnIfDue(world, unit, target);
+                if (ForceLevels.LevelFor(world, unit, target) == RoeForceLevel.Warn) return ActionReason.HoldWarn;
+            }
+            // ⭐ CE-2239 part 1 (CV-8, §5j FL-2/FL-3) — the unit's FORCE LEVEL: no round above it, unless THIS target is a self-defence threat
+            if (!ForceLevels.Permits(world, unit, target, ammo, mount)) return ActionReason.HoldForceLevel;
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
             //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
             if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;
@@ -740,7 +751,8 @@ namespace Fdp.Toolkit.Combat.Executors
             public byte   Ready;
             /// <summary>⭐ WL-4 W-12a — the mount chosen for this engagement (the struct's two former padding bytes: still 16).</summary>
             public byte   ChosenMount;
-            /// <summary>1 when <see cref="ChosenMount"/> holds a choice.</summary>
+            /// <summary>0 = no choice; else 1 + the <see cref="Fdp.Toolkit.Behavior.Components.RoeForceLevel"/> on the target the choice was made
+            /// under (⭐ CE-2239 part 3, §5k EL-9: a changed level chooses again).</summary>
             public byte   HasChoice;
 
             /// <summary>A fresh aim (timer and readiness reset) that KEEPS the engagement's mount choice.</summary>
@@ -758,7 +770,11 @@ namespace Fdp.Toolkit.Combat.Executors
             ref var aim = ref AimTimer(ref channel);
             ref Entity engaged = ref EngagedTarget(ref channel);
             mountEntity = unit;
-            if (aim.HasChoice != 0 && engaged == target)
+            // ⭐ CE-2239 part 3 (B2, §5k EL-9) — the choice is kept only while the FORCE LEVEL on this target is the one it was made under
+            //   (HasChoice = 1 + that level): a man who raises his weapon after an ignored warning gets the rifle, not the next stun grenade;
+            //   one who lowers it gets the baton round, not a held rifle
+            byte level = (byte)(1 + (byte)ForceLevels.LevelFor(world, unit, target));
+            if (aim.HasChoice == level && engaged == target)
             {
                 int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
                 if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
@@ -766,7 +782,7 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
             aim.ChosenMount = (byte)chosen;
-            aim.HasChoice = 1;
+            aim.HasChoice = level;
             engaged = target;
             return chosen;
         }

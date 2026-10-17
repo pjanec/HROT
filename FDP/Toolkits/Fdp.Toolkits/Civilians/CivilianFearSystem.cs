@@ -20,6 +20,8 @@ namespace Fdp.Toolkit.Civilians
         public const float ExplosionImpulse = 0.8f;
         public const float NearMissImpulse = 0.6f;
         public const float HitImpulse = 1f;
+        /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6) — a new stun or irritation (a stun grenade, tear gas): force used on him, as a hit.</summary>
+        public const float EffectImpulse = HitImpulse;
         /// <summary>How fast fear fades when nothing new frightens him (per second).</summary>
         public const float DecayPerSecond = 0.05f;
 
@@ -83,6 +85,22 @@ namespace Fdp.Toolkit.Civilians
                     if (change.What == SensorChange.NearMiss) Frighten(repo, change.Unit, CivilianFear.NearMissImpulse, now);
                     else if (change.What == SensorChange.Hit) Frighten(repo, change.Unit, CivilianFear.HitImpulse, now);
                 }
+
+            // ⭐ CE-2239 part 2 (FL-6, §5j) — a stun grenade or tear gas hurts nobody and is not heard as violence, yet it is force used on
+            //   him: a NEW stun or irritation frightens him as a hit does (once per effect; one that grows longer frightens again), so gas
+            //   and a stun grenade break a riot as the baton round does.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>())
+            {
+                double effectsNow = Fdp.Toolkit.Combat.HitModel.Now(repo);
+                foreach (var e in repo.Query().With<CivilianState>().With<Fdp.Toolkit.Combat.EffectState>().Build())
+                {
+                    ref readonly var fx = ref repo.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(e);
+                    double until = Math.Max(fx.StunnedUntil, fx.IrritatedUntil);
+                    if (until <= effectsNow || until <= repo.GetComponentRO<CivilianState>(e).EffectFrightUntil) continue;
+                    repo.GetComponentRW<CivilianState>(e).EffectFrightUntil = until;
+                    Frighten(repo, e, CivilianFear.EffectImpulse, now);
+                }
+            }
 
             float fade = CivilianFear.DecayPerSecond * deltaTime;
             foreach (var e in repo.Query().With<CivilianState>().Build())

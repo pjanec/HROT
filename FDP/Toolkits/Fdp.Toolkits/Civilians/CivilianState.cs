@@ -73,9 +73,12 @@ namespace Fdp.Toolkit.Civilians
         /// <summary>⭐ <c>CE-2238</c> (§5i) — 1 while he is an INSTIGATOR: his anger is 1 and he raises the anger of his crowd near him
         /// (<see cref="CrowdSystem"/>). Written by his HSM from its params.</summary>
         public byte Instigator;
-        /// <summary>⭐ <c>CE-2238</c> (§5i, CV-4) — sim time (s) of his first HOSTILE ACT (a blow); 0 when he committed none. Brain-local
-        /// until backend's B-16 replicates the act and its kind. Written by <see cref="HostileActs.Commit"/>.</summary>
+        /// <summary>⭐ <c>CE-2238</c> (§5i, CV-4) — sim time (s) of his first HOSTILE ACT (a blow); 0 when he committed none. Brain-local;
+        /// the act and its kind replicate as <see cref="HostileAct"/> (<c>CE-3238</c>, B-16). Written by <see cref="HostileActs.Commit"/>.</summary>
         public double HostileActAt;
+        /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6, §5j) — the latest end of a stun or an irritation (<c>EffectState</c>) that has frightened
+        /// him already, so a running effect frightens him once and only a new or longer one again. Written by <see cref="CivilianFearSystem"/>.</summary>
+        public double EffectFrightUntil;
     }
 
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>

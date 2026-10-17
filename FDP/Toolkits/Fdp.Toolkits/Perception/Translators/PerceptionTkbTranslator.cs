@@ -65,6 +65,10 @@ namespace Fdp.Toolkit.Perception.Translators
             {
                 if (repo.IsComponentTypeRegistered<TargetMemory>() && !repo.HasComponent<TargetMemory>(entity))
                     repo.AddComponent(entity, new TargetMemory());
+                // ⭐ CE-2238 part 4 (AW-22, §5h.6 KC-1) — the known-combatant list rides beside the memory (its own component, so the
+                //   memory's copy-and-write-back cannot erase a mark)
+                if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.KnownCombatantList>() && !repo.HasComponent<Fdp.Toolkit.Combat.KnownCombatantList>(entity))
+                    repo.AddComponent(entity, new Fdp.Toolkit.Combat.KnownCombatantList());
 
                 if (repo.IsComponentTypeRegistered<ActiveSensorTracks>() && !repo.HasComponent<ActiveSensorTracks>(entity))
                     repo.AddComponent(entity, new ActiveSensorTracks());

@@ -664,7 +664,7 @@ Internal slot record stored in the entity index. Explicit layout.
 | `AuthorityMask` | 32 | `BitMask256` | Which components this node owns. |
 | `Generation` | 64 | `ushort` | Matches `Entity.Generation`. |
 | `Flags` | 66 | `ushort` | Bit 0 = `IsActive`. |
-| `LastChangeTick` | 68 | `ulong` | Frame tick of last structural change. |
+| `LastChangeTick` | 68 | `ulong` | Frame tick of last structural change: create, destroy, lifecycle, DIS type, a component **added or removed**. ⭐ `CE-3243` (2026-10-17): a VALUE write (`SetComponent`, the command buffer's set/field patch, a managed replace) does **not** stamp it — the table's chunk version carries it, which the flight recorder and `QueryDelta` read. ⚠ Before, every value write stamped it, so the recorder rewrote every table chunk holding the entity each frame. |
 | `DisType` | 76 | `DISEntityType` | Full 8-byte DIS type. |
 | `LifecycleState` | 84 | `EntityLifecycle` | `Constructing/Active/TearDown/Ghost`. |
 

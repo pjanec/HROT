@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Combat.Systems
 {
@@ -15,6 +17,12 @@ namespace Fdp.Toolkit.Combat.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class WeaponAmmoMirrorSystem : IEcsModuleSystem
     {
+        // ⭐ CE-3240 (found by the CE-3222 perf gate) — each unit's mount children, gathered in ONE pass per frame. Was
+        //   WeaponMountQuery.EnumerateMounts per unit, which scans every mount child in the world: O(units × mounts) —
+        //   📐 3.4 ms at 100 civilians, 22.0 ms at 300 (CGF, --mode all).
+        private readonly Dictionary<Entity, int> _first = new();
+        private readonly List<(Entity Child, int Next)> _links = new();
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<WeaponState>()
@@ -22,22 +30,30 @@ namespace Fdp.Toolkit.Combat.Systems
             if (!repo.IsComponentTypeRegistered<WeaponAmmo>()) repo.RegisterComponent<WeaponAmmo>();
             bool mounts = repo.IsComponentTypeRegistered<WeaponMountInfo>();
             bool loads = repo.IsComponentTypeRegistered<AmmoLoadout>();   // ⭐ CE-1079 — the breech, for the HUD
-            Span<Entity> children = stackalloc Entity[8];
+            _first.Clear();
+            _links.Clear();
+            if (mounts && repo.IsComponentTypeRegistered<PartMetadata>())
+                foreach (var child in repo.Query().With<WeaponMountInfo>().With<PartMetadata>().Build())
+                {
+                    var parent = repo.GetComponentRO<PartMetadata>(child).ParentEntity;
+                    _links.Add((child, _first.TryGetValue(parent, out int head) ? head : -1));
+                    _first[parent] = _links.Count - 1;
+                }
 
             foreach (var unit in repo.Query().With<WeaponState>().With<BehaviorState>().Build())
             {
                 if (!repo.HasAuthority<BehaviorState>(unit)) continue;
                 var ammo = new WeaponAmmo { Count = 1 };
                 ammo.Set(0, repo.GetComponentRO<WeaponState>(unit), LoadOf(repo, unit, loads));
-                if (mounts)
+                if (mounts && _first.TryGetValue(unit, out int link))
                 {
-                    int n = WeaponMountQuery.EnumerateMounts(repo, unit, children);
-                    for (int i = 0; i < n; i++)
+                    for (; link >= 0; link = _links[link].Next)
                     {
-                        if (!repo.HasComponent<WeaponMountInfo>(children[i]) || !repo.HasComponent<WeaponState>(children[i])) continue;
-                        int index = repo.GetComponentRO<WeaponMountInfo>(children[i]).MountIndex;
+                        var child = _links[link].Child;
+                        if (!repo.IsAlive(child) || !repo.HasComponent<WeaponState>(child)) continue;
+                        int index = repo.GetComponentRO<WeaponMountInfo>(child).MountIndex;
                         if (index <= 0 || index >= WeaponAmmo.MaxMounts) continue;
-                        ammo.Set(index, repo.GetComponentRO<WeaponState>(children[i]), LoadOf(repo, children[i], loads));
+                        ammo.Set(index, repo.GetComponentRO<WeaponState>(child), LoadOf(repo, child, loads));
                         ammo.Count = (byte)Math.Max(ammo.Count, index + 1);
                     }
                 }

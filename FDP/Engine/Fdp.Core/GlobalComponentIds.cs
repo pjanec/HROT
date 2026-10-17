@@ -987,6 +987,18 @@ namespace Fdp.Core
         /// man's built-in mounts he has LAID DOWN (bit i = mount i) — on the man, on his brain's node; every other node reads the bit from
         /// <c>WeaponAmmo</c>. ⚠ 403 measured free on backend, ui, behaviors and coordinator 2026-10-17.</summary>
         public const int LaidDownWeapons = 403;
+
+        /// <summary><c>HostileAct</c> — ⭐ CE-3238 (civilians B-16, AW-22; docs/DESIGN_Civilians_And_Crowd_Control.md §7.16 HA-1): a man's hostile
+        /// act — when he first committed one and the gravest kind so far; Brain group, replicated as <c>dtHostileAct</c> (145). ⚠ 404 measured
+        /// free on backend, ui, behaviors and coordinator 2026-10-17.</summary>
+        public const int HostileAct = 404;
+        /// <summary><c>KnownCombatantList</c> — ⭐ CE-2238 part 4 (AW-22; docs/DESIGN_Civilians_And_Crowd_Control.md §5h.6 KC-1, as revised): the
+        /// civilians a unit SAW commit a lethal act — brain-local, never saved, its own component so the memory's copy-and-write-back cannot
+        /// erase it. ⚠ 405 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int KnownCombatantList = 405;
+        /// <summary><c>WarningLog</c> — ⭐ CE-2239 part 3 (B2; docs/DESIGN_Civilians_And_Crowd_Control.md §5k EL-3): the men a police unit has
+        /// WARNED and when — brain-local on the warner, never saved. ⚠ 406 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int WarningLog = 406;
         // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
         /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
         public const int TrafficNetCache = 450;

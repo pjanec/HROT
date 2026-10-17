@@ -23,6 +23,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// </summary>
     public static class DangerAlongRouteSolve
     {
+        /// <summary>⭐ <c>CE-3227</c> — at most this many tear-gas clouds are judged per solve (the nearest are not chosen — the first found).</summary>
+        public const int MaxGasClouds = 16;
+
         /// <summary>
         /// The areas along <paramref name="carrier"/>'s route, written into <paramref name="areas"/>; returns how many. 0 =
         /// a clear route, no road graph, or no route to watch (the unit is not moving and no point was given).
@@ -31,16 +34,20 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static int Solve(EntityRepository repo, Entity carrier, in EqsSensor sensor, Span<DangerAreaDescriptor> areas,
             RoutePlanner planner, global::CarKinem.Road.RoadNetworkHolder? roads)
         {
-            if (roads == null || planner == null) return 0;
+            if (planner == null) return 0;
             if (!EqsContext.SelfPosition(repo, carrier, sensor, out var start)) return 0;
             if (!TryRouteEnd(repo, carrier, in sensor, out var end, out var roadUse)) return 0;
             var terrain = Fdp.Toolkit.World.WorldQuery.Of(repo);   // ⭐ CE-1035 Q2
             planner.World = terrain;                                // ⭐ CE-1034 H3 — the route's road legs on the real ground
 
+            // ⭐ CE-3227 (§7.3d-B G-2/G-4) — the tear gas this node holds; with gas on the map a node with no road graph still answers
+            Span<GasFootprint> gas = stackalloc GasFootprint[MaxGasClouds];
+            int gasCount = GasFootprints.Of(repo, gas);
+
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
-            using var lease = roads.Borrow();
-            var graph = lease.Value;
-            if (!RoadGraphRouter.HasRoads(graph)) return 0;
+            using var lease = roads?.Borrow();
+            var graph = lease?.Value ?? default;
+            if (!RoadGraphRouter.HasRoads(graph) && gasCount == 0) return 0;
 
             var navmesh = repo.HasSingletonManaged<INavmeshProvider>() ? repo.GetSingletonManaged<INavmeshProvider>() : null;
             var query = new RouteQuery(start, end, roadUse, NavigationBackend.Auto, EqsContext.SelfLayer(repo, carrier, sensor));
@@ -58,7 +65,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
             }
             // ⭐ CE-3081 (§10.7b A1/A6) — the node's cover map (the one the cover query reads) judges OpenGround; none ⇒ crossings only
             var cover = repo.HasSingletonManaged<ICoverProvider>() ? repo.GetSingletonManaged<ICoverProvider>() : null;
-            return DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas);
+            return DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas,
+                gas.Slice(0, gasCount));
         }
 
         /// <summary>Where the watched route ends — see the class remarks — and the unit's road use for it.</summary>

@@ -88,6 +88,32 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.AddComponent(env, WeatherConditions.SteadyWind(wind));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3227</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3d-B G-2) — a tear-gas cloud's danger footprint runs from where it is
+        /// to where the wind takes it in 15 s, its radius + 2 m; a cloud still sitting on its canister does not drift; smoke is never one.
+        /// ✅ Red-proofs: no drift ⇒ the footprint ends where it starts ⇒ red; smoke not skipped ⇒ two footprints ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3227_TheGasFootprint_ReachesWhereTheWindTakesIt()
+        {
+            Wind(new Vector2(2f, 0f));
+            Cloud(CloudKind.TearGas, new Vector3(0, 0, 0));
+            Cloud(CloudKind.Smoke, new Vector3(0, 40, 0));
+            var vented = Cloud(CloudKind.TearGas, new Vector3(0, -40, 0));
+            _w.GetComponentRW<AreaEffectCloud>(vented).SourceNetworkId = 99;
+
+            System.Span<Fdp.Toolkit.Squad.DangerArea.GasFootprint> into = stackalloc Fdp.Toolkit.Squad.DangerArea.GasFootprint[8];
+            int n = Fdp.Toolkit.Squad.DangerArea.GasFootprints.Of(_w, into);
+            Assert.Equal(2, n);
+            var free = into[0].From.Y == 0f ? into[0] : into[1];
+            var sitting = into[0].From.Y == 0f ? into[1] : into[0];
+            Assert.True(Vector2.Distance(new Vector2(30f, 0f), free.To) < 1e-3f, $"{free.To}");   // 2 m/s × 15 s downwind
+            Assert.Equal(7f, free.Radius);                                    // 5 + the 2 m margin
+            Assert.Equal(sitting.From, sitting.To);                           // on its canister: where it is
+            Assert.True(free.Contains(new Vector3(34f, 0f, 0f)));             // downwind, where it WILL be
+            Assert.False(free.Contains(new Vector3(-10f, 0f, 0f)));           // upwind of it
+        }
+
         /// <summary>One frame at <paramref name="t"/>: the system, then its deletes, then the events it published.</summary>
         private DamageAssessedEvent[] Frame(double t, float dt = 0.5f)
         {

@@ -34,6 +34,7 @@ public static class IgRoleComponentRegistry
         world.RegisterComponent<PerceptionReceptor>();
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorMount>();   // posture eye heights (DESIGN_Terrain_World §7.1 W5)
         world.RegisterComponent<TargetMemory>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.KnownCombatantList>();   // ⭐ CE-2238 part 4 — AW-22's knowledge, beside the memory (§5h.6 KC-1)
         world.RegisterComponent<WeaponState>();
         world.RegisterComponent<Health>();
         world.RegisterComponent<PhysicsCollider>();

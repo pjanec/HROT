@@ -6,6 +6,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Utility;
+using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Tests.Utility;
 using Xunit;
 
@@ -466,6 +467,45 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal((long)tow.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(bradley).GetSpanRO()[0].CandidateHandle);
         }
 
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-4) — the WEAPON CHOICE honours the force level: a unit with a rifle (mount 0) and a
+        /// baton launcher (mount 1) picks the rifle with no level, but under NonLethal the rifle is no candidate and the launcher is chosen
+        /// (so the unit fires it rather than hold). ✅ Red-proof: the AllowsMount filter dropped from the child-mount loop ⇒ red.</summary>
+        [Fact]
+        public void CE2239_WeaponSelection_UnderANonLethalCap_DropsTheRifle_AndChoosesTheBatonLauncher()
+        {
+            const long RifleRound = 9890, BatonRound = 9891, PoliceType = 9801;
+            var police = new Fdp.Interfaces.TkbTemplate("Police with rifle and launcher", PoliceType);
+            police.AddDescriptor(new WeaponSuiteDto { Mounts =
+            {
+                new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)RifleRound, Range = 300f },
+                new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BatonRound, Range = 300f },
+            } });
+            var rifleRound = new Fdp.Interfaces.TkbTemplate("Rifle round", RifleRound);
+            var batonRound = new Fdp.Interfaces.TkbTemplate("Baton round", BatonRound);
+            batonRound.AddDescriptor(new WarheadDto { Kind = WarheadKind.Blunt });
+            _world.UseTkb(police, rifleRound, batonRound, UtilityTestWorld.InfantryTemplate());
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Roe>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Roe>();
+            var cop = _world.SpawnAgent(1.0f, 1.0f);
+            _world.SetType(cop, PoliceType);
+            var rifle    = _world.SpawnWeaponMount(cop, mountIndex: 0, weaponGuid: 1, effRange: 300f, ammo01: 1f, initialAmmunition: 30);
+            var launcher = _world.SpawnWeaponMount(cop, mountIndex: 1, weaponGuid: 2, effRange: 300f, ammo01: 1f, initialAmmunition: 30);
+            var rioter = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 40f, maxHealth: 100f);
+
+            bool Candidate(Entity mount)
+            {
+                ref readonly var buf = ref _world.Repo.GetComponentRO<UtilityResultBuffer>(cop);
+                for (int i = 0; i < buf.Count; i++) if (buf.GetSpanRO()[i].CandidateHandle == (long)mount.PackedValue) return true;
+                return false;
+            }
+            _world.Scorer.Evaluate(_world.Repo, cop, WeaponSelectionDecision.Id, rioter);
+            Assert.True(Candidate(rifle) && Candidate(launcher));                                       // no level: both are weapons
+
+            _world.Repo.AddComponent(cop, new Fdp.Toolkit.Behavior.Components.Roe { ForceLevel = Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal });
+            _world.Scorer.Evaluate(_world.Repo, cop, WeaponSelectionDecision.Id, rioter);
+            Assert.False(Candidate(rifle));
+            Assert.Equal((long)launcher.PackedValue, _world.Repo.GetComponentRO<UtilityResultBuffer>(cop).GetSpanRO()[0].CandidateHandle);
+        }
+
         // ── ThreatMatrixAssignmentSystem / LeaderAssignmentDecision ─────────────
 
         // SC-SP-10: Single member with visual LOS to target → gets assigned after Run().
@@ -710,7 +750,7 @@ namespace Fdp.Toolkit.Tests
 
             exec.OnEnter(bradley, ref ch, repo);
             exec.Execute(bradley, ref ch, repo, 0.1f);
-            Assert.Equal(1, Aim(ref ch).HasChoice);
+            Assert.Equal(1 + (int)global::Fdp.Toolkit.Behavior.Components.RoeForceLevel.Lethal, Aim(ref ch).HasChoice);   // a choice, made under the Lethal level (EL-9)
             Assert.Equal(1, Aim(ref ch).ChosenMount);   // the TOW for the tank
 
             repo.GetComponentRW<WeaponState>(tow).Ammo = 0;   // the TOW runs dry ⇒ the next frame chooses again
