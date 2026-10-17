@@ -130,7 +130,7 @@ public static class VisualFamilies
     {
         PersonKit.Soldier => true,
         PersonKit.Security => t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()?.Mounts
-                                  .Any(m => m.Category != Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade) == true,
+                                  .Any(m => !m.Hands && m.Category != Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade) == true,   // ⭐ B-8: empty hands arm nobody
         _ => false,
     };
 }

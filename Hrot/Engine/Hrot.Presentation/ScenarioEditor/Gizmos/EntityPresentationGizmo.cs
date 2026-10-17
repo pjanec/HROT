@@ -95,12 +95,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             //   the frame the id exists. 📌 Prior art: ContextMenuProjectorGizmo.cs:102.
             if (networkId == 0) return;
 
-            // ⭐ CE-1033 S5 (R-260) — the map CAMERA entity is the view, not a thing on the map: no symbol, no anchor, no pick box.
-            if (view.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity)
-                && Hrot.Core.Tkb.MapCameraTkb.Is(view.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(entity).TkbType)) return;
-            // ⭐ LR-3 (DESIGN_Visual_Effects.md §8.5, R-271) — a replicated ROUND is not a unit: no symbol, no anchor, no pick box
-            //   (its projector draws it).
-            if (view.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(entity)) return;
+            // ⭐ CE-1033 S5 (R-260) the map CAMERA, ⭐ LR-3 (R-271) a replicated ROUND, ⭐ CE-1165 a gas / smoke CLOUD — each drawn by its own
+            //   layer, not a thing on the map: no symbol, no anchor, no pick box (the one rule, Hrot.Common NotAUnit).
+            if (Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(view, entity)) return;
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle has no symbol, anchor or pick box of its own (the vehicle's is
             //   the one on the map); an exposed rider keeps them. The engine's one rule (PhysicalPresence, R-271).
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;

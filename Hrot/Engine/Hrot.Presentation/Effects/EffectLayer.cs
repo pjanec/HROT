@@ -30,6 +30,8 @@ public sealed class EffectLayer : IMapLayer
     private readonly EntityBodyLayer3D? _bodies;
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
+    private EntityRepository? _cloudWorld;
+    private EntityQuery? _cloudQuery;
 
     public EffectLayer(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, EntityBodyLayer3D? bodies = null)
     {
@@ -47,6 +49,9 @@ public sealed class EffectLayer : IMapLayer
 
     /// <summary>Effects drawn in the last frame (either mode) — the rail's counter.</summary>
     public int Drawn { get; private set; }
+
+    /// <summary>⭐ CE-1165 — gas / smoke clouds drawn in the last frame (either mode) — the rail's counter.</summary>
+    public int CloudsDrawn { get; private set; }
 
     public void Update(float dt) { }
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
@@ -118,6 +123,70 @@ public sealed class EffectLayer : IMapLayer
     {
         EffectKind.Decal => 0, EffectKind.Explosion => 1, EffectKind.Fire => 2, EffectKind.Smoke => 3, _ => 4,
     };
+
+    /// <summary>
+    /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8 U4-e) — one gas or smoke cloud, resolved for drawing: the
+    /// cylinder (<see cref="Radius"/> × <see cref="Height"/> standing on <see cref="Centre"/>), what it is, how dense it looks now
+    /// (<c>1 − TransmittanceAt(now)</c>: dense for two thirds of its life, then thinning to nothing), its seed and age (for the puffs).
+    /// </summary>
+    public readonly record struct CloudLook(Vector3 Centre, float Radius, float Height, Fdp.Toolkit.Combat.CloudKind Kind, float Density,
+                                            int Seed, float Age);
+
+    /// <summary>⭐ CE-1165 (U4-a′) — every live cloud resolved for drawing; read every frame (its owner drifts it on the wind, CE-3219), and
+    /// faded on <c>Fraction(now)</c> — a cloud has no <c>Lifespan</c>. Railable without a GL context.</summary>
+    public List<CloudLook> ResolveClouds()
+    {
+        var list = new List<CloudLook>();
+        var world = _world();
+        if (world == null || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.AreaEffectCloud>()) return list;
+        if (!ReferenceEquals(world, _cloudWorld))
+        {
+            _cloudWorld = world;
+            _cloudQuery = world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().With<SimTransform>().Build();
+        }
+        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        foreach (var e in _cloudQuery!)
+        {
+            var c = world.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(e);
+            if (c.Radius <= 0f || c.IsOver(now)) continue;
+            float density = Math.Clamp(1f - c.TransmittanceAt(now), 0f, 1f);
+            if (density <= 0.01f) continue;
+            list.Add(new CloudLook(world.GetComponentRO<SimTransform>(e).Position, c.Radius, MathF.Max(c.Height, 0.5f), c.Kind, density,
+                                   e.Index * 7919 + e.Generation, (float)Math.Max(0.0, now - c.BornAtSimSeconds)));
+        }
+        return list;
+    }
+
+    /// <summary>⭐ CE-1165 (U4-e) — a cloud's colour: tear gas off-white with a yellow cast, smoke grey.</summary>
+    public static Color CloudColour(Fdp.Toolkit.Combat.CloudKind kind)
+        => kind == Fdp.Toolkit.Combat.CloudKind.TearGas ? new Color(236, 232, 196, 255) : new Color(168, 168, 166, 255);
+
+    /// <summary>⭐ CE-1165 — the most puffs one cloud draws in 3-D (a big cloud, not a field of spheres).</summary>
+    public const int MaxCloudPuffs = 36;
+
+    /// <summary>
+    /// ⭐ CE-1165 (U4-e) — the 3-D puffs of a cloud, the chaff cloud's precedent: hashed per entity (stateless, the same on every node),
+    /// spread evenly over its disc and between a fifth and four fifths of its height, each bobbing slowly; their number grows with the
+    /// cloud's size; each faint, so their overlap is the density. Every puff lies INSIDE the cylinder.
+    /// </summary>
+    public static List<Puff> CloudPuffs(in CloudLook c)
+    {
+        int n = Math.Clamp((int)MathF.Round(c.Radius * c.Radius * 0.4f), 8, MaxCloudPuffs);
+        var colour = CloudColour(c.Kind);
+        var list = new List<Puff>(n);
+        float puff = MathF.Min(MathF.Max(c.Radius * 0.42f, 0.8f), c.Height * 0.5f);
+        for (int i = 0; i < n; i++)
+        {
+            float r = MathF.Sqrt(Hash(c.Seed, i)) * MathF.Max(c.Radius - puff, 0f);
+            float a = Hash(c.Seed, i + 131) * MathF.Tau;
+            float bob = MathF.Sin(c.Age * 0.35f + i * 1.7f) * 0.08f;
+            float z = puff + (Hash(c.Seed, i + 263) + bob) * MathF.Max(c.Height - 2f * puff, 0f);
+            float size = puff * (0.8f + 0.2f * Hash(c.Seed, i + 397));   // never more than the inset ⇒ inside the cylinder
+            var at = c.Centre + new Vector3(MathF.Cos(a) * r, MathF.Sin(a) * r, Math.Clamp(z, puff, MathF.Max(c.Height - puff, puff)));
+            list.Add(new Puff(at, size, Fade(colour, 0.32f * c.Density)));
+        }
+        return list;
+    }
 
     /// <summary>The tank-sized footprint the Fire / Smoke sizes are written for (m, the longer side).</summary>
     public const float ReferenceWreckLength = 7f;
@@ -275,6 +344,16 @@ public sealed class EffectLayer : IMapLayer
     {
         float zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;
         float px = 1f / zoom;   // one screen pixel in metres
+        // ⭐ CE-1165 (U4-e) — clouds first, under every other effect: a filled disc of their radius and a thin rim, as dense as they look
+        var clouds = ResolveClouds();
+        foreach (var cl in clouds)
+        {
+            var colour = CloudColour(cl.Kind);
+            var p = new Vector2(cl.Centre.X, cl.Centre.Y);
+            Raylib.DrawCircleV(p, cl.Radius, Fade(colour, 0.55f * cl.Density));
+            Raylib.DrawRing(p, MathF.Max(0f, cl.Radius - 1.5f * px), cl.Radius, 0f, 360f, 48, Fade(colour, 0.85f * cl.Density));
+        }
+        CloudsDrawn = clouds.Count;
         var effects = Resolve();
         // ⭐ W3 — seen from above the smoke would hide the flames, so in 2-D the flames are drawn LAST (on top).
         effects.Sort((x, y) => (x.Look.Kind == EffectKind.Fire).CompareTo(y.Look.Kind == EffectKind.Fire));
@@ -339,6 +418,12 @@ public sealed class EffectLayer : IMapLayer
 
     public void Draw3D(RenderContext ctx)
     {
+        // ⭐ CE-1165 (U4-e) — each cloud as faint puffs filling its cylinder
+        var clouds = ResolveClouds();
+        foreach (var cl in clouds)
+            foreach (var puff in CloudPuffs(cl))
+                Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.1f, puff.Radius), 6, 10, puff.Colour);
+        CloudsDrawn = clouds.Count;
         var effects = Resolve();
         foreach (var r in effects)
         {

@@ -1261,6 +1261,14 @@ not a weapon · the prompt for a door (open, closed, locked, far), a man down an
 colour · the verdict only for our press, once done or refused, for 2 s · a manned weapon joins the keys as mount 32 · Drive rides the
 soldier then drives the vehicle, Get out hands back and his first frame gets out · a second Fps possess leaves one held, a rider is kept.
 
+#### 8h.9a ⭐ `CE-1168` (`2026-10-17`, ui) — a person's HANDS in the weapon list
+
+Backend's B-8 (`CE-3230`, [Civilians §7.9](DESIGN_Civilians_And_Crowd_Control.md)) appends a HANDS mount LAST to every person type
+(`PersonHands.Mount()`: `Hands = true`, category `Grenade`, empty until he picks something up — a throw is `FireAtPoint` on it). The
+station's weapon list (`Hud.Slots`, §8e) already lists every own mount, so a possessed man now has one more slot; `Hud.WeaponLine` names it
+`HANDS` (`Hud.HandsKind`) instead of its category's `GRENADE`. The civilian look's armed rule (`VisualFamilies.IsSoldier`, Civilians §8.6)
+skips a hands mount explicitly — it was already unarmed by its category. Rail `PossessionStationTests.CE1168_…`, red-proved.
+
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 
 | design said | built | why |
