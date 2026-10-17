@@ -35,6 +35,7 @@ related-designs:
   - docs/DESIGN_Civilians_And_Crowd_Control.md — ⭐ OWNS the civilians a panicked SUMO pedestrian becomes (one family, panic as a
     MODE — supersedes §8 P5's single type), the Neutral targeting gate (§8 P6 ⇒ its CIV-0) and the riot/non-lethal work.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — owns the civilian behaviours (CIV-2 panic flight, CIV-7 shelter; ruling D3 civilians as HSM crowd agents) that §8 P5 hands panicked pedestrians to.
+  - docs/blueprints/PLAN_Sumo_Slice1_Embedded_Editor.md — the BUILD PLAN of slice 1 (R-4047: embedded in the editor first); it cites this design's sections and draws nothing of its own.
   - docs/DESIGN_Ownership_Groups_And_Grants.md — owns ownership and the send gate (HasAuthority); §10 EM-4 adds the general replication route beside it (R-4045).
   - docs/DESIGN_Terrain_Height.md — §8 (lean): the ambient ground as the HEIGHT fallback outside our terrain (aircraft, rounds, off-road units); owns the ground query.
 -->
