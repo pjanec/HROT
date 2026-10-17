@@ -2,7 +2,7 @@
 
 - repository: https://github.com/pjanec/SumoSharp
 - ref: `hrot/slice2`
-- commit: `d2e7b98bc86c8798e893005e9bdd91e02eec1e03`
+- commit: `ecb43d1a2d764ac8853e8233375fa4f80206969c`
 - synced: 2026-10-17
 - projects: Sim.Core Sim.Ingest Sim.Replication Sim.Replication.Dds Sim.Pedestrians Sim.LiveCity Sim.Evac Sim.Viewer.Motion Sim.Host Sim.Scene (+ src/Shared packaging/SumoSharp)
 
