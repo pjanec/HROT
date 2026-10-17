@@ -1369,7 +1369,7 @@ that the design left open:
 **Proof.** Rails `CivilianHsmTests.CE2238_AnAngryProtester_…` (riot at `RiotAt`, not just under; runs at the policeman; blow ⇒ Hostile;
 the cooldown; calm ⇒ Protest, still Hostile) and `CE2238_ARioter_StrikesOnlyTheForces_…` (no neutral bystander, no man down);
 `CrowdSystemTests.CE2238_AnInstigator_…` (near past 0.6 in 6 s, farther slower, beyond 20 m and another crowd untouched, fade 0.02/s).
-Demo `ua-civ-melee` (§5c): twin `PostureScenarioTests.CE2238_CivMelee_…` green (15 s: Riot, knocked down on CGF/SimHost/IG, Hostile on
+Each rail red under its mutant (5: the flip written to `Name`, a knocked-down man struck, the riot guard `>`, any side struck, the anger rate 0.05). Demo `ua-civ-melee` (§5c): twin `PostureScenarioTests.CE2238_CivMelee_…` green (15 s: Riot, knocked down on CGF/SimHost/IG, Hostile on
 all three, one strike, no flip before the blow); live check `run_civ_melee` — see §5c.
 
 ## 6. Known limits
