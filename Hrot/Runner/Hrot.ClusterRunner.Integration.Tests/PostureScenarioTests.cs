@@ -848,6 +848,66 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 3 (AW-8, AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5i.3) — <c>ua-armed-gas-throwback</c>
+    /// in-process (the live check's twin): a policeman puts ONE tear-gas canister down in front of a riot; a HARDENED rioter (PanicAt 1.5)
+    /// picks it up and throws it back. Sampled every frame on CGF (the clouds' and his brain's node): ⓪ a cloud sits on the canister ·
+    /// ① picked up, that cloud lets go of its source and drifts · ③ he is irritated while he holds it · ② thrown, a NEW cloud rises,
+    /// nearer the policeman · the throw is his hostile act.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_GasThrowback_TheCanisterIsPickedUp_ItsCloudDrifts_HeIsIrritated_AndANewCloudRisesByThePolice()
+    {
+        using var harness = await StartShippedScenario("ua-armed-gas-throwback");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Policeman").IsNull && !ByName(cgf, "Hardened rioter").IsNull, timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var cop = ByName(cgf, "Policeman");
+        var rioter = ByName(cgf, "Hardened rioter");
+        var copAt = cgf.GetComponentRO<SimTransform>(cop).Position;
+        Entity first = Entity.Null, second = Entity.Null;
+        bool sat = false, letGo = false, held = false, irritatedHolding = false;
+        double? pickedAt = null;
+        float firstToCop = 0f, secondToCop = 0f;
+        float Flat(System.Numerics.Vector3 a, System.Numerics.Vector3 b) => System.Numerics.Vector2.Distance(new(a.X, a.Y), new(b.X, b.Y));
+        void Sample()
+        {
+            double fxNow = HitModel.Now(cgf);
+            foreach (var c in cgf.Query().With<AreaEffectCloud>().With<SimTransform>().Build())
+            {
+                ref readonly var cloud = ref cgf.GetComponentRO<AreaEffectCloud>(c);
+                var at = cgf.GetComponentRO<SimTransform>(c).Position;
+                if (first.IsNull) { first = c; firstToCop = Flat(at, copAt); }
+                if (c == first)
+                {
+                    if (cloud.SourceNetworkId != 0) sat = true;
+                    else if (sat && pickedAt != null) letGo = true;
+                }
+                else if (second.IsNull && pickedAt != null) { second = c; secondToCop = Flat(at, copAt); }
+            }
+            if (cgf.HasComponent<HeldFuze>(rioter) && cgf.GetComponentRO<HeldFuze>(rioter).BurnSeconds > 0f)
+            {
+                held = true;
+                pickedAt ??= cgf.SimulationTime;
+                if (cgf.HasComponent<EffectState>(rioter) && cgf.GetComponentRO<EffectState>(rioter).IrritatedUntil > fxNow) irritatedHolding = true;
+            }
+        }
+        string State() => $"first cloud {first} (sat {sat}, let go {letGo}, {firstToCop:F1} m from the policeman), held {held} at {pickedAt}, " +
+                          $"irritated holding {irritatedHolding}, second cloud {second} ({secondToCop:F1} m), " +
+                          $"mode {Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, rioter)}, side {cgf.GetComponentRO<EntityInfo>(rioter).ForceId}, " +
+                          $"hands {PersonHands.Rounds(cgf, rioter, Hrot.Core.Tkb.MunitionTkbCatalog.TkbTearGasGrenade)}";
+
+        harness.PumpUntil(() => { Sample(); return !second.IsNull && cgf.SimulationTime > (pickedAt ?? 0) + 2; }, timeoutFrames: 7200);
+        _out.WriteLine(State());
+        Assert.True(sat, $"⓪ a cloud sits on the canister where it lies; {State()}");
+        Assert.True(held, $"① he picks the canister up (it burns on in his hands); {State()}");
+        Assert.True(letGo, $"① picked up, the first cloud lets go of its source and drifts; {State()}");
+        Assert.True(irritatedHolding, $"③ he is irritated while he holds it; {State()}");
+        Assert.False(second.IsNull, $"② thrown, a new cloud rises; {State()}");
+        Assert.True(secondToCop < firstToCop, $"② …nearer the policeman than the first; {State()}");
+        Assert.True(Fdp.Toolkit.Civilians.HostileActs.Committed(cgf, rioter), $"the throw is his hostile act; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
     /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
     /// ① his hands are up on CGF, SimHost and IG · ② the rifleman's weapon status is <c>HoldSurrender</c> at least once · ③ from the first

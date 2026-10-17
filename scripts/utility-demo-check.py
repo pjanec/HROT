@@ -3239,6 +3239,64 @@ def run_civ_police_line(c, timeout):
     c.ok(not dead, f"④ nobody dies ({sorted(dead)})")
 
 
+# ── CE-2238 part 3 AW-8/AW-9 — a lying throwable picked up, the canister thrown back (Civilians §5c, §5i.3) ─────────────────
+
+def clouds_on(perspective):
+    """{networkId: (x, y, SourceNetworkId)} for every gas / smoke cloud `perspective`'s node holds."""
+    call("POST", "/perspective", {"name": perspective})
+    try:
+        out = {}
+        for r in data(call("GET", "/entities?component=AreaEffectCloud")) or []:
+            nid = r.get("networkId")
+            cs = comps(nid) or {}
+            c, pos = cs.get("AreaEffectCloud") or {}, (cs.get("SimTransform") or {}).get("Position") or [0, 0, 0]
+            out[nid] = (pos[0], pos[1], c.get("SourceNetworkId") or 0)
+        return out
+    finally:
+        call("POST", "/perspective", {"name": "Scenario"})
+
+
+def run_armed_gas_throwback(c, timeout):
+    """test-town: a policeman puts ONE tear-gas canister down in front of a riot (FireAtPoint, mount 2), then holds the line; a
+    HARDENED rioter (PanicAt 1.5 — the gas irritates him, it does not turn him) picks it up and throws it back. ⓪ a cloud sits on the
+    canister · ① he holds it (HeldFuze burning) and that cloud lets go of its source · ③ he is irritated while he holds it · ② thrown, a
+    new cloud rises nearer the policeman. The twin (PostureScenarioTests.CE2238_GasThrowback_…) checks every frame."""
+    ids = ids_by_name()
+    cop, rioter = ids.get("Policeman"), ids.get("Hardened rioter")
+    if not c.ok(None not in (cop, rioter), "the policeman and the hardened rioter are loaded"):
+        return
+    cx, cy = ((comps(cop) or {}).get("SimTransform") or {}).get("Position", [90, 200, 0])[:2]
+    first, sat, letgo, held, irritated, second = [None], [False], [False], [False], [False], [None]
+
+    def watch():
+        t = sim_time() or 0.0
+        cl = clouds_on("CGF")
+        for nid, (x, y, src) in cl.items():
+            if first[0] is None:
+                first[0] = (nid, math.hypot(x - cx, y - cy))
+            if nid == first[0][0]:
+                if src:
+                    sat[0] = True
+                elif sat[0] and held[0]:
+                    letgo[0] = True
+            elif held[0] and second[0] is None:
+                second[0] = (nid, math.hypot(x - cx, y - cy))
+        cs = comps_on("CGF", rioter) or {}
+        if ((cs.get("HeldFuze") or {}).get("BurnSeconds") or 0) > 0:
+            held[0] = True
+            if ((cs.get("EffectState") or {}).get("IrritatedUntil") or 0) > t:
+                irritated[0] = True
+        return second[0] is not None
+    call("POST", "/sim/play", {})
+    wait_for(watch, timeout + 60, every=0.25)
+    c.ok(sat[0], f"⓪ a cloud sits on the canister where it lies ({first[0]})")
+    c.ok(held[0], "① the hardened rioter picks the canister up (it burns on in his hands)")
+    c.ok(letgo[0], "① picked up, the first cloud lets go of its source and drifts")
+    c.ok(irritated[0], "③ he is irritated while he holds it")
+    c.ok(second[0] is not None and first[0] is not None and second[0][1] < first[0][1],
+         f"② thrown, a new cloud rises nearer the policeman (first {first[0]}, second {second[0]})")
+
+
 def laid_down_on(perspective, nid):
     """Has `perspective`'s node his weapons laid down — the replicated WeaponAmmo bit (B-10), or the brain's own mask."""
     cs = comps_on(perspective, nid) or {}
@@ -3307,6 +3365,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-armed-surrender": run_armed_surrender,
              # ⭐ CE-2239 A6 CV-8/CV-11 — the force level and the police line (Civilians §5c, §5j)
              "ua-civ-police-line": run_civ_police_line,
+             # ⭐ CE-2238 part 3 AW-8/AW-9 — a lying throwable picked up, the canister thrown back (Civilians §5c, §5i.3)
+             "ua-armed-gas-throwback": run_armed_gas_throwback,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
