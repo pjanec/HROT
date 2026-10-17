@@ -63,7 +63,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 ⚠ Nothing in the brains sets the held item yet — the frame left it to you (`ua-armed-status`, the spotter, the bomber).
 
-**⑧ B-14 — the venting canister** ([CE-3236](../Blueprint_Issues_Tracker.md), at `backend@B14SHA`; design [§7.15 / §7.15a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **`ua-armed-gas-throwback` is unblocked** (② above).
+**⑧ B-14 — the venting canister** ([CE-3236](../Blueprint_Issues_Tracker.md), at `backend@3e50adfc7`; design [§7.15 / §7.15a](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **`ua-armed-gas-throwback` is unblocked** (② above).
 
 | what happens now | what you call |
 |---|---|
