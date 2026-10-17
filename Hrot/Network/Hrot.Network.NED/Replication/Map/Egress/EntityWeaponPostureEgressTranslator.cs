@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 _last.Clear();
             }
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var unit in view.Query().With<WeaponPosture>().With<NetworkIdentity>().Build())
+            foreach (var unit in view.Query().With<WeaponPosture>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;

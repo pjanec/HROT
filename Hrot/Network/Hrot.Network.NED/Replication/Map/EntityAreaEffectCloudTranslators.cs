@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<AreaEffectCloud>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var unit in view.Query().With<AreaEffectCloud>().With<NetworkIdentity>().Build())
+            foreach (var unit in view.Query().With<AreaEffectCloud>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;

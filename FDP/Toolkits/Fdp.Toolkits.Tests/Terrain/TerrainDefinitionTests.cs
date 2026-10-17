@@ -263,4 +263,47 @@ public sealed class TerrainDefinitionTests
         // ⛔ and no road polygon remains in the world file (R-231: the graph IS the road)
         Assert.DoesNotContain("\"surface\": \"road\"", System.IO.File.ReadAllText(System.IO.Path.Combine(folder, d.World)));
     }
+
+    // ── AQ93 R-4021 / E1b: the terrain's SUMO net ────────────────────────────────────────────
+
+    [Fact]
+    public void AQ93_SumoNet_IsParsedWithItsAnchor_AndStaysOutOfTheRoadGraphs()
+    {
+        var d = TerrainDefinitionParser.Parse(
+            "{\"schemaVersion\": 2, \"name\": \"x\", \"sumoNet\": {\"file\": \"x.net.xml\", \"anchor\": [2200, 2150.5]}}");
+
+        Assert.Equal(new TerrainSumoNet("x.net.xml", 2200.0, 2150.5), d.SumoNet);
+        Assert.Empty(d.RoadNetworks);   // R-4026: the SUMO net is not one of our CarKinem road graphs
+        Assert.False(d.IsEmpty);
+    }
+
+    [Fact]
+    public void AQ93_SumoNet_WithoutAnAnchor_AnchorsAtZero_AndAbsentIsNull()
+    {
+        Assert.Equal(new TerrainSumoNet("y.net.xml", 0, 0),
+            TerrainDefinitionParser.Parse("{\"schemaVersion\": 2, \"sumoNet\": {\"file\": \"y.net.xml\"}}").SumoNet);
+        Assert.Null(TerrainDefinitionParser.Parse("{\"schemaVersion\": 2}").SumoNet);
+    }
+
+    [Theory]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": \"x.net.xml\"}")]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": {\"anchor\": [1, 2]}}")]
+    [InlineData("{\"schemaVersion\": 2, \"sumoNet\": {\"file\": \"x\", \"anchor\": [1]}}")]
+    public void AQ93_SumoNet_Malformed_IsAnError(string json)
+        => Assert.Throws<ArgumentException>(() => TerrainDefinitionParser.Parse(json));
+
+    [Fact]
+    public void AQ93_ShippedDemoCity_NamesItsSumoNet_AndTheFileExists()
+    {
+        string dir = AppContext.BaseDirectory;
+        while (dir != null && !System.IO.Directory.Exists(System.IO.Path.Combine(dir, "Hrot", "Subsystems")))
+            dir = System.IO.Path.GetDirectoryName(dir)!;
+        var folder = System.IO.Path.Combine(dir!, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Recipes", "Terrain", "demo-city");
+        var d = TerrainDefinitionParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "terrain.json")));
+
+        Assert.NotNull(d.SumoNet);
+        Assert.Equal(2200.0, d.SumoNet!.AnchorX);
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(folder, d.SumoNet.File)));
+        Assert.True(System.IO.File.Exists(System.IO.Path.Combine(folder, d.World)));
+    }
 }

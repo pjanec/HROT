@@ -57,8 +57,10 @@ public static class EditorCapabilities
     /// declaration would have silently dropped two modules. The declaration is made true, not
     /// convenient.</para>
     /// </summary>
+    /// <para>⭐ AQ93 R-4047 — <c>Traffic</c>: the editor embeds SUMO (the networkless host first). The pack is idle unless the terrain
+    /// has a SUMO net and the scenario a traffic entity, so declaring it costs nothing when there is no traffic.</para>
     public const NodeRole DefaultRole =
-        NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver;
+        NodeRole.Brain | NodeRole.MuscleGround | NodeRole.Perception | NodeRole.NavigationSolver | NodeRole.Traffic;
 
     /// <summary>
     /// Builds the plan for the editor's <b>default</b> composition — the arm that runs when no host
@@ -82,14 +84,18 @@ public static class EditorCapabilities
     /// <param name="navigationSolver">⭐ <c>CE-3017</c> — SimHost's own <see cref="SimHostCapabilities.NavigationSolver"/>
     /// (never a copy, <c>R-174</c>), built over the muscle pack's trajectory pool and the editor's navmesh. ⛔ Required:
     /// the role DECLARES <c>NavigationSolver</c>, and a plan without it left every editor path request unanswered.</param>
+    /// <param name="traffic">⭐ AQ93 R-4047 — SUMO traffic, built over the editor's terrain residency. ⛔ Required: the role declares
+    /// <c>Traffic</c>.</param>
     public static NodeCompositionPlan BuildDefault(
         CgfLogicPack cgfPack,
         SimHostCoreLogicPack musclePack,
-        SimHostCapabilities.NavigationSolver navigationSolver)
+        SimHostCapabilities.NavigationSolver navigationSolver,
+        Hrot.Traffic.TrafficPack traffic)
     {
         if (cgfPack is null)          throw new ArgumentNullException(nameof(cgfPack));
         if (musclePack is null)       throw new ArgumentNullException(nameof(musclePack));
         if (navigationSolver is null) throw new ArgumentNullException(nameof(navigationSolver));
+        if (traffic is null)          throw new ArgumentNullException(nameof(traffic));
 
         // ⭐ CE-3017 — the solver is APPENDED after the EQS solver: it contributes modules only (no PopulateSystems), so
         //    every system sequence the order rails pin is unchanged, and every module registered before it keeps its slot.
@@ -105,7 +111,9 @@ public static class EditorCapabilities
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.Interactions())
             // ⭐ CE-2121 — the character body (stance) over the fake animation backend; module-only, appended last so every
             //   pinned system sequence and module slot is unchanged. 📄 docs/DESIGN_Decision_Layer.md §3.3g.
-            .Capability(NodeRole.MuscleGround, new AnimationMuscleCapability());
+            .Capability(NodeRole.MuscleGround, new AnimationMuscleCapability())
+            // ⭐ AQ93 R-4047 — SUMO traffic; module-only, appended last so every pinned system sequence and module slot is unchanged.
+            .Capability(NodeRole.Traffic,      traffic);
     }
 
     /// <summary>

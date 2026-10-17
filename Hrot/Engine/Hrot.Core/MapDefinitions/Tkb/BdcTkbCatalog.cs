@@ -887,6 +887,14 @@ namespace Hrot.Map.Definitions.Tkb
             var stones = new TkbTemplate("Stone Source", TkbEntityTypes.StoneSource);
             stones.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ItemSourceDto { Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone, UpTo = 5 });
             tkbDb.Register(stones);
+            // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
+            //   the creation request. No SimTransform: it is nowhere.
+            var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);
+            traffic.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficDemandDto());   // ⭐ AQ93 S2 — makes the Traffic ownership group apply
+            tkbDb.Register(traffic);
+            // ⭐ AQ93 R-4038 — a SUMO car's replica: the TYPE only (like an obstacle — ⛔ no TkbMasterDto, so it is not in the Add Entity
+            //   picker, and ⛔ no VehicleParametersDto, so no car kinematics fights the mirror that poses it). Its collider comes with it.
+            tkbDb.Register(new TkbTemplate("SUMO car", TkbEntityTypes.TrafficCar) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 81 } });
 
             RegisterObstacles(tkbDb);
         }

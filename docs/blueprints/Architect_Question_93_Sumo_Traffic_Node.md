@@ -1,13 +1,16 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16
-build-state: DESIGN — cars: all decisions RULED 2026-10-16 (§0, R-4020…R-4031) except E7b (no LFS, lean). Pedestrians and
-  panic (§8): P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1's promotion zones (lean: drop them). The civilians themselves
-  (P5, P6) moved to docs/DESIGN_Civilians_And_Crowd_Control.md, a separate programme built first (R-4033). Nothing is dispatched; §6 is the slice plan.
-current-answer: §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+updated: 2026-10-17
+build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
+  slices 2–6 (§6) are DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
+  moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
+current-answer: §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
-known-rot: none.
+known-rot: §3.1–§3.4 are the networked TARGET, not the code — as built (§3.0): no `TrafficNodeModule`/`SimulationRunner` (a
+  `TrafficPack` over SumoSharp's `LiveCitySim`), `TrafficDemand` has no `DemandFile`/`Density`/`Pedestrians` (it has `TargetCars`),
+  the net is `terrain.json` `sumoNet`, not `RoadNetworks`; §10 EM-4's `NedPublishable()` and "18 translators" are, as built,
+  `DefaultRoutePublishable()` at 29 NED query sites.
 known-conflict: none. ⚠ Relation to §2.1e ① of DESIGN_Terrain_Zones_And_Assets.md (the scenario names only a terrain) —
   CONSISTENT: the SUMO net is a terrain asset (R-4021); only the traffic DEMAND is a scenario entity.
 related-designs:
@@ -35,6 +38,9 @@ related-designs:
   - docs/DESIGN_Civilians_And_Crowd_Control.md — ⭐ OWNS the civilians a panicked SUMO pedestrian becomes (one family, panic as a
     MODE — supersedes §8 P5's single type), the Neutral targeting gate (§8 P6 ⇒ its CIV-0) and the riot/non-lethal work.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — owns the civilian behaviours (CIV-2 panic flight, CIV-7 shelter; ruling D3 civilians as HSM crowd agents) that §8 P5 hands panicked pedestrians to.
+  - docs/blueprints/PLAN_Sumo_Slice1_Embedded_Editor.md — the BUILD PLAN of slice 1 (R-4047: embedded in the editor first); it cites this design's sections and draws nothing of its own.
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — owns ownership and the send gate (HasAuthority); §10 EM-4 adds the general replication route beside it (R-4045).
+  - docs/DESIGN_Terrain_Height.md — §8 (lean): the ambient ground as the HEIGHT fallback outside our terrain (aircraft, rounds, off-road units); owns the ground query.
 -->
 
 # Architect Question 93 — **a SUMO traffic node: SumoSharp's own wire, local mirrors everywhere, roads from the terrain**
@@ -51,6 +57,20 @@ related-designs:
 - *"A local entities ok, B ok, C ok, D1 and D7 ok."*
 - *"we can store the sumo road network as part of the terrain and synchronize this the same way as the terrain."*
 - *"Lets discuss pedestrians. I need them and also their panic mode if there is some incident like military/terrorist shootout."* · *"Panicking ones coukd.become.our entities and never returned to sumo"*
+- *"ok, approved for building. I would also like to treat the sumo sharp as a separate subproject, but not as part of this project. This project should have just a script that fetches and clones the sumo sharp repository and compiles the NuGet out of it and places it in the NuGets folder. […] If the sumo sharp is not available compilable from whatever reason, we should be able to avoid compiling it into hrot, Meaning it should be an optional component that can be turned off. Pls check how that can be done."* (⛔ the fetch-and-pack half SUPERSEDED by the next three)
+- *"And the first thing to build later is the embedded sumo sharp module inside the editor, . But of course, being ready for creating a new networked node with traffic role. Also, the sumo sharp module is not necessary if the scenario or the terrain doesn't contain sumo sharp network  or scenario settings."*
+- *"Well, maybe there is one more alternatively, depending on how big the SumoSharp project is. We could treat it in a similar manner like B-trees or HSM, And simply copy its sources, the parts that matter, into the extdeps folder of the HROT"*
+- *"Sumo Sharp itself works quite well, so by vendoring it into the external dependencies folder I meant taking just the sources that are already proven working, so we do not need to develop Sumo Sharp on there and run their tests, just make the sources that hrot needs  available as part of Hrot repository, so we can very easily switch to previous version using Git and so on."*
+- *"V7 and V8 approved.  By the way, what would it take to use these outer areas, at least for hate queries? […]"* (answered in `DESIGN_Terrain_Height.md` §8)
+- *"Good! The sumo network visualization in the viewer now uses some approximation of the terrain that sits in between the roads, so the scene doesn't look empty and has a feeling of some solid terrain, not just roads flying in the air. This can be used as well in our 3D map, but I am not sure if this is fine with the areas where our terrain is built and is overlapping with the roadmap. In such areas, this 'ambient terrain surface' feature will need to be turned off, most likely."*
+- *"When rendering the sources, there is no need to have an off switch anymore because the sources are always available. What about the rendering part of the road network that is now living in the … citylib, Is that something that can be generalized a little bit? So it's not usable just as part of Godot?"*
+- *"EM-1 to EM-5 approved. The converted civilian should be created by usual request to a brain node, which is as now sent as local FDP bus event, so there is no change if the CGF is running on different node or inside the editor. The ignoring of publishing sumo entities over the network should not be something sumo specific. This concept needs to be generalized, meaning that some entities, even if owned, will use different network publishing mechanism, different from the usual NED one. Regarding the threading, the Sumo uses quite optimized multi-threaded techniques, so please check how this could be made working inside the editor as well. So only the stepping from the editor will be done from the main thread, but inside the Sumo this could be done in whatever optimized way."*
+- *"This concise summary is worth writing to the design as is i guess. Sumo node might keep a full copy of hrot entities in its ecs as this is a natural conswquence of code unification and reuse and the cost is basically just memory on the sumo node. Pls lets think about how to make the sumo integratable to the networkless editor in similar way as any other parts are. This is mandatory, sumo should not be just a separate networked node, i want it to be embeddable."*
+- *"Z1 and Z2 approved, write them into the designs"* (Z1: zones are the engine-wide fidelity area; Z2: a SUMO entity is a replica inside a zone or within R of an HROT entity)
+- *"Please explain point H1. H2 and H3 accepted. Why the vicinity condition 300 meters from our entities should apply just to pedestrians? I think it should apply both to sumo cars and pedestrians the same way, no matter if they are in the area of our terrain. Simply, if they are close to our entities, they will by seen by EQS queries, raycasts, and reachable by hits and damage."*
+- *"G2 to G6 leans accepted. The Sumo road network can span large areas that are not covered by our terrain, and this is fine because Sumo in thosr area is working just as a background traffic"*
+- *"G1 What do you mean by that shooter's node calculates the damage? It is calculated by the muscle node, isn't it? Why any special traffic hit message? We have an usual hit message. Why sumo entities don't have network ID? They should have one because they are just the normal entities, just calculated by different node and communicate it with a special set of DDS messages for optimal data reckoning."*
+- *"§8.6 lean accepted, drop promotion zones, at lest for now. Will our fire and detonation and entities be able to interact with sumo entities, in a way that if they are hit they will take damage, will be removed from sumo and become our entity with brain, like the panic mode? We need sumo entities to show up in eqs/raycast queries etc"*
 - *"We can extend sumosharp as needed, it is my project. If ckeaned up, i could publish on nuget.org. E2b ok."*
 - *"E1 ok. E2 no,.keep height from sumo, as roads are rendeded from sumo net. E3 no, keep them separate and independent, sumo ones are complex, ours are simple. E4 ok.E5 ok. To ensure unique network ids, sumo could use our allocator. E5 ok. E7 packages ok, just need to be compiled and stored as part of hrot repo (lfs?) as they are not on nuget.org. E9 ok. E10 ok."*
 
@@ -60,7 +80,7 @@ related-designs:
 |---|---|---|
 | **D-wire** | ⭐⭐ SUMO cars (and traffic lights) travel ONLY on SumoSharp's own DDS topics (`sumo/vehicles`, `sumo/lifecycle`, `sumo/tl`), published with its DR-error policy (`DrErrorPublishPolicy`: 0.3 m along / 0.2 m lateral / 3 s heartbeat). **Every receiving node dead-reckons with SumoSharp's `DrExtrapolation` curve** — the one the publisher's policy also uses. ⛔ Never through NED: no SUMO car is a networked HROT entity, so "unowned" needs no ownership mode at all | **R-4020** |
 | **D3** | ⭐⭐ The SUMO net (`.net.xml`) is a **terrain asset**, named by `terrain.json` `roadNetworks[]` and synchronised with the terrain folder. ⛔ `sumo/geometry` is not needed. The traffic **demand** (density, flows/routes, seed, pedestrians on/off) is a **scenario entity** | **R-4021** |
-| **D1 + A + B + C** | ⭐⭐ A **separate traffic node** (an ECS host with a new `Traffic` role) runs SumoSharp, whose engine keeps its own data as the truth. **A** — every receiving node keeps one **local-only** ECS entity per car (pose + collider; never published, never saved) so the map, line of sight, avoidance and picking see traffic. **B** — the dead-reckoning clock is the **cluster sim time** (`GlobalTime`), and the traffic node steps SUMO on that same clock. **C** — the lanes dead reckoning needs come from the receiver's own parse of the terrain's net file, checked against the publisher by a **net hash** | **R-4022** |
+| **D1 + A + B + C** | ⭐⭐ A **separate traffic node** (an ECS host with a new `Traffic` role) runs SumoSharp, whose engine keeps its own data as the truth. **A** — every receiving node keeps one ECS entity per car (pose + collider; never published on NED, never saved) — ⭐ **a NORMAL replica** with a network id, owned by the traffic node, **only while within R of one of our entities** (R-4041, §8.8 H1) (R-4038; the earlier "local-only, no network id" reading is SUPERSEDED) so the map, line of sight, avoidance and picking see traffic. **B** — the dead-reckoning clock is the **cluster sim time** (`GlobalTime`), and the traffic node steps SUMO on that same clock. **C** — the lanes dead reckoning needs come from the receiver's own parse of the terrain's net file, checked against the publisher by a **net hash** | **R-4022** |
 | **D7** | ⭐⭐ Handing one of our vehicles to SUMO is a **follow mode, not an ownership move**: SimHost keeps ownership; SUMO drives a shadow car named `hrot:<networkId>`; SimHost's new `KinematicsMode.Traffic` follows its dead-reckoned pose; leaving the mode takes it back. ⛔ Rejected: `TransferEntityOwnershipRequest` of the kinematic group — Entity Control M-6 already rejected an ownership move for control; on a traffic-node crash the keys return to the creator (CGF, no kinematics) and the vehicle freezes; on hand-back SimHost resumes from stale `VehicleState`/`NavState` | **R-4023** |
 | **D4** | ⭐ Roads and traffic lights are drawn by one new map layer **styled on SumoSharp's CityLib** (lane ribbons, lane markings, crosswalks, signal heads), drawn through the shared gizmo seam so all five map hosts get it | **R-4024** |
 | **E1 + E2** | ⭐ SUMO coordinates map onto ours UTM → WGS84 → local ENU through the terrain origin (E1). **Heights come from SUMO** — the roads are rendered from the SUMO net, so the cars ride the same lane z (E2; our lean "our ground is the height" was REJECTED) | **R-4025** |
@@ -77,7 +97,7 @@ related-designs:
 |---|---|---|
 | HROT `search_graph name_pattern=".*(Road\|Traffic\|Sumo).*" label=Class` | **38** | the CarKinem road graph (`RoadNetworkBlob`/`Builder`/`Holder`/`Json`/`Loader`, `RoadGraphNavigator`, `RoadGraphRouter`, `RoadHeights`), `RoadNetworkGizmo`, `RoadNetworkMigrationModule`; ⛔ **no SUMO or traffic production class** — `TrafficBrainSystem` is in `FDP/Examples` only, `TrafficLightExample` is an FHSM sample |
 | HROT `search_graph ".*(Unowned\|Ownerless\|NoOwner\|ForeignEntity\|External(Entity\|Sim)).*"` | **12** | tests only — ⛔ no ownerless-entity type exists; `EntityMaster` has no owner field (`GenericDescriptors.cs:120-122`) |
-| HROT `search_graph ".*(LocalOnly\|NotReplicated\|NoEgress\|LocalEntity).*"` + grep of egress queries | 17 | ⭐ egress is gated on `NetworkIdentity`: `GeoSpatialEgressTranslator.cs:121-123`, `EntityMasterEgressTranslator.cs:62-63` ⇒ an entity created **without** `NetworkIdentity` is local-only by construction (R-4022 A) |
+| HROT `search_graph ".*(LocalOnly\|NotReplicated\|NoEgress\|LocalEntity).*"` + grep of egress queries | 17 | ⭐ egress is gated on `NetworkIdentity` AND on authority: `GeoSpatialEgressTranslator.cs:121-123,136`, `EntityMasterEgressTranslator.cs:62-63,76` (`HasAuthority`, `AuthorityExtensions.cs:16-45`) ⇒ a replica owned by another node is never published (R-4038 ⇒ mirrors are such replicas). ⛔ SUPERSEDED reading: an entity created **without** `NetworkIdentity` is local-only by construction (R-4022 A) |
 | sumosharp `search_graph ".*(External\|Agent\|Injector\|Obstacle).*" label=Class file=src/**` | **13** | `ExternalObstacle` (lane-relative, `Sim.Core/ExternalObstacle.cs:54`), `ObstacleStore`, `ObstacleHandle` (32+16, a distinct id space), `OrcaSolver.Agent`, `ShapedVoSolver.ShapedAgent` |
 | sumosharp grep — receive side | — | `DdsSubscriber : IReplicationSource` (`Sim.Replication.Dds/DdsSubscriber.cs:22`) · `DrClock.Pump` / `Resolve` / **`ResolveAt(history, sampleT, lanes)`** (`Sim.Viewer.Motion/DrClock.cs:145,295,317`) · `DrExtrapolation.Arc` (`Sim.Replication/DrExtrapolation.cs`) · `NetworkLaneSource` (`Sim.Core`) |
 | sumosharp grep — publish side | — | `ReplicationPublisher.PublishStep(snap, sink)` (`Sim.Host/ReplicationPublisher.cs:62`), `DdsReplicationSink`, topic names `DdsTopicNames.cs:51-70` |
@@ -90,7 +110,7 @@ related-designs:
 | claim | code — how it IS | design — how it was MEANT |
 |---|---|---|
 | a non-muscle node may own a pose | ✅ `CarKinematicsSystem.cs:80` gates physics on `WithOwned<SimTransform>`, not on role | ✅ R-138 — "SimHost owns SimTransform" is an outcome, not a rule |
-| a local entity without `NetworkIdentity` is never published | ✅ egress queries above | ⛔ searched `docs/`, no design names it — ⚠ it is a property of the queries; a rail must pin it (§6 slice 3) |
+| a replica owned by ANOTHER node is never published — even with a `NetworkIdentity` | ✅ every egress translator checks `HasAuthority` (`GeoSpatialEgressTranslator.cs:136`, `EntityMasterEgressTranslator.cs:76`, `EntityInfoEgressTranslator.cs:116`) | ⛔ searched `docs/`, no design names it — ⚠ it is a property of the queries; a rail must pin it (§6 slice 3) |
 | the SUMO net can ride the terrain | ✅ `TerrainDefinition.RoadNetworks` (`TerrainDefinition.cs`), `TerrainCatalog` + `AssetTreeSync` mirror the folder (`StorageGatewayModule.cs:446-476`) | ✅ Terrain_Zones §2.1a/§2.1e, Terrain_World §7.3 W12 |
 | receivers can dead-reckon on cluster time without a wall-clock fit | ✅ `DrClock.ResolveAt(history, sampleT, lanes)` takes the time explicitly; ⚠ `DdsSubscriber` stamps samples with the DDS **SourceTimestamp** (wall clock) | ⛔ SumoSharp's DEADRECKONING doc §8 paces from wall-clock arrival by design ⇒ §4 E9 |
 | SUMO keeps a car's insertion safe | ✅ `SpawnVehicle` queues until a gap (`VehicleLifecycle.cs:122-128`) | ✅ TUTORIAL-VEHICLES |
@@ -98,7 +118,116 @@ related-designs:
 
 ## 3. Diagrams
 
-### 3.1 Classes
+> ⭐ **§3.0 is the AS-BUILT of slice 1 (SUMO embedded in the networkless editor, R-4047) — where it and §3.1–§3.4 disagree, §3.0
+> is the code.** §3.1–§3.4 stay the TARGET for the dedicated networked traffic node (later slices); the rows they no longer
+> describe are listed in the STATUS block's `known-rot`.
+
+### 3.0 As built — slice 1, the embedded editor *(2026-10-17, `PLAN_Sumo_Slice1_Embedded_Editor.md`)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainResidency { <<existing, grows>> AttachContent(ITerrainContentLoader) }
+  class ITerrainContentLoader { <<NEW seam>> Prepare(def, folder, name, world) Commit Unload }
+  class SumoNetTerrainLoader { <<NEW>> parses the net, builds the road scene, off-thread }
+  class TerrainDefinition { <<existing, grows>> +TerrainSumoNet SumoNet }
+  class TrafficNetCache { <<NEW world singleton 450>> +Path +Model +NetHash +Placement +Roads }
+  class SumoNetPlacement { <<NEW>> UTM via WGS84, or net minus anchor }
+  class TrafficRoadScene { <<NEW>> kind meshes + signals, terrain-local }
+  class TrafficDemand { <<NEW component 451, scenario entity>> +TargetCars +Seed +StepSeconds }
+  class TrafficPack { <<NEW INodeCapability, role Traffic>> }
+  class TrafficRuntime { <<NEW>> main and stepping thread hand-off }
+  class TrafficSteppingModule { <<NEW, SlowBackground 20 Hz>> }
+  class TrafficMirrorSystem { <<NEW, Input phase>> gate, target, pump, resolve, replicas }
+  class TrafficSession { <<NEW>> one running SUMO }
+  class TrafficMirror { <<NEW>> DR at an instant }
+  class TrafficReplicas { <<NEW>> vicinity band to entities }
+  class TrafficCar { <<NEW component 452>> VehicleIndex Generation }
+  class ReplicationRoute { <<NEW component 453, general>> RouteId }
+  class TrafficFrame { <<NEW world singleton 454>> Cars IsEntity Lights }
+  class TrafficRoadGizmo { <<NEW, 2-D map>> }
+  class TrafficLayer3D { <<NEW, 3-D map>> }
+  class LiveCitySim { <<SumoSharp>> Engine + car demand + publisher + in-memory wire }
+  class DrClock { <<SumoSharp>> ResolveAt }
+  class KinematicReconstructor { <<SumoSharp>> }
+  class RoadSceneBuilder { <<SumoSharp Sim.Scene>> }
+  class AmbientGroundBuilder { <<SumoSharp Sim.Scene>> }
+  TerrainResidency --> ITerrainContentLoader : calls
+  SumoNetTerrainLoader ..|> ITerrainContentLoader
+  SumoNetTerrainLoader ..> TerrainDefinition
+  SumoNetTerrainLoader --> TrafficNetCache : publishes
+  TrafficNetCache --> SumoNetPlacement
+  TrafficNetCache --> TrafficRoadScene
+  TrafficRoadScene ..> RoadSceneBuilder
+  TrafficRoadScene ..> AmbientGroundBuilder
+  TrafficPack --> SumoNetTerrainLoader : attaches
+  TrafficPack --> TrafficRuntime
+  TrafficPack --> TrafficSteppingModule : registers
+  TrafficPack --> TrafficMirrorSystem : registers
+  TrafficSteppingModule --> TrafficRuntime
+  TrafficMirrorSystem --> TrafficRuntime
+  TrafficRuntime --> TrafficSession
+  TrafficSession --> LiveCitySim
+  TrafficMirrorSystem ..> TrafficNetCache
+  TrafficMirrorSystem ..> TrafficDemand
+  TrafficMirrorSystem --> TrafficMirror
+  TrafficMirror --> DrClock
+  TrafficMirror --> KinematicReconstructor
+  TrafficMirrorSystem --> TrafficReplicas
+  TrafficReplicas --> TrafficCar : stamps
+  TrafficReplicas --> ReplicationRoute : stamps SumoSharp
+  TrafficMirrorSystem --> TrafficFrame : publishes
+  TrafficRoadGizmo ..> TrafficNetCache
+  TrafficRoadGizmo ..> TrafficFrame
+  TrafficLayer3D ..> TrafficNetCache
+  TrafficLayer3D ..> TrafficFrame
+```
+
+*What the picture shows that prose hid:* the map layers never touch the pack — they read two WORLD singletons
+(`TrafficNetCache`, built at terrain load, and `TrafficFrame`, written each frame), so any map host whose world carries them
+draws traffic; and the SUMO side is one SumoSharp class (`LiveCitySim`, its proven live-city host) behind one HROT class
+(`TrafficSession`) — no new trip generator, no new publisher (the seam law).
+
+```mermaid
+graph TD
+  subgraph Editor["Editor (networkless, role includes Traffic)"]
+    ES[EditorSubsystem] -->|BuildDefault, last| TP[TrafficPack]
+    TP -->|AttachContent| TR[TerrainResidency]
+    TR -->|terrain load, off-thread| TNC[TrafficNetCache]
+    K[ModuleHostKernel] -->|Input phase, main thread, every frame| TMS[TrafficMirrorSystem]
+    K -->|SlowBackground 20 Hz, its own thread| TSM[TrafficSteppingModule]
+    TSM -->|StepTo target| LCS[LiveCitySim]
+    LCS -.->|in-memory wire| TMS
+    TMS -->|Pump, ResolveAt| TF[TrafficFrame]
+    TMS -->|create, pose, destroy| REP[replica entities]
+    MIP[MapInteractionPack] -->|Draw3D| TL3[TrafficLayer3D]
+    GZ[gizmo registrar, assembly scan] -->|Draw each frame| TRG[TrafficRoadGizmo]
+  end
+  subgraph NotYet["not composed in slice 1"]
+    INJ[editor injected-muscle arm: Stride mode 1]
+    SH[SimHost, CGF, IG: no TrafficPack]
+  end
+  style INJ fill:#f66,color:#000
+  style SH fill:#f66,color:#000
+```
+
+*What the picture shows that prose hid:* two clocks are NOT involved — the stepping thread only chases a target the main thread
+sets from `GlobalTime`, so pause holds SUMO and the main thread never waits for it (EM-5); and the red boxes: the editor's
+INJECTED arm (Stride mode 1) and every networked host compose no `TrafficPack` yet, so they show no traffic (the 2-D gizmo is
+loaded everywhere `Hrot.Traffic` is, but draws nothing without a `TrafficNetCache`, which only the pack's loader publishes).
+
+| as built | why it differs from the target below |
+|---|---|
+| the net is `terrain.json` **`sumoNet { file, anchor }`**, beside `roadNetworks[]` | ⚠ R-4021 says "a terrain asset"; `roadNetworks[]` is the CarKinem road graph, which R-4026 keeps separate — a key of its own says so, and carries E1b's anchor |
+| `ITerrainContentLoader` on `TerrainResidency` | the terrain step learns about a content kind without knowing SUMO (Prepare off-thread, Commit on the main thread, Unload) |
+| the stepper is `LiveCitySim` in `RouteGraph` mode, pedestrians off | its closed-loop demand IS "random routable trips at a density"; RouteGraph = the whole net, no demo crop (R-4040) |
+| the replica's TKB type is a new **"SUMO car" (8851)**, not the civilian car (1002) | 1002 carries `VehicleParametersDto` (car kinematics would fight the mirror) and a brain profile; 8851 is the type only, DIS 1.1.0.81, like the parked car |
+| `TrafficDemand { TargetCars, Seed, StepSeconds }` | the target's `DemandFile` / `Pedestrians` wait for their slices; `TargetCars` is `LiveCitySim`'s own density knob |
+| replicas are anchored by HROT **bodies** (`SimTransform` + `PhysicsCollider`, default route) | a map graphic or an area must not pull cars in; a replica must not anchor another |
+| the NED query helper is **`DefaultRoutePublishable()`** in `Fdp.Toolkits`, adopted by **29** NED query sites | EM-4 named it `NedPublishable()` and counted 18 translators; the helper is route-generic, not NED-specific, and the 29 are every query in a NED file that gates on `HasAuthority` (a source rail keeps it so) |
+| a clock that jumps BACK restarts SUMO | SUMO cannot run backwards; fresh background traffic is the honest answer (no replay of SUMO in slice 1) |
+
+### 3.1 Classes *(the TARGET — the dedicated networked traffic node; slice 1's as-built is §3.0)*
 
 ```mermaid
 classDiagram
@@ -260,18 +389,19 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | id | question | ⭐ lean | rejected — one line each | blast radius |
 |---|---|---|---|---|
 | **E1** | coordinates | ✅ **RULED (R-4025)** — at terrain load, convert the net's `<location>` (`netOffset` + `projParameter`) **UTM → WGS84 → local ENU** through the terrain origin (R-229), fit once as a 2-D rigid transform in `TrafficNetCache.ToLocal`; `+proj=utm` only, others refused with a load error | identity: wrong for any georeferenced net · a projection library: a large dependency for one projection | new UTM converter (~100 lines); SumoSharp's parser must read `<location>` (it ignores it today) |
+| **E1b** | a net that is NOT georeferenced (`projParameter="!"`, plain local metres — e.g. SumoSharp's demo city) | ✅ **RULED (R-4052, D5)** — `terrain.json` gives an **anchor** for such a net: where the net's (0, 0) sits in the terrain's local metres (plus an optional rotation); the georeferenced path (E1) is unchanged | refusing non-georeferenced nets: SumoSharp's own demo city is one | `TrafficNetCache.ToLocal` |
 | **E2** | car and road height | ✅ **RULED (R-4025)** — **SUMO's z**: roads are drawn at the lane z and cars ride `PosZ`. ⛔ The lean (our `IWorldQuery.SurfaceZ`) was REJECTED: the roads come from the SUMO net, so the cars must match them | — | mirror module; ⚠ consequence in §5 |
 | **E2b** | ✅ **RULED (R-4030)** — a **flat (2-D) net** has no z (`Lane.ShapeZ` null ⇒ `PosZ` 0) | ⭐ when the net carries no z, BOTH roads and cars **drape onto our ground** — the 3-D map's existing rule (Z = 0 is "drape", `GizmoRenderer3D` M18/P4) for the roads, `IWorldQuery.GroundHeightAt` for the cars; a net WITH z is used as-is (R-4025) | cars and roads at z 0: everything sinks into or floats above any non-flat terrain | mirror module + road layer |
 | **E3** | our units on SUMO roads | ⛔ **RULED NO (R-4026)** — the two road systems stay separate and independent | derive `RoadNetworkBlob` from the net (our lean) — rejected: SUMO's model is complex, ours is simple | none |
 | **E4** | how our entities reach SUMO | ✅ **RULED (R-4027)** — vehicles → `AddMovingObstacle` after `LaneProjection.Project` (≤ 3 m from a lane, else ignored); infantry and every off-lane unit → crowd discs (`ICrowdFootprintSource`), which cars and pedestrians both react to | discs only: cars would not queue behind a convoy · obstacles only: off-lane infantry crossing a road invisible | traffic node only |
 | **E5** | replay | ✅ **RULED (R-4027)** — each node's recorder records its local `TrafficCar` entities (R-4012 Plan A); in replay the mirror module is gated like ingress (`IReplayRestoreGated`) and the traffic node does not step SUMO. Known limit: a node OUTSIDE its recording span shows no cars (mirrors are not flooded) | SumoSharp's `.simrec` replayed onto the topics: a second recording mechanism, and its seek re-reads from the start | mirror module; recording size to measure |
 | **E6** | pedestrians | phase 2, same pattern: SumoSharp's 4 pedestrian topics, local mirror entities for **promoted** pedestrians only (full collision avoidance, the ones cars see), realism zone around our units; ambient pedestrians drawn from their route-seed-time function, no entities | all pedestrians as entities: 20 000 entities per node for background walkers · now, in slice 1: pedestrians are SumoSharp's real-time bottleneck (7–15 steps/s on 4–8 cores) | phase 2 |
-| **E7** | how SumoSharp enters the build | ✅ **RULED (R-4028)** — the packages `SumoSharp` + `SumoSharp.Dds`, **built from a pinned SumoSharp commit and committed into HROT's existing local feed `nugets/`** (`nuget.config` already declares `LocalFeed = ./nugets`); a script `scripts/update-sumosharp.sh` packs them with a version that names the commit (⚠ SumoSharp's own pack defaults to `0.1.0` every time, which a stale NuGet cache silently reuses); licence `EPL-2.0 OR GPL-2.0-or-later` | a git submodule / project reference: 5 000 files and a second build system · a CI feed: SumoSharp is not published anywhere | build only; `.gitignore` gains `!nugets/SumoSharp*.nupkg` (it ignores `*.nupkg` today) |
+| **E7** | how SumoSharp enters the build | ⛔ **SUPERSEDED by §11 (R-4046): vendored sources, not packages.** Prior ruling (R-4028) — the packages `SumoSharp` + `SumoSharp.Dds`, **built from a pinned SumoSharp commit and committed into HROT's existing local feed `nugets/`** (`nuget.config` already declares `LocalFeed = ./nugets`); a script `scripts/update-sumosharp.sh` packs them with a version that names the commit (⚠ SumoSharp's own pack defaults to `0.1.0` every time, which a stale NuGet cache silently reuses); licence `EPL-2.0 OR GPL-2.0-or-later` | a git submodule / project reference: 5 000 files and a second build system · a CI feed: SumoSharp is not published anywhere | build only; `.gitignore` gains `!nugets/SumoSharp*.nupkg` (it ignores `*.nupkg` today) |
 | **E7b** | ⚠ OPEN — Git LFS for the `.nupkg` files? *(moot if SumoSharp is published on nuget.org, R-4031)* | ⭐ **plain git, no LFS.** HROT uses no LFS today (no `.gitattributes`, `git lfs ls-files` empty); cloud sessions clone with LFS smudging skipped, so an LFS package would arrive as a pointer stub and every cloud build would fail restore. The packages are small managed assemblies (the native DDS runtime comes from `CycloneDDS.NET` on nuget.org, which HROT already uses) — ⚠ size not measured yet; if one exceeds ~10 MB, revisit | LFS: breaks restore in every session that skips LFS, and adds a tool to every clone | `.gitignore`, `nugets/` |
 | **E8** | `sumo/geometry` | OFF (R-4021); the publisher still exposes the net hash (on `sumo/status`) for C's check | keep it on as a fallback: two sources for the same lanes | publisher config |
 | **E9** | the receiver's time stamps | ✅ **RULED (R-4027)** — stamp each sample with the frame's own **SUMO sim time** (= cluster sim time, §3.2), not the DDS SourceTimestamp — a small SumoSharp option on `DdsSubscriber` | keep wall-clock stamps and fit a rate: breaks on pause, speed-up and replay | one SumoSharp change |
 | **E10** | traffic-node id and lifetime | ✅ **RULED (R-4027)** — an ordinary cluster member (master-assigned id, R-4009), **optional** in `ClusterConfiguration` — if it dies, traffic simply stops (lifecycle disposes reach every mirror; a mirror whose feed falls silent for N s clears its cars) | mandatory: a crashed traffic node would fail the exercise | orchestrator config |
-| **E11** | unique ids for SUMO cars | ✅ **RULED (R-4029)** — the traffic node takes one network id per car from **our allocator** (`DdsIdAllocator`, chunks of 100, `DdsIdAllocator.cs:31-33`) and the id rides SumoSharp's lifecycle record (its `Name`, or a new numeric field if a flow-spawned car cannot be named — a small SumoSharp change); the mirror stores it in **`TrafficCar.NetworkId`, ⛔ NEVER in `NetworkIdentity`** — egress publishes every entity that has one (`GeoSpatialEgressTranslator.cs:121-123`). Shadow cars (R-4023) carry the handed vehicle's own id | SumoSharp's `VehicleHandle` as the id: a separate 32+16 space whose slots are recycled, and different on every node's mirror | traffic node + mirror; ⚠ a system that resolves a network id through NED's entity map will not find a mirror — a follow-up when the first such reader appears |
+| **E11** | unique ids for SUMO cars | ✅ **RULED (R-4029)** — the traffic node takes one network id per car from **our allocator** (`DdsIdAllocator`, chunks of 100, `DdsIdAllocator.cs:31-33`) and the id rides SumoSharp's lifecycle record (its `Name`, or a new numeric field if a flow-spawned car cannot be named — a small SumoSharp change); ⭐ **amended by R-4038:** the mirror is a normal replica — `NetworkIdentity` = that id, `NetworkAuthority.PrimaryOwnerId` = the traffic node, registered in the entity map; NED egress never publishes it because this node has no authority over it (`HasAuthority`, `GeoSpatialEgressTranslator.cs:136`). ⛔ SUPERSEDED: "never in `NetworkIdentity` — egress publishes every entity that has one" (it publishes only what it owns). Shadow cars (R-4023) carry the handed vehicle's own id | SumoSharp's `VehicleHandle` as the id: a separate 32+16 space whose slots are recycled, and different on every node's mirror | traffic node + mirror; ⭐ every reader that resolves a network id through the entity map now finds the mirror (hits, targeting, orders) |
 
 ## 5. Known limits *(measured unless marked)*
 
@@ -283,16 +413,16 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 - *(Inference, not run)* `RoadNetworkGizmo` emits Z = 0 (drape) and so would draw a bridge road on the ground below it; the new layer must use the lane z on bridges.
 - The vehicle-type id is always 0 on the wire (`ReplicationPublisher.cs:84-88`): car / bus / truck models need the type carried — lifecycle carries the SUMO id and dims only.
 
-## 6. Slice plan *(not dispatched)*
+## 6. Slice plan *(re-cut by R-4047 — embedded first; slice 1 BUILT 2026-10-17)*
 
-| slice | content | acceptance |
+| slice | content | state |
 |---|---|---|
-| 1 | traffic node host + role (`NodeRole.Traffic`, `NedReplicationModule` admits it, ClusterRunner `--mode traffic`); `TrafficNetCache` from `terrain.json`; `TrafficDemand` scenario entity; SUMO stepped on `GlobalTime`; publisher on `sumo/*` | `ddsmonitor` shows `sumo/vehicles` samples only on DR error; pause stops them |
-| 2 | `TrafficMirrorModule` on every map host (E9 stamps, hash check) + `TrafficRoadGizmo` (CityLib-styled) | a car on IG matches the traffic node's own pose within the policy's 0.3 m |
-| 3 | local entities carry `SimTransform` + `PhysicsCollider` (R-4022 A); rail: a mirror entity is never egressed; SimHost avoidance and LOS see cars | our vehicle stops behind a SUMO car; a rail fails if a `TrafficCar` entity gains `NetworkIdentity` |
-| 4 | E4 obstacle feed | a SUMO car brakes for our convoy on its lane |
-| 5 | R-4023 handover (`KinematicsMode.Traffic`) | a vehicle handed over arrives at its destination on SUMO roads and is taken back; ownership never changes |
-| 6 | E6 pedestrians | promoted pedestrians near our units react to them; ambient ones are drawn without entities |
+| **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
+| 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | target §3.1–§3.4 |
+| 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | |
+| 4 | R-4023 handover (`KinematicsMode.Traffic`) | |
+| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
+| 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
 ## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
 
@@ -365,7 +495,7 @@ handover, which is what lets every receiver swap its mirror for the real entity 
 - High-power ORCA peds have no walls (`PedLodManager.cs:216-218`) — they follow waypoints only.
 - No panic state on the wire — a panicked ped that stays in SumoSharp (P7) shows only as a new leg and a promotion.
 
-### 8.6 ⚠ P1 re-examined — **do we need promotion zones?** *(user: "I would carefully consider if we really need promotion zones"; lean, not ruled)*
+### 8.6 ✅ P1 re-examined — **promotion zones DROPPED, at least for now** *(R-4037, 2026-10-17; the lean below was accepted. ⚠ Its "and with them the pedestrian mirror entities" is SUPERSEDED by §8.7 G2: pedestrians near our units ARE mirrored, by an HROT-side radius, with no SumoSharp promotion)*
 
 📐 **Measured:** cars see EVERY pedestrian on a crosswalk, promoted or not — crossing occupancy covers everyone
 (`TUTORIAL-LIVE-CITY.md`, "The coupling: one seam"); only a low-power pedestrian standing in the road ELSEWHERE is unseen,
@@ -379,7 +509,326 @@ not dodge each other outside SumoSharp's own default promotion.
 ⛔ Rejected — keep the zones: ORCA cost and two SumoSharp changes for avoidance that only matters where no shooting is
 happening yet.
 
+### 8.7 SUMO entities in the combat world — **hits, blasts, EQS, raycasts** *(DESIGN 2026-10-17; G1 ruled by R-4038, G2–G6 ACCEPTED R-4039)*
+
+📐 **Measured — what happens TODAY to a shot at a mirror (R-4022 A):**
+
+| step | code | result for a mirror |
+|---|---|---|
+| the bullet finds it | `SpatialHashSystem` takes every `SimTransform + PhysicsCollider` (`SpatialHashSystem.cs:84-87`), no ownership filter; `RaycastSolverSystem` returns the entity (`:287`) | ✅ hit |
+| the damage leaves the shooter's node | `DamageAssessedEgressTranslator` drops a hit whose entity has no network id in the entity map (`DamageAssessedEgressTranslator.cs:67`) | ⛔ **silently dropped** — a mirror has no `NetworkIdentity` (by design, R-4029) |
+| a blast | `AreaEffectSystem` damages only entities with `Health` (`AreaEffectSystem.cs:103`) | ⛔ ignored — a mirror has no `Health` |
+| a soldier sees it | `VisionBroadphase` indexes only entities with `EntityInfo` (`VisionBroadphase.cs:184-186`) | ⚠ only if the mirror carries `EntityInfo` (Neutral) |
+| a pedestrian | §8.6 dropped the mirrors with the zones | ⛔ not in any query |
+
+```mermaid
+sequenceDiagram
+  participant SH as shooter's muscle node (SimHost, holds a mirror)
+  participant TN as Traffic node
+  participant E as SumoSharp
+  participant CGF as CGF (creator, brain)
+  participant N as every node
+  SH->>SH: raycast or blast finds the mirror, damage computed by the existing pipeline (the shooter's muscle)
+  SH->>TN: the USUAL EntityHitDamage, HitEntityId = the mirror's network id (it is in the entity map)
+  TN->>E: remove the car or pedestrian, returns its state (S1)
+  TN->>N: SUMO Despawn (S2)
+  TN->>CGF: CreateEntityRequest addressed to CGF, civilian family type, pose, same network id, initial damage and effect
+  CGF->>N: our entity, Health already reduced, civilian HSM starts in Casualty or Panic
+  N->>N: each mirror sees its id on a real entity and drops itself
+```
+
+*What the picture shows that prose hid:* the damage is computed ONCE, by the existing pipeline on the shooter's muscle node, and
+leaves it as the usual hit message — the traffic node, as the entity's owner, only converts; and the conversion is the SAME request as panic (§8.2), so a hit is just a panic whose
+civilian is born wounded.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **G1** | how a hit reaches SUMO | ⭐ **the usual hit message, nothing new** (R-4038): the shooter's muscle node computes the damage as always and `DamageAssessedEgressTranslator` sends `EntityHitDamage` — it finds the mirror's network id in the entity map (`:67`); blasts likewise, because the mirror carries `Health` from its civilian-family type (G3) so `AreaEffectSystem` (`:103`) reaches it; the **traffic node, the entity's owner, ingests `EntityHitDamage`** for SUMO ids and converts | ⛔ SUPERSEDED first draft: a special `TrafficHit` message — it existed only because mirrors had no network id · the traffic node recomputing damage: a second damage implementation |
+| **G2** | pedestrians in EQS and raycasts | ⭐ widened by R-4041 to cars too (§8.8 H1) — each node mirrors the pedestrians **within R of any of our units** (e.g. 300 m), from `PedRemoteReconstructor`'s poses — HROT-side, no SumoSharp promotion (R-4037 holds); cars stay all mirrored (R-4022) | all 20 000 pedestrians as entities on every node: entity and recording cost · none: bullets pass through pedestrians |
+| **G3** | what a mirror carries | a normal replica of its civilian-family TKB type (so `Health`, `PhysicsCollider`, body zones come from the TKB translators like any replica) + `NetworkIdentity`, `NetworkAuthority` (owner = traffic node), **`EntityInfo` (Neutral)**, `TrafficCar {Kind}` — so vision, EQS, the collider hash, LOS, near misses and blasts all see it like any neutral; ⚠ rails: a mirror is never egressed, and NED dead reckoning never writes it (no `WorldPos` ever arrives for its id) | no `EntityInfo`: soldiers would not perceive traffic |
+| **G4** | what a hit car becomes | the car leaves SUMO and becomes **our civilian car entity** (stopped, damaged); its driver (and passengers, from the car's seats) become civilians in Panic or Casualty | keeping a damaged car in SUMO: SUMO has no damage, it would drive on |
+| **G5** | hits during the conversion | the traffic node accumulates every `EntityHitDamage` for an id until CGF's entity appears, then forwards the sum as one damage | first hit only: a burst would lose all but one round |
+| **G6** | near misses and suppression | a round passing a mirrored pedestrian counts like a heard shot for panic (P2) — no new path | a NearMiss message per mirror: panic already covers it |
+
+### 8.8 The SUMO net may reach beyond our terrain — **background traffic there** *(R-4040, 2026-10-17; H1 REPLACED by the user's one vicinity rule, R-4041; H2–H3 ACCEPTED, R-4041)*
+
+🔒 Ruled: the net can span areas our terrain does not cover; there SUMO is **background traffic** only. Nothing in our
+simulation interacts with it there (no units, no ground, no buildings).
+
+| id | consequence | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **H1** | which cars and pedestrians become entities (replicas, R-4038) | ⭐⭐ **AMENDED by Z2 (R-4043, 2026-10-17): a SUMO car or pedestrian is a real replica on a node if it is INSIDE A ZONE (a fidelity area, `DESIGN_Terrain_Zones_And_Assets.md` §11) OR within R of any HROT entity; otherwise it is only drawn.** Inside a zone covers the observer case (an observed area is a zone, so its traffic is seen by long-range sensors with no HROT entity near); the vicinity covers units operating outside any zone. With no zone defined only the vicinity applies (Z1-b). The R-4041 text below stands for the vicinity half. ✅ **RULED (R-4041) — ONE vicinity rule for cars AND pedestrians, wherever they are:** a SUMO car or pedestrian is a replica on a node while it is within R of any of our entities; otherwise it is only drawn from the receiving buffer. The terrain's extent plays no part (outside it there are no units, so nothing is near). Details (leans): R is one scenario parameter on the traffic demand entity, default 300 m; a hysteresis band (enter at R, leave at R + 50 m) so a car on the edge does not flicker in and out; each node decides from the same inputs, so every node holds the same replicas up to the band. ⛔ SUPERSEDED draft: "only inside the terrain's extent, plus pedestrians within R" — two rules where one does. ⭐ **Sensor range is independent of R** (user, 2026-10-17: *"Just the sensors of the observer need to see farther than 300 meters from him."*): R decides which traffic EXISTS as entities; any sensor of any range (a forward observer's optics, a drone) sees every replica in its range. "Our entities" means every HROT entity of any side, so the units an observer watches create the vicinity there. ⚠ Known limit: an area holding traffic and no HROT entity at all shows no traffic to sensors (only on the map); a later option is to let an observer's watched point count as a vicinity source | every car on the net as an entity (R-4022 A as first written): thousands of entities nobody can reach |
+| **H2** | height outside the terrain | SUMO's lane z (R-4025); a flat net (E2b drape) outside the terrain uses the terrain origin's altitude — there is no ground to drape on | `GroundHeightAt` outside the grid: undefined there |
+| **H3** | drawing | the road layer and the traffic draw everywhere the net reaches; the terrain only where it exists | clipping the roads to the terrain: the background city disappears from the map |
+
+## 9. How SUMO entities and HROT entities treat each other *(the summary, 2026-10-17 — every row cites its ruling)*
+
+### 9.1 SUMO entities, on every other node
+- **Normal entities owned by the traffic node** (R-4038), network ids from our allocator (R-4029). Only their **motion**
+  travels — on SumoSharp's own topics with its error-gated publishing (R-4020); NED never carries them.
+- **Every node dead-reckons them** with SumoSharp's lane curve, on cluster sim time (R-4020, R-4022, R-4027).
+- **A real replica only where it matters** (R-4043): inside a zone, or within R (300 m) of any HROT entity of any side.
+  There it is a neutral civilian-family entity with health and a collider: sensors, EQS, raycasts, line of sight, the
+  bullet test and blasts see it like any neutral, and our vehicles avoid it. Elsewhere it is **drawn only** — background
+  traffic, also beyond the terrain (R-4040).
+- **Roads and lights** are drawn on every map host from the net that rides the terrain (R-4021, R-4024), everywhere the
+  net reaches; heights from SUMO (R-4025, R-4041).
+- **Replay:** each node records its replicas; SUMO is not stepped (R-4027).
+
+### 9.2 HROT entities, on the traffic node
+The traffic node is an ordinary ECS cluster member (role `Traffic`, R-4022) and keeps **full copies of every HROT
+entity** like any node — the natural consequence of reusing the same composition, the cost is memory (user, 2026-10-17).
+It runs no brain and no physics on them, and feeds them to SUMO every step:
+- vehicles → lane-projected moving obstacles (cars brake, queue, swerve); soldiers and off-lane units → crowd discs
+  (R-4027). ⚠ SUMO pedestrians do not avoid our units (S4 deferred with the zones, R-4037);
+- `WeaponFire` / `MunitionDetonation` → panic incidents (R-4032);
+- a vehicle handed to SUMO → its intent drives a shadow car `hrot:<id>` (R-4023);
+- hits on SUMO entities arrive as the usual `EntityHitDamage`, since it owns them (R-4038).
+
+### 9.3 How the two interact
+
+| event | what happens |
+|---|---|
+| our soldier shoots a SUMO car or pedestrian | the shooter's muscle node computes the damage and sends the normal hit; the traffic node removes it from SUMO; CGF creates our civilian **with the same id, already wounded**; a car becomes our stopped, damaged car and its occupants civilians; hits during the switch are summed (R-4039) |
+| shooting or an explosion nearby | pedestrians in the panic radius (by kind) or near a panicked civilian leave SUMO for good as civilians in Panic → an openable building → deleted after a while (R-4032, R-4035); panicking cars later (P8) |
+| our vehicle drives near traffic | SUMO cars react to it as an obstacle; our vehicle avoids SUMO replicas near it |
+| our vehicle is handed to SUMO | SimHost keeps owning it and **follows** the shadow car (`KinematicsMode.Traffic`); leaving the mode takes it back — ownership never moves (R-4023) |
+| targeting | soldiers never target neutrals (CIV-0); a converted civilian is a target only after a visible hostile act (R-3013, R-4034) |
+| the traffic node goes down | it is optional (R-4027): traffic stops; converted civilians survive (CGF created them) |
+
+## 10. SUMO embedded in ANY host — **the networkless editor included** *(R-4044, mandatory; EM-1…EM-5 APPROVED 2026-10-17 with three refinements, R-4045 — EM-3, EM-4 and EM-5 below are the as-ruled text)*
+
+🔒 R-4044: SUMO is not only a separate networked node — it must be **embeddable** like every other part, so the
+networkless editor runs it too. ⭐ The same rule already governs every role: *"every mechanism keyed on a role must work
+over the internal bus with no network present"* (R-4005); the editor is a one-node cluster declaring the union of its
+roles (`EditorCapabilities.cs:60-62`, Node_Roles §4).
+
+📐 **Measured — the two seams that make it cheap already exist:**
+- **SumoSharp's transport is already pluggable:** `IReplicationSink` / `IReplicationSource` with an in-process binding,
+  `InMemoryReplicationBus` (`Sim.Replication/InMemoryReplication.cs`, *"proving the contract … is transport-neutral"*), and
+  the DDS binding (`DdsReplicationSink` / `DdsSubscriber`) behind the same interfaces.
+- **Our id allocation is already pluggable:** `INetworkIdAllocator` — `DdsIdAllocator` on a cluster, `SequentialIdAllocator`
+  / `BlockIdManager` without a network.
+
+```mermaid
+graph TD
+  subgraph Networked["cluster: a dedicated traffic node"]
+    TP1[TrafficPack on the traffic node] --> SK1[DdsReplicationSink]
+    SK1 -.->|sumo topics| SB1[DdsSubscriber on every other node]
+    SB1 --> MM1[TrafficMirrorModule]
+  end
+  subgraph Embedded["networkless editor, or any host composing Traffic"]
+    TP2[TrafficPack] --> BUS[InMemoryReplicationBus]
+    BUS --> MM2[TrafficMirrorModule, the same code]
+    EV[local events: WeaponFireNotification, DetonationNotification, DamageAssessedEvent] --> TP2
+    TP2 --> CR[local EntityCreationRequest]
+  end
+```
+
+*What the picture shows that prose hid:* the traffic code is ONE pack and the mirror is ONE module in both pictures —
+only the box between them changes (DDS or in-memory), exactly as our own events reach a system either from the local bus
+or through NED ingress; and in the embedded picture every input is a LOCAL event, so nothing in the pack may read a DDS
+topic directly.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **EM-1** | how SUMO enters a host | a **`TrafficPack`** (the `Traffic` role) composed like any other pack — into a dedicated traffic node, into CGF, or into the editor, which then declares Traffic in its role union (R-4005) | a separate process only: not embeddable (R-4044) · a special editor-only SUMO path: two implementations |
+| **EM-2** | the transport | the pack publishes through SumoSharp's `IReplicationSink`; a host with a network participant uses the DDS binding, and the host's OWN mirror always reads the in-process `InMemoryReplicationBus` — so the publishing host never round-trips through DDS to see its own traffic | the pack reading SUMO's arrays directly into the mirror: a second mirror path |
+| **EM-3** | every interaction is a LOCAL event | ✅ **RULED (R-4045):** the pack consumes only bus events — incidents from `WeaponFireNotification` / `DetonationNotification`, hits from `DamageAssessedEvent` on an entity it owns (NED ingress produces the same events from remote ones); ⭐ **a conversion is the USUAL creation request to a brain node, authored locally exactly as today:** a local `EntityCreationRequest` addressed to the brain, which the D1 forwarder (`ForwardingEntityCreationRequestSource.cs:25-29` — *"a request this node should service is passed through; one addressed elsewhere is sent over the wire"*; `DESIGN_Entity_Creation_Unification.md` §3.4b) passes through when the brain is local (the editor) and sends to CGF otherwise — **no SUMO-specific path, no change** between the two; ids through `INetworkIdAllocator` | reading the NED topics in the pack: dead without a network · a SUMO-specific creation message |
+| **EM-4** | the hosting node's own SUMO entities | ✅ the host runs the SAME mirror and the SAME rule as every other node (R-4043) — results never depend on WHERE SUMO runs. ⭐⭐ **And the "do not publish on NED" part is GENERAL, not SUMO's (R-4045):** an entity may be **owned and still replicated by a DIFFERENT publishing mechanism** than NED. ⇒ a general per-entity **replication route** — lean: a component `ReplicationRoute { byte RouteId }` (absent = NED), stamped by whoever creates the entity on every node; the NED send gate becomes *"owned AND routed to NED"*. ⭐ **Free for normal entities (measured):** the routing is a QUERY exclusion, not a per-entity test — each NED egress query already starts `.With<NetworkIdentity>()`, and gains `.Without<ReplicationRoute>()` through ONE shared builder helper (e.g. `NedPublishable()`), so the rule lives in one place; `EntityQuery` tests the exclude mask in the SAME hot step as the include mask, on the component bitmask it already has in hand (`EntityQuery.cs:140-141`, `HasAny(compMask, _excludeMask)`) ⇒ no extra memory read, no component to stamp, nothing to configure: **no `ReplicationRoute` = NED, the default**. Applied to the **18** NED egress translators that call `HasAuthority` today; a runtime rail creates an OWNED entity carrying a route plus every published component, runs every NED egress translator, and asserts zero samples. Per-descriptor routes (an entity whose pose goes elsewhere but whose `EntityInfo` stays on NED) are a later extension if a user appears. SUMO is its first user (route = SumoSharp); ⚠ ownership, the entity map, hits, saving and lifecycle stay the ordinary ones — only the PUBLISHING differs. ⚠ Not `HasAuthority` itself: it is also the save gate and other systems' ownership test, which must keep answering "owned" | a SUMO marker checked in egress: a one-off for a general need · folding it into `HasAuthority`: changes the meaning of "owned" for every system |
+| **EM-5** | the clock and threading | ✅ **RULED (R-4045):** the host only TRIGGERS the step, on its own clock (`GlobalTime`, R-4022 B); inside, SumoSharp steps in whatever optimised way it has. ⭐ Lean for HOW, measured: the pack's stepping module runs under the ModuleHost's **asynchronous policy** (`ExecutionPolicy.SlowBackground(hz)` — *"Main thread doesn't wait. Module can span multiple frames"*, `ExecutionPolicy.cs:81-87`, data strategy SoD: the module reads our entities from a snapshot for the obstacle feed, EM-3); inside its tick SumoSharp runs its parallel step (`Parallel.For` over regions, `MaxParallelism` capped so it leaves cores to the host) and publishes into the `InMemoryReplicationBus`, **which is already safe across threads** — a `ConcurrentQueue` the producer fills from a sim thread and the consumer drains with `Pump()` (`InMemoryReplication.cs:46-61`; SumoSharp's own `LIVE-CITY-THREADED-TICK-DESIGN.md` §8.2, built for exactly this); the mirror pumps on the main thread. The same arrangement on a dedicated traffic node and in the editor. ⚠ Measure: SUMO's thread use alongside the editor's own background modules (pick `MaxParallelism`) | the main thread calling `Step()` and waiting: a 5 000-car + 20 000-pedestrian step measured 114 ms (`LIVE-CITY-THREADED-TICK-DESIGN.md`) — an editor frame stall · SumoSharp's own `SimulationRunner.Start` thread: a second clock (R-4022 B) |
+
+## 11. How SumoSharp enters HROT — **vendored sources, an optional switch, embedded first** *(R-4046, R-4047, 2026-10-17; leans V1–V6)*
+
+📐 **Measured:** the parts HROT needs are nine source projects — `Sim.Core` 27 839 lines, `Sim.Pedestrians` 13 413,
+`Sim.Ingest` 4 816, `Sim.LiveCity` 3 582, `Sim.Replication` 2 718, `Sim.Evac` 2 118, `Sim.Replication.Dds` 1 263,
+`Sim.Viewer.Motion` 1 252, `Sim.Host` 226 (≈ 57 000 lines, `src/` 5.9 MB) plus one shared file
+(`src/Shared/NetstandardPolyfills.cs`, linked by `Sim.Core.csproj:25`). That is the scale of what `FDP/ExtDeps` already
+holds (NodeEdit 31 345 lines, FastHSM 17 335) as source-included projects (`docs/00-SOLUTION-OVERVIEW.md` §6).
+SumoSharp's tests (3 MB) and its parity goldens (`scenarios/`, 98 MB) stay upstream. Both repos pin `CycloneDDS.NET` 0.3.2.
+
+```mermaid
+graph TD
+  UP["github.com/pjanec/SumoSharp (upstream: development, tests, parity goldens)"] -->|scripts/sync-sumosharp.sh at a commit| VEN["FDP/ExtDeps/SumoSharp: the nine src projects + UPSTREAM.md (commit sha), READ-ONLY in HROT"]
+  VEN --> TR["Hrot.Traffic: TrafficPack, TrafficMirrorModule, the road layer"]
+  TR -->|ProjectReference only when HrotWithSumo is true| CR["composition roots: ClusterRunner (editor, CGF, a traffic node), later the Stride app"]
+  CR -->|runtime: scan for the optional pack| HOST["a host composes Traffic only if the assembly is present"]
+  HOST -->|terrain names a .net.xml| ROADS["road layer draws"]
+  HOST -->|and the scenario has the traffic settings entity| ENGINE["SUMO engine created and stepped"]
+```
+
+*What the picture shows that prose hid:* two gates — the SOURCE is pinned (git history is the version switch) and the
+DATA decides whether anything runs. ⛔ The picture's "ProjectReference only when HrotWithSumo is true" and "scan for the
+optional pack" edges are SUPERSEDED by R-4048 (no build switch): the traffic code is referenced normally.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **V1** | where the sources live | ✅ **RULED (R-4046)** — `FDP/ExtDeps/SumoSharp/` holds the nine projects as source-included projects, like FastHSM and NodeEdit; `UPSTREAM.md` records the upstream commit; switching to a previous version is a git checkout of HROT | the fetch-and-pack script + local NuGet (the first request): a restore that must create its own input, a second repo to build on every machine, and no git-level history in HROT · a git submodule: a second checkout to manage in every session |
+| **V2** | how the copy is refreshed | `scripts/sync-sumosharp.sh <ref>` clones/fetches upstream into a scratch dir OUTSIDE the HROT tree, copies the nine `src/` projects + the shared file, rewrites `UPSTREAM.md`, and with `--check` only reports whether upstream has a newer commit than `UPSTREAM.md` (`git ls-remote`, no clone). ⚠ The scratch clone must sit outside the HROT tree: an MSBuild project inside it would import HROT's `Directory.Build.*` (measured in a prototype here — the hook re-entered itself) | syncing by hand: the recorded commit drifts from the files |
+| **V3** | who may change the vendored code | **nobody in HROT** (R-4046: proven sources, no SumoSharp development here). A change HROT needs (§8.4 S1/S2/S5, E1's `<location>`, E9 sim-time stamps, E11 car naming) is made **upstream**, then synced; a rail fails if `FDP/ExtDeps/SumoSharp` differs from upstream at the recorded commit (checked by the sync script's `--verify`) | editing the copy: two diverging SumoSharps |
+| **V4** | the optional switch | ⛔ **DROPPED (R-4048):** with the sources vendored they are always there and always compile, so there is NO build switch — `Hrot.Traffic` and the vendored projects are ordinary projects in `HROT.sln`, referenced normally. ⛔ SUPERSEDED: the `HrotWithSumo` property, the conditional references in the composition roots, the assembly scan and `HROT.NoSumo.slnf`. What stays optional is RUNTIME only (V5) | — |
+| **V5** | when it runs | ✅ **RULED (R-4047)** — the pack is idle unless the data asks for it: the **road layer draws** when the terrain names a SUMO net; the **SUMO engine is created and stepped** only when the scenario also has the traffic settings entity (R-4021); with neither, the pack costs nothing per frame. (⛔ the "switch OFF" case is gone with V4) | failing the load: a scenario would be unusable on a build without SUMO |
+| **V6** | the first slice | ✅ **RULED (R-4047)** — **SUMO embedded in the networkless editor first** (EM-1…EM-5), built so a dedicated traffic node is only a composition step later: the same `TrafficPack`, the in-memory bus, every input a local event | a dedicated traffic node first: the networked path before the embedded one the user wants to see |
+
+### 11.1 V7 — the road and traffic-light geometry, **generalised out of the Godot demo** *(✅ APPROVED 2026-10-17, R-4049)*
+
+📐 **Measured:** CityLib (`demos/City3D/CityLib`, ~4 600 lines, not packaged, not in `Traffic.sln`) already holds no
+Godot type (`CityLib.csproj` header: *"Plain net8.0 classlib; NO Godot type anywhere"*), and its geometry builders —
+`RoadMeshBuilder` (lane ribbons), `LaneMarkingBuilder` (dashes), `CrosswalkBuilder` (zebra stripes),
+`TrafficLightPlacer` (a signal head at each controlled lane's stop line) and `TerrainField` (ground from lane z), ~1 460
+lines with their frame — are pure math. ⛔ What ties them to Godot is ONE thing: every vertex goes through
+`CoordinateTransform.SumoToGodot` = `(x, z, −y)` (Y-up, north = −Z), so `RibbonMesh.Vertices` comes out *"already in GODOT
+space"* (`RoadMeshBuilder.cs:19`). ⚠ And no builder triangulates the junction polygons (`Junction.Shape`); intersections
+are drawn only as internal-lane ribbons.
+
+⭐ **Lean (an upstream change, R-4031 / V3):**
+- move the builders out of the demo into a packable SumoSharp library (e.g. **`Sim.Scene`**) that emits geometry in
+  SUMO's OWN frame — x east, y north, z up, metres, relative to a caller-given origin — plus a **kind per triangle**
+  (asphalt, junction, lane marking, crosswalk) and the signal-head list; the Godot viewer applies its axis swap at upload,
+  in one place, as it does today;
+- add the missing **junction-polygon triangulation**, so intersections are surfaces, not overlapping ribbons;
+- vendor it with the other nine projects (V1).
+
+⭐ **In HROT:** our frame is ENU with Z up — **the same axes as SUMO** — so the only mapping is E1's 2-D rigid transform +
+origin; no axis swap. The map consumes it behind an interface, as R-250 requires of every engine capability the map relies
+on, in the same shape the terrain already uses: *"the map sees triangles and a kind, never how the terrain is modelled"*
+(`TerrainLayer3D.cs:15`, R-250/R-252). ⇒ a **road layer that is the terrain layer's sibling** — the mesh built once per
+net and rebuilt only when the net changes (`TerrainLayer3D` keys on `ITerrainRenderGeometry.Identity`), coloured by kind;
+the 2-D map draws the same triangles flat; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
+The Stride host and a future production engine take the same triangles.
+
+| rejected | the one fact |
+|---|---|
+| copying CityLib's code into HROT | a second copy of the same geometry rules (V3: the vendored code is read-only) |
+| keeping the Godot axes and swapping back in HROT | two swaps that cancel, on every vertex, for every host |
+| drawing roads as per-frame gizmo triangles | tens of thousands of static triangles re-sent every frame; the terrain already proved the build-once mesh path |
+
+### 11.2 V8 — the **ambient terrain surface** between the roads, and where it must give way to ours *(✅ APPROVED 2026-10-17, R-4049; ⚠ V8-a's "render only" is re-opened by `DESIGN_Terrain_Height.md` §8 — the same lattice as the HEIGHT fallback outside the terrain, a lean)*
+
+📐 **Measured (upstream commit `65a9d80`):** the viewer's ground is `CityLib.TerrainField` — a corner lattice (40 m cells,
+capped at 512 corners per axis so a 350 km net stays bounded) whose heights are **measured at lane vertices** (`Lane.ShapeZ`)
+and **flood-filled + smoothed** in between (two Jacobi passes on filled corners, measured corners pinned); a flat net bakes
+to one height. On top: a draped reference grid (`GroundGridBuilder`) and tinted district polygons (`ZoneGroundBuilder`).
+⚠ If the viewer has moved on since `65a9d80`, this section describes that commit.
+
+```mermaid
+graph TD
+  NET["SUMO net (lane z)"] --> TF["ambient ground lattice (TerrainField, moved into Sim.Scene with V7)"]
+  OUR["our terrain footprint: the height grid's extent, else the world file's BoundsMin/BoundsMax (TerrainWorld.cs:91-92)"] --> MASK["mask: drop every ambient cell that overlaps the footprint"]
+  TF --> MASK
+  MASK --> SEAM["seam ring: the last ambient cells outside the footprint blend their height to our ground at the edge"]
+  SEAM --> LAYER["road layer draws it as kind 'ambient ground' - RENDER ONLY"]
+```
+
+*What the picture shows that prose hid:* our terrain always wins where it exists, and the ambient ground is cut at CELL
+granularity by the footprint the terrain already declares — no new terrain data; and the ambient ground feeds ONLY the
+road layer, never the world query, so nothing simulates on it.
+
+| | ⭐ lean | rejected — one line each |
+|---|---|---|
+| **V8-a** what it is | the ambient ground is RENDER-ONLY geometry produced with the roads (V7), kind *ambient ground*; it never enters `IWorldQuery`, physics, line of sight or the navmesh (R-252: our engine interfaces may not depend on a stand-in surface) — fine because nothing of ours operates outside our terrain (R-4040) | making it a second terrain: two grounds that disagree under every unit |
+| **V8-b** where it is drawn | everywhere the net reaches EXCEPT our terrain's footprint — the height grid's extent when the terrain has one, else the world file's bounds; cells overlapping the footprint are dropped (automatic, no setting) | drawing it everywhere: it z-fights or floats against our terrain · a hand-drawn mask per terrain: data nobody will maintain |
+| **V8-c** the seam | the outermost ring of ambient cells blends its height to our ground at the footprint edge (`GroundHeightAt` there), so the border is a slope, not a step or a gap | a hard cut: a visible cliff wherever lane z and our grid disagree |
+| **V8-d** a user toggle | a map display option to hide it (like other map layers), default on | — |
+
+⚠ Known limit, unchanged: INSIDE our terrain the roads still sit at SUMO's z (R-4025) — where the net's z was not built
+from our height grid, a road can hover over or sink into our ground. The ambient ground does not fix that; a net whose z
+matches the terrain does.
+
+### 11.3 The demo — **`demo-city`, built FROM SumoSharp's demo city so the two match by construction** *(R-4052, 2026-10-17)*
+
+🔒 **User, `2026-10-17`:** *"D1 to D5 approved, go ahead with demo-city. No procedural buildings (maybe later, The ones currently implemented are not very useful. They are too dense and too unrealistic.)"*
+
+📐 SumoSharp's `scenarios/_ped/demo_city/box`: a 4.75 × 4.75 km flat, non-georeferenced net (`projParameter="!"`) with 499
+junctions, 51 traffic-light junctions and sidewalks with crossings; 31 data buildings with heights (`buildings.json`; 17 in
+downtown, `zone_downtown` = 1600–3100 in both axes), districts, POIs and demand. Our shipped terrains are 300–600 m with at most
+two streets — none matches any net.
+
+| id | ✅ ruled |
+|---|---|
+| **D1** | the demo net is COPIED unchanged into the new terrain folder `Recipes/Terrain/demo-city/` (the SumoSharp original is a locked fixture there) |
+| **D2** | our terrain is an ~800 × 800 m downtown box inside it, carrying the data buildings that fall inside (as solid prisms with their heights), on flat ground; the rest of the city is background traffic over the ambient ground (R-4040, V8) |
+| **D3** | a generator script turns a SUMO net + its `buildings.json` into an HROT terrain folder (`terrain.json` with the net and its anchor, the world GeoJSON with bounds and buildings) |
+| **D4** | the demo scenario on `demo-city`: the traffic settings entity + a few soldiers at a downtown junction — enough for every slice-1 acceptance check |
+| **D5** | E1b: a non-georeferenced net is placed by an anchor in `terrain.json` |
+| ⛔ | **no procedural buildings** — the viewer's current ones are *"too dense and too unrealistic"* (user); maybe later |
+
+## 12. The dedicated traffic node, built ALONGSIDE the editor *(R-4053; N1–N3 APPROVED R-4054; any number of traffic nodes R-4055; N4–N8, T1–T3, S1–S3 APPROVED 2026-10-17, R-4056)*
+
+> 🔒 **User, `2026-10-17`:** *"I am afraid that if we start building inside the editor without the network,
+> it will be very easy to miss some critical component design rules, and it will be then more difficult to implement the same stuff as a separate node."* ·
+> *"if the stuff works in separate network node, it will probably work well also in the editor."*
+
+⭐ **Measured: the worry is real — slice 1 (§3.0) already holds THREE choices that are right in one process and wrong on a cluster:**
+a car's network id is allocated when a node makes its replica (two nodes ⇒ two ids for one car ⇒ a hit addressed by id misses);
+SUMO's clock is mapped to the HROT clock by a per-node origin (two nodes ⇒ two origins); and the traffic entity never leaves the
+node that loaded the scenario (it has no NED descriptor). ⭐ Each is fixed ONCE, in the shared pack, so the editor runs the network's
+rules too.
+
+```mermaid
+sequenceDiagram
+  participant GT as GlobalTime (cluster sim time t)
+  participant TN as traffic node (TrafficPack)
+  participant L as LiveCitySim
+  participant A as INetworkIdAllocator
+  participant W as sumo topics (DDS)
+  participant S as SimHost (mirror half)
+  participant N as NED
+  GT->>TN: t
+  TN->>L: StepTo(t), SUMO clock started AT the cluster time (N3)
+  L->>A: a car departs, id = AllocateId() (N2)
+  L->>W: lifecycle (durable) with name = network id and dims, frames stamped with cluster time
+  W-->>S: the same records
+  S->>S: ResolveAt(t - delay), near a body: replica with THAT network id, owner = traffic node (N5)
+  S->>N: a round hits it: EntityHitDamage to network id
+  N-->>TN: the owner's replica of the same car takes the damage
+```
+
+*What the picture shows that prose hid:* every node must agree on two numbers it never negotiates — the car's network id and the
+time a sample means — so both are decided ONCE on the traffic node and carried on SumoSharp's own wire; a node only ever reads them.
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **N1** ✅ | the host | a new `--mode traffic` ECS host: `TrafficSubsystem` + `TrafficNodeBootstrapper` (a `SharedApplicationBootstrapper`, like IG's), role `Traffic`, composing NED ingress (it needs our entities and the demand) and `TrafficPack` | SimHost with `--role Traffic`: `--role` is slated for removal (R-S11) and SimHost composes the muscle tier |
+| **N2** ✅ | a car's network id | allocated when SUMO SPAWNS the car, on the traffic node (R-4029), and used AS the SUMO vehicle id (H4) — so the durable lifecycle record carries it to every node. ⭐ SumoSharp change **H5**: `LiveCitySim` takes a vehicle-id provider | allocate when a node makes its replica (slice 1 as built): one car, one id per node |
+| **N3** ✅ | the clock on the wire | SUMO's clock STARTS at the cluster time the session starts, so every frame on the wire is stamped in cluster time and a receiver resolves at `GlobalTime − delay` with no origin of its own. ⭐ SumoSharp change **H6**: `LiveCityConfig.StartTime` (the engine's `Begin`) | a per-node origin (slice 1 as built): each node a different SUMO time |
+| **N4** | the demand reaching the traffic node | `TrafficDemand` replicates on NED like `ScenarioClock` (a descriptor + egress/ingress translators), owned by the node that loaded the scenario | the traffic node loading the scenario itself: a second scenario-load path |
+| **N5** | the owner of a replica on another node | ⭐ REVISED by the user's question: **the SENDER of the car's samples** — the node whose writer published them, read per sample exactly as NED ingress already does (`loan.GetSender(i).AppInstanceId`, with the publication-handle retry of CE-517, `EntityMasterIngressTranslator.cs:117-128,243`). The car's creator is its sender is its owner, so nothing looks a traffic node up. ⭐ SumoSharp change **H8**: `DdsSubscriber` records each sample's sender (CycloneDDS.NET sender tracking on the node's participant) and keys a car's history by (sender, handle), because two traffic nodes' engines number their cars independently (R-4055) | the roster lookup (first draft): assumes one traffic node and asks a question the sample already answers |
+| **N6** | which hosts mirror | the MIRROR half (`TrafficNetCache` loader + mirror over `DdsSubscriber` + replicas + the road layer) on every map and sim host — SimHost, CGF, IG, Player; the traffic node and the editor compose BOTH halves | only map hosts: SimHost's sensors and rounds would not see cars |
+| **N7** | the traffic node's own view | its mirror reads the in-memory wire while `LiveCitySim`'s existing record tee publishes the same steps to DDS (EM-2) | reading its own DDS: a round trip to see itself |
+| **N8** | the editor | unchanged composition (both halves, in-memory) — and since N2/N3 live in the shared pack, it obeys the network's rules without a network | a separate editor path: the thing R-4053 exists to prevent |
+
+⭐ **Added after the user's review (`2026-10-17`) — the car TYPES, the settings, and where they live:**
+
+> 🔒 **User:** *"There must be a variety of cars, and each car has its own unique TKB ID because it is having its own 3D model. Maybe
+> just the color is the property of the car, runtime changeable"* · *"Sumo node could likely use exactly the same 3D map as all the
+> other nodes"* · *"Theoretically, there could be multiple traffic nodes in the system So nothing should rely on having just a single one."*
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **T1** | which HROT type a SUMO car is | ⭐ **the TKB maps it**: an ordinary car template (its own model, its own TKB id — the same catalogue HROT's own civilian cars use) carries a `TrafficVehicleDto { VClass, Weight }`; the traffic node turns those templates into SUMO vehicle types (length and width FROM the template, so SUMO's footprint is our model's) and spawns from their weighted mix; the HROT TKB type rides the car's durable lifecycle record (SumoSharp **H7**: an external type field) and every node's replica takes it. ⭐ Safe because a replica is made directly, never TKB-spawned: no template translator runs, so a car type's kinematics never fights the mirror (`TrafficReplicas.Create`). The single "SUMO car" type (8851) stays only as the fallback for an unmapped SUMO type | one TKB type for every car (slice 1): no variety · a mapping table in the scenario or the terrain: a second source for what the TKB already says (R-4018, one TKB synced everywhere) |
+| **T2** | a car's colour | ⭐ **already the rule in HROT**: `EntityAppearance` when the car has one (runtime-changeable, `EntityBodyLayer3D.cs:1283`), else the per-car paint seeded by the network id (`:127`, `:1088`) — the SAME on every node for free, because N2 makes the id the same. A runtime colour change is the owner's (the traffic node's), carried on the car's durable lifecycle record (H7), since a SUMO car is never on NED | colour in the TKB: every car of a model would look alike · colour over NED: the car is not on NED (EM-4) |
+| **T3** | the traffic node's display and bootstrap | ⭐ **the same host code as every ECS node**: a `SharedApplicationBootstrapper` plan whose roles decide what is composed; with a window it attaches `MapInteractionPack` like every map host; and it draws its cars from the SAME source a receiver does — its own mirror's `TrafficFrame` and replicas (N7: only the wire differs, in-memory instead of DDS) | a traffic-node-only renderer: a second display path |
+| **S1** | what the settings ARE | one positionless scenario entity (TKB "Traffic", 8850) carrying `TrafficDemand { TargetCars, Seed, StepSeconds }` — authored and saved like the World Environment's clock; the car mix comes from the TKB (T1), pedestrians join in their slice | settings in `terrain.json`: the net is the terrain's, the demand is the scenario's (R-4021) |
+| **S2** | who OWNS the settings | ⭐ **the scenario's Brain, exactly like the World Environment** (owned by the node that loaded the scenario, replicated on its own descriptor, `ScenarioClock.cs:12-14`) — because an entity lives as long as its owner (R-4008): a traffic node that crashes must not take the scenario's traffic settings with it, and the save path stays the ordinary one (owner + non-transient, `DESIGN_Distributed_Scenario_Persistence.md` §1a). ⭐ WHICH traffic node serves it is a separate, transient assignment the owner writes (`TrafficAssignment { int NodeId }`, NoScenario): it picks a node whose roles include `Traffic` from the peer view every node already keeps (`IClusterStateCache` `NodeCapability.Role`), and re-assigns when that node goes. Several settings entities spread over several traffic nodes (R-4055) | the traffic node owning it (the question asked): a traffic-node crash deletes scenario data, and a traffic node becomes a scenario-persisting role · every traffic node running every demand: duplicate traffic |
+| **S3** | how it reaches the traffic node, and updates | it replicates on its own descriptor (`dtTrafficDemand`, like `dtScenarioClock`) during the load phase, whose all-peers ACK (`ReliableInitType.AllPeers`) means every node holds it before the run starts; SUMO starts on the ASSIGNED node when it holds the settings AND the terrain's net, and steps only while cluster time runs. An edit is the ordinary attribute request to the OWNER, which applies and re-replicates; the serving node reacts — `TargetCars` live (`LiveCitySim.SetCarDensity`), `Seed`/`StepSeconds` by restarting SUMO (a new session key, as built) | the traffic node reading the scenario file itself: a second load path, and a late joiner never reads the scenario (R-4015) |
+
+
 ## 7. ⛔ HISTORY
+
+### §6 slice plan as first drafted *(SUPERSEDED 2026-10-17 by R-4047 — it built the dedicated node first)*
+
+
+| slice | content | acceptance |
+|---|---|---|
+| 1 | traffic node host + role (`NodeRole.Traffic`, `NedReplicationModule` admits it, ClusterRunner `--mode traffic`); `TrafficNetCache` from `terrain.json`; `TrafficDemand` scenario entity; SUMO stepped on `GlobalTime`; publisher on `sumo/*` | `ddsmonitor` shows `sumo/vehicles` samples only on DR error; pause stops them |
+| 2 | `TrafficMirrorModule` on every map host (E9 stamps, hash check) + `TrafficRoadGizmo` (CityLib-styled) | a car on IG matches the traffic node's own pose within the policy's 0.3 m |
+| 3 | local entities carry `SimTransform` + `PhysicsCollider` (R-4022 A); rail: a mirror entity is never egressed; SimHost avoidance and LOS see cars | our vehicle stops behind a SUMO car; a rail fails if a `TrafficCar` entity gains `NetworkIdentity` |
+| 4 | E4 obstacle feed | a SUMO car brakes for our convoy on its lane |
+| 5 | R-4023 handover (`KinematicsMode.Traffic`) | a vehicle handed over arrives at its destination on SUMO roads and is taken back; ownership never changes |
+| 6 | E6 pedestrians | promoted pedestrians near our units react to them; ambient ones are drawn without entities |
+
+
 
 - 2026-10-16, first chat draft — SUMO cars as NED entities with `EntityMasterFlags.Lightweight` (owned by the traffic node,
   type `CivilianCar`), traffic lights as door-like terrain-object entities, the network cost of thousands of per-entity

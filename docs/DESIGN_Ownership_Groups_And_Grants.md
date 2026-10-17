@@ -23,6 +23,7 @@ related-designs:
   - docs/DESIGN_Subsystem_Composition_Unification.md — owns role-based composition; its B5 (not started) is what composes NavigationSolverModule and the Muscle executor set, which §5.9/§5.10 here wait on.
   - docs/designs/navig-2/Navigation_Design_v2_0.md — owns the navigation topologies (collocated in-process answer, scale-out batch pair) that §5.9 keeps.
   - docs/DESIGN_Entity_Control.md — adds ManualDrive, PossessedBy and WeaponAmmo to the Brain group
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §10 EM-4 (R-4045): an OWNED entity may be replicated by another mechanism than NED — a per-entity replication route; the NED send gate becomes "owned AND routed to NED" (HasAuthority itself unchanged).
 -->
 
 # Ownership groups and grants — the build design

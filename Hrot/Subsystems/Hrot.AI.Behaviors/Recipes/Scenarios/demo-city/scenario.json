@@ -1,0 +1,90 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city"
+  },
+  "entities": {
+    "a9930000-0000-4000-8000-000000000001": {
+      "NetworkIdentity": {
+        "Value": 9301
+      },
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 200,
+        "Seed": 1,
+        "StepSeconds": 0.5
+      }
+    },
+    "a9930000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          386,
+          386,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9302
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "a9930000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          414,
+          414,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "NetworkIdentity": {
+        "Value": 9303
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

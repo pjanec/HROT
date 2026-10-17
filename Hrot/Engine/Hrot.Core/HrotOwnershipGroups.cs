@@ -122,6 +122,11 @@ public static class HrotOwnershipGroups
         perception.SetBit(GlobalComponentIds.SensorEvalState);
         perception.SetBit(Fdp.Toolkit.Perception.PerceptionApplicationComponentIds.SensorContactList);
 
+        // ── Traffic (AQ93 §12 S2, R-4056) — the scenario's traffic SETTINGS: the creating Brain stays the primary owner (lifetime, saving)
+        //   and grants this group to the least-loaded Traffic node, which SERVES them (runs SUMO) and applies an edit (dtTrafficDemand).
+        var traffic = default(BitMask512);
+        traffic.SetBit(GlobalComponentIds.TrafficDemand);
+
         // ── LOCAL (§1.4) — owned by nobody; only those that appear on a descriptor matter to the binding ──
         var local = default(BitMask512);
         local.SetBit(GlobalComponentIds.NetworkTransform);
@@ -137,6 +142,7 @@ public static class HrotOwnershipGroups
             // Map2D claims nothing (R-161).
             new OwnershipGroup(NodeRole.NavigationSolver, default,    _ => false),
             new OwnershipGroup(NodeRole.Map2D,            default,    _ => false),
+            new OwnershipGroup(NodeRole.Traffic,          traffic,    HasTrafficDemand),
         }, local);
     }
 
@@ -149,6 +155,9 @@ public static class HrotOwnershipGroups
     private static bool HasKinematics(TkbTemplate t)
         => t.GetDescriptor<VehicleParametersDto>() != null || t.GetDescriptor<FlightParamsDto>() != null
            || t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSystemDto>() != null;
+    // ⭐ AQ93 S2 — the scenario's traffic settings entity (TKB "Traffic") is served by a Traffic node.
+    private static bool HasTrafficDemand(TkbTemplate t) => t.GetDescriptor<Fdp.Toolkit.Traffic.TrafficDemandDto>() != null;
+
     // ⭐ CE-3036 — a unit with any SENSOR is perceived by the Perception group too (V3: its results publish from there).
     private static bool HasPerception(TkbTemplate t)
         => t.GetDescriptor<SensorCapabilitiesDto>() is { } s && (s.VisionRange > 0f || s.Sensors.Count > 0);

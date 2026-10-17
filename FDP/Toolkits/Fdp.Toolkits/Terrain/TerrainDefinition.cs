@@ -83,9 +83,23 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public TerrainGeoOrigin? Origin { get; init; }
 
+        /// <summary>
+        /// ⭐ AQ93 R-4021 — the terrain's SUMO road network (a <c>.net.xml</c> beside the definition), or <c>null</c> when it has
+        /// none. Kept OUT of <see cref="RoadNetworks"/> on purpose: those are our own CarKinem road graphs, and the SUMO net stays
+        /// separate and independent of them (R-4026). 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3.
+        /// </summary>
+        public TerrainSumoNet? SumoNet { get; init; }
+
         /// <summary>True when this definition declares nothing to load — legal, and not an error.</summary>
-        public bool IsEmpty => RoadNetworks.Count == 0 && string.IsNullOrEmpty(World);
+        public bool IsEmpty => RoadNetworks.Count == 0 && string.IsNullOrEmpty(World) && SumoNet == null;
     }
+
+    /// <summary>
+    /// ⭐ AQ93 R-4021 / E1b — a terrain's SUMO net: its file (relative to the definition's folder) and, for a net that is NOT
+    /// georeferenced (<c>projParameter="!"</c>), the ANCHOR — the net point that sits at the terrain's local (0, 0): terrain local
+    /// = net − anchor. A georeferenced net (E1) is placed through the terrain's geo origin instead and needs no anchor.
+    /// </summary>
+    public sealed record TerrainSumoNet(string File, double AnchorX, double AnchorY);
 
     /// <summary>
     /// A geodetic point — latitude and longitude in degrees, altitude in metres — as a terrain file declares its origin.

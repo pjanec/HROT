@@ -121,7 +121,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
             var query = view.Query()
                 .With<EcsNavigationIntent>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 

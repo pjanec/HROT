@@ -1,0 +1,1072 @@
+using Sim.Core;
+using Sim.Core.Bridge;
+using Sim.Core.Orca;
+using Sim.Pedestrians.Crossing;
+using Sim.Pedestrians.Lod;
+using Sim.Pedestrians.Navigation;
+
+namespace Sim.Pedestrians.Demand;
+
+// P2-3 (docs/PEDESTRIAN-TASKS.md; docs/PEDESTRIAN-DESIGN.md §4 "Navigation", §10 "Packaging";
+// docs/PEDESTRIAN-NAVMESH-CONTRACT.md): pedestrian origin->destination demand -- the piece that makes
+// a scenario populate ITSELF instead of a test hand-registering one ped at a time. PedDemand is a thin
+// layer ABOVE PedLodManager (it never touches OrcaCrowd/PedRouteController directly): each simulated
+// second it may (a) spawn new peds -- pick an O/D pair, call IPedNavigation.FindPath once, and
+// PedLodManager.AddPed them in as low-power (PathArc) by default, exactly as the design's "low-power
+// motion is the cheap default" calls for -- and (b) despawn peds that have reached their destination
+// via PedLodManager.RemovePed (the P2-3 addition), keeping the live population near a target cap by
+// spawning again whenever an arrival frees a slot.
+//
+// Determinism (CLAUDE.md "no System.Random"; docs/PEDESTRIAN-DESIGN.md §8): every random decision --
+// WHEN a ped spawns and WHICH O/D pair it draws -- comes from Sim.Core.VehicleRng (SplitMix64), seeded
+// per draw from (config.Seed, a stable integer key, a distinguishing salt), never a shared/global RNG
+// instance. Two runs built from the same PedDemandConfig and stepped with the same (now, dt) sequence
+// produce IDENTICAL spawn times, O/D choices, and (because PedLodManager/PathArcMotion/OrcaCrowd are
+// themselves deterministic) identical trajectories -- see PedDemandTests' determinism gate.
+public sealed class PedDemand
+{
+    // Distinct salts so the "when do we spawn" stream and the "which O/D pair" stream, though both
+    // derived from the same config.Seed, never alias each other (VehicleRng.SeedFor's own salted-
+    // overload convention, mirrored from Sim.Core's C7-i speedFactor-vs-dawdle independence).
+    private const ulong SpawnTimingSalt = 0x5044_5354_5054_4D01UL; // "PDSTPTM1" ascii-ish, arbitrary distinct constant
+    private const ulong OriginDestSalt = 0x5044_5354_4F44_3101UL;  // "PDSTOD1", ditto
+
+    // LIVE-PROD-1b (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §4; docs/PEDESTRIAN-TASKS.md): a THIRD,
+    // dedicated salt for every liveliness random decision (how many pauses, where along the route,
+    // how long each one lasts). Kept fully separate from SpawnTimingSalt/OriginDestSalt so flipping
+    // `PedDemandConfig.Liveliness` on/off can NEVER perturb the existing spawn-timing or O/D streams --
+    // enabling liveliness only ever adds NEW draws on this salt's own independent stream, it never
+    // consumes an extra draw from (or reorders) either of the other two.
+    private const ulong LivelinessSalt = 0x5044_5354_4C49_5601UL;  // "PDSTLIV1" ascii-ish, arbitrary distinct constant
+
+    // P8-3b (docs/PEDESTRIAN-P8-3-DEMAND-DESIGN.md §4): a FOURTH, dedicated salt for the weighted
+    // sub-area O/D draw. Kept separate from OriginDestSalt so the weighted path (WeightedEndpoints set)
+    // never aliases the uniform path's stream. This salt is only ever consumed when WeightedEndpoints is
+    // set -- the null (default) path constructs no stream on it, so it can never perturb existing goldens.
+    private const ulong SubareaODSalt = 0x5044_5354_5741_5701UL;   // "PDSTWAW1" ascii-ish, arbitrary distinct constant
+    private const ulong WeaveSalt = 0x5044_5354_5745_5601UL;       // "PDSTWEV1" -- the per-ped lateral-weave stream, independent of the others
+
+    // Bug #6 (crosswalk-wait kerb clustering): a FIFTH, dedicated salt for the per-ped lateral
+    // sidestep-along-the-kerb offset drawn while waiting at a signalized crossing. Independent of
+    // every other stream -- when `PedDemandConfig.CrosswalkWaitSpreadRadius` is 0 (the default) this
+    // salt's stream is never even constructed, let alone drawn from, so the off path stays
+    // byte-identical to pre-change PedDemand (the ITERON RULE).
+    private const ulong WaitJitterSalt = 0x5044_5354_5741_4A31UL; // "PDSTWAJ1" per-ped crosswalk-wait lateral spread, independent of every other stream
+
+    // Demo-only realism (per-ped walking speed variation): a SIXTH, dedicated salt for the per-ped
+    // desired-speed factor. Independent of every other stream -- when `PedDemandConfig.SpeedVariationFrac`
+    // is 0 (the default) this salt's stream is never even constructed, let alone drawn from, so the off
+    // path stays byte-identical to pre-change PedDemand (the ITERON RULE).
+    private const ulong SpeedSalt = 0x5044_5354_5350_4431UL; // "PDSTSPD1" per-ped desired-speed factor
+
+    // Phase 2b (docs/LIVE-CITY-CROSSWALK-SIGNAL-DESIGN.md): the anim tag a low-power ped plays while
+    // waiting at a signalized crossing's kerb on red. Anything other than ActivityTimeline.WalkAnimTag
+    // renders as a paused disc (SceneGen.BuildLivelyCrowd), so a waiting ped is visibly stopped at the kerb.
+    private const string CrosswalkWaitTag = "wait";
+
+    private readonly PedDemandConfig _config;
+    private readonly IPedNavigation _navigation;
+    private readonly PedLodManager _lodManager;
+
+    private readonly SortedSet<int> _liveIds = new();
+    private readonly Dictionary<int, Vec2> _destinationOf = new();
+    private readonly List<PedSpawnEvent> _spawnEvents = new();
+    private readonly List<PedArrivalEvent> _arrivalEvents = new();
+
+    // PERF (TASK 2, docs/LIVE-CITY-PERF-SESSION-LOG.md): DespawnArrivals below already queries every
+    // live ped's pose at `now` (== the caller's `now+dt`). LiveCitySim's low-power gather
+    // (LiveCitySim.cs, immediately after `_demand.Step(...)` returns) queries the SAME instant for a
+    // subset of the SAME ids, with NO pose-affecting mutation in between: DespawnArrivals only REMOVES
+    // arrived ids from `_liveIds` (which the gather then simply never visits) and never touches a
+    // SURVIVING ped's Path/Timeline. So DespawnArrivals caches (AnimTag, Pos) here, keyed on the exact
+    // `now` it was computed for, and `TryGetLastPose` below serves that one proven-safe consumer -- a
+    // reused buffer (Clear()ed, never reallocated) rather than a fresh Dictionary per step, and guarded
+    // by an exact `now` match so a mismatch can only ever fall back to a live recompute, never return a
+    // stale value for a different instant.
+    private readonly Dictionary<int, (string AnimTag, Vec2 Pos)> _lastPoseAtNow = new();
+    private double _lastPoseAtNowTime = double.NaN;
+
+    private VehicleRng _spawnTimingRng;
+    private double _nextSpawnAt;
+    private int _nextId = 1;
+
+    // docs/EXTERNAL-NET-VIEWER-DESIGN.md §3 (C3): the two density values the spawn loop reads EVERY
+    // step, promoted out of the `init`-only `PedDemandConfig` into mutable fields so a live UI dial can
+    // move them without rebuilding the sim. `PedDemandConfig` itself stays immutable -- it is the SEED
+    // configuration, and several tests depend on that -- these are seeded FROM it in the ctor and are
+    // the only two values that may subsequently diverge from it. Nothing else about spawning changes:
+    // the cap is still a loop guard and the rate is still the inverse-CDF divisor, so a run that never
+    // calls a setter draws exactly the stream it drew before this existed (the ITERON RULE).
+    private int _populationCap;
+    private double _spawnRatePerSecond;
+
+    // Set when `SetSpawnRatePerSecond` actually CHANGES the rate; consumed by the next `SpawnDue`,
+    // which redraws `_nextSpawnAt` from the current instant. Without it a rate change could not take
+    // effect until the already-drawn wait elapsed -- and in the rate==0 case never at all, because the
+    // pending wait is +Infinity, which `SpawnDue`'s "clamp a stale schedule forward to now" guard
+    // (`_nextSpawnAt < now`) cannot rescue. That would make parking the rate at 0 a ONE-WAY door,
+    // which is not acceptable for a knob a UI slider drives. Only ever set by an explicit setter call,
+    // so a run that never touches the knob is bit-identical.
+    private bool _spawnScheduleDirty;
+
+    public PedDemand(PedDemandConfig config, IPedNavigation navigation, PedLodManager lodManager, double startTime = 0.0)
+    {
+        // With WeightedEndpoints set, the endpoint set supplies O/D, so Origins/Destinations may be
+        // empty (the P8-3b relaxation); without it, the uniform path still requires both.
+        if (config.WeightedEndpoints is { } weighted)
+        {
+            if (weighted.Count == 0)
+            {
+                throw new ArgumentException("PedDemandConfig.WeightedEndpoints must have at least one endpoint.", nameof(config));
+            }
+        }
+        else
+        {
+            if (config.Origins.Count == 0)
+            {
+                throw new ArgumentException("PedDemandConfig.Origins must have at least one point.", nameof(config));
+            }
+
+            if (config.Destinations.Count == 0)
+            {
+                throw new ArgumentException("PedDemandConfig.Destinations must have at least one point.", nameof(config));
+            }
+        }
+
+        _config = config;
+        _navigation = navigation;
+        _lodManager = lodManager;
+
+        // Seed the live density fields BEFORE the first DrawInterArrivalInterval below -- it reads
+        // `_spawnRatePerSecond`, so an uninitialised 0 here would silently schedule "never spawn".
+        _populationCap = config.PopulationCap;
+        _spawnRatePerSecond = config.SpawnRatePerSecond;
+
+        _spawnTimingRng = VehicleRng.SeedFor(config.Seed, entityIndex: 0, salt: SpawnTimingSalt);
+        _nextSpawnAt = startTime + DrawInterArrivalInterval();
+    }
+
+    /// docs/EXTERNAL-NET-VIEWER-DESIGN.md §3: the LIVE target concurrent population -- seeded from
+    /// `PedDemandConfig.PopulationCap` and thereafter movable via `SetPopulationCap`.
+    public int PopulationCap => _populationCap;
+
+    /// The LIVE mean spawn rate in peds/sec -- seeded from `PedDemandConfig.SpawnRatePerSecond` and
+    /// thereafter movable via `SetSpawnRatePerSecond`. &lt;= 0 means "never spawn again" (reversibly).
+    public double SpawnRatePerSecond => _spawnRatePerSecond;
+
+    /// docs/EXTERNAL-NET-VIEWER-DESIGN.md §3: change the concurrent-population target live; takes
+    /// effect on the NEXT `Step`, with no rebuild.
+    ///
+    /// RAISING converges upward at the configured spawn rate. LOWERING stops new spawns but does NOT
+    /// despawn anybody -- live peds drain as they reach their destinations. That is deliberate and is
+    /// exactly how the car-side `CarTargetConcurrent` knob already behaves; deleting pedestrians
+    /// mid-stride to satisfy a slider would render as people vanishing into thin air.
+    ///
+    /// Negative values are clamped to 0 ("hold the current crowd, spawn nobody new").
+    public void SetPopulationCap(int populationCap)
+        => _populationCap = populationCap < 0 ? 0 : populationCap;
+
+    /// docs/EXTERNAL-NET-VIEWER-DESIGN.md §3: change the mean spawn rate (peds/sec) live; takes
+    /// effect on the next inter-arrival draw, with no rebuild. &lt;= 0 parks spawning indefinitely and
+    /// is fully reversible: raising the rate later resumes from `_nextSpawnAt`, which `SpawnDue`
+    /// clamps forward to `now`, so there is no burst of catch-up spawns for the quiet interval.
+    ///
+    /// Determinism is preserved for a fixed knob trajectory: same seed + same step sequence + same
+    /// sequence of setter calls => identical spawn/arrival events. A call that CHANGES the rate costs
+    /// one extra inter-arrival draw on the next step (the reschedule); a call that sets the rate to
+    /// the value it already had costs nothing and draws nothing.
+    public void SetSpawnRatePerSecond(double spawnRatePerSecond)
+    {
+        var rate = double.IsNaN(spawnRatePerSecond) ? 0.0 : spawnRatePerSecond;
+        if (rate == _spawnRatePerSecond)
+        {
+            return;
+        }
+
+        _spawnRatePerSecond = rate;
+        _spawnScheduleDirty = true;
+    }
+
+    /// Number of peds currently live (spawned, not yet arrived/despawned).
+    public int LiveCount => _liveIds.Count;
+
+    /// Total peds ever spawned (including any since arrived).
+    public int SpawnCount { get; private set; }
+
+    /// Total peds that have reached their destination and been despawned.
+    public int ArrivalCount { get; private set; }
+
+    /// FindPath(origin, destination) returned null (unreachable pair) -- the spawn attempt was
+    /// skipped rather than registering an un-routable ped. Not expected to fire for a well-formed
+    /// O/D configuration; exposed so a test/caller can assert it stays at 0 for its scenario.
+    public int UnreachableSkipCount { get; private set; }
+
+    /// Currently-live ped ids, ascending (SortedSet -- deterministic enumeration order).
+    public IReadOnlyCollection<int> LiveIds => _liveIds;
+
+    /// Every spawn, in spawn order -- for determinism/inspection (docs/PEDESTRIAN-NAVMESH-CONTRACT.md).
+    public IReadOnlyList<PedSpawnEvent> SpawnEvents => _spawnEvents;
+
+    /// Every arrival, in arrival order.
+    public IReadOnlyList<PedArrivalEvent> ArrivalEvents => _arrivalEvents;
+
+    // Perf diagnostics (docs/LIVE-CITY-PERF-SESSION-LOG.md B2): opt-in per-sub-phase wall-time
+    // accounting for Step(), same shape as PedLodManager.ProfilePhases (a bool gate, a name->ticks
+    // dictionary, PhaseStart/PhaseEnd via Stopwatch.GetTimestamp). OFF by default and then effectively
+    // free. Covers ONLY SpawnDue/DespawnArrivals -- the work in PedDemand.Step that happens OUTSIDE
+    // _lodManager.Step (that call's own sub-phases are read via `_lodManager.PhaseTicks` directly, not
+    // duplicated here). LiveCitySim merges both into one "ped."-prefixed breakdown of its
+    // "pedDemandStep" phase, so the two live on separate dictionaries but the same key namespace.
+    // Never read by any simulation algorithm -> zero behavioral effect, parity-inert.
+    public bool ProfilePhases;
+    private readonly Dictionary<string, long> _phaseTicks = new();
+    public IReadOnlyDictionary<string, long> PhaseTicks => _phaseTicks;
+
+    // B3 (docs/LIVE-CITY-PERF-SESSION-LOG.md): allocated-bytes counterpart to _phaseTicks. See
+    // Engine.PhaseBytes for the process-wide-vs-per-thread rationale.
+    private readonly Dictionary<string, long> _phaseBytes = new();
+    public IReadOnlyDictionary<string, long> PhaseBytes => _phaseBytes;
+
+    // netstandard2.1 (Unity/Godot) has no GC.GetTotalAllocatedBytes -- degrades to "always 0 bytes"
+    // there, same rationale as Engine.cs's TotalAllocatedBytes.
+#if NET8_0_OR_GREATER
+    private static long TotalAllocatedBytes() => GC.GetTotalAllocatedBytes(precise: false);
+#else
+    private static long TotalAllocatedBytes() => 0L;
+#endif
+
+    private readonly struct PhaseSample
+    {
+        public readonly long Ticks;
+        public readonly long Bytes;
+        public PhaseSample(long ticks, long bytes) { Ticks = ticks; Bytes = bytes; }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private PhaseSample PhaseStart() => ProfilePhases
+        ? new PhaseSample(System.Diagnostics.Stopwatch.GetTimestamp(), TotalAllocatedBytes())
+        : default;
+
+    private void PhaseEnd(string name, PhaseSample start)
+    {
+        if (!ProfilePhases)
+        {
+            return;
+        }
+
+        var elapsed = System.Diagnostics.Stopwatch.GetTimestamp() - start.Ticks;
+        _phaseTicks.TryGetValue(name, out var acc);
+        _phaseTicks[name] = acc + elapsed;
+
+        var elapsedBytes = TotalAllocatedBytes() - start.Bytes;
+        _phaseBytes.TryGetValue(name, out var accBytes);
+        _phaseBytes[name] = accBytes + elapsedBytes;
+    }
+
+    // Advances demand by one tick [now, now+dt): spawn any peds due (population permitting), let
+    // PedLodManager advance the whole population by dt exactly as a bare PedLodManager.Step call
+    // would (PedDemand does not re-implement or shadow LOD/promotion physics), then despawn arrivals.
+    // `field`/`externalEntities` are passed straight through to PedLodManager.Step -- PedDemand is
+    // agnostic to interest sources; a caller wanting promotion/demotion alongside OD demand just
+    // supplies the same InterestField it would to a bare PedLodManager.
+    public void Step(double now, double dt, InterestField field, IReadOnlyList<WorldDisc> externalEntities)
+    {
+        var tSpawnDue = PhaseStart();
+        SpawnDue(now, dt);
+        PhaseEnd("spawnDue", tSpawnDue);
+
+        _lodManager.Step(now, dt, field, externalEntities);
+
+        var tDespawn = PhaseStart();
+        DespawnArrivals(now + dt);
+        PhaseEnd("despawnArrivals", tDespawn);
+    }
+
+    // Spawns every ped whose drawn spawn time falls in [now, now+dt), as long as doing so keeps the
+    // live population at or under the cap. If the cap was reached earlier and time has since passed
+    // with no free slot, the schedule is clamped to `now` rather than left to accumulate a backlog --
+    // freeing a slot resumes ONE fresh exponential draw from the current instant, not a burst of
+    // catch-up spawns for every interval that elapsed while capped. This is a pure function of `now`
+    // (itself advanced deterministically by the caller's own dt loop), so it does not affect
+    // reproducibility.
+    private void SpawnDue(double now, double dt)
+    {
+        // docs/EXTERNAL-NET-VIEWER-DESIGN.md §3: a live rate change redraws the pending wait from the
+        // current instant, so the new rate is felt immediately instead of after the old rate's already-
+        // drawn interval (see `_spawnScheduleDirty`). Never true unless a setter was called.
+        if (_spawnScheduleDirty)
+        {
+            _spawnScheduleDirty = false;
+            _nextSpawnAt = now + DrawInterArrivalInterval();
+        }
+
+        if (_nextSpawnAt < now)
+        {
+            _nextSpawnAt = now;
+        }
+
+        var horizon = now + dt;
+        while (_liveIds.Count < _populationCap && _nextSpawnAt < horizon)
+        {
+            TrySpawnOne(_nextSpawnAt);
+            _nextSpawnAt += DrawInterArrivalInterval();
+        }
+    }
+
+    private double DrawInterArrivalInterval()
+    {
+        if (_spawnRatePerSecond <= 0.0)
+        {
+            return double.PositiveInfinity; // a demand with no spawn rate never spawns again
+        }
+
+        // Standard inverse-CDF draw for a Poisson process's exponential inter-arrival time.
+        // NextDouble() is [0,1); (1 - u) keeps the log's argument in (0,1], never exactly 0.
+        var u = _spawnTimingRng.NextDouble();
+        return -Math.Log(1.0 - u) / _spawnRatePerSecond;
+    }
+
+    private void TrySpawnOne(double now)
+    {
+        var id = _nextId++;
+
+        // Demo-only realism (per-ped walking speed variation): OFF (SpeedVariationFrac<=0) keeps
+        // `pedSpeed` exactly `_config.MaxSpeed` -- byte-identical, and the speed salt's stream is never
+        // even constructed (the ITERON RULE). ON: each ped draws its own desired speed in
+        // MaxSpeed*(1 +/- SpeedVariationFrac), seeded per-ped, so a group that started together spreads
+        // longitudinally as it walks and staggers its kerb arrivals.
+        var pedSpeed = _config.MaxSpeed;
+        if (_config.SpeedVariationFrac > 0.0)
+        {
+            var speedRng = VehicleRng.SeedFor(_config.Seed, id, SpeedSalt);
+            pedSpeed = _config.MaxSpeed * (1.0 + (((speedRng.NextDouble() * 2.0) - 1.0) * _config.SpeedVariationFrac));
+        }
+
+        Vec2 origin;
+        Vec2 destination;
+        if (_config.WeightedEndpoints is { } weighted)
+        {
+            // P8-3b (docs/PEDESTRIAN-P8-3-DEMAND-DESIGN.md §4): weighted sub-area O/D. ONE per-ped stream
+            // on the dedicated SubareaODSalt (never aliases the uniform OriginDestSalt path), two weighted
+            // draws -> origin then destination. Every endpoint is a fringe or POI edge, so both ends are
+            // appearance-legitimate by construction (the P8-3 x P8-2 synergy).
+            var rng = VehicleRng.SeedFor(_config.Seed, id, SubareaODSalt);
+            var originIdx = weighted.DrawWeightedIndex(ref rng);
+            var destIdx = weighted.DrawWeightedIndex(ref rng);
+            origin = weighted[originIdx].Pos;
+            destination = weighted[destIdx].Pos;
+
+            // Same zero-length guard as the uniform path -- deterministic, no extra draw: walk to the
+            // next endpoint when origin/destination coincide.
+            var guard = 0;
+            while (PointsCoincide(origin, destination) && guard < weighted.Count)
+            {
+                destIdx = (destIdx + 1) % weighted.Count;
+                destination = weighted[destIdx].Pos;
+                guard++;
+            }
+        }
+        else
+        {
+            // ONE per-ped stream, seeded from (config.Seed, id, OriginDestSalt) -- independent of every
+            // other ped's stream and of the spawn-timing stream above (VehicleRng.SeedFor's salted
+            // overload), so which O/D pair a ped draws never depends on how many peds spawned before it
+            // beyond its own id, nor on thread/evaluation order (this class is single-threaded anyway).
+            var rng = VehicleRng.SeedFor(_config.Seed, id, OriginDestSalt);
+            var originIndex = PickIndex(ref rng, _config.Origins.Count);
+            var destIndex = PickIndex(ref rng, _config.Destinations.Count);
+
+            origin = _config.Origins[originIndex];
+            destination = _config.Destinations[destIndex];
+
+            // Avoid a trivial zero-length trip when an alternative destination exists -- deterministic
+            // (no extra random draw): just walk to the next candidate destination.
+            var guard = 0;
+            while (PointsCoincide(origin, destination) && guard < _config.Destinations.Count)
+            {
+                destIndex = (destIndex + 1) % _config.Destinations.Count;
+                destination = _config.Destinations[destIndex];
+                guard++;
+            }
+        }
+
+        // Provenance-carrying routing: the surface behind each vertex, so elevation is read off the
+        // lane the ped is actually on rather than whichever is nearest in plan view (which is a coin
+        // toss wherever surfaces stack -- a footbridge over the path beneath it).
+        var path = _navigation.FindPath(origin, destination, out var pathSurfaces);
+        if (path is null)
+        {
+            UnreachableSkipCount++;
+            return; // id is simply skipped (a sparse id space is harmless) -- no retry, no extra draw
+        }
+
+        // ITERON RULE (CLAUDE.md; docs/PEDESTRIAN-TASKS.md LIVE-PROD-1b): with Liveliness omitted
+        // (null, the default), this is the EXACT call the pre-liveliness code made -- no new RNG
+        // stream is even constructed -- so a plain PedDemandConfig stays bit-identical to today's
+        // behaviour. Only when Liveliness is set do we spend a (fresh-salted) draw building a timeline
+        // and call AddPedLively instead of AddPed.
+        if (_config.Liveliness is { } liveliness)
+        {
+            var livelinessRng = VehicleRng.SeedFor(_config.Seed, id, LivelinessSalt);
+
+            // W2 (docs/PEDESTRIAN-WEAVE-PRODUCTION-DESIGN.md): when the weave is enabled, this ped gets a
+            // per-ped weave seed off the SHARED scenario root (same discipline as the liveliness stream) and
+            // GlobalSeed = the scenario seed for the counterflow interface. Off => 0/0 => weave inactive =>
+            // timelines are built exactly as before (byte-identical poses; the ITERON RULE holds).
+            var weaveSeed = _config.EnableWeave ? VehicleRng.SeedFor(_config.Seed, id, WeaveSalt).RawState : 0UL;
+            var globalSeed = _config.EnableWeave ? _config.Seed : 0UL;
+
+            // Bug #6: a dedicated per-ped rng for the crosswalk-wait lateral spread, fully independent
+            // of every other stream (own salt). Constructed unconditionally (cheap -- just a SplitMix64
+            // seed mix), but only ever DRAWN FROM inside SplitWalkAtCrossings when
+            // CrosswalkWaitSpreadRadius > 0, so its mere existence never perturbs anything.
+            var waitJitterRng = VehicleRng.SeedFor(_config.Seed, id, WaitJitterSalt);
+
+            var timeline = BuildLivelyTimeline(
+                path, now, liveliness, pedSpeed, ref livelinessRng,
+                _config.EnableWeave, weaveSeed, globalSeed, _navigation.HalfWidthsAlong,
+                _config.CrosswalkSignals, _config.CrosswalkWaitSpreadRadius, ref waitJitterRng,
+                pts => ElevationsOrNull(pts, path, pathSurfaces));
+            _lodManager.AddPedLively(id, timeline, pedSpeed, _config.Radius, now);
+        }
+        else
+        {
+            _lodManager.AddPed(id, path, pedSpeed, _config.Radius, now, pathSurfaces);
+        }
+
+        _destinationOf[id] = destination;
+        _liveIds.Add(id);
+        SpawnCount++;
+        _spawnEvents.Add(new PedSpawnEvent(id, now, origin, destination));
+    }
+
+    // LIVE-PROD-1b (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §4): builds the ActivityTimeline for a lively
+    // spawn -- the routed `path` as Walk leg(s) with 0..MaxPausesPerTrip seeded Pause beats spliced in
+    // at seeded along-route fractions. A Pause holds the ped wherever the preceding Walk left it (no
+    // route change -- ActivityTimeline's own anchor-inheritance, see PauseSegment's remarks), so the
+    // LAST segment is always a Walk ending at `path[^1]` (the ped's real, unmodified destination):
+    // DespawnArrivals compares PositionOf/PoseAt against that same point, so a lively ped still
+    // arrives and despawns normally -- a mid-route Pause delays arrival, it never prevents or advances
+    // it.
+    //
+    // Every draw here comes from `rng` (caller-seeded off LivelinessSalt), so the sequence is: for
+    // each of the MaxPausesPerTrip candidate pause slots, ONE acceptance draw, and -- only if accepted
+    // -- ONE fraction draw immediately followed by ONE duration draw (so a single candidate's three
+    // values are always adjacent in the stream regardless of how many other candidates land). Accepted
+    // candidates are then sorted by fraction so they always splice into the route in along-route
+    // order, independent of draw order.
+    // The elevation sampler handed to BuildLivelyTimeline: the nav's channel, or NULL when it is flat.
+    // Collapsing all-zeros to null is what keeps a 2-D net's WalkSegments (and therefore its timeline
+    // wire bytes, beyond the single flag byte) identical to before elevation existed.
+    //
+    // `fullPath`/`fullSurfaces` are the ped's whole routed path and its provenance. A timeline's Walk
+    // legs are SUB-PATHS of it -- split at kerb pauses, with interpolated split points that appear in
+    // no original vertex -- so each sub-point is mapped back onto the full path to recover the surface
+    // it belongs to. That is a projection onto the ped's OWN route, not a search of the network, and it
+    // is what keeps a leg under a footbridge attributed to the ground rather than the bridge.
+    private IReadOnlyList<double>? ElevationsOrNull(
+        IReadOnlyList<Vec2> pts, IReadOnlyList<Vec2> fullPath, IReadOnlyList<int>? fullSurfaces)
+    {
+        if (pts.Count == 0)
+        {
+            return null;
+        }
+
+        var zs = _navigation.ElevationsAlong(pts, MapSurfaces(pts, fullPath, fullSurfaces));
+        for (var i = 0; i < zs.Count; i++)
+        {
+            if (zs[i] != 0.0)
+            {
+                return zs;
+            }
+        }
+
+        return null;
+    }
+
+    // Each sub-path point takes the surface of the nearest vertex of the full routed path. Nearest
+    // VERTEX rather than nearest segment because provenance is per-vertex; on a split point sitting
+    // between two vertices of the same surface either choice agrees, and at a surface boundary the
+    // nearer vertex is the right side of it. Null in, null out.
+    private static IReadOnlyList<int>? MapSurfaces(
+        IReadOnlyList<Vec2> pts, IReadOnlyList<Vec2> fullPath, IReadOnlyList<int>? fullSurfaces)
+    {
+        if (fullSurfaces is null || fullSurfaces.Count != fullPath.Count || fullPath.Count == 0)
+        {
+            return null;
+        }
+
+        var mapped = new int[pts.Count];
+        for (var i = 0; i < pts.Count; i++)
+        {
+            var best = 0;
+            var bestD2 = double.PositiveInfinity;
+            for (var k = 0; k < fullPath.Count; k++)
+            {
+                var d = pts[i] - fullPath[k];
+                var d2 = (d.X * d.X) + (d.Y * d.Y);
+                if (d2 < bestD2)
+                {
+                    bestD2 = d2;
+                    best = k;
+                }
+            }
+
+            mapped[i] = fullSurfaces[best];
+        }
+
+        return mapped;
+    }
+
+    private static ActivityTimeline BuildLivelyTimeline(
+        IReadOnlyList<Vec2> path, double now, PedLivelinessConfig liveliness, double maxSpeed, ref VehicleRng rng,
+        bool weave, ulong seed, ulong globalSeed, Func<IReadOnlyList<Vec2>, IReadOnlyList<double>> halfWidthsAlong,
+        CrosswalkSignals? crosswalkSignals, double waitSpreadRadius, ref VehicleRng waitRng,
+        Func<IReadOnlyList<Vec2>, IReadOnlyList<double>?>? elevationsAlong = null)
+    {
+        // W2: each Walk leg's per-vertex half-width, sampled from the navmesh for that exact (possibly
+        // pause-split) sub-path -- so an interpolated split point gets the width of the polygon it lands in.
+        // Weave off => null widths => the WalkSegment weave is inactive (pose stays on the centreline).
+        // Elevation rides every Walk leg regardless of the weave flag -- it is a render channel, not a
+        // weave input -- and is sampled for that exact (possibly pause-split) sub-path, so an
+        // interpolated split point gets the height of the surface it actually lands on.
+        WalkSegment MakeWalk(IReadOnlyList<Vec2> pts) =>
+            new(pts, maxSpeed, weave ? halfWidthsAlong(pts) : null, elevationsAlong?.Invoke(pts));
+
+        var pauses = new List<(double Fraction, double Duration)>();
+        for (var i = 0; i < liveliness.MaxPausesPerTrip; i++)
+        {
+            if (rng.NextDouble() < liveliness.PauseProbability)
+            {
+                var fraction = rng.NextDouble();
+                var duration = liveliness.MinPauseSeconds
+                    + rng.NextDouble() * (liveliness.MaxPauseSeconds - liveliness.MinPauseSeconds);
+                pauses.Add((fraction, duration));
+            }
+        }
+
+        pauses.Sort((a, b) => a.Fraction.CompareTo(b.Fraction));
+
+        var segments = new List<ActivitySegment>();
+        var remainingPath = path;
+        var consumedFraction = 0.0;
+
+        foreach (var (fraction, duration) in pauses)
+        {
+            if (remainingPath.Count < 2)
+            {
+                break; // route already fully consumed by an earlier pause -- drop any further pause
+            }
+
+            // `fraction` is drawn along the ORIGINAL route; re-express it relative to what's LEFT of
+            // the route after any earlier (smaller-fraction) pause already sliced off a prefix.
+            var denom = 1.0 - consumedFraction;
+            var relFraction = denom > 1e-9 ? Math.Clamp((fraction - consumedFraction) / denom, 0.0, 1.0) : 1.0;
+
+            var (splitPoint, segIndex) = PointAtFraction(remainingPath, relFraction);
+
+            var prefix = new List<Vec2>(segIndex + 2);
+            for (var k = 0; k <= segIndex; k++)
+            {
+                prefix.Add(remainingPath[k]);
+            }
+
+            if (prefix.Count == 0 || (prefix[^1] - splitPoint).Abs > 1e-9)
+            {
+                prefix.Add(splitPoint);
+            }
+
+            if (prefix.Count >= 2)
+            {
+                segments.Add(MakeWalk(prefix));
+            }
+
+            segments.Add(new PauseSegment(duration, liveliness.PauseAnimTag));
+
+            var suffix = new List<Vec2>(remainingPath.Count - segIndex) { splitPoint };
+            for (var k = segIndex + 1; k < remainingPath.Count; k++)
+            {
+                suffix.Add(remainingPath[k]);
+            }
+
+            remainingPath = suffix;
+            consumedFraction = fraction;
+        }
+
+        if (remainingPath.Count >= 2)
+        {
+            segments.Add(MakeWalk(remainingPath));
+        }
+        else if (segments.Count == 0)
+        {
+            // No pause ever got far enough to consume anything (e.g. zero accepted draws, or a
+            // degenerate 0/1-point path) -- fall back to walking the untouched original path so the
+            // timeline is never empty (ActivityTimeline requires >= 1 segment).
+            segments.Add(MakeWalk(path));
+        }
+
+        // Phase 2b: splice a kerb wait before any signalized crossing this route steps onto (opt-in via
+        // PedDemandConfig.CrosswalkSignals; null -> this is skipped entirely -> byte-identical to pre-2b).
+        // The insertion draws NO rng and is a pure function of the (already deterministic) segment
+        // durations, so the ped stays a pure ActivityTimeline (server==IG holds -- W1/W3).
+        if (crosswalkSignals is { } signals)
+        {
+            segments = InsertCrosswalkWaits(segments, now, maxSpeed, signals, waitSpreadRadius, ref waitRng, halfWidthsAlong, elevationsAlong);
+        }
+
+        return new ActivityTimeline(now, segments, seed, globalSeed);
+    }
+
+    // Phase 2b (docs/LIVE-CITY-CROSSWALK-SIGNAL-DESIGN.md §2b): walk the built segments keeping a running
+    // clock `t` (= absolute time the ped reaches the START of the current segment; every ActivitySegment's
+    // Duration is exact, so this matches ActivityTimeline's own timing). For each WalkSegment, detect where
+    // the route ENTERS a signalized crossing and, if the ped would arrive on red (or without room to
+    // clear), split the walk at the kerb and insert a Pause until NextWalkStart. No rng, no promotion.
+    private static List<ActivitySegment> InsertCrosswalkWaits(
+        List<ActivitySegment> segments, double now, double speed, CrosswalkSignals signals,
+        double waitSpreadRadius, ref VehicleRng waitRng,
+        Func<IReadOnlyList<Vec2>, IReadOnlyList<double>> halfWidthsAlong,
+        Func<IReadOnlyList<Vec2>, IReadOnlyList<double>?>? elevationsAlong = null)
+    {
+        if (signals.SignalizedCount == 0 || speed <= 0.0)
+        {
+            return segments; // nothing signalized in range -> untouched
+        }
+
+        var result = new List<ActivitySegment>(segments.Count);
+        var t = now;
+        foreach (var seg in segments)
+        {
+            if (seg is WalkSegment w && w.Path.Count >= 2)
+            {
+                SplitWalkAtCrossings(w, ref t, speed, signals, result, waitSpreadRadius, ref waitRng, halfWidthsAlong, elevationsAlong);
+            }
+            else
+            {
+                result.Add(seg);
+                t += seg.Duration;
+            }
+        }
+
+        return result;
+    }
+
+    // Split one WalkSegment at each signalized-crossing entry, inserting a kerb Pause when the ped would
+    // arrive on red. A sub-segment [path[i], path[i+1]] is "on" a crossing iff its MIDPOINT is inside that
+    // crossing's polygon (midpoints are unambiguously inside one polygon, unlike portal vertices which sit
+    // on a shared boundary edge). ENTRY = a sub-segment on crossing X whose predecessor was not on X; the
+    // kerb is path[i] (the entry vertex). Advances `t` by every emitted sub-walk/pause so downstream
+    // segments keep correct absolute timing.
+    private static void SplitWalkAtCrossings(
+        WalkSegment w, ref double t, double speed, CrosswalkSignals signals, List<ActivitySegment> result,
+        double waitSpreadRadius, ref VehicleRng waitRng,
+        Func<IReadOnlyList<Vec2>, IReadOnlyList<double>> halfWidthsAlong,
+        Func<IReadOnlyList<Vec2>, IReadOnlyList<double>?>? elevationsAlong = null)
+    {
+        var path = w.Path;
+        var n = path.Count;
+
+        // Classify each sub-segment by the signalized crossing (if any) its midpoint lies on.
+        var segCross = new string?[n - 1];
+        var anyOnCrossing = false;
+        for (var i = 0; i + 1 < n; i++)
+        {
+            var mid = (path[i] + path[i + 1]) * 0.5;
+            segCross[i] = signals.TryLocate(mid, out var id) ? id : null;
+            anyOnCrossing |= segCross[i] != null;
+        }
+
+        if (!anyOnCrossing)
+        {
+            result.Add(w); // this walk never touches a signalized crossing -> pass through untouched
+            t += w.Duration;
+            return;
+        }
+
+        var segStart = 0;
+        for (var i = 0; i + 1 < n; i++)
+        {
+            var here = segCross[i];
+            var prev = i == 0 ? null : segCross[i - 1];
+            var isEntry = here != null && !string.Equals(here, prev, StringComparison.Ordinal);
+            if (!isEntry)
+            {
+                continue;
+            }
+
+            // Absolute time the ped reaches the kerb (path[i]) if it walks segStart..i at `speed`.
+            var kerbTime = t + (SubPathLength(path, segStart, i) / speed);
+            var stepOn = signals.NextWalkStart(here!, kerbTime, speed);
+            var wait = stepOn - kerbTime;
+            if (wait <= 1e-6)
+            {
+                continue; // arrives on green with room -> cross continuously, no split
+            }
+
+            if (i > segStart)
+            {
+                var pre = SubWalk(w, segStart, i);
+                result.Add(pre);
+                t += pre.Duration;
+            }
+
+            // Bug #6 (crosswalk-wait kerb clustering): OFF (waitSpreadRadius<=0) keeps exactly the
+            // original single-pause path -- byte-identical, and `waitRng` is never touched (the ITERON
+            // RULE). ON: the ped steps into a per-ped seeded 2-D spot in the waiting BLOB at the kerb --
+            // spread laterally along the kerb AND back into the sidewalk (a dense cluster at the crossing
+            // mouth, "a circle at the end of the rod", not a single line along the road) -- waits there,
+            // then crosses DIAGONALLY straight from its spot to the crossing exit path[i+1]. No step-back:
+            // the diagonal consumes the crossing sub-segment path[i]->path[i+1], so segStart advances to
+            // i+1. The far side needs no spread -- nobody waits there; peds disperse via their onward
+            // routes (and cross while MOVING, so the exit vertex forms no stationary cluster).
+            var kerbDir = path[i + 1] - path[i];
+            var blobPoint = Vec2.Zero;
+            var useBlob = false;
+            if (waitSpreadRadius > 0.0 && kerbDir.Abs >= 1e-9)
+            {
+                var d = kerbDir / kerbDir.Abs;                  // crossing direction (rod axis), unit
+                var perp = new Vec2(-d.Y, d.X);                 // along the near kerb, unit
+
+                // Bug #6 follow-up (looser waiting blob): place the ped by a golden-angle slot with radius
+                // r = s0*sqrt(slot). Since `slot` is a per-ped RANDOM draw (not a sequential arrival rank --
+                // low-power peds don't know how many others are waiting), r^2 is uniform, i.e. this fills a
+                // disc of radius s0*sqrt(SlotCount) with roughly UNIFORM area density: a bigger, lower-density
+                // cluster than the old tight disc, all on the sidewalk side. It does NOT truly bound
+                // personal space or grow with the crowd (that needs neighbour/rank awareness the low-power
+                // model omits); the per-ped SPEED variation is what actually thins a moving group. Scale
+                // chosen so the disc radius is ~2x `waitSpreadRadius` (~4 m at R=2) -- loose but still a
+                // crossing-mouth cluster, not peds stranded mid-sidewalk.
+                const int SlotCount = 64;
+                const double GoldenAngle = 2.399963229728653; // pi*(3 - sqrt 5)
+                var s0 = 0.25 * waitSpreadRadius;                      // -> max disc radius s0*sqrt(64) = 2x R
+                var slot = (int)(waitRng.NextDouble() * SlotCount);    // per-ped RANDOM slot (uniform-area fill)
+                var rr = s0 * Math.Sqrt(slot + 0.5);
+                var ang = slot * GoldenAngle;
+                var jx = ((waitRng.NextDouble() * 2.0) - 1.0) * 0.15;  // small jitter so it's not a rigid pattern
+                var jy = ((waitRng.NextDouble() * 2.0) - 1.0) * 0.15;
+                var lateral = (rr * Math.Cos(ang)) + jx;               // along the kerb, both sides
+                var back = Math.Abs(rr * Math.Sin(ang)) + 0.3 + Math.Abs(jy); // into the sidewalk, always >= 0 (never onto the road)
+                var candidate = path[i] + (perp * lateral) - (d * back);
+                if ((candidate - path[i]).Abs >= 1e-6)
+                {
+                    blobPoint = candidate;
+                    useBlob = true;
+                }
+            }
+
+            if (!useBlob)
+            {
+                result.Add(new PauseSegment(wait, CrosswalkWaitTag));
+                t += wait;
+                segStart = i; // crossing sub-segment still lives in the tail / next pre-walk
+            }
+            else
+            {
+                var enterDur = (blobPoint - path[i]).Abs / speed;
+                // PEDZ fix: the blob step is an INTERPOLATED leg (blobPoint appears in no original
+                // vertex), so its z channel is re-sampled -- same pattern as halfWidthsAlong below.
+                var blobPts = new List<Vec2> { path[i], blobPoint };
+                result.Add(new WalkSegment(blobPts, speed, null, elevationsAlong?.Invoke(blobPts)));
+                t += enterDur;
+
+                var blobWait = Math.Max(0.0, wait - enterDur); // leave the blob at ~the same green instant
+                result.Add(new PauseSegment(blobWait, CrosswalkWaitTag));
+                t += blobWait;
+
+                // Weave the diagonal cross like a sidewalk leg -- ONLY when this ped is weaving (the split
+                // walk carried per-vertex widths). Sampling the crosswalk half-widths lets LateralWeave put
+                // each crosser on its own travel-direction RIGHT side, so the two opposing streams keep to
+                // opposite halves of the crossing (no head-on centreline pass-through) and wave-shape within
+                // their side -- the sidewalk behaviour extended onto the crossing (docs/Lod/LateralWeave.cs).
+                // Weave off (HalfWidths null) => plain straight cross, byte-identical to before.
+                var crossPts = new List<Vec2> { blobPoint, path[i + 1] };
+                result.Add(new WalkSegment(
+                    crossPts, speed,
+                    w.HalfWidths != null ? halfWidthsAlong(crossPts) : null,
+                    elevationsAlong?.Invoke(crossPts))); // diagonal cross; z re-sampled (PEDZ fix)
+                t += (path[i + 1] - blobPoint).Abs / speed;
+
+                segStart = i + 1; // the diagonal consumed path[i]->path[i+1]; continue from the exit vertex
+            }
+        }
+
+        if (segStart == 0)
+        {
+            result.Add(w); // an entry was found but every arrival was already on green -> untouched
+            t += w.Duration;
+        }
+        else if (segStart < n - 1)
+        {
+            var tail = SubWalk(w, segStart, n - 1);
+            result.Add(tail);
+            t += tail.Duration;
+        }
+        // else segStart == n-1: a #6 diagonal crossing already ended at the walk's final vertex, so the
+        // route is fully covered -- adding SubWalk(w, n-1, n-1) would be a degenerate 1-point leg.
+    }
+
+    // Arc length of path[from..to] (inclusive vertices), i.e. the walk distance from vertex `from` to `to`.
+    private static double SubPathLength(IReadOnlyList<Vec2> path, int from, int to)
+    {
+        var len = 0.0;
+        for (var k = from; k < to; k++)
+        {
+            len += (path[k + 1] - path[k]).Abs;
+        }
+
+        return len;
+    }
+
+    // A WalkSegment over path[from..to] (inclusive), slicing the parallel per-vertex half-widths so the
+    // weave (if any) uses the same widths this sub-path had in the original segment.
+    //
+    // PEDZ fix (the measured 89%-nullZ wire drop -- docs/TASKS-TODO.md ped z=0): the per-vertex
+    // Elevations channel is sliced EXACTLY like HalfWidths. Every vertex of a sub-walk is an original
+    // vertex of `w` (the kerb split lands ON path[i], never between vertices), so an index slice is
+    // exact -- no re-sampling. Before this, SubWalk silently DROPPED the channel, so every
+    // crossing-split walk (most of an urban net's arterial walks) went out on the wire flat and the
+    // 3-D viewer reconstructed the whole lively population at z=0. Elevations == null (2-D net)
+    // slices to null -> byte-identical encoding.
+    private static WalkSegment SubWalk(WalkSegment w, int from, int to)
+    {
+        var pts = new List<Vec2>(to - from + 1);
+        List<double>? widths = w.HalfWidths != null ? new List<double>(to - from + 1) : null;
+        List<double>? zs = w.Elevations is { } el && el.Count == w.Path.Count ? new List<double>(to - from + 1) : null;
+        for (var k = from; k <= to; k++)
+        {
+            pts.Add(w.Path[k]);
+            widths?.Add(w.HalfWidths![k]);
+            zs?.Add(w.Elevations![k]);
+        }
+
+        return new WalkSegment(pts, w.Speed, widths, zs);
+    }
+
+    // Interpolated point at `fraction` (0..1) of `path`'s own arc length, plus the index `i` such that
+    // the point lies on segment [path[i], path[i+1]]. Mirrors PathArcMotion's own degenerate
+    // (duplicate-point) segment skipping so a split point lands exactly where PathArcMotion's own arc
+    // walk would land at the same arc-length.
+    private static (Vec2 Point, int SegmentIndex) PointAtFraction(IReadOnlyList<Vec2> path, double fraction)
+    {
+        if (path.Count < 2)
+        {
+            return (path[^1], 0);
+        }
+
+        var total = PathArcMotion.PathLength(path);
+        if (total <= 1e-12)
+        {
+            return (path[^1], path.Count - 2);
+        }
+
+        var target = Math.Clamp(fraction, 0.0, 1.0) * total;
+        var acc = 0.0;
+        for (var i = 0; i + 1 < path.Count; i++)
+        {
+            var segLen = (path[i + 1] - path[i]).Abs;
+            if (segLen <= 1e-12)
+            {
+                continue; // degenerate (duplicate-point) segment -- no arc-length, skip it
+            }
+
+            if (acc + segLen >= target)
+            {
+                var t = (target - acc) / segLen;
+                return (path[i] + (path[i + 1] - path[i]) * t, i);
+            }
+
+            acc += segLen;
+        }
+
+        return (path[^1], path.Count - 2);
+    }
+
+    // Uniform index in [0, count) from one NextDouble() draw; count<=1 short-circuits without
+    // consuming a draw so a single-point origin/destination set never perturbs the other stream.
+    private static int PickIndex(ref VehicleRng rng, int count)
+    {
+        if (count <= 1)
+        {
+            return 0;
+        }
+
+        var raw = (int)(rng.NextDouble() * count);
+        return raw >= count ? count - 1 : raw; // guard the (rare) u -> 1.0 rounding edge
+    }
+
+    private static bool PointsCoincide(Vec2 a, Vec2 b) => (a - b).Abs < 1e-9;
+
+    // Despawns every live ped within ArrivalRadius of ITS OWN destination at `now`. Collects the
+    // arrived set first, then removes in ascending-id order -- deterministic regardless of the
+    // SortedSet's own enumeration order (already ascending, but sorting is explicit and cheap
+    // insurance rather than relying on that detail).
+    private void DespawnArrivals(double now)
+    {
+        if (_liveIds.Count == 0)
+        {
+            return;
+        }
+
+        // See _lastPoseAtNow's remarks: reused (not reallocated) every call, so this stays bounded by
+        // the CURRENT live population rather than growing with every ped that has ever lived.
+        _lastPoseAtNow.Clear();
+        _lastPoseAtNowTime = now;
+
+        List<int>? arrived = null;
+        foreach (var id in _liveIds)
+        {
+            var (animTag, pos) = _lodManager.PoseInfoOf(id, now);
+            _lastPoseAtNow[id] = (animTag, pos);
+            var dest = _destinationOf[id];
+            if ((pos - dest).Abs <= _config.ArrivalRadius)
+            {
+                (arrived ??= new List<int>()).Add(id);
+            }
+        }
+
+        if (arrived is null)
+        {
+            return;
+        }
+
+        arrived.Sort();
+        foreach (var id in arrived)
+        {
+            _lodManager.RemovePed(id);
+            _liveIds.Remove(id);
+            _destinationOf.Remove(id);
+            ArrivalCount++;
+            _arrivalEvents.Add(new PedArrivalEvent(id, now));
+        }
+    }
+
+    // PERF (TASK 2): explicit same-instant cache lookup for the ONE proven-safe consumer (LiveCitySim's
+    // low-power gather). Returns false -- never a stale hit -- unless `now` is bit-identical to the
+    // `now` DespawnArrivals was just called with AND `id` was live at that moment; any mismatch (a
+    // different instant, or an id DespawnArrivals never saw) falls back to a direct
+    // PositionOf/AnimTagOf/PoseInfoOf recompute at the call site, so this can only ever be a fast path,
+    // never a source of wrong data.
+    public bool TryGetLastPose(int id, double now, out string animTag, out Vec2 pos)
+    {
+        if (now == _lastPoseAtNowTime && _lastPoseAtNow.TryGetValue(id, out var cached))
+        {
+            animTag = cached.AnimTag;
+            pos = cached.Pos;
+            return true;
+        }
+
+        animTag = ActivityTimeline.WalkAnimTag;
+        pos = default;
+        return false;
+    }
+}
+
+// Immutable configuration for a PedDemand instance (docs/PEDESTRIAN-NAVMESH-CONTRACT.md "OD demand").
+// Origins/Destinations are flat point sets rather than a full O->D matrix: a scenario that needs
+// per-pair weighting can express it by repeating points (a point listed twice is twice as likely to
+// be drawn) -- kept deliberately simple, matching the task's "a set of origin points/regions +
+// destination points/regions (or an O->D matrix)" as the minimal member of that family.
+public sealed class PedDemandConfig
+{
+    public required IReadOnlyList<Vec2> Origins { get; init; }
+    public required IReadOnlyList<Vec2> Destinations { get; init; }
+
+    /// Mean spawn rate, peds/sec (Poisson process). <= 0 means "never spawn" (a static population).
+    public required double SpawnRatePerSecond { get; init; }
+
+    /// Target concurrent live population; PedDemand spawns to (and holds at) this cap, never over it.
+    public required int PopulationCap { get; init; }
+
+    /// Seeds every random decision this instance makes (spawn timing, O/D choice). Same seed + same
+    /// (now, dt) step sequence => identical spawn/arrival events and trajectories.
+    public required ulong Seed { get; init; }
+
+    public double MaxSpeed { get; init; } = 1.4;
+    public double Radius { get; init; } = 0.3;
+
+    /// A ped despawns once within this distance of its destination point.
+    public double ArrivalRadius { get; init; } = 0.5;
+
+    /// LIVE-PROD-1b (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §4; docs/PEDESTRIAN-TASKS.md): ADDITIVE,
+    /// optional liveliness block. Null (the default) => every spawn goes through `AddPed` exactly as
+    /// before -- bit-identical to pre-liveliness `PedDemand` (the ITERON RULE). Set it to have
+    /// `TrySpawnOne` instead build an `ActivityTimeline` (the routed path as Walk segments with seeded
+    /// Pause beats spliced in) and call `AddPedLively`.
+    public PedLivelinessConfig? Liveliness { get; init; }
+
+    /// W2 (docs/PEDESTRIAN-WEAVE-PRODUCTION-DESIGN.md): ADDITIVE, off by default. When false, lively
+    /// timelines are built exactly as before (no seed, no per-vertex widths => the weave is inactive =>
+    /// byte-identical poses; the ITERON RULE). When true, each lively spawn's Walk legs carry the baked
+    /// per-vertex sidewalk half-width and the timeline carries a per-ped weave seed (off `Seed` via
+    /// `VehicleRng.SeedFor`) + GlobalSeed=`Seed`, so the ped weaves deterministically within its sidewalk
+    /// (server==IG holds -- W1). Only takes effect together with `Liveliness` (the low-power lively path).
+    public bool EnableWeave { get; init; }
+
+    /// P8-3b (docs/PEDESTRIAN-P8-3-DEMAND-DESIGN.md §4): ADDITIVE, optional weighted sub-area endpoint
+    /// set. Null (the default) => O/D are drawn from the uniform `Origins`/`Destinations` exactly as
+    /// before -- bit-identical to pre-P8-3 `PedDemand` (the ITERON RULE; no stream is constructed on the
+    /// dedicated sub-area salt). When set, `TrySpawnOne` draws origin+destination from it (weighted by
+    /// endpoint weight) instead; every endpoint is a fringe or POI edge, so both ends are appearance-
+    /// legitimate by construction. `Origins`/`Destinations` may be empty when this is set.
+    public SubareaDemand? WeightedEndpoints { get; init; }
+
+    /// Phase 2b (docs/LIVE-CITY-CROSSWALK-SIGNAL-DESIGN.md): ADDITIVE, optional. Null (the default) =>
+    /// lively timelines are built exactly as before -- byte-identical to pre-2b `PedDemand` (no crossing
+    /// lookup runs). When set (only meaningful together with `Liveliness`), each lively route is
+    /// post-processed so that wherever it steps onto a SIGNALIZED crossing the ped first waits at the kerb
+    /// until the analytic walk window (from the static `<tlLogic>`), then crosses. The wait is a pure
+    /// function of time (no rng, no runtime signal polling), so server==IG and two runs stay byte-identical.
+    public CrosswalkSignals? CrosswalkSignals { get; init; }
+
+    /// Bug #6 (crosswalk-wait kerb clustering): ADDITIVE, opt-in. 0.0 (the default) => off => the
+    /// crosswalk kerb wait is the single point `path[i]` exactly as before -- byte-identical to
+    /// pre-change `PedDemand` (no rng stream is even drawn on the dedicated wait-jitter salt). >0.0 =>
+    /// each ped waiting at a signalized crossing steps into a per-ped seeded 2-D spot in the waiting BLOB
+    /// at the kerb -- waits there, then crosses DIAGONALLY straight to the crossing exit. This value sets
+    /// the blob's characteristic scale (the sunflower/phyllotaxis slot spacing is 0.4x it, ~0.8 m at
+    /// R=2.0): peds fill a sunflower pattern of ~0.8 m-spaced slots that grows outward with the crowd
+    /// (instead of packing uniformly into a fixed disc), so waiting peds form a realistic min-spaced
+    /// cluster rather than stacking on or crowding into one point, and each crosses from where it stood.
+    /// Only meaningful together with `Liveliness` and `CrosswalkSignals`.
+    public double CrosswalkWaitSpreadRadius { get; init; } = 0.0;
+
+    /// Demo-only realism (per-ped walking speed variation): ADDITIVE, opt-in. 0.0 (the default) => off
+    /// => byte-identical to pre-change `PedDemand` (no rng stream is even drawn on the dedicated speed
+    /// salt) -- every ped walks at exactly `MaxSpeed`. >0.0 => each ped's walking speed is drawn as
+    /// `MaxSpeed * (1 +/- up to this fraction)`, seeded per-ped, so a group that started together
+    /// spreads out longitudinally as it walks and staggers its kerb arrivals instead of moving in lockstep.
+    public double SpeedVariationFrac { get; init; } = 0.0;
+}
+
+/// LIVE-PROD-1b (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §4): per-trip liveliness knobs. Deliberately
+/// small -- a per-spawn, per-candidate-slot probability of inserting a Pause beat, each of a seeded
+/// duration in [MinPauseSeconds, MaxPauseSeconds] at a seeded position along the route. (Dwell/POI
+/// visits are a documented extension, §4/§8, but are NOT implemented here -- the task calls the Pause
+/// beats "the required core" and says to include Dwell only if it stays clean; keeping this block to
+/// just Pause keeps `PedDemand` simple and keeps every random draw's role unambiguous.)
+public sealed class PedLivelinessConfig
+{
+    /// Probability, independently checked for each of up to `MaxPausesPerTrip` candidate slots, that
+    /// a Pause beat is inserted there. 0 => liveliness is "on" (uses AddPedLively/ActivityTimeline) but
+    /// never actually pauses; 1 => every candidate slot gets a Pause.
+    public double PauseProbability { get; init; } = 0.35;
+
+    /// Pause duration is drawn uniformly in [MinPauseSeconds, MaxPauseSeconds].
+    public double MinPauseSeconds { get; init; } = 2.0;
+    public double MaxPauseSeconds { get; init; } = 6.0;
+
+    /// Upper bound on how many Pause beats a single trip may get (0 disables pausing entirely while
+    /// still routing lively/ActivityTimeline-based, e.g. to test the plumbing without any beats).
+    public int MaxPausesPerTrip { get; init; } = 1;
+
+    /// Animation tag played during a Pause beat (docs/PEDESTRIAN-LIVELINESS-DESIGN.md §3's tag
+    /// vocabulary) -- SceneGen.BuildLivelyCrowd renders anything other than `ActivityTimeline.WalkAnimTag`
+    /// as the paused disc kind, so any tag here reads as "paused" regardless of its exact value.
+    public string PauseAnimTag { get; init; } = "sip";
+}
+
+/// One spawn: `Id` registered with PedLodManager at `Time`, routed from `Origin` to `Destination`.
+public readonly record struct PedSpawnEvent(int Id, double Time, Vec2 Origin, Vec2 Destination);
+
+/// One arrival: `Id` despawned at `Time` (it reached its destination's ArrivalRadius).
+public readonly record struct PedArrivalEvent(int Id, double Time);

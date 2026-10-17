@@ -98,5 +98,10 @@ namespace Fdp.Core
 
         /// <summary>Navigation solver node: on-demand pathfinding.</summary>
         NavigationSolver = 1 << 4,
+
+        /// <summary>Traffic node: SUMO cars (and later pedestrians) stepped by SumoSharp and mirrored as vicinity
+        /// replicas. 📄 <c>docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md</c> (R-4022; embedded in the
+        /// editor first, R-4047).</summary>
+        Traffic = 1 << 5,
     }
 }

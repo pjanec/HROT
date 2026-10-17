@@ -77,7 +77,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator
     public void ScanAndPublish(ISimulationView view)
     {
         var query = view.Query()
-            .With<NetworkIdentity>()
+            .DefaultRoutePublishable()
             // ⭐ CE-2209 — NO SimTransform filter: nothing here reads it. A route authored without one (hand-written scenarios) was
             //   never published — the Muscle's aircraft sat AwaitingPath with no warning (measured on two nodes: promoted, no plan).
             .WithManaged<RoutePlan>()

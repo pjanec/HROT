@@ -102,7 +102,7 @@ namespace Hrot.Map.Common.Replication.Egress
 		public void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<Fdp.Core.EntityInfo>()
                 // Include Constructing so affiliation is broadcast at spawn time.
                 .WithLifecycle( EntityLifecycle.All)

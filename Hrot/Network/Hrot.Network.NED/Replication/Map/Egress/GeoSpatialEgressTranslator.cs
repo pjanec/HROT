@@ -120,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Egress
             // 📄 docs/DESIGN_Cgf_AxisB_Rotation_Slice.md §13.7 (supersedes §13.3's placement ruling).
             var query = view.Query()
                 .With<SimTransform>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 

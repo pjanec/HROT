@@ -39,7 +39,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var unit in view.Query().With<ManualDrive>().With<NetworkIdentity>().Build())
+            foreach (var unit in view.Query().With<ManualDrive>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
@@ -100,7 +100,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (view is not EntityRepository repo || repo.IsComponentTypeRegistered<PossessedBy>())
             {
                 long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-                foreach (var unit in view.Query().With<PossessedBy>().With<NetworkIdentity>().Build())
+                foreach (var unit in view.Query().With<PossessedBy>().DefaultRoutePublishable().Build())
                 {
                     if (!view.HasAuthority(unit, packedKey)) continue;
                     long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;

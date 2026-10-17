@@ -82,8 +82,27 @@ namespace Fdp.Toolkit.Terrain
                 origin = new TerrainGeoOrigin(lat, lon, alt);
             }
 
+            // ⭐ AQ93 R-4021 / E1b — the optional SUMO net: { "file": "...", "anchor": [x, y] }. Malformed is an error (a wrong
+            //   anchor moves every road and car); absent is legal.
+            TerrainSumoNet? sumoNet = null;
+            if (obj["sumoNet"] is JsonNode sumoNode)
+            {
+                if (sumoNode is not JsonObject so || so["file"]?.GetValue<string>() is not string file || string.IsNullOrWhiteSpace(file))
+                    throw new ArgumentException("Terrain definition 'sumoNet' must be an object with a 'file' and an optional 'anchor': [x, y].", nameof(json));
+                double ax = 0.0, ay = 0.0;
+                if (so["anchor"] is JsonNode anchorNode)
+                {
+                    if (anchorNode is not JsonArray an || an.Count != 2)
+                        throw new ArgumentException("Terrain definition 'sumoNet.anchor' must be [x, y] in the net's metres.", nameof(json));
+                    ax = an[0]!.GetValue<double>();
+                    ay = an[1]!.GetValue<double>();
+                }
+                sumoNet = new TerrainSumoNet(file, ax, ay);
+            }
+
             return new TerrainDefinition
             {
+                SumoNet       = sumoNet,
                 Origin        = origin,
                 SchemaVersion = version,
                 Name          = obj["name"]?.GetValue<string>() ?? string.Empty,

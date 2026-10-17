@@ -62,7 +62,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<MissionPlanQueue>()
                 // Include Constructing entities so remote nodes receive mission data immediately.
                 .WithLifecycle(EntityLifecycle.All)

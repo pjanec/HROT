@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeatherConditions>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var e in view.Query().With<WeatherConditions>().With<NetworkIdentity>().Build())
+            foreach (var e in view.Query().With<WeatherConditions>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(e).Value;

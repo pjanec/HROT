@@ -64,7 +64,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<SimTransform>()
                 .WithManaged<EditablePolyline>()
                 .WithLifecycle(EntityLifecycle.All)

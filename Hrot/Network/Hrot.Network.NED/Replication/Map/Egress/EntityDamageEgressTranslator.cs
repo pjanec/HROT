@@ -90,7 +90,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
             var query = view.Query()
                 .With<Health>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 

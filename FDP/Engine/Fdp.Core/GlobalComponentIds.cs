@@ -987,5 +987,16 @@ namespace Fdp.Core
         /// man's built-in mounts he has LAID DOWN (bit i = mount i) — on the man, on his brain's node; every other node reads the bit from
         /// <c>WeaponAmmo</c>. ⚠ 403 measured free on backend, ui, behaviors and coordinator 2026-10-17.</summary>
         public const int LaidDownWeapons = 403;
+        // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
+        /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
+        public const int TrafficNetCache = 450;
+        /// <summary><c>TrafficDemand</c> — the scenario's traffic settings entity (Hrot.Traffic, AQ93 R-4021).</summary>
+        public const int TrafficDemand = 451;
+        /// <summary><c>TrafficCar</c> — a SUMO car's local replica marker (Hrot.Traffic, AQ93 R-4038).</summary>
+        public const int TrafficCar = 452;
+        /// <summary><c>ReplicationRoute</c> — an owned entity published by a mechanism other than NED (AQ93 EM-4, R-4045).</summary>
+        public const int ReplicationRoute = 453;
+        /// <summary><c>TrafficFrame</c> — this frame's SUMO cars + traffic-light states, a managed world singleton the map layers read (Hrot.Traffic).</summary>
+        public const int TrafficFrame = 454;
     }
 }

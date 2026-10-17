@@ -47,6 +47,8 @@ public sealed class TerrainResidency
         internal DateTime           FileTimestamp;
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
+        /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
+        internal List<(ITerrainContentLoader Loader, object? Prepared)> Contents = new();
         /// <summary>⭐ <c>CE-3075</c> — the scenario names NO terrain while one is resident: the commit unloads it.</summary>
         internal string? UnloadResident;
 
@@ -122,6 +124,17 @@ public sealed class TerrainResidency
         _navmeshFactory = factory ?? throw new ArgumentNullException(nameof(factory));
         _navmesh        = target  ?? throw new ArgumentNullException(nameof(target));
     }
+
+    private readonly List<ITerrainContentLoader> _contentLoaders = new();
+
+    /// <summary>
+    /// ⭐ AQ93 R-4021 — make this residency load an extra piece of terrain content (the first: the SUMO net) with every
+    /// terrain: <see cref="ITerrainContentLoader.Prepare"/> runs inside <see cref="Prepare"/> (off the main thread),
+    /// <see cref="ITerrainContentLoader.Commit"/> inside <see cref="Commit"/>, <see cref="ITerrainContentLoader.Unload"/> on
+    /// <see cref="Unload"/>. The same shape as <see cref="AttachNavmesh"/>, for content that is not a navmesh.
+    /// </summary>
+    public void AttachContent(ITerrainContentLoader loader)
+        => _contentLoaders.Add(loader ?? throw new ArgumentNullException(nameof(loader)));
 
     /// <summary>The navmesh this residency publishes into, when attached.</summary>
     public Fdp.Toolkit.Navigation.SwitchableNavmeshProvider? Navmesh => _navmesh;
@@ -231,6 +244,11 @@ public sealed class TerrainResidency
             staged.HasRoadNetwork = true;
         }
 
+        // ⭐ AQ93 R-4021 — every attached content loader prepares its part of this terrain, off the main thread.
+        string folder = Path.GetDirectoryName(definitionPath)!;
+        foreach (var loader in _contentLoaders)
+            staged.Contents.Add((loader, loader.Prepare(definition, folder, terrainName, staged.World ?? new TerrainWorld())));
+
         return staged;
     }
 
@@ -301,6 +319,10 @@ public sealed class TerrainResidency
             world.SetSingleton(new ZoneEnvironmentData { RoadNetwork = staged.RoadNetwork });
         }
 
+        // ⭐ AQ93 R-4021 — the attached content, published in the same commit as the world it belongs to.
+        foreach (var (loader, prepared) in staged.Contents)
+            loader.Commit(world, prepared);
+
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;
 
@@ -367,6 +389,8 @@ public sealed class TerrainResidency
             world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
                 Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new TerrainWorld()));
         _navmesh?.Publish(null);
+        if (world != null)
+            foreach (var loader in _contentLoaders) loader.Unload(world);   // AQ93 R-4021 — the content goes with its terrain
         ApplyGeoOrigin(world, TerrainGeoOrigin.Zero, terrainName: null);   // CE-3126 — no terrain: origin 0,0,0
 
         _lastLoadedTerrainName = null;
@@ -537,4 +561,25 @@ public sealed class TerrainResidency
         => Path.IsPathRooted(relative)
             ? relative
             : Path.Combine(Path.GetDirectoryName(definitionPath) ?? string.Empty, relative);
+}
+
+/// <summary>
+/// ⭐ AQ93 R-4021 — an extra piece of content a terrain folder carries (the first: the SUMO net), loaded with the terrain by
+/// <see cref="TerrainResidency.AttachContent"/>. ⛔ <see cref="Prepare"/> runs OFF the main thread and must touch no ECS;
+/// <see cref="Commit"/> and <see cref="Unload"/> run on it. A loader whose content the terrain does not declare returns
+/// <c>null</c> from <see cref="Prepare"/> and clears its singleton in <see cref="Commit"/>, so a re-load never keeps the previous
+/// terrain's content. 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.
+/// </summary>
+public interface ITerrainContentLoader
+{
+    /// <summary>Reads and builds this terrain's content from <paramref name="terrainFolder"/>; <c>null</c> when it has none.</summary>
+    /// <param name="world">The terrain world staged with it (parsed just before; empty when the terrain has none) — e.g. its footprint,
+    /// which the SUMO road layer's ambient ground stays outside of (AQ93 V8).</param>
+    object? Prepare(TerrainDefinition definition, string terrainFolder, string terrainName, TerrainWorld world);
+
+    /// <summary>Publishes what <see cref="Prepare"/> built (or clears the content when it built nothing).</summary>
+    void Commit(EntityRepository world, object? prepared);
+
+    /// <summary>The terrain is gone: clear the content.</summary>
+    void Unload(EntityRepository world);
 }

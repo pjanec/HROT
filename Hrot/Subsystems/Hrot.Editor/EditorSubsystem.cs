@@ -199,6 +199,11 @@ namespace Hrot.Editor
 
         /// <summary>⭐ CE-3017 — the solver capability, kept so its modules join the hot-swappable logic packs.</summary>
         private SimHostCapabilities.NavigationSolver? _navSolverCapability;
+        /// <summary>⭐ AQ93 R-4047 — SUMO traffic (default arm only): cars, replicas, light states. Null on the injected arm.</summary>
+        private Hrot.Traffic.TrafficPack? _trafficPack;
+
+        /// <summary>⭐ AQ93 — the traffic pack (the road and car layers and the debug API read it). Null on the injected arm or before compose.</summary>
+        public Hrot.Traffic.TrafficPack? Traffic => _trafficPack;
 
         /// <summary>⭐ CE-515 — this node's entity-creation pack (null until initialised), the same seam every host exposes.</summary>
         public Hrot.Common.EntityCreation.EntityCreation? EntityCreation { get; private set; }
@@ -1641,7 +1646,8 @@ namespace Hrot.Editor
             //    a null capability registered as if it were real is the silent-default shape this
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
-                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, _navSolverCapability!)
+                ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, _navSolverCapability!,
+                    _trafficPack = new Hrot.Traffic.TrafficPack(TerrainResidency!))   // ⭐ AQ93 R-4047 — the net rides THIS residency
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
@@ -5167,6 +5173,7 @@ namespace Hrot.Editor
             //    position relative to the kernel is immaterial — what matters is that it still precedes
             //    the world's disposal, and it does.
             _physicsModule?.Dispose();
+            _trafficPack?.Dispose();   // ⭐ AQ93 — stops SUMO (its session is not the kernel's to release)
             _physicsModule = null;
             _node?.Dispose();
             _node = null;

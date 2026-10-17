@@ -94,6 +94,38 @@ namespace Hrot.SimHost.Tests
             Assert.False(found, "Remote entities must not publish EntityMaster samples.");
         }
 
+        /// <summary>
+        /// ⭐ AQ93 EM-4 (R-4045) — an entity this node OWNS but that another mechanism publishes (a SUMO car's replica, on
+        /// SumoSharp's own topics) carries a <see cref="ReplicationRoute"/>, and the default egress publishes NOTHING for it.
+        /// The owned twin above proves the same entity without the route does publish.
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void AQ93_ScanAndPublish_OwnedEntityOnAnotherRoute_DoesNotPublish()
+        {
+            const uint domainId = 207u;
+            using var participant = new DdsParticipant(domainId);
+            using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
+            var entityMap = new NetworkEntityMap();
+            var translator = new EntityMasterEgressTranslator(participant, entityMap, localNodeId: 1);
+
+            var repo = CreateWorld();
+            repo.RegisterComponent<ReplicationRoute>();
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(43));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.AddComponent(entity, new ReplicationRoute(ReplicationRoute.SumoSharp));
+
+            Thread.Sleep(200);
+            translator.ScanAndPublish(repo);
+            Thread.Sleep(200);
+
+            using var loan = reader.Take();
+            foreach (var sample in loan)
+                Assert.False(sample.IsValid && sample.Data.EntityId == 43, "An entity on another replication route must not publish on NED.");
+        }
+
         [Fact]
         [Trait("Category", "Integration")]
         public void ScanAndPublish_RepeatedScan_PublishesEntityMasterExactlyOnce()

@@ -40,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<PassengerBuffer>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var vehicle in view.Query().With<PassengerBuffer>().With<NetworkIdentity>().Build())
+            foreach (var vehicle in view.Query().With<PassengerBuffer>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(vehicle, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(vehicle).Value;
