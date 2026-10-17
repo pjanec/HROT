@@ -393,6 +393,8 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<EntityInfo>(bystander).ForceId = ForceId.Neutral;
             var down = Policeman(w, new Vector3(100, 201, 0));
             w.Repo.GetComponentRW<Health>(down).Current = 0f;
+            var enemy = Policeman(w, new Vector3(99, 200, 0));                       // a combatant, but not of the forces
+            w.Repo.GetComponentRW<EntityInfo>(enemy).ForceId = ForceId.Hostile;
             for (int i = 0; i < 8; i++) w.Tick();
             Assert.Equal("Riot", w.State());                       // an instigator's own anger is 1
             int strikes = Melee.Strikes;

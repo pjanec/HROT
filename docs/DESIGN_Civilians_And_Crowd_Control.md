@@ -1158,6 +1158,95 @@ review, each its own later item)* Friend → Hostile and disguise (insider attac
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
 the warning-shot step and time to comply; snatching a soldier's weapon.
 
+### 5h.3 CV-13a demo — a covered hostile raises his hands *(behaviors, `CE-2241` ①, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** The §5h.2 deferral: SOMEONE who raises his hands, so `HoldSurrender` runs live. The unarmed half of `ua-civ-surrender`
+(§5c): a rioter who has struck a policeman (Hostile, §5i) and is then covered by a rifleman raises his hands; the rifleman holds. The
+armed half (drop the weapon, re-arm, aim — AW-5) waits on backend B-10 (the laid-down flag).
+
+**INVENTORY** *(2026-10-17)*: `search_graph name_pattern=".*(AimedAt|BeingAimed|AimingAt|Surrender|HandsUp|UnderAim|Covered).*"
+label=Method` ⇒ 35 hits — test names and `ThreatDanger.ShowsHandsUp` (the reader); ⛔ **no "who aims at me" reader exists.** ⭐ The
+fact it needs already exists and is replicated: **`WeaponPosture {Kind, Target}`** (WL-6, `Combat/Components/WeaponPosture.cs` —
+written only by `WeaponPostureOf.Report` at the executors' status points, `dtWeaponPosture` to every node). `HoldSurrender` maps to
+`Ready` with the target kept (`WeaponPostureOf.For`), so a soldier who holds at a raised pair of hands still COVERS him. ⇒ reuse it; the
+brain-local `ActionStatus` row (never on the wire) is rejected. ⚠ `check_index_coverage` not run (CLI only).
+
+```mermaid
+classDiagram
+  direction LR
+  class Covering { <<NEW static, Fdp.Toolkits/Combat>> By(world, target, reach) the nearest forces person covering him }
+  class WeaponPosture { <<existing, replicated>> Kind · Target }
+  class WeaponPostureOf { <<existing>> the one writer · HoldSurrender = Ready, target kept }
+  class CivilianHsm { <<existing, grows>> + Surrender state }
+  class HostileActs { <<existing>> Committed }
+  class Gestures { <<existing>> HandsUp }
+  class ThreatDanger { <<existing>> ShowsHandsUp = 0 danger }
+  class AimAndFireExecutor { <<existing>> HoldOf = HoldSurrender }
+  Covering ..> WeaponPosture : Kind not AtEase, Target = him
+  WeaponPostureOf --> WeaponPosture
+  CivilianHsm ..> Covering : Covered guard
+  CivilianHsm ..> HostileActs : only one who committed an act
+  CivilianHsm ..> Gestures : HandsUp while covered
+  AimAndFireExecutor ..> ThreatDanger : reads HandsUp
+  AimAndFireExecutor ..> WeaponPostureOf : reports the hold
+```
+*What the picture shows that prose hid:* the loop closes through two components that already exist — the soldier's posture (who he
+covers) and the civilian's gesture (hands up) — so the slice adds ONE static and ONE state; nothing new crosses the wire.
+
+```mermaid
+stateDiagram-v2
+  Riot --> Surrender : covered and he committed an act
+  Protest --> Surrender : covered and he committed an act
+  Panic --> Surrender : covered and he committed an act
+  Cower --> Surrender : covered and he committed an act
+  Surrender --> Protest : uncovered for 5 s
+  Surrender --> Casualty : wounded
+```
+*What the picture shows that prose hid:* Surrender is entered from the states where a hostile can still be engaged, and left only for a
+wound or after five seconds with nobody covering him — a soldier still holding at him keeps him there.
+
+```mermaid
+sequenceDiagram
+  participant R as rioter CivilianHsm (CGF)
+  participant S as rifleman AimAndFire (brain node)
+  participant P as WeaponPosture (replicated)
+  participant N as SimHost, IG
+  R->>R: the blow: Hostile (§5i)
+  S->>P: Aiming at the rioter: Kind Aimed, Target rioter
+  R->>P: Covering.By: covered
+  R->>R: Riot to Surrender, HandsUp, stops
+  S->>S: HoldOf sees HandsUp: HoldSurrender, no round
+  S->>P: Kind Ready, Target kept
+  P-->>N: dtWeaponPosture · Gesture HandsUp on every node
+```
+*What the picture shows that prose hid:* the race is aim time against one brain tick — the round waits for `Aiming` to finish, the
+hands go up the tick after the posture reads Aimed.
+
+```mermaid
+graph TD
+  CGF[CGF node] --> BT[BrainTickSystem]
+  BT --> HSM[rioter CivilianHsm: Surrender]
+  BT --> SOL[rifleman CombatPosture / Sentry]
+  SOL --> AAF[AimAndFireExecutor]
+  AAF --> WPO[WeaponPostureOf.Report]
+  HSM --> COV[Covering.By reads WeaponPosture]
+  HSM --> GES[Gestures.Set HandsUp]
+```
+*What the picture shows that prose hid:* no system is registered; both brains already tick on CGF for a scenario cast, and the posture
+the guard reads is written by the executor every frame it reports.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| what "covered" is | ⭐ a FORCES person (`Friend`, `Armament.IsCombatant`, standing) within 100 m whose `WeaponPosture.Kind` is not `AtEase` and whose `Target` is him | the `ActionStatus` row: brain-local, never on the wire · a cone from the muzzle: the posture already names the target |
+| who raises his hands | ⭐ a man who has COMMITTED a hostile act (`HostileActs.Committed`) — he knows he is a target | every covered civilian: a Neutral is never fired at (CIV-0), and a crowd raising its hands at every soldier is a different behaviour |
+| fear | ⭐ not used — being covered is enough for him (deviates from §5h.2's "past `PanicAt`" lean: an aimed rifle is not a fear source yet, and making it one spreads panic through his crowd — CV-14's world) | a fear impulse while covered: changes every crowd near a soldier |
+| leaving | ⭐ 5 s with nobody covering him ⇒ back to Protest (from there his anger may riot him again, and he is engaged again) | stay for ever: a soldier who walks away leaves a statue |
+| side | ⭐ unchanged — stays Hostile (CV-13a, AW-5) | flip back to Neutral: the act stays recorded |
+| priority | ⭐ Surrender's transitions at priority 1, Casualty raised to 2 — a wound still wins | rely on declaration order: invisible in the table |
+
+⚠ **Known limits:** ① the armed half (B-10) · ② an operator's aim is a `WeaponPosture` too — a trainee covering a rioter makes him raise
+his hands, which is right · ③ he does not keep his hands up after the soldier leaves (5 s) — no "detained" state yet (SQD-13).
+
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
