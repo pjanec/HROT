@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -44,6 +44,8 @@ related-designs:
   - docs/UX/UX_Feature_Entity_Symbology.md — OWNS the map symbol's colour (§3.1 the AffiliationColors fix = CE-125, §3.2 the one palette); U-2 builds §3.1.
   - docs/DESIGN_Visual_Effects.md — owns EffectLayer (lifespan visuals, the chaff cloud) that U-4 extends.
   - docs/blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md — ui's four findings on §7 (F-1…F-4).
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — B-6, the replicated Gesture component (CV-13).
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians_Gestures.md — U-6, the gesture poses and the placard on a pole (CV-13).
 -->
 
 # DESIGN — **civilians and crowd control** *(the CIV programme)*
@@ -72,6 +74,11 @@ related-designs:
 | **R-4035** | a panicking civilian **hides in a building whose door can be opened**, and **disappears** after a while inside — never flees indefinitely |
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
 | **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
+| **R-2024** | ✅ **CV-13, CV-13a, CV-14 approved as written** (§4) — gestures and drawn props, hands up holds fire, the security forces provoke a crowd |
+
+🔒 **User, verbatim (`2026-10-17`):**
+- *"Do we have special stances for demonstrating pedestrians? Like they might be raising hands or holding a poster On a pole. They might also need some behavior. I don't know exactly what, but they might sometims  respond to the security forces by switching to rioting."*
+- *"approved, add CV-13 and CV-14 to the design"*
 
 ## 1. INVENTORY *(2026-10-16 — four read-only sweeps: codebase-memory CLI `search_graph` + grep + the design corpus; `check_index_coverage` NOT run)*
 
@@ -109,7 +116,9 @@ classDiagram
   class HostileAct { <<NEW component, replicated>> SinceSimTime Kind }
   class EntityInfo { <<existing>> ForceId flips Neutral to Hostile on a hostile act }
   class Crowd { <<NEW bodiless entity>> Members Mood Density Focus Instigators }
-  class CrowdSystem { <<NEW, CGF>> mood, contagion, gathering, focus }
+  class CrowdSystem { <<NEW, CGF>> mood, contagion, gathering, focus, provocation by security forces CV-14 }
+  class Gesture { <<NEW component, replicated, CV-13>> None HandsUp FistRaised HoldSign Waving Throwing }
+  class FigurePose { <<existing, map 3-D>> arm override per gesture, placard drawn for HoldSign }
   class FindEnterableShelter { <<NEW EQS template>> door generator, InsideTest, door-aware PathCost }
   class InsideTest { <<NEW EQS test>> point in a non-solid footprint }
   class DoorPassageSystem { <<existing>> opens closed doors on the path }
@@ -149,13 +158,20 @@ classDiagram
   AimAndFireExecutor ..> EntityInfo : skips Neutral targets
   CivilianHsm ..> EffectState : cower, disperse
   CivilianHsm ..> DoorPassageSystem : moves through doors
+  CivilianHsm ..> Gesture : writes, on CGF
+  FigurePose ..> Gesture : reads, every map host
+  AimAndFireExecutor ..> Gesture : HandsUp holds fire, CV-13a
+  CrowdSystem ..> EffectHit : force used on a member, CV-14
+  CrowdSystem ..> EntityClassTable : security forces near the crowd, CV-14
 ```
 
 *What the picture shows that prose hid:* the side flip has ONE producer (a hostile act, made by the civilian's own brain on
 CGF, which is also the creator that owns `EntityInfo`) and every existing side reader picks it up live, because
 `TargetMemory` stores no side — on OTHER nodes only because the flip marks `dtEntityInfo` dirty (§1, the egress re-sends
 nothing otherwise); and every non-lethal effect lands in ONE stored component (`EffectState`) that both the
-civilian HSM and the body read — the I1 rule stays intact because health is never used to mean "stunned".
+civilian HSM and the body read — the I1 rule stays intact because health is never used to mean "stunned". ⭐ *(CV-13/CV-14, 2026-10-17)* — what a protester DOES
+with his body is a third, separate carrier (`Gesture`), written by the same brain and read by the map and by the fire gate; and the
+crowd's anger has TWO producers, instigators and the security forces themselves, so a police action can tip a crowd into a riot.
 
 ### 2.2 The civilian HSM
 
@@ -295,6 +311,9 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **CV-9** | the weapons | slice 1 of non-lethal: **baton/melee** (D5 `MeleeAttack`), **baton round** (ballistic, Blunt), **tear gas grenade/launcher** (Indirect, Irritant cloud), **stun grenade** (thrown, Stun area); civilians' **stone** and **Molotov** (`ThrowAt`, Blunt / fire cloud); later: water cannon (a spray weapon), LRAD | all at once: the spray and acoustic weapons need new physics | TKB weapons + munitions |
 | **CV-10** | scale | target **~300 active civilians per CGF** (perf gate in CIV-1, measured: brain tick per entity, perception, movement); movement through `CarKinematicsSystem` `HumanGait` on SimHost (dtCrowd is Stride-only, 128 cap); above the budget, the scenario spawns fewer — no brain LOD in slice 1 | thousands of brained civilians: unmeasured, perception alone tops out near 500 · dtCrowd: not on SimHost | measurement first |
 | **CV-11** | security forces | a police/security unit family (shield, baton, baton-round launcher, gas launcher, stun grenades) and a **hold-the-line** behaviour on SquadMarch's `Line` formation; a proper cordon waits for CE-2124 (formations) | building a cordon formation now: CE-2124 is the owner | behaviors lane |
+| **CV-13** *(2026-10-17, R-2024)* | gestures and props | ONE replicated **`Gesture`** byte per person {None, HandsUp, FistRaised, HoldSign, Waving, Throwing}: the civilian HSM writes it on CGF (as it writes `Cowering`); the map's `FigurePose` reads it as an ARM override (the way it draws carry arms today); **HoldSign draws a pole + placard in the hands — drawn only, no entity**; Throwing is the wind-up `ThrowAt` (CE-2238) sets | fold into `EffectState`: those are timed effects of a hit, a gesture is the person's own act · a real carried-item entity for the pole: heavy for a picture — later, if a pole must be dropped or used as a club · new stances: a stance is locomotion (stand / crouch / prone), a gesture is the arms over any stance | backend: the component + wire (B-6); ui: the poses + placard (U-6); behaviors: who writes it (CE-2240) |
+| **CV-13a** *(2026-10-17, R-2024)* | hands up | a person showing **HandsUp is held like a neutral** — `AimAndFireExecutor.HoldOf` ⇒ a new `HoldSurrender`, the same gate CIV-0 built (§5b) — even when Hostile; it does NOT flip the side back | decoration only: a soldier shooting a surrendering man is exactly what a trainee is assessed on · flip Hostile → Neutral on hands up: the act stays recorded, and a feint must not erase it | `AimAndFireExecutor`, `ThreatDanger` (behaviors) |
+| **CV-14** *(2026-10-17, R-2024)* | the security forces provoke | the `CrowdSystem` (CV-5) gets anger inputs beside the instigators: ① security forces (the `SecurityForce` class, CV-1) within ~30 m and FACING the crowd raise it slowly; ② force used on a member (baton, baton round, gas, an arrest — an `EffectHit` on him) SPIKES it in his neighbours; ③ the police withdrawing lets it decay. Each member has a **hidden threshold from his attitude** (CV-4), so only a FRACTION riots — the same non-lethal hit makes a calm crowd disperse and an angry one riot (the Riot / Dispersing edges of §2.2 both stay) | a fixed scripted switch: predictable, not a test of the trainee's choice · per-person vision of the police: the perception cost CV-2 already ruled out | `CrowdSystem` (behaviors, with CE-2237/CE-2241) |
 | **CV-12** | the SUMO hookup | last slice (R-4033): AQ93 §8's handover creates a civilian of this family in **Panic** mode with the incident point — no special type | a SUMO-specific type: two civilian models | AQ93 §8 |
 
 ## 5. Slice plan *(backend + ui halves handed off as frames 2026-10-16; behaviors half recorded, not started)*
@@ -308,9 +327,9 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **CIV-0** | **safety gate**: ground-AI targeting skips Neutral targets (CV-8 first half) | behaviors `CE-2233` | a soldier at FireAtWill next to a neutral civilian does not engage it; `ua-threat-ranking` migrates |
 | **CIV-1** | the new civilian family (CV-1/CV-2) + its class rows, old types retired, 4 scenarios migrated; `CivilianHsm` Routine + Alarmed + Casualty; **perf gate** (CV-10) | backend B-2, B-4 · behaviors `CE-2235` · ui U-1 | 300 civilians on CGF within the frame budget, measured |
 | **CIV-2** | Panic → Shelter → Inside → deleted, Cower (CV-7) on bt-range | behaviors `CE-2234` (§5a first), `CE-2236` | a shot near a civilian sends it through an openable door into a house and it is gone after the hide time; a locked house is skipped |
-| **CIV-3** | crowds (CV-5): gathering, protest, contagion | behaviors `CE-2237` · ui U-5 (optional) | onlookers gather at an incident; fear spreads through a crowd |
+| **CIV-3** | crowds (CV-5): gathering, protest, contagion; ⭐ the protest's **gestures + placards** (CV-13) | behaviors `CE-2237`, `CE-2240` · backend B-6 · ui U-5 (optional), U-6 | onlookers gather at an incident; fear spreads through a crowd; a protest shows its gestures on every map |
 | **CIV-4** | attitude + hostile acts (CV-4), `ThrowAt` + `MeleeAttack` (D5), riot (CV-3) | backend B-3 · behaviors `CE-2238` · ui U-2 | a rioter that throws a stone turns Hostile on every node; soldiers may now answer it |
-| **CIV-5** | non-lethal (CV-6, CV-9), escalation ladder (CV-8), security forces (CV-11) | backend B-1, B-5 · behaviors `CE-2239` · ui U-3, U-4 | a police line disperses a riot with gas and baton rounds without a single lethal shot; an armed rioter draws lethal fire |
+| **CIV-5** | non-lethal (CV-6, CV-9), escalation ladder (CV-8), security forces (CV-11); ⭐ the security forces **provoke** (CV-14) and **hands up holds fire** (CV-13a) | backend B-1, B-5 · behaviors `CE-2239`, `CE-2241` · ui U-3, U-4 | a police line disperses a riot with gas and baton rounds without a single lethal shot; an armed rioter draws lethal fire; a pressing police line tips a FRACTION of a protest into a riot |
 | **CIV-6** | water cannon, LRAD, Molotov fire cloud | backend | — |
 | **CIV-7** | SUMO hookup (CV-12, AQ93 §8) | coordinator | a panicked SUMO pedestrian becomes a civilian in Panic and shelters |
 
@@ -373,6 +392,9 @@ shot" could mean "not seen").
 | CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
+| **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · a protest crowd of 12 at a building, an instigator-free crowd, NO security forces | ① the crowd reaches `Protest` · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · a rifleman (Friend); a Hostile armed rioter who drops his weapon and raises his hands mid-fight | ① he is engaged while armed and fighting · ② from the frame his `Gesture` is HandsUp, no round is fired at him for 10 s, his side stays Hostile · ③ hands down + armed again ⇒ he is engaged again | ⏳ |
 | CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
 
 ⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
