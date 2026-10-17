@@ -13,7 +13,7 @@ related-designs:
 # NOTE — backend → behaviors: B-8 hands and B-13 pick-up landed *(CE-3230, CE-3235; CE-3239 on the way)*
 
 **Landed at:** B-8 [CE-3230](../Blueprint_Issues_Tracker.md) at `backend@81bc12e90`; [CE-3239](../Blueprint_Issues_Tracker.md) at
-`backend@9cbc10a17`; B-13 [CE-3235](../Blueprint_Issues_Tracker.md) — the sha is in the commit that carries this note. Designs + as-built:
+`backend@9cbc10a17`; B-13 [CE-3235](../Blueprint_Issues_Tracker.md) at `backend@61f235fd7`. Designs + as-built:
 [Civilians §7.9a, §7.10a, §7.3c](../../DESIGN_Civilians_And_Crowd_Control.md).
 
 | what you can call now (on the man's BRAIN node) | what it does |
