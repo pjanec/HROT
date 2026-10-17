@@ -153,6 +153,23 @@ public sealed class BTreePickerDrawerTests
         drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>();
     }
 
+    /// <summary>⭐ CE-1008 (AI_Editor_Shared_Infrastructure §7.1b) — the factory FORWARDS the host's picker to every choice field of the
+    /// document (the silent-default rule: a caller that has it must pass it), one shared field; with none they stay plain combos.</summary>
+    [Fact]
+    public void CE1008_TheHostsPicker_ReachesTheBindingAndTheBehaviourPicker_OneSharedField()
+    {
+        Action<NodeEditor.UI.Picker.PickerRequest, Action<NodeEditor.UI.Picker.PickerResult>> open = (_, _) => { };
+        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry(), openPicker: open);
+        var binding = (ActionBindingDrawer)drawers[typeof(BehaviorActionBindingFacet)];
+        var behaviour = (Hrot.Editor.AiShared.Inspector.AiBehaviorPickerDrawer)((CompositeStringDrawer)drawers[typeof(string)])
+            .Resolve(MakeNodeWithAttr(new Hrot.Editor.AiShared.Inspector.AiBehaviorPickerAttribute()))!;
+        binding.Field.CanSearch.Should().BeTrue();
+        behaviour.Field.Should().BeSameAs(binding.Field);
+
+        ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry())[typeof(BehaviorActionBindingFacet)])
+            .Field.CanSearch.Should().BeFalse();
+    }
+
     private sealed class EmptyCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
     {
         public IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> All => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();

@@ -65,6 +65,30 @@ namespace Fdp.Toolkit.Terrain.Tests
         private static Vector3 Normal(Vector3[] v, int[] idx, int t)
             => Vector3.Cross(v[idx[t + 1]] - v[idx[t]], v[idx[t + 2]] - v[idx[t]]);
 
+        /// <summary>
+        /// ⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U4-b) — a prism you can see AND walk through (a gas or smoke
+        /// cloud's obstacle, B1-c) is not meshed: it would render as a solid block and enter the navmesh though it blocks nothing. Today's
+        /// see-through materials (glass, hedge, chain-link) all block movement and stay meshed.
+        /// </summary>
+        [Fact]
+        public void CE1165_ASeeAndWalkThroughPrism_IsNotMeshed_AWallIs()
+        {
+            static TerrainPrism Box(float x, TerrainMaterial m) => new()
+            {
+                Kind = TerrainPrismKind.Wall, BaseZ = 0f, TopZ = 3f, Material = m, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                Footprint = new[] { new Vector2(x, 0), new Vector2(x + 4, 0), new Vector2(x + 4, 4), new Vector2(x, 4) },
+                Min = new Vector2(x, 0), Max = new Vector2(x + 4, 4),
+            };
+            var concrete = new TerrainMaterial("concrete", 0f, 300f, 40f, true);
+            var smoke = new TerrainMaterial("smoke", 0.15f, 0f, 0f, false);
+            TerrainWorldMesh.Build(new TerrainWorld { Prisms = new[] { Box(0, concrete) } }, out var wallOnly, out var wallIdx, cellSize: 2f);
+            TerrainWorldMesh.Build(new TerrainWorld { Prisms = new[] { Box(0, concrete), Box(10, smoke) } }, out var both, out var bothIdx, cellSize: 2f);
+            Assert.Equal((wallOnly.Length, wallIdx.Length), (both.Length, bothIdx.Length));   // the cloud added nothing
+            Assert.True(TerrainWorldMesh.IsVolumeEffect(Box(10, smoke)));
+            foreach (var name in new[] { "glass", "hedge", "fence-chainlink" })
+                Assert.True(TerrainMaterialLibrary.Shared.TryGet(name, out var m) && !TerrainWorldMesh.IsVolumeEffect(Box(0, m!)), name);
+        }
+
         [Fact]
         public void Mesh_EveryHorizontalTriangleFacesUp_AndWallsAreVertical()
         {

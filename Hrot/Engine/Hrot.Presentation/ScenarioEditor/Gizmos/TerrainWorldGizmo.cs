@@ -67,6 +67,7 @@ public sealed class TerrainWorldGizmo : IGlobalStatelessGizmo
 
         foreach (var p in world.Prisms)
         {
+            if (Fdp.Toolkit.Terrain.TerrainWorldMesh.IsVolumeEffect(p)) continue;   // ⭐ CE-1165 — a gas / smoke cloud is drawn by its own layer
             // ⭐ Stage 1 — a wall/fence piece is coloured by its MATERIAL (the "materials" layer of
             //   DESIGN_Terrain_Combat_Tuning.md §5); fences are dashed. Openings are gaps because a panel's pieces leave them.
             var fill = p.Kind == TerrainPrismKind.Wall ? MaterialColor(p.Material?.Name) : HeightColor(p.Height);

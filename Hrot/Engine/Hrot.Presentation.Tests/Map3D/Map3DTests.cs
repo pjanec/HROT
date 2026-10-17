@@ -29,6 +29,7 @@ public sealed class Map3DTests
         var db = new TkbDatabase();
         NedTkbCatalog.RegisterAll(db);
         UrbanCombatTkbCatalog.RegisterAll(db);
+        CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-1162 — backend's civilian family + security forces (CE-3220), as HrotEnvironment registers them
         return db;
     }
 
@@ -650,6 +651,36 @@ public sealed class Map3DTests
         world.AddComponent(carrier, list);
         world.AddComponent(casualty, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Exposed = 1, Mode = mode });
         return casualty;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1164 (civilian U-3, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U3-a/c) — a man KNOCKED DOWN by a non-lethal hit (the stored
+    /// <c>EffectState</c>, CE-3219) lies like a man down at FULL health, and stands again when the effect runs out; the 2-D line says what
+    /// runs (DOWN · STUNNED · GASSED), and nothing once it is over.
+    /// </summary>
+    [Fact]
+    public void CE1164_AKnockedDownMan_LiesDown_UntilItRunsOut_AndThe2DLineSaysWhatRuns()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            Assert.Equal(CarriageKind.Free, Carriage.Of(world, man, db).Kind);
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.AddComponent(man, new Fdp.Toolkit.Combat.EffectState { KnockedDownUntil = 14.0, IrritatedUntil = 30.0 });
+            Assert.Equal(CarriageKind.Downed, Carriage.Of(world, man, db).Kind);   // at full health
+            Assert.Equal("DOWN · GASSED", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 20.0 });       // the knock-down is over, the gas is not
+            Assert.Equal(CarriageKind.Free, Carriage.Of(world, man, db).Kind);
+            Assert.Equal("GASSED", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 40.0 });
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+        }
     }
 
     /// <summary>
@@ -1355,6 +1386,34 @@ public sealed class Map3DTests
         var grown = EntityBodyLayer3D.Resolve(db.GetByType(UrbanCombatTkbCatalog.TkbCivilianPedestrian));
         Assert.False(grown.Child);
         Assert.False(grown.TypeColoured);   // ⇒ his clothes come from the everyday palette, not the family green
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-1162 (civilian U-1, docs/DESIGN_Civilians_And_Crowd_Control.md §8 U1-a) — the person kit comes from the CLASS: the new civilian
+    /// family draws in clothes, a security-force officer in the navy police uniform with no camouflage whatever his side (unarmed until his
+    /// type carries a weapon, B-5), an infantryman as before. 🔒 Before: a hard-coded <c>DIS Category == 1</c> drew the police officer as a
+    /// civilian.
+    /// </summary>
+    [Fact]
+    public void CE1162_ThePersonKit_ComesFromTheClass_PoliceWearTheirUniform_CiviliansTheirClothes()
+    {
+        var db = BuiltIn();
+        var civilian = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale));
+        var police = EntityBodyLayer3D.Resolve(db.GetByType(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield));
+        Assert.Equal((VisualFamily.Person, PersonKit.Civilian, false), (civilian.Family, civilian.Kit, civilian.Soldier));
+        Assert.Equal((VisualFamily.Person, PersonKit.Security, false), (police.Family, police.Kit, police.Soldier));
+        foreach (var t in db.GetAll())
+            if (t.DisType.Kind == 3 && t.DisType.Category == 1 && EntityBodyLayer3D.Resolve(t).Family == VisualFamily.Person)
+                Assert.Equal(PersonKit.Soldier, EntityBodyLayer3D.Resolve(t).Kit);   // every infantryman is still a soldier
+
+        foreach (var side in new[] { ForceId.Neutral, ForceId.Friend, ForceId.Hostile })
+        {
+            var uniform = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, police.Soldier, false, null, side, police.Kit);
+            Assert.Equal((Outfits.PoliceUniform, CamoPattern.None, Legwear.Trousers), (uniform.Top, uniform.Camo, uniform.Legwear));
+        }
+        var clothes = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbCivilianAdultMale, civilian.Soldier, false, null, ForceId.Neutral, civilian.Kit);
+        Assert.NotEqual(Outfits.PoliceUniform, clothes.Top);
+        Assert.False(clothes.Soldier);
     }
 
     /// <summary>⭐ CE-1098 (docs/DESIGN_Map_3D_Mode.md §6p B-2) — how many blood spots: none unhurt, one after any hit, more as health drops,

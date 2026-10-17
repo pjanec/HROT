@@ -1096,3 +1096,12 @@ hit-test reads whatever the frame holds, so with *Entities* off it found nothing
 
 📐 Rails: `Fdp.Diagnostics.Contracts.Tests/DebugPrimitiveBufferLayerTests` ×4 · `RtsCommandToolTests.CE1075_*` (a full frame still
 carries the armed tool's capture binding). 📄 [`DESIGN_Map_3D_Mode.md` §6l](../../DESIGN_Map_3D_Mode.md) (the measurement that found it).
+
+⭐ **CE-1160 follow-up (`2026-10-16`, ui, overnight) — the freeze's likely cause, bounded.** The spheres the user saw appear with the freeze
+are `EqsSensorGizmo`'s verdict dots, and the verdict reruns the AI's whole filter pipeline (sight tests against the terrain, every candidate)
+on the DRAW thread, every frame, for every sensor drawn — the very path the crash trace came from. ⭐ Now cached per (sensor, template) and
+recomputed on a budget: at least every `VerdictRefreshSeconds` (0.25 s) and no sooner than `VerdictCostFactor` (10) × its own last cost, so
+the verdict takes at most ~1/10 of the frame time however expensive it is; stale entries leave after 5 s undrawn. Rail
+`EqsVisualizersTests.CE1160_…` (drawn every frame, computed on its budget), red-proved. ⚠ Not reproduced here: whether this was the whole
+freeze is for the user's machine to confirm.
+

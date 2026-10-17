@@ -12,16 +12,13 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// </summary>
     public static class SidePalette
     {
-        public static readonly Rgba32 Friend = new(90, 150, 255, 255);
-        public static readonly Rgba32 Hostile = new(235, 72, 60, 255);
-        public static readonly Rgba32 Neutral = new(96, 200, 100, 255);
+        // ⭐ CE-1163 (Symbology §3.2) — the FOURTH side palette folded into the one table (ResolvedStyleConstants, via AffiliationColors),
+        //   so the card frame, the 2-D outline and the IG tint agree
+        public static readonly Rgba32 Friend = AffiliationColors.Of(ForceId.Friend);
+        public static readonly Rgba32 Hostile = AffiliationColors.Of(ForceId.Hostile);
+        public static readonly Rgba32 Neutral = AffiliationColors.Of(ForceId.Neutral);
 
-        public static Rgba32 Of(ForceId force) => force switch
-        {
-            ForceId.Friend => Friend,
-            ForceId.Hostile => Hostile,
-            _ => Neutral,
-        };
+        public static Rgba32 Of(ForceId force) => AffiliationColors.Of(force);
     }
 
     /// <summary>

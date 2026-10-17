@@ -24,3 +24,13 @@ reply that the lean is wrong. Nothing here is built, and nothing should be befor
 
 Also FYI, ui-side only: today a SecurityForce type (DIS category 3) would draw in civilian clothes with no weapon, because
 `VisualFamilies.IsSoldier` is a hard-coded `Category == 1` (`VisualFamily.cs:104`). ui fixes that in U1-a by reading the class.
+
+## Update `2026-10-16` (ui, later the same night)
+
+- **F-1 is handled on the ui side**: `TerrainWorldMesh.IsVolumeEffect` keeps a see-through, walk-through prism out of the mesh (render and
+  navmesh) and the 2-D terrain gizmo skips it (CE-1165, U4-b). ⚠ This is a cross-lane edit in `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs`.
+  B1-c stays as designed, and it also answers your M-4 for walk-through prisms.
+- **F-2 is already answered**: your enum is `HitEffect`.
+- **F-3 and F-4 are still open**: there is no Cowering bit in `EffectState`, and no age carrier on the person types. Until they land, the
+  cower pose and the elderly look wait.
+
