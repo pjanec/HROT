@@ -2272,7 +2272,7 @@ with a brain.
 | CGF all systems | 54.9 | 138.8 | ×2.5 |
 | SimHost all systems | 54.2 | 157.4 | ×2.9 |
 | `BrainTickSystem` | 1.70 | 4.79 | ×2.8 — linear |
-| `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame) |
+| `WeaponAmmoMirrorSystem` (CGF) | 3.41 | 21.97 | ×6.4 ⇒ **`CE-3240` — fixed** (one pass per frame): 📐 **2.41 at 300 after**; CGF's sum 138.8 → 100.2, frames 382 → 512 |
 | `EqsResultUpdateSystem` (SimHost) | 5.60 | 39.18 | ×7 ⇒ `CE-3241` |
 | `CrowdSystem` (CGF, behaviors) | 0.45 | 3.06 | ×6.8 ⇒ behaviors note |
 | `RecorderTickSystem` CGF / SimHost / IG | 25.0 / 22.1 / 15.5 | 29.4 / 24.6 / 16.8 | flat but the biggest ⇒ `CE-3243` |
