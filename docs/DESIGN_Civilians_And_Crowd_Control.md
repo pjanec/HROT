@@ -401,7 +401,7 @@ shot" could mean "not seen").
 | CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ✅ live 11/11 `2026-10-17` · twin `PostureScenarioTests.CE2236_CivCower_…` ✅ (also asserts each passed through `Panic` and left Cower for Alarmed, never back to Panic) |
 | **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · a hurt civilian (health 40) at the crossroads (200, 200); 12 calm civilians 30–60 m up the four streets | ⓪ the hurt one is a `Casualty` · ① every onlooker enters `Gather` · ② their mean distance to him falls below 15 m within 60 s · ③ one crowd holds ≥ 8 of them · ④ every one arrives and stands on a ring 2.5–11 m round him | ⏳ live run 1: 5/6 — ② at 25 s; ④ was measured while the 60 m ones still walked (check fixed: waits for all to arrive) · twin `PostureScenarioTests.CE2237_CivGathering_…` ✅ (12/12 Gather, 4.0–11.0 m, one crowd, mean < 15 m at 24.5 s) |
 | CIV-3 | **`ua-civ-contagion`** | test-town · 15 civilians 8 m apart along the street, 30–142 m from a firefight (a rifleman and a hostile) at its west end · ⚠ *deviation:* small-arms fire, not a blast — no scenario-scriptable blast exists; the hearing edge (100 m) splits the crowd the same way | ⓪ ONE crowd · ① ≥ 5 hear it (`HeardAt`) · ⓪ ≥ 4 never hear anything · ② ≥ 3 of those who never heard panic, from the crowd | ✅ live 3 of 3 in a row after `CE-2246` (§5f: the crowd split by wandering; the demo's civilians wander 3 m) · twin `PostureScenarioTests.CE2237_CivContagion_…` ✅ (samples `HeardAt` and `Panic` every frame) |
-| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
+| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · ⭐ *as built:* an instigator and two protesters inside a stone source (TKB 8812, a polyline area), a policeman 12 m off | ⓪ the instigator riots · ① he fills his hands at the source · ② he throws · ③ the side follows the ACT: nobody Hostile without his act; every thrower Hostile on CGF, SimHost and IG within 3 s | ✅ twin green (§5i.2a) · ⏳ the soldier line and "no soldier hits a Neutral rioter" wait on A6 (`Roe.ForceLevel`) |
 | CIV-4 · `CE-2238` | **`ua-civ-melee`** | test-town · an instigating protester (Neutral) 6 m from a policeman (Friend) | ⓪ he riots · ① his blow knocks the policeman down (`EffectState.KnockedDownUntil` > now) on CGF, SimHost and IG · ② the rioter is Hostile on all three | ✅ live 4/4 `2026-10-17` (simTime 8.6 s) · twin `PostureScenarioTests.CE2238_CivMelee_…` green (§5i.1) |
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
@@ -1261,7 +1261,7 @@ Protest — the existing Alarmed → Routine → Protest → Riot edges carry hi
 
 **Proof.** Rails `CivilianHsmTests.CE2241_ACoveredHostile_…` (raise, hold while Ready, stays Hostile, not down before 5 s, down after,
 re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ no hands; a Hostile gunman covers nobody; beyond 100 m
-nobody). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
+nobody). Red under 5 mutants (any covered man surrenders · an at-ease rifle covers · any side covers · no 5 s hold · Surrender outranks the wound — 📌 that one survived the first rail, which only checked the final state; the rail now checks every tick). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
 frames held; 150 → 150 rounds; 100 → 100 HP; Hostile); live 8/8 `2026-10-17` (sim 19.5 s).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
@@ -1388,6 +1388,118 @@ the cooldown; calm ⇒ Protest, still Hostile) and `CE2238_ARioter_StrikesOnlyTh
 `CrowdSystemTests.CE2238_AnInstigator_…` (near past 0.6 in 6 s, farther slower, beyond 20 m and another crowd untouched, fade 0.02/s).
 Each rail red under its mutant (5: the flip written to `Name`, a knocked-down man struck, the riot guard `>`, any side struck, the anger rate 0.05). Demo `ua-civ-melee` (§5c): twin `PostureScenarioTests.CE2238_CivMelee_…` green (15 s: Riot, knocked down on CGF/SimHost/IG, Hostile on
 all three, one strike, no flip before the blow); live check `run_civ_melee` — see §5c.
+
+### 5i.2 CIV-4 behaviour, part 2 — the stone *(behaviors, `CE-2238` part 2, 2026-10-17; build-state: BUILT — as-built at the end of this section)*
+
+⭐ **Scope.** The riot's ranged act, now that backend landed the HANDS (B-8, §7.9a) and the STONE SOURCE (B-13, §7.10a): a rioter
+fills his hands at a stone source and throws at the forces from range; the first stone is his hostile act (the same `HostileActs.Commit`
+as the blow). Demo `ua-civ-riot-stone` (§5c). ⛔ Not here: picking a LYING stone up (`RoundPickUp`, a later step), a live grenade or a
+canister in hand (AW-9, B-14), the crowd's many throwers and the perf gate (CE-3222).
+
+**INVENTORY** *(2026-10-17, grep + reads — the throw path is one call deep, so the call sites ARE the set)*:
+
+| question | measured | where |
+|---|---|---|
+| how a behaviour throws | write `FireAtPointParams { Point, Rounds, Mount, CooldownSeconds }` onto the unit's `WeaponChannel` with `ActionIdFireAtPoint` — the `SuppressBehavior` precedent; the executor throws the LOADED round of that mount on its arc (H-5) | `SuppressBehavior.cs:85-89`, `FireAtPointExecutor` |
+| which mount is the hands | `PersonHands.MountIndex(world, man)` | `PersonHands.cs:57` |
+| what he holds | `PersonHands.Rounds(world, man, ammo)` · `Holding(world, man, each)` · `HoldsLethal` | `PersonHands.cs:155-210` |
+| filling his hands | `ItemSources.Refill(world, man)` — tops up to the source's `UpTo` (5) when he stands inside one; nothing to ask | `ItemSources.cs:44` |
+| does a civilian have a weapon channel | ✅ every brain-tier unit gets `WeaponChannel` + `WeaponPosture` | `BehaviorTkbTranslator.cs:140-145` |
+| the stone | TKB 6038, `Indirect` (H-6), lies 60 s | `MunitionTkbCatalog.cs:123, 384` |
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianHsm { <<existing, grows>> Riot: + the throw arm, + the bend at a source }
+  class RiotState { <<existing, grows>> + NextThrowAt · BendUntil }
+  class Stones { <<NEW static, Fdp.Toolkits/Civilians>> InHand(world, man) · Throw(world, man, at) }
+  class PersonHands { <<backend B-8>> MountIndex · Rounds · Holding · HoldsLethal }
+  class ItemSources { <<backend B-13>> Refill(world, man) }
+  class WeaponChannel { <<existing>> ActionIdFireAtPoint }
+  class FireAtPointExecutor { <<existing>> throws the loaded round on its arc }
+  class HostileActs { <<existing, §5i>> Commit }
+  CivilianHsm ..> Stones
+  CivilianHsm ..> ItemSources : at a source, hands empty
+  CivilianHsm ..> HostileActs : the first stone
+  Stones ..> PersonHands
+  Stones ..> WeaponChannel : FireAtPoint, Rounds 1, the hands
+  WeaponChannel ..> FireAtPointExecutor
+```
+*What the picture shows that prose hid:* the throw is ONE channel write on the path backend already made carry the loaded round — the
+slice adds a thin helper and an arm in the Riot activity; no new firing path, no new component.
+
+```mermaid
+stateDiagram-v2
+  state Riot {
+    [*] --> Choose
+    Choose --> Bend : hands empty and in a source
+    Bend --> Choose : 1.5 s, hands filled
+    Choose --> Throw : stones in hand, target 4 to 20 m
+    Throw --> Choose : cooldown 3 s
+    Choose --> Close : target beyond 20 m, or no stones
+    Close --> Strike : within 1.5 m, no stones
+    Strike --> Choose : cooldown
+  }
+```
+*What the picture shows that prose hid:* the stone is preferred whenever he has one and the target is in range; the fist is what he does
+with empty hands — and a rioter in a source never walks off empty-handed, he bends first.
+
+```mermaid
+sequenceDiagram
+  participant R as rioter CivilianHsm (CGF)
+  participant I as ItemSources
+  participant H as PersonHands
+  participant F as FireAtPointExecutor (CGF)
+  participant S as SimHost FireProcessing
+  R->>I: Refill after the 1.5 s bend (in a source)
+  I->>H: Give(stone, up to 5)
+  R->>F: WeaponChannel FireAtPoint at the policeman, Rounds 1, the hands mount
+  F->>S: WeaponFireIntent, the stone, on the arc
+  R->>R: HostileActs.Commit (the first throw)
+  S-->>R: the stone lands, lies 60 s (every node sees it)
+```
+*What the picture shows that prose hid:* the act is committed when he THROWS, not when the stone lands or hits — the trainee sees the
+side flip the moment the arm comes over, which is what an observer would judge.
+
+```mermaid
+graph TD
+  CGF[CGF node] --> BT[BrainTickSystem]
+  BT --> HSM[rioter CivilianHsm: Riot]
+  HSM --> ST[Stones.Throw: WeaponChannel write]
+  CGF --> EX[weapon executors: FireAtPointExecutor]
+  EX --> SH[SimHost: FireProcessing, the stone flies]
+  HSM --> IS[ItemSources.Refill]
+```
+*What the picture shows that prose hid:* nothing is registered — the executor that runs a soldier's grenade throw runs the rioter's stone.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| stone or fist | ⭐ a stone whenever he holds one and the target is 4–20 m away; the fist only with empty hands (or inside 4 m) | fist first: a rioter with a stone walks into a baton |
+| where he aims | ⭐ the target's feet (`SimTransform.Position`); the executor's arc does the rest | lead the target: a policeman in a line barely moves |
+| how often | ⭐ one stone every 3 s (`ThrowCooldownSeconds`), `Rounds = 1` per write | a burst: a hand throws one |
+| filling | ⭐ in a source with empty hands: crouch 1.5 s (`StanceRequest`), then `Refill` | walk to the nearest source: a riot that leaves its line to fetch stones is a later behaviour |
+| the act | ⭐ the first THROW commits it (`HostileActs.Commit`, once) | on the hit: a stone that misses is still an attack (AW-16) |
+| the throwers' arms | ⭐ the gesture stays `FistRaised`; the throw shows through the executor's `Throwing` status | a Throwing gesture byte per throw: the figure already reads the weapon status |
+
+⚠ **Known limits:** ① no lying-stone pick-up yet (`RoundPickUp.Ask` — next step); ② one target at a time, the nearest; ③ a thrown
+stone never hits a neutral on purpose — the executor's neutral exemption for an arcing round (H-5) means he may hit one by accident.
+
+#### 5i.2a AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as the diagrams above draw it**; one deviation, folded into the class box: `Stones` lives in **`Fdp.Toolkits/Civilians`**, not
+`Hrot.AI.Behaviors` — beside `HostileActs`, so it sits with the `PersonHands` it reads.
+
+| | as built |
+|---|---|
+| where | `Stones.InHand` / `Stones.Throw` (`Fdp.Toolkits/Civilians/Stones.cs`) · the bend and the throw arm at the top of `CivilianBehavior.Riot`, `CanFill`, `RiotState { NextThrowAt, BendUntil }`, constants `ThrowMinMetres` 4 · `ThrowMaxMetres` 20 · `ThrowCooldownSeconds` 3 · `BendSeconds` 1.5; `Deactivate_Riot` stands him up when he leaves mid-bend |
+| the throw | ONE `FireAtPoint` round (`Rounds = 1`, the executor's own cooldown 0.5 s) on the hands mount at the target's position; the behaviour paces the stones |
+| a test world needs HANDS | 📌 `PersonHands.MountIndex` reads the TKB type — a bare HSM world has none, so the rail builds the production path in miniature: a pedestrian type through `EnsureOnPersons`, injected by `CombatTkbTranslator` |
+
+**Proof.** Rails `CivilianHsmTests.CE2238_ARioterWithStones_…` (throws at 12 m from the hands mount, `Rounds` 1, at the policeman; the
+stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he has stones; out of stones he closes and strikes) and
+`CE2238_NoStoneBeyond20m_NorInside4m_AndALiveGrenadeIsNotAStone`. Demo `ua-civ-riot-stone` (§5c): twin
+`PostureScenarioTests.CE2238_RiotStone_…` green (28 s: he filled at the source, 6 throws; the instigator acted at 3.2 s and was Hostile on
+CGF, SimHost and IG the same frame; both protesters caught his anger, threw and turned Hostile at 9.4 s — none Hostile before his act).
 
 ## 6. Known limits
 

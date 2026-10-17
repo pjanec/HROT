@@ -3102,6 +3102,49 @@ def run_armed_shield(c, timeout):
     c.ok(not hurt, f"③ no civilian is hit ({sorted(hurt)}; health {[health(n) for n in civs]})")
 
 
+# ── CE-2238 part 2 CIV-4 — the stone (Civilians §5c, §5i.2) ─────────────────────────────────────────────────────────────
+
+def run_civ_riot_stone(c, timeout):
+    """test-town: an instigator and two protesters inside a stone source, a policeman 12 m off. ⓪ the instigator riots · ① he fills
+    his hands at the source (hands' ammo above 0) · ② he throws (the ammo drops) · ③ the side follows the ACT: on CGF no protester is
+    Hostile without his act stamped, and every thrower is Hostile on CGF, SimHost and IG within 3 s of his act (sampled). The twin
+    (PostureScenarioTests.CE2238_RiotStone_…) checks every frame."""
+    ids = ids_by_name()
+    cop = ids.get("Policeman")
+    names = ("Instigator", "Protester 1", "Protester 2")
+    civs = {n: ids.get(n) for n in names}
+    if not c.ok(cop is not None and None not in civs.values(), "the policeman, the instigator and two protesters are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+    inst = civs["Instigator"]
+    peak, thrown = [0], [False]
+    acted, everywhere, bad = {}, {}, []
+
+    def watch():
+        t = sim_time() or 0.0
+        a = (comps_on("CGF", inst) or {}).get("WeaponState", {}).get("Ammo") or 0
+        if a > peak[0]: peak[0] = a
+        if peak[0] > 0 and a < peak[0]: thrown[0] = True
+        for n, nid in civs.items():
+            cg = comps_on("CGF", nid) or {}
+            act = ((cg.get("CivilianState") or {}).get("HostileActAt") or 0) > 0
+            if act and n not in acted: acted[n] = t
+            side = (cg.get("EntityInfo") or {}).get("ForceId")
+            if side in ("Hostile", 2) and not act: bad.append(f"{n}@{t:.1f}")
+            if n not in everywhere and all(((comps_on(h, nid) or {}).get("EntityInfo") or {}).get("ForceId") in ("Hostile", 2) for h in hosts):
+                everywhere[n] = t
+        return thrown[0] and "Instigator" in everywhere
+    call("POST", "/sim/play", {})
+    riot = wait_for(lambda: civ_mode(inst) == "Riot", 30, every=0.25)
+    c.ok(riot is not None, f"⓪ the instigator riots ({civ_mode(inst)})")
+    wait_for(watch, timeout + 40, every=0.25)
+    c.ok(peak[0] > 0, f"① he fills his hands at the stone source (up to {peak[0]} in hand)")
+    c.ok(thrown[0], "② he throws (his hands' ammo drops)")
+    c.ok(not bad, f"③ no one Hostile without his act ({bad[:3]})")
+    late = [n for n, t in acted.items() if n not in everywhere or everywhere[n] - t > 3.0]
+    c.ok("Instigator" in acted and not late, f"③ every thrower Hostile on every node within 3 s (acted {acted}, everywhere {everywhere})")
+
+
 # ── CE-2241 ① CV-13a — a covered hostile raises his hands, and the AI holds (Civilians §5c, §5h.3) ──────────────────────
 
 def run_civ_surrender(c, timeout):
@@ -3159,6 +3202,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-armed-shield": run_armed_shield,
              # ⭐ CE-2238 CIV-4 — the riot, the blow, the side flip (Civilians §5c, §5i)
              "ua-civ-melee": run_civ_melee,
+             # ⭐ CE-2238 part 2 CIV-4 — the stone (Civilians §5c, §5i.2)
+             "ua-civ-riot-stone": run_civ_riot_stone,
              # ⭐ CE-2241 ① CV-13a — a covered hostile raises his hands, the AI holds (Civilians §5c, §5h.3)
              "ua-civ-surrender": run_civ_surrender,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
