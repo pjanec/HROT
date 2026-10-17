@@ -414,6 +414,53 @@ namespace Hrot.ClusterRunner.Integration.Tests;
         finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-2234</c> M-1 (docs/DESIGN_Civilians_And_Crowd_Control.md §5a; CV-7) — a person CGF created is DELETED by CGF and gone on
+    /// SimHost: the brain's <c>DestroyEntityCommand</c> (what a sheltered civilian issues after its hide time) is enough — no ownership
+    /// move, no SimHost-side logic. The measurement the shelter slice (<c>CE-2236</c>) rests on.
+    /// </summary>
+    [Fact]
+    public void CE2234_APersonCgfCreated_DeletedOnCgf_IsGoneOnSimHost()
+    {
+        bool previousStrictMode = FdpConfig.EnforceExplicitEventRegistration;
+        FdpConfig.EnforceExplicitEventRegistration = true;
+        try
+        {
+            using var simHost = new HrotRunnerHarness("simhost", 37);
+            using var cgf     = new CgfHarness(37);
+            cgf.PumpFrames(20);
+            PumpBothFrames(simHost, cgf, 40);
+
+            var cgfWorld = cgf.World!;
+            cgf.CgfSvc.ScenarioEntityCreationSource!.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId          = Guid.NewGuid(),
+                OwnerAppInstanceId = Hrot.Core.Network.EntityCreationRouting.DefaultEntityCreationRequestProcessor,
+                TkbType            = TkbEntityTypes.Infantry_Rifleman,
+                InitialComponents  = new System.Collections.Generic.List<object>
+                {
+                    new SimTransform { Position = new System.Numerics.Vector3(10, 20, 0), Rotation = System.Numerics.Quaternion.Identity },
+                },
+            });
+            Assert.True(PumpBothUntil(simHost, cgf, () => simHost.SimHost.World is { } w && !OfType(w, TkbEntityTypes.Infantry_Rifleman).IsNull,
+                PropagationTimeoutMs), "the person never reached SimHost");
+            var simWorld = simHost.SimHost.World!;
+            var cgfMan = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+            long netId = cgfWorld.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(cgfMan).Value;
+
+            cgfWorld.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand { NetworkId = netId, Reason = "CE-2234 sheltered" });
+            bool gone = PumpBothUntil(simHost, cgf, () =>
+            {
+                var m = OfType(simWorld, TkbEntityTypes.Infantry_Rifleman);
+                return m.IsNull || !simWorld.IsAlive(m);
+            }, AuthorityTimeoutMs);
+            var c = OfType(cgfWorld, TkbEntityTypes.Infantry_Rifleman);
+            Assert.True(gone, $"a delete issued on CGF must remove the person on SimHost (CGF copy alive: {!c.IsNull && cgfWorld.IsAlive(c)})");
+            Assert.True(c.IsNull || !cgfWorld.IsAlive(c), "and on CGF");
+        }
+        finally { FdpConfig.EnforceExplicitEventRegistration = previousStrictMode; }
+    }
+
     private static Entity OfType(EntityRepository w, long tkbType)
     {
         if (!w.IsComponentTypeRegistered<TkbIdentity>()) return Entity.Null;

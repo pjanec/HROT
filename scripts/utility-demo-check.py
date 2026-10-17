@@ -274,6 +274,11 @@ def run_threat_ranking(c, timeout):
     c.ok("Armed Hidden" not in names, "the contact hidden behind the Tower is not ranked (never seen)")
     if "Civilian Near" in names and "Armed Near" in names:
         c.ok(names.index("Civilian Near") > names.index("Armed Near"), "the unarmed civilian ranks below the armed contact")
+    # ⭐ CE-2233 (CIV-0, Civilians CV-8) — the civilian is NEUTRAL: seen and remembered (a soldier sees civilians), but no danger
+    #   (ThreatDanger 0 ⇒ score 0) and never the pick
+    if "Civilian Near" in names:
+        c.ok(scores[names.index("Civilian Near")] == 0, f"the neutral civilian scores 0 (no danger): {scores[names.index('Civilian Near')]}")
+    c.ok((d.get("winner") or {}).get("name") != "Civilian Near", "the neutral civilian is never the winner")
     if "Armed Far" in names and "Armed Near" in names:
         c.ok(names.index("Armed Far") > names.index("Armed Near"), "the farther armed contact ranks below the nearer")
 

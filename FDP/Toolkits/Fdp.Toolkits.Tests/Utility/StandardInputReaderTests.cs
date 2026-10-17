@@ -360,6 +360,31 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
         }
 
+        /// <summary>⭐ <c>CE-2233</c> (CIV-0, 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the two inputs that gate the FIRING
+        /// postures do not count a NEUTRAL contact: one seen now and remembered is no live target and no threat in sight, until its
+        /// side flips to Hostile.</summary>
+        [Fact]
+        public unsafe void CE2233_ANeutralIsNoLiveTarget_AndNoThreatInSight_UntilItsSideFlips()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<EntityInfo>()) repo.RegisterComponent<EntityInfo>();
+            if (!repo.IsComponentTypeRegistered<ActiveSensorTracks>()) repo.RegisterComponent<ActiveSensorTracks>();
+            var self     = _world.SpawnAgent(1f, 1f);
+            var civilian = repo.CreateEntity();
+            _world.SeedContact(self, civilian, 20f, 1f, -1f, true);
+            repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            var tracks = new ActiveSensorTracks { Count = 1 };
+            tracks.EntityIds[0] = (long)civilian.PackedValue;
+            tracks.Modalities[0] = (byte)SensorModality.Visual;
+            repo.AddComponent(self, tracks);
+            Assert.Equal(0f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(0f, StandardInputs.ThreatInSight(MakeCtx(self)));
+
+            repo.GetComponentRW<EntityInfo>(civilian).ForceId = ForceId.Hostile;   // a hostile act flips the side
+            Assert.Equal(1f, StandardInputs.HaveLiveTarget(MakeCtx(self)));
+            Assert.Equal(1f, StandardInputs.ThreatInSight(MakeCtx(self)));
+        }
+
         // ⭐ CE-3054 C — EnemyStrengthRatio sums DANGER, not freshness: a hidden enemy does not make the unit braver.
         [Fact]
         public void CE3054_EnemyStrengthRatio_DoesNotFadeWithFreshness()
