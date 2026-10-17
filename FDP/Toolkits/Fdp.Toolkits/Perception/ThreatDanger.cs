@@ -27,10 +27,10 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CE-2233 (CIV-0; DESIGN_Civilians_And_Crowd_Control CV-8, R-3013) — a NEUTRAL is no danger: a civilian is not a threat
             //   until a visible hostile act flips its side (CV-4). Here, once, for every threat reader — like the dead above.
             if (IsNeutral(view, target)) return 0f;
-            // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is as armed as its gun
-            // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a WeaponState that is only a flare / chaff dispenser (an unarmed UH-60) arms nobody
-            if ((!view.HasComponent<WeaponState>(target) || Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(view, target))
-                && !(view is EntityRepository r && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(r, target).IsNull)) return Unarmed;
+            // ⭐⭐ CE-3229 (B-7; DESIGN_Civilians_And_Crowd_Control §7.8) — THE armed rule: a combatant on STATUS (today's test — a weapon
+            //   not only a dispenser, CE-2188, or a working controlled weapon, WS-4), a civilian by what THIS observer can identify (AW-15).
+            //   ⭐ A-6: Unidentified reads unarmed — "never fire on this alone", and danger feeds the Sentry's fire threshold.
+            if (Fdp.Toolkit.Combat.Armament.Judge(view, self, target) != Fdp.Toolkit.Combat.ArmedJudgement.IdentifiedLethal) return Unarmed;
             // ⭐ CE-2165 V1 — to a VEHICLE, danger is what the target's weapons can do to MY armour (DESIGN_Vehicle_Exposure_Cycle §2).
             if (view is EntityRepository repo && ToMe(repo, self, target, out float toMe)) return toMe;
             return 1f;
@@ -239,9 +239,9 @@ namespace Fdp.Toolkit.Perception
                 ref readonly var h = ref view.GetComponentRO<Health>(self);
                 health = h.Max > 0f ? System.Math.Clamp(h.Current / h.Max, 0f, 1f) : 0f;
             }
-            // ⭐ WS-4 — a bare host (a pickup whose gun is its station's weapon system) is armed too
-            bool armed = view.HasComponent<WeaponState>(self) && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(view, self)   // ⛔ CE-2188
-                         || view is EntityRepository repo && !Fdp.Toolkit.Combat.WeaponSystems.WeaponOf(repo, self).IsNull;
+            // ⭐ CE-3229 (§7.8 A-7) — the TRUTH form: a lethal round on a built-in mount or a working controlled weapon (a bare host's
+            //   station gun, WS-4); a dispenser (CE-2188) or non-lethal rounds only (AW-2) arm nobody
+            bool armed = Fdp.Toolkit.Combat.Armament.LethalInHand(view, self);
             return health * (armed ? 1f : Unarmed);
         }
     }
