@@ -2634,8 +2634,12 @@ def run_civ_neutral_gate(c, timeout):
 
     seen = wait_for(lambda: (sample(), {civ, armed} <= _memory_ids(rifle))[1], timeout)
     c.ok(seen is not None, "① the rifleman sees (remembers) both neutrals")
-    down = wait_for(lambda: (sample(), (h := health(hostile)) is not None and h <= 0)[1], timeout * 2)
-    c.ok(down is not None, f"② the Hostile is killed (health {health(hostile)})")
+    # ② OUT OF THE FIGHT, not "health 0": an incapacitated man bleeds out and is not shot again (Injury.IsInTheFight, I4) —
+    #   measured live 2026-10-17: the Hostile sat at 1.1 HP, incapacitated, the rifleman rightly holding fire
+    th = ((data(call("GET", f"/entities/{hostile}")) or {}).get("Components") or {}).get("InjuryThresholds") or {}
+    down_below = (th.get("IncapacitatedBelow") or 0.25) * 100
+    down = wait_for(lambda: (sample(), (h := health(hostile)) is not None and h < down_below)[1], timeout * 2)
+    c.ok(down is not None, f"② the Hostile is put out of the fight (health {health(hostile)} < {down_below:.0f})")
     c.ok(low[civ] == full[civ], f"③ the unarmed civilian is never hit: {full[civ]} → lowest {low[civ]}")
     c.ok(low[armed] == full[armed], f"③ the ARMED neutral is never hit: {full[armed]} → lowest {low[armed]}")
     c.ok(ranked_seen and zero_scores, f"④ the neutrals are ranked and score 0 (ranked: {ranked_seen})")
@@ -2649,8 +2653,11 @@ def run_civ_neutral_gate(c, timeout):
     c.ok(a0 is not None and a0 == a1, f"⑤ with only neutrals left he fires nothing for 8 s (rounds {a0} → {a1})")
     c.ok(low[civ] == full[civ] and low[armed] == full[armed], "⑤ …and both neutrals are still unhurt")
 
-    r = call("POST", f"/entities/{armed}/component", {"networkId": armed, "componentType": "EntityInfo", "patch": {"ForceId": "Hostile"}})
-    if not c.ok("http" not in r, f"⑥ the armed neutral's side flips to Hostile (patch: {r if 'http' in r else 'ok'})"):
+    # ⑥ through the ONE write path that reaches the owner and the wire (EntityWriteRouter, CE-3221) — ⛔ not /component: that is a
+    #   StructEdit of this node's world, never sent (measured live 2026-10-17: "ok", and nobody else saw the flip)
+    r = call("POST", f"/entities/{armed}/attribute", {"patchJson": {"Affiliation": "FORCE_OPPOSING"}})
+    route = ((data(r) or {}).get("write") or {}).get("route") if "http" not in r else None
+    if not c.ok(route in ("direct", "requested"), f"⑥ the armed neutral's side flips to Hostile (route {route}; {r if 'http' in r else ''})"):
         return
     hit = wait_for(lambda: (h := health(armed)) is not None and full[armed] is not None and h < full[armed], timeout)
     c.ok(hit is not None, f"⑥ ★ once Hostile he is engaged at once — health {full[armed]} → {health(armed)}")
