@@ -3444,14 +3444,15 @@ def run_civ_escalation(c, timeout):
         if at_ease and any(gesture_on("CGF", p) == "Warning" for p in police):
             st["warned"] = True
         a = (ammo(cop_rifle) or (None,))[0]
+        _, tgt = weapon_status(police[0])
         if a is not None and st["rifle"] is not None and a < st["rifle"]:
             if at_ease:
                 st["at_ease_rounds"] += 1
-            _, tgt = weapon_status(police[0])
-            if tgt == gun:
+            if gun in (tgt, st.get("prev")):   # the round left between two 0.25 s samples: his target on either side of it
                 st["at_him"] += 1
             else:
                 st["elsewhere"].append(tgt)
+        st["prev"] = tgt
         st["rifle"] = a if a is not None else st["rifle"]
         for n in civs:
             fx = (comps(n) or {}).get("EffectState") or {}
@@ -3531,12 +3532,13 @@ def run_armed_self_defence(c, timeout):
     def watch():
         t = sim_time() or 0.0
         a = (ammo(rifle) or (None,))[0]
+        _, tgt = weapon_status(officer)
         if a is not None and st["rifle"] is not None and a < st["rifle"]:
-            _, tgt = weapon_status(officer)
-            if tgt == gun:
+            if gun in (tgt, st.get("prev")):   # the round left between two 0.25 s samples: his target on either side of it
                 st["at_him"] += 1
             else:
                 st["elsewhere"].append(tgt)
+        st["prev"] = tgt
         st["rifle"] = a if a is not None else st["rifle"]
         for n in civs:
             fx = (comps(n) or {}).get("EffectState") or {}
