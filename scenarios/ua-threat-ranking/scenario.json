@@ -72,7 +72,7 @@
       },
       "EntityInfo": {
         "Name": "Civilian Near",
-        "ForceId": "Hostile"
+        "ForceId": "Neutral"
       },
       "TargetMemory": {
         "Entries": []

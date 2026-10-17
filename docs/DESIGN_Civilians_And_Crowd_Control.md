@@ -321,6 +321,64 @@ NOT the movement host here (CV-10). And everything that decides runs on CGF; Sim
 | **M-1** | does CGF hold the authority the wire delete needs over a civilian it CREATED, while SimHost moves the body? | §2.3's last step: `CycloneNetworkCleanupSystem` disposes on the wire only when the deleting node `HasAuthority`; if SimHost is primary, "the brain deletes itself" leaves a ghost everywhere else | `CycloneNetworkCleanupSystem.cs:70-120`, R-160, the CGF creation path |
 | **M-2** | does the route planner reach a point INSIDE a bt-range house footprint (through its door), and does `DoorPassageSystem` fire on that route? | CV-7's "a point inside the footprint" is only reachable if the navmesh / road graph enters the building; if not, the shelter target must be the door's inner side | `NavDoorways.cs`, `DoorPassageSystem.cs:78-122`, the bt-range terrain |
 
+⭐ **Answered** *(behaviors, `CE-2234`, 2026-10-17)* — both YES, so CV-7 keeps its shape:
+
+| # | answer | evidence |
+|---|---|---|
+| **M-1** | ✅ **a `DestroyEntityCommand` published on CGF removes a person CGF created on SimHost and on CGF** — no ownership move, no SimHost-side logic. The brain's self-delete is enough | `SplitAuthoritySpawnTests.CE2234_APersonCgfCreated_DeletedOnCgf_IsGoneOnSimHost` (two nodes, real DDS) — passes. ⚠ a measurement rail, not red-proved |
+| **M-2** | ✅ **a path from outside reaches inside the house through its door; every doorway of the SHIPPED bt-range House A connects for infantry; a closed door on the route holds the walker and opens once, a locked one is a wall (replans or fails the move)** ⇒ the shelter target may be a point inside the footprint | `RecastNavmeshFactoryTests.Stage2_InsideTheHouse_…`, `Stage5c_ALockedDoorIsAWall_…`, `Stage5d_BtRangeHouseA_EveryDoorwayConnectsForInfantry`, `DoorPassageSystemTests.Stage5d_*` (4) — 7 / 0 |
+
+## 5b. AS-BUILT — CIV-0, the safety gate *(behaviors, `CE-2233`, 2026-10-17)*
+
+Built as CV-8's first half, at the THREE layers a target passes — measured, not assumed: danger 0 alone left the neutral as
+`TopThreat`'s pick (it takes the ranking's top at score 0, the CE-2202 corpse case).
+
+| layer | as built | why here |
+|---|---|---|
+| danger | `ThreatDanger.Of` = 0 for a neutral (`ThreatDanger.IsNeutral`: `EntityInfo.ForceId == Neutral`, read live) | "the ONE function every threat reader calls" (Sensors §7.8a) — counts, the ranking, danger areas, the vehicle budget at once, as the dead (CE-3080) |
+| pick | `EqsTacticsNodes.TopThreat`: the designated target, the kept/top threat and the live fallback must be `Engageable` (in the fight AND not neutral) | the one threat pick every fire / sensor / close step goes through (Entity Control §10) |
+| fire | `AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldNeutral` (label "hold: neutral", amber, weapon posture Ready) — on both the turret and the per-shot path | the last gate before an AI round, whoever picked the target (a squad assignment, an order); ⭐ an operator's (human's) fire does not pass here |
+| posture | `StandardInputs.HaveLiveTarget` and `ThreatInSight` skip a neutral as they skip a corpse (CE-2120) | 📐 found by a sweep of every `IsOutOfTheFight` reader: these two gate the FIRING postures — without it a soldier who sees only a civilian picks Suppress with nothing to shoot. (`SquadInputs:270` reads the unit's own members and the EQS `AliveFilterTest` is not a threat gate — left alone) |
+
+📐 **Live** *(2026-10-17, `utility-demo-check.py --launch ua-threat-ranking`, "Civilian Near" now Neutral)*: the ranking settles Armed Near
+› Armed Far › Civilian 0, and stays so until both armed contacts are down. ⚠ Once every candidate scores 0 the ranking's debug WINNER
+shows the civilian (the scorer returns its top at 0) — harmless, `TopThreat` filters it, but a reader of `/utility` should not take it as
+a pick.
+
+⚠ **Known limits of the gate:** ① an entity with NO `EntityInfo` is not neutral (Neutral is the enum's zero; unknown = engageable, as
+`ThreatDanger` treats a target this node does not hold). ② An ORDER to attack a neutral is held by the weapon (no override yet — the
+escalation ladder, `CE-2239`, decides whether an order may). ③ A grenade or an indirect round at a POINT is not gated by a neutral near
+it (collateral is `CE-2239`'s). ④ Scenario sweep (2026-10-17): of 315 typed scenario entities only 4 are Neutral / unset — two vans and two
+weather regions, none a combatant.
+
+## 5c. Demo scenarios — one per feature, each a TEST *(behaviors, 2026-10-17; user: "a demo scenario for each civilian feature, with a clear success condition so it is usable as a test")*
+
+⭐ **The rule:** a civilian slice is not done until its demo PASSES. Each demo is ① a `scenarios/<name>/scenario.json`, ② a live check
+`python3 scripts/utility-demo-check.py --launch <name>` (a fresh cluster, asserting — the acceptance), and ③ an in-process twin in
+`Hrot.ClusterRunner.Integration.Tests` (the CI gate; shipped-scenario twins live in `PostureScenarioTests`). A PASS line names what it
+proves; ⭐ every demo also asserts the **precondition that makes the pass meaningful** (e.g. "he SEES the neutral" — otherwise "not
+shot" could mean "not seen").
+
+| slice | demo | terrain · cast | ⭐ PASS = all of | state |
+|---|---|---|---|---|
+| **CIV-0** `CE-2233` | **`ua-civ-neutral-gate`** | test-town · a rifleman (Friend, CombatPosture); an unarmed Neutral civilian; an ARMED Neutral nearest of all; a Hostile farther | ① he remembers both neutrals · ② the Hostile dies · ③ neither neutral loses health, sampled all run · ④ the neutrals rank at score 0 · ⑤ with only neutrals left, no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged, the civilian still unhurt | ✅ built (twin `PostureScenarioTests.CE2233_CivNeutralGate_…`) |
+| CIV-0 | `ua-threat-ranking` *(migrated)* | test-town · its civilian is Neutral | the neutral civilian scores 0 and is never the ranking's winner | ✅ |
+| **CIV-1** `CE-2235` | **`ua-civ-routine-alarm`** | test-town · 6 civilians of the new types (1101–1104) at their routine points; a soldier who fires a burst at a target 40 m from two of them, 150 m from the rest | ① all 6 start in `Routine` · ② within 2 s of the first shot, every civilian within hearing (100 m) is `Alarmed`, every one beyond stays `Routine` · ③ after the quiet time each `Alarmed` returns to `Routine` · ④ one wounded (Health set to 40) ⇒ `Casualty`, stops moving, and stays there | ⏳ with CE-2235 |
+| CIV-1 | **`ua-civ-crowd-300`** *(perf gate, CV-10)* | test-town · 300 civilians, mixed variants, routine points spread over the town | ① all 300 run a behaviour · ② over 60 s, CGF frame time p95 ≤ the budget backend's `scripts/perf-civilians.sh` measures against (B-4) · ③ brain tick per civilian reported | ⏳ CE-2235 + B-4 |
+| **CIV-2** `CE-2236` | **`ua-civ-shelter`** | bt-range · 4 civilians near House A (doors closed, not locked) and House B (locked); a burst fired 30 m away; hide time set short (20 s) for the test | ① each enters `Panic` · ② each reaches a point INSIDE House A's footprint (InsideTest), its door Open on every node · ③ none enters House B · ④ ~20 s after entering, each is gone on CGF, SimHost and IG | ⏳ |
+| CIV-2 | **`ua-civ-cower`** | open ground (no building in reach) · 3 civilians; sustained fire nearby | ① each enters `Cower`, `EffectState.Cowering` true on every node, speed ≈ 0 · ② the fire stops ⇒ `Cowering` false and each leaves `Cower` | ⏳ |
+| **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · 12 civilians within 80 m of an incident (a casualty on the street) | ① one `Crowd` entity forms holding ≥ 8 of them · ② their mean distance to the focus falls below 15 m within 60 s | ⏳ |
+| CIV-3 | **`ua-civ-contagion`** | test-town · a crowd of 15 spread over 150 m; a blast at one end (heard by the near half only) | ① the near half panics · ② fear then reaches members who did NOT hear it (beyond 100 m): ≥ 3 of them panic via the crowd, not via hearing | ⏳ |
+| **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
+| CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
+| **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
+| CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
+| CIV-6 *(backend)* · CIV-7 *(coordinator)* | named by their owners | — | — | — |
+
+⚠ **Timing is never a frame count in a live check** — the cluster boots paused and each node ticks on its own clock; every wait is
+`wait_for(condition, timeout)` with the condition printed on failure, and every "never" is SAMPLED over the whole run (a minimum, not
+an end state).
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.

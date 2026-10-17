@@ -847,6 +847,37 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2233</c> (CIV-0) — A NEUTRAL IS NOT A THREAT TO FIGHT. The one remembered contact is a civilian (side Neutral) in sight: the
+        /// cycle has no threat (Success) — it does not hunt him. With a hostile also remembered (an old memory, as in CE-2202), the hostile is
+        /// the threat even though the civilian is the ranking's top. ✅ Red-proof: <c>TopThreat</c>'s Engageable reduced to
+        /// <c>CombatLife.IsAlive</c> ⇒ the civilian is the threat ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2233_ANeutralIsNotFought_AHostileRemembered_Is()
+        {
+            var d = new Duel(Tank());
+            if (!d.Repo.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) d.Repo.RegisterComponent<Fdp.Core.EntityInfo>();
+            d.Repo.AddComponent(d.Enemy, new Health { Current = 100f, Max = 100f });
+            d.Repo.AddComponent(d.Enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });
+            Assert.Equal(NodeStatus.Success, d.Step());
+
+            var e = new Duel(Tank());
+            if (!e.Repo.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) e.Repo.RegisterComponent<Fdp.Core.EntityInfo>();
+            e.Repo.AddComponent(e.Enemy, new Health { Current = 100f, Max = 100f });
+            e.Repo.AddComponent(e.Enemy, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Neutral });
+            var hostile = e.Repo.CreateEntity();
+            e.Repo.AddComponent(hostile, new SimTransform { Position = new Vector3(60f, 40f, 0f), Rotation = Quaternion.Identity });
+            e.Repo.AddComponent(hostile, new Health { Current = 100f, Max = 100f });
+            e.Repo.AddComponent(hostile, new Fdp.Core.EntityInfo { ForceId = Fdp.Core.ForceId.Hostile });
+            ref var mem = ref e.Repo.GetComponentRW<TargetMemory>(e.Self);
+            mem.EntityIds[1] = (long)hostile.PackedValue; mem.Modalities[1] = (byte)SensorModality.Visual;
+            mem.Freshness[1] = 0f;
+            mem.PositionsX[1] = 60f; mem.PositionsY[1] = 40f; mem.Count = 2;
+            Assert.Equal(NodeStatus.Running, e.Step());
+            Assert.Equal(hostile, e.Ws.Threat);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2205</c> — A HULL WITHIN ITS ARRIVAL RADIUS HAS ARRIVED. 📌 Live <c>ua-javelin-lock</c>: an M1 sent to a cover point 2.3 m
         /// off (inside its ~5 m turning circle) orbited it for 60 s and the cycle never reached Hidden. With a follower that never arrives:
         /// a hide 2.3 m off is reached (Hidden, the move stopped); one 10 m off is still being driven to. ✅ Red-proof: the old 2 m radius,

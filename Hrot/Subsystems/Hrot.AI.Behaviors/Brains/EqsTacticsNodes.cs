@@ -328,7 +328,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an attack order's target wins while the unit still REMEMBERS it (the
             //   order seeds the memory; fog of war still applies after that) and it is in the fight: hidden or not, a nearer threat
             //   does not take it over. (The squad's assignment stays a ranking bias, IsAssignedTarget: it orders the SEEN ones.)
-            if (DesignatedTarget.Of(world, self, out var designated) && Fdp.Toolkit.Combat.CombatLife.IsAlive(world, designated)
+            if (DesignatedTarget.Of(world, self, out var designated) && Engageable(world, designated)
                 && Remembers(world, self, designated))
             {
                 threat = designated;
@@ -343,9 +343,14 @@ namespace Hrot.AI.Behaviors.Brains
             //   knocked-out man stays in the world and in memory). 📌 Live ua-ifv-standoff: the IFV killed one RPG man, kept him as its
             //   threat (nothing else scored above zero), stood guarding the corpse, and two live men walked up to it unengaged.
             threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
-            if (!threat.IsNull && !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, threat)) threat = FirstLiveRemembered(world, self);
+            if (!threat.IsNull && !Engageable(world, threat)) threat = FirstLiveRemembered(world, self);
             return !threat.IsNull;
         }
+
+        /// <summary>⭐ CE-2202 + ⭐ CE-2233 (CIV-0) — a threat to fight: in the fight (never a body) and not a NEUTRAL (a civilian is
+        /// remembered — a police line must see a crowd — but is never the threat; its side is read live, so a flip to Hostile counts).</summary>
+        private static bool Engageable(EntityRepository world, Entity e)
+            => Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
 
         /// <summary>⭐ CE-2202 — the first identified, live entity in memory (slots are score-ordered), or none.</summary>
         private static unsafe Entity FirstLiveRemembered(EntityRepository world, Entity self)
@@ -355,7 +360,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Fdp.Toolkit.Combat.CombatLife.IsAlive(world, e)) return e;
+                if (Engageable(world, e)) return e;
             }
             return Entity.Null;
         }
