@@ -1,13 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
   as FRAMES (§5, the receiving lane designs its details first, builds after the user rules the CV it builds), and the
   behaviors half is recorded as CE-2233…CE-2239. Written by the coordinator lane (cross-lane: most slices are
   behaviors-lane work, CV-6 is engine/backend work); the 2026-10-16 additions are the behaviors lane's.
-current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §5f CIV-3 crowds (CE-2237) · §5g the protest (CE-2240) · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
+current-answer: §0 the rulings · §2 the diagrams · §4 the decisions with leans · §5 the slice plan · §5a measure before CIV-2 · §5b CIV-0 as-built · §5c demos · §5d CIV-1 CivilianHsm as-built · §5e CIV-2 panic, shelter, cower as-built · §5f CIV-3 crowds (CE-2237) · §5g the protest (CE-2240) · §5h armed people (R-2025) · §7 backend detailed designs (B-1…B-5) · §8 ui detailed designs (U-1…U-4).
 stale-below: nothing.
 known-rot: none.
 known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Composition.md §2 put "crowds" at Tier 0; it now says
@@ -29,12 +29,15 @@ related-designs:
     state for stun/irritant at full health, the case that design names as breaking I1.
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — owns body parts and the civilian poses (HL-9).
   - docs/designs/weapons/DESIGN_Weapon_Systems.md — owns separable weapons (PickUp/PutDown, FireWhileCarried) that CV-4's
-    armed hostile civilian uses.
+    armed hostile civilian uses; §5h adds the pick-up rifle/pistol and charge types, the laid-down flag and more stations per person.
+  - docs/DESIGN_Weapon_Layers.md — owns the weapon brain, WeaponChoice and W-13 weapon posture; §5h's ladder reads that posture and adds the hands mount.
+  - docs/DESIGN_Entity_Interactions.md — §7.4/§7.5 own the carry stations (R-2009, R-2017) that §5h extends to Hands / Back / Hidden.
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md — the backend frame for §5h.
   - docs/DESIGN_Weapon_Layers.md — owns the weapon brain, weapon categories and the grenade throw (W-12e/f) that CV-6's
     non-lethal munitions and CV-5's ThrowAt reuse.
   - docs/DESIGN_Decision_Layer.md — §4.4 owns Roe (R-200); its "later" row (WeaponsTight needs identification) is what CV-8
     builds as an escalation-of-force ladder.
-  - docs/DESIGN_Sensors_And_Doctrine.md — §9.4 perception budget (~500 units) that bounds CV-10; §11.2 G11 identification.
+  - docs/DESIGN_Sensors_And_Doctrine.md — §9.4 perception budget (~500 units) that bounds CV-10; §11.2 G11 identification; §7.8a "armed = 1", which §5h AW-1 refines (one Armament rule).
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — owns squads (UnitRoster ≤ 16) and SquadMarch formations; CV-5
     keeps crowds OUT of the squad layer (catalogue T3) and CV-8's police line uses its Line formation.
   - docs/DESIGN_Map_3D_Mode.md — §6q owns civilian outfits/children (CE-1099) the new types keep.
@@ -77,6 +80,7 @@ related-designs:
 | **R-4036** | civilians **riot and attack security forces**; security forces have **non-lethal weapons** |
 | **R-3013** | ✅ **CV-1…CV-12 leans approved as written** (§4) — 🔒 user, `2026-10-16`, after a plain-words walkthrough of all twelve: *"approved"* |
 | **R-2024** | ✅ **CV-13, CV-13a, CV-14 approved as written** (§4) — gestures and drawn props, hands up holds fire, the security forces provoke a crowd |
+| **R-2025** | ✅ **armed people AW-1…AW-14** (§5h) — armed = a visible usable lethal weapon; issued weapons built-in (a pistol too), handed-over ones entities; hands, carry stations with a hidden one, held items; stones and canisters picked up and thrown; posture grades the ladder; insurgents and charges |
 
 🔒 **User, verbatim (`2026-10-17`):**
 - *"Do we have special stances for demonstrating pedestrians? Like they might be raising hands or holding a poster On a pole. They might also need some behavior. I don't know exactly what, but they might sometims  respond to the security forces by switching to rioting."*
@@ -833,6 +837,207 @@ his fist up.
 
 ⚠ **Known limits:** ① protesters do not FACE the point (no facing request for a standing man — §5f ③); ② anger stays 0 until `CE-2238`/`CE-2241`
 add producers; ③ a protest point inside a solid building leaves its ring spots unreachable on that side — author it in the street.
+
+## 5h. Armed people — what a man holds, what others can see *(behaviors, 2026-10-17; build-state: READY-TO-BUILD; ✅ RULED R-2025)*
+
+🔒 **User, verbatim (`2026-10-17`, one exchange, each step approved in turn):**
+- *"Both concepts sound reasonable. Just the condition for armed or unarmed need to be a little bit more complex."*
+- *"picking the stones is likely very common way of getting a stone. Also picking a landed gas grenade and throwing it back should be possible."*
+- *"Is there any threat level evaluated based on whether the weapon is drawn or just at ease?"* → *"Yes sounds good."*
+- *"Is the bomb attached also considered a carried weapon? Bomb can be hidden."* → *"Approved."*
+- *"The hand mount should be usable also for normal civilian stuff, not just weapons, like a mobile phone or maybe a binocular."* · *"we should not make it a separate entity, because there could be many soldiers who just carry it but never use it. The same like with their ordinary main weapon."* → *"approved, write it into the design"*
+
+INVENTORY *(codebase-memory MCP `search_graph` + grep, 2026-10-17; `check_index_coverage` not run)*:
+
+| area | measured | where |
+|---|---|---|
+| "armed" today | ONE test: a `WeaponState` on the target or a controlled weapon system, a dispenser-only mount excepted; armed = danger 1, unarmed 0.3 | `ThreatDanger.cs:30-33`, `WeaponSystems.WeaponOf:182-186`, `Countermeasures.DispenserOnly` (5 readers) |
+| who reads `WeaponState` as armed-ness | **27** production reads in 17 files (figure, utility inputs, squad inputs, threat danger…) | grep `HasComponent<WeaponState>` |
+| issued weapons | BUILT-IN mounts, type data (rifle, RPG); several per type, the weapon brain ranks them per target | `UrbanCombatTkbCatalog.cs:203, 256-279` (Insurgent 2003: RPG + rifle), `WeaponChoice.Choose`; W-A, W-F |
+| separable weapons | weapon-system ENTITIES 600–609 (HMGs, minigun, Javelin, NLAW, LAW, Kornet, TOW, sentry, mortar); one-man launchers fire while carried; stowed / deploying / deployed / packing | `TkbEntityTypes.cs:27-38`, `BdcTkbCatalog.cs:264`, `WeaponSystemComponents.cs:45`; R-2016 |
+| picking up | the carry station takes a downed man or a portable weapon system — nothing else | `Embarkation.cs:121-160`, `CarrierDefDto.cs:43-47` (ONE station per person) |
+| a thrown grenade on the ground | a time-fuzed round LANDS and lies there (`WarheadRound.Landed`) until its fuze runs out; grenades cross the wire as lightweight entities, simulated only on SimHost | `CombatComponents.cs:146-149`; R-271 (ui) |
+| several rounds on one mount | `AmmoLoadout`: up to 4 munition types with counts, one loaded, a switch time | `AmmoLoadout.cs` (M8) |
+| the gas cloud | BUILT (backend `CE-3219` part 3): a CGF-owned area entity 7202 that drifts on the wind, Irritant hits once a second | §7.3a part 3; R-3014 |
+| weapon posture | at ease / ready / aimed + the aimed-at target + the active mount, weapon brain's, replicated `dtWeaponPosture` — read ONLY by the 3-D figure | `WeaponPosture.cs`; W-13, R-272 (backend) |
+| the stone round | 6038 Blunt — ⚠ its own warhead without `Indirect`, so it would fly straight; 6037 (stun) the same | `MunitionTkbCatalog.cs:269-273` |
+| civilians | no mount, no `CanShoot`; a hidden `Attitude` (unused) | `CivilianTkbCatalog.cs:62-65`, `CivilianState.Attitude` |
+| ⛔ none exist | held items (phone, binoculars), a pistol, a hands mount, round pick-up, stone sources, explosive charges, surrender / laid-down weapons, a suspicion sensor | graph + grep: 0 production hits; catalogue lines 191, 237 ("the carrier and trigger 🟥") |
+
+```mermaid
+classDiagram
+  direction LR
+  class Armament { <<NEW static, Fdp.Toolkits/Combat>> IsArmed(view, man) the ONE rule · LethalInHand(view, man) }
+  class ThreatDanger { <<existing>> armed = 1 now via Armament }
+  class WeaponOf { <<existing>> the primary weapon }
+  class DispenserOnly { <<existing>> }
+  class BuiltInMounts { <<existing type data, grows>> rifle, RPG · + pistol · + the HANDS mount }
+  class LaidDown { <<NEW flag on a built-in mount, replicated>> surrendered: cannot fire, reads unarmed }
+  class HandsLoadout { <<existing AmmoLoadout on the hands mount>> stones, a picked-up canister or grenade }
+  class CarryStations { <<existing seats, grows>> Hands · Back · Hidden (Concealed) }
+  class WeaponSystemEntity { <<existing>> + pick-up Rifle, Pistol · + ExplosiveCharge }
+  class HeldItem { <<NEW replicated byte, the Gesture shape>> None Weapon Throwable Phone Binoculars }
+  class PocketItems { <<NEW type data>> phone, binoculars — never entities }
+  class WeaponPosture { <<existing, replicated>> AtEase Ready Aimed · Target · ActiveMount }
+  class LandedRound { <<existing>> a round lying where it landed }
+  class RoundPickUp { <<NEW, SimHost>> request from the brain · validate · remove · give }
+  class StoneSource { <<NEW area kind>> unlimited stones }
+  class AreaEffectCloud { <<existing, CE-3219>> + Source: sits on its canister while it vents }
+  class EscalationLadder { <<CE-2239>> reads posture: at ease Warn · ready NonLethal · aimed Lethal }
+  class SuspicionSensor { <<D4, later>> observable cues, never ground truth }
+  Armament ..> WeaponOf
+  Armament ..> DispenserOnly
+  Armament ..> LaidDown
+  Armament ..> CarryStations : a Hidden station is invisible
+  Armament ..> HandsLoadout : lethal round in hand
+  ThreatDanger ..> Armament
+  BuiltInMounts --> LaidDown
+  BuiltInMounts --> HandsLoadout : the hands mount
+  CarryStations --> WeaponSystemEntity
+  HeldItem ..> WeaponPosture : Weapon means ActiveMount
+  HeldItem ..> PocketItems
+  RoundPickUp ..> LandedRound
+  RoundPickUp ..> StoneSource
+  RoundPickUp ..> HandsLoadout
+  AreaEffectCloud ..> LandedRound : Source
+  EscalationLadder ..> WeaponPosture
+  EscalationLadder ..> Armament
+  SuspicionSensor ..> HeldItem : phoning is a cue
+```
+*What the picture shows that prose hid:* every source of danger — a built-in rifle, a carried launcher, a stone in the hand, a hidden vest —
+ends in ONE function, so the 27 readers change their call, not their meaning; and the picture has TWO kinds of object only: TYPE DATA for
+what a man is issued (rifle, pistol, hands, phone, binoculars — free until used) and ENTITIES for what changes hands (a picked-up rifle, a
+launcher, a charge) or flies (rounds).
+
+```mermaid
+stateDiagram-v2
+  [*] --> Ground : lying there (a weapon entity, a landed round, a stone source)
+  Ground --> Hands : pick up
+  Hands --> Back : stow (visible)
+  Hands --> Hidden : conceal
+  Back --> Hands : draw
+  Hidden --> Hands : draw (a hostile act for a lethal weapon)
+  Hands --> Ground : put down, or lay down (surrender)
+  Hands --> Flight : throw (a round off the hands mount)
+  Flight --> Ground : lands
+  Hidden --> Burst : a worn charge goes off
+  Hands --> Burst : a held grenade goes off
+```
+*What the picture shows that prose hid:* concealment is a PLACE, not a property of the thing — the same pistol is visible in the hands or on
+the belt and invisible under the coat; and "drawing" is the one edge that turns a hidden lethal weapon into a visible one, which is why it is
+the hostile act (CV-4).
+
+```mermaid
+graph TD
+  Q{what can an observer see on him?} --> A[a lethal built-in mount, not laid down]
+  Q --> B[a lethal carried weapon in Hands or Back]
+  Q --> C[a lethal round in the hands loadout - a live grenade]
+  Q --> D[only non-lethal - stones, canister, baton-round launcher, dispensers]
+  Q --> E[only a Hidden station - concealed pistol, a vest]
+  Q --> F[nothing]
+  A --> ARMED[ARMED]
+  B --> ARMED
+  C --> ARMED
+  D --> UN[UNARMED - non-lethal force only]
+  E --> UN2[UNARMED and, until he acts, neutral - only D4's suspicion sensor may flag him]
+  F --> UN
+  ARMED --> L{his posture, CV-8 ladder}
+  L --> W[at ease: Warn]
+  L --> N[ready: NonLethal, Lethal after an ignored warning]
+  L --> LL[aimed at us, or he fired: Lethal]
+```
+*What the picture shows that prose hid:* hands up is NOT a branch — a man with his hands up is still armed if he holds a weapon, and fire is
+held by CV-13a, not by this rule (a feint must not erase the threat); and posture grades only the security forces' LADDER, never the general
+danger, so a military fight (an at-ease enemy rifleman is a full threat) is unchanged.
+
+```mermaid
+sequenceDiagram
+  participant P as police (CGF brain)
+  participant SH as SimHost (rounds)
+  participant CG as CGF (cloud owner)
+  participant R as rioter (CGF brain)
+  P->>SH: fire the gas launcher (WeaponFireIntent)
+  SH->>SH: the canister lands, lies there venting (a landed round)
+  SH->>CG: cloud creation request, Source = the canister
+  CG->>CG: the cloud sits on its canister, Irritant hits once a second
+  R->>SH: pick up the round (RoundPickUp request, in reach)
+  SH->>SH: still lying there and not spent? remove it from the ground
+  SH-->>R: the canister is in his hands loadout, its burn left
+  CG->>CG: the source is gone: the cloud drifts free on the wind and fades
+  R->>SH: throw it (FireAtPoint on the hands mount, the throw arc)
+  SH->>CG: it lands again: a new cloud for the burn left
+```
+*What the picture shows that prose hid:* nothing new happens to the cloud — its source simply moves, and the existing creation request and
+wind drift do the rest; the pick-up is SimHost's to grant, because SimHost alone simulates rounds (R-271), so two men grabbing one canister
+cannot both get it.
+
+```mermaid
+sequenceDiagram
+  participant I as covert insurgent (CivilianHsm, CGF)
+  participant N as every node
+  participant S as soldier (weapon brain)
+  Note over I: Routine, Hostile at heart, a pistol in his Hidden station
+  N-->>S: a neutral unarmed civilian (side Neutral, nothing visible)
+  I->>I: his trigger (an order, a time, a target in reach): ArmedHostile
+  I->>N: draw: the pistol to Hands, HeldItem Weapon, posture Ready
+  I->>N: the hostile act: side flips to Hostile (EntityWriteRouter)
+  N-->>S: armed, Hostile, posture Ready then Aimed
+  S->>S: Armament.IsArmed and the ladder allow Lethal
+```
+*What the picture shows that prose hid:* there is no "insurgent" detector anywhere — the soldier reacts only to what crossed the wire (side,
+posture, what is in the man's hands), exactly as for anyone else.
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brains, cloud owner)"]
+    HSM[CivilianHsm / soldier behaviours: draw, stow, conceal, pick up, throw, lay down, detonate]
+    WB[weapon brain: Armament, ladder, WeaponChoice]
+    CL[AreaEffectCloudSystem: the cloud sits on its source]
+  end
+  subgraph SimHost
+    FP[FireProcessingSystem + the throw arc]
+    RP[RoundPickUp: grant or refuse]
+  end
+  subgraph Every["every node"]
+    REP[HeldItem, LaidDown, carry stations, WeaponPosture: replicated]
+    MAP[3-D figure: item in hand, laid-down weapon, bending]
+  end
+  HSM -->|WeaponFireIntent| FP
+  HSM -->|pick-up request| RP
+  RP -->|granted| HSM
+  WB --> REP
+  REP --> MAP
+  style RP fill:#f66,color:#000
+```
+*What the picture shows that prose hid:* the red box is the only NEW cross-node exchange — everything else rides wires that exist (fire
+intents, posture, entity creation); and every node can answer `IsArmed` itself, because everything it reads is replicated.
+
+| id | ✅ ruled (R-2025) | rejected — one line each |
+|---|---|---|
+| **AW-1** | **armed = an observer can see a usable LETHAL weapon on him**: a built-in lethal mount not laid down · a lethal carried weapon in Hands or Back · a lethal round in the hands loadout. ONE function (`Armament`), called by the 27 readers through `WeaponOf` | "any `WeaponState` = armed": a stone-thrower justifies lethal force, a concealed rifle is seen by all |
+| **AW-2** | **non-lethal only arms nobody** (stones, canister, baton-round launcher, stun grenades, dispensers) | — |
+| **AW-3** | **a Hidden station is invisible**; drawing a lethal weapon from it is the hostile act (CV-4) | concealment through the side flip alone: `WeaponOf` reads ground truth |
+| **AW-4** | **issued weapons stay built-in type data — the rifle AND a new PISTOL mount**; the weapon brain switches by itself (`WeaponChoice`) | an entity per issued weapon: W-A — "an entity per rifle would multiply entities and wire for nothing" |
+| **AW-5** | **surrender = a LAID-DOWN flag** on every built-in mount (cannot fire, reads unarmed); **handover** later: laying a weapon down spawns a pick-up weapon entity and empties the mount — only for the weapon actually picked up | hands up = unarmed: a feint erases the threat (CV-13a holds fire without changing what he is) |
+| **AW-6** | **pick-up rifle and pistol weapon-system types** (one man, fire while carried) for anything that changes hands — a covert insurgent's, a dropped soldier's | — |
+| **AW-7** | **every person gets a built-in HANDS mount** (non-lethal by default, an `AmmoLoadout` of up to 4 kinds, empty at start); a throw is `FireAtPoint` on it, on the throw arc (6038 and 6037 get `Indirect`) | a stone pouch entity: an entity per rioter for nothing visible · a mountless throw: a second firing path on SimHost |
+| **AW-8** | **stones are PICKED UP**: from a stone-source AREA (unlimited, 1.5 s bend, up to 5) or a landed throwable (a stone stays 60 s after landing, a canister, a grenade) via a RoundPickUp request SimHost grants | every stone an entity: hundreds per riot on the wire · stones from terrain material: no terrain stores loose stones |
+| **AW-9** | **a gas canister can be thrown back**: the cloud sits on its canister while it vents; picked up, the cloud drifts free; thrown, a new cloud for the burn left. A picked-up LIVE grenade is a lethal round in hand ⇒ armed | — |
+| **AW-10** | **posture grades the security forces' LADDER (CV-8), not general danger**: armed at ease ⇒ Warn · ready ⇒ NonLethal, Lethal after an ignored warning · aimed at us or fired ⇒ Lethal; "aimed at me" in threat RANKING later, with its own demo | posture in the general danger score: changes every military scenario's ranking and the Sentry threshold |
+| **AW-11** | **insurgents**: OPEN = the existing combatant type (unchanged); COVERT = a civilian, Hostile at heart, a pick-up weapon Hidden, `ArmedHostile` reusing the soldiers' fighting behaviours | a covert insurgent TYPE: a type per role (CV-1) |
+| **AW-12** | **an explosive CHARGE is one weapon-system type in three placements**: worn Hidden (suicide vest — never "drawn", only D4's suspicion sensor may flag him, a search reveals it), placed (IED, its trigger holder controls it), a vehicle station (VBIED); it bursts at its controller's position | a bomber type with a built-in charge: cannot be planted or put in a car |
+| **AW-13** | **worn = carried in a HIDDEN station** — a person gets a few stations (Hands, Back, Hidden) instead of one; concealment belongs to the STATION | a separate "worn" concept: a second mechanism for one idea |
+| **AW-14** | **the hands hold everyday things too**: a replicated HELD-ITEM byte (None, Weapon, Throwable, Phone, Binoculars; "Weapon" means `WeaponPosture.ActiveMount`, never a copy); phone and binoculars are POCKET ITEMS, type data, never entities; binoculars lengthen vision and narrow it while held; a phone is a D4 cue and an IED's remote trigger | phones and binoculars as entities: the pistol's cost times every civilian |
+
+⭐ **Owners and order.** Backend (frame [HANDOFF_Behaviors_To_Backend_Armed_People.md](blueprints/batches/HANDOFF_Behaviors_To_Backend_Armed_People.md)):
+`Armament` + the 27 readers routed (AW-1/2), `LaidDown` (AW-5), stations per person (AW-13), `HeldItem` + its wire (AW-14), the hands and
+pistol mounts and pocket items on person types (AW-4/7/14), pick-up rifle/pistol and the charge types (AW-6/12), `Indirect` on 6037/6038,
+RoundPickUp on SimHost + stone sources + landed stones lingering (AW-8), the cloud's source (AW-9). Behaviors: `CE-2238` (draw / stow /
+conceal / pick up / throw / detonate, the covert trigger, riot), `CE-2239` (the ladder's posture rows), `CE-2241` (hands up). Ui: the held
+item, the laid-down weapon and the bending pose on the figure.
+
+⚠ **Known limits (ruled later, not now):** ① one item in Hands at a time; ② a dead bomber's charge stays live only once a dead-man setting
+exists; ③ a search that reveals a Hidden station is the checkpoint slice (SQD-13); ④ the D4 suspicion sensor is its own item.
 
 ## 6. Known limits
 

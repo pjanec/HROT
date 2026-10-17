@@ -36,6 +36,7 @@ related-designs:
   - docs/blueprints/batches/FRAME_Eqs_Consuming_Behaviours.md — the behaviours lane's consumers; a doctrine is what assigns them.
   - docs/designs/look-direction/DESIGN_Look_Direction_And_FOV.md — the programme for later (CE-2162) that points the vision cone along a look direction and narrows humans from 360° to ~200°; §1 there records how this file's cone test uses the FOV today
   - docs/DESIGN_Civilians_And_Crowd_Control.md — CV-2/CV-10: civilian sensors (hearing + short low-band vision) sized against §9.4's ~500-unit budget; CV-4 sidesteps G11 by flipping side only on an observable act.
+  - docs/DESIGN_Civilians_And_Crowd_Control.md — §5h AW-1 (R-2025): §7.8a's "armed" becomes ONE Armament rule (a visible usable lethal weapon; non-lethal and Hidden arm nobody); binoculars lengthen vision while held.
 -->
 
 # Sensors and Doctrine — one sensor form, and who decides what a unit does
