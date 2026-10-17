@@ -320,6 +320,8 @@ namespace Hrot.NED.Descriptors
         public int LoadRounds2;
         public int LoadRounds3;
         public byte Busy;
+        // ⭐ CE-3232 (B-10, appended) — bit i: mount i is LAID DOWN (cannot fire, arms nobody)
+        public byte LaidDown;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by

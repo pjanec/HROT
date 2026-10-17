@@ -124,6 +124,14 @@ namespace Fdp.Toolkit.Combat.Executors
                 Say(world, entity, systemHold, p.Target);
                 return;
             }
+            // ⭐ CE-3232 (B-10, §7.11 LD-3) — a LAID-DOWN built-in mount fires for nobody: held, "not deployed"
+            if (platform == entity && WeaponLaying.IsLaidDown(world, entity, mountIndex))
+            {
+                ReleaseTurrets(world, entity);
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.NotDeployed, p.Target);
+                return;
+            }
             ref var weapon = ref world.GetComponentRW<WeaponState>(mountEntity);
             if (weapon.Ammo == 0)
             {
@@ -330,6 +338,12 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 ReleaseTurrets(world, entity);
                 SayAt(world, entity, systemHold, p.Point);
+                return;
+            }
+            if (platform == entity && WeaponLaying.IsLaidDown(world, entity, mountIndex))   // ⭐ CE-3232 (LD-3)
+            {
+                ReleaseTurrets(world, entity);
+                SayAt(world, entity, ActionReason.NotDeployed, p.Point);
                 return;
             }
 
