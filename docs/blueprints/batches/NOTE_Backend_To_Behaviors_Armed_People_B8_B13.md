@@ -83,7 +83,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 
 | what you call | what it does |
 |---|---|
-| `HostileActs.Commit(world, actor, HostileActKind.Lethal)` — a shot, a grenade, a charge | records his act (or UPGRADES a non-lethal one; never down), flips his side once as before. ⚠ `Commit(world, actor)` — your blow and stone calls — is `NonLethal` |
+| `HostileActs.Commit(world, actor, HostileActKind.Lethal)` — a shot, a grenade, a charge | records his act (or UPGRADES a non-lethal one; never down), flips his side once as before; a `Lethal` act still calls your `KnownCombatants.MarkWitnesses` every time. ⭐ Your `HostileActKind` is the ONE enum (your note `NOTE_Behaviors_To_Backend_HostileActKind.md`, merged) — `HostileAct.Kind` is that type |
 | `HostileActs.Of(view, actor)` · `HostileActs.Committed(world, actor)` | the gravest act so far, on ANY node (the act now replicates — `dtHostileAct`); `Committed` reads it too, so a soldier's brain on another CGF sees who acted |
 
 **Ids allocated:** component 404 (`HostileAct`), descriptor 145 (`dtHostileAct`), CE-3239 (the cloud defect), component 402 (`HeldFuze`), component 403 (`LaidDownWeapons`), munition 6042 (`TkbPistol9mm`), event ids 5011/5012/5013/5014, interaction kinds 9/10/11/12, munition 6043 (the charge round), TKB types 616/617/618 and 8812

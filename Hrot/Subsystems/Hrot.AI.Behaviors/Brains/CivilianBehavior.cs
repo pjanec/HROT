@@ -577,7 +577,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 if (now >= ws.NextThrowAt && Stones.Throw(world, self, target))
                 {
-                    HostileActs.Commit(world, self);   // the first stone is his act, as the blow is
+                    HostileActs.Commit(world, self, HostileActKind.NonLethal);   // the first stone is his act, as the blow is
                     ws.NextThrowAt = now + ThrowCooldownSeconds;
                 }
                 return NodeStatus.Running;
@@ -587,7 +587,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
                 if (now >= ws.NextStrikeAt && !Effects.IsKnockedDown(world, ws.Target) && Melee.Strike(world, self, ws.Target))
                 {
-                    HostileActs.Commit(world, self);
+                    HostileActs.Commit(world, self, HostileActKind.NonLethal);
                     ws.NextStrikeAt = now + Melee.CooldownSeconds;
                 }
                 return NodeStatus.Running;
