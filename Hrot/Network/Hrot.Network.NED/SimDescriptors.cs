@@ -350,6 +350,17 @@ namespace Hrot.NED.Descriptors
         public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
     }
 
+    // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,
+    //   like EntityEffectState: a late joiner must see who has his hands up.
+    [DdsTopic("EntityGesture")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityGesture
+    {
+        [DdsKey] public long EntityId;
+        public byte Kind;
+    }
+
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner
     //   (Brain group) → every node, keyed by the entity. Reliable + TransientLocal + KeepLast 1, like EntityWeaponAmmo: it changes per hit,
     //   and a late joiner must see a man's wounds.

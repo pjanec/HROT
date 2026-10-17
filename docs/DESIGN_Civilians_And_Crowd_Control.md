@@ -15,6 +15,7 @@ known-conflict: docs/TUTORIAL_Behaviour_Composition.md §2 (line 58) puts "thous
   tutorial row is not reconciled yet. ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md — the B-6 frame §7.7 answers.
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (R-3015): every node receives the same event data (detonations included); it owns who receives, §7.3a here owns the cloud.
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS the civilian catalogue (CIV-1…CIV-7, ASY-5, SQD-13) and the rulings
     D3 (civilians = crowd agents + light HSM + crowd-level system), D4 (hidden truth + observable cues), D5 (melee = contact
@@ -578,6 +579,29 @@ node (D5) whose hit goes through B-1-a's event — backend adds only the warhead
 ⏳ **Not built, and why:** the gas grenade and gas launcher round wait for the cloud (§7.3, B-1 part 3). The Molotov waits too, since
 its fire is the same kind of lasting area. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
 behaviors' CE-2236. The baton blow is behaviors' melee node (D5).
+
+### 7.7 B-6 — the gesture *(CV-13, R-2024; `CE-3224`; [frame](blueprints/batches/HANDOFF_Behaviors_To_Backend_Civilians_Gestures.md))* — ✅ BUILT `2026-10-17`
+
+```mermaid
+classDiagram
+  class Gesture { <<NEW component 398>> GestureKind Kind }
+  class Gestures { <<NEW>> Set(repo, unit, kind) · Of(view, unit) }
+  class EntityGesture { <<NEW wire, dtGesture 143>> EntityId · byte Kind }
+  class EntityGestureEgressTranslator { <<NEW, shared pack>> on change, from the dtGesture owner }
+  class EntityGestureIngressTranslator { <<NEW, shared pack>> skips the recorded owner }
+  class CivilianHsm { <<behaviors, CE-2240>> }
+  class AimAndFireExecutor { <<behaviors, CE-2241>> hands up holds fire }
+  class FigurePose { <<ui>> }
+  CivilianHsm ..> Gestures : Set
+  AimAndFireExecutor ..> Gestures : Of
+  FigurePose ..> Gestures : Of
+  Gestures ..> Gesture
+  EntityGestureEgressTranslator ..> EntityGesture
+  EntityGestureIngressTranslator ..> Gesture
+```
+*The frame's fences hold:* not in `EffectState` (that is what was done TO a man), not a stance (locomotion), no prop entity. Brain group
+(the behaviour that chooses it owns it); recorded like `EffectState` (`NoScenario` only — it reaches the replay, never a scenario
+file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` after a gesture is a change and is published.
 
 ### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; [findings](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md))*
 

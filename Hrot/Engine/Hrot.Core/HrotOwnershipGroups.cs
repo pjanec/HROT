@@ -75,6 +75,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.OperatorUseStatus);
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, written beside Health by its owner (dtEffectState).
         brain.SetBit(GlobalComponentIds.EffectState);
+        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms, chosen by his behaviour (dtGesture).
+        brain.SetBit(GlobalComponentIds.Gesture);
         // ⭐ CE-3210 (hit location HL-6) — the damage per body part, written beside Health by its owner (dtPartDamage).
         brain.SetBit(GlobalComponentIds.PartDamage);
         // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).

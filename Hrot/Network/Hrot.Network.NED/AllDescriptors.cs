@@ -116,6 +116,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, beside Health (Brain group → every node).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3. Measured free on ui, behaviors, backend, coordinator.
         dtEffectState                 = 142,
+        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms (Brain group → every node).
+        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.7. Measured free on ui, behaviors, backend, coordinator.
+        dtGesture                     = 143,
         // etc., all known descriptor types here
     }
 
