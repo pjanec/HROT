@@ -2600,6 +2600,9 @@ def run_drone_shelter(c, timeout):
 #   docs/DESIGN_Civilians_And_Crowd_Control.md §5c (the demo table) / §5b (as-built). Cast: a rifleman (Friend); an unarmed
 #   Neutral civilian; an ARMED Neutral nearest of all (were the gate missing, he is the top pick: armed, near, in sight); a
 #   Hostile farther off. The armed bodies have no brain (TKB 2002 has no default behaviour), so only the rifleman fires.
+#   ⭐ The rifleman's mission: CombatPosture (the fight) → Sentry (MinDanger 0.5 — the neutrals' danger is 0, so it keeps watching)
+#   → CombatPosture again once something dangerous appears (the side flip). ⛔ Not a Sop component: a scenario with one shows an
+#   empty Scenario perspective (CE-2243, measured on ua-universal-soldier too).
 #   PASS = ① he SEES both neutrals (memory) — the gate, not blindness, spares them · ② the Hostile dies · ③ neither neutral
 #   loses health, sampled for the whole run · ④ the neutrals score 0 in the threat ranking · ⑤ with only neutrals left he
 #   fires no round for 8 s · ⑥ the armed neutral's side flips to Hostile ⇒ he is engaged (the gate reads the side LIVE).

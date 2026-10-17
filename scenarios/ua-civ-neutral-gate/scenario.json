@@ -40,15 +40,48 @@
       "TargetMemory": {
         "Entries": []
       },
-      "Roe": {
-        "Fire": "FireAtWill",
-        "Reactions": "StayOnTask",
-        "SetBy": "Superior"
-      },
-      "Sop": {
-        "Name": "BasicInfantrySop",
-        "Params": "{}",
-        "Origin": "Superior"
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "Sentry",
+              "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "c1030000-0000-4000-8000-000000000103",
+              "executingEngine": "",
+              "behaviorName": "CombatPosture",
+              "behaviorParams": "{\"advance\":{\"Objective\":[325,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
       }
     },
     "c1030000-0000-4000-8000-000000000002": {
