@@ -797,6 +797,16 @@ within 8 + 2 × 3 = 14 m < 15 m — a crowd standing in the street, which is wha
 one crowd is CV-5's, and a crowd that walks apart SHOULD stop passing fear. The check now sweeps all 15 under one perspective switch
 (~1.7 s) and prints the same per-second trace as the twin. Live after the fix: PASS 3 of 3 in a row (4 of 6 who heard nothing caught it in the first).
 
+#### 5f.1 AS-BUILT — the spatial grid *(behaviors, 2026-10-17; backend's [scaling note](blueprints/batches/NOTE_Backend_To_Behaviors_CrowdSystem_Scaling.md))*
+
+⭐ **Measured cause:** `Link` compared every pair of civilians, and `Spread` / `Rouse` every pair INSIDE a crowd with a component read per
+pair — at 500 the town links into one crowd, so both became ~250 k reads a frame (×33 for ×1.7). ⭐ **Fix:** a 20 m cell grid
+(≥ `LinkMetres` 15 and `ContagionMetres` 20, so every partner is in the 3 × 3 block round a man); `Mode` and `Instigator` read once per
+frame. ⛔ **No behaviour change by construction:** union-find roots are the component's lowest index whatever the pair order, and the
+neighbour list is sorted ascending so a tie resolves as the all-pairs loop did. 📐 500 civilians: **103.6 → 2.79 ms** (§7.4a). Proof:
+`CrowdSystemTests` + civilian unit suites green; twins `CE2237_CivGathering`, `CE2237_CivContagion`, `CE2238_CivMelee`,
+`CE2238_RiotStone`, `CE2238_GasThrowback`, `CE2239_PoliceLine`, `CE2240_CivProtest` 7/7.
+
 ## 5g. CIV-3 behaviour — the protest and its gestures *(behaviors, `CE-2240`, 2026-10-17; build-state: READY-TO-BUILD)*
 
 INVENTORY *(codebase-memory CLI + grep, 2026-10-17)*: backend's B-6 is built (§7.7: `Gesture` 398, `Gestures.Set/Of`, `dtGesture` 143,
@@ -2496,6 +2506,9 @@ for 93 s and CGF gave up waiting on 267 acks. Now an index per world: 📐 **the
 | `RecorderTickSystem` CGF / SimHost / IG | 29.4 / 24.0 / 15.3 | 33.4 / 27.3 / 15.9 ⇒ `CE-3243` |
 | `OwnershipRecomputeSystem` CGF / SimHost | 9.6 / 11.4 | 16.3 / 19.1 — linear |
 | frames in 60 s of sim | 448 *(was 382)* | 322 |
+
+📐 **After the behaviors `CrowdSystem` grid** (`2026-10-17`, same command, 500): `CrowdSystem` **2.79 ms** (max 5.2) — was 103.6;
+CGF all systems **88.8** (was 338.0), 494 frames in 60 s (was 322). The cause was every-pair work inside one town-sized crowd (§5f.1).
 
 ⚠ **No budget is set yet** — the harness gates on `--budget-ms` once one is ruled; `ua-civ-crowd-300`'s ② needs that number.
 
