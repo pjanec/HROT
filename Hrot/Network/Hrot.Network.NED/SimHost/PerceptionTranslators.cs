@@ -53,7 +53,7 @@ namespace Hrot.Network.NED.SimHost
 
             var query = view.Query()
                 .With<PerceptionReceptor>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .Build();
 
             foreach (var entity in query)

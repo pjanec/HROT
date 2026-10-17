@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ⭐ AQ93 (docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md) — SUMO traffic in HROT: the net riding the terrain,
+       the traffic pack, the mirror, the road layer. The ONLY HROT project that references the vendored SumoSharp
+       (FDP/ExtDeps/SumoSharp, R-4046). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Traffic</RootNamespace>
+    <AssemblyName>Hrot.Traffic</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.Traffic.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Ingest\Sim.Ingest.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -40,7 +40,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<WeaponSystemState>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var weapon in view.Query().With<WeaponSystemState>().With<NetworkIdentity>().Build())
+            foreach (var weapon in view.Query().With<WeaponSystemState>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(weapon, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(weapon).Value;

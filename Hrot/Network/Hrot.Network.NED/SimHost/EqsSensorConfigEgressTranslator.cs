@@ -220,7 +220,7 @@ namespace Hrot.Network.NED.SimHost
             // Removal detection: find entities with NetworkIdentity that no longer carry
             // EqsSensor. These are legacy single-sensor entities (LocalChildIndex == 0).
             var removalQuery = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .Without<EqsSensor>()
                 .Build();
 

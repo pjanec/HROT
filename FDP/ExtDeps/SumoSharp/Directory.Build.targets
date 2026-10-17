@@ -1,0 +1,9 @@
+<Project>
+  <!-- ⭐ AQ93 §11 (R-4046): HROT builds the vendored SumoSharp for net8.0 only. Upstream multi-targets net8.0 +
+       netstandard2.1 (for Unity/Godot hosts); HROT has no netstandard host, so the second compile is pure build time.
+       A .targets file is evaluated AFTER each project body, so this overrides the csproj's TargetFrameworks without
+       editing the vendored (read-only) files — the sync script's verify mode compares only src/ and packaging/. -->
+  <PropertyGroup>
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

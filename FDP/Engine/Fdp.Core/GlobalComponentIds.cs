@@ -956,5 +956,15 @@ namespace Fdp.Core
         /// <summary><c>EffectState</c> — ⭐ CE-3219 (civilians B-1, CV-6; docs/DESIGN_Civilians_And_Crowd_Control.md §7.3): a person's stored
         /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
         public const int EffectState = 397;
+
+        // ── ⭐ AQ93 — SUMO traffic (450–459, a block of its own so concurrent lanes allocating past 397 never collide) ──
+        /// <summary><c>TrafficNetCache</c> — the terrain's parsed SUMO net + its placement, a managed world singleton (Hrot.Traffic).</summary>
+        public const int TrafficNetCache = 450;
+        /// <summary><c>TrafficDemand</c> — the scenario's traffic settings entity (Hrot.Traffic, AQ93 R-4021).</summary>
+        public const int TrafficDemand = 451;
+        /// <summary><c>TrafficCar</c> — a SUMO car's local replica marker (Hrot.Traffic, AQ93 R-4038).</summary>
+        public const int TrafficCar = 452;
+        /// <summary><c>ReplicationRoute</c> — an owned entity published by a mechanism other than NED (AQ93 EM-4, R-4045).</summary>
+        public const int ReplicationRoute = 453;
     }
 }

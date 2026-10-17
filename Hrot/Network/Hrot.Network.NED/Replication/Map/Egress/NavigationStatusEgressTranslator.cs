@@ -80,7 +80,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             var query = view.Query()
                 .With<EcsNavigationStatus>()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 

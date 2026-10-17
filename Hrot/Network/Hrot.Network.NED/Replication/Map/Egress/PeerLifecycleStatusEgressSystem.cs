@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Replication.Egress
             // it lets the creator's SHORT phase-1 timeout distinguish a supporting host that is simply slow to
             // reach Active from an older/broken host that will never report at all.
             var constructing = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<ReportLifecycleOnActive>()
                 .WithLifecycle(EntityLifecycle.Constructing)
                 .Build();
@@ -95,7 +95,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
             // PHASE 2: publish Active once the ghost finishes local construction (the release signal).
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<ReportLifecycleOnActive>()
                 .WithLifecycle(EntityLifecycle.Active)
                 .Build();

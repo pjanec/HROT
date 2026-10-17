@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
             }
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<OperatorUseStatus>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var unit in view.Query().With<OperatorUseStatus>().With<NetworkIdentity>().Build())
+            foreach (var unit in view.Query().With<OperatorUseStatus>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(unit).Value;

@@ -60,7 +60,7 @@ namespace Hrot.Map.Common.Replication.Egress
             if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _publishedNetIds.Clear();
 
             var query = view.Query()
-                .With<NetworkIdentity>()
+                .DefaultRoutePublishable()
                 .With<TkbIdentity>()
                 // Lifecycle.All is crucial: Constructing entities must publish EntityMaster
                 // so remote peers can create ghosts and ACK the construction.

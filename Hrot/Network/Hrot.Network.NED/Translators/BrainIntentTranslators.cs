@@ -67,7 +67,7 @@ namespace Hrot.Network.Translators
             }
             if (view is not EntityRepository repo) return;
             long key = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            var query = view.Query().With<NetworkIdentity>().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();
+            var query = view.Query().DefaultRoutePublishable().With<BehaviorState>().WithLifecycle(EntityLifecycle.All).Build();
             foreach (var entity in query)
             {
                 if (!view.HasAuthority(entity, key)) continue;

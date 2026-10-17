@@ -47,7 +47,7 @@ namespace Hrot.Map.Common.Replication.Egress
             // ⭐ CE-2210 — EVERY lifecycle, as GeoSpatialEgressTranslator: a body created already coming down (the ejected pilot)
             //   is the creator's to publish only while it is CONSTRUCTING — the creator yields its Muscle group before it turns
             //   Active (Ownership Groups D-7). The default (Active-only) query never saw it then, so nobody ever sent his descent.
-            foreach (var e in view.Query().With<Descent>().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build())
+            foreach (var e in view.Query().With<Descent>().DefaultRoutePublishable().WithLifecycle(EntityLifecycle.All).Build())
             {
                 if (!view.HasAuthority(e, packedKey)) continue;
                 long netId = view.GetComponentRO<NetworkIdentity>(e).Value;
