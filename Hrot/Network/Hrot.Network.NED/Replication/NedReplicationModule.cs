@@ -44,7 +44,7 @@ namespace Hrot.Network.Replication;
 ///   </item>
 ///   <item>
 ///     <term><see cref="NodeRole.Map2D"/></term>
-///     <description>Shared pack + EntityStatesIngressPack; GhostCreationSystem; DeadReckoningSyncSystem (driveFromNetwork=true).</description>
+///     <description>Shared pack (the same ingress as every node — CE-1148); GhostCreationSystem; DeadReckoningSyncSystem (driveFromNetwork=true).</description>
 ///   </item>
 ///   <item>
 ///     <term><see cref="NodeRole.Brain"/></term>
@@ -416,49 +416,15 @@ public sealed class NedReplicationModule : INedReplicationModule
         if (_dtoEgress != null) egressTranslators.Add(_dtoEgress);
 
 
+        // ⭐⭐ CE-1148 S1 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — ONE ingress path on every node. A pure IG used to skip
+        //   this and poll a second, hand-kept list (EntityStatesIngressPack), which had to be grown by hand for every new pair and missed
+        //   several (manual drive, weapon tasks, fire events, and the ownership yield — seam ⑥). Its readers here were built and never
+        //   polled. The "self-ghosting" reason concerned a node that SIMULATES entities reading a second EntityMaster reader; one list
+        //   means one reader per topic on every node.
         if (_participant != null)
         {
-            bool pureIg = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
-            if (!pureIg)
-                registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
+            registry.RegisterSystem(new CycloneNetworkIngressSystem(ingressTranslators.ToArray()));
             registry.RegisterSystem(new CycloneEgressSystem(egressTranslators.ToArray()));
-        }
-
-        // ── ImageGenerator: inline EntityStatesIngressPack + ghost lifecycle ──
-        // EntityStatesIngressPack is scoped to PURE ImageGenerator only.
-        // For AllInOne the Muscle path already owns entity lifecycle locally; injecting
-        // a second EntityMasterIngressTranslator would cause self-ghosting (SimHost
-        // receiving its own EntityMaster publications and attempting to create duplicates).
-        bool pureIgRole = _roleHasIG && !_roleHasMuscle && !_roleHasBrain;
-        if (pureIgRole)
-        {
-            if (_participant != null)
-            {
-                var igPack = new EntityStatesIngressPack(
-                    PackRole.Ingress, _participant, _entityMap, _localNodeId, _eventBus,
-                    GhostCreationSystem, _geoTransform);
-                igPack.RegisterSystems(registry);
-
-                // ⭐⭐⭐ CE-271 seam ⑥ — pure IG must run the OwnershipUpdate INGRESS too.
-                //   OwnershipIngressSystem (registered below) consumes the OwnershipUpdate BUS event; its
-                //   producer is OwnershipUpdateTranslator.PollIngress (DDS→bus), which for every OTHER node
-                //   runs inside the CycloneNetworkIngressSystem that the `!pureIg` guard SKIPS for pure IG.
-                //   ⛔ Without it, a Map2D node that GRANTS a descriptor away (DeferredTakeOwnership under
-                //   CE-271 seam ①) never receives the grantee's SYMMETRIC YIELD, so it never drops its own
-                //   authority bit — two owners of the same descriptor. 📐 Measured on the live cluster:
-                //   IG granted dtWorldPos to SimHost, SimHost took it and published OwnershipUpdate, but
-                //   IG's OwnershipUpdate recv stayed 0. 📄 DESIGN_Node_Roles_And_Policies.md §4.1.
-                //   ⭐ Reuse the shared-pack instance — do NOT construct a second reader/writer on the one
-                //   SST_OwnershipUpdate topic.
-                var ownershipUpdate = _sharedTranslators
-                    .OfType<Hrot.Map.Common.Replication.OwnershipUpdateTranslator>()
-                    .FirstOrDefault();
-                if (ownershipUpdate != null)
-                    registry.RegisterSystem(new CycloneNetworkIngressSystem(
-                        new INetworkTranslator[] { ownershipUpdate }));
-            }
-
-            // (OwnershipIngressSystem is registered role-independently below — CE-276 — so it is not registered here.)
         }
 
         // ⭐⭐ CE-3053 — sub-entity cleanup on EVERY node, as the replication design makes it (REPL-DESIGN §4.4, §5.2: replication

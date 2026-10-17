@@ -638,7 +638,6 @@ namespace Hrot.SimHost.Tests
             {
                 "Hrot/Network/Hrot.Network.NED/Replication/NedReplicationModule.cs",
                 "Hrot/Network/Hrot.Network.BDC/Replication/BdcReplicationModule.cs",
-                "Hrot/Network/Hrot.Network.NED/Translators/Map/EntityStatesIngressPack.cs",
             })
             {
                 var src = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(path));

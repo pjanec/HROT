@@ -346,7 +346,7 @@ staging folder (`/tmp/FDP_Temp/nodes/node-0/scenarios/…`), nothing is overwrit
 > needs to receive that. The difference are driven by the roles. The code should be the same on the nodes."* (The premise was
 > a mis-measurement — CGF does receive them, through a host-shaped list; the rule stands on its own.)
 
-`build-state: BUILDING` — S1–S3 below; S4 is inventory only.
+`build-state: BUILDING` — S1–S3 below; S4 is inventory only. ✅ **S1 BUILT `2026-10-17`**: the IG registers the shared ingress; `EntityStatesIngressPack`, both `pureIg` branches and seam ⑥'s separate registration are deleted. Rail `NedReplicationModuleTests.CE1148_EveryRole_PollsTheSharedIngress_OneReaderPerTopic` (red on Map2D before: the IG lacked the shared pairs).
 
 #### INVENTORY — `search_graph(name_pattern=".*(TranslatorPack|IngressPack|Translators)$", label="Class")` → **30 classes** (12 NED packs, the rest Null/BDC stubs)
 

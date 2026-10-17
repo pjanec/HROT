@@ -145,7 +145,7 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-2171 (Air Ops E2) — a route's plan, its owner → every node. Moved here from KinematicTranslatorPack (egress) and
             //   added (ingress) beside the overlay pair, for the same reason: a SCENARIO route is created and owned by CGF (Brain), and
             //   the egress existed only on the Muscle ⇒ SimHost, where the route is followed, never had the plan. 📄 ROUTES1 §6.1/6.2.
-            //   The pure IG keeps its own ingress in EntityStatesIngressPack (the `!pureIg` guard skips this pack's ingress there).
+            //   ⭐ CE-1148 S1 — every node, the IG included, polls this pack's ingress (no second IG list).
             yield return new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             yield return new MapRouteIngressTranslator(participant, entityMap, geoTransform);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);

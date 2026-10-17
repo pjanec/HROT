@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Replication.Systems;
@@ -206,5 +207,49 @@ public sealed class NedReplicationModuleTests
         var after = (Fdp.Core.UpdateAfterAttribute?)System.Attribute.GetCustomAttribute(
             typeof(Fdp.Toolkit.Replication.Systems.OwnershipRecomputeSystem), typeof(Fdp.Core.UpdateAfterAttribute));
         Assert.Equal(typeof(Fdp.Toolkit.Replication.Systems.OwnershipIngressSystem), after?.Target);
+    }
+
+    // ── CE-1148 S1 — ONE ingress path on every node (R-3015) ─────────────────────────────────────────────────
+
+    private sealed class InstanceRegistry : ISystemRegistry
+    {
+        public List<IEcsModuleSystem> Systems { get; } = new();
+        public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system!);
+        public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem { Systems.Add(system!); return system; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1148</c> S1 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — what a node RECEIVES never depends on its host kind:
+    /// the IG (Map2D) polls the shared pack's ingress like every node — one reader per topic, never a second hand-kept list — so it gets
+    /// the pairs the old IG list never carried (manual drive, weapon tasks, fire events) and the ownership yield (seam ⑥).
+    /// </summary>
+    [Theory]
+    [InlineData(NodeRole.Map2D)]
+    [InlineData(NodeRole.Brain)]
+    [InlineData(NodeRole.MuscleGround)]
+    public void CE1148_EveryRole_PollsTheSharedIngress_OneReaderPerTopic(NodeRole role)
+    {
+        using var participant = new CycloneDDS.Runtime.DdsParticipant(0);
+        var module = new NedReplicationModule(
+            participant:  participant,
+            role:         role,
+            entityMap:    new NetworkEntityMap(),
+            geoTransform: Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0),
+            eventBus:     new FdpEventBus(),
+            localNodeId:  1,
+            domainId:     0);
+        var registry = new InstanceRegistry();
+        module.RegisterSystems(registry);
+
+        var polled = new List<string>();
+        foreach (var ingress in registry.Systems.OfType<Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem>())
+            foreach (var t in ingress.Translators) polled.Add(t.GetType().Name);
+
+        Assert.Equal(1, polled.Count(n => n == "EntityMasterIngressTranslator"));
+        Assert.Equal(1, polled.Count(n => n == "OwnershipUpdateTranslator"));
+        foreach (var name in new[] { "EntityManualDriveIngressTranslator", "EntityWeaponTaskIngressTranslator",
+                                     "EntityWeaponTaskStatusIngressTranslator", "FireInteractionEventTranslator", "GeoSpatialIngressTranslator" })
+            Assert.Contains(name, polled);
+        Assert.DoesNotContain(registry.Systems, sys => sys.GetType().Name == "EntityStatesIngressPack");
     }
 }
