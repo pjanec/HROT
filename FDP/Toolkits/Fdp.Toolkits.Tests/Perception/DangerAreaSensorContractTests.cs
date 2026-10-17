@@ -173,6 +173,33 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.False(_repo.HasComponent<EqsCognitiveBuffer>(child));
         }
 
+        /// <summary>⭐ CE-3242 — the factory's child index: a second ensure finds the first child (no duplicate), and a child made
+        /// ELSEWHERE in the same frame (the EQS config ingress, a restore) is seen, not shadowed by the index.</summary>
+        [Fact]
+        public void CE3242_EnsureTkbChild_IsIdempotent_AndSeesAChildMadeElsewhere()
+        {
+            var entry = new SensorEntryDto { Kind = SensorModality.DangerArea, Template = new Guid("d4a6e1c0-3072-4b0a-9d1e-da9ae0a10001") };
+            var a = _repo.CreateEntity();
+            var b = _repo.CreateEntity();
+            var first = SensorChildFactory.EnsureTkbChild(_repo, a, 0, entry);
+            Assert.Equal(first, SensorChildFactory.EnsureTkbChild(_repo, a, 0, entry));
+            Assert.Equal(first, SensorChildFactory.Find(_repo, a, SensorChildFactory.FirstTkbPartId));
+            Assert.True(SensorChildFactory.Find(_repo, b, SensorChildFactory.FirstTkbPartId).IsNull);
+
+            var foreign = _repo.CreateEntity();   // what the config ingress makes for b, same frame
+            _repo.AddComponent(foreign, new PartMetadata { ParentEntity = b, InstanceId = SensorChildFactory.FirstTkbPartId });
+            _repo.AddComponent(foreign, default(EqsSensor));
+            Assert.Equal(foreign, SensorChildFactory.EnsureTkbChild(_repo, b, 0, entry));
+
+            _repo.DestroyEntity(first);          // gone, and its index slot reused by an unrelated entity: never returned
+            _repo.CreateEntity();
+            Assert.True(SensorChildFactory.Find(_repo, a, SensorChildFactory.FirstTkbPartId).IsNull);
+            var again = SensorChildFactory.EnsureTkbChild(_repo, a, 0, entry);
+            Assert.False(again.IsNull);
+            Assert.NotEqual(first, again);
+            Assert.Equal(again, SensorChildFactory.Find(_repo, a, SensorChildFactory.FirstTkbPartId));
+        }
+
         [Fact]
         public void CE3072_B0_AnAnswerWithNoAreas_IsAnAnswer()
         {
