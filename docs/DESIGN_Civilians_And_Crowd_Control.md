@@ -1493,13 +1493,15 @@ stone never hits a neutral on purpose — the executor's neutral exemption for a
 |---|---|
 | where | `Stones.InHand` / `Stones.Throw` (`Fdp.Toolkits/Civilians/Stones.cs`) · the bend and the throw arm at the top of `CivilianBehavior.Riot`, `CanFill`, `RiotState { NextThrowAt, BendUntil }`, constants `ThrowMinMetres` 4 · `ThrowMaxMetres` 20 · `ThrowCooldownSeconds` 3 · `BendSeconds` 1.5; `Deactivate_Riot` stands him up when he leaves mid-bend |
 | the throw | ONE `FireAtPoint` round (`Rounds = 1`, the executor's own cooldown 0.5 s) on the hands mount at the target's position; the behaviour paces the stones |
+| ⛔→✅ civilians could not throw | 📌 **measured live, `2026-10-17`:** the rioter filled his hands and issued the throw, but no stone left his hand in 102 s (weapon status `None`). `WeaponDispatcherSystem` fails every weapon-channel action without `CanShoot` (`WeaponDispatcherSystem.cs:92`), and the civilian types carried only `CanMove | CanInteract`. ⇒ **`CivilianTkbCatalog.Civilian` now sets `CanShoot`** (cross-lane, backend's file — [note](blueprints/batches/NOTE_Behaviors_To_Backend_Hands_CanShoot.md)); it gives no weapon (H-3 reads the hands). Rail `NonLethalMunitionTests.CE2238_EveryBuiltInPersonWithABrain_…`, red without the flag. 📌 The twin had passed before the fix because it counted throw REQUESTS — it now asserts a stone is SPENT |
 | a test world needs HANDS | 📌 `PersonHands.MountIndex` reads the TKB type — a bare HSM world has none, so the rail builds the production path in miniature: a pedestrian type through `EnsureOnPersons`, injected by `CombatTkbTranslator` |
 
 **Proof.** Rails `CivilianHsmTests.CE2238_ARioterWithStones_…` (throws at 12 m from the hands mount, `Rounds` 1, at the policeman; the
 stone is the act ⇒ Hostile; he stands; not again before 3 s; no fist while he has stones; out of stones he closes and strikes) and
 `CE2238_NoStoneBeyond20m_NorInside4m_AndALiveGrenadeIsNotAStone`. Demo `ua-civ-riot-stone` (§5c): twin
-`PostureScenarioTests.CE2238_RiotStone_…` green (28 s: he filled at the source, 6 throws; the instigator acted at 3.2 s and was Hostile on
-CGF, SimHost and IG the same frame; both protesters caught his anger, threw and turned Hostile at 9.4 s — none Hostile before his act).
+`PostureScenarioTests.CE2238_RiotStone_…` green (25 s, after the `CanShoot` fix: he filled at the source; 6 throws, 6 stones spent — weapon status `Turning` then `Firing`;
+the instigator acted at 2.2 s and was Hostile on CGF, SimHost and IG by 2.3 s; both protesters caught his anger, threw and turned Hostile
+at 8.5 s — none Hostile before his act).
 
 ## 6. Known limits
 
