@@ -421,6 +421,7 @@ public sealed class SharedApplicationBootstrapperTests
             "PostInitialize",
             "DeclaredResourceKeys",
             "ResolveResources",
+            "ResolveCapabilities",   // ⭐ CE-4013 — the base owns the capability walk
         };
 
         var allMethods = type.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
