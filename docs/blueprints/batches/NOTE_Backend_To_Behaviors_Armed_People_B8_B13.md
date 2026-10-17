@@ -79,7 +79,7 @@ perf gate (CE-3222) will measure a riot — tell me if your riot demo throws far
 |---|---|
 | `DamageAssessedEvent.Source` (on the victim's Health owner, after the wire) | who caused it: the round's shooter for a hit or a burst — a person, a vehicle, or a weapon system (`WeaponSystems.ControllerOf(world, source)` names the man who works it) — the striker of a melee blow. `Entity.Null` = unknown: a gas cloud, a canister in hand, a crash, an ejection, or a shooter this node has no entity for |
 
-**⑩ B-16 — the hostile act carries its kind** ([CE-3238](../Blueprint_Issues_Tracker.md), at `backend@B16SHA`; design [§7.16b](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-22 (civilian → combatant) can tell a stone from a shot, on every node.**
+**⑩ B-16 — the hostile act carries its kind** ([CE-3238](../Blueprint_Issues_Tracker.md), at `backend@673c34969`; design [§7.16b](../../DESIGN_Civilians_And_Crowd_Control.md)) — ⭐ **AW-22 (civilian → combatant) can tell a stone from a shot, on every node.**
 
 | what you call | what it does |
 |---|---|
