@@ -277,6 +277,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | id | question | ⭐ lean | rejected — one line each | blast radius |
 |---|---|---|---|---|
 | **E1** | coordinates | ✅ **RULED (R-4025)** — at terrain load, convert the net's `<location>` (`netOffset` + `projParameter`) **UTM → WGS84 → local ENU** through the terrain origin (R-229), fit once as a 2-D rigid transform in `TrafficNetCache.ToLocal`; `+proj=utm` only, others refused with a load error | identity: wrong for any georeferenced net · a projection library: a large dependency for one projection | new UTM converter (~100 lines); SumoSharp's parser must read `<location>` (it ignores it today) |
+| **E1b** | a net that is NOT georeferenced (`projParameter="!"`, plain local metres — e.g. SumoSharp's demo city) | ✅ **RULED (R-4052, D5)** — `terrain.json` gives an **anchor** for such a net: where the net's (0, 0) sits in the terrain's local metres (plus an optional rotation); the georeferenced path (E1) is unchanged | refusing non-georeferenced nets: SumoSharp's own demo city is one | `TrafficNetCache.ToLocal` |
 | **E2** | car and road height | ✅ **RULED (R-4025)** — **SUMO's z**: roads are drawn at the lane z and cars ride `PosZ`. ⛔ The lean (our `IWorldQuery.SurfaceZ`) was REJECTED: the roads come from the SUMO net, so the cars must match them | — | mirror module; ⚠ consequence in §5 |
 | **E2b** | ✅ **RULED (R-4030)** — a **flat (2-D) net** has no z (`Lane.ShapeZ` null ⇒ `PosZ` 0) | ⭐ when the net carries no z, BOTH roads and cars **drape onto our ground** — the 3-D map's existing rule (Z = 0 is "drape", `GizmoRenderer3D` M18/P4) for the roads, `IWorldQuery.GroundHeightAt` for the cars; a net WITH z is used as-is (R-4025) | cars and roads at z 0: everything sinks into or floats above any non-flat terrain | mirror module + road layer |
 | **E3** | our units on SUMO roads | ⛔ **RULED NO (R-4026)** — the two road systems stay separate and independent | derive `RoadNetworkBlob` from the net (our lean) — rejected: SUMO's model is complex, ours is simple | none |
@@ -621,6 +622,24 @@ road layer, never the world query, so nothing simulates on it.
 ⚠ Known limit, unchanged: INSIDE our terrain the roads still sit at SUMO's z (R-4025) — where the net's z was not built
 from our height grid, a road can hover over or sink into our ground. The ambient ground does not fix that; a net whose z
 matches the terrain does.
+
+### 11.3 The demo — **`demo-city`, built FROM SumoSharp's demo city so the two match by construction** *(R-4052, 2026-10-17)*
+
+🔒 **User, `2026-10-17`:** *"D1 to D5 approved, go ahead with demo-city. No procedural buildings (maybe later, The ones currently implemented are not very useful. They are too dense and too unrealistic.)"*
+
+📐 SumoSharp's `scenarios/_ped/demo_city/box`: a 4.75 × 4.75 km flat, non-georeferenced net (`projParameter="!"`) with 499
+junctions, 51 traffic-light junctions and sidewalks with crossings; 31 data buildings with heights (`buildings.json`; 17 in
+downtown, `zone_downtown` = 1600–3100 in both axes), districts, POIs and demand. Our shipped terrains are 300–600 m with at most
+two streets — none matches any net.
+
+| id | ✅ ruled |
+|---|---|
+| **D1** | the demo net is COPIED unchanged into the new terrain folder `Recipes/Terrain/demo-city/` (the SumoSharp original is a locked fixture there) |
+| **D2** | our terrain is an ~800 × 800 m downtown box inside it, carrying the data buildings that fall inside (as solid prisms with their heights), on flat ground; the rest of the city is background traffic over the ambient ground (R-4040, V8) |
+| **D3** | a generator script turns a SUMO net + its `buildings.json` into an HROT terrain folder (`terrain.json` with the net and its anchor, the world GeoJSON with bounds and buildings) |
+| **D4** | the demo scenario on `demo-city`: the traffic settings entity + a few soldiers at a downtown junction — enough for every slice-1 acceptance check |
+| **D5** | E1b: a non-georeferenced net is placed by an anchor in `terrain.json` |
+| ⛔ | **no procedural buildings** — the viewer's current ones are *"too dense and too unrealistic"* (user); maybe later |
 
 ## 7. ⛔ HISTORY
 
