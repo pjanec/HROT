@@ -624,14 +624,14 @@ Y-up provider contract"* · W8 *"move the IG ground-clamp pipeline to SimHost"* 
 `NavmeshWalkIntegrationTests` (after the move), the perception suites, and the cluster integration rail for nav.
 
 
-## 9. ⭐ SPARSE TERRAIN — **high-resolution insets over a low-resolution outer ground** *(lean, `2026-10-17`, not ruled)*
+## 9. ⭐ SPARSE TERRAIN — **high-resolution insets over a low-resolution outer ground** *(✅ S1–S7 APPROVED `2026-10-17`, R-4051; filed DEFERRED as CE-4011 (outer ground) + CE-4012 (insets) — SUMO is built first)*
 
 > 🔒 **User, `2026-10-17`:** *"the artificial terrain around our terrain area is a good idea anyway, even if there is no sumo
 > road network. Maybe we could somehow define this outer area size into our terrain […] could our terrain be sparse, meaning
 > that only some rectangular areas, multiple of them, even far from each other, could be used, each having its own nav mesh?
 > […] Originally, each terrain zone was coming with its own terrain definition, which is very close to the idea I am just
 > talking about. But a sparse terrain definition would make it happen in a general way, so the terrain can span whatever big
-> area and just some part of it would be high resolution inset."*
+> area and just some part of it would be high resolution inset."* · *"S1 to S7 approved. Pls file the the whole outer ground and terrain insets as separate tasks that we do not need to take now, because first I would like to build the sumo stuff."*
 
 📐 **Measured — what is dense today, and what is already sparse:**
 
