@@ -415,7 +415,7 @@ namespace Hrot.SimHost.Tests
                 () => { if (!w.Repo.IsComponentTypeRegistered<WeaponState>()) w.Repo.RegisterComponent<WeaponState>(); },
                 () => { if (!w.Repo.IsComponentTypeRegistered<WeaponMountInfo>()) w.Repo.RegisterComponent<WeaponMountInfo>(); },
                 () => { if (!w.Repo.IsComponentTypeRegistered<AmmoLoadout>()) w.Repo.RegisterComponent<AmmoLoadout>(); },
-                () => { if (!w.Repo.IsComponentTypeRegistered<TkbIdentity>()) w.Repo.RegisterComponent<TkbIdentity>(); },
+                () => { if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) w.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
                 () => { if (!w.Repo.IsComponentTypeRegistered<WeaponChannel>()) w.Repo.RegisterComponent<WeaponChannel>(); },
             }) reg();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -430,7 +430,7 @@ namespace Hrot.SimHost.Tests
             db.Register(grenade);
             PersonHands.EnsureOnPersons(db);
             w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.Repo.AddComponent(w.Unit, new TkbIdentity { TkbType = CivilianType });
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = CivilianType });
             if (!w.Repo.HasComponent<WeaponChannel>(w.Unit)) w.Repo.AddComponent(w.Unit, new WeaponChannel());
             db.TryGetByType(CivilianType, out var t);
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(w.Repo, w.Unit, t!);
