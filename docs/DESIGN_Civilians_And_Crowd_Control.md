@@ -2163,6 +2163,68 @@ keeps a Hostile item on purpose, to prove the line's guard.
 | twins `PostureScenarioTests.CE2239_Escalation_…` · `_EscalationWarn_…` · `_SelfDefence_…` · `_Celebration_…` · `_PoliceLine_…` | ✅ all five green; neighbours `CE2238_GasThrowback`, `RiotStone`, `CE2238_*` green |
 | live checks `utility-demo-check.py --launch` | ✅ `ua-civ-escalation` 6/6 (warned at ease, rifle silent; 1 rifle round, at him; hit at 12.8 s; rioters stunned, none dead) · `ua-civ-escalation-warn` 6/6 (no round, no blow, the cue, 22 'hold: warning' samples) · `ua-armed-self-defence` 4/4 (2 rounds at him, hit at 12.7 s) · `ua-armed-celebration` 5/5 (warned, 0 rounds during the volley, fired on once he aimed at 19.7 s, guests unhurt) |
 
+## 5l. B5 — the bomber sets off his worn charge *(behaviors, `CE-2238` part 5 / handoff B5, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** AW-12's worn charge, the BEHAVIOUR half: a person who carries a charge (B-11b, built — `Charges`, TKB 618) walks where his plan
+sends him and sets it off. Demo `ua-armed-bomber` (§5c). ⏳ Not here: D4's suspicion sensor (what gives a bomber away), a search, the
+remote phone trigger as a demo (HI-6 is built and railed), a dead-man switch.
+
+**INVENTORY** *(2026-10-17; codebase-memory MCP `search_graph` `.*(Detonat|Charge|Bomber|Suicide).*` Class ⇒ 26: `Charges`, `ChargeSystem`,
+`DetonateChargeEvent`, the I-1 `DetonateChargeInteractionPayload`, and the detonation pipeline (`DetonationNotification`, `DetonationLog`,
+`RecentDetonations`, the NED translators) — ⛔ **no behaviour sets a charge off**: grep `Charges\.(Ask|Detonate)` outside `Combat/` and
+its rails ⇒ only `BdcTkbCatalog` (the type) · `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| how a charge goes off | `Charges.Ask(world, charge, by)` publishes `DetonateChargeEvent`; `ChargeSystem` (Interactions capability) calls `Detonate` on the charge's POSITION owner — its round's `DetonationNotification` where it stands (worn: at the man), shooter = `by`; then the one teardown | `Combat/Charges.cs:45-111` |
+| who may ask | his OWN charge, or a timer (`by` null): always; another man's: only with a phone in hand (HI-6) | `Charges.cs:47` |
+| where he carries it | a carry station: Hidden ⇒ concealed, it arms nobody (`Armament.Judge` ⇒ Nothing) | §7.13, `CarryStations` |
+| the pattern to mirror | `StationWeapon` — a StatefulAction over the man's `PassengerBuffer` | `Brains/StationWeaponBehavior.cs` |
+
+```mermaid
+classDiagram
+  direction LR
+  class DetonateChargeBehavior { <<NEW, Hrot.AI.Behaviors/Brains>> DetonateCharge(Seconds) · Set(p, ws, self, world) }
+  class DetonateChargeParamsJsonDto { <<NEW, Hrot.Core MapDefinitions>> Seconds }
+  class Charges { <<existing>> IsCharge · Ask(charge, by) · Detonate }
+  class ChargeSystem { <<existing, Interactions capability>> }
+  class PassengerBuffer { <<existing>> what he carries }
+  class StationWeaponBehavior { <<existing — the pattern>> }
+  DetonateChargeBehavior ..> PassengerBuffer : the first charge he carries
+  DetonateChargeBehavior ..> Charges : Ask(charge, self)
+  Charges ..> ChargeSystem : DetonateChargeEvent
+  DetonateChargeBehavior ..|> StationWeaponBehavior : same shape
+```
+*What the picture shows that prose hid:* the behaviour owns no burst — it only ASKS; the existing charge pipeline (position owner, teardown,
+detonation event on every node) does the rest, so the brain node need not own the charge.
+
+```mermaid
+sequenceDiagram
+  participant B as bomber (CGF brain)
+  participant C as ChargeSystem (position owner)
+  participant N as every node
+  B->>B: MoveToLocation into the crowd (his plan)
+  B->>B: DetonateCharge — still for Seconds
+  B->>C: Charges.Ask(vest, by self)
+  C->>N: DetonationNotification at the vest (= at him), the charge torn down
+  N->>N: blast damage — him and everyone in its radius
+```
+
+```mermaid
+graph TD
+  BT[BrainTickSystem — CGF] --> DC[DetonateCharge — the bomber's plan step]
+  DC --> ASK[Charges.Ask — DetonateChargeEvent]
+  ASK --> CS[ChargeSystem — Interactions capability, the charge's position owner]
+  CS --> DN[DetonationNotification — replicated to every node]
+```
+*Caption:* nothing new is scheduled — the brain asks, the existing Interactions capability bursts it where it stands.
+
+| id | decision *(⭐ lean, for the user's review)* | rejected — one line each |
+|---|---|---|
+| **BM-1** | ⭐ a library behaviour `DetonateCharge {Seconds}`: he stands still `Seconds` (0 = at once), then asks the FIRST charge he carries (any station) with `by` = himself; Success once asked; Failure when he carries none | a bomber HSM: a mission plan already composes "walk there, then set it off" · `Detonate` directly: only the position owner may burst it |
+| **BM-2** | ⭐ the charge stays HIDDEN until it goes off — never drawn, so `Armament.Judge` reads him Nothing to every observer (AW-12) | a "drawn" vest: AW-12 says never drawn |
+| **BM-3** | ⭐ no reaction of his own to being shot first (a dead-man switch is §5h's later knob) | — |
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
