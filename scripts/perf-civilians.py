@@ -22,7 +22,9 @@ _spec.loader.exec_module(udc)   # the one launch / load / call helper set (RUNBO
 
 CIVILIAN_TYPES = (1101, 1102, 1103, 1104)   # the CIV-1 family (CE-3220): each loads the CivilianHsm (DefaultBehaviorHash)
 WATCHED = ("BrainTickSystem", "CivilianFearSystem", "CrowdSystem", "CarKinematicsSystem", "VisualPerception", "Perception",
-           "Sensor", "Navigation", "Locomotion")
+           "Sensor", "Navigation", "Locomotion",
+           # the ones this gate already caught growing with the crowd (CE-3240, CE-3241, CE-3242) — kept in view
+           "WeaponAmmoMirror", "EqsResultUpdate", "GhostPromotion", "OwnershipRecompute")
 AREA = (60.0, 60.0, 340.0, 340.0)           # test-town, inside its roads' footprint
 TOP = 8                                     # the costliest systems shown per subsystem, whatever they are
 

@@ -74,18 +74,71 @@ namespace Fdp.Toolkit.Perception.Sensors
             repo.AddComponent(child, new SensorTag { Kind = entry.Kind, TkbIndex = (byte)index, FromTkb = 1 });
             SetCapability(repo, child, entry, entry);
             DerivedParts.MarkNotSaved(repo, child);   // CE-3045
+            ChildIndex.Of(repo).Added(repo, parent, partId, child);   // CE-3242
             return child;
         }
 
         /// <summary>The live sensor child of <paramref name="parent"/> with part id <paramref name="partId"/>, or null.</summary>
         public static Entity Find(ISimulationView view, Entity parent, int partId)
         {
+            if (view is EntityRepository repo) return ChildIndex.Of(repo).Find(repo, parent, partId);
             foreach (var e in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
             {
                 ref readonly var meta = ref view.GetComponentRO<PartMetadata>(e);
                 if (meta.InstanceId == partId && meta.ParentEntity.Equals(parent)) return e;
             }
             return Entity.Null;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3242</c> — the sensor children by (parent, part id), built by ONE scan and reused while nothing else changed the
+        /// world. Was a scan of every sensor child per <see cref="Find"/>, and every unit's promotion asks it once per sensor:
+        /// O(units × sensors) — 📐 1.1 ms a call at 1 500 entities, a 500-civilian load trickled in for 93 s.
+        /// <para>⭐ Rebuilt when the frame moves on or the entity count is not what this factory's own creations left it at — so a
+        /// child made elsewhere (the EQS config ingress, a restore) is seen; a hit is still checked live, so a stale entry is never
+        /// returned. First match in index order wins, as the scan's did.</para>
+        /// </summary>
+        private sealed class ChildIndex
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, ChildIndex> PerWorld = new();
+            private readonly System.Collections.Generic.Dictionary<(Entity Parent, int PartId), Entity> _children = new();
+            private uint _tick = uint.MaxValue;
+            private int _count = -1;
+
+            public static ChildIndex Of(EntityRepository repo) => PerWorld.GetValue(repo, _ => new ChildIndex());
+
+            public Entity Find(EntityRepository repo, Entity parent, int partId)
+            {
+                if (_tick != repo.SimulationTick || _count != repo.EntityCount) Rebuild(repo);
+                if (!_children.TryGetValue((parent, partId), out var child)) return Entity.Null;
+                if (repo.IsAlive(child) && repo.HasComponent<EqsSensor>(child) && repo.HasComponent<PartMetadata>(child))
+                {
+                    ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(child);
+                    if (meta.InstanceId == partId && meta.ParentEntity.Equals(parent)) return child;
+                }
+                Rebuild(repo);   // the entry went stale without the count moving (a destroy and a create) — ask the world
+                return _children.TryGetValue((parent, partId), out child) ? child : Entity.Null;
+            }
+
+            /// <summary>Records a child this factory just made, so the next lookup needs no rescan.</summary>
+            public void Added(EntityRepository repo, Entity parent, int partId, Entity child)
+            {
+                if (_tick != repo.SimulationTick || _count != repo.EntityCount - 1) { _count = -1; return; }   // stale anyway: rebuild next time
+                _children.TryAdd((parent, partId), child);
+                _count = repo.EntityCount;
+            }
+
+            private void Rebuild(EntityRepository repo)
+            {
+                _children.Clear();
+                foreach (var e in repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
+                {
+                    ref readonly var meta = ref repo.GetComponentRO<PartMetadata>(e);
+                    _children.TryAdd((meta.ParentEntity, meta.InstanceId), e);
+                }
+                _tick = repo.SimulationTick;
+                _count = repo.EntityCount;
+            }
         }
 
         /// <summary>Sets the child's capability (registering the managed type on first use, as other managed components do).</summary>

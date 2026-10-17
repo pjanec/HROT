@@ -290,6 +290,51 @@ namespace Fdp.Tests
         }
 
         // Helper
+        // ⭐ CE-3243 — one-byte components: a table chunk holds 65 536 slots, the worst case for a per-slot dirty check.
+        //   Ids 486–491: free in every *Ids*.cs and every literal under FDP/ and Hrot/ (census 2026-10-17).
+        [ComponentId(486)] private struct Tiny1 { public byte B; }
+        [ComponentId(487)] private struct Tiny2 { public byte B; }
+        [ComponentId(488)] private struct Tiny3 { public byte B; }
+        [ComponentId(489)] private struct Tiny4 { public byte B; }
+        [ComponentId(490)] private struct Tiny5 { public byte B; }
+        [ComponentId(491)] private struct Tiny6 { public byte B; }
+
+        /// <summary>
+        /// ⭐ <c>CE-3243</c> — a delta frame over a world where nothing changed costs next to nothing, however large a table's
+        /// chunk is. The dirty check read every slot of every chunk of every table (65 536 interface calls per one-byte table
+        /// per frame, changed or not): 📐 ~25 ms a frame on every cluster node. A chunk's version is per chunk, so one read
+        /// answers it. Bound is ~3× under the old cost at 1 ns a call, and ~25× over the new.
+        /// </summary>
+        [Fact]
+        public void CE3243_AnIdleWorldsDeltaFrame_DoesNotWalkEveryChunkSlot()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Tiny1>(); repo.RegisterComponent<Tiny2>(); repo.RegisterComponent<Tiny3>();
+            repo.RegisterComponent<Tiny4>(); repo.RegisterComponent<Tiny5>(); repo.RegisterComponent<Tiny6>();
+            for (int i = 0; i < 10; i++)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new Tiny1()); repo.AddComponent(e, new Tiny2()); repo.AddComponent(e, new Tiny3());
+                repo.AddComponent(e, new Tiny4()); repo.AddComponent(e, new Tiny5()); repo.AddComponent(e, new Tiny6());
+            }
+            repo.Tick();
+            var recorder = new RecorderSystem();
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+            uint since = repo.GlobalVersion;
+            recorder.RecordDeltaFrame(repo, since, writer, 0L);   // warm
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (int f = 0; f < 4000; f++)
+            {
+                stream.Position = 0;
+                recorder.RecordDeltaFrame(repo, since, writer, 0L);
+            }
+            sw.Stop();
+            Assert.True(sw.ElapsedMilliseconds < 500,
+                $"4 000 idle delta frames took {sw.ElapsedMilliseconds} ms — the dirty check is walking chunk slots again");
+        }
+
         private void ReadFrameMetadata(BinaryReader reader)
         {
             reader.ReadUInt64(); // Version

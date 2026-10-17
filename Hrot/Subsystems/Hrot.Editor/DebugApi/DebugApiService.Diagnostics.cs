@@ -293,6 +293,12 @@ namespace Hrot.Editor.DebugApi
                         ["descriptorOrdinal"] = t.DescriptorOrdinal,
                         ["receivedSamples"]   = t.ReceivedSamples,
                         ["sentSamples"]       = t.SentSamples,
+                        // ⭐ CE-3242 — the translator's own profile (ms per poll/scan), as the systems carry theirs; a translator
+                        //   the hosting system does not profile reads 0 executions
+                        ["executions"]  = t.Profile?.ExecutionCount ?? 0,
+                        ["avgMs"]       = Math.Round(t.Profile?.AverageMs ?? 0.0, 4),
+                        ["recentAvgMs"] = Math.Round(t.Profile?.GetRecentAverageMs() ?? 0.0, 4),
+                        ["maxMs"]       = Math.Round(t.Profile?.MaxMs ?? 0.0, 4),
                     }).ToArray()),
                     ["moduleCount"]     = snapshot.Modules.Count,
                     ["systemCount"]     = snapshot.Systems.Count,
