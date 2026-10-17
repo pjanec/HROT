@@ -2084,6 +2084,60 @@ out of reach / still flying / not a hand item refused · a live grenade cooks of
 `EntityOrdersAcrossNodesTests.CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once` (SimHost's lying stone seen on CGF, asked twice,
 granted once, gone everywhere, one stone in his hands).
 
+### 7.11 B-10 — a weapon LAID DOWN *(AW-5, AW-21, AW-24 — R-2025, R-2027, R-2029; `CE-3232`; backend, `2026-10-17`; build-state: BUILDING)*
+
+INVENTORY *(grep + reads at `backend@61f235fd7`; codebase-memory CLI `search_graph` `.*(LaidDown|LayDown|Surrender|Disarm).*` → 9, none a weapon state)*:
+
+| question | measured | where |
+|---|---|---|
+| a "this weapon fires for nobody" precedent | a weapon SYSTEM: `WeaponSystems.IsBroken` / `CanFire` (`WeaponHold.Destroyed`, `NotDeployed`); ⛔ nothing for a BUILT-IN mount | `WeaponSystems.cs:64-96, 197` |
+| the built-in mount's state | `WeaponState` on the man (mount 0) or a mount child; brain-local; ⚠ **no `DataPolicy`** — saved and recorded as raw bytes, so a new field changes its size | `CombatComponents.cs:11-48` |
+| what crosses per mount | `WeaponAmmo` (`dtWeaponAmmo`, mounts 0…3), written only by `WeaponAmmoMirrorSystem` on the brain; already a bit-per-mount byte (`Busy`) | `WeaponAmmo.cs`, `WeaponAmmoMirrorSystem.cs`, `EntityWeaponAmmoTranslators.cs` |
+| the "armed" readers B-8 gated (the same set) | `Armament.ArmedByStatus` / `LethalInHand` / `Judge` · `WeaponSystems.WeaponOf` / `PrimaryMount` · the weapon-choice candidates (`UtilityScorer`) · the figure (`PersonBody.PoseOf`) | §7.9a |
+| the one place a round is made | `FireProcessingSystem` (SimHost), from any intent — the AI's, an operator's | `FireProcessingSystem.cs` |
+| an executor's "why held" | `ActionReason.NotDeployed` ("hold: not deployed") exists | `ActionStatus.cs:60, 162` |
+
+```mermaid
+classDiagram
+  direction LR
+  class LaidDownWeapons { <<NEW component 403, on the man, brain node>> Mounts byte — bit i = mount i laid down }
+  class WeaponLaying { <<NEW static>> LayDown(world, man, mount, down) · LayDownAll(world, man, down) · IsLaidDown(world, man, mount) · AllLaidDown(world, man) }
+  class WeaponAmmo { <<existing, + LaidDown byte>> mirrored from LaidDownWeapons; on the wire (dtWeaponAmmo, appended) }
+  class WeaponAmmoMirrorSystem { <<existing>> copies the mask }
+  class Armament { <<CE-3229>> a laid-down mount arms nobody }
+  class WeaponSystems { <<existing>> WeaponOf / PrimaryMount skip a laid-down mount 0 }
+  class UtilityScorer { <<existing>> never a laid-down candidate }
+  class PersonBody { <<existing>> unarmed figure when all are down }
+  class FireProcessingSystem { <<existing>> refuses an intent from a laid-down mount }
+  class FireAtPointExecutor { <<existing>> held: NotDeployed }
+  class AimAndFireExecutor { <<existing>> held: NotDeployed }
+  WeaponLaying ..> LaidDownWeapons : brain node
+  WeaponLaying ..> WeaponAmmo : every other node
+  WeaponAmmoMirrorSystem ..> LaidDownWeapons
+  WeaponAmmoMirrorSystem ..> WeaponAmmo
+  Armament ..> WeaponLaying
+  WeaponSystems ..> WeaponLaying
+  UtilityScorer ..> WeaponLaying
+  PersonBody ..> WeaponLaying
+  FireProcessingSystem ..> WeaponLaying
+  FireAtPointExecutor ..> WeaponLaying
+  AimAndFireExecutor ..> WeaponLaying
+```
+
+*What the picture shows that prose hid:* **ONE reader (`WeaponLaying.IsLaidDown`) answers on every node** — from the brain's own mask where
+the brain runs, from the replicated `WeaponAmmo` bit everywhere else — so the seven readers never ask "which node am I on".
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **LD-1** | **a per-mount BIT on the man** (`LaidDownWeapons`, brain-local) — the frame's "a flag on the mount's state", kept OFF `WeaponState` | a field in `WeaponState`: it has no data policy, so its size is in every save and recording · a component per weapon: the frame rules it out |
+| **LD-2** | **replicated through `WeaponAmmo`** (a `LaidDown` byte appended, mounts 0…3, mirrored by the existing system) | a new topic: `WeaponAmmo` already carries per-mount state from the brain to every node |
+| **LD-3** | **cannot fire, enforced where the round is made**: `FireProcessingSystem` refuses the intent (the operator's too); the executors hold with `NotDeployed` so the brain reads why | the executors only: an operator or another path would still fire |
+| **LD-4** | **reads unarmed**: a laid-down mount arms nobody (status and conduct); all down ⇒ `ArmedByStatus` false and the figure unarmed. ⭐ AW-21's "out of the fight" stays the ladder's: laid down AND hands up (CV-13a) — both now readable | folding "laid down" into `ThreatDanger.IsOutOfTheFight`: a man laying his rifle down with his hands free is not yet surrendered (AW-5: a feint) |
+| **LD-5** | **the hands mount is never "laid down"** (it is not a weapon, B-8) | — |
+
+⚠ **Known limits, stated before the build:** a mount at index ≥ 4 is laid down on the brain's node but reads armed elsewhere (`WeaponAmmo`
+carries 4 mounts, as it does for ammo); the handover (a laid-down weapon becomes a pick-up weapon entity) is B-11's.
+
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
 **INVENTORY** *(2026-10-16; codebase-memory CLI `search_graph` for `.*EntityClassTable.*`, `.*VisualFamil.*`, `.*EffectState.*`,
