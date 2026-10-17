@@ -7,8 +7,8 @@ build-state: ✅ **READY-TO-BUILD `2026-09-17`** — §8 (host heterogeneity) is
   DOWNGRADED on `2026-09-17` when the user found the heterogeneity hole — the module diagram showed WHO
   runs the loader and never asked whether they run the SAME ONE. ⛔ Tiles remain FAKED by ruling (§6/§7);
   that is scope, not an open question.
-updated: 2026-09-17
-current-answer: §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
+updated: 2026-10-17
+current-answer: §11 ZONES AS FIDELITY AREAS (R-4042, 2026-10-17) — what a zone MEANS beyond terrain resolution; §2 is the model, §3 the two invocation paths, §4 what is registered and ticked where
   (incl. the two DEAD edges), §5 the WHY, §6 what is real vs faked in slice 1.
 stale-below: §3.2's sequence diagram and §9.5's "zone name" column are corrected in place by the
   AS-BUILT block in §10 — read §10 before quoting either.
@@ -57,6 +57,7 @@ related-designs:
     content names riding the load MESSAGE. ⛔ It SUPERSEDES §2.1e ④ here (see §10.9) — this doc keeps
     WHAT terrain and zones ARE and gives up the scheduling question entirely.
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — a SUMO .net.xml as a second road-net FORMAT in roadNetworks[] (R-4021); the traffic demand is a scenario entity, the net stays a terrain asset.
+  - docs/DESIGN_Sensors_And_Doctrine.md — the sensor consumer of §11's fidelity zones (not yet designed there).
 -->
 
 # DESIGN — **Terrain, zones and the asset build**
@@ -1158,3 +1159,41 @@ those artifacts are staged.**
 *"fail loudly … instead of silently passing"*. ⛔ **But it means stage `H`'s rails assert the CARRYING —
 `H4`'s actual claim — and deliberately not an end-to-end load.** ⚠ Filed as a defect; the missing piece is
 an artifact-staging mechanism, which no stage of this plan owns.
+
+
+## 11. ⭐ ZONES ARE FIDELITY AREAS — **for every model, not only the terrain** *(R-4042, `2026-10-17`; build-state: DESIGN)*
+
+> 🔒 **User, `2026-10-17`:** *"The zone is an area in a world where Simulation models are higher fidelity, higher
+> resolution. And what is outside of the zone can be low fidelity, meaning that, for example, the observer sensors do not
+> see any entities there and the entities there might behave in a much simpler way. If there is no zone defined, we are
+> falling back to the whole terrain being dead zone."* · on the lean: *"Z1 and Z2 approved, write them into the designs"*
+
+📐 **What a zone was until now** (measured): a `TerrainZone` entity (`TkbEntityTypes.TerrainZone = 8804`,
+`TkbEntityTypes.cs:78`) with a relative `EditablePolyline` (§2.2), whose load brings in **higher-resolution terrain and
+navmesh** (`mgmt-1` §11, "a named high-resolution area"; §③a here, "zones only add resolution"). `TerrainLoadService`
+enumerates them (`TerrainLoadService.cs:222-229`). ⛔ **Searched** this doc, `mgmt-1`, `DESIGN_Cluster_Load_Phase`,
+`DESIGN_Terrain_World` and `AQ71` for any SIMULATION meaning (sensors, behaviour detail, fallback) — **none found**: this
+section is new.
+
+```mermaid
+graph TD
+  ZE["TerrainZone entities (8804), replicated, every node"] --> FZ["FidelityZones.Contains(x, y) - NEW, per node, read-only"]
+  TD["terrain extent"] -->|no zone defined| FZ
+  FZ --> TR["terrain: high-res tiles + navmesh (EXISTS, the zone load)"]
+  FZ --> SU["SUMO: traffic inside a zone is a real replica (AQ93 §8.8, R-4043)"]
+  FZ --> SE["sensors: see entities only inside a zone (NOT DESIGNED - owner DESIGN_Sensors_And_Doctrine)"]
+  FZ --> BE["behaviour detail: simpler outside (NOT DESIGNED - owner the behaviour designs)"]
+  style SE fill:#ffd,color:#000
+  style BE fill:#ffd,color:#000
+```
+
+*What the picture shows that prose hid:* ONE question — *"is this point in a high-fidelity area?"* — answered in ONE
+place from the zone entities every node already holds (they are scenario entities, replicated), and asked by every model;
+the yellow consumers are the RULE, not yet designed by their owners, so nothing changes for them until they are.
+
+| rule | ⭐ |
+|---|---|
+| **Z1-a** — a zone is a **fidelity area**: inside it every model may run at its highest fidelity; outside, models may run simplified, and observer sensors need not see entities there | 🔒 R-4042 |
+| **Z1-b** — **no zone defined ⇒ the whole terrain is the zone** (full fidelity everywhere), for every model **except SUMO replicas**, which then use only the vicinity rule (AQ93 §8.8 H1 — a terrain-sized zone would make every car an entity) | 🔒 R-4042 |
+| **Z1-c** — the ONE reader is a per-node, read-only point-in-zone query over the `TerrainZone` entities (`EditablePolyline` points relative to the zone's `SimTransform`, §2.2), the same shape as `WeatherField` (`Weather/WeatherField.cs:90`) over weather regions | lean — the name `FidelityZones` is a placeholder |
+| **Z1-d** — each consumer's DETAIL (what "simplified" means for sensors, for behaviours) belongs to that consumer's design; this section owns only the area and the fallback | lean |

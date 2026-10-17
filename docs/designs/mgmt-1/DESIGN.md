@@ -39,6 +39,7 @@ related-designs:
   - docs/designs/packs-3/DESIGN.md — ⛔ its §2.B/§2.C/§2.E built a CONFLICTING zone model (an embedded
     content bundle); now marked superseded. Do not read it as the zone intent.
   - ../../DESIGN_Terrain_Combat_Tuning.md §5a — CE-3118 (terrain name in the recording metadata) and CE-3119 (the archive carries a scenario copy, §13.3).
+  - docs/DESIGN_Terrain_Zones_And_Assets.md — §11 (R-4042): a zone is now a fidelity area for every model, not only high-res terrain (§11 here); no zone ⇒ the whole terrain.
 -->
 
 # Distributed Drill Management System — Architecture Design
