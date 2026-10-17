@@ -2754,7 +2754,7 @@ def run_civ_routine_alarm(c, timeout):
     calm = wait_for(lambda: (far_sample(), all(civ_mode(n) == "Routine" for n in near))[1], 90)
     c.ok(calm is not None, f"③ once the firing stops, both near civilians go back to Routine ({[civ_mode(n) for n in near]})")
     far_sample()
-    c.ok(not far_alarmed, f"② …and none of the 4 far civilians (170+ m, beyond hearing) was ever alarmed ({sorted(far_alarmed)})")
+    c.ok(not far_alarmed, f"② …and none of the 4 far civilians (150+ m, beyond hearing) was ever alarmed ({sorted(far_alarmed)})")
     moved = [n for n in far if start[n] and (p := position(n)) and flat(p, start[n]) > 1.0]
     c.ok(len(moved) >= 3, f"① the far civilians live their routine: {len(moved)} of 4 walked from where they started")
 

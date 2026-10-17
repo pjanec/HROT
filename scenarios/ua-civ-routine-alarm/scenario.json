@@ -12,8 +12,8 @@
     "c1040000-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
-          300,
-          300,
+          200,
+          320,
           0
         ],
         "Rotation": [
@@ -48,7 +48,7 @@
               "taskId": "c1040000-0000-4000-8000-000000000101",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[305,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": "{\"advance\":{\"Objective\":[205,320,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -72,7 +72,7 @@
               "taskId": "c1040000-0000-4000-8000-000000000103",
               "executingEngine": "",
               "behaviorName": "CombatPosture",
-              "behaviorParams": "{\"advance\":{\"Objective\":[305,300,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+              "behaviorParams": "{\"advance\":{\"Objective\":[205,320,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -87,8 +87,8 @@
     "c1040000-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          360,
-          300,
+          260,
+          330,
           0
         ],
         "Rotation": [
@@ -119,8 +119,8 @@
     "c1040000-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
-          300,
-          340,
+          200,
+          360,
           0
         ],
         "Rotation": [
@@ -151,8 +151,8 @@
     "c1040000-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          330,
-          330,
+          200,
+          285,
           0
         ],
         "Rotation": [
@@ -183,8 +183,8 @@
     "c1040000-0000-4000-8000-000000000005": {
       "SimTransform": {
         "Position": [
-          300,
-          480,
+          360,
+          150,
           0
         ],
         "Rotation": [
@@ -215,8 +215,8 @@
     "c1040000-0000-4000-8000-000000000006": {
       "SimTransform": {
         "Position": [
-          330,
-          490,
+          380,
+          200,
           0
         ],
         "Rotation": [
@@ -247,8 +247,8 @@
     "c1040000-0000-4000-8000-000000000007": {
       "SimTransform": {
         "Position": [
-          270,
-          480,
+          200,
+          60,
           0
         ],
         "Rotation": [
@@ -279,8 +279,8 @@
     "c1040000-0000-4000-8000-000000000008": {
       "SimTransform": {
         "Position": [
-          360,
-          470,
+          120,
+          190,
           0
         ],
         "Rotation": [
