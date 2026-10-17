@@ -13,22 +13,16 @@ namespace Hrot.Traffic;
 ///   <item><see cref="Mirroring"/> — every other map or sim host (SimHost, CGF, IG, Player): mirrors every traffic node's wire, so its
 ///   sensors, rounds and maps see the cars.</item>
 /// </list>
-/// Both make every terrain residency of the process load the SUMO net (the net rides the terrain, R-4021) and are idle without a net.
+/// Both make the NODE's terrain residency load the SUMO net (the net rides the terrain, R-4021) and are idle without a net.
 /// </summary>
 public sealed class TrafficPack : INodeCapability, IDisposable
 {
     private readonly bool _serves;
 
-    /// <summary>The key the SUMO-net loader registers under (<see cref="TerrainResidency.RegisterContentLoader"/>).</summary>
+    /// <summary>The key the SUMO-net loader registers under in the node's <c>HrotNodeContext.TerrainContent</c>.</summary>
     public const string NetLoaderKey = "sumo-net";
 
-    private TrafficPack(bool serves)
-    {
-        _serves = serves;
-        // ⭐ N6 / R-4021 — every residency in this process loads the terrain's SUMO net from its next terrain on, whenever the host
-        //   built it (each host builds its residency after its plan, deep in its own orchestration code).
-        TerrainResidency.RegisterContentLoader(NetLoaderKey, () => new SumoNetTerrainLoader());
-    }
+    private TrafficPack(bool serves) => _serves = serves;
 
     /// <summary>A node that runs SUMO (role <c>Traffic</c>).</summary>
     public static TrafficPack Serving() => new(serves: true);
@@ -61,6 +55,8 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         //   node's kernel, participant and allocator, so it contributes nothing there. Every production host passes its context.
         if (context is null) return;
         if (Mirror is not null) throw new InvalidOperationException("TrafficPack is composed once per node.");
+        // ⭐ N6 / R-4021, CE-4013 — THIS node's residency loads the terrain's SUMO net from its next terrain on (whenever the host built it).
+        context.TerrainContent.Add(NetLoaderKey, () => new SumoNetTerrainLoader());
         context.World.RegisterComponent<ReplicationRoute>();
         context.World.RegisterComponent<TrafficCar>();
         if (_serves)

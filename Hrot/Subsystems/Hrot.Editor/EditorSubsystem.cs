@@ -329,6 +329,9 @@ namespace Hrot.Editor
         private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
             System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
+        /// <summary>⭐ CE-4013 — the ONE capability walk every host runs (§4.1ae); asserted complete before the kernel initializes.</summary>
+        private Hrot.Common.Infrastructure.NodeCapabilityWalk? _capabilityWalk;
+
 
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
@@ -1525,13 +1528,11 @@ namespace Hrot.Editor
             //   navigation locally, so it loads what those need. ⛔ SUPERSEDED: "No terrain step — nothing here
             //   reads the road graph" — the editor's CarKinematicsSystem reads it, and its map draws the
             //   terrain world (R-182). 📄 docs/DESIGN_Terrain_World.md §5, §7.1 W4.
-            var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
-            {
-                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                    tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
-            };
-            TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _roadNetworkHolder);
-            editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
+            // ⭐ CE-4013 (§4.1ae T2) — the knowledge base and the terrain from the ONE shared factory every ECS host uses, with this node's
+            //   terrain content (the traffic pack adds the SUMO net there when it composes, below).
+            var (editorLoadProviders, editorResidency) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+                tkbDb, isolatedTempRoot, _roadNetworkHolder, _node!.TerrainContent);
+            TerrainResidency = editorResidency;
 
             // ⭐ CE-2056 — the editor HOLDS a behaviour registry, so it passes a remapper built from it (the silent-default
             //   rule): a scenario load that renumbers ids now rewrites the EntityRefs inside mission parameters too, as
@@ -1655,8 +1656,8 @@ namespace Hrot.Editor
             var planInputSystems   = new List<IEcsModuleSystem>();
             var planSimSystems     = new List<IEcsModuleSystem>();
             var planPostSimSystems = new List<IEcsModuleSystem>();
-            foreach (INodeCapability capability in _capabilities)
-                capability.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
+            _capabilityWalk = new Hrot.Common.Infrastructure.NodeCapabilityWalk(_capabilities);
+            _capabilityWalk.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
 
             // ⭐⭐⭐ CE-165 — DEDUPLICATE BY TYPE when fusing the Brain and MuscleGround lists.
             // The editor is the one node that runs BOTH packs, and both carry UnitHierarchySystem and
@@ -1721,14 +1722,13 @@ namespace Hrot.Editor
             //    hand-written sequence exactly on BOTH arms: default = perception module then the area
             //    queries; injected = the host's muscle modules then the area queries (there is no
             //    perception module on that arm, and there never was).
-            //   ⭐ ONE ordered pass per capability: the modules it PROVIDES, then its Register hook.
+            //   ⭐ CE-4013 — the shared walk's phase order (every capability's modules, then every Register), the base's order. ⚠ It
+            //   used to interleave per capability; the order is unchanged because no capability ahead of a providing one registers
+            //   anything (EditorCapabilitiesTests pin both arms). The editor runs no NodeBootPlan, so the bag is its own.
             var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
-            foreach (INodeCapability capability in _capabilities)
-            {
-                foreach (var mod in capability.ProvideModules())
-                    _kernel.RegisterModule(mod);
-                capability.Register(_node!, bootValues);
-            }
+            foreach (var mod in _capabilityWalk.ProvideModules())
+                _kernel.RegisterModule(mod);
+            _capabilityWalk.Register(_node!, bootValues);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
@@ -2139,6 +2139,7 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
+            _capabilityWalk!.AssertComplete(Name);   // ⭐ CE-4013 — a skipped capability phase fails here, named
             _kernel.Initialize();
 
             // ⭐ CE-3017 — the navigation singletons (INavmeshProvider, IPathRegistry) exist only after the module's

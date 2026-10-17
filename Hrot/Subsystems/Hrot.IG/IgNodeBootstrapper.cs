@@ -144,8 +144,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     {
         // ⭐ CE-197 — remember the role so the capability set can be resolved FROM it (B4b step 3).
         //   ⚠ Captured HERE, at boot phase 1, because every later step declares `requires: ["context"]`
-        //     — so the plan cannot run one before this has run. That is the same ordering argument the
-        //     lazy resolve in GetAdditionalModules rests on, and it is why this is not a hidden channel.
+        //     — so the plan cannot run one before this has run (the base's `capabilities` step among them, CE-4013).
         _declaredRole = role;
 
         // ⭐⭐⭐ CE-141 CLOSED 2026-09-03 — THE TRANSLATOR LIST IS NOT BUILT HERE, AND NOT PER-HOST.
@@ -216,56 +215,29 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     // ── Phase 4a: Populate togglable system groups ────────────────────────────
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// ⭐⭐ CE-2150 (R-2010) — IG composes its capabilities' systems like every other host; 🔒 user, 2026-10-13: "IG is no different".
+    /// ⭐ CE-4013 — the base walks them right after this hook (and their modules after <c>additional-modules</c>), so IG keeps no
+    /// loop of its own: it has no systems besides its capabilities'. 📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+    /// </remarks>
     protected override void PopulateSystems(
         HrotNodeContext context,
         List<IEcsModuleSystem> input,
         List<IEcsModuleSystem> sim,
         List<IEcsModuleSystem> postSim)
     {
-        // ⭐⭐ CE-2150 (R-2010) — IG walks its capabilities' systems like every other host (Stride: StrideNodeBootstrapper.cs:351).
-        //   🔒 User, 2026-10-13: "IG is no different (just having different role but most of the entity related capabilities should
-        //   dbe same as on other nodes)". ⛔ Until now this hook was EMPTY, so the cross-role capabilities IG declares (HealthApplication,
-        //   UnitHierarchy, Interactions) resolved here and ticked nowhere. Resolved lazily (ResolveCapabilities), so the step order
-        //   between this hook and GetAdditionalModules cannot matter. Each system gates on what IG registered (an unregistered event
-        //   reads empty), so a capability whose data IG does not carry costs nothing. 📄 docs/DESIGN_Orders_Params_Entity_Classes.md §11.2.
-        foreach (INodeCapability capability in ResolveCapabilities())
-            capability.PopulateSystems(context, input, sim, postSim);
     }
-
-    // ── Phase 4b: Additional ECS modules ─────────────────────────────────────
 
     /// <inheritdoc/>
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>B4b</c> step 2, host (b) — IG's modules come from a RESOLVED capability set.</b>
-    ///
-    /// <para>The five module constructions that stood here inline now live in
-    /// <c>IgCapabilities.Presentation</c>, and this hook walks whatever the plan resolved. 📄
-    /// <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1t.</para>
-    ///
-    /// <para>⛔⛔ <b>The plan is resolved LAZILY, not stashed by an earlier phase.</b> The obvious shape
-    /// — build it in <c>PopulateSystems</c> as SimHost does, and read the field here — is a trap on this
-    /// host: the base declares <c>additional-modules</c> with <c>requires: ["context"]</c> only, NOT
-    /// <c>"system-groups"</c> (<c>SharedApplicationBootstrapper.cs:148</c>), so the boot plan is free to
-    /// run this step before <c>PopulateSystems</c>. The field would then be empty and IG would register
-    /// <i>no presentation modules at all</i> — silently, with a healthy boot. Resolving on first use
-    /// depends on nothing but this object, so no step ordering can break it.</para>
-    ///
-    /// <para>⚠ <b>The role is not consulted, deliberately</b> — the same stance
-    /// <c>SimHostNodeBootstrapper:254</c> takes. This host IS the image generator, and <c>B4b</c> is
-    /// behaviour-preserving, so the set must not narrow at the switchover. Selecting BY the declared
-    /// role flags is the next step and needs its own measurement of what each deployed role carries.</para>
-    /// </summary>
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
+    /// <remarks>
+    /// <para>⭐⭐⭐ <c>B4b</c> step 2, host (b) — IG's units come from a RESOLVED plan: the five presentation modules in
+    /// <c>IgCapabilities.Presentation</c> plus the cross-role infrastructure. 📄 §4.1t.</para>
+    /// <para>⭐ CE-4013 — resolved once in the base's <c>capabilities</c> step. ⛔ The lazy resolution this replaced existed only because
+    /// <c>additional-modules</c> did not require <c>system-groups</c>; the base now orders them, for every host.</para>
+    /// <para>⚠ The role is not narrowed — the same stance <c>SimHostNodeBootstrapper</c> takes: this host IS the image generator.</para>
+    /// </remarks>
+    protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
     {
-        foreach (INodeCapability capability in ResolveCapabilities())
-            foreach (IEcsModule module in capability.ProvideModules())
-                yield return module;
-    }
-
-    /// <summary>Builds the node's composition plan and resolves it, once.</summary>
-    private IReadOnlyList<INodeCapability> ResolveCapabilities()
-    {
-        if (_capabilities != null) return _capabilities;
 
         // ⭐⭐ CE-2144 (R-2008) — the ONE shared plan head. ⚠ IG's PopulateSystems walks no capability today (CE-2150), so nothing
         //    here ticks on IG yet; the plan is shared so that fixing that walk is the only change IG needs.
@@ -292,7 +264,7 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    safe — IG's declaration was already true.
         NodeRole composed = _declaredRole;
 
-        _capabilities = plan.Resolve(composed);
+        var capabilities = plan.Resolve(composed);
 
         // ⭐⭐ CE-199 — the resource half is no longer refused here; it simply has nothing to do.
         //
@@ -315,10 +287,8 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
                 $"capabilities need [{string.Join(", ", needed)}]. Add the key to DeclaredResourceKeys so " +
                 "the node-resources boot step allocates it — see CE-199.");
 
-        return _capabilities;
+        return capabilities;
     }
-
-    private IReadOnlyList<INodeCapability>? _capabilities;
 
     /// <summary>The role this node was bootstrapped with, captured in <see cref="BuildContext"/>.</summary>
     private NodeRole _declaredRole = NodeRole.Map2D;
@@ -392,18 +362,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
         //    🔒 User, `2026-09-18`: "every ECS enable node should be able to create entities so every needs
         //    the TKB loaded" · "load nothing where nothing reads it".
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1, §4.1a, §4.1b.
-        var igLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
-        {
-            // ⭐ Unconditional: this host SUPPLIES the default catalogue when none was composed, because
-            //   the knowledge base is required by being an ECS node rather than by the Map2D role.
-            new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), storageDirectory),
-
-            // ⭐⭐ 2026-10-03 — terrain is now UNIVERSAL (R-182): IG's map draws the terrain world, so the
-            //   holder this host always carried finally has a producer. 📄 docs/DESIGN_Terrain_World.md §5.
-            new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(
-                new Hrot.Map.Common.Services.TerrainResidency(storageDirectory, RoadNetworkHolder), storageDirectory),
-        };
+        // ⭐ The knowledge base (required by being an ECS node, not by the Map2D role) and the terrain (UNIVERSAL since 2026-10-03, R-182:
+        //   IG's map draws the terrain world) — from the ONE shared factory every ECS host uses (CE-4013, §4.1ae T2).
+        var (igLoadProviders, _) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+            context.TkbDb, storageDirectory, RoadNetworkHolder, context.TerrainContent);
 
         slave.RegisterHandler(Hrot.Map.Common.ClusterLoad.LoadPhaseChain.FromRoles(
             Fdp.Core.NodeRole.Map2D, igLoadProviders, context.World,
@@ -513,6 +475,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     protected override void RegisterSpawningPipeline(HrotNodeContext context)
     {
+        // ⭐ CE-4013 — the capabilities' Register hook, FIRST (Stride's and the editor's point). ⛔ IG never called it: a capability
+        //   composing through Register did nothing here. None in IG's plan implements it today, so this changes no order.
+        RegisterCapabilities(context);
+
         var creation = EntityCreationPack.Build(new EntityCreationContext
         {
             World       = context.World,

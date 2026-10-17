@@ -199,7 +199,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-10-01 (§4.1ad — the hand-wired-fixture family, measured across ClusterRunner.Integration.Tests)
+updated: 2026-10-17 (§4.1ae — CE-4013: one capability walk on every host, the terrain residency per node, one universal-load-parts factory)
 known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
   production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
   (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
@@ -222,6 +222,7 @@ known-conflict: ⛔ the dispatched frame handoff is stale on TWO points — its 
   a ruling violation). ⚠ The handoff is deliberately NOT edited — rule 1 forbids amending a dispatched
   handoff; the divergence is declared here and in the report instead.
 related-designs:
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.1 — OWNS the SUMO traffic pack; the first capability that hit the walk gaps §4.1ae closes, and the first user of the per-node terrain content
   - docs/DESIGN_Entity_Interactions.md §7.1d — OWNS entity interactions; its CoreInfrastructureCapabilities.Interactions (doors + embarkation) is the third cross-role infrastructure capability (§4.1ad)
   - docs/DESIGN_Node_Roles_And_Policies.md §3.1–§3.2 — OWNS what a role means and loads; a role never denies a capability
 -->
@@ -6351,3 +6352,122 @@ still needs its own slice.**
 | the editor's adoption is comparable in size | ⛔ **INFERRED from the CGF precedent, not measured** — ⚠ the three multipliers are named above and none is a line count | — |
 | `E3`'s `GeographicModule` question interacts with `CE-151` | ⛔ **NOT MEASURED.** ⭐ Stated as a suspicion: both concern who publishes world singletons | ✅ §4.1y `E3` row · `CE-151` |
 | ⚠ `check_index_coverage` | ⛔ **unavailable through the CLI** — the exhaustive claims rest on graph+grep agreement, not a coverage proof | — |
+
+---
+
+## ⭐⭐⭐ §4.1ae — **`CE-4013`: ONE capability walk, every hook on every host — and the terrain residency per node** `build-state: READY-TO-BUILD` *(`2026-10-17`)*
+
+> 🔒 **User, `2026-10-17`:** *"If you [find] inconsistencies in the bootstrap code of hosts, dont let it be. We have to share and unify,
+> not duplicate."*
+
+📌 **How it was found:** the SUMO traffic pack (`docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md` §12.1) first composed
+through `Register` — and did nothing on CGF and IG, which never call it. The pack was moved to `PopulateSystems` and its terrain loader to
+a process-wide static, i.e. **worked around** two inconsistencies instead of fixing them. This section fixes them.
+
+### 📐 INVENTORY *(`2026-10-17`; `search_graph` CLI + grep, both run)*
+
+- `search_graph(name_pattern=".*Bootstrapper$", label=Class)` → **6**: `SharedApplicationBootstrapper`, `SimHostNodeBootstrapper`,
+  `IgNodeBootstrapper`, `StrideNodeBootstrapper`, `NodeBootstrapper` (SimHost's shared orchestration helper, used by SimHost + Stride), a test double.
+- grep `\.PopulateSystems(|\.ProvideModules()|\.Register(` outside tests → the walk is hand-written in **five** roots:
+
+| root | `PopulateSystems` | `ProvideModules` | `Register` | values bag |
+|---|---|---|---|---|
+| `SimHostNodeBootstrapper` | ✅ `:378` | ⛔ **never** (no `GetAdditionalModules`) | ✅ `:598` | ⛔ a free-standing empty bag `:596` |
+| `IgNodeBootstrapper` | ✅ `:232` | ✅ `:261` | ⛔ **never** | — |
+| `StrideNodeBootstrapper` | ✅ `:351` | ✅ `:362` | ✅ `:448`, before its own spawn systems | ✅ the base's `BootValues` |
+| `CgfSubsystem` (inline root) | ✅ `:999` | ✅ `:983` — **before** `PopulateSystems` | ⛔ **never** | — |
+| `EditorSubsystem` (inline root) | ✅ `:1659` | ✅ `:1728` | ✅ `:1730`, interleaved per capability | ⛔ a free-standing empty bag `:1726` |
+
+- grep `new TerrainResidency(` → **six**, five of them the same two-line load-part pair `KnowledgeBaseLoadStep(tkb ?? CreateTkb())` +
+  `TerrainLoadStep(new TerrainResidency(root, holder))`: `NodeBootstrapper.cs:361/364` (SimHost, Stride), `IgNodeBootstrapper.cs:399/405`,
+  `CgfSubsystem.cs:1137/1143`, `CgfApplication.cs:198/203` (test-only root), `EditorSubsystem.cs:1530/1533`. The sixth,
+  `ReplayBrowserSubsystem.cs:702`, is the player's catalogue residency with no load chain.
+
+⚠ **Nothing is broken TODAY by the hook gaps** — no capability in CGF's or IG's plan implements `Register`, none in SimHost's implements
+`ProvideModules`. ⛔ **That is luck, not design**: the next capability that composes through the "wrong" hook does nothing on those hosts,
+silently, exactly as the traffic pack's first version did.
+
+### ⭐ THE CLASSES
+
+```mermaid
+classDiagram
+  direction LR
+  class INodeCapability { <<existing>> PopulateSystems() ProvideModules() Register() }
+  class NodeCompositionPlan { <<existing>> Resolve(role) }
+  class NodeCapabilityWalk { <<NEW, Hrot.Common>> +PopulateSystems(ctx, in, sim, post) +ProvideModules() +Register(ctx, values) +AssertComplete(host) }
+  class SharedApplicationBootstrapper { <<existing, grows>> step capabilities: ResolveCapabilities(ctx, role) #RegisterCapabilities(ctx) }
+  class SimHostNodeBootstrapper { <<existing>> }
+  class IgNodeBootstrapper { <<existing>> }
+  class StrideNodeBootstrapper { <<existing>> }
+  class TrafficNodeBootstrapper { <<NEW, AQ93 N1>> }
+  class CgfSubsystem { <<existing, inline root>> }
+  class EditorSubsystem { <<existing, inline root>> }
+  class HrotNodeContext { <<existing, grows>> +TerrainContent }
+  class TerrainContentRegistry { <<NEW, per node>> Add(key, factory) }
+  class TerrainResidency { <<existing>> reads the node's registry at Prepare }
+  class HrotUniversalLoadParts { <<NEW, Hrot.Core>> Build(tkb, root, holder, content) parts + residency }
+  NodeCompositionPlan --> NodeCapabilityWalk : resolved list
+  NodeCapabilityWalk --> INodeCapability : one phase per hook, in order
+  SharedApplicationBootstrapper --> NodeCapabilityWalk : owns, for its subclasses
+  SimHostNodeBootstrapper --|> SharedApplicationBootstrapper
+  IgNodeBootstrapper --|> SharedApplicationBootstrapper
+  StrideNodeBootstrapper --|> SharedApplicationBootstrapper
+  TrafficNodeBootstrapper --|> SharedApplicationBootstrapper
+  CgfSubsystem --> NodeCapabilityWalk : same walker
+  EditorSubsystem --> NodeCapabilityWalk : same walker
+  HrotNodeContext --> TerrainContentRegistry
+  HrotUniversalLoadParts --> TerrainResidency : builds, with the registry
+  TerrainResidency ..> TerrainContentRegistry
+```
+
+*What the picture shows that prose hid:* every root reaches the capabilities through ONE walker, and the base owns it for every
+bootstrapper subclass — so a subclass cannot skip a hook, and the two inline roots (CGF, editor) use the same class and the same
+completion check. The terrain content a pack adds is the NODE's (on its context), not the process's.
+
+### ⭐ THE SEQUENCE — a bootstrapper node
+
+```mermaid
+sequenceDiagram
+  participant B as SharedApplicationBootstrapper
+  participant H as subclass (SimHost, IG, Stride, Traffic)
+  participant W as NodeCapabilityWalk
+  participant K as kernel
+  B->>H: step capabilities: ResolveCapabilities(ctx, role)
+  H-->>B: resolved list
+  B->>B: walk = new NodeCapabilityWalk(list)
+  B->>H: step system-groups: PopulateSystems(ctx, lists)
+  B->>W: PopulateSystems(ctx, lists), after the host's own systems
+  B->>K: register the three groups
+  B->>H: step additional-modules: GetAdditionalModules()
+  B->>W: ProvideModules()
+  B->>K: RegisterModule(each)
+  B->>H: step spawning-pipeline: RegisterSpawningPipeline(ctx)
+  H->>B: RegisterCapabilities(ctx) at the host's own point
+  B->>W: Register(ctx, BootValues)
+  B->>W: AssertComplete(host), before kernel-initialize
+  B->>K: Initialize()
+```
+
+*What the picture shows that prose hid:* only `Register`'s POINT stays the host's — because registration order is execution order
+(§4.1t ①) and SimHost and Stride place it differently today; everything else, including the completeness check, is the base's.
+
+### ⭐ THE DECISIONS
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **W1** | the walk | ⭐ ONE class, `NodeCapabilityWalk`, beside `NodeCompositionPlan`: three phases mirroring the base's three steps, each run once, in the order `PopulateSystems` → `ProvideModules` → `Register`; `AssertComplete` throws naming a phase that never ran | five hand loops (today): each host drifts, three already have · an extension method: cannot know a phase was skipped |
+| **W2** | who walks on a bootstrapper node | ⭐ the BASE: a `capabilities` step resolves (`ResolveCapabilities(ctx, role)`, after `node-resources`), `PopulateSystems` runs right after the host's own hook, `ProvideModules` right after `GetAdditionalModules`; `Register` runs where the host calls `RegisterCapabilities(ctx)` inside `RegisterSpawningPipeline`; the base checks completeness before `kernel-initialize` | a fixed `Register` point in the base: reorders SimHost (after its spawn pack) or Stride (before it), and module order is frame order · leave it to each subclass (today) |
+| **W3** | the inline roots (CGF, editor) | ⭐ the same walker, called at their own points, `AssertComplete` before their `Initialize`; CGF gains a `Register` call at its spawn point (no member implements it today ⇒ no change) | putting CGF on the base: §4.1x keeps CGF off it deliberately (orchestration authority) |
+| **W4** | the values bag | ⭐ the base passes its `BootValues` (Stride already does); the inline roots pass their own bag | SimHost's free-standing empty bag: predates `CE-199`'s `node-resources` step, which made the real bag legal |
+| **W5** | order changes | ⭐ CGF calls `PopulateSystems` before `ProvideModules` (its lists register AFTER the provided modules, so kernel order is unchanged); the editor's interleaved per-capability pass becomes phased (no editor capability before a providing one has `Register` — the editor rails prove it) | keep CGF's and the editor's private orders: the order the base defines is the contract |
+| **T1** | a pack's terrain content | ⭐ a PER-NODE `TerrainContentRegistry` on `HrotNodeContext.TerrainContent`; a capability adds to it; the node's residency attaches it at `Prepare` | the process-wide static (as built in slice 2): in `--mode all` every node's residency loads every pack's content, even a node that composes none |
+| **T2** | the universal load parts | ⭐ ONE factory, `HrotUniversalLoadParts.Build(tkb, root, holder, content)`, returning the knowledge-base and terrain steps and the residency; used by `NodeBootstrapper` (SimHost, Stride, traffic), IG, CGF, `CgfApplication`, the editor | five hand copies (today) · the player's catalogue residency stays its own: no load chain, nothing to share |
+
+### ⭐ ACCEPTANCE
+
+| | |
+|---|---|
+| ⭐⭐⭐ every host's **system and module sequences unchanged** | the existing order rails: `EditorCapabilitiesTests` (differential), `IgNodeBootstrapperTests` (module order), `SimHostCoreLogicPackTests`, `NodeCompositionPlanRails` |
+| ⭐⭐ a skipped phase is **loud** | a rail: a bootstrapper subclass whose `RegisterSpawningPipeline` does not call `RegisterCapabilities` throws at boot, naming `Register` |
+| ⭐⭐ one walk per root | a source rail: no `foreach … .PopulateSystems(` / `.ProvideModules()` / `.Register(` over capabilities outside `NodeCapabilityWalk` |
+| ⭐ terrain content per node | a rail: two contexts, one pack ⇒ only that node's residency loads the SUMO net |

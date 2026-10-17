@@ -104,6 +104,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private IReadOnlyList<INodeCapability> _capabilities =
         System.Array.Empty<INodeCapability>();
 
+    /// <summary>⭐ CE-4013 — the ONE capability walk every host runs (§4.1ae); asserted complete before the kernel initializes.</summary>
+    private NodeCapabilityWalk? _capabilityWalk;
+
     /// <summary>
     /// ⭐⭐⭐ <c>CE-046</c> (Axis-C <b>E1</b>) — <b>the SAME scenario session the editor runs, over CGF's own
     /// world and orchestration bus.</b> 📄 <c>docs/DESIGN_Cgf_Scenario_Session_Slice.md</c> §3 ③.
@@ -979,9 +982,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             .Capability(CgfSubsystem.DefaultRole, Hrot.Traffic.TrafficPack.Mirroring())
             .Resolve(CgfSubsystem.DefaultRole);
 
-        foreach (INodeCapability capability in _capabilities)
-            foreach (IEcsModule module in capability.ProvideModules())
-                _context.Kernel.RegisterModule(module);
+        _capabilityWalk = new NodeCapabilityWalk(_capabilities);
 
         // Execute the Brain systems every frame via two togglable phase groups.
         var cgfInputSystems   = new List<IEcsModuleSystem>();
@@ -995,8 +996,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         if (nodeFactory != null)
             cgfInputSystems.AddRange(nodeFactory.CreateSimHostAttributeUpdateSystems());
 
-        foreach (INodeCapability capability in _capabilities)
-            capability.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+        // ⭐ CE-4013 — the shared walk, in the base's phase order: systems into the lists, then the provided modules onto the kernel.
+        //   ⚠ The kernel order is unchanged — BehaviorDiagnosticsModule, CgfLogicPack, then the two groups below — because the lists
+        //   only register after the modules (it used to ask ProvideModules first; nothing reads the lists before they register).
+        _capabilityWalk.PopulateSystems(_context, cgfInputSystems, cgfSimSystems, cgfPostSimSystems);
+        foreach (IEcsModule module in _capabilityWalk.ProvideModules())
+            _context.Kernel.RegisterModule(module);
 
         // ⛔⛔ CGF builds NO post-simulation group. A capability contributing one would have its systems
         //    SILENTLY DROPPED — refuse instead, naming the count. Every defect this design chased was
@@ -1012,6 +1017,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         _context.Kernel.RegisterGlobalSystem(_toggleInput);
         _context.Kernel.RegisterModule(new CgfSimulationModule(_toggleSim));
+
+        // ⭐ CE-4013 — the capabilities' Register hook, which this host never asked (a capability composing through it did nothing on
+        //   CGF). None in CGF's plan implements it today, so no order changes. CGF runs no NodeBootPlan, so the bag is its own.
+        _capabilityWalk.Register(_context, new NodeBootValues());
 
         // ⭐ Still needed by the scenario load handlers below (:879 `cgfIdAllocator`). ⚠ The `tkbDb` local
         //   that stood beside it is GONE — the pack reads TkbDb off the context directly, so a second
@@ -1128,20 +1137,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    scenario entities — ⛔ and NOT terrain: nothing on this host reads the road graph.
         //    🔒 User, `2026-09-18`: "load nothing where nothing reads it".
         // 📄 docs/DESIGN_Cluster_Load_Phase.md §2.2, §4.1, §4.1a · DESIGN_Node_Roles_And_Policies.md §3.2.
-        var cgfLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>();
-
-        // ⚠ Offered only when this host actually has a database. ⛔ That is NOT a way to opt out: the
-        //   knowledge base is unconditional for every ECS node, so a null database here makes the chain
-        //   throw at composition with a message naming the missing part — which is the designed loud
-        //   failure, and far better than the silence it replaces.
-        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-            _context.TkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot));
-
-        // ⭐⭐ 2026-10-03 — terrain is UNIVERSAL (R-182, CGF == editor): CGF's map draws the terrain world and
-        //   its own residency is what the terrain picker (W13) and a save (CE-3015) read. The holder is the one
-        //   this host already carries. 📄 docs/DESIGN_Terrain_World.md §5, §7.3.
-        TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _cgfRoadNetworkHolder);
-        cgfLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
+        // ⭐ The knowledge base (unconditional for every ECS node) and the terrain (UNIVERSAL, R-182, CGF == editor: its own residency is
+        //   what the terrain picker (W13) and a save (CE-3015) read) — from the ONE shared factory every ECS host uses (CE-4013, §4.1ae T2).
+        //   📄 docs/DESIGN_Terrain_World.md §5, §7.3.
+        var (cgfLoadProviders, cgfResidency) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+            _context.TkbDb, isolatedTempRoot, _cgfRoadNetworkHolder, _context.TerrainContent);
+        TerrainResidency = cgfResidency;
 
         // 1. Replay handler (must be first to gate Live-from-Replay branch)
         newClusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
@@ -1656,6 +1657,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Fdp.ModuleHost.Time.ResumeAndDrainSystem(_bpManager));
         // ─────────────────────────────────────────────────────────────────────────
 
+        _capabilityWalk!.AssertComplete(Name);   // ⭐ CE-4013 — a skipped capability phase fails here, named
         _context.Kernel.Initialize();
 
         // ⭐⭐⭐ Slice 4 item ③ — DQ30-C: no WORLD-STATE ingress while the debugger holds the world

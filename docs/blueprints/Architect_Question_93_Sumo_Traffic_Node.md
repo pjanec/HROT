@@ -15,6 +15,7 @@ known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimH
 known-conflict: none. ⚠ Relation to §2.1e ① of DESIGN_Terrain_Zones_And_Assets.md (the scenario names only a terrain) —
   CONSISTENT: the SUMO net is a terrain asset (R-4021); only the traffic DEMAND is a scenario entity.
 related-designs:
+  - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae — OWNS how every host composes a capability (one shared walk) and the per-node terrain content the pack's net loader joins
   - docs/DESIGN_Terrain_Zones_And_Assets.md — owns WHAT a terrain asset is (§2.1a: the road net is an external asset,
     "like sumo road net"; §2.1e: terrain.json, roadNetworks[]). This question adds a second road-net FORMAT to that slot.
   - docs/DESIGN_Terrain_World.md — owns what a terrain CONTAINS and the one-file-every-query-derived rule; §7.3 W12 the
@@ -820,7 +821,7 @@ time a sample means — so both are decided ONCE on the traffic node and carried
 classDiagram
   direction LR
   class TrafficPack { <<INodeCapability>> +Serving() +Mirroring() PopulateSystems() }
-  class TerrainResidency { <<existing, grows>> +RegisterContentLoader(key, factory)$ AttachRegisteredContent() }
+  class TerrainContentRegistry { <<NEW, per node: HrotNodeContext.TerrainContent>> Add(key, factory) }
   class TrafficRuntime { +Request(key, types) +TopUpIds(targetCars) +SetTarget(key, t) SteppingTick() }
   class TrafficIdReservoir { <<NEW>> TopUp on the main thread, Take on the stepping thread }
   class INetworkIdAllocator { <<existing>> AllocateId(), main thread only }
@@ -834,7 +835,7 @@ classDiagram
   class TrafficVehicleCatalog { From(TKB) templates with TrafficVehicleDto }
   class NetworkEntityMap { <<existing>> Register(netId, e) }
   class RoleGroupOwnershipStrategy { <<existing>> grants the Traffic group to the least-loaded Traffic node }
-  TrafficPack --> TerrainResidency : registers the SUMO-net loader
+  TrafficPack --> TerrainContentRegistry : adds the SUMO-net loader to its node's
   TrafficPack --> TrafficRuntime : serving only
   TrafficPack --> TrafficMirrorSystem : input list
   TrafficRuntime --> TrafficIdReservoir
@@ -882,8 +883,8 @@ graph TD
   style PL fill:#f66,color:#000
 ```
 
-*What the picture shows that prose hid:* every host composes the pack through `PopulateSystems`, the one capability hook every host
-calls (CGF and IG never call `Register`, and IG resolves its plan before it has a context); and the red boxes — a crashed traffic
+*What the picture shows that prose hid:* every host composes the pack the same way — the shared capability walk
+(`NodeCapabilityWalk`, CE-4013) runs every hook on every host; and the red boxes — a crashed traffic
 node's grant falls back to the Brain, which only mirrors, so its traffic stops until a traffic node is granted again by hand.
 
 | as built | why it differs from §12's text |
@@ -891,8 +892,8 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | **S2 has no `TrafficAssignment` component**: the settings entity is in its own ownership group (`HrotOwnershipGroups.cs:125-145`), which `RoleGroupOwnershipStrategy` grants to the least-loaded `Traffic` node; a node serves the settings whose `dtTrafficDemand` authority it holds | the grant already IS a transient, per-entity "who serves" written by the owner (the seam law); the Brain stays the primary owner, so a crash returns the settings to it (S7) instead of deleting them |
 | no re-grant after a traffic-node crash | the grant falls back to the primary owner, which composes only the mirror — one instance of the open `CE-3007` (a reclaim to a creator that lacks the role leaves nobody running that part); not SUMO's to fix alone |
 | a cluster with NO traffic node has no traffic | the Brain holds the settings and mirrors only; the editor is its own traffic node (both halves) |
-| the composition hook is **`PopulateSystems`**, not `Register` | measured: CGF and IG never call `Register`; every host calls `PopulateSystems` |
-| the SUMO-net loader joins every residency through a **process-wide registry** (`TerrainResidency.RegisterContentLoader`) | every host builds its residency AFTER its plan, deep in its own orchestration code, so a pack cannot hand it a loader directly |
+| the pack composes in **`PopulateSystems`** (its mirror is an input-phase system, its stepper a module it registers there) | ⛔ SUPERSEDED reason: it was put there because CGF and IG never called `Register`; since `CE-4013` every host runs every hook through one shared walk ([`DESIGN_Subsystem_Composition_Unification.md`](../DESIGN_Subsystem_Composition_Unification.md) §4.1ae) |
+| the SUMO-net loader goes into the **node's** `HrotNodeContext.TerrainContent`, which the node's residency attaches at `Prepare` | ⛔ SUPERSEDED: a process-wide static registry (it made every node of a `--mode all` process load the net); since `CE-4013` the five hosts build their residency through one factory over the node's registry |
 | ids come through **`TrafficIdReservoir`**, topped up by the mirror system each frame to `TargetCars + 64` | `DdsIdAllocator.AllocateId` is not thread-safe and SUMO spawns on the stepping thread; a rail runs SUMO on a second thread and asserts every allocation was on the main thread |
 | the wire key is **`Source` = the node id** (H8), the owner is `SenderAppInstanceOf(source)`, falling back to the source | two traffic nodes number their cars independently (R-4055); a node skips its own source and reads its steps in memory (N7) |
 | a SUMO car with no TKB type gets **8851**; colour `0` means "no colour" (the id-seeded paint), else `EntityAppearance` | T1/T2 as ruled; the fallback keeps an unmapped SUMO type visible |

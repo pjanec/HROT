@@ -122,12 +122,6 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// </remarks>
     public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool { get; } = new();
 
-    // B4b step 2: the capability set this node's role resolves to, built in PopulateSystems (the first
-    // step where the context and road network exist) and registered in RegisterSpawningPipeline.
-    // ⛔ Resolution order is registration order is EXECUTION order — see SimHostCapabilities' remarks.
-    private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
-        System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
-
     /// <summary>
     /// CE-199 — the DECLARATION half of the resource seam: the keys this role will allocate.
     /// </summary>
@@ -195,7 +189,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     protected override void PostInitialize(HrotNodeContext context)
     {
         bool composedTheSolver = false;
-        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
+        foreach (Hrot.Common.Infrastructure.INodeCapability capability in Capabilities)
             if (capability.Key == Hrot.Common.Infrastructure.CapabilityKeys.NavigationSolver)
                 composedTheSolver = true;
 
@@ -282,11 +276,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     }
 
     /// <inheritdoc/>
-    protected override void PopulateSystems(
-        HrotNodeContext context,
-        List<IEcsModuleSystem> input,
-        List<IEcsModuleSystem> sim,
-        List<IEcsModuleSystem> postSim)
+    /// <remarks>⭐ CE-4013 — the plan is built here, in the base's <c>capabilities</c> step (after <c>node-resources</c>, before
+    /// <c>system-groups</c>): the first point where the context and the allocated pool exist, as before. The base walks the result.</remarks>
+    protected override IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
     {
         // ⭐ CE-3127 (R-230) — no boot-time road file: the road graph is part of the TERRAIN (terrain.json `roadNetworks`),
         //   published by TerrainResidency.Commit as ZoneEnvironmentData + the RoadNetworkHolder, which every consumer below
@@ -305,9 +297,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   SECOND time here just to build them — a second factory with its own cluster cache.
 
         // B4b step 2: the node's units come from a declared plan rather than a hand-written list.
-        // ⚠ The plan is built HERE because this is the first step where the context and the loaded road
-        // network exist; it is resolved once and reused by RegisterSpawningPipeline, so both boot steps
-        // see the same capability instances.
+        // ⚠ Resolved once; the base walks the SAME instances at every composition step (CE-4013).
         _navModule = new EngineBackedNavigationModule(
             RoadNetwork ?? default(CarKinem.Road.RoadNetworkBlob),
             TrajectoryPool.Pool,
@@ -356,7 +346,7 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   fully enumerated. 📄 See §4.1v for what that pack does and why it stays inert.
         NodeRole composed = _role;
 
-        _capabilities = plan.Resolve(composed);
+        var capabilities = plan.Resolve(composed);
 
         // ⭐⭐⭐ CE-199 — THE RESOURCE HALF NOW RUNS, AND THIS IS ITS CROSS-CHECK.
         //
@@ -374,9 +364,17 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //    ⇒ compare them, and throw naming the difference.
         AssertDeclaredResourcesMatchCapabilityNeeds(plan.RequiredResources(composed), composed);
 
-        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
-            capability.PopulateSystems(context, input, sim, postSim);
+        return capabilities;
+    }
 
+    /// <inheritdoc/>
+    /// <remarks>⭐ CE-4013 — the capabilities' systems are added by the base, right after this hook.</remarks>
+    protected override void PopulateSystems(
+        HrotNodeContext context,
+        List<IEcsModuleSystem> input,
+        List<IEcsModuleSystem> sim,
+        List<IEcsModuleSystem> postSim)
+    {
         // Seed GlobalTime singleton
         context.World.SetSingletonUnmanaged(new GlobalTime
         {
@@ -461,7 +459,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
             elm:                  context.BaseModules?
                                       .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                      .FirstOrDefault());
+                                      .FirstOrDefault(),
+            terrainContent:       context.TerrainContent);   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;
@@ -585,17 +584,9 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //    RegisterProviders on the navigation module is still deferred to PostInitialize: it needs
         //    _navmesh/_registry, which its own RegisterSystems creates during Kernel.Initialize.
         //
-        // ⚠ The values bag is EMPTY, not null, and that is still true after B4b step 3.
-        //    📐 A capability that tries to read a resource fails with NodeBootValues' own message naming
-        //    the undeclared key, instead of a NullReferenceException — SimHost's capabilities receive
-        //    their resources by CONSTRUCTOR during the migration. Passing null here would be the very
-        //    silent-default shape this programme keeps removing.
-        // ⛔ Filling this bag requires provider.Allocate, which refuses to run outside a declaring boot
-        //    step — see the note in PopulateSystems and §4.1v. Do not "fix" it by handing Allocate a
-        //    free-standing bag: that is the boot crash the rails now pin.
-        var migrationValues = new Hrot.Common.Infrastructure.NodeBootValues();
-        foreach (Hrot.Common.Infrastructure.INodeCapability capability in _capabilities)
-            capability.Register(context, migrationValues);
+        // ⭐ CE-4013 — the shared walk, HERE (after this host's spawn pack, as before), with the plan's own values bag: the
+        //   free-standing empty bag this used to pass predated CE-199's node-resources step, which made the real one legal.
+        RegisterCapabilities(context);
 
         // GenesisMaterializationSystem - Input phase, registered after togglable groups
         context.Kernel.RegisterGlobalSystem(

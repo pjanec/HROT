@@ -349,3 +349,87 @@ public sealed class NodeCompositionPlan
         return result;
     }
 }
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-4013</c> — THE one walk over a node's resolved capabilities: one phase per <see cref="INodeCapability"/> hook, each run
+/// once, in the base's step order (<c>system-groups</c> → <c>additional-modules</c> → <c>spawning-pipeline</c>).
+/// 📄 <c>docs/DESIGN_Subsystem_Composition_Unification.md</c> §4.1ae.
+/// </summary>
+/// <remarks>
+/// <para>⛔ It replaces five hand-written loops that had drifted three ways: SimHost never asked <c>ProvideModules</c>, CGF and IG never
+/// asked <c>Register</c>, so a capability contributing through the "wrong" hook did nothing on those hosts, silently.
+/// <see cref="AssertComplete"/> makes that omission throw at boot instead.</para>
+/// <para>⚠ It decides WHAT is asked and in which order, never WHERE in a host's boot: registration order is execution order, so a host
+/// still calls each phase at its own point (§4.1t ①).</para>
+/// </remarks>
+public sealed class NodeCapabilityWalk
+{
+    private enum Phase { None, Populated, Provided, Registered }
+
+    private Phase _done;
+
+    public NodeCapabilityWalk(IReadOnlyList<INodeCapability> capabilities)
+        => Capabilities = capabilities ?? throw new ArgumentNullException(nameof(capabilities));
+
+    /// <summary>The resolved capabilities, in resolution order.</summary>
+    public IReadOnlyList<INodeCapability> Capabilities { get; }
+
+    /// <summary>Every phase has run.</summary>
+    public bool IsComplete => _done == Phase.Registered;
+
+    /// <summary>Phase 1 (<c>system-groups</c>) — every capability's systems, into the node's phase lists.</summary>
+    public void PopulateSystems(
+        HrotNodeContext context,
+        List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> input,
+        List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> simulation,
+        List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> postSimulation)
+    {
+        Advance(Phase.None, Phase.Populated, nameof(PopulateSystems));
+        foreach (INodeCapability capability in Capabilities)
+            capability.PopulateSystems(context, input, simulation, postSimulation);
+    }
+
+    /// <summary>Phase 2 (<c>additional-modules</c>) — every capability's whole modules, in order, for the host to register.</summary>
+    public IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModule> ProvideModules()
+    {
+        Advance(Phase.Populated, Phase.Provided, nameof(ProvideModules));
+        var modules = new List<Fdp.ModuleHost.Abstractions.IEcsModule>();
+        foreach (INodeCapability capability in Capabilities)
+            modules.AddRange(capability.ProvideModules());
+        return modules;
+    }
+
+    /// <summary>Phase 3 (<c>spawning-pipeline</c>) — every capability's own registrations onto the node.</summary>
+    public void Register(HrotNodeContext context, NodeBootValues values)
+    {
+        if (values is null) throw new ArgumentNullException(nameof(values));
+        Advance(Phase.Provided, Phase.Registered, nameof(Register));
+        foreach (INodeCapability capability in Capabilities)
+            capability.Register(context, values);
+    }
+
+    /// <summary>Throws, naming the first phase <paramref name="host"/> never ran. Call before the kernel initializes.</summary>
+    public void AssertComplete(string host)
+    {
+        if (IsComplete) return;
+        string missing = _done switch
+        {
+            Phase.None      => nameof(PopulateSystems),
+            Phase.Populated => nameof(ProvideModules),
+            _               => nameof(Register),
+        };
+        throw new InvalidOperationException(
+            $"[{host}] composed its capabilities [{string.Join(", ", Capabilities.Select(c => c.Key))}] without running " +
+            $"NodeCapabilityWalk.{missing}. A capability contributing through that hook would do nothing on this host, silently " +
+            "(CE-4013, DESIGN_Subsystem_Composition_Unification.md §4.1ae).");
+    }
+
+    private void Advance(Phase expected, Phase next, string phase)
+    {
+        if (_done != expected)
+            throw new InvalidOperationException(
+                $"NodeCapabilityWalk.{phase} ran out of order (after {_done}). The phases are PopulateSystems, ProvideModules, Register — " +
+                "each once, in that order, matching the base's boot steps.");
+        _done = next;
+    }
+}

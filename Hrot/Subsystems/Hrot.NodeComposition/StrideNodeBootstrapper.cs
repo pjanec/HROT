@@ -342,26 +342,13 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         sim.Add(new EventToEffectSystem());
         postSim.Add(new VisualEffectCleanupSystem());
 
-        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half. See the CE-244 note on
-        //    RegisterSpawningPipeline below for the measurement; this is the same defect's other half.
-        //    UnitHierarchy and EqsResultUpdate (CoreInfrastructureCapabilities) contribute through
-        //    PopulateSystems rather than ProvideModules, deliberately, so without this pass their
-        //    systems were absent from a node whose boot log listed both capabilities by name.
-        foreach (INodeCapability capability in _capabilities)
-            capability.PopulateSystems(context, input, sim, postSim);
+        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half (UnitHierarchy, EqsResultUpdate) and their modules at
+        //    `additional-modules` are walked by the BASE now, right after this hook and after GetAdditionalModules (CE-4013).
     }
 
     /// <inheritdoc/>
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
-    {
-        // ⭐ The modules come from the resolved capability set. This is the `additional-modules` boot
-        //   step, which is exactly the step INodeCapability.ProvideModules() exists to serve (§4.1t):
-        //   expressing them through Register() instead would push them AFTER context.BaseModules and
-        //   the spawning pipeline, and registration order is execution order.
-        foreach (INodeCapability capability in _capabilities)
-            foreach (IEcsModule module in capability.ProvideModules())
-                yield return module;
-    }
+    /// <remarks>⭐ CE-4013 — the set this node's shell handed in (<see cref="WithCapabilities"/>); the base walks it.</remarks>
+    protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role) => _capabilities;
 
     /// <summary>
     /// Hands this bootstrapper the capabilities its shell resolved. Call BEFORE bootstrapping.
@@ -407,7 +394,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
             elm:                 context.BaseModules?
                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                     .FirstOrDefault());
+                                     .FirstOrDefault(),
+            terrainContent:       context.TerrainContent);   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
     }
 
     /// <inheritdoc/>
@@ -444,8 +432,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //    order is execution order within a phase. Nothing below reads anything a capability
         //    registers, and no capability reads the pack, so the two are independent today -- the
         //    order is chosen to match the editor rather than to satisfy a dependency.
-        foreach (INodeCapability capability in _capabilities)
-            capability.Register(context, BootValues);
+        RegisterCapabilities(context);   // ⭐ CE-4013 — the shared walk, at this host's point (before its own spawn systems)
 
         // GenesisMaterializationSystem resolves cross-entity Intent DTOs into live
         // component data during scenario load. Runs in the Input phase.

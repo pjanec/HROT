@@ -207,7 +207,11 @@ public class EditorCapabilitiesTests : IDisposable
                             //   5c3fe8974 (2026-10-14); this block was not updated then (found red in the airborne B-5 gates).
                             typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),
                             typeof(Hrot.Common.EntityCreation.EjectionSystem),   // ⭐ airborne insertion B-8 — same capability
-                            typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem) })   // ⭐ CE-3219 part 3 — same capability
+                            typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem),     // ⭐ CE-3219 part 3 — same capability
+                            // ⭐ CE-3235 (armed people B-13) — the pick-up grant and the in-hand fuze, same capability. Added in 61f235fd7;
+                            //   this block was not updated then (found red by the coordinator, 2026-10-17).
+                            typeof(Fdp.Toolkit.Combat.Systems.RoundPickUpSystem),
+                            typeof(Fdp.Toolkit.Combat.Systems.HandsFuzeSystem) })
             .ToArray();
         Assert.Equal(expectedSim, planSim);
 
@@ -296,7 +300,9 @@ public class EditorCapabilitiesTests : IDisposable
                                typeof(Fdp.Toolkit.Behavior.Systems.EmbarkationSystem),
                                typeof(Fdp.Toolkit.Combat.WeaponDeploySystem),          // WS-1 — same capability
                                typeof(Hrot.Common.EntityCreation.EjectionSystem),   // airborne B-8 — same capability
-                               typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem) }),   // CE-3219 part 3 — same capability
+                               typeof(Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem),      // CE-3219 part 3 — same capability
+                               typeof(Fdp.Toolkit.Combat.Systems.RoundPickUpSystem),          // CE-3235 — same capability
+                               typeof(Fdp.Toolkit.Combat.Systems.HandsFuzeSystem) }),
             sim.Select(s => s.GetType()));
         // CgfLogicPack contributes no post-simulation systems, and on this arm nothing else does
         // either — the supplying host owns that tier.
