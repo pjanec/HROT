@@ -55,6 +55,30 @@
                                     "params": ""
                                 }
                             ]
+                        },
+                        {
+                            "taskId": "c2380005-0000-4000-8000-000000000011",
+                            "executingEngine": "",
+                            "behaviorName": "Sentry",
+                            "behaviorParams": "{\"Count\":1,\"MinDanger\":0.5,\"LiveOnly\":false,\"WithinMetres\":145}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
+                        },
+                        {
+                            "taskId": "c2380005-0000-4000-8000-000000000012",
+                            "executingEngine": "",
+                            "behaviorName": "CombatPosture",
+                            "behaviorParams": "{\"advance\":{\"Objective\":[42,200,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+                            "triggers": [
+                                {
+                                    "type": "BehaviorFinished",
+                                    "params": ""
+                                }
+                            ]
                         }
                     ]
                 }
