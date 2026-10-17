@@ -961,6 +961,67 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(firedAt >= 0, $"③ the rifleman engages him; {State()}");
     }
 
+    /// <summary>Does <paramref name="observer"/>'s memory hold <paramref name="man"/>?</summary>
+    private static unsafe bool Remembers(EntityRepository w, Entity observer, Entity man)
+    {
+        if (!w.HasComponent<TargetMemory>(observer)) return false;
+        ref readonly var mem = ref w.GetComponentRO<TargetMemory>(observer);
+        for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == (long)man.PackedValue) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2238</c> part 4 (AW-22, AW-16, AW-20; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.7b) — <c>ua-armed-blend-back</c>
+    /// in-process (the live check's twin): a civilian with a rifle hidden draws it and AIMS at patrol A from behind a row of civilians (the
+    /// act — A witnesses it), conceals it again and walks along the line; patrol B (another unit, 170 m off at the act) comes up and sees
+    /// him; then he steps off the line. Sampled every frame: ① patrol A knows him, holds while a civilian is in the line, and fires at him
+    /// once the line is clear — his rifle still HIDDEN (A saw it) · ② patrol B does not know him and spends no round at him.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_BlendBack_TheWitnessEngagesTheHiddenRifleman_TheOtherPatrolSeesACivilian()
+    {
+        using var harness = await StartShippedScenario("ua-armed-blend-back");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Insurgent").IsNull && !ByName(cgf, "Patrol A").IsNull && !ByName(cgf, "Patrol B").IsNull
+                                            && !ByName(cgf, "Rifle").IsNull, timeoutFrames: 2000), "the cast must spawn on CGF");
+        var man = ByName(cgf, "Insurgent");
+        var a = ByName(cgf, "Patrol A");
+        var b = ByName(cgf, "Patrol B");
+        var rifle = ByName(cgf, "Rifle");
+        int Ammo(Entity e) => cgf.HasComponent<WeaponState>(e) ? cgf.GetComponent<WeaponState>(e).Ammo : -1;
+        bool Alive() => cgf.IsAlive(man) && CombatLife.IsAlive(cgf, man) && !Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(cgf, man);
+        int a0 = -1, b0 = -1, bSpent = 0;
+        double actAt = -1, concealedAt = -1, aHeldAt = -1, aFiredAt = -1, bSawAt = -1;
+        bool hiddenWhenFired = false;
+        void Sample()
+        {
+            if (a0 < 0) { a0 = Ammo(a); b0 = Ammo(b); }
+            if (actAt < 0 && Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man) == Fdp.Toolkit.Civilians.HostileActKind.Lethal) actAt = cgf.SimulationTime;
+            bool hidden = CarryStations.IsConcealed(cgf, rifle);
+            if (actAt >= 0 && concealedAt < 0 && hidden) concealedAt = cgf.SimulationTime;
+            if (actAt >= 0 && aHeldAt < 0 && cgf.GetComponent<ActionStatus>(a).Weapon.Reason == ActionReason.HoldNeutralOnLine) aHeldAt = cgf.SimulationTime;
+            if (concealedAt >= 0 && aFiredAt < 0 && Ammo(a) < a0) { aFiredAt = cgf.SimulationTime; hiddenWhenFired = hidden; }
+            if (bSawAt < 0 && Remembers(cgf, b, man))
+                bSawAt = cgf.SimulationTime;
+            if (Alive()) bSpent = Math.Max(bSpent, b0 - Ammo(b));
+        }
+        string State() => $"act {actAt:F1}, concealed {concealedAt:F1}, A held {aHeldAt:F1}, A fired {aFiredAt:F1} (hidden {hiddenWhenFired}), " +
+                          $"B saw {bSawAt:F1}, B spent {bSpent}, A knows {KnownCombatants.Knows(cgf, a, man)}, B knows {KnownCombatants.Knows(cgf, b, man)}, " +
+                          $"side {cgf.GetComponentRO<EntityInfo>(man).ForceId}, A {cgf.GetComponent<ActionStatus>(a).Weapon.Reason}, " +
+                          $"B {cgf.GetComponent<ActionStatus>(b).Weapon.Reason}, seat {CarryStations.SeatOf(cgf, rifle, out _)}, alive {Alive()}";
+
+        harness.PumpUntil(() => { Sample(); return aFiredAt >= 0 && cgf.SimulationTime > aFiredAt + 1 || cgf.SimulationTime > 120.0; }, timeoutFrames: 12000);
+        _out.WriteLine(State());
+        Assert.True(actAt >= 0, $"he aims at patrol A — the act; {State()}");
+        Assert.True(KnownCombatants.Knows(cgf, a, man), $"① patrol A witnessed it; {State()}");
+        Assert.True(concealedAt >= 0, $"he conceals the rifle; {State()}");
+        Assert.True(aHeldAt >= 0, $"① patrol A holds while a civilian is in the line; {State()}");
+        Assert.True(aFiredAt >= 0 && hiddenWhenFired, $"① …and fires at him once the line is clear, the rifle still hidden; {State()}");
+        Assert.False(KnownCombatants.Knows(cgf, b, man), $"② patrol B never saw the act; {State()}");
+        Assert.True(bSawAt >= 0, $"② patrol B does see him; {State()}");
+        Assert.Equal(0, bSpent);                                                                  // ② and spends no round at him
+    }
+
     /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
     /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
