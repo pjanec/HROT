@@ -368,6 +368,13 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 10; i++) w.Tick();
             Assert.Equal(strikes + 2, Melee.Strikes);
 
+            // a man knocked down is not struck again while he is down (the Health owner stamps it; here by hand)
+            if (!w.Repo.HasComponent<EffectState>(police)) w.Repo.AddComponent(police, new EffectState());
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = HitModel.Now(w.Repo) + 60.0;
+            for (int i = 0; i < (int)(Melee.CooldownSeconds * 2 / 0.016f); i++) w.Tick();
+            Assert.Equal(strikes + 2, Melee.Strikes);
+            w.Repo.GetComponentRW<EffectState>(police).KnockedDownUntil = 0;
+
             w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = CivilianBehavior.DefaultRiotAt * 0.5f - 0.01f;
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Protest", w.State());                                                   // calm again

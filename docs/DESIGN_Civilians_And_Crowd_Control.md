@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5i CIV-4 part 1 — riot, the blow, the side flip, READY-TO-BUILD, CE-2238; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -402,7 +402,7 @@ shot" could mean "not seen").
 | **CIV-3** `CE-2237` | **`ua-civ-gathering`** | test-town · a hurt civilian (health 40) at the crossroads (200, 200); 12 calm civilians 30–60 m up the four streets | ⓪ the hurt one is a `Casualty` · ① every onlooker enters `Gather` · ② their mean distance to him falls below 15 m within 60 s · ③ one crowd holds ≥ 8 of them · ④ every one arrives and stands on a ring 2.5–11 m round him | ⏳ live run 1: 5/6 — ② at 25 s; ④ was measured while the 60 m ones still walked (check fixed: waits for all to arrive) · twin `PostureScenarioTests.CE2237_CivGathering_…` ✅ (12/12 Gather, 4.0–11.0 m, one crowd, mean < 15 m at 24.5 s) |
 | CIV-3 | **`ua-civ-contagion`** | test-town · 15 civilians 8 m apart along the street, 30–142 m from a firefight (a rifleman and a hostile) at its west end · ⚠ *deviation:* small-arms fire, not a blast — no scenario-scriptable blast exists; the hearing edge (100 m) splits the crowd the same way | ⓪ ONE crowd · ① ≥ 5 hear it (`HeardAt`) · ⓪ ≥ 4 never hear anything · ② ≥ 3 of those who never heard panic, from the crowd | ✅ live 3 of 3 in a row after `CE-2246` (§5f: the crowd split by wandering; the demo's civilians wander 3 m) · twin `PostureScenarioTests.CE2237_CivContagion_…` ✅ (samples `HeardAt` and `Panic` every frame) |
 | **CIV-4** `CE-2238` | **`ua-civ-riot-stone`** | test-town · a protest crowd with an instigator, facing a soldier line (Friend, FireAtWill) | ① the crowd reaches `Riot` · ② a rioter's `ThrowAt` hits the line · ③ THAT rioter is Hostile on CGF, SimHost and IG within 2 s; all others stay Neutral · ④ no soldier hits a Neutral rioter, sampled all run | ⏳ |
-| CIV-4 | **`ua-civ-melee`** | test-town · a rioter next to a policeman | ① a `MeleeAttack` knocks the policeman down (`EffectState.KnockedDown`) · ② the rioter is Hostile on every node | ⏳ |
+| CIV-4 · `CE-2238` | **`ua-civ-melee`** | test-town · an instigating protester (Neutral) 6 m from a policeman (Friend) | ⓪ he riots · ① his blow knocks the policeman down (`EffectState.KnockedDownUntil` > now) on CGF, SimHost and IG · ② the rioter is Hostile on all three | ✅ live 4/4 `2026-10-17` (simTime 8.6 s) · twin `PostureScenarioTests.CE2238_CivMelee_…` green (§5i.1) |
 | **CIV-5** `CE-2239` | **`ua-civ-police-line`** | test-town · a police squad (shields, batons, baton-round launcher, stun grenades; `ForceLevel = NonLethal`) against a riot | ① police fire ONLY baton rounds / stun grenades / batons — zero lethal rounds counted · ② ≥ 1 rioter knocked down or stunned · ③ the riot breaks up (`Dispersing`/`Panic`, the crowd's members leave) · ④ no death | ⏳ |
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
@@ -1158,7 +1158,7 @@ review, each its own later item)* Friend → Hostile and disguise (insider attac
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
 the warning-shot step and time to comply; snatching a soldier's weapon.
 
-## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
 the **hostile act** it is, which flips the rioter's side (CV-4 as amended by AW-16). Throwing (`ThrowAt`) waits on backend B-8 / B-13
@@ -1263,6 +1263,25 @@ the brain tick and the crowd system that already run every frame on CGF.
 scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
 hostile act carries no kind yet (B-16) — AW-22's lethal/non-lethal split waits on it; ④ a rioter does not avoid being shot — the force
 level (A6) is what makes the police answer non-lethally.
+
+### 5i.1 AS-BUILT *(behaviors, 2026-10-17)*
+
+⭐ **Built as drawn above — the class, state, sequence and module diagrams hold; no deviation in structure.** What the build settled
+that the design left open:
+
+| | as built |
+|---|---|
+| where | `Melee` (`Fdp.Toolkits/Combat/Melee.cs`), `HostileActs` (`Fdp.Toolkits/Civilians/HostileActs.cs`), the `Riot` activity + `Rioting`/`Calmed` guards + `NearestForces` in `CivilianBehavior`, `CrowdSystem.Rouse` after the contagion step |
+| "the forces" | `NearestForces`: `Friend`, standing (alive, not knocked down), a person (`PhysicsColliderReaders.IsPerson`), `Armament.IsCombatant` (backend B-7 — not of the `Civilian` class, not Neutral), within 30 m; re-chosen every 1 s or when the target falls |
+| the anger rise | an instigator's anger is held at 1; a member of his crowd (≥ 3) within `ContagionMetres` rises by `InstigateRate × (1 − 0.5·d/20) × dt` — so 0.15/s beside him, 0.075/s at 20 m; with no instigator near, anger fades 0.02/s. A lone instigator (no crowd) still riots — his own anger is 1 |
+| the flip's route | ⚠ **`EntityWriteRouter` is Direct only where this node holds AUTHORITY over the rioter's `EntityInfo`** (the gate is `AuthorityMask`, `EcsPatchContext.Gate`); elsewhere it is Requested from the owner. On CGF a scenario cast's `EntityInfo` is CGF's, so the flip is Direct — 📌 a bare test world grants no authority, so the HSM rail grants it, as CGF holds it |
+| the act's stamp | `CivilianState.HostileActAt` (brain-local, `GlobalTime` where present) — `Commit` is a no-op once stamped or once he is already Hostile; B-16 swaps it for the replicated kind |
+
+**Proof.** Rails `CivilianHsmTests.CE2238_AnAngryProtester_…` (riot at `RiotAt`, not just under; runs at the policeman; blow ⇒ Hostile;
+the cooldown; calm ⇒ Protest, still Hostile) and `CE2238_ARioter_StrikesOnlyTheForces_…` (no neutral bystander, no man down);
+`CrowdSystemTests.CE2238_AnInstigator_…` (near past 0.6 in 6 s, farther slower, beyond 20 m and another crowd untouched, fade 0.02/s).
+Demo `ua-civ-melee` (§5c): twin `PostureScenarioTests.CE2238_CivMelee_…` green (15 s: Riot, knocked down on CGF/SimHost/IG, Hostile on
+all three, one strike, no flip before the blow); live check `run_civ_melee` — see §5c.
 
 ## 6. Known limits
 
