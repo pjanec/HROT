@@ -56,6 +56,7 @@ related-designs:
 - *"And the first thing to build later is the embedded sumo sharp module inside the editor, . But of course, being ready for creating a new networked node with traffic role. Also, the sumo sharp module is not necessary if the scenario or the terrain doesn't contain sumo sharp network  or scenario settings."*
 - *"Well, maybe there is one more alternatively, depending on how big the SumoSharp project is. We could treat it in a similar manner like B-trees or HSM, And simply copy its sources, the parts that matter, into the extdeps folder of the HROT"*
 - *"Sumo Sharp itself works quite well, so by vendoring it into the external dependencies folder I meant taking just the sources that are already proven working, so we do not need to develop Sumo Sharp on there and run their tests, just make the sources that hrot needs  available as part of Hrot repository, so we can very easily switch to previous version using Git and so on."*
+- *"When rendering the sources, there is no need to have an off switch anymore because the sources are always available. What about the rendering part of the road network that is now living in the … citylib, Is that something that can be generalized a little bit? So it's not usable just as part of Godot?"*
 - *"EM-1 to EM-5 approved. The converted civilian should be created by usual request to a brain node, which is as now sent as local FDP bus event, so there is no change if the CGF is running on different node or inside the editor. The ignoring of publishing sumo entities over the network should not be something sumo specific. This concept needs to be generalized, meaning that some entities, even if owned, will use different network publishing mechanism, different from the usual NED one. Regarding the threading, the Sumo uses quite optimized multi-threaded techniques, so please check how this could be made working inside the editor as well. So only the stepping from the editor will be done from the main thread, but inside the Sumo this could be done in whatever optimized way."*
 - *"This concise summary is worth writing to the design as is i guess. Sumo node might keep a full copy of hrot entities in its ecs as this is a natural conswquence of code unification and reuse and the cost is basically just memory on the sumo node. Pls lets think about how to make the sumo integratable to the networkless editor in similar way as any other parts are. This is mandatory, sumo should not be just a separate networked node, i want it to be embeddable."*
 - *"Z1 and Z2 approved, write them into the designs"* (Z1: zones are the engine-wide fidelity area; Z2: a SUMO entity is a replica inside a zone or within R of an HROT entity)
@@ -539,18 +540,51 @@ graph TD
   HOST -->|and the scenario has the traffic settings entity| ENGINE["SUMO engine created and stepped"]
 ```
 
-*What the picture shows that prose hid:* three independent gates — the SOURCE is pinned (git history is the version
-switch), the BUILD switch decides whether the traffic code is compiled in at all, and the SCENARIO decides whether it runs;
-and only the composition roots ever reference the traffic code, so no library and no other host changes when it is off.
+*What the picture shows that prose hid:* two gates — the SOURCE is pinned (git history is the version switch) and the
+DATA decides whether anything runs. ⛔ The picture's "ProjectReference only when HrotWithSumo is true" and "scan for the
+optional pack" edges are SUPERSEDED by R-4048 (no build switch): the traffic code is referenced normally.
 
 | id | question | ⭐ lean | rejected — one line each |
 |---|---|---|---|
 | **V1** | where the sources live | ✅ **RULED (R-4046)** — `FDP/ExtDeps/SumoSharp/` holds the nine projects as source-included projects, like FastHSM and NodeEdit; `UPSTREAM.md` records the upstream commit; switching to a previous version is a git checkout of HROT | the fetch-and-pack script + local NuGet (the first request): a restore that must create its own input, a second repo to build on every machine, and no git-level history in HROT · a git submodule: a second checkout to manage in every session |
 | **V2** | how the copy is refreshed | `scripts/sync-sumosharp.sh <ref>` clones/fetches upstream into a scratch dir OUTSIDE the HROT tree, copies the nine `src/` projects + the shared file, rewrites `UPSTREAM.md`, and with `--check` only reports whether upstream has a newer commit than `UPSTREAM.md` (`git ls-remote`, no clone). ⚠ The scratch clone must sit outside the HROT tree: an MSBuild project inside it would import HROT's `Directory.Build.*` (measured in a prototype here — the hook re-entered itself) | syncing by hand: the recorded commit drifts from the files |
 | **V3** | who may change the vendored code | **nobody in HROT** (R-4046: proven sources, no SumoSharp development here). A change HROT needs (§8.4 S1/S2/S5, E1's `<location>`, E9 sim-time stamps, E11 car naming) is made **upstream**, then synced; a rail fails if `FDP/ExtDeps/SumoSharp` differs from upstream at the recorded commit (checked by the sync script's `--verify`) | editing the copy: two diverging SumoSharps |
-| **V4** | the optional switch | ✅ **RULED (R-4046)** — an MSBuild property **`HrotWithSumo`** (default `true`, in `Directory.Build.props`; off with `-p:HrotWithSumo=false` or the environment variable of the same name). The ONLY projects that reference SumoSharp are `Hrot.Traffic` and, conditionally on the switch, the composition roots; hosts find the pack at runtime by an assembly scan — the same shape as ClusterRunner's `ScanForSubsystems` (`Program.cs:227-231`) — so with the switch off nothing references it and nothing has `#if`. `HROT.sln` keeps the projects (Roslyn renames and the full build see them); `HROT.NoSumo.slnf` builds without them | `#if HROT_SUMO` in every host: a doubled build matrix · removing the projects from the solution: renames would miss them (CLAUDE.md rule ⑤) |
-| **V5** | when it runs | ✅ **RULED (R-4047)** — the pack is idle unless the data asks for it: the **road layer draws** when the terrain names a SUMO net; the **SUMO engine is created and stepped** only when the scenario also has the traffic settings entity (R-4021); with neither, the pack costs nothing per frame. With the switch OFF, a scenario that carries traffic settings still loads — the entity is kept and saved unchanged, and the node logs *"traffic not available in this build"* | failing the load: a scenario would be unusable on a build without SUMO |
+| **V4** | the optional switch | ⛔ **DROPPED (R-4048):** with the sources vendored they are always there and always compile, so there is NO build switch — `Hrot.Traffic` and the vendored projects are ordinary projects in `HROT.sln`, referenced normally. ⛔ SUPERSEDED: the `HrotWithSumo` property, the conditional references in the composition roots, the assembly scan and `HROT.NoSumo.slnf`. What stays optional is RUNTIME only (V5) | — |
+| **V5** | when it runs | ✅ **RULED (R-4047)** — the pack is idle unless the data asks for it: the **road layer draws** when the terrain names a SUMO net; the **SUMO engine is created and stepped** only when the scenario also has the traffic settings entity (R-4021); with neither, the pack costs nothing per frame. (⛔ the "switch OFF" case is gone with V4) | failing the load: a scenario would be unusable on a build without SUMO |
 | **V6** | the first slice | ✅ **RULED (R-4047)** — **SUMO embedded in the networkless editor first** (EM-1…EM-5), built so a dedicated traffic node is only a composition step later: the same `TrafficPack`, the in-memory bus, every input a local event | a dedicated traffic node first: the networked path before the embedded one the user wants to see |
+
+### 11.1 V7 — the road and traffic-light geometry, **generalised out of the Godot demo** *(lean, 2026-10-17)*
+
+📐 **Measured:** CityLib (`demos/City3D/CityLib`, ~4 600 lines, not packaged, not in `Traffic.sln`) already holds no
+Godot type (`CityLib.csproj` header: *"Plain net8.0 classlib; NO Godot type anywhere"*), and its geometry builders —
+`RoadMeshBuilder` (lane ribbons), `LaneMarkingBuilder` (dashes), `CrosswalkBuilder` (zebra stripes),
+`TrafficLightPlacer` (a signal head at each controlled lane's stop line) and `TerrainField` (ground from lane z), ~1 460
+lines with their frame — are pure math. ⛔ What ties them to Godot is ONE thing: every vertex goes through
+`CoordinateTransform.SumoToGodot` = `(x, z, −y)` (Y-up, north = −Z), so `RibbonMesh.Vertices` comes out *"already in GODOT
+space"* (`RoadMeshBuilder.cs:19`). ⚠ And no builder triangulates the junction polygons (`Junction.Shape`); intersections
+are drawn only as internal-lane ribbons.
+
+⭐ **Lean (an upstream change, R-4031 / V3):**
+- move the builders out of the demo into a packable SumoSharp library (e.g. **`Sim.Scene`**) that emits geometry in
+  SUMO's OWN frame — x east, y north, z up, metres, relative to a caller-given origin — plus a **kind per triangle**
+  (asphalt, junction, lane marking, crosswalk) and the signal-head list; the Godot viewer applies its axis swap at upload,
+  in one place, as it does today;
+- add the missing **junction-polygon triangulation**, so intersections are surfaces, not overlapping ribbons;
+- vendor it with the other nine projects (V1).
+
+⭐ **In HROT:** our frame is ENU with Z up — **the same axes as SUMO** — so the only mapping is E1's 2-D rigid transform +
+origin; no axis swap. The map consumes it behind an interface, as R-250 requires of every engine capability the map relies
+on, in the same shape the terrain already uses: *"the map sees triangles and a kind, never how the terrain is modelled"*
+(`TerrainLayer3D.cs:15`, R-250/R-252). ⇒ a **road layer that is the terrain layer's sibling** — the mesh built once per
+net and rebuilt only when the net changes (`TerrainLayer3D` keys on `ITerrainRenderGeometry.Identity`), coloured by kind;
+the 2-D map draws the same triangles flat; signal heads are a few hundred small draws per frame coloured from `sumo/tl`.
+The Stride host and a future production engine take the same triangles.
+
+| rejected | the one fact |
+|---|---|
+| copying CityLib's code into HROT | a second copy of the same geometry rules (V3: the vendored code is read-only) |
+| keeping the Godot axes and swapping back in HROT | two swaps that cancel, on every vertex, for every host |
+| drawing roads as per-frame gizmo triangles | tens of thousands of static triangles re-sent every frame; the terrain already proved the build-once mesh path |
 
 ## 7. ⛔ HISTORY
 
