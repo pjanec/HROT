@@ -84,15 +84,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </summary>
     private IReadOnlyList<INodeCapability> _capabilities = System.Array.Empty<INodeCapability>();
 
-    // Saved by the overriding BootstrapNode so the abstract hooks can access them.
-    private HrotNodeConfig?   _savedConfig;
-    private NodeRole          _savedRole;
     private NodeBootstrapper? _nodeBootstrapper;
-
-    /// <summary>
-    /// The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.
-    /// </summary>
-    public HrotNodeContext Context { get; private set; } = default!;
 
     /// <summary>
     /// Sim-phase togglable group exposed for subsystem rendering and test inspection.
@@ -129,36 +121,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </remarks>
     public StrideNodeBootstrapper()
     {
-    }
-
-    /// <summary>
-    /// Runs the 7-phase bootstrap pipeline and stores the resulting context.
-    ///
-    /// <para>
-    /// Hides (does not override) the base-class method so config and role can
-    /// be captured before the abstract hooks are invoked, and so that the
-    /// <c>SlaveTranslator</c> side-effect of <see cref="BuildOrchestration"/>
-    /// can be patched into the context before it is exposed publicly.
-    /// </para>
-    /// </summary>
-    public new HrotNodeContext BootstrapNode(
-        HrotNodeConfig config,
-        NodeRole role,
-        INetworkFactory networkFactory)
-    {
-        _savedConfig      = config;
-        _savedRole        = role;
-        _nodeBootstrapper = new NodeBootstrapper(networkFactory);
-
-        var ctx = base.BootstrapNode(config, role, networkFactory);
-
-        // Patch SlaveTranslator — it is a side-effect of NodeBootstrapper.BuildOrchestration
-        // and is NOT set by the base class (only ClusterSlave is patched in by the base).
-        if (_nodeBootstrapper.SlaveTranslator != null)
-            ctx = ctx with { SlaveTranslator = _nodeBootstrapper.SlaveTranslator };
-
-        Context = ctx;
-        return Context;
     }
 
     /// <summary>
@@ -365,18 +327,19 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         SimGroup     = simGroup;
         PostSimGroup = postSimGroup;
 
-        return _nodeBootstrapper!.BuildOrchestration(
-            _savedRole,
+        _nodeBootstrapper = new NodeBootstrapper(NetworkFactory);
+        return _nodeBootstrapper.BuildOrchestration(
+            BootRole,
             context.Kernel,
             context.World,
             context.NodeId,
             participant:         context.Participant,
-            subsystemName:       _savedConfig!.SubsystemName,
+            subsystemName:       BootConfig!.SubsystemName,
             eventBus:            context.EventBus,
             // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
             //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
             scenarioSerializer:  serializer,
-            localTempRoot:       _savedConfig.LocalTempRoot,
+            localTempRoot:       BootConfig.LocalTempRoot,
             // ⭐ CE-4013 D4 — this caller HAS the node's catalogue: without it the knowledge-base step loaded the scenario's TKB into a
             //   throwaway (NodeBootstrapper's `tkbDb ?? CreateTkb()`), so the node's spawning never saw it.
             tkbDb:               context.TkbDb,
@@ -390,7 +353,10 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             elm:                 context.BaseModules?
                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
                                      .FirstOrDefault(),
-            terrainContent:       context.TerrainContent);   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
+            clusterSlave:         context.ClusterSlave,
+            slaveTranslator:      context.SlaveTranslator);
     }
 
     /// <inheritdoc/>

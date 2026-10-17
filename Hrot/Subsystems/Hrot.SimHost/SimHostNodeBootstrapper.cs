@@ -411,7 +411,10 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
             elm:                  context.BaseModules?
                                       .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
                                       .FirstOrDefault(),
-            terrainContent:       context.TerrainContent);   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
+            clusterSlave:         context.ClusterSlave,
+            slaveTranslator:      context.SlaveTranslator);
 
         SlaveTranslator = _nodeBootstrapper.SlaveTranslator;
         return slave;

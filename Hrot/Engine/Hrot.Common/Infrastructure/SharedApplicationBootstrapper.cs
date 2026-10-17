@@ -75,6 +75,11 @@ public abstract class SharedApplicationBootstrapper
         NodeRole role,
         INetworkFactory? networkFactory)
     {
+        // ⭐ CE-4013 D15 — what every hook may need, captured ONCE here (two subclasses used to HIDE this method to capture them).
+        BootConfig     = config ?? throw new ArgumentNullException(nameof(config));
+        BootRole       = role;
+        NetworkFactory = networkFactory;
+
         // ⭐⭐⭐ THE PHASES ARE DECLARED, NOT JUST SEQUENCED (2026-09-03).
         //
         // The order below is EXACTLY what it has always been — NodeBootPlan verifies, it never
@@ -366,8 +371,21 @@ public abstract class SharedApplicationBootstrapper
 
         plan.Run(GetType().Name);
 
+        Context = context;
         return context;
     }
+
+    /// <summary>⭐ CE-4013 D15 — the config this node was bootstrapped with (null before <see cref="BootstrapNode"/>).</summary>
+    protected HrotNodeConfig? BootConfig { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the role this node was bootstrapped with.</summary>
+    protected NodeRole BootRole { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the network factory handed to <see cref="BootstrapNode"/> (before node configuration).</summary>
+    protected INetworkFactory? NetworkFactory { get; private set; }
+
+    /// <summary>The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.</summary>
+    public HrotNodeContext Context { get; private set; } = default!;
 
     /// <summary>
     /// Phase 5-post — the slave-node composition invariant. Extracted verbatim from the inline
