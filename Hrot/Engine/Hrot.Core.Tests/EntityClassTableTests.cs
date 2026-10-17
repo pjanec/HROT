@@ -90,6 +90,21 @@ namespace Hrot.Map.Common.Tests
                 var dis = db.GetByType(type)!.DisType;
                 Assert.Equal(new[] { "Person", "LandPerson", cls }, EntityClassTable.Default.Chain(dis).Select(c => c.Name));
             }
+
+            // ⭐ ui finding F-4 (§7.6) — each person type says who it is, so the outfits need not guess from a name or a height
+            foreach (var (type, age, sex) in new[]
+            {
+                (CivilianTkbCatalog.TkbCivilianAdultMale, AgeBand.Adult, PersonSex.Male),
+                (CivilianTkbCatalog.TkbCivilianAdultFemale, AgeBand.Adult, PersonSex.Female),
+                (CivilianTkbCatalog.TkbCivilianChild, AgeBand.Child, PersonSex.Unspecified),
+                (CivilianTkbCatalog.TkbCivilianElderly, AgeBand.Elderly, PersonSex.Unspecified),
+                (CivilianTkbCatalog.TkbSecurityLauncher, AgeBand.Adult, PersonSex.Unspecified),
+            })
+            {
+                var person = db.GetByType(type)!.GetDescriptor<PersonDto>();
+                Assert.NotNull(person);
+                Assert.Equal((age, sex), (person!.Age, person.Sex));
+            }
         }
 
         /// <summary>The chain runs general → specific; a grouping class (a list) sits between its level and its member.</summary>

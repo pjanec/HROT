@@ -538,12 +538,22 @@ the descriptor-map lists (`TheDescriptorMapIsWiredTests`, `RoleGroupOwnershipStr
 × the blast fall-off × barrier × shadow (`AreaEffectSystem` — a wall between him and the flash spares him). Rails:
 `DamageCalculationSystemTests.CE3219_ABluntRound_…`, `AreaEffectSystemTests.CE3219_AStunBurst_…`.
 
-⏳ **Part 3 — the cloud (B1-c, B1-d, M-4), with one design point measured:** `DetonationNotification` reaches EVERY node (remote copies
-flagged `IsRemote`), and a LOCAL entity carrying `StaticObstacle` + `ObstacleShape` + `SimTransform` is baked like any other obstacle
-(`StaticObstacleBake.cs:167`). ⇒ ⭐ lean: each node DERIVES the same cloud from the same detonation (like the visual effects, W1) — no
-replicated cloud entity, no new descriptor; only the node that owned the detonation pulses the irritation. ⚠ Open: the spawning system
-must run on every host that bakes terrain, i.e. beside `StaticObstacleBakeSystem`, whose hosts each register it and are checked by
-`EntityCreation`'s missing-system list — a registration on every host, not a single pack line.
+⏳ **Part 3 — the cloud (B1-c, B1-d, M-4). ⭐ Lean (re-measured `2026-10-17`): the cloud is a REPLICATED entity.** The node that
+owns the detonation creates it through the normal creation path: a TKB "gas cloud" type carrying `StaticObstacle` (material `smoke`)
++ `ObstacleShape` + `Lifespan`. Every node then bakes it with the existing `StaticObstacleBakeSystem`. When the owner's
+`LifespanSystem` (`Fdp.Toolkits/Time/LifespanSystem.cs`) removes it, the delete replicates. The owner alone pulses the irritation
+(`AreaEffectCloudSystem`). It reuses creation, replication, the obstacle bake and its lifecycle ack. A late joiner and a recording
+see the cloud as they see any entity. ⚠ Still to measure: M-4, the rebake cost per cloud.
+
+| the lean rests on | code | design |
+|---|---|---|
+| one registration covers every host | ✅ the bake is made inside the shared pack (`EntityCreationPack.cs:115`) | ✅ P-7a §9 *(rule and ack both in the pack)* |
+| a local derivation would miss nodes | ✅ `MunitionDetonation` ingress is on IG (`NedIgTranslators.cs:45`) and SimHost (`SimHostAuxiliaryTranslatorPack.cs:103`) only, not CGF | ⛔ searched, none found |
+| a removed cloud leaves every node | ⛔ assumed: the owner's destroy replicates like any delete | ✅ creation unification §3 |
+
+⛔ **SUPERSEDED (`2026-10-16`):** *"`DetonationNotification` reaches EVERY node … each node derives the same cloud … a registration on
+every host, not a single pack line."* Both premises were wrong. CGF does not ingest detonations, and the bake is one line in the
+shared pack. A derived cloud would also be missed by a late joiner.
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 
@@ -559,6 +569,27 @@ Data on existing types, no new code beyond B-1: `WarheadKind` Blunt (baton round
 round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions in `MunitionTkbCatalog`, launchers as
 weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
 node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
+
+#### 7.5a AS-BUILT `CE-3223` part 1 *(2026-10-16)* — the rounds whose effect exists, and the security loadouts
+
+| built | where |
+|---|---|
+| three munitions with their own `WarheadDto`: **40 mm baton round** `6036` (Blunt, 4 s, damage 5) · **stun grenade** `6037` (Stun, injury radius 8 m, 8 s, time fuze 1.5 s) · **thrown stone** `6038` (Blunt, 2 s, damage 3); costs 2 / 5 / 0.1 | `MunitionTkbCatalog.cs` |
+| loadouts: shield and baton men carry 2 stun grenades; the launcher man a baton-round launcher (20 rounds, 80 m/s, 50 m) and 2 stun grenades | `CivilianTkbCatalog.Security(…, mounts)` |
+| rail `NonLethalMunitionTests` (3): each round resolves to its effect with no fragments (`ParameterResolver.Warhead`); the real `DamageCalculationSystem` / `AreaEffectSystem` over the built-in TKB knock down / stun; the security types load the rounds. Red-proved: the baton round set to Kinetic ⇒ 2 red | `Hrot.Core.Tests` |
+
+⏳ **Not built, and why:** the gas grenade and gas launcher round wait for the cloud (§7.3, B-1 part 3). The Molotov waits too, since
+its fire is the same kind of lasting area. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
+behaviors' CE-2236. The baton blow is behaviors' melee node (D5).
+
+### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; [findings](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md))*
+
+| # | finding | answer |
+|---|---|---|
+| F-1 | a cloud prism would draw as a solid block | ✅ agreed: ui owns the render skip (U4-b). The cloud itself is still not built (B-1 part 3) |
+| F-2 | a second `EffectKind` | ✅ already done: the hit's enum is `HitEffect` (`Fdp.Toolkit.Combat/Effects.cs`) |
+| F-3 | nothing carries "cowering" | ✅ built as asked: `EffectState.Cowering` (a byte, 0/1), on the wire in `EntityEffectState`. The CivilianHsm (behaviors) sets it through `Effects.SetCowering(repo, e, on)` on the brain owner, the same node that owns `dtEffectState`. ⚠ It is a mode, not a timed effect: it holds until the HSM clears it |
+| F-4 | no elderly carrier | ✅ built as asked: the TKB descriptor `PersonDto` (`Body.Person`), holding `Age` (Adult / Child / Elderly) and `Sex` (Unspecified / Male / Female). It is on the four civilian types (male, female, minor, elderly), and the security types say Adult. No descriptor means an adult of unspecified sex, so soldiers need none. Read it with `template.GetDescriptor<PersonDto>()` |
 
 ⭐ Ruled `2026-10-16` (R-3013). Tracker: B-1 `CE-3219` · B-2 `CE-3220` · B-3 `CE-3221` · B-4 `CE-3222` · B-5 `CE-3223`.
 

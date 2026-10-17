@@ -15,7 +15,7 @@ namespace Hrot.Core.Tkb
     /// <see cref="DisCategorySecurityForce"/>, which the class table names <c>Civilian</c> / <c>SecurityForce</c> (R-280).</para>
     /// <para>⚠ The civilians' <c>DefaultBehaviorHash</c> stays empty until the behaviors lane registers <c>CivilianHsm</c>
     /// (<c>CE-2235</c>): a brain tier with nothing bound runs nothing (<c>BehaviorTkbTranslator</c> starts no default). The
-    /// security forces carry no weapon yet — their baton, shield and launchers are B-5 (<c>CE-3223</c>).</para>
+    /// security forces carry the non-lethal loadouts of B-5 (<c>CE-3223</c>): stun grenades, a baton-round launcher.</para>
     /// <para>⛔ The old <c>CivilianPedestrian</c> (1001) and <c>CivilianChild</c> (1003) are retired only after the neutral-target safety
     /// gate (<c>CE-2233</c>) lands: these civilians have health, and a soldier may otherwise shoot them.</para>
     /// </summary>
@@ -41,21 +41,24 @@ namespace Hrot.Core.Tkb
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
 
-            Civilian(tkb, "CivilianAdultMale",   TkbCivilianAdultMale,   height: 1.78f, radius: 0.30f, runSpeed: 6.0f);
-            Civilian(tkb, "CivilianAdultFemale", TkbCivilianAdultFemale, height: 1.65f, radius: 0.28f, runSpeed: 5.6f);
-            Civilian(tkb, "CivilianMinor",       TkbCivilianChild,       height: 1.25f, radius: 0.22f, runSpeed: 4.5f);   // under 1.5 m: the 3-D map draws a child (CE-1099)
-            Civilian(tkb, "CivilianElderly",     TkbCivilianElderly,     height: 1.68f, radius: 0.30f, runSpeed: 3.0f);
+            Civilian(tkb, "CivilianAdultMale",   TkbCivilianAdultMale,   height: 1.78f, radius: 0.30f, runSpeed: 6.0f, AgeBand.Adult,   PersonSex.Male);
+            Civilian(tkb, "CivilianAdultFemale", TkbCivilianAdultFemale, height: 1.65f, radius: 0.28f, runSpeed: 5.6f, AgeBand.Adult,   PersonSex.Female);
+            Civilian(tkb, "CivilianMinor",       TkbCivilianChild,       height: 1.25f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Unspecified);   // under 1.5 m: the 3-D map draws a child (CE-1099)
+            Civilian(tkb, "CivilianElderly",     TkbCivilianElderly,     height: 1.68f, radius: 0.30f, runSpeed: 3.0f, AgeBand.Elderly, PersonSex.Unspecified);
 
-            Security(tkb, "SecurityShield",   TkbSecurityShield);
-            Security(tkb, "SecurityBaton",    TkbSecurityBaton);
-            Security(tkb, "SecurityLauncher", TkbSecurityLauncher);
+            // ⭐ CE-3223 (B-5, CV-9) — the non-lethal loadouts: the shield and baton men carry stun grenades (the baton's blow is a behaviours
+            //   melee node, D5); the launcher man a 40 mm baton-round launcher. Tear gas waits for the cloud (CE-3219 part 3).
+            Security(tkb, "SecurityShield",   TkbSecurityShield,   StunGrenades());
+            Security(tkb, "SecurityBaton",    TkbSecurityBaton,    StunGrenades());
+            Security(tkb, "SecurityLauncher", TkbSecurityLauncher, BatonLauncher(), StunGrenades());
         }
 
-        private static void Civilian(ITkbDatabase tkb, string name, int type, float height, float radius, float runSpeed)
+        private static void Civilian(ITkbDatabase tkb, string name, int type, float height, float radius, float runSpeed, AgeBand age, PersonSex sex)
         {
             var t = new TkbTemplate(name, type);
             UrbanCombatTkbCatalog.Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = DisCategoryCivilian });
             Person(t, height, radius, runSpeed);
+            t.AddDescriptor(new PersonDto { Age = age, Sex = sex });   // ⭐ F-4 (design §7.6) — the outfits read who the person is
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
                                                     CanMove = true, CanInteract = true });   // no weapon: picks one up (PersonCarrier)
             // the class template (bodies.json "Soldier") gives a helmet and a vest; a civilian wears neither
@@ -69,14 +72,29 @@ namespace Hrot.Core.Tkb
             tkb.Register(t);
         }
 
-        private static void Security(ITkbDatabase tkb, string name, int type)
+        private static WeaponMountDto StunGrenades() => new()
+        {
+            InitialAmmunition = 2, MuzzleVelocity = 15f, Range = 25f, AmmoGuid = MunitionTkbCatalog.TkbStunGrenade, Category = WeaponCategory.Grenade,
+        };
+
+        private static WeaponMountDto BatonLauncher() => new()
+        {
+            InitialAmmunition = 20, MagazineSize = 1, ReloadSeconds = 2.5f, MuzzleVelocity = 80f, Range = 50f, DamagePerHit = 5f,
+            DispersionMils = 6f, AmmoGuid = MunitionTkbCatalog.TkbBatonRound, Category = WeaponCategory.SmallArms,
+        };
+
+        private static void Security(ITkbDatabase tkb, string name, int type, params WeaponMountDto[] mounts)
         {
             var t = new TkbTemplate(name, type);
             UrbanCombatTkbCatalog.Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = DisCategorySecurityForce });
             Person(t, height: 1.80f, radius: 0.30f, runSpeed: 5.5f);   // the class template's helmet and vest stay
+            t.AddDescriptor(new PersonDto { Age = AgeBand.Adult });
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree,
                                                     CanMove = true, CanShoot = true, CanInteract = true });
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 150f, HearingRange = 300f, FieldOfViewDegrees = 360f });
+            var suite = new WeaponSuiteDto();
+            foreach (var m in mounts) suite.Mounts.Add(m);
+            t.AddDescriptor(suite);
             tkb.Register(t);
         }
 
