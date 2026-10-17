@@ -682,6 +682,75 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>AW-20</c> (R-2026) — <c>ua-armed-shield</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c, §5h): a rifleman 60 m from an insurgent with four civilians standing in the line between them and two beside him. Sampled every
+    /// frame on CGF: ① he holds with <c>HoldNeutralOnLine</c> at least once, and every round he spends leaves with no living civilian's body
+    /// on the line (the plain geometry, no spread — a check the rule's own code does not share); ② the insurgent goes down; ③ no civilian is
+    /// hurt.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task AW20_ArmedShield_NoRoundWhileACivilianIsInTheLine_TheInsurgentStillGoesDown_NoCivilianHurt()
+    {
+        using var harness = await StartShippedScenario("ua-armed-shield");
+        var cgf = harness.Cgf!.World!;
+        var names = Enumerable.Range(1, 6).Select(i => $"Civilian {i}").ToArray();
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Insurgent").IsNull
+                                         && names.All(n => !ByName(cgf, n).IsNull), timeoutFrames: 2000), "the cast must spawn on CGF");
+        var rifle = ByName(cgf, "Rifleman");
+        var insurgent = ByName(cgf, "Insurgent");
+        var civs = names.Select(n => ByName(cgf, n)).ToArray();
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        float Hp(Entity e) => cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
+        bool CivilianOnTheLine()
+        {
+            var a = cgf.GetComponent<SimTransform>(rifle).Position;
+            var b = cgf.GetComponent<SimTransform>(insurgent).Position;
+            var ab = new Vector2(b.X - a.X, b.Y - a.Y);
+            foreach (var c in civs)
+            {
+                if (!cgf.IsAlive(c) || Hp(c) <= 0f) continue;
+                var p = cgf.GetComponent<SimTransform>(c).Position;
+                var ap = new Vector2(p.X - a.X, p.Y - a.Y);
+                float t = Vector2.Dot(ap, ab) / ab.LengthSquared();
+                if (t <= 0f || t >= 1f) continue;
+                float r = cgf.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(c)
+                    ? cgf.GetComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(c).Radius : 0.3f;
+                if (Vector2.Distance(ab * t, ap) < r) return true;
+            }
+            return false;
+        }
+
+        int held = 0, rounds = 0, throughCivilian = 0;
+        var hurt = new System.Collections.Generic.HashSet<string>();
+        int last = Ammo();
+        bool onLineBefore = CivilianOnTheLine();
+        void Sample()
+        {
+            if (cgf.HasComponent<ActionStatus>(rifle) && cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason == ActionReason.HoldNeutralOnLine) held++;
+            int now = Ammo();
+            if (now >= 0 && last >= 0 && now < last)
+            {
+                rounds += last - now;
+                if (onLineBefore) throughCivilian++;   // the round left on a frame that began with a civilian in the line
+            }
+            last = now;
+            for (int i = 0; i < civs.Length; i++)
+                if (Hp(civs[i]) is var h && h >= 0f && h < 100f) hurt.Add(names[i]);
+            onLineBefore = cgf.IsAlive(insurgent) && CivilianOnTheLine();
+        }
+        string State() => $"held {held} frames, rounds {rounds}, through a civilian {throughCivilian}, insurgent hp {Hp(insurgent)}, "
+                          + $"hurt [{string.Join(",", hurt)}], civilians hp [{string.Join(",", civs.Select(Hp))}]";
+
+        bool down = harness.PumpUntil(() => { Sample(); return Hp(insurgent) <= 0f; }, timeoutFrames: 9000);   // 150 s
+        harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 300);
+        _out.WriteLine(State());
+        Assert.True(held > 0, $"① he holds with a civilian in the line at least once; {State()}");
+        Assert.True(throughCivilian == 0, $"① no round leaves while a civilian stands in the line; {State()}");
+        Assert.True(down, $"② the insurgent is engaged and goes down; {State()}");
+        Assert.Empty(hurt);   // ③
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2240</c> CIV-3 — <c>ua-civ-protest</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
     /// §5c, §5g): twelve civilians told to protest in front of a test-town building reach <c>Protest</c>, stand as one crowd round the
     /// point, and show it on CGF, SimHost and IG — at least three fists raised and three signs held on each node; in 120 s nobody turns

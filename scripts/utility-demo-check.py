@@ -2944,23 +2944,41 @@ def run_civ_contagion(c, timeout):
     if not c.ok(None not in [rifle, hostile] + civs, "the rifleman, the hostile and 15 civilians are loaded"):
         return
     frightened = ("Panic", "Shelter", "Inside", "Cower")
-    heard, panicked, modes0 = set(), set(), {}
+    heard, panicked, modes0, crowd = set(), set(), {}, {}
+    last = [-1.0]
 
     def watch():
+        # ⭐ CE-2246 — ONE read per civilian per sweep (CivilianState carries the mode), and a trace each sim-second shaped like the
+        #   twin's, so a live miss can be compared hop by hop with the in-process run
+        row = []
+        call("POST", "/perspective", {"name": "CGF"})   # ⭐ one switch per sweep, not three calls per civilian: measured ~4 s a sweep
+        try:
+            seen = {n: ((data(call("GET", f"/entities/{n}")) or {}).get("Components") or {}) for n in civs}
+        finally:
+            call("POST", "/perspective", {"name": "Scenario"})
         for n in civs:
-            m = civ_mind(n)
+            cs = seen[n]
+            m = cs.get("CivilianState") or {}
             if (m.get("HeardAt") or 0) > 0:
                 heard.add(n)
-            mode = civ_mode(n)
+            mode = m.get("Mode")
+            mode = _CIV_MODES.get(mode, mode) if isinstance(mode, int) else mode
             modes0.setdefault(n, mode)
+            crowd[n] = m.get("CrowdId") or 0
             if mode in frightened:
                 panicked.add(n)
+            x = ((cs.get("SimTransform") or {}).get("Position") or [None])[0] if isinstance((cs.get("SimTransform") or {}).get("Position"), list) \
+                else ((cs.get("SimTransform") or {}).get("Position") or {}).get("X")
+            row.append(f"{civs.index(n) + 1}:{mode}{'h' if n in heard else ''}{m.get('Fear') or 0:.2f}/c{m.get('CrowdId') or 0}/x{x if x is None else int(x)}")
+        t = sim_time() or 0.0
+        if t - last[0] >= 1.0:
+            last[0] = t
+            print(f"    t={t:6.1f} " + " ".join(row))
         return False
     a0 = (ammo(rifle) or (None,))[0]   # ⭐ before play: the fight is over in seconds, faster than one sweep of 15 civilians
     call("POST", "/sim/play", {})
-    one = wait_for(lambda: (watch(), len({(civ_mind(n).get("CrowdId") or 0) for n in civs} - {0}) == 1
-                            and all(civ_mind(n).get("CrowdId") for n in civs))[1], 20, every=0.2)
-    c.ok(one is not None, f"⓪ they stand as ONE crowd along the street ({[civ_mind(n).get('CrowdId') for n in civs]})")
+    one = wait_for(lambda: (watch(), len(set(crowd.values()) - {0}) == 1 and all(crowd.values()))[1], 20, every=0.2)
+    c.ok(one is not None, f"⓪ they stand as ONE crowd along the street ({[crowd.get(n) for n in civs]})")
     shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
     if not c.ok(shot is not None, "① the rifleman opens fire at the west end"):
         return
@@ -3018,6 +3036,40 @@ def run_civ_protest(c, timeout):
     c.ok(not bad, f"③ in 120 s nobody turns Hostile and nobody riots ({sorted(bad)})")
 
 
+# ── AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h) ───────────────────────────────────────
+
+def run_armed_shield(c, timeout):
+    """test-town: a rifleman 60 m from an insurgent, four civilians standing in the line between them and two beside him. ① the
+    rifleman is seen holding with a civilian in the line ('hold: neutral on line'); ② he fires once it is clear and the insurgent goes
+    down; ③ no civilian is hit (sampled from play). The twin (PostureScenarioTests.AW20_ArmedShield_…) checks every frame."""
+    ids = ids_by_name()
+    rifle, ins = ids.get("Rifleman"), ids.get("Insurgent")
+    civs = [ids.get(f"Civilian {i}") for i in range(1, 7)]
+    if not c.ok(None not in [rifle, ins] + civs, "the rifleman, the insurgent and 6 civilians are loaded"):
+        return
+    a0 = (ammo(rifle) or (None,))[0]   # ⭐ before play
+    held, hurt = [0], set()
+
+    def watch():
+        reason = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("reason") or ""
+        if reason == "hold: neutral on line":
+            held[0] += 1
+        for n in civs:
+            h = health(n)
+            if h is not None and h < 100:
+                hurt.add(n)
+        return False
+    call("POST", "/sim/play", {})
+    fired = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1],
+                     timeout + 60, every=0.25)
+    c.ok(held[0] > 0, f"① the rifleman holds his fire while a civilian stands in the line ({held[0]} samples 'hold: neutral on line')")
+    c.ok(fired is not None, "② …and fires once the line is clear")
+    down = wait_for(lambda: (watch(), _dead(ins))[1], 120, every=0.5)
+    c.ok(down is not None, f"② the insurgent is engaged and goes down (health {health(ins)})")
+    wait_for(watch, 5, every=0.5)
+    c.ok(not hurt, f"③ no civilian is hit ({sorted(hurt)}; health {[health(n) for n in civs]})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3029,6 +3081,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-gathering": run_civ_gathering, "ua-civ-contagion": run_civ_contagion,
              # ⭐ CE-2240 CIV-3 — the protest and its gestures (Civilians §5c, §5g)
              "ua-civ-protest": run_civ_protest,
+             # ⭐ AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h)
+             "ua-armed-shield": run_armed_shield,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

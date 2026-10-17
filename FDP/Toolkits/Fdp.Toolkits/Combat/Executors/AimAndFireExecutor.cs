@@ -248,6 +248,14 @@ namespace Fdp.Toolkit.Combat.Executors
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
                 return;
             }
+            // ⭐ AW-20 (R-2026; DESIGN_Civilians_And_Crowd_Control §5h) — nor while a NEUTRAL person is on the line or inside the spread
+            //   at his range: held the same way, so the round leaves the moment he is clear
+            if (!bomb && LineOfFire.BlockedByNeutral(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world))))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target);
+                return;
+            }
 
             // ⭐ CE-2218 — hold while the round would stop in the wall in front of the muzzle (LineOfFire.MuzzleMasked): the eye's line
             //   passed the window, the barrel's does not. Running, no round spent — Masked, so the behaviour may move to a better spot.
@@ -414,6 +422,8 @@ namespace Fdp.Toolkit.Combat.Executors
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
             if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
+            if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world))))
+            { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (LineOfFire.MuzzleMasked(world, shooter, mountIndex, loadedAmmo, point)) { Say(world, entity, ActionReason.Masked, p.Target); return; }   // ⭐ CE-2218
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 

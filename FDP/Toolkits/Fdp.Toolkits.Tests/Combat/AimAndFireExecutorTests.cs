@@ -390,6 +390,91 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
         }
 
+        // ── AW-20 — a neutral in the line or the spread holds the shot ─────────────────────────────────────────────────────
+
+        /// <summary>A NEUTRAL entity at <paramref name="at"/> with a collider; a PERSON (pedestrian kinematics) when <paramref name="person"/>.</summary>
+        private Entity Neutral(Vector3 at, bool person, float radius = 0.4f)
+        {
+            if (!_world.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) _world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            _world.AddComponent(e, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = radius });
+            if (person) _world.AddComponent(e, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐ <c>AW-20</c> (R-2026; docs/DESIGN_Civilians_And_Crowd_Control.md §5h) — a soldier never fires at a hostile while a NEUTRAL person
+        /// stands on the line: he HOLDS (Running, no intent, no ammo spent, <c>HoldNeutralOnLine</c>), and fires the moment the civilian steps
+        /// clear. ⛔ A neutral that is not a person (a wall, a wreck — <see cref="ForceId.Neutral"/> is the enum's default) never holds it.
+        /// </summary>
+        [Fact]
+        public void AW20_AimAndFire_HoldsFire_WhileANeutralPersonIsOnTheLine_ThenFiresWhenHeIsClear()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var target = SpawnTarget(new Vector3(20f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, ammo: 5, cooldownRemaining: 0f, target, cooldownSeconds: 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(shooter, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+            var civilian = Neutral(new Vector3(10f, 0.2f, 0f), person: true);
+            Neutral(new Vector3(6f, 0f, 0f), person: false, radius: 2f);   // a neutral wall on the line: never a reason to hold
+
+            EnterAimed(shooter, ref channel);
+            Tick(shooter, ref channel, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(0, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(5, _world.GetComponent<WeaponState>(shooter).Ammo);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine,
+                _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(shooter).Weapon.Reason);
+
+            _world.GetComponentRW<SimTransform>(civilian).Position = new Vector3(10f, 3f, 0f);   // he steps clear
+            Tick(shooter, ref channel, 0.016f);
+            _world.Bus.SwapBuffers();
+            Assert.Equal(1, _world.Bus.Read<WeaponFireIntent>().Length);
+            Assert.Equal(4, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>
+        /// ⭐ <c>AW-20</c> — the line test itself: a neutral PERSON just off the line holds the shot only when the weapon's spread at his range
+        /// reaches him (σ × his distance along it); one behind the shooter, beyond the target, dead, or of the shooter's own side does not
+        /// (his own side is <see cref="LineOfFire.BlockedByFriendly(EntityRepository, Entity, Entity)"/>'s); a NEUTRAL shooter is never held by it.
+        /// </summary>
+        [Fact]
+        public void AW20_LineOfFire_ANeutralPersonInTheSpread_HoldsTheShot_ButNotBehindBeyondOrDead()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            var target = SpawnTarget(new Vector3(100f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+
+            var near = Neutral(new Vector3(50f, 1f, 0f), person: true);   // 1 m off the line at 50 m; his radius 0.4
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));       // an exact aim misses him
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0.02f));     // 20 mils: ±1 m at 50 m reaches him
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, new Vector3(100f, 0f, 0f), 0.02f));   // a burst at the point too
+
+            _world.AddComponent(near, new Health { Current = 0f, Max = 100f });   // dead: no longer held for
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0.02f));
+
+            Neutral(new Vector3(-10f, 0f, 0f), person: true);    // behind the shooter
+            Neutral(new Vector3(110f, 0f, 0f), person: true);    // beyond the target
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0.02f));
+
+            var onLine = Neutral(new Vector3(40f, 0f, 0f), person: true);
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
+            _world.GetComponentRW<EntityInfo>(shooter).ForceId = ForceId.Neutral;   // a neutral shooter: they are his friends (BlockedByFriendly)
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+            _ = onLine;
+        }
+
         /// <summary>⭐ <c>CE-321</c> — a target at 0 HP that is still in the world (CE-267: the body stays) ends the action
         /// — Success, no round fired.</summary>
         [Fact]
