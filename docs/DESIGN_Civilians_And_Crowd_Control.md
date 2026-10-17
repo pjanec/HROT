@@ -2039,7 +2039,7 @@ too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as dra
 `NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
 like any area round — the effects layer draws what it draws for one (ui's to decide).
 
-#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: READY-TO-BUILD — §7.3d-B)*
+#### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: BUILT (backend half) — §7.3d-B/C)*
 
 🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
 gas) so the gas is something like a dangerous area to be avoided by not stepping into and rather taking cover farther from its current or
@@ -2085,7 +2085,7 @@ replicates (the danger-area result, `EffectState`). No navmesh change.
 
 ⏳ Backend half (`CE-3227`): the kind, the predicted footprint, the classifier. Behaviors half: the reactions — 📨 [frame](blueprints/batches/HANDOFF_Backend_To_Behaviors_Gas_Reactions.md).
 
-##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: READY-TO-BUILD)
+##### 7.3d-B The backend build (`CE-3227`; backend, `2026-10-17`; build-state: BUILT — as-built §7.3d-C)
 
 📐 Measured at `backend@1ba6e036d`: `DangerAlongRouteClassifier.Classify` is a pure function of (route, road graph, terrain, cover) and
 returns 0 at once when the node has NO road graph (`:50`) — and `DangerAlongRouteSolve.Solve` too (`:43`); the Brain's
@@ -2125,6 +2125,20 @@ already runs, and a node with no road graph must still answer for gas (today it 
 | **G-4** | **no road graph ⇒ gas still answers** (the road passes skip; the gas pass runs) | keep the early return: gas on a roadless map would be invisible |
 | **G-5** | **the Brain rates a GasCloud 1** (the gas is the threat, whoever sees it) so `AreaThreatened` fires | 0 like every unseen area: no edge, a behaviour would have to poll the kind |
 | **G-6** | the result is in route order — the gas pass may overlap a crossing, so the written areas are sorted by `DistanceAlongRoute` | emit order: a long gas run ending after a crossing would sit behind it |
+
+##### 7.3d-C AS-BUILT `CE-3227` *(2026-10-17)* — built as G-1…G-6 draw it
+
+| built | where |
+|---|---|
+| `DangerAreaKind.GasCloud = 6` · `DangerAreaKinds.GasCloud = 1 << 6` · `Wants` accepts up to `GasCloud`; never in the v1 default | `DangerAreaDescriptor.cs`, `DangerAreaSettings.cs` |
+| `GasFootprint` (capsule `From → To`, `Radius`, a height band) and `GasFootprints.Of(repo, span)`: every live `TearGas` cloud, `To` = its centre + `WindAt × min(15 s, its time left)`, no drift while `SourceNetworkId ≠ 0`, radius + 2 m, band 2 m below / above | `Squad/DangerArea/GasFootprints.cs` |
+| `DangerAlongRouteClassifier.Classify(…, gas)`: a run of samples inside any footprint = one `GasCloud` area (handles `StandOff` before / after, `FeatureId = GasFeatureId(cloud id)`); the road and open-ground passes skip on a node with no road graph; the result sorted by `DistanceAlongRoute` | `DangerAlongRouteClassifier.cs` |
+| `DangerAlongRouteSolve`: up to 16 footprints per solve; no road graph and no gas ⇒ 0 as before | `DangerAlongRouteSolve.cs` |
+| the Brain rates a `GasCloud` area **1** (`AreaThreatened` fires) | `DangerAreaSensorSystem.Rate` |
+
+Rails: `DangerAlongRouteClassifierTests.CE3227_…` ×2 (one area, handles, stable id, route order; no roads still answers, a miss is
+nothing, `Wants`) · `AreaEffectCloudTests.CE3227_…` (the drift, the canister, smoke skipped). ⚠ Not railed: the Brain's rating of 1 and
+the solve's wiring end to end (a SimHost solve over a live cloud) — the behaviors reactions' rails will exercise it.
 
 ### 7.4 B-4 — the perf-gate harness *(CV-10)*
 

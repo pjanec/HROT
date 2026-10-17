@@ -32,6 +32,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
         OpenGround     = 1 << (int)DangerAreaKind.OpenGround,
         StreetCrossing = 1 << (int)DangerAreaKind.StreetCrossing,
         Intersection   = 1 << (int)DangerAreaKind.Intersection,
+        /// <summary>⭐ <c>CE-3227</c> (§7.3d-B G-1) — tear gas; never in the v1 default (a squad that never asked has no reaction for it).</summary>
+        GasCloud       = 1 << (int)DangerAreaKind.GasCloud,
     }
 
     /// <summary>⭐ <c>CE-3081</c> — whether a sensor asking for <see cref="DangerAreaKinds"/> keeps an area of a kind.</summary>
@@ -40,7 +42,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static bool Wants(DangerAreaKinds wanted, DangerAreaKind kind)
         {
             if (wanted == DangerAreaKinds.Crossings) wanted = DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
-            return kind <= DangerAreaKind.CrestLine && ((int)wanted & (1 << (int)kind)) != 0;
+            return kind <= DangerAreaKind.GasCloud && ((int)wanted & (1 << (int)kind)) != 0;
         }
     }
 
