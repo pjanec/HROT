@@ -244,9 +244,13 @@ public sealed class NedReplicationModule : INedReplicationModule
         _roleHasIG     = role.HasFlag(NodeRole.Map2D);
         _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
-        if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain)
+        // ⭐ AQ93 N1 (R-4054) — a Traffic node replicates too: it receives the scenario's TrafficDemand and our entities through
+        //   the shared pack, owning no physics (so it drives from the network, like a pure Map2D node). Every system below is
+        //   role-independent; only the muscle/brain translator packs are gated.
+        bool roleHasTraffic = role.HasFlag(NodeRole.Traffic);
+        if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain && !roleHasTraffic)
             throw new ArgumentException(
-                $"NedReplicationModule requires a role with MuscleGround, ImageGenerator, or Brain. Got: {role}",
+                $"NedReplicationModule requires a role with MuscleGround, ImageGenerator, Brain or Traffic. Got: {role}",
                 nameof(role));
 
         // driveFromNetwork = true when ONLY IG (no local physics)
