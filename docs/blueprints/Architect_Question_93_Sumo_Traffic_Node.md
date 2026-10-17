@@ -427,7 +427,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT + live acceptance 15/15 — §12.1/§12.2, §12.3, §12.5 |
 | 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT + live — §13.7 (SumoSharp H12) |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | ✅ BUILT + live — §14.6 (SumoSharp H13) |
-| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
+| 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | ⭐ DESIGN §15 (5a waits for SumoSharp H14, upstream) |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
 
 ## 8. Pedestrians and panic *(DESIGN 2026-10-16 — S1–S5 approved to build in SumoSharp (R-4031); P1–P8 ACCEPTED (R-4032); §8.6 re-examines P1)*
@@ -1179,6 +1179,97 @@ Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived 
 |---|---|
 | unit | the bridge maps `Traffic` → `KinematicsMode.Traffic` and `CarKinematicsSystem` leaves the pose alone; the follow system writes the shadow's pose; a vanished shadow ends the mode with `Arrived` near the goal and `FailedBlocked` away from it; an `hrot:` car makes no replica |
 | live | demo-city: a vehicle handed over arrives at its destination on SUMO roads, is taken back (`KinematicsMode.None`, `Arrived`), and its `PrimaryOwnerId` never changes |
+
+
+## 15. Slice 5 — pedestrians, and converting them to our civilians (§8, R-4031/R-4032/R-4037/R-4038/R-4039) *(DESIGN 2026-10-17 — build-state: DESIGN)*
+
+### 15.1 INVENTORY *(code graph CLI + grep, 2026-10-17)*
+
+| what | measured |
+|---|---|
+| SumoSharp ped wire | `DdsPedReplicationSource`, `PedRemoteReconstructor` (`TryGetRenderPose`), `DdsPedLifecycle`, `PedLifecycleRecord`, `PedFreeKinematicRecord`, `PedDemand` (sumosharp graph, 14 classes) — ⛔ no multi-source ped subscriber, ⛔ peds are not named by the host, ⛔ no Despawn published, ⛔ no safe single-ped removal (§8.4 S1/S2/S5 — **H14**, dispatched upstream) |
+| HROT session | `TrafficSession` builds `LiveCitySim` with `PedPopulationCap = 0` and calls `SetPedDensity(0, 0)` — ⛔ pedestrians are OFF; `TrafficDemand` carries `TargetCars`, `Seed`, `StepSeconds` only |
+| replicas | `TrafficReplicas` (vicinity 300 m + 50 m, R-4041) makes car replicas only; `TrafficCar` has no kind |
+| civilians | ✅ `CivilianTkbCatalog` 1101–1104 (adult m/f, child, elderly, `DefaultBehaviorHash = CivilianHsm`, backend B-2) · ✅ CIV-1 Routine/Alarmed/Casualty, CIV-2 panic/shelter/cower live (behaviors) · ✅ **P6 met**: CIV-0 the safety gate (ground AI skips a Neutral target, `CE-2233`, `DESIGN_Civilians_And_Crowd_Control.md` §5b) |
+| creation | ✅ `EntityCreationRequest.PreAllocatedNetworkId` + `OwnerAppInstanceId` — a request addressed to CGF can keep the pedestrian's network id (R-4029) |
+| hits | `DamageAssessedEgressTranslator` drops a hit whose entity has no network id (`:67`) — ✅ SUMO replicas DO carry one now (R-4038), so `EntityHitDamage` already leaves the shooter's node for a car replica |
+
+### 15.2 Decisions *(the WHAT is ruled; these are the HOW, each with a lean)*
+
+| id | question | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **K1** | turning pedestrians on | `TrafficDemand` gains `TargetPedestrians` (default 0 = off, every existing scenario unchanged) and `dtTrafficDemand` carries it; demo-city's recipe asks for some | always on: 20 000 walkers nobody asked for |
+| **K2** | ped ids | the serving node names every ped from the cluster allocator (H14 `PedIdProvider`), as cars (N2) — a ped's name IS its network id | SumoSharp's own ids: a second id space (R-4029) |
+| **K3** | ped replicas (§8.7 G2/G3) | the SAME vicinity rule and the SAME `TrafficReplicas`: a ped within 300 m of an HROT body is an entity of civilian type **1101** (Neutral `EntityInfo`, `Health`, collider), owned by the traffic node; `TrafficCar` gains `Kind` (car · pedestrian) | a second replica class: two copies of the vicinity / pose / destroy code |
+| **K4** | panic (P2) | on the SERVING node: a NED `WeaponFireNotification` or `DetonationNotification` is an incident; peds within the radius (shot 50 m, blast 150 m — fields on `TrafficDemand`) are converted; contagion deferred | every node detects: N copies of one decision |
+| **K5** | conversion (P3/P4, §8.2) | `RemovePedestrian` (H14 S1) → one `EntityCreationRequest` addressed to the BRAIN node (CGF), `PreAllocatedNetworkId` = the ped's id, type 1101–1104 by the ped's kind, pose and velocity from S1, its civilian HSM entering **panic**; the Despawn (S2) drops every mirror, and the id reappears as our entity | the traffic node as creator: it is optional (R-4027), a crash would delete the people (R-4008) |
+| **K6** | cap (P7) | at most `MaxConverted` (default 30) a session; above it a ped stays in SUMO (its SUMO flee is §8 P7's second half — deferred) | no cap: one blast hands hundreds of brains to CGF in a frame |
+| **K7** | hits (§8.7 G1/G4/G5) | the traffic node ingests `EntityHitDamage` for its SUMO ids: a pedestrian converts as K5, born with the damage; a car stops in SUMO-less form (our civilian car, its driver a civilian) — **5c, after 5b** | — |
+
+### 15.3 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficDemand { <<existing, grows K1>> +TargetPedestrians +ShotPanicRadius +BlastPanicRadius +MaxConverted }
+  class TrafficSession { <<existing, grows>> peds on, PedIdProvider, RemovePedestrian }
+  class TrafficMirrorSystem { <<existing, grows>> pumps the ped wire too }
+  class TrafficReplicas { <<existing, grows K3>> cars and pedestrians }
+  class TrafficCar { <<existing, grows>> +Kind }
+  class TrafficPanicSystem { <<NEW, serving node, K4/K5>> incidents to conversions }
+  class EntityCreationRequest { <<existing>> PreAllocatedNetworkId OwnerAppInstanceId }
+  class CivilianTkbCatalog { <<existing backend>> 1101-1104 }
+  class LiveCitySim { <<SumoSharp, grows H14>> PedIdProvider RemovePedestrian peds near }
+  class DdsMultiSourcePedSubscriber { <<SumoSharp NEW H14>> }
+  TrafficSession --> LiveCitySim
+  TrafficMirrorSystem --> DdsMultiSourcePedSubscriber
+  TrafficMirrorSystem --> TrafficReplicas
+  TrafficReplicas ..> TrafficCar
+  TrafficReplicas ..> CivilianTkbCatalog : type 1101
+  TrafficPanicSystem --> TrafficSession : RemovePedestrian
+  TrafficPanicSystem --> EntityCreationRequest : to CGF
+```
+
+### 15.4 Sequence — a shot converts a pedestrian *(§8.2, as built here)*
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (shooter)
+  participant TN as Traffic node
+  participant LC as LiveCitySim
+  participant CGF as CGF (brain)
+  participant N as every node
+  SH->>TN: WeaponFireNotification (NED)
+  TN->>TN: TrafficPanicSystem: peds within 50 m, under the cap
+  TN->>LC: RemovePedestrian(name) returns pose and velocity
+  LC-->>N: ped Despawn (S2), mirrors drop the replica
+  TN->>CGF: EntityCreationRequest type 1101, PreAllocatedNetworkId = name, panic
+  CGF-->>N: our civilian, the same network id
+```
+
+### 15.5 Modules
+
+```mermaid
+graph TD
+  subgraph Serving["Traffic node or editor"]
+    TP[TrafficPack.Serving] -->|input| TPS[TrafficPanicSystem]
+    TPS -->|RemovePedestrian| RT[TrafficRuntime / TrafficSession]
+    TPS -->|EntityCreationRequest| EC[EntityCreationPack]
+  end
+  subgraph Every["Every map / sim host"]
+    TMS[TrafficMirrorSystem] -->|ped poses| TR[TrafficReplicas]
+  end
+  CGF[CGF creates and keeps the brain]
+  EC -.->|addressed to the Brain node| CGF
+```
+
+### 15.6 Build order
+
+| step | content | waits for |
+|---|---|---|
+| **5a** | K1–K3: pedestrians walk, named by our allocator, and are replicas near our units on every node | H14 (upstream, in progress) |
+| **5b** | K4–K6: a shot or blast converts nearby pedestrians into CGF civilians in panic, same network id | 5a |
+| **5c** | K7: hits on SUMO cars and pedestrians | 5b |
 
 
 ## 7. ⛔ HISTORY
