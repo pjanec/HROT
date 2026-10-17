@@ -33,6 +33,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.OutOfRange or ActionReason.Masked   // ⭐ IF-1 — no fire solution
                 or ActionReason.WrongDomain   // ⭐ CE-2187 — a SAM held at a truck: the weapon stays ready
                 or ActionReason.HoldNeutral   // ⭐ CE-2233 — a civilian: the weapon stays ready, never fired
+                or ActionReason.HoldSurrender // ⭐ CV-13a — hands up: covered, ready, never fired
                 => WeaponPostureKind.Ready,
             _ => null,
         };

@@ -575,6 +575,8 @@ namespace Fdp.Toolkit.Combat.Executors
             //   picked it (a ranking, a squad assignment, an order): the last gate before a round, on both paths. A possessed unit's
             //   fire (OperatorFire) does not come here — a human decides.
             if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target)) return ActionReason.HoldNeutral;
+            // ⭐ CV-13a (R-2024) — nor at a man showing HANDS UP, even Hostile (a surrender is honoured; a feint is read live)
+            if (Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(world, target)) return ActionReason.HoldSurrender;
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
             //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
             if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;
