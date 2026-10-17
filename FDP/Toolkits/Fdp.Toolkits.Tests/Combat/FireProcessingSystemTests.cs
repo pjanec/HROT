@@ -587,6 +587,38 @@ namespace Fdp.Toolkit.Combat.Tests
             return rounds;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3232</c> (B-10, docs/DESIGN_Civilians_And_Crowd_Control.md §7.11 LD-3) — a LAID-DOWN mount makes no round, whoever asked:
+        /// on the brain's node from his own mask, on any other node from the replicated <see cref="WeaponAmmo"/> bit; taken up, it fires again.
+        /// ✅ Red-proof: the FireProcessing gate dropped ⇒ a round is made ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3232_ALaidDownMount_MakesNoRound_HereOrAsAReplica_AndTakenUpItFires()
+        {
+            int Rounds() { int n = 0; foreach (var _ in _world.Query().With<BallisticProjectile>().Build()) n++; return n; }
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
+            Assert.True(Fdp.Toolkit.Combat.WeaponLaying.LayDown(_world, shooter, 0));
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0, Rounds());
+
+            Fdp.Toolkit.Combat.WeaponLaying.LayDown(_world, shooter, 0, down: false);
+            _world.Bus.SwapBuffers();
+            PublishIntent(shooter, target);
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(1, Rounds());
+
+            // a replica (his brain runs elsewhere): the bit arrives in WeaponAmmo
+            var replica = SpawnShooter(new Vector3(0f, 5f, 0f));
+            _world.RegisterComponent<WeaponAmmo>();
+            _world.AddComponent(replica, new WeaponAmmo { Count = 1, LaidDown = 1 });
+            _world.Bus.SwapBuffers();
+            PublishIntent(replica, target);
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(1, Rounds());
+        }
+
         private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();

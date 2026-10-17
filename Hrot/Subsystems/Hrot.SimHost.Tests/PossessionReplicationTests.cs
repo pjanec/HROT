@@ -252,6 +252,7 @@ namespace Hrot.SimHost.Tests
             ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 2, MaxAmmo = 4 },
                      new Fdp.Toolkit.Combat.Components.AmmoLoadout { Count = 2, Ammo0 = 6006, Rounds0 = 1, Ammo1 = 6018, Rounds1 = 1, Loaded = 1, SwitchRemaining = 2f });
             Assert.Equal((6018L, 1, true), (ammo.Load1, ammo.LoadRounds1, ammo.IsBusy(1)));
+            ammo.LaidDown = 0b0001;   // ⭐ CE-3232 (B-10) — the laid-down mounts cross too
             var sample = EntityWeaponAmmoEgressTranslator.ToSample(66L, ammo);
             var (station, unit, map) = Node(66L);
             using (station)

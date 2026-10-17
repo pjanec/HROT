@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.10 B-13 pick-up designed, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.13 B-11 stations / pick-up weapons / charge designed, CE-3233) · 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -2303,6 +2303,266 @@ out of reach / still flying / not a hand item refused · a live grenade cooks of
 `InteractionTransportTests.CE3235_…` (the ask and the grant cross as their union cases) · ⭐ integration
 `EntityOrdersAcrossNodesTests.CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once` (SimHost's lying stone seen on CGF, asked twice,
 granted once, gone everywhere, one stone in his hands).
+
+### 7.11 B-10 — a weapon LAID DOWN *(AW-5, AW-21, AW-24 — R-2025, R-2027, R-2029; `CE-3232`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.11a)*
+
+INVENTORY *(grep + reads at `backend@61f235fd7`; codebase-memory CLI `search_graph` `.*(LaidDown|LayDown|Surrender|Disarm).*` → 9, none a weapon state)*:
+
+| question | measured | where |
+|---|---|---|
+| a "this weapon fires for nobody" precedent | a weapon SYSTEM: `WeaponSystems.IsBroken` / `CanFire` (`WeaponHold.Destroyed`, `NotDeployed`); ⛔ nothing for a BUILT-IN mount | `WeaponSystems.cs:64-96, 197` |
+| the built-in mount's state | `WeaponState` on the man (mount 0) or a mount child; brain-local; ⚠ **no `DataPolicy`** — saved and recorded as raw bytes, so a new field changes its size | `CombatComponents.cs:11-48` |
+| what crosses per mount | `WeaponAmmo` (`dtWeaponAmmo`, mounts 0…3), written only by `WeaponAmmoMirrorSystem` on the brain; already a bit-per-mount byte (`Busy`) | `WeaponAmmo.cs`, `WeaponAmmoMirrorSystem.cs`, `EntityWeaponAmmoTranslators.cs` |
+| the "armed" readers B-8 gated (the same set) | `Armament.ArmedByStatus` / `LethalInHand` / `Judge` · `WeaponSystems.WeaponOf` / `PrimaryMount` · the weapon-choice candidates (`UtilityScorer`) · the figure (`PersonBody.PoseOf`) | §7.9a |
+| the one place a round is made | `FireProcessingSystem` (SimHost), from any intent — the AI's, an operator's | `FireProcessingSystem.cs` |
+| an executor's "why held" | `ActionReason.NotDeployed` ("hold: not deployed") exists | `ActionStatus.cs:60, 162` |
+
+```mermaid
+classDiagram
+  direction LR
+  class LaidDownWeapons { <<NEW component 403, on the man, brain node>> Mounts byte — bit i = mount i laid down }
+  class WeaponLaying { <<NEW static>> LayDown(world, man, mount, down) · LayDownAll(world, man, down) · IsLaidDown(world, man, mount) · AllLaidDown(world, man) }
+  class WeaponAmmo { <<existing, + LaidDown byte>> mirrored from LaidDownWeapons; on the wire (dtWeaponAmmo, appended) }
+  class WeaponAmmoMirrorSystem { <<existing>> copies the mask }
+  class Armament { <<CE-3229>> a laid-down mount arms nobody }
+  class WeaponSystems { <<existing>> WeaponOf / PrimaryMount skip a laid-down mount 0 }
+  class UtilityScorer { <<existing>> never a laid-down candidate }
+  class PersonBody { <<existing>> unarmed figure when all are down }
+  class FireProcessingSystem { <<existing>> refuses an intent from a laid-down mount }
+  class FireAtPointExecutor { <<existing>> held: NotDeployed }
+  class AimAndFireExecutor { <<existing>> held: NotDeployed }
+  WeaponLaying ..> LaidDownWeapons : brain node
+  WeaponLaying ..> WeaponAmmo : every other node
+  WeaponAmmoMirrorSystem ..> LaidDownWeapons
+  WeaponAmmoMirrorSystem ..> WeaponAmmo
+  Armament ..> WeaponLaying
+  WeaponSystems ..> WeaponLaying
+  UtilityScorer ..> WeaponLaying
+  PersonBody ..> WeaponLaying
+  FireProcessingSystem ..> WeaponLaying
+  FireAtPointExecutor ..> WeaponLaying
+  AimAndFireExecutor ..> WeaponLaying
+```
+
+*What the picture shows that prose hid:* **ONE reader (`WeaponLaying.IsLaidDown`) answers on every node** — from the brain's own mask where
+the brain runs, from the replicated `WeaponAmmo` bit everywhere else — so the seven readers never ask "which node am I on".
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **LD-1** | **a per-mount BIT on the man** (`LaidDownWeapons`, brain-local) — the frame's "a flag on the mount's state", kept OFF `WeaponState` | a field in `WeaponState`: it has no data policy, so its size is in every save and recording · a component per weapon: the frame rules it out |
+| **LD-2** | **replicated through `WeaponAmmo`** (a `LaidDown` byte appended, mounts 0…3, mirrored by the existing system) | a new topic: `WeaponAmmo` already carries per-mount state from the brain to every node |
+| **LD-3** | **cannot fire, enforced where the round is made**: `FireProcessingSystem` refuses the intent (the operator's too); the executors hold with `NotDeployed` so the brain reads why | the executors only: an operator or another path would still fire |
+| **LD-4** | **reads unarmed**: a laid-down mount arms nobody (status and conduct); all down ⇒ `ArmedByStatus` false and the figure unarmed. ⭐ AW-21's "out of the fight" stays the ladder's: laid down AND hands up (CV-13a) — both now readable | folding "laid down" into `ThreatDanger.IsOutOfTheFight`: a man laying his rifle down with his hands free is not yet surrendered (AW-5: a feint) |
+| **LD-5** | **the hands mount is never "laid down"** (it is not a weapon, B-8) | — |
+
+⚠ **Known limits, stated before the build:** a mount at index ≥ 4 is laid down on the brain's node but reads armed elsewhere (`WeaponAmmo`
+carries 4 mounts, as it does for ammo); the handover (a laid-down weapon becomes a pick-up weapon entity) is B-11's.
+
+
+#### 7.11a AS-BUILT `CE-3232` *(2026-10-17)* — built as §7.11 draws it
+
+| built | where |
+|---|---|
+| `LaidDownWeapons` (component 403, on the man, brain node) · `WeaponLaying.LayDown / LayDownAll / IsLaidDown / AllLaidDown` (LayDownAll skips the hands) | `Combat/WeaponLaying.cs` |
+| `WeaponAmmo.LaidDown` + `IsLaidDown(mount)`; mirrored by `WeaponAmmoMirrorSystem`; on the wire as `EntityWeaponAmmo.LaidDown` (appended) | `WeaponAmmo.cs`, `WeaponAmmoMirrorSystem.cs`, `SimDescriptors.cs`, `EntityWeaponAmmoTranslators.cs` |
+| gates: `FireProcessingSystem` makes no round from a laid-down mount · `AimAndFireExecutor` (both paths) and `FireAtPointExecutor` hold with `NotDeployed` · `Armament.ArmedByStatus` (all down), `LethalInHand` / conduct skip a laid-down mount · `WeaponSystems.WeaponOf` / `PrimaryMount` skip mount 0 · `UtilityScorer` candidates · `PersonBody.PoseOf` (all down ⇒ unarmed figure) | as listed |
+
+Rails: `WeaponLayingTests` (3: all down arms nobody and taken up arms again · FireAtPoint held, no intent · the bit mirrored into
+`WeaponAmmo` and read on a replica) · `FireProcessingSystemTests.CE3232_…` (no round here or as a replica; taken up it fires) ·
+`PossessionReplicationTests.CE3174_…` now carries the bit across the wire; red-proved ×4. ⚠ No new ActionReason: a laid-down weapon reads
+"hold: not deployed" (the weapon-systems reason).
+
+### 7.12 B-9 — the PISTOL, a second built-in mount on the soldier types *(AW-4, AW-24 — R-2025, R-2029; `CE-3231`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.12a)*
+
+INVENTORY *(grep + reads at `backend@1e935427a`; codebase-memory CLI `search_graph` `.*(WeaponChoice|ChooseMount|SelectWeapon|PickMount|BestMount).*` → 10:
+`WeaponChoice` the one chooser; grep `Pistol` → only `ItemLook.Pistol` + its 0.2 m size; grep `9 mm|9x19` → nothing in code or the reference library)*:
+
+| question | measured | where |
+|---|---|---|
+| who the "soldier types" are | `UrbanCombatTkbCatalog`: InfantrySoldier 2002 (rifle), Grenadier 2004 (rifle + M67), MortarTeam 2005, JavelinTeam 2006 / NlawGunner 2007 (launcher + rifle), Insurgent 2003 (RPG + rifle). ⛔ **no Pilot type exists** (the frame's "planned Pilot"). BDC `InfantrySoldier` 504 takes its mounts from BDC data rows, not code | `UrbanCombatTkbCatalog.cs:193-306`, `BdcTkbBuilder.cs:280-300` |
+| which types the soldier rails spawn | `ua-posture`, `ua-threat-ranking`, `bt-window-duel` → 2002 (and 8806, a parked car) | `scenarios/*/scenario.json` |
+| who picks the weapon | `WeaponChoice.Choose` ← `AimAndFireExecutor.EngagementMount` (only for `MountAuto`; chosen ONCE per engagement, re-chosen when the chosen mount runs dry, W-12a) ← `PostureNodes` / `CgfNodes` aimed fire | `WeaponChoice.cs`, `AimAndFireExecutor.cs:99, 756-772`, `PostureNodes.cs:470` |
+| how it ranks a mount | `WeaponSelectionDecision`: ammo (step) × in range (logistic at distance / range = 1) × effectiveness (expected damage of one round through `ArmorModel` × hit chance from `HitModel`) × `RoundsLeft` (log scale, 300 = 1) | `WeaponSelectionDecision.cs`, `StandardInputs.cs:378-470` |
+| readers that loop over a man's mounts | `ThreatDanger.ToMe` / `ReachAgainst` take the **MAX** (never a sum) · `Armament` lethal-any / `Judge` max · `WeaponLaying` · `ParameterResolver` (per-mount provenance) | `ThreatDanger.cs:110, 133`, `Armament.cs:215, 261` |
+| where the hands go | `PersonHands.EnsureOnPersons` appends them LAST; `WeaponAmmo` carries mounts 0…3 (rail `CE3230_…` asserts hands ≤ 3) | `PersonHands.cs:40-60` |
+| a vest | `bodies.json` "Soldier": torso 5 mm front and rear, head 0 front | `Tkb/Reference/Data/bodies.json` |
+
+```mermaid
+classDiagram
+  direction LR
+  class UrbanCombatTkbCatalog { <<existing>> Rifle() · + Pistol() — InfantrySoldier, Grenadier }
+  class MunitionTkbCatalog { <<existing>> + TkbPistol9mm 6042 "9x19 ball" · Costs[9 mm] = 1 }
+  class WeaponMountDto { <<existing>> Category SmallArms · Appearance Look = Pistol }
+  class PersonHands { <<existing>> EnsureOnPersons appends the hands AFTER the pistol }
+  class CombatTkbTranslator { <<existing>> mount i ≥ 1 ⇒ a mount child with WeaponState }
+  class WeaponChoice { <<existing, unchanged>> Choose(repo, owner, target) }
+  class WeaponSelectionDecision { <<existing, unchanged>> ammo × in range × effectiveness × rounds left }
+  class AimAndFireExecutor { <<existing, unchanged>> MountAuto ⇒ EngagementMount }
+  class ItemAppearances { <<existing>> Look Pistol ⇒ a 0.2 m item to identify }
+  UrbanCombatTkbCatalog --> WeaponMountDto : Pistol()
+  WeaponMountDto ..> MunitionTkbCatalog : AmmoGuid 6042
+  PersonHands ..> UrbanCombatTkbCatalog : after its mounts
+  CombatTkbTranslator ..> WeaponMountDto : the pistol child
+  AimAndFireExecutor ..> WeaponChoice
+  WeaponChoice ..> WeaponSelectionDecision
+  ItemAppearances ..> WeaponMountDto
+```
+
+*What the picture shows that prose hid:* **nothing on the brain side is new** — the pistol is DATA (a mount + a munition); the existing
+chooser ranks it, the existing translator makes its child, the existing appearance reads its look.
+
+```mermaid
+sequenceDiagram
+  participant BT as soldier behaviour (CGF)
+  participant AF as AimAndFireExecutor
+  participant WC as WeaponChoice
+  participant SC as WeaponSelectionDecision
+  participant FP as FireProcessingSystem (SimHost)
+  BT->>AF: aimed fire, Mount = Auto, target 20 m
+  AF->>WC: EngagementMount (rifle ran dry, re-choose)
+  WC->>SC: rank mounts vs target
+  SC-->>WC: rifle 0 (no ammo), pistol > 0 (in 50 m)
+  WC-->>AF: mount 1, the pistol child
+  AF->>FP: WeaponFireIntent WeaponIndex 1
+  FP-->>FP: a 9 mm round from the pistol's WeaponState
+```
+
+```mermaid
+graph TD
+  ENV[HrotEnvironment.RegisterBuiltInTkb — every node, at load] --> UC[UrbanCombatTkbCatalog: + Pistol on 2002, 2004]
+  ENV --> MU[MunitionTkbCatalog: + 6042]
+  ENV --> PH[PersonHands.EnsureOnPersons: hands last]
+  SPAWN[CombatTkbTranslator — at spawn, every node] --> CH[the pistol mount child]
+  DISP[BTree dispatcher — CGF brain node, every frame] --> AF[AimAndFireExecutor MountAuto]
+  AF --> WC[WeaponChoice]
+  FPS[SimHost combat group, every frame] --> FP[FireProcessingSystem]
+```
+
+*Caption:* the catalogue runs at load on every node; the choice runs where the brain is; the round is made on SimHost — **no new system, no new
+frame edge.**
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **PI-1** | **the pistol on InfantrySoldier (2002) and Grenadier (2004)** — the soldier rails' types, as the frame names them | every person type: AW-24 bounds it to "the types that should carry it" · the Insurgent: his second weapon is a rifle · the AT and mortar crews: not in the frame, and a third mount for nothing measured · BDC 504: its weapons are BDC data rows · the Pilot: does not exist (it takes `Pistol()` when it is added) |
+| **PI-2** | **appended AFTER the existing mounts** — rifle stays 0, the grenade stays 1; the hands move to 2 / 3 (≤ 3, `WeaponAmmo` carries them) | the pistol at 1: every authored grenade index (`Mount = 1`) would fire the pistol |
+| **PI-3** | **a 9 mm ball round, 6042** (DIS 8.USA.2 — calibre fields 0, not invented, R-3011), cost 1; the mount: 15-round magazine × 3 = 45, 2 s reload, 360 m/s, **range 50 m**, 18 per hit, **penetration 2 mm** (a 5 mm vest stops it), dispersion 12 mils, `Look = Pistol` | reusing the 5.56 round: the cost table, the shot log and `/combat/shots` would name a rifle round |
+| **PI-4** | **no brain change** — `WeaponChoice` ranks it: while the rifle has ammo it wins (lower damage × lower hit chance × fewer rounds); the rifle empty ⇒ the pistol. ⚠ **Measured on the rail: beyond 50 m too** — the in-range term never reaches 0 (≈ 4·10⁻¹¹ at 150 m) and `Choose` falls back only on a score of exactly 0 (limit ③ below) | a "sidearm" rule in the executor: a second chooser (AW-4: the weapon brain switches by itself) |
+| **PI-5** | **accepted by re-running the soldier rails UNCHANGED** — U1 `ua-posture`, U2 `ua-threat-ranking`, `ua-universal-soldier`, `bt-window-duel` (a deviation is a finding, never a re-baseline) | — |
+
+⚠ **Known limits, stated before the build:** ① against a VESTED soldier seen from the front the pistol's expected damage is 0 (2 < 5 mm), so
+an empty rifleman facing one holds — the chooser falls back to the empty primary (realistic; an unvested target, a civilian or an insurgent,
+gets the pistol); ② the 3-D figure keeps drawing a rifle while he fires the pistol (`ActiveMount` = 1 is on the wire — the drawing is ui's);
+③ **an EMPTY rifleman fires his pistol at whatever he engages, at any range** *(measured — the design first said "held beyond 50 m";
+the rail disproved it)*: aimed fire has no range gate for ANY weapon (a rifle beyond 300 m fires today) and the chooser takes any score
+above 0. ⛔ Not fixed here: a cut-off in the shared chooser changes vehicles' choices too. A behaviour that should not waste the magazine
+gates on range itself; ④ a rifle with only a few rounds left (≈ 8 at 20 m, by the numbers above) may lose to a full pistol at close range —
+a deliberate property of `RoundsLeft`, not a new rule.
+
+#### 7.12a AS-BUILT `CE-3231` *(2026-10-17)* — built as §7.12 draws it, PI-4 corrected to the measured
+
+| built | where |
+|---|---|
+| `Pistol()` beside `Rifle()` — 3 × 15 rounds, 2 s change, 360 m/s, 50 m, 18 per hit, 2 mm, 12 mils, `Look = Pistol`; on InfantrySoldier (mount 1, hands 2) and Grenadier (mount 2, after the grenades; hands 3) | `UrbanCombatTkbCatalog.cs` |
+| `TkbPistol9mm` 6042 `"9x19 ball"` (DIS 8.USA.2, its own 2 mm / 18), cost 1 | `MunitionTkbCatalog.cs` |
+| ⛔ no code in the brain, the chooser, the translator or the fire path | — |
+
+Rails *(the armed-people catalogue suite)*: `NonLethalMunitionTests.CE3231_TheSoldiersCarryAPistol_AfterTheirWeapons_AndNobodyElse` ·
+`CE3231_ASoldierWhoseRifleIsEmpty_FiresHisPistol_InsideItsRange` (built-in types + `CombatTkbTranslator` + `WeaponChoice`: rifle at 20 m and
+150 m while loaded, the pistol child at 20 m once it is empty); red-proved ×2 (no pistol on the InfantrySoldier; pistol range 0). ⭐ The soldier
+rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, `CE3136_P8_WindowDuel`, `CE3094_UniversalSoldier`, plus
+`CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
+the correction.
+
+### 7.13 B-11 — carry stations Hands / Back / Hidden, the pick-up rifle and pistol, the explosive charge *(AW-6, AW-12, AW-13 — R-2025; `CE-3233`; backend, `2026-10-17`; build-state: READY-TO-BUILD — B-11a stations + pick-up weapons, then B-11b the charge)*
+
+INVENTORY *(grep + reads at `backend@5b7c356f6`, an `Explore` sweep; codebase-memory CLI only — `check_index_coverage` not run)*:
+
+| question | measured | where |
+|---|---|---|
+| the person's seats today | ⚠ **TWO, not one** — seat 0 the casualty seat, seat 1 ONE `Station` accepting `Carried`; the Javelin preset fills "seat 1 = the carry station" BY INDEX | `CarrierDefDto.cs:45-51`, `BdcTkbCatalog.cs:179` |
+| how seats reach the runtime | `CarrierTkbTranslator` projects `CarrierSeats` (roles, `ExposedMask`) and `CarrierStations` (`StationMask`, per-seat `Accepts`) — **type facts, never on the wire**, on every node | `CarrierTkbTranslator.cs:32-120` |
+| how a carried thing knows its seat | its slot in the man's `PassengerBuffer` — **on the wire** (`EntityPassengers`); every node re-derives `IsEmbarkedTag.Seat` / `Exposed` from it (`EmbarkedStateSystem` re-boards when the slot changes) | `EntityPassengersTranslators.cs`, `EmbarkedStateSystem.cs:52-73` |
+| "hidden" today | `PhysicalPresence.IsHidden` — an enclosed passenger (`IsEmbarkedTag.Exposed == 0`) is not sensed, targeted or hit; ⛔ **no `Concealed` anywhere** | `PhysicalPresence.cs:25-35`, `Embarkation.cs:447` |
+| where a carried thing stands | `EmbarkedStateSystem` moves it with its carrier, at the station's offset — so a carried thing's OWN position is its carrier's | `EmbarkedStateSystem.cs:122-135` |
+| carry, controller, fire gate | `Embarkation.Check` / `FreeStation` (the first free accepting station) · `WeaponSystems.ControllerOf` (carried + `FireWhileCarried` ⇒ the carrier) · `CanFire` (:85) · `AimAndFireExecutor.SystemHold` | `Embarkation.cs:137-286`, `WeaponSystems.cs:41-93`, `AimAndFireExecutor.cs:722` |
+| a cross-node carry command | `EmbarkEntityCommand` applied where the CARRIER is owned (`Embarkation.OwnsVehicle`) | `EmbarkationSystem.cs:35` |
+| one-man fire-while-carried types | the `shoulder` preset (OneMan, Ground \| Carried, `FireWhileCarried`): Javelin, NLAW, LAW; ids 600–615, **616 free** | `BdcTkbCatalog.cs:264-334`, `TkbEntityTypes.cs:26-47` |
+| `Armament` and carried weapons | status (`WeaponOf`), lethal-in-hand and conduct (`Controlled`) ALREADY count a carried weapon — ⛔ none asks where it is carried | `Armament.cs:199-276` |
+| a burst with no round in flight | the FPV drone: the position owner publishes `DetonationNotification` from mount 0's round, then spends itself (`DamageAssessedEvent`) | `DroneImpactSystem.cs:105-119` |
+| the builder's mount | `WeaponMount` has `Category`, ⛔ no look — a pistol weapon system would read as a rifle | `SimCombatDef.cs:5-58`, `BdcTkbBuilder.cs:299-325` |
+
+```mermaid
+classDiagram
+  direction LR
+  class SeatDto { <<existing, + 2 fields>> + Stowed : cannot fire from it · + Concealed : nobody sees it }
+  class CarrierDefDto { <<existing>> PersonCarrier(): seat 0 casualty · 1 HANDS (unchanged) · + 2 BACK (Stowed) · + 3 HIDDEN (Stowed, Concealed, not exposed) }
+  class CarrierStations { <<existing type fact, + 2 masks>> + StowedMask · + ConcealedMask }
+  class CarryStations { <<NEW static>> Hands/Back/Hidden(view, man) · SeatOf(view, thing) · IsStowed · IsConcealed · Move(world, man, thing, seat) }
+  class Embarkation { <<existing>> FreeStation never picks a Concealed seat }
+  class WeaponSystems { <<existing>> CanFire: not from a Stowed seat }
+  class Armament { <<CE-3229>> a weapon in a Concealed seat arms nobody }
+  class UtilityScorer { <<existing>> no Stowed candidate }
+  class InteractionTransport { <<I-1>> + kind 11 Restation · + kind 12 DetonateCharge }
+  class Charges { <<NEW static, B-11b>> Detonate(world, charge) — on its position owner }
+  class BdcTkbCatalog { <<existing>> + 616 pick-up rifle · + 617 pick-up pistol · + 618 explosive charge (B-11b) }
+  CarrierDefDto --> SeatDto
+  CarrierStations ..> SeatDto : projected
+  CarryStations ..> CarrierStations
+  Embarkation ..> CarrierStations
+  WeaponSystems ..> CarryStations
+  Armament ..> CarryStations
+  UtilityScorer ..> CarryStations
+  InteractionTransport ..> CarryStations : Restation, on the man's list owner
+  InteractionTransport ..> Charges : DetonateCharge, on the charge's position owner
+```
+
+*What the picture shows that prose hid:* **concealment is a SEAT fact, and the seat already crosses the wire** — no new replicated
+component: two masks on a type fact, read through the slot every node already has.
+
+```mermaid
+sequenceDiagram
+  participant B as brain (CGF)
+  participant T as I-1 transport
+  participant O as the man's list owner
+  participant N as every node
+  B->>T: Restation(man, pistol, Hands)
+  T->>O: kind 11
+  O->>O: CarryStations.Move — the slot moves 3 → 1
+  O-->>N: EntityPassengers (the slot)
+  N->>N: EmbarkedStateSystem re-tags: Seat 1, Exposed 1
+  N-->>N: Armament: now armed · CanFire: yes
+  B->>T: DetonateCharge(vest)  (B-11b)
+  T->>O: kind 12, on the vest's position owner
+  O->>O: DetonationNotification at the vest = at the man
+```
+
+```mermaid
+graph TD
+  TKB[CarrierTkbTranslator — at spawn, every node] --> CS[CarrierStations + Stowed / Concealed masks]
+  EMB[EmbarkedStateSystem — every node, every frame] --> TAG[IsEmbarkedTag Seat / Exposed from the slot]
+  IA[Interactions capability — every node] --> RS[Restation applied on the list owner]
+  IA --> DC[DetonateCharge applied on the position owner]
+  AE[AreaEffectSystem — SimHost] --> BURST[the vest's warhead]
+```
+
+*Caption:* every edge exists today except the two I-1 kinds — which run in the `Interactions` capability every node already builds (B-13's
+pick-up runs there).
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **ST-1** | **seat 1 stays HANDS; BACK and HIDDEN are APPENDED** (seats 2, 3) | renumbering Hands to a new index: the Javelin preset and every saved slot name seat 1 |
+| **ST-2** | **two seat flags: `Stowed` (cannot fire from it) and `Concealed` (nobody sees it)** — Back = Stowed; Hidden = Stowed + Concealed + `Exposed = false` (so `IsHidden` keeps it from being sensed or hit — the existing rule) | one "Hidden" flag: a slung rifle is visible but cannot fire, so the two properties differ |
+| **ST-3** | **`FreeStation` never picks a Concealed seat** — a weapon goes Hidden only when asked (`Move`) | auto-filling Hidden third: a man picking up a third weapon would conceal it without deciding to |
+| **ST-4** | **draw / stow / conceal = `CarryStations.Move`**, applied on the man's list owner; from another node an I-1 **`Restation` (kind 11)**; every node follows the slot | a new replicated "station" component: the slot already IS the station |
+| **ST-5** | **cannot fire from a Stowed seat** (`CanFire` and the weapon-choice candidates) — **but it still ARMS by sight**: a slung rifle is armed to an observer | stowed = unarmed: a soldier with a slung rifle is armed (AW-21's status) |
+| **ST-6** | **a Concealed seat arms NOBODY** — status, lethal-in-hand, conduct (R-2025) | hiding by `Exposed` alone: `Armament` reads the controlled list, not presence |
+| **ST-7** | **pick-up rifle 616 and pistol 617** — the `shoulder` preset's one-man carry, their mount = the built-in `Rifle()` / `Pistol()` numbers; `WeaponMount.Look` appended so the pistol LOOKS like one | a new "item" entity kind: a weapon system already carries, fires while carried and changes hands |
+| **ST-8** *(B-11b)* | **the charge 618 is a weapon system with one mount (the charge round, 6043)**; `Charges.Detonate` on the charge's POSITION owner publishes its `DetonationNotification` where it stands and spends it — **worn, it stands at the man; in a car, at the car** (the carried-thing rule above); from another node an I-1 **`DetonateCharge` (kind 12)** | the round fired from a muzzle: a vest has none; "bursts at its controller" as a special case: its own position already is |
+| **ST-9** *(B-11b)* | **the VBIED: `MountKinds.Cargo` (16, appended) and ONE cargo station appended to the civilian car** | the charge in a passenger seat: seats hold people (`Seated` role) |
+
+⚠ **Stated before the build:** ① the 3-D figure draws a carried weapon in its hands today — Back (slung) and Hidden (not drawn) are ui's;
+② `Carriage` / `LoadOf` still return the FIRST load (the casualty seat first) — unchanged; ③ which car takes the cargo station is settled
+at B-11b against CE-3220 part 2 (the urban-combat car 1002 is being retired; the BDC `CivilianCar` 502 stays).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

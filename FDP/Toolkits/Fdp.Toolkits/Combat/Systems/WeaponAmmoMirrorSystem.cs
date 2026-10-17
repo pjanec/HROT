@@ -41,6 +41,9 @@ namespace Fdp.Toolkit.Combat.Systems
                         ammo.Count = (byte)Math.Max(ammo.Count, index + 1);
                     }
                 }
+                // ⭐ CE-3232 (B-10, §7.11 LD-2) — the laid-down mounts cross with the counts
+                if (repo.IsComponentTypeRegistered<LaidDownWeapons>() && repo.HasComponent<LaidDownWeapons>(unit))
+                    ammo.LaidDown = (byte)(repo.GetComponentRO<LaidDownWeapons>(unit).Mounts & ((1 << WeaponAmmo.MaxMounts) - 1));
                 if (repo.HasComponent<WeaponAmmo>(unit))
                 {
                     if (!repo.GetComponentRO<WeaponAmmo>(unit).Equals(ammo)) repo.SetComponent(unit, ammo);

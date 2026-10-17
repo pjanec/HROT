@@ -299,7 +299,8 @@ namespace Fdp.Toolkit.Utility
                 //   ⛔ CE-2188 (BS-1-DESIGN §5.4c) — not when mount 0 is a flare / chaff dispenser (an unarmed aircraft): nothing to choose
                 if ((repo.HasComponent<WeaponState>(self) || repo.HasComponent<WeaponMountInfo>(self))
                     && !Fdp.Toolkit.Combat.Countermeasures.DispenserOnly(repo, self)
-                    && (!Fdp.Toolkit.Combat.PersonHands.HandsOnly(repo, self) || Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)))   // ⭐ CE-3230 (H-4)
+                    && (!Fdp.Toolkit.Combat.PersonHands.HandsOnly(repo, self) || Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self))   // ⭐ CE-3230 (H-4)
+                    && !Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, 0))   // ⭐ CE-3232 (B-10) — never a laid-down weapon
                 {
                     candidates[candidateCount]  = self;
                     isSelfMount[candidateCount] = true;
@@ -319,6 +320,8 @@ namespace Fdp.Toolkit.Utility
                     if (repo.HasComponent<WeaponMountInfo>(e)
                         && Fdp.Toolkit.Combat.PersonHands.IsHands(Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex))
                         && !Fdp.Toolkit.Combat.PersonHands.HoldsLethal(repo, self)) continue;
+                    if (repo.HasComponent<WeaponMountInfo>(e)
+                        && Fdp.Toolkit.Combat.WeaponLaying.IsLaidDown(repo, self, repo.GetComponentRO<WeaponMountInfo>(e).MountIndex)) continue;   // ⭐ CE-3232
                     candidates[candidateCount]  = e;
                     isSelfMount[candidateCount] = false;
                     candidateCount++;

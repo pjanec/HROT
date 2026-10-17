@@ -246,5 +246,86 @@ namespace Hrot.Map.Common.Tests
                 Assert.Empty(world.Bus.Read<DamageAssessedEvent>().ToArray());
             }
         }
+            /// <summary>
+        /// ⭐ <c>CE-3231</c> (B-9, AW-4; DESIGN_Civilians_And_Crowd_Control §7.12 PI-1/PI-2/PI-3) — on the BUILT-IN catalogue the InfantrySoldier
+        /// and the Grenadier carry ONE pistol each, AFTER their other mounts (the grenade stays mount 1), firing the 9 mm round, looking like a
+        /// pistol, reaching less than the rifle; no other urban-combat type gains one. ✅ Red-proof: <c>Pistol()</c> dropped from the
+        /// InfantrySoldier ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3231_TheSoldiersCarryAPistol_AfterTheirWeapons_AndNobodyElse()
+        {
+            var db = BuiltIn();
+            int PistolAt(long type)
+            {
+                var mounts = db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+                int at = -1;
+                for (int i = 0; i < mounts.Count; i++)
+                    if (mounts[i].AmmoGuid == (ulong)MunitionTkbCatalog.TkbPistol9mm) { Assert.Equal(-1, at); at = i; }
+                return at;
+            }
+            Assert.Equal(1, PistolAt(UrbanCombatTkbCatalog.TkbInfantrySoldier));
+            Assert.Equal(2, PistolAt(UrbanCombatTkbCatalog.TkbGrenadier));
+            Assert.Equal(WeaponCategory.Grenade, db.GetByType(UrbanCombatTkbCatalog.TkbGrenadier)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[1].Category);
+            foreach (var other in new long[] { UrbanCombatTkbCatalog.TkbInsurgent, UrbanCombatTkbCatalog.TkbMortarTeam,
+                                               UrbanCombatTkbCatalog.TkbJavelinTeam, UrbanCombatTkbCatalog.TkbNlawGunner })
+                Assert.Equal(-1, PistolAt(other));
+
+            var soldier = db.GetByType(UrbanCombatTkbCatalog.TkbInfantrySoldier)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            var pistol = soldier[1];
+            Assert.Equal(ItemLook.Pistol, pistol.Appearance!.Look);
+            Assert.True(pistol.Range > 0f && pistol.Range < soldier[0].Range);
+            Assert.True(pistol.DamagePerHit < soldier[0].DamagePerHit && pistol.Penetration < soldier[0].Penetration);
+            Assert.True(soldier[^1].Hands);   // the hands still last (CE-3230's rail keeps them ≤ 3)
+            Assert.NotNull(db.GetByType(MunitionTkbCatalog.TkbPistol9mm));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3231</c> (B-9 acceptance; §7.12 PI-4) — on the BUILT-IN types and the production mount layout, the weapon brain picks the
+        /// RIFLE while it has ammo (at 20 m and at 150 m); the rifle EMPTY, it picks the PISTOL against an insurgent 20 m off. No brain change — <c>WeaponChoice</c> ranks the new mount. ✅ Red-proof: the pistol's
+        /// range set to 0 (an unknown range scores out of range) ⇒ the empty rifle is kept at 20 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3231_ASoldierWhoseRifleIsEmpty_FiresHisPistol_InsideItsRange()
+        {
+            Fdp.Toolkit.Utility.StandardInputs.RegisterAll();
+            Fdp.Toolkit.Utility.UtilityDecisionCatalog.EnsureRegistered();
+            using var world = new EntityRepository();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<TkbIdentity>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            world.RegisterComponent<PartMetadata>();
+            var db = BuiltIn();
+            world.SetSingletonManaged<ITkbDatabase>(db);
+
+            Entity Spawn(long type, float x)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+                world.AddComponent(e, new TkbIdentity { TkbType = type });
+                world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(world, e, db.GetByType(type)!);
+                return e;
+            }
+            var soldier = Spawn(UrbanCombatTkbCatalog.TkbInfantrySoldier, 0f);
+            var near = Spawn(UrbanCombatTkbCatalog.TkbInsurgent, 20f);
+            var far = Spawn(UrbanCombatTkbCatalog.TkbInsurgent, 150f);
+
+            Assert.Equal(0, WeaponChoice.Choose(world, soldier, near, out var rifle));
+            Assert.Equal(soldier, rifle);
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(soldier).Ammo = 0;
+            Assert.Equal(1, WeaponChoice.Choose(world, soldier, near, out var pistol));
+            Assert.NotEqual(soldier, pistol);
+            Assert.Equal(1, world.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponMountInfo>(pistol).MountIndex);
+
+            // ⚠ measured (§7.12 limit ③): the range term never reaches 0, so with the rifle EMPTY the pistol still wins at 150 m — aimed fire
+            //   has no range gate for ANY weapon. What B-9 owns: with the rifle LOADED, the pistol is never preferred beyond its range.
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(soldier).Ammo = 150;
+            Assert.Equal(0, WeaponChoice.Choose(world, soldier, far, out _));
+        }
     }
 }

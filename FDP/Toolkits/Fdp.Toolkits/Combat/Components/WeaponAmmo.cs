@@ -28,6 +28,9 @@ namespace Fdp.Toolkit.Combat.Components
         public int LoadRounds0, LoadRounds1, LoadRounds2, LoadRounds3;
         /// <summary>⭐ CE-1079 — bit <c>i</c> set: mount <c>i</c> is reloading or switching its round (the HUD says LOADING).</summary>
         public byte Busy;
+        /// <summary>⭐ CE-3232 (B-10, §7.11 LD-2) — bit <c>i</c> set: mount <c>i</c> is LAID DOWN (cannot fire, arms nobody); mirrored from
+        /// the brain's <see cref="Fdp.Toolkit.Combat.LaidDownWeapons"/>.</summary>
+        public byte LaidDown;
 
         public readonly int AmmoOf(int mount) => mount switch { 0 => Ammo0, 1 => Ammo1, 2 => Ammo2, 3 => Ammo3, _ => 0 };
         public readonly int MaxOf(int mount) => mount switch { 0 => Max0, 1 => Max1, 2 => Max2, 3 => Max3, _ => 0 };
@@ -35,6 +38,7 @@ namespace Fdp.Toolkit.Combat.Components
         public readonly long LoadedOf(int mount) => mount switch { 0 => Load0, 1 => Load1, 2 => Load2, 3 => Load3, _ => 0L };
         public readonly int LoadedRoundsOf(int mount) => mount switch { 0 => LoadRounds0, 1 => LoadRounds1, 2 => LoadRounds2, 3 => LoadRounds3, _ => -1 };
         public readonly bool IsBusy(int mount) => mount is >= 0 and < MaxMounts && (Busy & (1 << mount)) != 0;
+        public readonly bool IsLaidDown(int mount) => mount is >= 0 and < MaxMounts && (LaidDown & (1 << mount)) != 0;
 
         public void Set(int mount, in WeaponState w) => Set(mount, w, null);
 

@@ -66,6 +66,7 @@ namespace Hrot.Map.Common.Replication.Egress
             Load0 = a.Load0, Load1 = a.Load1, Load2 = a.Load2, Load3 = a.Load3,   // ⭐ CE-1079
             LoadRounds0 = a.LoadRounds0, LoadRounds1 = a.LoadRounds1, LoadRounds2 = a.LoadRounds2, LoadRounds3 = a.LoadRounds3,
             Busy = a.Busy,
+            LaidDown = a.LaidDown,   // ⭐ CE-3232
         };
 
         public void Dispose(long networkEntityId) => _last.Remove(networkEntityId);
@@ -124,6 +125,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 Load0 = d.Load0, Load1 = d.Load1, Load2 = d.Load2, Load3 = d.Load3,   // ⭐ CE-1079
                 LoadRounds0 = d.LoadRounds0, LoadRounds1 = d.LoadRounds1, LoadRounds2 = d.LoadRounds2, LoadRounds3 = d.LoadRounds3,
                 Busy = d.Busy,
+                LaidDown = d.LaidDown,   // ⭐ CE-3232
             });
         }
 

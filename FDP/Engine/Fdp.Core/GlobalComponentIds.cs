@@ -982,5 +982,10 @@ namespace Fdp.Core
         /// man's hands and the fuze it has left — on the man, on his brain's node (never replicated, never saved). ⚠ 402 measured free on
         /// backend, ui and behaviors 2026-10-17.</summary>
         public const int HeldFuze = 402;
+
+        /// <summary><c>LaidDownWeapons</c> — ⭐ CE-3232 (civilians B-10, AW-5; docs/DESIGN_Civilians_And_Crowd_Control.md §7.11 LD-1): which of a
+        /// man's built-in mounts he has LAID DOWN (bit i = mount i) — on the man, on his brain's node; every other node reads the bit from
+        /// <c>WeaponAmmo</c>. ⚠ 403 measured free on backend, ui, behaviors and coordinator 2026-10-17.</summary>
+        public const int LaidDownWeapons = 403;
     }
 }
