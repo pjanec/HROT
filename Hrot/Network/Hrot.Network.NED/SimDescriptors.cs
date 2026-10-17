@@ -123,6 +123,18 @@ namespace Hrot.NED.Descriptors
 
         /// <summary><c>TrafficDemand.StepSeconds</c>.</summary>
         public float StepSeconds;
+
+        /// <summary>⭐ AQ93 §15 K1 — <c>TrafficDemand.TargetPedestrians</c>.</summary>
+        public int TargetPedestrians;
+
+        /// <summary><c>TrafficDemand.ShotPanicRadius</c>.</summary>
+        public float ShotPanicRadius;
+
+        /// <summary><c>TrafficDemand.BlastPanicRadius</c>.</summary>
+        public float BlastPanicRadius;
+
+        /// <summary><c>TrafficDemand.MaxConverted</c>.</summary>
+        public int MaxConverted;
     }
 
     [DdsTopic("EntityScenarioClock")]
