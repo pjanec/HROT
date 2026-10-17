@@ -73,15 +73,18 @@ check("③ pose spread across CGF/SimHost/IG: median < 2 m", med is not None and
       f"{len(spreads)} samples, median {med if med is None else round(med, 2)} m, p90 {round(sorted(spreads)[int(0.9*(len(spreads)-1))], 2) if spreads else None} m")
 
 # ④ pause holds every mirror still
-call(8303, "POST", "/sim/pause", {}); time.sleep(1.5)
+# ⚠ only a node offering 'time.drive' pauses the cluster (CGF here); IG and the orchestrator answer NOT_SUPPORTED_HERE
+pr = call(8301, "POST", "/sim/pause", {})
+check("④0 the pause is accepted (CGF drives time)", (pr or {}).get("ok"), (pr or {}).get("error") or "ok")
+time.sleep(1.5)
 a = {(p, n): pos(p, n) for p in MIRRORS for n in sample[:5]}; time.sleep(3)
 b = {k: pos(*k) for k in a}
 drifts = {f"{MIRRORS[k[0]]}:{k[1]}": round(math.dist(a[k], b[k]), 3) for k in a if a[k] and b[k]}
 drift = max(drifts.values() or [0])
 paused = {MIRRORS[p]: (data(call(p, "GET", "/sim/state")) or {}).get("isPaused") for p in MIRRORS}
-check("④ pause (from IG) holds every car still on every mirror", drift < 0.01,
+check("④ pause (from CGF) holds every car still on every mirror", drift < 0.01,
       f"max drift {drift:.4f} m over 3 s; moved: {[k for k, v in drifts.items() if v >= 0.01]}; isPaused: {paused}")
-call(8303, "POST", "/sim/play", {}); time.sleep(2)
+call(8301, "POST", "/sim/play", {}); time.sleep(2)
 
 # ⑤ the map gizmo buffers drop nothing
 for p in [8301, 8302, 8303]:
