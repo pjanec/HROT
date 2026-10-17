@@ -748,7 +748,8 @@ public sealed class PostureScenarioTests : IDisposable
         var inst = ByName(cgf, "Instigator");
         const long Stone = Hrot.Core.Tkb.MunitionTkbCatalog.TkbStone;
         bool riot = false, filled = false;
-        int throws = 0;
+        int throws = 0, peak = 0, spent = 0;
+        var reasons = new System.Collections.Generic.HashSet<string>();
         uint lastThrow = 0;
         var firstThrowAt = new System.Collections.Generic.Dictionary<string, double>();
         var hostileEverywhereAt = new System.Collections.Generic.Dictionary<string, double>();
@@ -757,7 +758,11 @@ public sealed class PostureScenarioTests : IDisposable
         {
             double now = cgf.SimulationTime;
             if (Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, inst) == Fdp.Toolkit.Civilians.CivilianMode.Riot) riot = true;
-            if (PersonHands.Rounds(cgf, inst, Stone) > 0) filled = true;
+            int inHand = PersonHands.Rounds(cgf, inst, Stone);
+            if (inHand > 0) filled = true;
+            if (inHand < peak) spent += peak - inHand;
+            peak = inHand;
+            if (cgf.HasComponent<ActionStatus>(inst)) reasons.Add(cgf.GetComponent<ActionStatus>(inst).Weapon.Reason.ToString());
             ref readonly var ch = ref cgf.GetComponentRO<WeaponChannel>(inst);
             if (ch.ActiveAction == CombatConstants.ActionIdFireAtPoint && ch.ActionInstanceId != lastThrow) { throws++; lastThrow = ch.ActionInstanceId; }
             foreach (var n in names)
@@ -770,7 +775,7 @@ public sealed class PostureScenarioTests : IDisposable
                 if (everywhere && !hostileEverywhereAt.ContainsKey(n)) hostileEverywhereAt[n] = now;
             }
         }
-        string State() => $"riot {riot}, filled {filled}, throws {throws}, hands {PersonHands.Rounds(cgf, inst, Stone)}, " +
+        string State() => $"riot {riot}, filled {filled}, throws {throws}, spent {spent}, hands {PersonHands.Rounds(cgf, inst, Stone)}, reasons [{string.Join(",", reasons)}], " +
                           $"acted [{string.Join(",", firstThrowAt.Select(k => $"{k.Key}@{k.Value:F1}"))}], " +
                           $"hostile-everywhere [{string.Join(",", hostileEverywhereAt.Select(k => $"{k.Key}@{k.Value:F1}"))}]";
 
@@ -779,6 +784,7 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.True(riot, $"⓪ the instigator riots; {State()}");
         Assert.True(filled, $"① he fills his hands at the stone source; {State()}");
         Assert.True(throws >= 1, $"② he throws; {State()}");
+        Assert.True(spent >= 1, $"② …and a stone actually leaves his hands (the executor spends it); {State()}");
         Assert.Null(hostileWithoutAct);                                           // ③ the side follows the act, never the anger
         foreach (var (n, at) in firstThrowAt)
             Assert.True(hostileEverywhereAt.TryGetValue(n, out var h) && h - at <= 2.0, $"③ {n} Hostile on every node within 2 s of his act; {State()}");
