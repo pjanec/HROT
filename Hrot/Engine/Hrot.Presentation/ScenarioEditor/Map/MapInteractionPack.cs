@@ -85,9 +85,7 @@ namespace Hrot.ScenarioEditor.Map
             if (ctx is null) throw new ArgumentNullException(nameof(ctx));
             if (ctx.World is null) throw new ArgumentException("MapInteractionContext.World is required.", nameof(ctx));
 
-            var buffer = ctx.BufferCapacity is int capacity
-                ? new DebugPrimitiveBuffer(capacity)
-                : new DebugPrimitiveBuffer();
+            var buffer = new DebugPrimitiveBuffer(ctx.BufferCapacity ?? MapInteractionContext.DefaultBufferCapacity);
 
             // Every host either creates a bus and registers the interaction events over it, or already has
             // one. Doing it here means a host cannot forget the RegisterAll half.

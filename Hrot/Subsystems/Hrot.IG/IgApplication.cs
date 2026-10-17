@@ -824,8 +824,6 @@ public class IgApplication : IDisposable
                               new System.Numerics.Vector2(worldPos.X, worldPos.Y),
                               MapMouseButton.Left, false, false, entity)
                         : null,
-                    // IG draws the richest frame of the five.
-                    BufferCapacity = 4096,
                     // GZH-003: IG is interactive and always has a window at startup. It is not driven by
                     // PerspectiveCoordinatorSystem when run standalone, so starting disabled would shut
                     // its gate permanently (§3.2d ①).
