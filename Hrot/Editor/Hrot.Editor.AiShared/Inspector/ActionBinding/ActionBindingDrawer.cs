@@ -62,6 +62,19 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
     public static void PickVariable(ref BehaviorActionBindingFacet b, string? name)
         => b.ExpressionTargetField = string.IsNullOrEmpty(name) ? null : name;
 
+    /// <summary>
+    /// ⭐ <c>CE-1011</c> (AI_Editor_Shared_Infrastructure §7.1c G-3) — the method field's RIGHT-CLICK menu: <i>Go to Definition</i>, opening
+    /// the bound C# method's source at its line; greyed, with the reason, when there is nothing to open (drawn inside the popup
+    /// <see cref="PickerField.Draw"/> opens).
+    /// </summary>
+    private void DefinitionMenu(string fqn)
+    {
+        var at = _sources.SourceOf(fqn);
+        if (ImGuiNET.ImGui.MenuItem("Go to Definition", "", false, at.HasValue)) _sources.GoToDefinition(fqn);
+        ImGuiNET.ImGui.TextDisabled(at is { } loc ? $"{System.IO.Path.GetFileName(loc.File)}:{loc.Line}"
+                                                  : "(no source: not an exported method, or no PDB)");
+    }
+
     /// <inheritdoc/>
     public bool DrawInput(ref object value, EditNode node)
     {
@@ -76,7 +89,9 @@ public sealed class ActionBindingDrawer : IImGuiFieldDrawer
         ImGuiNET.ImGui.SetNextItemWidth(width);
         var methods = _sources.GetMethods(slot.Kind);
         string? picked;
-        if (_field.Draw("method##abm", node, b.MethodFqn, PickerChoices.Methods(methods, _sources.MethodLabel), "Method", out picked))
+        string? bound = b.MethodFqn;
+        if (_field.Draw("method##abm", node, bound, PickerChoices.Methods(methods, _sources.MethodLabel), "Method", out picked,
+                        string.IsNullOrEmpty(bound) ? null : () => DefinitionMenu(bound)))
         {
             PickMethod(ref b, picked);
             changed = true;

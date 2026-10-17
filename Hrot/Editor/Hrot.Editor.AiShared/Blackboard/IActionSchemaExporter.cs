@@ -105,9 +105,12 @@ public record ActionSchemaEntry(
     bool IsCondition = false,
     IReadOnlyList<DtoFieldDescriptor>? DtoFields = null,
     bool IsAiPrimitive = false,
-    Type? WorkingStateType = null
+    Type? WorkingStateType = null,
+    System.Reflection.MethodInfo? Method = null
 )
 {
+    // ⭐ CE-1011 (AI_Editor_Shared_Infrastructure §7.1c G-2) — Method: the reflected method the exporter scanned, kept so "Go to Definition"
+    //   finds its source (ClrSourceLocator) without a second FQN resolver; null for an entry built by hand (tests).
     // ⭐ CE-2099 — WorkingStateType: the method's SECOND `ref` parameter, the stateful form `(ref P, ref WS, Entity,
     //   EntityRepository)` (an action or, since CE-2069, a condition); null for every other form. The inspector binds it.
 }

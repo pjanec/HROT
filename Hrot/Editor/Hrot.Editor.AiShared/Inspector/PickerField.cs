@@ -60,13 +60,20 @@ public sealed class PickerField
 
     /// <summary>
     /// Draws the field: a button with the current choice's label that opens the picker (or, with no picker, a combo). True when a choice
-    /// landed this frame; <paramref name="picked"/> is its value, empty for "(none)".
+    /// landed this frame; <paramref name="picked"/> is its value, empty for "(none)". ⭐ <c>CE-1011</c> — <paramref name="context"/>, when
+    /// given, is drawn as the field's RIGHT-CLICK menu (it runs between <c>BeginPopupContextItem</c> and <c>EndPopup</c>).
     /// </summary>
-    public bool Draw(string id, EditNode? node, string? current, IReadOnlyList<PickerChoice> choices, string title, out string? picked)
+    public bool Draw(string id, EditNode? node, string? current, IReadOnlyList<PickerChoice> choices, string title, out string? picked,
+                     Action? context = null)
     {
         picked = null;
         current ??= string.Empty;
-        if (_open == null || node == null) return Combo(id, current, choices, out picked);
+        if (_open == null || node == null)
+        {
+            bool combo = Combo(id, current, choices, out picked);
+            ContextMenu(id, context);
+            return combo;
+        }
         if (TryConsume(node, id, out var value))
         {
             picked = value;
@@ -76,8 +83,16 @@ public sealed class PickerField
         if (ImGuiNET.ImGui.Button($"{shown}  ▾##{id}", new System.Numerics.Vector2(ImGuiNET.ImGui.CalcItemWidth(), 0f)))
             Open(id, node, current, choices, title);
         if (ImGuiNET.ImGui.IsItemHovered()) ImGuiNET.ImGui.SetTooltip(current.Length == 0 ? "click to choose (type to search)" : current);
+        ContextMenu(id, context);
         if (VisibleLabel(id) is { Length: > 0 } text) { ImGuiNET.ImGui.SameLine(); ImGuiNET.ImGui.TextUnformatted(text); }   // as the combo labelled it
         return false;
+    }
+
+    private static void ContextMenu(string id, Action? context)
+    {
+        if (context == null || !ImGuiNET.ImGui.BeginPopupContextItem($"##ctx-{id}")) return;
+        context();
+        ImGuiNET.ImGui.EndPopup();
     }
 
     /// <summary>Opens the picker for field <paramref name="id"/> of <paramref name="node"/> (the button's click; public for the rails).</summary>

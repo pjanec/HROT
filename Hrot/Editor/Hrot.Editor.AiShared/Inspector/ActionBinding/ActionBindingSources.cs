@@ -12,8 +12,8 @@ namespace Hrot.Editor.AiShared.Inspector.ActionBinding;
 /// 📄 <c>docs/blueprints/DESIGN_Behavior_Action_Binding.md</c> §5.4.
 ///
 /// <para>The hosts differ in ONE place only — which methods a slot offers — so that is the one thing a host supplies
-/// (<c>methods</c>): BTree offers its behavior registry, HSM offers the exporter's activities/guards unioned with the
-/// names the asset already binds (<c>CE-386</c>). Everything else — the blueprint list, which variables fit a binding,
+/// (<c>methods</c>): both offer the exporter's methods hosted for the slot unioned with the names the asset already binds
+/// (<c>CE-386</c>; ⭐ <c>CE-1167</c> the BTree too — it listed behaviour NAMES — through the one <see cref="ActionBindingMethods"/>). Everything else — the blueprint list, which variables fit a binding,
 /// promote — is the same rule on both hosts and lives here once. ⛔ It replaces <c>BehaviorHashPickerDrawer</c>,
 /// <c>HsmActionPickerDrawer</c>, <c>HsmGuardPickerDrawer</c>, <c>BlackboardFieldPickerDrawer</c> and
 /// <c>HsmBlackboardFieldPickerDrawer</c>, whose variable rules were two copies of one rule.</para>
@@ -57,6 +57,22 @@ public sealed class ActionBindingSources
                .Distinct(StringComparer.Ordinal)
                .OrderBy(n => n, StringComparer.Ordinal)
                .ToList();
+
+    /// <summary>
+    /// ⭐ <c>CE-1011</c> (AI_Editor_Shared_Infrastructure §7.1c G-2, G-3) — where <paramref name="fqn"/> is written: the exporter's
+    /// reflected method (<see cref="ActionSchemaEntry.Method"/>) through its portable PDB. Null with no exporter, an unknown method, or no
+    /// PDB (a dynamic or hot-reloaded assembly).
+    /// </summary>
+    public Source.ClrSourceLocator.SourceLocation? SourceOf(string? fqn)
+        => string.IsNullOrEmpty(fqn) || _exporter?.Lookup(fqn)?.Method is not { } method ? null : Source.ClrSourceLocator.Resolve(method);
+
+    /// <summary>⭐ <c>CE-1011</c> — opens <paramref name="fqn"/>'s source at its line (Visual Studio first, <see cref="Source.SourceFileOpener"/>);
+    /// false when there is none to open.</summary>
+    public bool GoToDefinition(string? fqn) => SourceOf(fqn) is { } at && OpenSource(at.File, at.Line);
+
+    /// <summary>⭐ <c>CE-1011</c> — the opener <see cref="GoToDefinition"/> calls: <see cref="Source.SourceFileOpener.Open"/> (a rail swaps it,
+    /// so a test opens no editor).</summary>
+    public Func<string, int, bool> OpenSource { get; set; } = Source.SourceFileOpener.Open;
 
     /// <summary>⭐ <c>CE-462</c> — the SHOWN text of a method (name + technology); the stored value stays the FQN.</summary>
     public string MethodLabel(string fqn) => AiPrimitiveNaming.PickerLabel(fqn, _exporter);

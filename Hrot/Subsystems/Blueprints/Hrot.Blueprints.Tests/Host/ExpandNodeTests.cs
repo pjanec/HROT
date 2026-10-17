@@ -64,7 +64,7 @@ public sealed class ExpandNodeTests
     };
 
     /// <summary>Host: Entry → call(macro) → Return. Macro body: Entry′ → Body → Return′.</summary>
-    private static Sut MakeSut()
+    private static Sut MakeSut(List<(string File, int Line)>? opened = null)
     {
         // ── the macro ──
         var mEntry = new EventEntryNode { Id = Guid.NewGuid() };
@@ -123,7 +123,8 @@ public sealed class ExpandNodeTests
         var switched   = new List<Guid>();
         var commands   = new EditorCommandsImpl();
         BlueprintDocumentFactory.RegisterExpandCommands(
-            commands, view, asset, () => host, goToGraph: switched.Add, indicators);
+            commands, view, asset, () => host, goToGraph: switched.Add, indicators,
+            openSource: (file, line) => { opened?.Add((file, line)); return true; });   // ⭐ CE-1009 — no editor opens in a rail
 
         return new Sut(commands, view, asset, host, sink, indicators, call, hEntry, hRet, switched);
     }
@@ -340,6 +341,50 @@ public sealed class ExpandNodeTests
         sut.Commands.Invoke(NodeEditor.Core.CommandCatalog.GoToDefinition);
 
         Assert.Equal(callee.Id, Assert.Single(sut.SwitchedTo));
+    }
+
+    /// <summary>A library method for the CE-1009 rail to go to (its source is this file, through the test assembly's PDB).</summary>
+    internal static void ALibraryMethod() { }
+
+    /// <summary>
+    /// ⭐ CE-1009 (AI_Editor_Shared_Infrastructure §7.1c G-4) — Go to Definition on a LIBRARY call opens its C# source at the method's line
+    /// (the "⋯" button's opener, now on the command, F12 and the menu); no graph switch, no notification.
+    /// </summary>
+    [Fact]
+    public void CE1009_GoToDefinition_OnALibraryCall_OpensTheCSharpSource()
+    {
+        var opened = new List<(string File, int Line)>();
+        var sut = MakeSut(opened);
+        var fc = new FunctionCallNode
+        {
+            Id = Guid.NewGuid(), TargetTypeId = typeof(ExpandNodeTests).FullName!, MethodName = nameof(ALibraryMethod),
+        };
+        sut.Host.Nodes.Add(fc);
+        Select(sut, fc);
+
+        sut.Commands.Invoke(NodeEditor.Core.CommandCatalog.GoToDefinition);
+
+        var (file, line) = Assert.Single(opened);
+        Assert.EndsWith("ExpandNodeTests.cs", file);
+        Assert.Contains(nameof(ALibraryMethod), System.IO.File.ReadAllLines(file)[line - 1]);
+        Assert.Empty(sut.SwitchedTo);
+        Assert.Empty(sut.Indicators.Notifications);
+    }
+
+    /// <summary>⭐ CE-1009 — a library call whose method does not resolve opens nothing and SAYS why (not "no graph").</summary>
+    [Fact]
+    public void CE1009_GoToDefinition_OnAnUnresolvedLibraryCall_SaysTheSourceIsMissing()
+    {
+        var opened = new List<(string File, int Line)>();
+        var sut = MakeSut(opened);
+        var fc = new FunctionCallNode { Id = Guid.NewGuid(), TargetTypeId = "No.Such.Type", MethodName = "Nothing" };
+        sut.Host.Nodes.Add(fc);
+        Select(sut, fc);
+
+        sut.Commands.Invoke(NodeEditor.Core.CommandCatalog.GoToDefinition);
+
+        Assert.Empty(opened);
+        Assert.Contains("C# source cannot be found", Assert.Single(sut.Indicators.Notifications).Body);
     }
 
     /// <summary>

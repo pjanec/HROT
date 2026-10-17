@@ -30,17 +30,9 @@ public static class HsmBindingMethods
     public static IEnumerable<string> For(HsmAsset asset, IActionSchemaExporter? schema, BindingSlotKind kind)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
+        // ⭐ CE-1167 — the rule is shared with the BTree host (ActionBindingMethods); the HSM supplies its hosting bit and its bindings
         var hosting = kind == BindingSlotKind.Guard ? ActionHosting.HsmGuard : ActionHosting.HsmActivity;
-        var names   = new HashSet<string>(StringComparer.Ordinal);
-
-        if (schema != null)
-            foreach (var kv in schema.All)
-                if (kv.Value.Hosting.HasFlag(hosting))
-                    names.Add(kv.Key);
-
-        foreach (var b in BindingsOf(asset, kind))
-            if (!string.IsNullOrEmpty(b?.MethodFqn)) names.Add(b!.MethodFqn!);
-        return names;
+        return ActionBindingMethods.For(schema, hosting, condition: null, BindingsOf(asset, kind));
     }
 
     private static IEnumerable<Hrot.Editor.AiShared.BehaviorActionBinding?> BindingsOf(HsmAsset asset, BindingSlotKind kind)
