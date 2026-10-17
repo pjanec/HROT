@@ -2841,11 +2841,14 @@ def run_civ_shelter(c, timeout):
         return len(gone_at) == len(civs)
 
     a0 = (ammo(rifle) or (None,))[0]
-    shot = wait_for(lambda: (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0, timeout)
+    shot = wait_for(lambda: (watch(), (a := (ammo(rifle) or (None,))[0]) is not None and a0 is not None and a < a0)[1], timeout, every=0.25)
     if not c.ok(shot is not None, "① the rifleman opens fire, 28 m from the civilians"):
         return
     done = wait_for(watch, timeout * 3, every=0.25)
-    c.ok(all("Panic" in seen[n] for n in civs), f"① each civilian panics ({ {n: sorted(x for x in seen[n] if x) for n in civs} })")
+    # ⭐ Panic can last a few frames (the shelter query answers fast) — a 0.25 s poll misses it; Shelter, Inside and Cower are reached
+    #   ONLY through Panic in the machine (§5e), so any of them proves it. The in-process twin samples every frame.
+    panicked = ("Panic", "Shelter", "Inside", "Cower")
+    c.ok(all(seen[n] & set(panicked) for n in civs), f"① each civilian panics ({ {n: sorted(x for x in seen[n] if x) for n in civs} })")
     c.ok(all(n in inside_at for n in civs), f"② each reaches Inside ({sorted(inside_at)})")
     c.ok(all(_in_a(inside_at[n][1]) for n in inside_at),
          f"② …standing inside House A's footprint ({ {n: inside_at[n][1] for n in inside_at} })")
