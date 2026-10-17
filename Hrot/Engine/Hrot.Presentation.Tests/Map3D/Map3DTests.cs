@@ -1502,6 +1502,48 @@ public sealed class Map3DTests
         }
     }
 
+    /// <summary>⭐ CE-1166 (§8.7 U6-b) — the drawing's names ARE backend's (B-6 <c>GestureKind</c>), name for name and byte for byte, so
+    /// the cast in <c>Gestured</c> cannot drift: a gesture added on one side fails here.</summary>
+    [Fact]
+    public void CE1166_TheDrawingsGestures_AreBackendsGestures_ByteForByte()
+    {
+        Assert.Equal(Enum.GetNames<Fdp.Toolkit.Combat.GestureKind>(), Enum.GetNames<BlockFigure.ArmGesture>());
+        foreach (var kind in Enum.GetValues<Fdp.Toolkit.Combat.GestureKind>())
+            Assert.Equal(kind.ToString(), ((BlockFigure.ArmGesture)(byte)kind).ToString());
+    }
+
+    /// <summary>⭐ CE-1166 (§8.7 U6-a, U6-e) — the replicated gesture reaches the figure: a free man's arms show it; cowering, carrying or
+    /// None leave the arms to their owner; the 2-D line says HANDS UP or PROTEST, after any effect.</summary>
+    [Fact]
+    public void CE1166_TheReplicatedGesture_DrivesTheArms_AndThe2DLine()
+    {
+        var (world, db) = HeldWorld();
+        using (world)
+        {
+            world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+            var man = Man(world, new Vector3(0f, 0f, 0f));
+            var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Null(Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HandsUp));
+            var shown = EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain);
+            Assert.Equal(BlockFigure.GestureArms(plain, BlockFigure.ArmGesture.HandsUp, false, false), shown);
+            Assert.Equal("HANDS UP", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, new FigureCarriage(CarriageKind.Carrying), plain));
+
+            Assert.True(Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.HoldSign));
+            Assert.Equal(plain.Length + BlockFigure.PlacardParts, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain).Length);
+            Assert.Equal("PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+
+            Assert.True(Fdp.Toolkit.Combat.Effects.SetCowering(world, man, true));   // cowering owns the arms
+            Assert.Same(plain, EntityBodyLayer3D.Gestured(world, man, false, FigureCarriage.Free, plain));
+            Assert.Equal("COWERING · PROTEST", Hrot.Common.Diagnostics.Gizmos.EffectStateGizmo.Text(world, man));
+        }
+    }
+
     /// <summary>⭐ CE-1166 (§8.7 U6-c) — the shapes read as what they are: hands up puts BOTH hands above the head, a raised fist ONE, and
     /// the wind-up puts the throwing hand behind the shoulder line.</summary>
     [Fact]

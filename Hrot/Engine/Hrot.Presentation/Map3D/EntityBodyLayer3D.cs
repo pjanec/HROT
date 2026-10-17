@@ -170,6 +170,8 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
                     parts = BlockFigure.Shouldered(parts);
                     _shouldering.Add(e);
                 }
+                // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
+                parts = Gestured(world, e, look.Soldier, carriage, parts);
                 // ⭐ CE-1084 (§6m C-4) — just off a raised seat: drawn falling from it, landing crouched
                 var (lift, jumping) = _drops.Free(e, tf.Position.Z + BlockFigure.HipFraction(StanceId.Standing) * size.Z, simTime);
                 if (jumping)
@@ -392,6 +394,21 @@ public sealed class EntityBodyLayer3D : IMapLayer, IDisposable
         twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
         pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
         return true;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1166 (civilian U-6, docs/DESIGN_Civilians_And_Crowd_Control.md §8.7 U6-a) — a free man's arms showing his replicated
+    /// <c>Gesture</c> (backend B-6, <c>Gestures.Of</c>) over his standing or crouched figure (<see cref="BlockFigure.GestureArms"/>). The
+    /// arms already have an owner — and nothing changes — when he is dead, cowering, prone, or carrying / dragging / on a team load.
+    /// </summary>
+    public static KitPart[] Gestured(EntityRepository world, Entity e, bool soldier, in FigureCarriage carriage, KitPart[] parts)
+    {
+        var gesture = (BlockFigure.ArmGesture)(byte)Fdp.Toolkit.Combat.Gestures.Of(world, e);   // U6-b: the same six, byte for byte
+        if (gesture == BlockFigure.ArmGesture.None || carriage.Kind != CarriageKind.Free) return parts;
+        if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return parts;
+        var stance = LogicalStance.Of(world, e);
+        if (stance is not (StanceId.Standing or StanceId.Crouched)) return parts;
+        return BlockFigure.GestureArms(parts, gesture, crouched: stance == StanceId.Crouched, soldier);
     }
 
     /// <summary>
