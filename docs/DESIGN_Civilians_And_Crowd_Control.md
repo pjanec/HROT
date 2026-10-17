@@ -2332,14 +2332,17 @@ frame edge.**
 | **PI-1** | **the pistol on InfantrySoldier (2002) and Grenadier (2004)** — the soldier rails' types, as the frame names them | every person type: AW-24 bounds it to "the types that should carry it" · the Insurgent: his second weapon is a rifle · the AT and mortar crews: not in the frame, and a third mount for nothing measured · BDC 504: its weapons are BDC data rows · the Pilot: does not exist (it takes `Pistol()` when it is added) |
 | **PI-2** | **appended AFTER the existing mounts** — rifle stays 0, the grenade stays 1; the hands move to 2 / 3 (≤ 3, `WeaponAmmo` carries them) | the pistol at 1: every authored grenade index (`Mount = 1`) would fire the pistol |
 | **PI-3** | **a 9 mm ball round, 6042** (DIS 8.USA.2 — calibre fields 0, not invented, R-3011), cost 1; the mount: 15-round magazine × 3 = 45, 2 s reload, 360 m/s, **range 50 m**, 18 per hit, **penetration 2 mm** (a 5 mm vest stops it), dispersion 12 mils, `Look = Pistol` | reusing the 5.56 round: the cost table, the shot log and `/combat/shots` would name a rifle round |
-| **PI-4** | **no brain change** — `WeaponChoice` ranks it: while the rifle has ammo it wins (lower damage × lower hit chance × fewer rounds); the rifle empty ⇒ the pistol inside 50 m; out of the pistol's range ⇒ nothing better than the empty primary (held) | a "sidearm" rule in the executor: a second chooser (AW-4: the weapon brain switches by itself) |
+| **PI-4** | **no brain change** — `WeaponChoice` ranks it: while the rifle has ammo it wins (lower damage × lower hit chance × fewer rounds); the rifle empty ⇒ the pistol. ⚠ **Measured on the rail: beyond 50 m too** — the in-range term never reaches 0 (≈ 4·10⁻¹¹ at 150 m) and `Choose` falls back only on a score of exactly 0 (limit ③ below) | a "sidearm" rule in the executor: a second chooser (AW-4: the weapon brain switches by itself) |
 | **PI-5** | **accepted by re-running the soldier rails UNCHANGED** — U1 `ua-posture`, U2 `ua-threat-ranking`, `ua-universal-soldier`, `bt-window-duel` (a deviation is a finding, never a re-baseline) | — |
 
 ⚠ **Known limits, stated before the build:** ① against a VESTED soldier seen from the front the pistol's expected damage is 0 (2 < 5 mm), so
 an empty rifleman facing one holds — the chooser falls back to the empty primary (realistic; an unvested target, a civilian or an insurgent,
 gets the pistol); ② the 3-D figure keeps drawing a rifle while he fires the pistol (`ActiveMount` = 1 is on the wire — the drawing is ui's);
-③ a rifle with only a few rounds left (≈ 8 at 20 m, by the numbers above) may lose to a full pistol at close range — a deliberate property
-of `RoundsLeft`, not a new rule.
+③ **an EMPTY rifleman fires his pistol at whatever he engages, at any range** *(measured — the design first said "held beyond 50 m";
+the rail disproved it)*: aimed fire has no range gate for ANY weapon (a rifle beyond 300 m fires today) and the chooser takes any score
+above 0. ⛔ Not fixed here: a cut-off in the shared chooser changes vehicles' choices too. A behaviour that should not waste the magazine
+gates on range itself; ④ a rifle with only a few rounds left (≈ 8 at 20 m, by the numbers above) may lose to a full pistol at close range —
+a deliberate property of `RoundsLeft`, not a new rule.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 
