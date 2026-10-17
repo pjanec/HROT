@@ -374,6 +374,10 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.Equal(armedFull, armedLow);
 
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        // ⑤ settle first: the burst at the falling Hostile runs on for a few rounds after he drops (measured live) — then nothing
+        int lastAmmo = Ammo(), still = 0;
+        Assert.True(harness.PumpUntil(() => { Sample(); int a = Ammo(); still = a == lastAmmo ? still + 1 : 0; lastAmmo = a; return still >= 180; },
+            timeoutFrames: 3000), $"⑤ his fire must stop once the Hostile is down; {State()}");
         int a0 = Ammo();
         harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 480);   // ~8 s at 60 Hz
         Assert.Equal(a0, Ammo());                                                   // ⑤ nothing left to shoot
