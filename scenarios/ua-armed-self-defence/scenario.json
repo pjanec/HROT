@@ -317,7 +317,7 @@
       },
       "EntityInfo": {
         "Name": "Gunman",
-        "ForceId": "Hostile"
+        "ForceId": "Neutral"
       },
       "TargetMemory": {
         "Entries": []

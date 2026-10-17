@@ -3515,7 +3515,7 @@ def run_civ_escalation_warn(c, timeout):
 
 
 def run_armed_self_defence(c, timeout):
-    """test-town: ua-civ-escalation's line on its DEFAULT NonLethal ceiling, the same riot, and a Hostile gunman who draws and AIMS his
+    """test-town: ua-civ-escalation's line on its DEFAULT NonLethal ceiling, the same riot, and a gunman (NEUTRAL until his act) who draws and AIMS his
     rifle at the police rifleman. ① lethal fire (the police rifle) goes at THAT man only, and does · ② he is hit · ③ every other rioter
     gets non-lethal force only: one is stunned, irritated or down, none dies. The twin (PostureScenarioTests.CE2239_SelfDefence_…)
     checks every frame."""
