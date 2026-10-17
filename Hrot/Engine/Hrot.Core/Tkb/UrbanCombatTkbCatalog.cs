@@ -105,6 +105,9 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ AQ85 C (R-216) — the rifle's aim dispersion: σ = 6 mils ⇒ a 0.3 m target is hit ~50 % at 100 m standing
         /// still, ~always inside 37 m, ~42 % at 120 m; half that while moving or under fire.</summary>
         public const float RifleDispersionMils = 6f;
+        // ⭐ CE-3231 (B-9, §7.12 PI-3) — the pistol: 15-round magazines, a 2 s change, 360 m/s, 50 m, twice the rifle's dispersion.
+        private const int   PistolMagazine = 15;
+        private const float PistolReloadSeconds = 2f, PistolMuzzleVelocity = 360f, PistolRange = 50f, PistolDispersionMils = 12f;
         private const float RpgRange   = 300f, RpgPenetration   = 300f, RpgDamage   = 400f;
 
         // ⭐ CE-1032 (W-8) — the warhead mounts. Their numbers are the munition's (MunitionTkbCatalog → the reference library by name);
@@ -200,7 +203,8 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
                 t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
                 t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
-                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils } } });
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
+                    Pistol() } });   // ⭐ CE-3231 (B-9) — his sidearm, mount 1 (the hands go to 2)
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
                 t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
@@ -221,6 +225,7 @@ namespace Hrot.Core.Tkb
                 {
                     new WeaponMountDto { InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity, Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer, TracerEvery = 5,   /* ⭐ LR-1 (R-271) */ DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils },
                     new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade },   // ⭐ WL-4 (W-5) — the category the weapon brain reads
+                    Pistol(),   // ⭐ CE-3231 (B-9) — his sidearm, mount 2 AFTER the grenades (PI-2: the grenade stays mount 1; the hands go to 3)
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
@@ -289,6 +294,17 @@ namespace Hrot.Core.Tkb
             InitialAmmunition = RifleAmmo, MagazineSize = RifleMagazine, ReloadSeconds = RifleReloadSeconds, MuzzleVelocity = RifleMuzzleVelocity,
             Range = RifleRange, Penetration = RiflePenetration, AmmoGuid = MunitionTkbCatalog.Tkb556Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb556Tracer,
             TracerEvery = 5, DamagePerHit = RifleDamage, DispersionMils = RifleDispersionMils, Category = WeaponCategory.SmallArms,
+        };
+
+        /// <summary>⭐ <c>CE-3231</c> (civilians B-9, AW-4; docs/DESIGN_Civilians_And_Crowd_Control.md §7.12) — the soldier's PISTOL, a built-in
+        /// mount AFTER his others (PI-2: every authored mount index stays): 3 magazines of 15, 50 m, a 9 mm round a vest stops. The weapon brain
+        /// ranks it (PI-4): the rifle wins while it has ammo; the rifle empty, the pistol fires inside its range. Looks like a pistol (B-7).</summary>
+        private static WeaponMountDto Pistol() => new()
+        {
+            InitialAmmunition = PistolMagazine * 3, MagazineSize = PistolMagazine, ReloadSeconds = PistolReloadSeconds,
+            MuzzleVelocity = PistolMuzzleVelocity, Range = PistolRange, Penetration = MunitionTkbCatalog.Pistol9mmPenetrationMm,
+            DamagePerHit = MunitionTkbCatalog.Pistol9mmDamage, DispersionMils = PistolDispersionMils, AmmoGuid = MunitionTkbCatalog.TkbPistol9mm,
+            Category = WeaponCategory.SmallArms, Appearance = new ItemAppearanceDto { Look = ItemLook.Pistol },
         };
 
         /// <summary>⭐ M5 — an anti-tank soldier: the InfantrySoldier's body, sensors and sounds, <paramref name="launcher"/> on mount 0 (its

@@ -110,6 +110,8 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // Skip if the shooter does not yet have a WeaponState (e.g. incomplete spawn).
                 if (!repo.HasComponent<WeaponState>(shooter)) continue;
+                // ⭐ CE-3232 (B-10, §7.11 LD-3) — a LAID-DOWN mount makes no round, whoever asked (the AI, an operator, any path)
+                if (WeaponLaying.IsLaidDown(repo, shooter, evt.WeaponIndex)) continue;
 
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);

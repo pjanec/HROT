@@ -35,6 +35,7 @@ namespace Hrot.SimHost
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();   // ⭐ M8 — a mount's rounds by type (Brain)
             world.RegisterComponent<Fdp.Toolkit.Combat.HeldFuze>();   // ⭐ CE-3235 — a live round in a man's hands (Brain)
+            world.RegisterComponent<Fdp.Toolkit.Combat.LaidDownWeapons>();   // ⭐ CE-3232 — the mounts he laid down (Brain)
             world.RegisterComponent<EntityInfo>();
             // ⭐⭐ MOVED HERE 2026-09-12 from CognitiveComponentRegistry (CE-259bf slice 2, §3.9a).
             //   BehaviorTkbTranslator stamps ActorCapabilityState in the SAME block as EntityInfo

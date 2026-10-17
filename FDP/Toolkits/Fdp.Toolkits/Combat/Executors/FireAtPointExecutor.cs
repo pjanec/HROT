@@ -87,6 +87,13 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             else mountEntity = MountEntity(world, entity, p.Mount);
             if (!world.HasComponent<WeaponState>(mountEntity)) { channel.Status = NodeStatus.Failure; return; }
+            // ⭐ CE-3232 (B-10, §7.11 LD-3) — a LAID-DOWN built-in mount throws / fires nothing: held, "not deployed"
+            if (shooter == entity && WeaponLaying.IsLaidDown(world, entity, fireIndex))
+            {
+                channel.Status = NodeStatus.Running;
+                Say(world, entity, p.Point, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.NotDeployed);
+                return;
+            }
             // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER is not a weapon: it is released (Countermeasures.Release), never
             //   fired at a point
             if (Countermeasures.IsDispenser(world, shooter, fireIndex))

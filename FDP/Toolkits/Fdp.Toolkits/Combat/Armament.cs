@@ -198,6 +198,7 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool ArmedByStatus(ISimulationView view, Entity man)
             => view.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(view, man) && !PersonHands.HandsOnly(view, man)   // ⭐ CE-3230 (H-3)
+               && !WeaponLaying.AllLaidDown(view, man)   // ⭐ CE-3232 (B-10, LD-4) — every weapon laid down: no status weapon
                || view is EntityRepository r && !WeaponSystems.WeaponOf(r, man).IsNull;
 
         /// <summary>
@@ -213,7 +214,7 @@ namespace Fdp.Toolkit.Combat
             {
                 for (int i = 0; i < suite.Mounts.Count; i++)
                     if (PersonHands.IsHands(suite.Mounts[i]) ? PersonHands.HoldsLethal(world, man)   // ⭐ CE-3230 (H-3) — by what it holds
-                                                             : ItemAppearances.FiresLethal(world, suite.Mounts[i])) return true;
+                                                             : !WeaponLaying.IsLaidDown(world, man, i) && ItemAppearances.FiresLethal(world, suite.Mounts[i])) return true;   // ⭐ CE-3232
             }
             else if (world.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(world, man)) return true;   // no TKB: a weapon
             Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
@@ -258,8 +259,11 @@ namespace Fdp.Toolkit.Combat
                 && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
             {
                 for (int i = 0; i < suite.Mounts.Count && best < ArmedJudgement.IdentifiedLethal; i++)
+                {
+                    if (!PersonHands.IsHands(suite.Mounts[i]) && WeaponLaying.IsLaidDown(world, man, i)) continue;   // ⭐ CE-3232 — on the ground, not on him
                     best = Max(best, PersonHands.IsHands(suite.Mounts[i]) ? OfHands(world, man, distance, seeing)
                                                                           : OfItem(ItemAppearances.Of(world, suite.Mounts[i]), distance, seeing));
+                }
             }
             Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
             int n = WeaponSystems.Controlled(world, man, controlled);

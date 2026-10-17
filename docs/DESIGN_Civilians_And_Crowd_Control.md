@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.12 B-9 pistol BUILT, CE-3231) · 2026-10-17 (backend: §7.11 B-10 LaidDown BUILT, CE-3232) · 2026-10-17 (backend: §7.10 B-13 pick-up BUILT, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -407,7 +407,7 @@ shot" could mean "not seen").
 | CIV-5 | **`ua-civ-escalation`** | test-town · the police line; one rioter armed with a rifle who fires | ① lethal fire goes ONLY at the armed rioter · ② the unarmed hostile rioters still receive non-lethal only · ③ with `ForceLevel = Warn`, no round at all — the warning cue only | ⏳ |
 | **CIV-3** `CE-2240` | **`ua-civ-protest`** | test-town · 12 civilians told to protest at (224, 265), the street in front of the building at 230–290 × 230–300; NO security forces | ① every one reaches `Protest`, standing as one crowd (≥ 10) · ② on every node (CGF, SimHost, IG) members show `FistRaised` and `HoldSign` gestures (≥ 3 of each over the run) · ③ nobody turns Hostile and nobody enters `Riot` in 120 s — sampled all run | ⏳ · twin `PostureScenarioTests.CE2240_CivProtest_…` |
 | **CIV-5** `CE-2241` | **`ua-civ-provocation`** | test-town · the same protest; a police line (SecurityForce, NonLethal) that advances to 15 m, then uses batons on the front rank; a FIXED seed | ① before the police come, no riot · ② after the batons, ≥ 1 and < all members enter `Riot` (a fraction, not the whole crowd) · ③ the rioters are Hostile on every node, the rest stay Neutral · ④ the same members riot on every run (the seed) | ⏳ |
-| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · a rifleman (Friend); a Hostile armed rioter who drops his weapon and raises his hands mid-fight | ① he is engaged while armed and fighting · ② from the frame his `Gesture` is HandsUp, no round is fired at him for 10 s, his side stays Hostile · ③ hands down + armed again ⇒ he is engaged again | ⏳ |
+| **CIV-5** `CE-2241` | **`ua-civ-surrender`** | test-town · ⭐ *unarmed half, as built:* an instigator strikes a policeman (Hostile, §5i); a rifleman 40 m off, ordered to attack him | ① he is Hostile · ② covered, his hands go up on CGF, SimHost and IG · ③ the rifleman holds ('hold: hands up') · ④ from the first raised-hands sample, 10 s: no round, no hurt · ⑤ still Hostile | ✅ unarmed half live 8/8 `2026-10-17` · twin green (§5h.4) · ⏳ the ARMED half (drop the weapon, re-arm, engaged again) waits on B-10 |
 | **ARMED** §5h AW-21 · needs B-7 | **`ua-armed-status`** | test-town · a rifleman (Friend) vs an enemy rifleman AT EASE, 300 m, at night | ⓪ he is remembered · ① he is engaged · ② his danger and the ranking are identical to today's `ua-threat-ranking` — ⭐ the GUARD RAIL: green from the first armed-people commit on (the military fight is untouched) | ⏳ |
 | ARMED AW-15 · B-7 | **`ua-armed-identify`** | test-town · 3 civilians holding a phone, a pistol, a toy gun, each at 20 m and at 150 m; two observers, one with binoculars | ① at 20 m the pistol and the toy gun are identified lethal · ② at 150 m both are unidentified without binoculars and identified with them · ③ the phone is never lethal, at any range | ⏳ |
 | ARMED AW-16 · CE-2239 | **`ua-armed-draw-aim`** | test-town · a covert insurgent (Civilian, a pistol Hidden) near a patrol; he draws, waits 10 s, then aims | ① after the draw: a warning, side still Neutral, no round (sampled) · ② after the aim: side Hostile on every node and he is engaged | ⏳ |
@@ -1158,7 +1158,7 @@ review, each its own later item)* Friend → Hostile and disguise (insider attac
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
 the warning-shot step and time to comply; snatching a soldier's weapon.
 
-### 5h.3 CV-13a demo — a covered hostile raises his hands *(behaviors, `CE-2241` ①, 2026-10-17; build-state: READY-TO-BUILD)*
+### 5h.3 CV-13a demo — a covered hostile raises his hands *(behaviors, `CE-2241` ①, 2026-10-17; build-state: BUILT — as-built §5h.4)*
 
 ⭐ **Scope.** The §5h.2 deferral: SOMEONE who raises his hands, so `HoldSurrender` runs live. The unarmed half of `ua-civ-surrender`
 (§5c): a rioter who has struck a policeman (Hostile, §5i) and is then covered by a rifleman raises his hands; the rifleman holds. The
@@ -1199,7 +1199,7 @@ stateDiagram-v2
   Protest --> Surrender : covered and he committed an act
   Panic --> Surrender : covered and he committed an act
   Cower --> Surrender : covered and he committed an act
-  Surrender --> Protest : uncovered for 5 s
+  Surrender --> Alarmed : uncovered for 5 s
   Surrender --> Casualty : wounded
 ```
 *What the picture shows that prose hid:* Surrender is entered from the states where a hostile can still be engaged, and left only for a
@@ -1240,12 +1240,29 @@ the guard reads is written by the executor every frame it reports.
 | what "covered" is | ⭐ a FORCES person (`Friend`, `Armament.IsCombatant`, standing) within 100 m whose `WeaponPosture.Kind` is not `AtEase` and whose `Target` is him | the `ActionStatus` row: brain-local, never on the wire · a cone from the muzzle: the posture already names the target |
 | who raises his hands | ⭐ a man who has COMMITTED a hostile act (`HostileActs.Committed`) — he knows he is a target | every covered civilian: a Neutral is never fired at (CIV-0), and a crowd raising its hands at every soldier is a different behaviour |
 | fear | ⭐ not used — being covered is enough for him (deviates from §5h.2's "past `PanicAt`" lean: an aimed rifle is not a fear source yet, and making it one spreads panic through his crowd — CV-14's world) | a fear impulse while covered: changes every crowd near a soldier |
-| leaving | ⭐ 5 s with nobody covering him ⇒ back to Protest (from there his anger may riot him again, and he is engaged again) | stay for ever: a soldier who walks away leaves a statue |
+| leaving | ⭐ 5 s with nobody covering him ⇒ Alarmed, and from there the usual way back (calm ⇒ Routine ⇒ his protest ⇒ his anger may riot him again, and he is engaged again) | stay for ever: a soldier who walks away leaves a statue |
 | side | ⭐ unchanged — stays Hostile (CV-13a, AW-5) | flip back to Neutral: the act stays recorded |
 | priority | ⭐ Surrender's transitions at priority 1, Casualty raised to 2 — a wound still wins | rely on declaration order: invisible in the table |
 
 ⚠ **Known limits:** ① the armed half (B-10) · ② an operator's aim is a `WeaponPosture` too — a trainee covering a rioter makes him raise
 his hands, which is right · ③ he does not keep his hands up after the soldier leaves (5 s) — no "detained" state yet (SQD-13).
+
+### 5h.4 AS-BUILT — CV-13a demo *(behaviors, `CE-2241` ①, 2026-10-17)*
+
+⭐ **Built as §5h.3 draws it**, with two deviations, both folded into the diagrams above: ① Surrender leaves for **Alarmed**, not
+Protest — the existing Alarmed → Routine → Protest → Riot edges carry him back, so no new edge was needed; ② Casualty's priority is
+**2** and Surrender's entries **1**, as the decision table says.
+
+| | as built |
+|---|---|
+| where | `Covering.By` (`Fdp.Toolkits/Combat/Covering.cs`, reach 100 m) · `CivilianBehavior`: `Surrender` activity + `Deactivate_Surrender`, guards `Covered` / `Uncovered`, `SurrenderState { CoveredAt }`, `SurrenderHoldSeconds` 5 · `CivilianMode.Surrender` = 13 |
+| ⚠ the demo's rifleman is ORDERED | 📌 measured in the twin: under plain `CombatPosture` the rifleman never engaged the unarmed Hostile (danger 0.3): weapon reason `None`, 150 rounds for 80 s. ⇒ the scenario gives him `PersonAttack {Target: 9902}`. ⚠ This corrects §5i's "the AI may engage him": an UNORDERED soldier's posture decision does not pick an unarmed Hostile — that is the force ladder's (A6, `Roe.ForceLevel`) to decide, not this slice's |
+| hold vs cover | the rifleman's `WeaponPosture` reads `Ready` + target kept while he holds (`HoldSurrender`), so `Covering.By` keeps the hands up — measured: 760 frames of `HoldSurrender` in the twin |
+
+**Proof.** Rails `CivilianHsmTests.CE2241_ACoveredHostile_…` (raise, hold while Ready, stays Hostile, not down before 5 s, down after,
+re-raise, a wound wins) and `CE2241_OnlyAManWhoCommittedAnAct_…` (no act ⇒ no hands; a Hostile gunman covers nobody; beyond 100 m
+nobody). Demo `ua-civ-surrender` (§5c): twin `PostureScenarioTests.CE2241_CivSurrender_…` green (23 s: hands up on CGF, SimHost, IG; 760
+frames held; 150 → 150 rounds; 100 → 100 HP; Hostile); live 8/8 `2026-10-17` (sim 19.5 s).
 
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
@@ -1346,7 +1363,7 @@ the brain tick and the crowd system that already run every frame on CGF.
 | who he goes for | ⭐ the nearest living, standing PERSON of the forces — `Friend`, not Neutral, not of the `Civilian` class — within `RiotReach` 30 m | anyone: a rioter beating a bystander is a different act (later) · the crowd's focus point: not every protest point is the police line |
 | the blow | ⭐ `Melee.Strike`: within `MeleeReach` 1.5 m, every `MeleeCooldown` 2 s, a `DamageAssessedEvent{5 hp, Blunt, 3 s}` on the CGF bus — applied by the Health owner (D5); a knocked-down victim is not struck again until he is up | a melee "round" through the ballistic path: a fist has no muzzle · damage on SimHost: CGF is where the brain decides and, for a scenario cast, where Health is claimed |
 | the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
-| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
+| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him (⚠ measured §5h.4: an UNORDERED soldier does not — only an attack order makes him) — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
 
 ⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
 scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
@@ -2173,7 +2190,7 @@ out of reach / still flying / not a hand item refused · a live grenade cooks of
 `EntityOrdersAcrossNodesTests.CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once` (SimHost's lying stone seen on CGF, asked twice,
 granted once, gone everywhere, one stone in his hands).
 
-### 7.11 B-10 — a weapon LAID DOWN *(AW-5, AW-21, AW-24 — R-2025, R-2027, R-2029; `CE-3232`; backend, `2026-10-17`; build-state: BUILDING)*
+### 7.11 B-10 — a weapon LAID DOWN *(AW-5, AW-21, AW-24 — R-2025, R-2027, R-2029; `CE-3232`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.11a)*
 
 INVENTORY *(grep + reads at `backend@61f235fd7`; codebase-memory CLI `search_graph` `.*(LaidDown|LayDown|Surrender|Disarm).*` → 9, none a weapon state)*:
 
@@ -2226,6 +2243,121 @@ the brain runs, from the replicated `WeaponAmmo` bit everywhere else — so the 
 
 ⚠ **Known limits, stated before the build:** a mount at index ≥ 4 is laid down on the brain's node but reads armed elsewhere (`WeaponAmmo`
 carries 4 mounts, as it does for ammo); the handover (a laid-down weapon becomes a pick-up weapon entity) is B-11's.
+
+
+#### 7.11a AS-BUILT `CE-3232` *(2026-10-17)* — built as §7.11 draws it
+
+| built | where |
+|---|---|
+| `LaidDownWeapons` (component 403, on the man, brain node) · `WeaponLaying.LayDown / LayDownAll / IsLaidDown / AllLaidDown` (LayDownAll skips the hands) | `Combat/WeaponLaying.cs` |
+| `WeaponAmmo.LaidDown` + `IsLaidDown(mount)`; mirrored by `WeaponAmmoMirrorSystem`; on the wire as `EntityWeaponAmmo.LaidDown` (appended) | `WeaponAmmo.cs`, `WeaponAmmoMirrorSystem.cs`, `SimDescriptors.cs`, `EntityWeaponAmmoTranslators.cs` |
+| gates: `FireProcessingSystem` makes no round from a laid-down mount · `AimAndFireExecutor` (both paths) and `FireAtPointExecutor` hold with `NotDeployed` · `Armament.ArmedByStatus` (all down), `LethalInHand` / conduct skip a laid-down mount · `WeaponSystems.WeaponOf` / `PrimaryMount` skip mount 0 · `UtilityScorer` candidates · `PersonBody.PoseOf` (all down ⇒ unarmed figure) | as listed |
+
+Rails: `WeaponLayingTests` (3: all down arms nobody and taken up arms again · FireAtPoint held, no intent · the bit mirrored into
+`WeaponAmmo` and read on a replica) · `FireProcessingSystemTests.CE3232_…` (no round here or as a replica; taken up it fires) ·
+`PossessionReplicationTests.CE3174_…` now carries the bit across the wire; red-proved ×4. ⚠ No new ActionReason: a laid-down weapon reads
+"hold: not deployed" (the weapon-systems reason).
+
+### 7.12 B-9 — the PISTOL, a second built-in mount on the soldier types *(AW-4, AW-24 — R-2025, R-2029; `CE-3231`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.12a)*
+
+INVENTORY *(grep + reads at `backend@1e935427a`; codebase-memory CLI `search_graph` `.*(WeaponChoice|ChooseMount|SelectWeapon|PickMount|BestMount).*` → 10:
+`WeaponChoice` the one chooser; grep `Pistol` → only `ItemLook.Pistol` + its 0.2 m size; grep `9 mm|9x19` → nothing in code or the reference library)*:
+
+| question | measured | where |
+|---|---|---|
+| who the "soldier types" are | `UrbanCombatTkbCatalog`: InfantrySoldier 2002 (rifle), Grenadier 2004 (rifle + M67), MortarTeam 2005, JavelinTeam 2006 / NlawGunner 2007 (launcher + rifle), Insurgent 2003 (RPG + rifle). ⛔ **no Pilot type exists** (the frame's "planned Pilot"). BDC `InfantrySoldier` 504 takes its mounts from BDC data rows, not code | `UrbanCombatTkbCatalog.cs:193-306`, `BdcTkbBuilder.cs:280-300` |
+| which types the soldier rails spawn | `ua-posture`, `ua-threat-ranking`, `bt-window-duel` → 2002 (and 8806, a parked car) | `scenarios/*/scenario.json` |
+| who picks the weapon | `WeaponChoice.Choose` ← `AimAndFireExecutor.EngagementMount` (only for `MountAuto`; chosen ONCE per engagement, re-chosen when the chosen mount runs dry, W-12a) ← `PostureNodes` / `CgfNodes` aimed fire | `WeaponChoice.cs`, `AimAndFireExecutor.cs:99, 756-772`, `PostureNodes.cs:470` |
+| how it ranks a mount | `WeaponSelectionDecision`: ammo (step) × in range (logistic at distance / range = 1) × effectiveness (expected damage of one round through `ArmorModel` × hit chance from `HitModel`) × `RoundsLeft` (log scale, 300 = 1) | `WeaponSelectionDecision.cs`, `StandardInputs.cs:378-470` |
+| readers that loop over a man's mounts | `ThreatDanger.ToMe` / `ReachAgainst` take the **MAX** (never a sum) · `Armament` lethal-any / `Judge` max · `WeaponLaying` · `ParameterResolver` (per-mount provenance) | `ThreatDanger.cs:110, 133`, `Armament.cs:215, 261` |
+| where the hands go | `PersonHands.EnsureOnPersons` appends them LAST; `WeaponAmmo` carries mounts 0…3 (rail `CE3230_…` asserts hands ≤ 3) | `PersonHands.cs:40-60` |
+| a vest | `bodies.json` "Soldier": torso 5 mm front and rear, head 0 front | `Tkb/Reference/Data/bodies.json` |
+
+```mermaid
+classDiagram
+  direction LR
+  class UrbanCombatTkbCatalog { <<existing>> Rifle() · + Pistol() — InfantrySoldier, Grenadier }
+  class MunitionTkbCatalog { <<existing>> + TkbPistol9mm 6042 "9x19 ball" · Costs[9 mm] = 1 }
+  class WeaponMountDto { <<existing>> Category SmallArms · Appearance Look = Pistol }
+  class PersonHands { <<existing>> EnsureOnPersons appends the hands AFTER the pistol }
+  class CombatTkbTranslator { <<existing>> mount i ≥ 1 ⇒ a mount child with WeaponState }
+  class WeaponChoice { <<existing, unchanged>> Choose(repo, owner, target) }
+  class WeaponSelectionDecision { <<existing, unchanged>> ammo × in range × effectiveness × rounds left }
+  class AimAndFireExecutor { <<existing, unchanged>> MountAuto ⇒ EngagementMount }
+  class ItemAppearances { <<existing>> Look Pistol ⇒ a 0.2 m item to identify }
+  UrbanCombatTkbCatalog --> WeaponMountDto : Pistol()
+  WeaponMountDto ..> MunitionTkbCatalog : AmmoGuid 6042
+  PersonHands ..> UrbanCombatTkbCatalog : after its mounts
+  CombatTkbTranslator ..> WeaponMountDto : the pistol child
+  AimAndFireExecutor ..> WeaponChoice
+  WeaponChoice ..> WeaponSelectionDecision
+  ItemAppearances ..> WeaponMountDto
+```
+
+*What the picture shows that prose hid:* **nothing on the brain side is new** — the pistol is DATA (a mount + a munition); the existing
+chooser ranks it, the existing translator makes its child, the existing appearance reads its look.
+
+```mermaid
+sequenceDiagram
+  participant BT as soldier behaviour (CGF)
+  participant AF as AimAndFireExecutor
+  participant WC as WeaponChoice
+  participant SC as WeaponSelectionDecision
+  participant FP as FireProcessingSystem (SimHost)
+  BT->>AF: aimed fire, Mount = Auto, target 20 m
+  AF->>WC: EngagementMount (rifle ran dry, re-choose)
+  WC->>SC: rank mounts vs target
+  SC-->>WC: rifle 0 (no ammo), pistol > 0 (in 50 m)
+  WC-->>AF: mount 1, the pistol child
+  AF->>FP: WeaponFireIntent WeaponIndex 1
+  FP-->>FP: a 9 mm round from the pistol's WeaponState
+```
+
+```mermaid
+graph TD
+  ENV[HrotEnvironment.RegisterBuiltInTkb — every node, at load] --> UC[UrbanCombatTkbCatalog: + Pistol on 2002, 2004]
+  ENV --> MU[MunitionTkbCatalog: + 6042]
+  ENV --> PH[PersonHands.EnsureOnPersons: hands last]
+  SPAWN[CombatTkbTranslator — at spawn, every node] --> CH[the pistol mount child]
+  DISP[BTree dispatcher — CGF brain node, every frame] --> AF[AimAndFireExecutor MountAuto]
+  AF --> WC[WeaponChoice]
+  FPS[SimHost combat group, every frame] --> FP[FireProcessingSystem]
+```
+
+*Caption:* the catalogue runs at load on every node; the choice runs where the brain is; the round is made on SimHost — **no new system, no new
+frame edge.**
+
+| id | decision *(lean, backend's own)* | rejected — one line each |
+|---|---|---|
+| **PI-1** | **the pistol on InfantrySoldier (2002) and Grenadier (2004)** — the soldier rails' types, as the frame names them | every person type: AW-24 bounds it to "the types that should carry it" · the Insurgent: his second weapon is a rifle · the AT and mortar crews: not in the frame, and a third mount for nothing measured · BDC 504: its weapons are BDC data rows · the Pilot: does not exist (it takes `Pistol()` when it is added) |
+| **PI-2** | **appended AFTER the existing mounts** — rifle stays 0, the grenade stays 1; the hands move to 2 / 3 (≤ 3, `WeaponAmmo` carries them) | the pistol at 1: every authored grenade index (`Mount = 1`) would fire the pistol |
+| **PI-3** | **a 9 mm ball round, 6042** (DIS 8.USA.2 — calibre fields 0, not invented, R-3011), cost 1; the mount: 15-round magazine × 3 = 45, 2 s reload, 360 m/s, **range 50 m**, 18 per hit, **penetration 2 mm** (a 5 mm vest stops it), dispersion 12 mils, `Look = Pistol` | reusing the 5.56 round: the cost table, the shot log and `/combat/shots` would name a rifle round |
+| **PI-4** | **no brain change** — `WeaponChoice` ranks it: while the rifle has ammo it wins (lower damage × lower hit chance × fewer rounds); the rifle empty ⇒ the pistol. ⚠ **Measured on the rail: beyond 50 m too** — the in-range term never reaches 0 (≈ 4·10⁻¹¹ at 150 m) and `Choose` falls back only on a score of exactly 0 (limit ③ below) | a "sidearm" rule in the executor: a second chooser (AW-4: the weapon brain switches by itself) |
+| **PI-5** | **accepted by re-running the soldier rails UNCHANGED** — U1 `ua-posture`, U2 `ua-threat-ranking`, `ua-universal-soldier`, `bt-window-duel` (a deviation is a finding, never a re-baseline) | — |
+
+⚠ **Known limits, stated before the build:** ① against a VESTED soldier seen from the front the pistol's expected damage is 0 (2 < 5 mm), so
+an empty rifleman facing one holds — the chooser falls back to the empty primary (realistic; an unvested target, a civilian or an insurgent,
+gets the pistol); ② the 3-D figure keeps drawing a rifle while he fires the pistol (`ActiveMount` = 1 is on the wire — the drawing is ui's);
+③ **an EMPTY rifleman fires his pistol at whatever he engages, at any range** *(measured — the design first said "held beyond 50 m";
+the rail disproved it)*: aimed fire has no range gate for ANY weapon (a rifle beyond 300 m fires today) and the chooser takes any score
+above 0. ⛔ Not fixed here: a cut-off in the shared chooser changes vehicles' choices too. A behaviour that should not waste the magazine
+gates on range itself; ④ a rifle with only a few rounds left (≈ 8 at 20 m, by the numbers above) may lose to a full pistol at close range —
+a deliberate property of `RoundsLeft`, not a new rule.
+
+#### 7.12a AS-BUILT `CE-3231` *(2026-10-17)* — built as §7.12 draws it, PI-4 corrected to the measured
+
+| built | where |
+|---|---|
+| `Pistol()` beside `Rifle()` — 3 × 15 rounds, 2 s change, 360 m/s, 50 m, 18 per hit, 2 mm, 12 mils, `Look = Pistol`; on InfantrySoldier (mount 1, hands 2) and Grenadier (mount 2, after the grenades; hands 3) | `UrbanCombatTkbCatalog.cs` |
+| `TkbPistol9mm` 6042 `"9x19 ball"` (DIS 8.USA.2, its own 2 mm / 18), cost 1 | `MunitionTkbCatalog.cs` |
+| ⛔ no code in the brain, the chooser, the translator or the fire path | — |
+
+Rails *(the armed-people catalogue suite)*: `NonLethalMunitionTests.CE3231_TheSoldiersCarryAPistol_AfterTheirWeapons_AndNobodyElse` ·
+`CE3231_ASoldierWhoseRifleIsEmpty_FiresHisPistol_InsideItsRange` (built-in types + `CombatTkbTranslator` + `WeaponChoice`: rifle at 20 m and
+150 m while loaded, the pistol child at 20 m once it is empty); red-proved ×2 (no pistol on the InfantrySoldier; pistol range 0). ⭐ The soldier
+rails re-ran UNCHANGED (PI-5): `CE3085_U1` posture, `CE3085_U2` threat ranking, `CE3136_P8_WindowDuel`, `CE3094_UniversalSoldier`, plus
+`CE2073` and `AW20_ArmedShield` — 6/6. ⚠ The rail measured limit ③ (an empty rifleman fires his pistol at any range); PI-4 above carries
+the correction.
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

@@ -67,7 +67,8 @@ namespace Fdp.Toolkit.Physics.BodyParts
         {
             var stance = LogicalStance.Of(world, e);
             bool armed = world.IsComponentTypeRegistered<WeaponState>() && world.HasComponent<WeaponState>(e)
-                         && !Fdp.Toolkit.Combat.PersonHands.HandsOnly(world, e);   // ⭐ CE-3230 (H-3) — a civilian's hands are no rifle
+                         && !Fdp.Toolkit.Combat.PersonHands.HandsOnly(world, e)   // ⭐ CE-3230 (H-3) — a civilian's hands are no rifle
+                         && !Fdp.Toolkit.Combat.WeaponLaying.AllLaidDown(world, e);   // ⭐ CE-3232 (B-10) — every weapon on the ground
             var posture = world.IsComponentTypeRegistered<WeaponPosture>() && world.HasComponent<WeaponPosture>(e)
                 ? world.GetComponentRO<WeaponPosture>(e).Kind : WeaponPostureKind.AtEase;
             bool down = world.IsComponentTypeRegistered<Health>() && world.HasComponent<Health>(e)

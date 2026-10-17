@@ -165,7 +165,8 @@ namespace Fdp.Toolkit.Combat
             // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a mount 0 that is only a flare / chaff dispenser is no primary: the doors-off UH-60's
             //   primary stays its station's door gun
             if (world.HasComponent<Components.WeaponState>(unit) && !Countermeasures.DispenserOnly(world, unit)
-                && !PersonHands.HandsOnly(world, unit)) return 0;   // ⭐ CE-3230 (H-3) — nor are a civilian's hands his primary
+                && !PersonHands.HandsOnly(world, unit)   // ⭐ CE-3230 (H-3) — nor are a civilian's hands his primary
+                && !WeaponLaying.IsLaidDown(world, unit, 0)) return 0;   // ⭐ CE-3232 (B-10) — nor a rifle laid on the ground
             Span<Entity> weapons = stackalloc Entity[MaxControlled];
             int n = Controlled(world, unit, weapons);
             for (int k = 0; k < n; k++)
@@ -184,7 +185,8 @@ namespace Fdp.Toolkit.Combat
         {
             if (!world.IsComponentTypeRegistered<Components.WeaponState>()) return Entity.Null;
             if (world.HasComponent<Components.WeaponState>(unit) && !Countermeasures.DispenserOnly(world, unit)   // ⛔ CE-2188
-                && !PersonHands.HandsOnly(world, unit)) return unit;   // ⭐ CE-3230 (H-3) — an empty hand is no weapon
+                && !PersonHands.HandsOnly(world, unit)   // ⭐ CE-3230 (H-3) — an empty hand is no weapon
+                && !WeaponLaying.IsLaidDown(world, unit, 0)) return unit;   // ⭐ CE-3232 (B-10) — nor is a laid-down one
             return IsControlledIndex(PrimaryMount(world, unit, out var weapon)) ? weapon : Entity.Null;
         }
 

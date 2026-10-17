@@ -116,8 +116,8 @@
                         {
                             "taskId": "c2410001-0000-4000-8000-000000000101",
                             "executingEngine": "",
-                            "behaviorName": "CombatPosture",
-                            "behaviorParams": "{\"advance\":{\"Objective\":[130,230,0],\"Speed\":2,\"ArrivalRadius\":3,\"CooldownSeconds\":1}}",
+                            "behaviorName": "PersonAttack",
+                            "behaviorParams": "{\"Target\":9902}",
                             "triggers": [
                                 {
                                     "type": "BehaviorFinished",

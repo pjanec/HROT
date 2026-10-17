@@ -128,6 +128,12 @@ namespace Hrot.Core.Tkb
         public const int TkbTearGasCanister = 6040;
         /// <summary>⭐ <c>CE-3219</c> part 3 — a SMOKE grenade (thrown, time fuze): a cloud that blocks sight and hurts nobody.</summary>
         public const int TkbSmokeGrenade = 6041;
+        /// <summary>⭐ <c>CE-3231</c> (civilians B-9, AW-4; docs/DESIGN_Civilians_And_Crowd_Control.md §7.12 PI-3) — the soldier's PISTOL
+        /// round, 9×19 ball: 18 per hit, 2 mm (a vest stops it).</summary>
+        public const int TkbPistol9mm = 6042;
+        public const string Pistol9mmName = "9x19 ball";
+        /// <summary>⭐ <c>CE-3231</c> — the 9 mm round's own numbers (the pistol mount states the same, LR-1).</summary>
+        public const float Pistol9mmPenetrationMm = 2f, Pistol9mmDamage = 18f;
 
         public const string BatonRoundName = "40mm baton round", StunGrenadeName = "stun grenade", StoneName = "thrown stone";
         public const string TearGasGrenadeName = "tear gas grenade", TearGasCanisterName = "40mm tear gas canister", SmokeGrenadeName = "smoke grenade";
@@ -191,6 +197,8 @@ namespace Hrot.Core.Tkb
             // ⭐ LR-1 — DIS kind 2 (munition), domain 9 anti-armour / 8 anti-personnel, category 2 ballistic / 1 guided
             Register(tkb, Ball556Name, Tkb556Ball, Dis(8, Usa, 2, 1, 4));                         // "5.56 mm / 5.56 x 45"
             Register(tkb, Tracer556Name, Tkb556Tracer, Dis(8, Usa, 2, 1));                        // "5.56 mm"
+            // ⭐ CE-3231 (B-9, §7.12 PI-3) — the pistol round: anti-personnel, ballistic; its calibre fields stay 0 (R-3011: never invented)
+            Register(tkb, Pistol9mmName, TkbPistol9mm, Dis(8, Usa, 2), penetrationMm: Pistol9mmPenetrationMm, damage: Pistol9mmDamage);
             Register(tkb, Apds25Name, Tkb25mmApdsT, Dis(2, Usa, 2, 3, 2));                        // "25 mm / M791 APDS-T" (the Bradley's)
             Register(tkb, Apfsds120Name, Tkb120mmApfsds, Dis(2, Usa, 2, 13));                     // "120 mm"
             Register(tkb, Apfsds125Name, Tkb125mmApfsds, Dis(2, Russia, 2, 11));                  // "125 mm"
@@ -357,6 +365,7 @@ namespace Hrot.Core.Tkb
             new System.Collections.Generic.Dictionary<long, float>
             {
                 [Tkb556Ball] = 1, [Tkb556Tracer] = 1, [Tkb762Ball] = 1, [Tkb762Tracer] = 1,     // small arms
+                [TkbPistol9mm] = 1,                                                              // ⭐ CE-3231 — the pistol's
                 [TkbHmgAp] = 3,                                                                  // heavy MG
                 [TkbM67Grenade] = 5,                                                             // hand grenade
                 [TkbGau8Hei] = 10, [TkbGau8Api] = 10, [Tkb25mmApdsT] = 20,                        // autocannon
