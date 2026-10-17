@@ -22,7 +22,17 @@ public sealed class TrafficRuntime : IDisposable
     private TrafficSessionKey? _failed;
     private readonly object _targetGate = new();
 
-    public TrafficRuntime(TrafficServeOptions options) => _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly TrafficIdReservoir _ids;
+
+    public TrafficRuntime(TrafficServeOptions options)
+    {
+        if (options is null) throw new ArgumentNullException(nameof(options));
+        _ids = new TrafficIdReservoir(options.NextNetworkId);
+        _options = options with { NextNetworkId = _ids.Take };   // the stepping thread never calls the allocator itself (N2)
+    }
+
+    /// <summary>Ids ready for SUMO's next cars (diagnostics and rails).</summary>
+    public int IdsReady => _ids.Count;
 
     /// <summary>The session the stepping thread built last (may lag the request by a tick or two).</summary>
     public TrafficSession? Session => Volatile.Read(ref _session);
@@ -55,6 +65,13 @@ public sealed class TrafficRuntime : IDisposable
             return s is not null && want is not null && Equals(s.Key, want) ? s : null;
         }
     }
+
+    /// <summary>Allocates network ids ahead of SUMO, enough for <paramref name="targetCars"/> to depart at once (a new session's first
+    /// catch-up). ⛔ Main thread only: it is the one caller of the cluster's allocator.</summary>
+    public void TopUpIds(int targetCars) => _ids.TopUp(Math.Max(0, targetCars) + IdHeadroom);
+
+    /// <summary>Ids kept beyond the target car count.</summary>
+    public const int IdHeadroom = 64;
 
     /// <summary>How far SUMO may run (cluster sim time); also the time a NEW session starts at (N3). ⛔ Main thread only.</summary>
     public void SetTarget(TrafficSessionKey key, double clusterTime)

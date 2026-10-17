@@ -2,12 +2,13 @@
 state: LIVE
 updated: 2026-10-17
 build-state: BUILDING — slice 1 (SUMO embedded in the networkless editor, R-4047) BUILT 2026-10-17: §3.0 is its as-built;
-  slices 2–6 (§6) are DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
+  slice 2 (the networked pack + the traffic node, §12) BUILT 2026-10-17: §12.1 is its as-built; the rest of §6 is DESIGN. Cars: decisions RULED (§0, R-4020…R-4031). Pedestrians (§8): P1–P8 ACCEPTED (R-4032); civilians
   moved to docs/DESIGN_Civilians_And_Crowd_Control.md (R-4033).
-current-answer: §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
+current-answer: §12.1 (slice 2 AS BUILT — the networked pack, who serves, the deviations table) · §12 (the dedicated node built alongside — R-4053; N1–N3 approved R-4054; any number of traffic nodes R-4055, N4–N8 / T1–T3 / S1–S3 approved R-4056) · §3.0 (slice 1 AS BUILT — classes, modules, the deviations table) · §11 (how SumoSharp enters HROT — vendored sources, an optional build switch, the first slice and when it runs; R-4046/R-4047) · §9 (how SUMO and HROT entities treat each other — the summary) · §10 (SUMO embedded in any host, the networkless editor included — R-4044, leans EM-1…EM-5) · §0 (the approved decisions) over §3 (the diagrams); §4 the sub-decisions; §5 the known limits; §8 pedestrians and panic.
 stale-below: nothing. ⚠ The first chat draft (2026-10-16) published SUMO cars through NED as Lightweight entities and
   carried traffic lights as door-like entities — both SUPERSEDED the same day by R-4020; recorded in §7 HISTORY only.
-known-rot: §3.1–§3.4 are the networked TARGET, not the code — as built (§3.0): no `TrafficNodeModule`/`SimulationRunner` (a
+known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimHost, CGF and IG compose the mirror since slice 2 (§12.1);
+  §12 S2's `TrafficAssignment` component was not built — the role-group grant is the assignment (§12.1). §3.1–§3.4 are the networked TARGET, not the code — as built (§3.0): no `TrafficNodeModule`/`SimulationRunner` (a
   `TrafficPack` over SumoSharp's `LiveCitySim`), `TrafficDemand` has no `DemandFile`/`Density`/`Pedestrians` (it has `TargetCars`),
   the net is `terrain.json` `sumoNet`, not `RoadNetworks`; §10 EM-4's `NedPublishable()` and "18 translators" are, as built,
   `DefaultRoutePublishable()` at 29 NED query sites.
@@ -812,6 +813,89 @@ time a sample means — so both are decided ONCE on the traffic node and carried
 | **S1** | what the settings ARE | one positionless scenario entity (TKB "Traffic", 8850) carrying `TrafficDemand { TargetCars, Seed, StepSeconds }` — authored and saved like the World Environment's clock; the car mix comes from the TKB (T1), pedestrians join in their slice | settings in `terrain.json`: the net is the terrain's, the demand is the scenario's (R-4021) |
 | **S2** | who OWNS the settings | ⭐ **the scenario's Brain, exactly like the World Environment** (owned by the node that loaded the scenario, replicated on its own descriptor, `ScenarioClock.cs:12-14`) — because an entity lives as long as its owner (R-4008): a traffic node that crashes must not take the scenario's traffic settings with it, and the save path stays the ordinary one (owner + non-transient, `DESIGN_Distributed_Scenario_Persistence.md` §1a). ⭐ WHICH traffic node serves it is a separate, transient assignment the owner writes (`TrafficAssignment { int NodeId }`, NoScenario): it picks a node whose roles include `Traffic` from the peer view every node already keeps (`IClusterStateCache` `NodeCapability.Role`), and re-assigns when that node goes. Several settings entities spread over several traffic nodes (R-4055) | the traffic node owning it (the question asked): a traffic-node crash deletes scenario data, and a traffic node becomes a scenario-persisting role · every traffic node running every demand: duplicate traffic |
 | **S3** | how it reaches the traffic node, and updates | it replicates on its own descriptor (`dtTrafficDemand`, like `dtScenarioClock`) during the load phase, whose all-peers ACK (`ReliableInitType.AllPeers`) means every node holds it before the run starts; SUMO starts on the ASSIGNED node when it holds the settings AND the terrain's net, and steps only while cluster time runs. An edit is the ordinary attribute request to the OWNER, which applies and re-replicates; the serving node reacts — `TargetCars` live (`LiveCitySim.SetCarDensity`), `Seed`/`StepSeconds` by restarting SUMO (a new session key, as built) | the traffic node reading the scenario file itself: a second load path, and a late joiner never reads the scenario (R-4015) |
+
+### 12.1 As built — slice 2, the networked pack *(2026-10-17)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TrafficPack { <<INodeCapability>> +Serving() +Mirroring() PopulateSystems() }
+  class TerrainResidency { <<existing, grows>> +RegisterContentLoader(key, factory)$ AttachRegisteredContent() }
+  class TrafficRuntime { +Request(key, types) +TopUpIds(targetCars) +SetTarget(key, t) SteppingTick() }
+  class TrafficIdReservoir { <<NEW>> TopUp on the main thread, Take on the stepping thread }
+  class INetworkIdAllocator { <<existing>> AllocateId(), main thread only }
+  class TrafficSession { StartTime = cluster time, VehicleIdProvider, VehicleTypes }
+  class LiveCitySim { <<SumoSharp>> StartTime H6, VehicleIdProvider H5, VehicleTypes H9 }
+  class DdsReplicationSink { <<SumoSharp H8>> keyed by Source = node id }
+  class DdsMultiSourceSubscriber { <<SumoSharp H8>> Sources, SenderAppInstanceOf(src) }
+  class TrafficMirrorSystem { <<Input phase>> serve if it holds dtTrafficDemand, mirror every source }
+  class TrafficMirror { one per (owner, source) }
+  class TrafficReplicas { keyed by (owner, handle) }
+  class TrafficVehicleCatalog { From(TKB) templates with TrafficVehicleDto }
+  class NetworkEntityMap { <<existing>> Register(netId, e) }
+  class RoleGroupOwnershipStrategy { <<existing>> grants the Traffic group to the least-loaded Traffic node }
+  TrafficPack --> TerrainResidency : registers the SUMO-net loader
+  TrafficPack --> TrafficRuntime : serving only
+  TrafficPack --> TrafficMirrorSystem : input list
+  TrafficRuntime --> TrafficIdReservoir
+  TrafficIdReservoir ..> INetworkIdAllocator : main thread
+  TrafficRuntime --> TrafficSession
+  TrafficSession --> LiveCitySim
+  LiveCitySim --> DdsReplicationSink : record tee
+  TrafficMirrorSystem --> TrafficRuntime : TopUpIds, SetTarget
+  TrafficMirrorSystem ..> TrafficVehicleCatalog
+  TrafficMirrorSystem --> DdsMultiSourceSubscriber
+  TrafficMirrorSystem --> TrafficMirror
+  TrafficMirrorSystem --> TrafficReplicas
+  TrafficReplicas --> NetworkEntityMap
+  RoleGroupOwnershipStrategy ..> TrafficMirrorSystem : decides who serves
+```
+
+*What the picture shows that prose hid:* nothing on the wire is negotiated by the receiver — the car's id comes out of the cluster
+allocator on the serving node's MAIN thread (the reservoir is the only path to it; SUMO spawns on the stepping thread), the frame
+time is cluster time, the owner is the DDS sender; and "who serves" is not a new component at all, it is the existing role-group grant.
+
+```mermaid
+graph TD
+  subgraph TN["traffic node(s), --mode traffic — TrafficPack.Serving()"]
+    TK[kernel] -->|SlowBackground 20 Hz| TSM[TrafficSteppingModule]
+    TSM --> LCS[LiveCitySim]
+    LCS -->|record tee, Source = node id| DDS[(sumo topics)]
+    TK -->|Input, main thread| TMS1[TrafficMirrorSystem]
+    LCS -.->|in-memory wire| TMS1
+  end
+  subgraph EVERY["SimHost, CGF, IG — TrafficPack.Mirroring()"]
+    K2[kernel] -->|Input, main thread| TMS2[TrafficMirrorSystem]
+    DDS -->|one source per traffic node| TMS2
+    TMS2 --> REP[replicas: NetworkIdentity = car id, owner = sender]
+  end
+  subgraph ED["editor, networkless — TrafficPack.Serving()"]
+    K3[kernel] --> TSM3[TrafficSteppingModule]
+    K3 --> TMS3[TrafficMirrorSystem]
+  end
+  BR[the scenario's Brain, primary owner of the settings] -->|grants dtTrafficDemand| TMS1
+  subgraph NotYet["not built"]
+    RG[re-grant to another traffic node after a crash]
+    PL[Player - ReplayBrowser: no TrafficPack]
+  end
+  style RG fill:#f66,color:#000
+  style PL fill:#f66,color:#000
+```
+
+*What the picture shows that prose hid:* every host composes the pack through `PopulateSystems`, the one capability hook every host
+calls (CGF and IG never call `Register`, and IG resolves its plan before it has a context); and the red boxes — a crashed traffic
+node's grant falls back to the Brain, which only mirrors, so its traffic stops until a traffic node is granted again by hand.
+
+| as built | why it differs from §12's text |
+|---|---|
+| **S2 has no `TrafficAssignment` component**: the settings entity is in its own ownership group (`HrotOwnershipGroups.cs:125-145`), which `RoleGroupOwnershipStrategy` grants to the least-loaded `Traffic` node; a node serves the settings whose `dtTrafficDemand` authority it holds | the grant already IS a transient, per-entity "who serves" written by the owner (the seam law); the Brain stays the primary owner, so a crash returns the settings to it (S7) instead of deleting them |
+| no re-grant after a traffic-node crash | the grant falls back to the primary owner, which composes only the mirror — one instance of the open `CE-3007` (a reclaim to a creator that lacks the role leaves nobody running that part); not SUMO's to fix alone |
+| a cluster with NO traffic node has no traffic | the Brain holds the settings and mirrors only; the editor is its own traffic node (both halves) |
+| the composition hook is **`PopulateSystems`**, not `Register` | measured: CGF and IG never call `Register`; every host calls `PopulateSystems` |
+| the SUMO-net loader joins every residency through a **process-wide registry** (`TerrainResidency.RegisterContentLoader`) | every host builds its residency AFTER its plan, deep in its own orchestration code, so a pack cannot hand it a loader directly |
+| ids come through **`TrafficIdReservoir`**, topped up by the mirror system each frame to `TargetCars + 64` | `DdsIdAllocator.AllocateId` is not thread-safe and SUMO spawns on the stepping thread; a rail runs SUMO on a second thread and asserts every allocation was on the main thread |
+| the wire key is **`Source` = the node id** (H8), the owner is `SenderAppInstanceOf(source)`, falling back to the source | two traffic nodes number their cars independently (R-4055); a node skips its own source and reads its steps in memory (N7) |
+| a SUMO car with no TKB type gets **8851**; colour `0` means "no colour" (the id-seeded paint), else `EntityAppearance` | T1/T2 as ruled; the fallback keeps an unmapped SUMO type visible |
 
 
 ## 7. ⛔ HISTORY

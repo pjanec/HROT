@@ -118,7 +118,8 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem
             {
                 step = demand.StepSeconds > 0f ? demand.StepSeconds : step;
                 var key = new TrafficSessionKey(net.Path, Path.GetDirectoryName(net.Path) ?? ".", net.NetHash, demand, _generation);
-                _runtime.Request(key, TrafficVehicleCatalog.From(TkbOf(world)));
+                if (!Equals(_runtime.Requested, key)) _runtime.Request(key, TrafficVehicleCatalog.From(TkbOf(world)));
+                _runtime.TopUpIds(demand.TargetCars);   // N2 — the allocator is main-thread only
                 _runtime.SetTarget(key, now);
                 own = _runtime.Current;
                 if (own is not null && now < own.Time - 2.0 * own.StepSeconds - 1.0)   // the clock jumped back: restart SUMO

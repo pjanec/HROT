@@ -216,7 +216,7 @@ public sealed class TrafficRuntimeTests
         double t = 505.0;
         for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);   // 40 s of cluster time
         Assert.NotEmpty(mirror.Cars);
-        Assert.Equal(500.0 + 5.0, runtime.Session!.StartTime, 1);   // N3 — SUMO started at the cluster time it was asked at
+        Assert.Equal(505.25, runtime.Session!.StartTime, 2);   // N3 — SUMO started at the cluster time it was first asked at (the first frame with the entity)
         Assert.Same(mirror.Cars, TrafficFrame.Of(world)!.Cars);
         long steps = runtime.StepsTaken;
 
@@ -233,6 +233,37 @@ public sealed class TrafficRuntimeTests
         Frame(world, mirror, runtime, t += 0.25);
         Assert.Null(runtime.Requested);
         Assert.Empty(mirror.Replicas!.Replicas);
+    }
+
+    /// <summary>N2 — the cluster's allocator is main-thread only (DdsIdAllocator is not thread-safe): SUMO steps on ANOTHER thread
+    /// here, and every allocation still happens on the thread that runs the mirror.</summary>
+    [Fact]
+    public void N2_TheAllocator_IsOnlyCalledOnTheMainThread()
+    {
+        LoadDemoCity(out var world);
+        using var _ = world;
+        RegisterReplicaComponents(world);
+        world.RegisterComponent<TrafficDemand>();
+        int main = Environment.CurrentManagedThreadId;
+        var callers = new System.Collections.Concurrent.ConcurrentBag<int>();
+        long next = 0;
+        using var runtime = new TrafficRuntime(Options(() => { callers.Add(Environment.CurrentManagedThreadId); return Interlocked.Increment(ref next); }));
+        var mirror = new TrafficMirrorSystem(runtime, participant: null, entityMap: null, localNodeId: 1);
+        var traffic = world.CreateEntity();
+        world.AddComponent(traffic, TrafficDemand.Default);
+
+        double t = 0;
+        for (int i = 0; i < 120; i++)
+        {
+            world.SetSingleton(new GlobalTime { TotalTime = t += 0.25, DeltaTime = 0.25f, TimeScale = 1f });
+            mirror.Execute(world, 0.25f);
+            Task.Run(runtime.SteppingTick).Wait();   // the stepping thread, really another thread
+        }
+
+        Assert.NotEmpty(mirror.Cars);
+        Assert.NotEmpty(callers);
+        Assert.All(callers, id => Assert.Equal(main, id));
+        Assert.True(runtime.IdsReady > 0);
     }
 
     /// <summary>S2 — a node serves only the traffic settings it OWNS: settings another node owns (primary owner 2, nothing granted here)
