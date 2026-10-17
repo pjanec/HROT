@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-16
-current-answer: ⭐⭐⭐ §00000 (2026-10-17) — CE-3228 (creation request on the bus) + the gas cloud landed; next CE-3227 / CE-3222. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
+current-answer: ⭐⭐⭐ §000000 (2026-10-17) — the queue is batches/HANDOFF_Backend_Continuation_2026_10_17.md: armed people B-7…B-16 (CE-3229…CE-3238) first. §00000 (2026-10-17) — CE-3228 + the gas cloud landed. §0000 (2026-10-16) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_16.md is the queue (CE-3216 weather S1-0 first). ⛔ §000 (2026-10-15) below is history. Earlier: ⭐⭐ §000 (2026-10-15) — a NEW backend session holds the lane: batches/HANDOFF_Backend_Continuation_2026_10_15.md is the queue. ⛔ The older §00 — NOW (2026-10-10): the BEHAVIOUR LIBRARY programme (review R-258/R-256, squad-aware PeekAndFire R-257, CE-3158 ready to build). §0 (2026-10-06 utility demos) and §1 below are HISTORY for this lane's current work.
 stale-below: §0 (2026-10-06) and §1 (2026-10-03) — history for this lane's current work
 related-designs:
   - docs/DESIGN_Entity_Control.md — the entity-control design (orders, RTS, FPS possession, manual drive); S1-S3 built (§9-§12).
@@ -13,6 +13,12 @@ related-designs:
 # RESUME — backend lane
 
 ⚠ A STATE doc: verify every line against git before acting on it.
+
+## 000000. NOW (`2026-10-17`, later) — the queue is [`batches/HANDOFF_Backend_Continuation_2026_10_17.md`](batches/HANDOFF_Backend_Continuation_2026_10_17.md) *(🔒 user: "write a handoff for your future self to continue in what you are doing as well as the new armed civilian stuff")*
+
+⭐ **Next:** behaviors' ARMED PEOPLE (Civilians §5h, R-2025…R-2029) — B-7 `Armament` first (status for combatants, then per-observer
+identification; the counter rail), then B-8, B-13, B-10, B-9, B-11, B-12, B-14, B-15, B-16 — filed as **CE-3229…CE-3238**. Then CE-3227,
+CE-3222. §00000 below is what landed earlier today.
 
 ## 00000. NOW (`2026-10-17`) — CE-3228 + the gas cloud landed on `backend` *(🔒 user: "follow HANDOFF_Backend_Takeover_CE3228_Cloud.md. push to backend branch when in consistent state")*
 
