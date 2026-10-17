@@ -91,6 +91,30 @@ public sealed class TrafficSession : IDisposable
     /// <summary>The bodies SUMO was last told about.</summary>
     public IReadOnlyList<TrafficBody> Bodies => _bodies;
 
+    /// <summary>What SUMO made of our bodies (SumoSharp H12): lane obstacles and crowd discs. Null until bodies were first told.</summary>
+    public Sim.Core.Bridge.ExternalBodyFeed? Feed => _sim.ExternalBodies;
+
+    private TrafficBody[]? _applied;
+    private Sim.Core.Bridge.ExternalBody[] _external = Array.Empty<Sim.Core.Bridge.ExternalBody>();
+
+    // ⭐ SumoSharp H12 (f91c0f4): a vehicle becomes a moving obstacle on every vehicle lane its footprint overlaps, anything else a
+    //   crowd disc that cars brake for. Told only when the snapshot changed (the main thread writes a new array each frame).
+    private void ApplyBodies()
+    {
+        var bodies = _bodies;
+        if (ReferenceEquals(bodies, _applied)) return;
+        _applied = bodies;
+        if (_external.Length != bodies.Length) _external = new Sim.Core.Bridge.ExternalBody[bodies.Length];
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            var b = bodies[i];
+            _external[i] = new Sim.Core.Bridge.ExternalBody(b.NetworkId,
+                b.Kind == TrafficBodyKind.Vehicle ? Sim.Core.Bridge.ExternalBodyKind.Vehicle : Sim.Core.Bridge.ExternalBodyKind.Person,
+                b.X, b.Y, b.Vx, b.Vy, b.Length, b.Width);
+        }
+        _sim.SetExternalBodies(_external);
+    }
+
     /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
     /// that does not move — the cluster paused — steps nothing.</summary>
     /// <returns>The steps taken.</returns>
@@ -102,6 +126,7 @@ public sealed class TrafficSession : IDisposable
             int steps = 0;
             while (steps < MaxStepsPerCall && _sim.Time + _sim.Dt <= clusterTime + 1e-9)
             {
+                if (steps == 0) ApplyBodies();   // ⭐ AQ93 §13 — SUMO hears about our bodies before it moves its cars
                 _sim.Step();
                 steps++;
             }

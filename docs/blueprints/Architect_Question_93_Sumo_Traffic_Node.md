@@ -425,7 +425,7 @@ no traffic — the composition list in §6 slice 3 is the place that decides it.
 |---|---|---|
 | **1** | SUMO embedded in the networkless editor: vendored SumoSharp, the net on the terrain, `TrafficDemand`, `TrafficPack` (stepping off-thread on `GlobalTime`, the in-memory wire, the mirror, vicinity replicas), `ReplicationRoute`, the road layer (2-D + 3-D), `demo-city` | ✅ BUILT — §3.0; `PLAN_Sumo_Slice1_Embedded_Editor.md` |
 | 2 | the dedicated traffic node (`NodeRole.Traffic` as a host, ClusterRunner `--mode traffic`) publishing through SumoSharp's DDS binding; `TrafficPack`'s mirror on every map host over `DdsSubscriber` (E9 stamps, hash check) | ✅ BUILT — §12.1/§12.2; five-process run §12.3 (cars flow, one id and owner per car; ⚠ live acceptance only partly run) |
-| 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ⭐ DESIGN §13 — building |
+| 3 | E4 obstacle feed (our vehicles and infantry into SUMO) | ✅ BUILT — §13.7 (SumoSharp H12); ⏳ live check |
 | 4 | R-4023 handover (`KinematicsMode.Traffic`) | ⭐ DESIGN §14 |
 | 5 | pedestrians (§8, S1–S5) and conversions to civilians (§8.7 G1/G4, needs CIV-1) | |
 | 6 | zone-based replicas (Z2, `FidelityZones`) | |
@@ -954,7 +954,7 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
 | ⛔ `CE-4021` — E10 NOT BUILT: after the traffic node died, CGF/SimHost/IG kept 21/20/19 frozen replicas for good — the mirror's subscriber had no source timeout | a source silent for 5 s is removed, on `SilenceClock` (wall time that runs only while the cluster clock advances — a paused cluster keeps its cars) | `ASilentTrafficNodeLosesItsCarsTests` |
 | ⛔ run 2 (the first build of CE-4021): IG showed NO car for 100+ s while CGF had 20. 📐 It measured silence on cluster time, and IG's slave clock corrects in JUMPS on a loaded box (`SlaveSyncController` discards sync results with RTT > 200 ms) — every jump > 5 s read as silence and dropped the source. ⭐ Also: SUMO's first cars reach the mirrors ~32 s after the load (the grant, then the session build) — the acceptance now waits for them | `SilenceClock` | `TheSilenceClock_HoldsWhilePaused_AndIgnoresAClockJump` |
 
-## 13. Slice 3 — our bodies into SUMO (E4, R-4027) *(DESIGN 2026-10-17 — build-state: BUILDING)*
+## 13. Slice 3 — our bodies into SUMO (E4, R-4027) *(2026-10-17 — build-state: BUILT, ⏳ live check; §13.7 is the as-built)*
 
 ### 13.1 INVENTORY *(code graph CLI `search_graph` + grep, 2026-10-17)*
 
@@ -1058,6 +1058,20 @@ graph TD
 *What the picture shows:* on the dedicated traffic node our units are **NED replicas** (R-4057 — replication on every networked
 node), so the feed reads the same `SimTransform` there as the embedded editor reads locally; a mirroring host composes no feed
 (red) because it runs no SUMO.
+
+### 13.7 As built *(SumoSharp H12 = `f91c0f4`, vendored; HROT `TrafficBodyFeedSystem` → `TrafficRuntime.SetBodies` → `TrafficSession.ApplyBodies` → `LiveCitySim.SetExternalBodies`)*
+
+| decision | as built | ⛔ deviation from §13.2, and why |
+|---|---|---|
+| F1 | `Sim.Ingest.LaneSpatialIndex` (`LanesNear(x, y, r, out)`, every lane within r, ascending handle, 10 m min cell) + `Sim.Core.Bridge.ExternalBodyFeed : ICrowdFootprintSource` (owns the obstacle handles and the discs) + `LiveCitySim.SetExternalBodies(span)` / `.ExternalBodies` | the feed sits in `Sim.Core.Bridge`, not `Sim.LiveCity` — it needs only the engine, and takes the engine's own loaded net so lane handles always match · the index is a new class: `SumoRouteGraphNav`'s grid is private, over pedestrian route nodes, and `Sim.Ingest` cannot reference `Sim.Pedestrians` |
+| F3 | a vehicle overlaps a lane when `\|lat\| < lane.Width/2 + W/2` and its overshoot past the lane ends `< L/2`; per overlapped vehicle lane one obstacle: front = `offset + L/2` (clamped), speed = `max(0, v·laneDir)`, `latPos`, **`latSpeed`**, width W, maxDecel 7.5. No overlap ⇒ a CHAIN of radius-W/2 discs along its velocity (or the nearest lane's direction when standing); a person = one disc, max(L,W)/2 | ⛔ **the 3 m rule is dropped**: it changed no outcome — a vehicle overlapping no lane is a disc at 0.5 m or 50 m off the road · `latSpeed` is passed too · the record has no heading, so a footprint is taken as aligned with the lane it is tested against |
+| CrowdSource | `Engine.CrowdSource` = own source + the feed only while the feed holds a disc; otherwise exactly what the constructor set (null on HROT's peds-off sim) | — |
+| F6 | ⭐ pulled forward: `PedLodManager.Step` gets every body as discs (it was handed an empty list) — inert for HROT until pedestrians run (slice 5) | — |
+| F4 | the snapshot is applied at most once per `StepTo`, before its first step, and only when the main thread wrote a new array | — |
+
+⚠ **Limits (upstream's own report):** a car checks obstacles on its CURRENT lane only — a body just past a junction is seen when the car enters that lane (it may brake hard); discs are seen earlier. A body whose kind or size changes is removed and re-added.
+
+Rails: upstream `HrotExternalBodyTests` (7, two of them inverse-proven by detaching the feed) · HROT `SumoCarsBrakeForOurBodiesTests` (demo-city: cars stop behind our parked trucks; same seed without them they drive on) · `TrafficBodyFeedTests` · `F5_ToNet_InvertsToLocal_AnchoredAndUtm`.
 
 ### 13.6 Acceptance
 
