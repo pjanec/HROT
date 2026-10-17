@@ -912,6 +912,16 @@ node's grant falls back to the Brain, which only mirrors, so its traffic stops u
   enqueue both chunks and would give two cars one network id, breaking N2 under R-4055. The fix belongs in `HrotNodeBuilder`
   (client id carries the node id); the same collision existed for any two nodes of one subsystem name (two SimHosts, two Players).
 
+### 12.3 Found running the five-process cluster *(2026-10-17 — orchestrator · CGF · SimHost · IG · traffic, load from the IG port)*
+
+| ⭐ found | fixed | rail |
+|---|---|---|
+| ✅ IG's load intent reaches the orchestrator and fans out to all five nodes (the CE-164 IG-port path works). The demo is a RECIPE ⇒ its NAS name is `Recipes/demo-city`, not `demo-city` | — | — |
+| ⛔ every node's `PrepareLive` threw: `terrain.json` names `demo-city.net.xml`, but the `Recipes/Terrain` content glob shipped only `json`/`geojson`/`asc` (editor and unit suites read the source tree) | `Hrot.AI.Behaviors.csproj` ships `*.net.xml` | `ShippedTerrainFilesAreDeployedTests` (ClusterRunner.Tests — the build output a node reads) |
+| ⛔ every ECS node then CRASHED in `TrafficMirrorSystem`: `DdsWireFrame` had no `GetDescriptorOps`. The vendored SumoSharp `Directory.Build.targets` (R-4046) gave the single-target `Sim.Replication.Dds` a `TargetFrameworks` ⇒ NuGet restored it as multi-target and imported the CycloneDDS codegen switch under a condition a normal build never meets | the override applies only where the project multi-targets | `TrafficDdsTopicsAreGeneratedTests` (red on the old build: 9 topics) |
+| ⚠ OPEN: with every node failing `PrepareLive`, the orchestrator logged only the two OBSERVERS' failures (IG, traffic — P2 lets those pass), logged no abort for CGF's/SimHost's, and `/status` reported `OperatingLive` while every node stayed `Idle` | — | re-measure on a clean run |
+| ⚠ OPEN: `[ModuleHost][TIMEOUT] Module 'TrafficStepping' timed out after 100ms` on the traffic node | — | re-measure on a clean run |
+
 
 ## 7. ⛔ HISTORY
 

@@ -244,14 +244,11 @@ public sealed class NedReplicationModule : INedReplicationModule
         _roleHasIG     = role.HasFlag(NodeRole.Map2D);
         _roleHasBrain  = role.HasFlag(NodeRole.Brain);
 
-        // ⭐ AQ93 N1 (R-4054) — a Traffic node replicates too: it receives the scenario's TrafficDemand and our entities through
-        //   the shared pack, owning no physics (so it drives from the network, like a pure Map2D node). Every system below is
-        //   role-independent; only the muscle/brain translator packs are gated.
-        bool roleHasTraffic = role.HasFlag(NodeRole.Traffic);
-        if (!_roleHasMuscle && !_roleHasIG && !_roleHasBrain && !roleHasTraffic)
-            throw new ArgumentException(
-                $"NedReplicationModule requires a role with MuscleGround, ImageGenerator, Brain or Traffic. Got: {role}",
-                nameof(role));
+        // ⭐⭐ R-4057 (CE-4013 D14) — EVERY networked ECS node replicates, whatever its role. 🔒 User, 2026-10-17: "i think it shoukd
+        //   be enabled by default". ⛔ Was: the ctor refused any role without MuscleGround / Map2D / Brain (Traffic added by AQ93
+        //   N1), so a Perception-only or NavigationSolver-only node could not boot networked. The role still gates INSIDE the
+        //   module (the kinematic / cognitive packs, R-3015 "a ROLE gates inside it"); it never decides whether the module exists.
+        //   📄 docs/DESIGN_Node_Roles_And_Policies.md §3.6.
 
         // driveFromNetwork = true when ONLY IG (no local physics)
         // driveFromNetwork = false when Muscle or AllInOne is present (local entities must not be overridden)

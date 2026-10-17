@@ -7,6 +7,7 @@ current-answer: §3 is the role table, §3.1 is entity-creation uniformity (a ro
   handler), ⭐ §3.4 is A ROLE IS WHAT A HOST DOES, NEVER A NETWORK FACT (R-4005 — an all-in-one host declares
   the union of its roles; NodeRole.None means "plays no role", not "is not networked"),
   ⭐ §3.5 is ONE TRANSLATOR SET ON EVERY NODE (R-3015 — what a node receives never depends on its host kind),
+  ⭐ §3.6 is EVERY NETWORKED ECS NODE REPLICATES (R-4057 — the role gates inside the module, never whether it exists),
   ⭐ §3.2 is WHAT EACH ROLE LOADS in the init phase — the role declares the WHAT, the host
   supplies the HOW, §4 is ownership, §5 is persistence, §5a is which nodes must carry an ORBAT (operator
   surfaces), §6 is where an entity should be created. §7 is the honest list of what is ENFORCED versus
@@ -431,6 +432,43 @@ sequenceDiagram
 ⭐ **Rejected:** *sender tracking for the own-sample test* — async; a sample can arrive before its writer is identified (CE-517's
 measured window), so a node would sometimes take its own event twice. *Keep the role exclusions* — they hard-code "a node that fires
 never needs another node's shot", which is false with two MuscleGround nodes.
+
+### 3.6 ⭐⭐⭐ EVERY NETWORKED ECS NODE REPLICATES — **the role gates INSIDE the replication module, never WHETHER it exists** *(user, `2026-10-17`, `R-4057`; `CE-4013` D14)*
+
+> 🔒 **User, verbatim:** *"Couldnt replication module run on any networked node independently on the role?"* — then: *"I told already
+> what i think about replication on any networked ecs node - i think it shoukd be enabled by default"*
+
+`build-state: BUILT` `2026-10-17`.
+
+```mermaid
+graph TD
+  subgraph BEFORE
+    B1[WithReplication role] -->|None| SK[skip: no module]
+    B1 -->|other| C1{ctor: Muscle / Map2D / Brain / Traffic?}
+    C1 -->|no: Perception, NavigationSolver| TH[throw - node cannot boot networked]:::dead
+    C1 -->|yes| M1[module]
+  end
+  subgraph AFTER
+    B2[WithReplication role] -->|participant| M2[module, any role]
+    B2 -->|None and no participant| SK2[skip: headless / test]
+    M2 --> RG[role gates INSIDE: kinematic / cognitive packs, SmartEgress, BrainHandOver - R-3015]
+  end
+  classDef dead fill:#f88
+```
+*What the picture shows that prose hid:* the old gate sat at TWO levels — the builder skipped `None`, the ctor threw for every role
+outside four flags — and the red box was a node that could not join the network at all. After, the only question is *"is this node
+networked?"*; what differs by role is decided inside, where §3.5 already put it.
+
+| the decision rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the ctor's role list had no reason | ✅ `NedReplicationModule.cs` ctor (removed), rail SC4 pinned it | ⛔ searched `docs/` + `.dev/`, none found; ✅ §3.1 "a role never denies a capability" (R-138) |
+| `None` is not "not networked" | ✅ the skip existed only because the ctor threw for `None` (`HrotNodeBuilderReplicationExtensions.cs` comment) | ✅ §3.4 / R-4005 |
+| receiving never harms owned data | ✅ every egress guards `HasAuthority`; ingress guards `IsRecordedOwner` (`EntityMissionIngressTranslator`); DR skips owned (`DeadReckoningSyncSystem.cs:99`) in both modes | ✅ R-138, Ownership_Groups §3 F-5 |
+| the role still gates inside | ✅ kinematic / cognitive packs, `SmartEgressSystem`, `BrainHandOverSystem` unchanged | ✅ §3.5 / R-3015 *"a ROLE gates inside it"* |
+
+⭐ **Rejected:** *run the kinematic and cognitive packs on every node too* — R-3015 keeps the role gate inside the set. *Register one
+identical component set on every node* — `DESIGN_Role_Affinity_Ownership.md` §3.9b "registration narrowing" is KEPT; a node instead
+registers what the SHARED pack writes (§3.6 below the table is the gap list, `CE-4013` D19).
 
 ## 4. ⭐⭐ OWNERSHIP — **a role is an EXPECTATION, the mask is the fact**
 

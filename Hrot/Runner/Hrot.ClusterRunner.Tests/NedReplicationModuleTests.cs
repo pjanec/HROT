@@ -113,24 +113,25 @@ public sealed class NedReplicationModuleTests
             "Combined Muscle+IG role must use driveFromNetwork=false.");
     }
 
-    // ── SC4 — Invalid role throws ─────────────────────────────────────────────
+    // ── SC4 — R-4057: EVERY role replicates (was: "Invalid role throws") ────────
 
-    [Fact]
-    public void InvalidRole_Throws_ArgumentException()
+    /// <summary>⭐ R-4057 (CE-4013 D14) — the module is built for any role, including one with none of the old
+    /// MuscleGround / Map2D / Brain flags. 🔒 User, 2026-10-17: replication "shoukd be enabled by default" on any networked
+    /// ECS node. ⛔ Was SC4 "InvalidRole_Throws_ArgumentException" (Perception rejected) — no design record backed it.</summary>
+    [Theory]
+    [InlineData(NodeRole.Perception)]
+    [InlineData(NodeRole.NavigationSolver)]
+    [InlineData(NodeRole.Traffic)]
+    [InlineData(NodeRole.None)]
+    public void AnyRole_BuildsTheModule_WithTheSharedSystems(NodeRole role)
     {
-        var entityMap    = new NetworkEntityMap();
-        var geoTransform = Hrot.Map.Common.HrotEnvironment.CreateGeoTransform(52.52, 13.405, 0.0);
-        var eventBus     = new FdpEventBus();
+        var module   = BuildModule(role);
+        var registry = new CapturingRegistry();
+        module.RegisterSystems(registry);
 
-        Assert.Throws<ArgumentException>(() =>
-            new NedReplicationModule(
-                participant:  null,
-                role:         NodeRole.Perception,   // not a replication role
-                entityMap:    entityMap,
-                geoTransform: geoTransform,
-                eventBus:     eventBus,
-                localNodeId:  1,
-                domainId:     99));
+        Assert.Contains(typeof(GhostCreationSystem),     registry.RegisteredTypes);
+        Assert.Contains(typeof(DeadReckoningSyncSystem), registry.RegisteredTypes);
+        Assert.DoesNotContain(typeof(SmartEgressSystem), registry.RegisteredTypes);   // ⭐ still role-gated inside (R-3015)
     }
 
     // ── SC5 — Brain role ──────────────────────────────────────────────────────
