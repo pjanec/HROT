@@ -199,7 +199,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-10-01 (§4.1ad — the hand-wired-fixture family, measured across ClusterRunner.Integration.Tests)
+updated: 2026-10-17 (§4.1ae — CE-4013: one capability walk on every host, the terrain residency per node, one universal-load-parts factory)
 known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
   production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
   (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
@@ -222,6 +222,7 @@ known-conflict: ⛔ the dispatched frame handoff is stale on TWO points — its 
   a ruling violation). ⚠ The handoff is deliberately NOT edited — rule 1 forbids amending a dispatched
   handoff; the divergence is declared here and in the report instead.
 related-designs:
+  - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §12.1 — OWNS the SUMO traffic pack; the first capability that hit the walk gaps §4.1ae closes, and the first user of the per-node terrain content
   - docs/DESIGN_Entity_Interactions.md §7.1d — OWNS entity interactions; its CoreInfrastructureCapabilities.Interactions (doors + embarkation) is the third cross-role infrastructure capability (§4.1ad)
   - docs/DESIGN_Node_Roles_And_Policies.md §3.1–§3.2 — OWNS what a role means and loads; a role never denies a capability
 -->
@@ -6351,3 +6352,177 @@ still needs its own slice.**
 | the editor's adoption is comparable in size | ⛔ **INFERRED from the CGF precedent, not measured** — ⚠ the three multipliers are named above and none is a line count | — |
 | `E3`'s `GeographicModule` question interacts with `CE-151` | ⛔ **NOT MEASURED.** ⭐ Stated as a suspicion: both concern who publishes world singletons | ✅ §4.1y `E3` row · `CE-151` |
 | ⚠ `check_index_coverage` | ⛔ **unavailable through the CLI** — the exhaustive claims rest on graph+grep agreement, not a coverage proof | — |
+
+---
+
+## ⭐⭐⭐ §4.1ae — **`CE-4013`: ONE capability walk, every hook on every host — and the terrain residency per node** `build-state: READY-TO-BUILD` *(`2026-10-17`)*
+
+> 🔒 **User, `2026-10-17`:** *"If you [find] inconsistencies in the bootstrap code of hosts, dont let it be. We have to share and unify,
+> not duplicate."*
+
+📌 **How it was found:** the SUMO traffic pack (`docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md` §12.1) first composed
+through `Register` — and did nothing on CGF and IG, which never call it. The pack was moved to `PopulateSystems` and its terrain loader to
+a process-wide static, i.e. **worked around** two inconsistencies instead of fixing them. This section fixes them.
+
+### 📐 INVENTORY *(`2026-10-17`; `search_graph` CLI + grep, both run)*
+
+- `search_graph(name_pattern=".*Bootstrapper$", label=Class)` → **6**: `SharedApplicationBootstrapper`, `SimHostNodeBootstrapper`,
+  `IgNodeBootstrapper`, `StrideNodeBootstrapper`, `NodeBootstrapper` (SimHost's shared orchestration helper, used by SimHost + Stride), a test double.
+- grep `\.PopulateSystems(|\.ProvideModules()|\.Register(` outside tests → the walk is hand-written in **five** roots:
+
+| root | `PopulateSystems` | `ProvideModules` | `Register` | values bag |
+|---|---|---|---|---|
+| `SimHostNodeBootstrapper` | ✅ `:378` | ⛔ **never** (no `GetAdditionalModules`) | ✅ `:598` | ⛔ a free-standing empty bag `:596` |
+| `IgNodeBootstrapper` | ✅ `:232` | ✅ `:261` | ⛔ **never** | — |
+| `StrideNodeBootstrapper` | ✅ `:351` | ✅ `:362` | ✅ `:448`, before its own spawn systems | ✅ the base's `BootValues` |
+| `CgfSubsystem` (inline root) | ✅ `:999` | ✅ `:983` — **before** `PopulateSystems` | ⛔ **never** | — |
+| `EditorSubsystem` (inline root) | ✅ `:1659` | ✅ `:1728` | ✅ `:1730`, interleaved per capability | ⛔ a free-standing empty bag `:1726` |
+
+- grep `new TerrainResidency(` → **six**, five of them the same two-line load-part pair `KnowledgeBaseLoadStep(tkb ?? CreateTkb())` +
+  `TerrainLoadStep(new TerrainResidency(root, holder))`: `NodeBootstrapper.cs:361/364` (SimHost, Stride), `IgNodeBootstrapper.cs:399/405`,
+  `CgfSubsystem.cs:1137/1143`, `CgfApplication.cs:198/203` (test-only root), `EditorSubsystem.cs:1530/1533`. The sixth,
+  `ReplayBrowserSubsystem.cs:702`, is the player's catalogue residency with no load chain.
+
+⚠ **Nothing is broken TODAY by the hook gaps** — no capability in CGF's or IG's plan implements `Register`, none in SimHost's implements
+`ProvideModules`. ⛔ **That is luck, not design**: the next capability that composes through the "wrong" hook does nothing on those hosts,
+silently, exactly as the traffic pack's first version did.
+
+### ⭐ THE CLASSES
+
+```mermaid
+classDiagram
+  direction LR
+  class INodeCapability { <<existing>> PopulateSystems() ProvideModules() Register() }
+  class NodeCompositionPlan { <<existing>> Resolve(role) }
+  class NodeCapabilityWalk { <<NEW, Hrot.Common>> +PopulateSystems(ctx, in, sim, post) +ProvideModules() +Register(ctx, values) +AssertComplete(host) }
+  class SharedApplicationBootstrapper { <<existing, grows>> step capabilities: ResolveCapabilities(ctx, role) #RegisterCapabilities(ctx) }
+  class SimHostNodeBootstrapper { <<existing>> }
+  class IgNodeBootstrapper { <<existing>> }
+  class StrideNodeBootstrapper { <<existing>> }
+  class TrafficNodeBootstrapper { <<NEW, AQ93 N1>> }
+  class CgfSubsystem { <<existing, inline root>> }
+  class EditorSubsystem { <<existing, inline root>> }
+  class HrotNodeContext { <<existing, grows>> +TerrainContent }
+  class TerrainContentRegistry { <<NEW, per node>> Add(key, factory) }
+  class TerrainResidency { <<existing>> reads the node's registry at Prepare }
+  class HrotUniversalLoadParts { <<NEW, Hrot.Core>> Build(tkb, root, holder, content) parts + residency }
+  NodeCompositionPlan --> NodeCapabilityWalk : resolved list
+  NodeCapabilityWalk --> INodeCapability : one phase per hook, in order
+  SharedApplicationBootstrapper --> NodeCapabilityWalk : owns, for its subclasses
+  SimHostNodeBootstrapper --|> SharedApplicationBootstrapper
+  IgNodeBootstrapper --|> SharedApplicationBootstrapper
+  StrideNodeBootstrapper --|> SharedApplicationBootstrapper
+  TrafficNodeBootstrapper --|> SharedApplicationBootstrapper
+  CgfSubsystem --> NodeCapabilityWalk : same walker
+  EditorSubsystem --> NodeCapabilityWalk : same walker
+  HrotNodeContext --> TerrainContentRegistry
+  HrotUniversalLoadParts --> TerrainResidency : builds, with the registry
+  TerrainResidency ..> TerrainContentRegistry
+```
+
+*What the picture shows that prose hid:* every root reaches the capabilities through ONE walker, and the base owns it for every
+bootstrapper subclass — so a subclass cannot skip a hook, and the two inline roots (CGF, editor) use the same class and the same
+completion check. The terrain content a pack adds is the NODE's (on its context), not the process's.
+
+### ⭐ THE SEQUENCE — a bootstrapper node
+
+```mermaid
+sequenceDiagram
+  participant B as SharedApplicationBootstrapper
+  participant H as subclass (SimHost, IG, Stride, Traffic)
+  participant W as NodeCapabilityWalk
+  participant K as kernel
+  B->>H: step capabilities: ResolveCapabilities(ctx, role)
+  H-->>B: resolved list
+  B->>B: walk = new NodeCapabilityWalk(list)
+  B->>H: step system-groups: PopulateSystems(ctx, lists)
+  B->>W: PopulateSystems(ctx, lists), after the host's own systems
+  B->>K: register the three groups
+  B->>H: step additional-modules: GetAdditionalModules()
+  B->>W: ProvideModules()
+  B->>K: RegisterModule(each)
+  B->>H: step spawning-pipeline: RegisterSpawningPipeline(ctx)
+  H->>B: RegisterCapabilities(ctx) at the host's own point
+  B->>W: Register(ctx, BootValues)
+  B->>W: AssertComplete(host), before kernel-initialize
+  B->>K: Initialize()
+```
+
+*What the picture shows that prose hid:* only `Register`'s POINT stays the host's — because registration order is execution order
+(§4.1t ①) and SimHost and Stride place it differently today; everything else, including the completeness check, is the base's.
+
+### ⭐ THE DECISIONS
+
+| id | decision | ⭐ lean | rejected — one line each |
+|---|---|---|---|
+| **W1** | the walk | ⭐ ONE class, `NodeCapabilityWalk`, beside `NodeCompositionPlan`: three phases mirroring the base's three steps, each run once, in the order `PopulateSystems` → `ProvideModules` → `Register`; `AssertComplete` throws naming a phase that never ran | five hand loops (today): each host drifts, three already have · an extension method: cannot know a phase was skipped |
+| **W2** | who walks on a bootstrapper node | ⭐ the BASE: a `capabilities` step resolves (`ResolveCapabilities(ctx, role)`, after `node-resources`), `PopulateSystems` runs right after the host's own hook, `ProvideModules` right after `GetAdditionalModules`; `Register` runs where the host calls `RegisterCapabilities(ctx)` inside `RegisterSpawningPipeline`; the base checks completeness before `kernel-initialize` | a fixed `Register` point in the base: reorders SimHost (after its spawn pack) or Stride (before it), and module order is frame order · leave it to each subclass (today) |
+| **W3** | the inline roots (CGF, editor) | ⭐ the same walker, called at their own points, `AssertComplete` before their `Initialize`; CGF gains a `Register` call at its spawn point (no member implements it today ⇒ no change) | putting CGF on the base: §4.1x keeps CGF off it deliberately (orchestration authority) |
+| **W4** | the values bag | ⭐ the base passes its `BootValues` (Stride already does); the inline roots pass their own bag | SimHost's free-standing empty bag: predates `CE-199`'s `node-resources` step, which made the real bag legal |
+| **W5** | order changes | ⭐ CGF calls `PopulateSystems` before `ProvideModules` (its lists register AFTER the provided modules, so kernel order is unchanged); the editor's interleaved per-capability pass becomes phased (no editor capability before a providing one has `Register` — the editor rails prove it) | keep CGF's and the editor's private orders: the order the base defines is the contract |
+| **T1** | a pack's terrain content | ⭐ a PER-NODE `TerrainContentRegistry` on `HrotNodeContext.TerrainContent`; a capability adds to it; the node's residency attaches it at `Prepare` | the process-wide static (as built in slice 2): in `--mode all` every node's residency loads every pack's content, even a node that composes none |
+| **T2** | the universal load parts | ⭐ ONE factory, `HrotUniversalLoadParts.Build(tkb, root, holder, content)`, returning the knowledge-base and terrain steps and the residency; used by `NodeBootstrapper` (SimHost, Stride, traffic), IG, CGF, `CgfApplication`, the editor | five hand copies (today) · the player's catalogue residency stays its own: no load chain, nothing to share |
+
+### ⭐ ACCEPTANCE
+
+| | |
+|---|---|
+| ⭐⭐⭐ every host's **system and module sequences unchanged** | the existing order rails: `EditorCapabilitiesTests` (differential), `IgNodeBootstrapperTests` (module order), `SimHostCoreLogicPackTests`, `NodeCompositionPlanRails` |
+| ⭐⭐ a skipped phase is **loud** | a rail: a bootstrapper subclass whose `RegisterSpawningPipeline` does not call `RegisterCapabilities` throws at boot, naming `Register` |
+| ⭐⭐ one walk per root | a source rail: no `foreach … .PopulateSystems(` / `.ProvideModules()` / `.Register(` over capabilities outside `NodeCapabilityWalk` |
+| ⭐ terrain content per node | a rail: two contexts, one pack ⇒ only that node's residency loads the SUMO net |
+
+### 📐 §4.1ae.1 — THE REST OF THE DUPLICATION, measured while building the traffic node *(2026-10-17)*
+
+📐 Building a fifth bootstrapper subclass (`TrafficNodeBootstrapper`, AQ93 N1) by REUSE is what exposed these: every piece it needed
+already existed in two to four hosts, in slightly different shapes. Each row is one item of `CE-4013`.
+
+| # | duplication | measured | status |
+|---|---|---|---|
+| D1 | the capability walk — five hand loops, three hooks skipped on three hosts | §4.1ae inventory | ✅ BUILT (W1–W5) |
+| D2 | the knowledge-base + terrain load parts — five hand copies; a process-wide content static | §4.1ae inventory | ✅ BUILT (T1–T2) |
+| D3 | ⛔ **the id-allocator client id is `SubsystemName + "Allocator"`** (`HrotNodeBuilder.cs:200`) and `DdsIdAllocator` keeps every response whose `ClientId` matches (`:179`) ⇒ two nodes of one subsystem name (two traffic nodes, two SimHosts, two Players) enqueue each other's chunks and hand out the SAME network id | a DEFECT, not just duplication | ✅ BUILT: `HrotNodeBuilder.AllocatorClientId` carries the node id; the allocator's own suite pins disjoint ids for distinct clients and overlap for a shared one |
+| D4 | ⛔ **the node's TKB is split** — IG publishes a FRESH catalogue as the world's `ITkbDatabase` (`IgNodeBootstrapper.cs:193`) while its load step loads into `context.TkbDb`; Stride publishes none and passes no `tkbDb:` to orchestration, so its knowledge-base step loads into a throwaway (`NodeBootstrapper` `tkbDb ?? CreateTkb()`) | a DEFECT | ✅ BUILT: `HrotNodeBuilder` publishes the context's TKB and entity map beside the geo transform; IG's fresh catalogue removed; Stride passes its TKB to orchestration |
+| D5 | the entity-map / geo-transform singletons set again after boot (`SimHostApp.cs:566/571`, `CgfSubsystem.cs:734/739`, `IgApplication.cs:1034`, `EditorSubsystem.cs:1238`); Stride mode 2 never sets the entity map | duplication + a gap | ✅ BUILT with D4 (six re-publications removed, each checked boot-time / same world / same object) |
+| D6 | the `EntityCreationPack` registration — copied six ways (Stride, IG, SimHost, CGF, the editor, traffic) (Stride, IG, SimHost, traffic): IG registers the spawn system as a GLOBAL system, the others through a `SingleSystemModule`; network-system order and log level differ; the ELM found three ways | duplication | ✅ BUILT: `EntityCreation.RegisterOn(kernel)`, called at each host's point (module order kept). ⚠ On IG and CGF the spawner moved from a global system to the module every other host uses — later among the unconstrained BeforeSync systems; the one declared order (`LocalAuthorityYieldSystem` after it) holds; CGF's network systems now register before its genesis systems. Checked by the entity-creation integration suites |
+| D7 | the frame loop (`SlaveTranslator.Tick` → `ClusterSlave.Tick` → `Kernel.Update` → `SwapBuffers`) written four times, in different orders (`StrideNodeBootstrapper:173`, `SimHostApp:643`, `IgApplication:1100`, `CgfSubsystem:1791`) | duplication; order differs | 📋 next: one node tick on the base / `HrotNodeContext` |
+| D8 | IG built its whole cluster-handler set by hand (its own `ClusterSlave`, "IG" and `Map2D` hard-coded) instead of `NodeBootstrapper.BuildOrchestration` | duplication — the §4.1b/`CE-164` history lives here | ✅ **built** — IG holds a `Hrot.SimHost.NodeBootstrapper` and calls its `BuildOrchestration` with the context's slave and translator, its own `DiagnosticsDumpClusterOpHandler` and the role it booted with; `RoadNetworkHolder`/`TerrainLoadService` delegate to it. Rails: `EveryEcsHostComposesTheLoadPhaseChainRails` follows the delegation |
+| D9 | IG's serializer is its own `ScenarioSerializerBuilder("Hrot.IG")` — no HROT translators, the "Hrot.IG" header (IG's VISUAL payload, `HrotSubsystemTypes.cs`); the others use `HrotScenarioSerializerFactory.Build` (in `Hrot.SimHost`, with all 18 translators) | duplication + a latent DEFECT: since CE-275 ③ IG saves its owned slice through the shared handler (`DESIGN_Node_Roles_And_Policies.md` §7.1), so an IG-owned entity would save incompletely under a header the scenario load does not take | ✅ BUILT: IG uses the factory, like every host (through the new IG → `Hrot.SimHost` reference, D11) |
+| D10 | the declared-vs-needed resource cross-check copied (`IgNodeBootstrapper:307`, `SimHostNodeBootstrapper:397`, traffic) | duplication | ✅ BUILT: the base's `capabilities` step checks declared keys == the union of the capabilities' Needs, for every host (Stride had none) |
+| D11 | `GenesisMaterializationSystem` (+ `InitialBrainMaterializationSystem`) registered by hand on SimHost, Stride, CGF, the editor; NOT on IG or traffic | a GAP — §4.1f already ruled it "the entity creation tail — belongs with the pack, not a role module" | ✅ BUILT: `GenesisTail.RegisterOn` (in `Hrot.SimHost`, where both systems live), called by all six; IG gains a `Hrot.SimHost` reference (acyclic — nothing below SimHost references IG) |
+| D12 | `ApplicationSystemsRegistrar` declared separately on Stride, SimHost, IG (and traffic) | duplication | ✅ BUILT: one property on the base, invoked by the default `RegisterApplicationSystems` |
+| D13 | each host builds its `HrotNodeConfig` inline (`SimHostApp:365`, `CgfSubsystem:715`, `StrideNodeShell:158`, `IgApplication:712`) — temp-root rule and participant fallback differ | duplication | 📋 |
+| D14 | `NedReplicationModule` accepted only MuscleGround / Map2D / Brain (/ Traffic, AQ93 N1) and threw otherwise; the builder skipped `NodeRole.None` | a per-role denial | ✅ **built** — 🔒 R-4057 (user: *"enabled by default"*): every networked ECS node builds the module, `None` included; only a `None` node with no participant skips. The role gates INSIDE stay (R-3015). Rail `NedReplicationModuleTests.AnyRole_BuildsTheModule_WithTheSharedSystems`. 📄 `DESIGN_Node_Roles_And_Policies.md` §3.6 |
+| D16 | `Hrot.IG.Modules.SpawningModule` — a second `SingleSystemModule`-shaped wrapper for `NetworkSpawningSystem`, used only by its own tests | ⭐ **KEPT** — 🔒 user, `2026-10-17`: *"unused is not meaning undesired. All ecs nodes need to be able to spawn entities."* IG spawns through the pack (`EntityCreation.RegisterOn` → `SingleSystemModule("NetworkSpawning")`, pinned per host by `EntityCreationPackRails`); the wrapper is not removed | ⛔ no action |
+| D15 | ⛔ **every `NodeBootstrapper` host runs TWO cluster slaves and TWO slave translators** — `HrotNodeBuilder` step 8 builds one pair, `NodeBootstrapper.BuildOrchestration` builds a second (`NodeBootstrapper.cs:248-256`), the base swaps the second slave in, Stride and traffic HIDE `BootstrapNode` (`new`) to swap the second translator in; the builder's translator (a live `NedSlaveOrchestrationTranslator`, role-independent — `NedNetworkFactory.cs:357`) is never ticked, its DDS readers never drained | duplication + a latent DEFECT (CE-164's shape, quieter: an undrained reliable reader can back-pressure the writers) | ✅ BUILT: `BuildOrchestration` takes the context's slave and translator (builds its own only for a caller with no context); the base exposes `BootConfig`, `BootRole`, `NetworkFactory` and `Context`, so no subclass hides `BootstrapNode`. A rail: the traffic node's helper and context hold the SAME translator |
+| D17 | `BuildContext` identical on four hosts (the `HrotNodeBuilder` chain with `.WithReplication(role)`) | duplication — the base cannot hold it (Hrot.Common cannot see NED, `SharedApplicationBootstrapper.cs:400`) | 📋 one helper in an assembly that sees both |
+| D19 | ⛔ the shared translator pack (on every node, R-3015/R-4057) wrote six types the shared registry did not register — each host covered them through its OWN role registries, the traffic node (shared registry only) crashed on `EntityInfo` | a node-shape dependency | ✅ **built** — `HrotSharedComponentRegistry` registers what the shared pack writes (swept: all 34 shared ingress translators). ⛔ Not the union of all registries: `DESIGN_Role_Affinity_Ownership.md` §3.9b keeps registration narrowing. Rail `SharedRegistryCoversTheSharedPackTests` |
+
+
+### ⭐ §4.1ae.2 — NO HOST DEPENDS ON ANOTHER HOST: the shared node code lives in `Hrot.EcsNode` *(CE-4015, 2026-10-17)*
+
+🔒 **User:** *"IG for sure cannot depend on sim host. The host must not be dependent on each other."* · 📄 `.dev/_DONE/modular-2/feedback-3.md:209`:
+subsystems *"must never depend on each other, but only point inward toward the shared domain."*
+
+```mermaid
+graph TD
+    SH[Hrot.SimHost] --> EN
+    IG[Hrot.IG] --> EN
+    TN[Hrot.TrafficNode] --> EN
+    CGF[Hrot.CGF] -.->|debt CE-4015| SH
+    EN["Hrot.EcsNode<br/>NodeBootstrapper · scenario serializer · GenesisTail"] --> HP[Hrot.Presentation]
+    EN --> HC[Hrot.Common]
+    HP --> TR[Hrot.Traffic] --> HC
+    linkStyle 3 stroke:#c00,stroke-dasharray:4
+```
+
+*What the picture shows that prose hid:* `Hrot.Common` cannot hold this code — the scenario save handler it registers lives in
+`Hrot.Presentation`, and `Presentation → Traffic → Common` would close a cycle. ⇒ a library ABOVE both and BELOW every host.
+
+| ⭐ | |
+|---|---|
+| ✅ built | `NodeBootstrapper`, the 17 `Serializers/*` files, `GenesisTail` + `GenesisMaterializationSystem` + `InitialBrainMaterializationSystem` moved from `Hrot.SimHost` (they reference nothing else in it); `IG → SimHost` and `TrafficNode → SimHost` removed (both were added by D8/D9/D11) |
+| ⚠ kept | the moved files' `Hrot.SimHost.*` namespaces — the same misleading shape that hid the dependency; rename with Roslyn, not text |
+| ⭐ `Hrot.NodeComposition` | ⚠ NOT a shared library: its one type is `StrideNodeBootstrapper`, the Stride host's own bootstrapper, kept apart from the `net8.0-windows` game so it builds and tests off Windows (`DESIGN_Stride_Port.md` §271). ⇒ game + NodeComposition = ONE host, and its SimHost/IG references are that host reaching into two others |
+| ⛔ debt | CGF→SimHost · Editor→SimHost/CGF/Orchestrator/IG · ExCon→Orchestrator · NodeComposition→SimHost/IG · ReplayBrowser→CGF/SimHost · Stride Game→NodeComposition/Editor/Orchestrator/CGF/SimHost — railed as a ratchet (`OneBootstrapImplementationRails.NoHost_ReferencesAnotherHost_BeyondTheRecordedDebt`) |
+| ⭐ D17 | `Hrot.EcsNode` is the natural home for the one `BuildContext` helper too, if it references NED |

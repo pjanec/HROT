@@ -78,8 +78,22 @@ public sealed class PerspectiveScopedDispatcher
     public IReadOnlyList<string> RoutablePerspectives =>
         _providers.Select(p => p.Perspective).OrderBy(p => p, StringComparer.Ordinal).ToList();
 
-    /// <summary>⭐ The live perspective name, as the window manager reports it.</summary>
-    public string CurrentPerspective => _currentPerspective();
+    /// <summary>
+    /// ⭐ The live perspective name, as the window manager reports it — or, on a process with exactly ONE provider whose
+    /// perspective no window claims, that provider's.
+    /// <para>📌 Measured 2026-10-17: a headless traffic node has a window manager but no windows, so its perspective stayed
+    /// "Default", matched no provider, and every world read answered NOT_SUPPORTED_HERE — the node could not be observed over
+    /// HTTP at all. ⭐ With one provider there is no "wrong node" to answer for (the reason <see cref="Active"/> never falls back
+    /// to the first of SEVERAL), so it is the only honest answer.</para>
+    /// </summary>
+    public string CurrentPerspective
+    {
+        get
+        {
+            string current = _currentPerspective();
+            return _providers.Count == 1 && Resolve(current) is null ? _providers[0].Perspective : current;
+        }
+    }
 
     /// <summary>
     /// ⭐⭐ The provider owning the active perspective, or <see langword="null"/> when nothing claims it.
@@ -88,7 +102,7 @@ public sealed class PerspectiveScopedDispatcher
     /// not silently fall back to "the first provider", which would answer for the wrong node.</para>
     /// </summary>
     public ISubsystemDebugProvider? Active()
-        => Resolve(_currentPerspective());
+        => Resolve(CurrentPerspective);
 
     /// <summary>⭐ The provider for a NAMED perspective — <c>Q54-2</c>'s optional <c>?perspective=</c> override.</summary>
     public ISubsystemDebugProvider? Resolve(string? perspective)

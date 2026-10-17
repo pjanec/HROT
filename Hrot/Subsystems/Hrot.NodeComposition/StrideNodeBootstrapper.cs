@@ -84,15 +84,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </summary>
     private IReadOnlyList<INodeCapability> _capabilities = System.Array.Empty<INodeCapability>();
 
-    // Saved by the overriding BootstrapNode so the abstract hooks can access them.
-    private HrotNodeConfig?   _savedConfig;
-    private NodeRole          _savedRole;
     private NodeBootstrapper? _nodeBootstrapper;
-
-    /// <summary>
-    /// The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.
-    /// </summary>
-    public HrotNodeContext Context { get; private set; } = default!;
 
     /// <summary>
     /// Sim-phase togglable group exposed for subsystem rendering and test inspection.
@@ -105,11 +97,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </summary>
     public TogglablePostSimulationGroup PostSimGroup { get; private set; } = default!;
 
-    /// <summary>
-    /// Optional callback invoked during Phase 6d (after network translators, before Initialize).
-    /// Used to register diagnostic capture systems and other application-level systems.
-    /// </summary>
-    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     /// <summary>
     /// Producer buffer: local ECS systems write gizmos here each frame, then
@@ -134,36 +121,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
     /// </remarks>
     public StrideNodeBootstrapper()
     {
-    }
-
-    /// <summary>
-    /// Runs the 7-phase bootstrap pipeline and stores the resulting context.
-    ///
-    /// <para>
-    /// Hides (does not override) the base-class method so config and role can
-    /// be captured before the abstract hooks are invoked, and so that the
-    /// <c>SlaveTranslator</c> side-effect of <see cref="BuildOrchestration"/>
-    /// can be patched into the context before it is exposed publicly.
-    /// </para>
-    /// </summary>
-    public new HrotNodeContext BootstrapNode(
-        HrotNodeConfig config,
-        NodeRole role,
-        INetworkFactory networkFactory)
-    {
-        _savedConfig      = config;
-        _savedRole        = role;
-        _nodeBootstrapper = new NodeBootstrapper(networkFactory);
-
-        var ctx = base.BootstrapNode(config, role, networkFactory);
-
-        // Patch SlaveTranslator — it is a side-effect of NodeBootstrapper.BuildOrchestration
-        // and is NOT set by the base class (only ClusterSlave is patched in by the base).
-        if (_nodeBootstrapper.SlaveTranslator != null)
-            ctx = ctx with { SlaveTranslator = _nodeBootstrapper.SlaveTranslator };
-
-        Context = ctx;
-        return Context;
     }
 
     /// <summary>
@@ -208,9 +165,6 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         Context?.Participant?.Dispose();
     }
 
-    /// <inheritdoc/>
-    protected override void RegisterApplicationSystems(HrotNodeContext context)
-        => ApplicationSystemsRegistrar?.Invoke(context);
 
     // ── Abstract hook implementations ─────────────────────────────────────────
 
@@ -342,26 +296,13 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         sim.Add(new EventToEffectSystem());
         postSim.Add(new VisualEffectCleanupSystem());
 
-        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half. See the CE-244 note on
-        //    RegisterSpawningPipeline below for the measurement; this is the same defect's other half.
-        //    UnitHierarchy and EqsResultUpdate (CoreInfrastructureCapabilities) contribute through
-        //    PopulateSystems rather than ProvideModules, deliberately, so without this pass their
-        //    systems were absent from a node whose boot log listed both capabilities by name.
-        foreach (INodeCapability capability in _capabilities)
-            capability.PopulateSystems(context, input, sim, postSim);
+        // ⭐⭐ CE-244 (1 of 2) — the capabilities' `system-groups` half (UnitHierarchy, EqsResultUpdate) and their modules at
+        //    `additional-modules` are walked by the BASE now, right after this hook and after GetAdditionalModules (CE-4013).
     }
 
     /// <inheritdoc/>
-    protected override IEnumerable<IEcsModule> GetAdditionalModules()
-    {
-        // ⭐ The modules come from the resolved capability set. This is the `additional-modules` boot
-        //   step, which is exactly the step INodeCapability.ProvideModules() exists to serve (§4.1t):
-        //   expressing them through Register() instead would push them AFTER context.BaseModules and
-        //   the spawning pipeline, and registration order is execution order.
-        foreach (INodeCapability capability in _capabilities)
-            foreach (IEcsModule module in capability.ProvideModules())
-                yield return module;
-    }
+    /// <remarks>⭐ CE-4013 — the set this node's shell handed in (<see cref="WithCapabilities"/>); the base walks it.</remarks>
+    protected override IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role) => _capabilities;
 
     /// <summary>
     /// Hands this bootstrapper the capabilities its shell resolved. Call BEFORE bootstrapping.
@@ -386,18 +327,22 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         SimGroup     = simGroup;
         PostSimGroup = postSimGroup;
 
-        return _nodeBootstrapper!.BuildOrchestration(
-            _savedRole,
+        _nodeBootstrapper = new NodeBootstrapper(NetworkFactory);
+        return _nodeBootstrapper.BuildOrchestration(
+            BootRole,
             context.Kernel,
             context.World,
             context.NodeId,
             participant:         context.Participant,
-            subsystemName:       _savedConfig!.SubsystemName,
+            subsystemName:       BootConfig!.SubsystemName,
             eventBus:            context.EventBus,
             // CE-279 — pass the serializer this override already receives (was null): the Stride SimHost saves
             //   its owned slice via the shared serializer like every ECS host. Load handlers stay off here.
             scenarioSerializer:  serializer,
-            localTempRoot:       _savedConfig.LocalTempRoot,
+            localTempRoot:       BootConfig.LocalTempRoot,
+            // ⭐ CE-4013 D4 — this caller HAS the node's catalogue: without it the knowledge-base step loaded the scenario's TKB into a
+            //   throwaway (NodeBootstrapper's `tkbDb ?? CreateTkb()`), so the node's spawning never saw it.
+            tkbDb:               context.TkbDb,
             simGroup:            simGroup,
             postSimGroup:        postSimGroup,
             lifecycleGroup:      context.NedReplication?.NetworkLifecycleGroup,
@@ -407,7 +352,11 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
             // ⭐ HN-018 — this caller HAS the ELM, so it passes it (the silent-default rule).
             elm:                 context.BaseModules?
                                      .OfType<Fdp.Toolkit.Lifecycle.EntityLifecycleModule>()
-                                     .FirstOrDefault());
+                                     .FirstOrDefault(),
+            terrainContent:       context.TerrainContent,   // ⭐ CE-4013 — this caller HAS the node's registry, so it passes it
+            // ⭐ CE-4013 D15 — the node's ONE slave and ONE slave translator, from HrotNodeBuilder: no second pair.
+            clusterSlave:         context.ClusterSlave,
+            slaveTranslator:      context.SlaveTranslator);
     }
 
     /// <inheritdoc/>
@@ -444,14 +393,10 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //    order is execution order within a phase. Nothing below reads anything a capability
         //    registers, and no capability reads the pack, so the two are independent today -- the
         //    order is chosen to match the editor rather than to satisfy a dependency.
-        foreach (INodeCapability capability in _capabilities)
-            capability.Register(context, BootValues);
+        RegisterCapabilities(context);   // ⭐ CE-4013 — the shared walk, at this host's point (before its own spawn systems)
 
-        // GenesisMaterializationSystem resolves cross-entity Intent DTOs into live
-        // component data during scenario load. Runs in the Input phase.
-        context.Kernel.RegisterGlobalSystem(
-            new GenesisMaterializationSystem(context.EntityMap));
-        context.Kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());   // ⭐ CE-3042 — drops the intent here (no brain)
+        // ⭐ CE-4013 D11 — the shared genesis tail (scenario intents + the saved AI's ingress), at this host's point.
+        GenesisTail.RegisterOn(context.Kernel, context.EntityMap);
 
         // NetworkSpawningSystem handles incoming entity creation requests from the
         // network (CGF/Brain node). Only wired when an ID allocator is available;
@@ -499,28 +444,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
             // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
             //   exactly as before — composition changed, scheduling did not.
-            context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
-
-            // ⭐ S2b — the pack's network systems (cluster-cache poll, delete requests); empty offline.
-            foreach (var sys in creation.NetworkSystems)
-                context.Kernel.RegisterGlobalSystem(sys);
-            context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
-            context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
-            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-            //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
-            context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-            context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-            context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-            // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
-            //   was silent.
-            var unserviceable = creation.Unserviceable(new object[]
-            {
-                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-            }.Concat(creation.NetworkSystems));
-            if (unserviceable.Length > 0)
-                FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);
+            // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
+            creation.RegisterOn(context.Kernel);
 
         }
     }

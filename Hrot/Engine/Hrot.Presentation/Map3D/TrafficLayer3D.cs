@@ -78,7 +78,7 @@ public sealed class TrafficLayer3D : IMapLayer, IDisposable
         }
         foreach (var car in frame.Cars)
         {
-            if (frame.IsEntity(car.Handle)) continue;
+            if (frame.IsEntity(car)) continue;
             var size = new Vector3(car.Length, car.Width, 1.5f);
             var centre = new Vector3(car.X, car.Y, car.Z + size.Z / 2f);
             Raylib.DrawMesh(_cube, shader.Tinted(CarColor),

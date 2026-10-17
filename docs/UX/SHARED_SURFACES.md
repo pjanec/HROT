@@ -47,7 +47,7 @@ against code before relying on a "not on the list, therefore safe" conclusion, a
 | Editor composition root | `Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs` (~4.2k lines) | — | UX-heavy, but the blueprint programme wires its windows here (`_blueprintRegistrar`, retarget hooks) |
 | **Blueprint / BTree / HSM editor windows** | `Hrot.Blueprints.Editor/`, `Hrot.BTree.Editor/`, `Hrot.Hsm.Editor/`, `Hrot.Editor.AiShared/` | — | 🔴 **The active surface of the parallel programme. Place, do not touch.** |
 | Cluster host | `Hrot/Runner/Hrot.ClusterRunner/` | all modes | 🔒 Must stay operational. Additive changes only, gated on its suites |
-| Scenario translators | `Hrot/Subsystems/Hrot.SimHost/Serializers/` | SimHost, editor, CGF | Persistence changes need a migration, not a break |
+| Scenario translators | `Hrot/Engine/Hrot.EcsNode/Serializers/` | SimHost, editor, CGF | Persistence changes need a migration, not a break |
 | **AI Debug API** *(not yet ported)* | `Hrot.Editor/DebugApi/` on `feat/ai-debug-api` | the MCP server + agents | ⚠ **Becomes co-owned once ported** — a second consumer of the editor's internals, on a par with the UI. Its integration tests are the gate. See [MCP_PORT_PLAN.md](MCP_PORT_PLAN.md) |
 
 ## Proposed changes awaiting consultation

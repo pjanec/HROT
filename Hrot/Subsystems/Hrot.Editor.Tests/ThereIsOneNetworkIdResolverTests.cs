@@ -111,6 +111,7 @@ public sealed class ThereIsOneNetworkIdResolverTests
 
             // ⚠ Test assemblies assert on ids constantly and legitimately; this rail is about production.
             if (rel.Contains(".Tests/")) continue;
+            if (rel.StartsWith(".claude/", StringComparison.Ordinal)) continue;   // agent worktrees: a second copy of the tree
 
             foreach (var line in File.ReadLines(file))
             {

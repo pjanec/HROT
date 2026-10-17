@@ -67,19 +67,21 @@ public sealed class HrotNodeBuilderWithReplication
     /// <summary>
     /// Builds the node context AND constructs <see cref="NedReplicationModule"/>, returning an
     /// <see cref="HrotNodeContext"/> where <see cref="HrotNodeContext.NedReplication"/> is non-null.
-    /// When the role is <see cref="NodeRole.None"/>, no <see cref="NedReplicationModule"/> is
-    /// constructed and the returned context has <c>NedReplication = null</c>.
+    /// ⭐ R-4057: the module is built for EVERY role on a networked node. Only a <see cref="NodeRole.None"/> node with no
+    /// participant (headless/test) skips it, and then the returned context has <c>NedReplication = null</c> unless the
+    /// factory supplies an offline module.
     /// </summary>
     public HrotNodeContext Build()
     {
         // Calls the native HrotNodeBuilder.Build() instance method.
         var context = _builder.Build();
 
-        // NodeRole.None = headless/test node with no replication role — skip NedReplicationModule
-        // construction (which throws ArgumentException for None). However, if the factory provides
-        // a mock/offline IReplicationModule via CreateReplicationModule(), wire that up so that
-        // tests using MockNedFactory still get a non-null context.NedReplication.
-        if (_skipForNone)
+        // ⭐⭐ R-4057 (CE-4013 D14) — a NETWORKED node replicates whatever its role, NodeRole.None included (R-4005: None
+        //   means "plays no role", not "is not networked"). ⛔ Was: None always skipped (test-health D-7), because the ctor threw
+        //   for it. Only a None node with NO participant — a headless/test node — still skips; if its factory provides a
+        //   mock/offline IReplicationModule via CreateReplicationModule(), that is wired up so tests using MockNedFactory still
+        //   get a non-null context.NedReplication.
+        if (_skipForNone && context.Participant == null)
         {
             var factoryModule = _builder.NetworkFactory?.CreateReplicationModule()
                                     as INedReplicationModule;
@@ -142,9 +144,8 @@ public static class HrotNodeBuilderReplicationExtensions
     /// Returns a <see cref="HrotNodeBuilderWithReplication"/> whose <see cref="HrotNodeBuilderWithReplication.Build"/>
     /// constructs both the base context and the <see cref="NedReplicationModule"/>.
     /// <para>
-    /// When <paramref name="role"/> is <see cref="NodeRole.None"/>, returns a no-op builder that
-    /// calls <see cref="HrotNodeBuilder.Build"/> without constructing a <see cref="NedReplicationModule"/>.
-    /// This is the correct behaviour for headless/test nodes that have no replication role.
+    /// ⭐ R-4057: every role replicates on a networked node. A <see cref="NodeRole.None"/> node with NO participant
+    /// (headless/test) builds without a <see cref="NedReplicationModule"/>.
     /// </para>
     /// </summary>
     public static HrotNodeBuilderWithReplication WithReplication(

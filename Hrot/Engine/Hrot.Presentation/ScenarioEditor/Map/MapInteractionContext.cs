@@ -172,8 +172,14 @@ namespace Hrot.ScenarioEditor.Map
         public bool StartEnabled { get; init; }
 
         /// <summary>
-        /// ⭐ Primitive-buffer capacity. Default matches <c>DebugPrimitiveBuffer</c>'s own default; IG asks
-        /// for <c>4096</c> because it draws the richest frame. 🔒 <c>R-137</c>: a per-host number that was
+        /// ⭐ The map buffer's capacity when a host names none. 📌 2026-10-17 (AQ93 slice 1): the SUMO road layer plus the terrain
+        /// and entity gizmos overflowed the old 4096 (<c>DebugPrimitiveBuffer</c>'s own default) and the map drew nothing. 16384 ×
+        /// 64 B = 1 MB per buffer. ⚠ The DDS publisher sends only the primitives drawn, never the capacity.
+        /// </summary>
+        public const int DefaultBufferCapacity = 16384;
+
+        /// <summary>
+        /// ⭐ Primitive-buffer capacity; <c>null</c> ⇒ <see cref="DefaultBufferCapacity"/>. 🔒 <c>R-137</c>: a per-host number that was
         /// a constructor argument stays a per-host number, named once.
         /// </summary>
         public int? BufferCapacity { get; init; }

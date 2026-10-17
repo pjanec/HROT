@@ -1,21 +1,30 @@
+using CycloneDDS.Runtime;
 using Fdp.Toolkit.Traffic;
 using Sim.LiveCity;
 using Sim.Replication;
+using Sim.Replication.Dds;
 
 namespace Hrot.Traffic;
 
+/// <summary>What a node that SERVES traffic gives its sessions: who it is on the wire and where car ids come from.</summary>
+/// <param name="NextNetworkId">⭐ N2 (R-4054) — the cluster's id allocator: a car's network id IS its SUMO vehicle id.</param>
+/// <param name="Participant">⭐ N7 — the node's DDS participant; null (the networkless editor) ⇒ no DDS tee.</param>
+/// <param name="Source">⭐ H8 — this node's key on SUMO's topics (its node id), so several traffic nodes never collide (R-4055).</param>
+public sealed record TrafficServeOptions(Func<long> NextNetworkId, DdsParticipant? Participant, uint Source);
+
 /// <summary>
-/// ⭐ AQ93 EM-1/EM-5 (R-4045) — one running SUMO: SumoSharp's <see cref="LiveCitySim"/> (its proven engine + closed-loop car demand
-/// + DR-gated replication publisher + in-memory wire) over the terrain's net, stepped to a target time OFF the main thread.
+/// ⭐ AQ93 EM-1/EM-5 (R-4045), §12 N2/N3/N7 (R-4054, R-4056) — one running SUMO: SumoSharp's <see cref="LiveCitySim"/> (its proven engine +
+/// closed-loop car demand + DR-gated publisher + in-memory wire) over the terrain's net, stepped to a target cluster time OFF the main thread.
 /// </summary>
 /// <remarks>
-/// <para>⭐ <b>Why <see cref="LiveCitySim"/> and not a new driver</b> (the seam law): it already is "an engine, random routable trips at a
-/// density, the publisher with the built-in DR-error policy, an in-memory source" — the demo city's live traffic, tuned. Configured
-/// here for HROT: <see cref="PedNavMode.RouteGraph"/> (the WHOLE net, no demo crop — R-4040 background traffic), pedestrians off
-/// (slice 1), and <see cref="LiveCitySim.SelfPumpVehicleBus"/> false so the main thread alone drains the wire.</para>
-/// <para>⛔ <b>Threads.</b> <see cref="StepTo"/> runs on the stepping module's thread; <see cref="Source"/> is pumped and read on the
-/// main thread. The bus between them is SumoSharp's thread-safe queue. <see cref="Dispose"/> and <see cref="StepTo"/> share a gate so a
-/// session swapped out mid-step is never disposed under its stepper.</para>
+/// <para>⭐ The network's rules, met in ONE place so the editor obeys them too (R-4053): every car's id is a network id from the cluster's
+/// allocator (H5); SUMO's clock STARTS at the cluster time the session starts (H6), so every sample on every wire is stamped in cluster
+/// time; the car types are the TKB's (H9, each carrying its TKB type on the spawn record, H7); and when the node has a participant the
+/// same steps are TEED to SumoSharp's DDS sink keyed by this node (H8) while its own mirror reads the in-memory wire (N7).</para>
+/// <para>⭐ <see cref="LiveCitySim"/> in <see cref="PedNavMode.RouteGraph"/> mode (the whole net, R-4040), pedestrians off (their slice), and
+/// <see cref="LiveCitySim.SelfPumpVehicleBus"/> false so the main thread alone drains the in-memory wire.</para>
+/// <para>⛔ <b>Threads.</b> <see cref="StepTo"/> runs on the stepping module's thread; <see cref="Source"/> is pumped and read on the main
+/// thread. <see cref="Dispose"/> and <see cref="StepTo"/> share a gate.</para>
 /// </remarks>
 public sealed class TrafficSession : IDisposable
 {
@@ -23,10 +32,13 @@ public sealed class TrafficSession : IDisposable
     public const int MaxStepsPerCall = 40;
 
     private readonly LiveCitySim _sim;
+    private readonly DdsReplicationSink? _dds;
     private readonly object _gate = new();
     private bool _disposed;
 
-    public TrafficSession(TrafficSessionKey key)
+    /// <param name="types">⭐ T1 — the TKB's car types; empty ⇒ SumoSharp's single default type.</param>
+    /// <param name="startTime">⭐ N3 — the cluster sim time SUMO's clock starts at.</param>
+    public TrafficSession(TrafficSessionKey key, TrafficServeOptions options, IReadOnlyList<TrafficVehicleType> types, double startTime)
     {
         Key = key;
         var demand = key.Demand;
@@ -40,37 +52,48 @@ public sealed class TrafficSession : IDisposable
             Dt = demand.StepSeconds > 0f ? demand.StepSeconds : TrafficDemand.Default.StepSeconds,
             PedPopulationCap = 0,
             PedSpawnRatePerSecond = 0.0,
+            StartTime = startTime,
+            VehicleIdProvider = () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            VehicleTypes = types.Count == 0 ? null : types.Select(t => new LiveCityVehicleType(
+                t.TkbType.ToString(System.Globalization.CultureInfo.InvariantCulture), t.VClass, t.Length, t.Width, t.MaxSpeed, t.Weight,
+                ExternalType: t.TkbType, Color: 0u)).ToList(),
         };
-        _sim = new LiveCitySim(cfg) { SelfPumpVehicleBus = false };
+        _dds = options.Participant is { } p ? new DdsReplicationSink(p, options.Source) : null;
+        _sim = new LiveCitySim(cfg, recordVehSink: _dds) { SelfPumpVehicleBus = false };
         _sim.SetPedDensity(0, 0.0);
+        StartTime = startTime;
+        Volatile.Write(ref _time, startTime);
     }
 
     /// <summary>What this session was built from; a different key means a new session.</summary>
     public TrafficSessionKey Key { get; }
 
-    /// <summary>The car wire. ⛔ Main thread only: <see cref="IReplicationSource.Pump"/> and every read.</summary>
+    /// <summary>The cluster time SUMO's clock started at.</summary>
+    public double StartTime { get; }
+
+    /// <summary>The car wire, in cluster time. ⛔ Main thread only: <see cref="IReplicationSource.Pump"/> and every read.</summary>
     public IReplicationSource Source => _sim.VehicleSource;
 
     /// <summary>The net's lane shapes, for dead reckoning on the receiving side.</summary>
     public Sim.Core.NetworkLaneSource Lanes => _sim.LocalLanes;
 
-    /// <summary>SUMO's own clock, seconds since the session started.</summary>
+    /// <summary>SUMO's own clock — cluster sim time (N3).</summary>
     public double Time => Volatile.Read(ref _time);
     private double _time;
 
     /// <summary>SUMO's step length (seconds).</summary>
     public double StepSeconds => _sim.Dt;
 
-    /// <summary>Steps SUMO until its clock reaches <paramref name="sumoTime"/> (at most <see cref="MaxStepsPerCall"/> steps).
-    /// A target that does not move — the editor paused — steps nothing.</summary>
+    /// <summary>Steps SUMO until its clock reaches <paramref name="clusterTime"/> (at most <see cref="MaxStepsPerCall"/> steps). A target
+    /// that does not move — the cluster paused — steps nothing.</summary>
     /// <returns>The steps taken.</returns>
-    public int StepTo(double sumoTime)
+    public int StepTo(double clusterTime)
     {
         lock (_gate)
         {
             if (_disposed) return 0;
             int steps = 0;
-            while (steps < MaxStepsPerCall && _sim.Time + _sim.Dt <= sumoTime + 1e-9)
+            while (steps < MaxStepsPerCall && _sim.Time + _sim.Dt <= clusterTime + 1e-9)
             {
                 _sim.Step();
                 steps++;
@@ -87,11 +110,11 @@ public sealed class TrafficSession : IDisposable
             if (_disposed) return;
             _disposed = true;
             _sim.Dispose();
+            _dds?.Dispose();
         }
     }
 }
 
-/// <summary>What a <see cref="TrafficSession"/> is built from: the terrain's net (path + content hash, so a re-loaded terrain with
-/// another net restarts SUMO), the scenario's demand, and a generation that a
-/// rewind bumps (SUMO cannot run backwards, so a clock that jumps back restarts it).</summary>
+/// <summary>What a <see cref="TrafficSession"/> is built from: the terrain's net (path + content hash), the scenario's demand, and a
+/// generation that a rewind bumps (SUMO cannot run backwards, so a clock that jumps back restarts it).</summary>
 public sealed record TrafficSessionKey(string NetFile, string Folder, string NetHash, TrafficDemand Demand, int Generation);

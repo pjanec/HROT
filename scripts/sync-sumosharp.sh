@@ -27,8 +27,17 @@ fetch() { # $1 = ref ; leaves $SCRATCH checked out at it
   if [ ! -d "$SCRATCH/.git" ]; then
     git clone -q --filter=blob:none "$REPO_URL" "$SCRATCH"
   fi
-  git -C "$SCRATCH" fetch -q origin "$1" 2>/dev/null || git -C "$SCRATCH" fetch -q origin
-  git -C "$SCRATCH" checkout -q --detach FETCH_HEAD 2>/dev/null || git -C "$SCRATCH" checkout -q --detach "$1"
+  # ⛔ 2026-10-17: a ref that could not be fetched by name fell back to `fetch origin` and then checked out FETCH_HEAD —
+  #   i.e. the DEFAULT branch — so a sha silently vendored the wrong tree. Now: fetch the ref, else fetch every branch and
+  #   check out the ref ITSELF; if it still does not resolve, stop.
+  if git -C "$SCRATCH" fetch -q origin "$1" 2>/dev/null; then
+    git -C "$SCRATCH" checkout -q --detach FETCH_HEAD
+  else
+    git -C "$SCRATCH" fetch -q origin '+refs/heads/*:refs/remotes/origin/*'
+    git -C "$SCRATCH" checkout -q --detach "$1" 2>/dev/null \
+      || git -C "$SCRATCH" checkout -q --detach "origin/$1" 2>/dev/null \
+      || { echo "error: upstream ref '$1' not found — nothing synced" >&2; exit 1; }
+  fi
 }
 
 copy_dir() { # $1 = source dir, $2 = target dir — a copy without build outputs (no rsync needed)
@@ -92,5 +101,6 @@ case "${1:-}" in
 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11 (R-4046, R-4048).
 EOF
     echo "vendored $REPO_URL @ ${sha:0:12} ($ref) into FDP/ExtDeps/SumoSharp"
+    echo "⚠ the vendored projects' obj/ were replaced: run 'dotnet restore HROT.sln' BEFORE building — otherwise a --no-restore build fails and a --no-build test runs the STALE binary (measured 2026-10-17)."
     ;;
 esac

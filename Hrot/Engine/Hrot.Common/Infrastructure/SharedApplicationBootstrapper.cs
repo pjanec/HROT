@@ -53,6 +53,9 @@ public abstract class SharedApplicationBootstrapper
     /// <summary>The running plan's values. Null until the <c>node-resources</c> step runs.</summary>
     private NodeBootValues? _bootValues;
 
+    /// <summary>⭐ CE-4013 — the ONE walk over this node's capabilities; the base owns it for every subclass. Null until <c>capabilities</c>.</summary>
+    private NodeCapabilityWalk? _walk;
+
     /// <summary>
     /// Gateway for forwarding UI time-control commands (pause/step/play) to the
     /// Cluster Master over DDS. Set by the base class in Phase 6c via the
@@ -72,6 +75,11 @@ public abstract class SharedApplicationBootstrapper
         NodeRole role,
         INetworkFactory? networkFactory)
     {
+        // ⭐ CE-4013 D15 — what every hook may need, captured ONCE here (two subclasses used to HIDE this method to capture them).
+        BootConfig     = config ?? throw new ArgumentNullException(nameof(config));
+        BootRole       = role;
+        NetworkFactory = networkFactory;
+
         // ⭐⭐⭐ THE PHASES ARE DECLARED, NOT JUST SEQUENCED (2026-09-03).
         //
         // The order below is EXACTLY what it has always been — NodeBootPlan verifies, it never
@@ -183,13 +191,34 @@ public abstract class SharedApplicationBootstrapper
                 }
             });
 
+        // Phase 3c — ⭐⭐ CE-4013: the node's capabilities, resolved ONCE, so the three composition steps below walk the same set.
+        //   After node-resources (a capability may be built over an allocated resource) and the configured factory.
+        //   📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.
+        plan.Step("capabilities",
+            requires: new[] { "context", "configured-factory" }.Concat(declaredResourceKeys).ToArray(),
+            provides: new[] { "capabilities" },
+            run: () =>
+            {
+                _walk = new NodeCapabilityWalk(ResolveCapabilities(context, role));
+
+                // ⭐ CE-4013 D10 — the static resource declaration must equal the union of the composed capabilities' Needs: otherwise a
+                //   capability allocates its own copy of a shared resource, or borrows one the node never allocated. ⛔ SimHost, IG and the
+                //   traffic node each carried their own copy of this check (Stride none).
+                var needed = new SortedSet<string>(_walk.Capabilities.SelectMany(c => c.Needs), StringComparer.Ordinal);
+                var declared = new SortedSet<string>(declaredResourceKeys, StringComparer.Ordinal);
+                if (!needed.SetEquals(declared))
+                    throw new InvalidOperationException(
+                        $"[{config.SubsystemName}] role {role} declares resources [{string.Join(", ", declared)}] but its composed capabilities " +
+                        $"need [{string.Join(", ", needed)}]. DeclaredResourceKeys must match the capabilities' Needs.");
+            });
+
         // Phase 4a — Populate togglable system groups and register them on the kernel.
         // ⛔ PROVIDES system-groups, which 6a and 6b require: a subclass may build a capability
         //    pack here and read it back in those phases (SimHost's CoreLogicPack does exactly that).
         // ⭐ REQUIRES the declared resource keys, so PopulateSystems may legally read an allocated
         //    resource out of BootValues — the read is checked against this step's own declaration.
         plan.Step("system-groups",
-            requires: new[] { "context", "configured-factory" }.Concat(declaredResourceKeys).ToArray(),
+            requires: new[] { "context", "configured-factory", "capabilities" }.Concat(declaredResourceKeys).ToArray(),
             provides: new[] { "system-groups" },
             run: () =>
         {
@@ -207,6 +236,8 @@ public abstract class SharedApplicationBootstrapper
                 inputSystems.AddRange(configuredFactory.CreateSimHostAttributeUpdateSystems());
 
             PopulateSystems(context, inputSystems, simSystems, postSimSystems);
+            // ⭐ CE-4013 — the capabilities' systems, after the host's own (where every host already walked them).
+            _walk!.PopulateSystems(context, inputSystems, simSystems, postSimSystems);
 
             var inputGroup = new TogglableInputGroup($"{config.SubsystemName}Input", inputSystems);
             simGroup       = new TogglableSimulationGroup($"{config.SubsystemName}Sim", simSystems);
@@ -223,9 +254,13 @@ public abstract class SharedApplicationBootstrapper
 
         // Phase 4b — Additional modules whose internal phase structure must not be flattened.
         // ⭐ Measured incidental (§4.1N ③): nothing consumes it; its only constraint is "before 7".
-        plan.Step("additional-modules", requires: new[] { "context" }, run: () =>
+        // ⭐ CE-4013 — requires system-groups now: the walk's phases run in the base's step order, and saying so is cheaper than
+        //   IG's old lazy resolution, which existed only because nothing ordered these two steps.
+        plan.Step("additional-modules", requires: new[] { "context", "system-groups" }, run: () =>
         {
             foreach (IEcsModule mod in GetAdditionalModules())
+                context.Kernel.RegisterModule(mod);
+            foreach (IEcsModule mod in _walk!.ProvideModules())
                 context.Kernel.RegisterModule(mod);
         });
 
@@ -305,8 +340,10 @@ public abstract class SharedApplicationBootstrapper
         // Phase 7 — Initialize kernel. Always last.
         // ⛔ ENFORCED by the kernel itself: ModuleHostKernel:165-166 throws
         //    "Cannot register systems after Initialize() called".
-        plan.Step("kernel-initialize", requires: new[] { "context" }, provides: new[] { "kernel-initialized" }, run: () =>
+        plan.Step("kernel-initialize", requires: new[] { "context", "capabilities" }, provides: new[] { "kernel-initialized" }, run: () =>
         {
+            // ⭐ CE-4013 — a subclass whose RegisterSpawningPipeline never called RegisterCapabilities fails HERE, naming the phase.
+            _walk!.AssertComplete(config.SubsystemName);
             context.Kernel.Initialize();
         });
 
@@ -334,8 +371,21 @@ public abstract class SharedApplicationBootstrapper
 
         plan.Run(GetType().Name);
 
+        Context = context;
         return context;
     }
+
+    /// <summary>⭐ CE-4013 D15 — the config this node was bootstrapped with (null before <see cref="BootstrapNode"/>).</summary>
+    protected HrotNodeConfig? BootConfig { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the role this node was bootstrapped with.</summary>
+    protected NodeRole BootRole { get; private set; }
+
+    /// <summary>⭐ CE-4013 D15 — the network factory handed to <see cref="BootstrapNode"/> (before node configuration).</summary>
+    protected INetworkFactory? NetworkFactory { get; private set; }
+
+    /// <summary>The fully wired node context. Valid after <see cref="BootstrapNode"/> returns.</summary>
+    public HrotNodeContext Context { get; private set; } = default!;
 
     /// <summary>
     /// Phase 5-post — the slave-node composition invariant. Extracted verbatim from the inline
@@ -497,6 +547,29 @@ public abstract class SharedApplicationBootstrapper
     protected virtual BehaviorRegistry? GetBehaviorRegistry() => null;
 
     /// <summary>
+    /// Phase 3c — ⭐ CE-4013: the capabilities this node composes, in resolution order (typically <c>plan.Resolve(role)</c>). Default none.
+    /// </summary>
+    /// <remarks>
+    /// Runs once, after <c>node-resources</c>, so a capability may be built over an allocated resource. The base then walks them: their
+    /// systems right after <see cref="PopulateSystems"/>, their modules right after <see cref="GetAdditionalModules"/>, and their
+    /// <c>Register</c> where the subclass calls <see cref="RegisterCapabilities"/>. ⛔ A subclass never loops over its capabilities itself.
+    /// </remarks>
+    protected virtual IReadOnlyList<INodeCapability> ResolveCapabilities(HrotNodeContext context, NodeRole role)
+        => Array.Empty<INodeCapability>();
+
+    /// <summary>The capabilities this node composes (empty before the <c>capabilities</c> step).</summary>
+    public IReadOnlyList<INodeCapability> Capabilities => _walk?.Capabilities ?? Array.Empty<INodeCapability>();
+
+    /// <summary>
+    /// ⭐ CE-4013 — runs every capability's <c>Register</c> hook with the plan's <see cref="BootValues"/>. Call it ONCE from
+    /// <see cref="RegisterSpawningPipeline"/>, at the point this host's module order needs (registration order is execution order,
+    /// §4.1t ①) — the base refuses to initialize the kernel if it was never called.
+    /// </summary>
+    protected void RegisterCapabilities(HrotNodeContext context)
+        => (_walk ?? throw new InvalidOperationException("RegisterCapabilities runs inside the spawning-pipeline step, after the capabilities step."))
+            .Register(context, BootValues);
+
+    /// <summary>
     /// Phase 3b, part 1 — the resource keys this node's <paramref name="role"/> will allocate.
     /// Default is none.
     /// </summary>
@@ -566,7 +639,13 @@ public abstract class SharedApplicationBootstrapper
     /// that must be part of the initialized kernel topology but are not part of the domain core.
     /// Default is a no-op.
     /// </summary>
-    protected virtual void RegisterApplicationSystems(HrotNodeContext context) { }
+    protected virtual void RegisterApplicationSystems(HrotNodeContext context) => ApplicationSystemsRegistrar?.Invoke(context);
+
+    /// <summary>
+    /// ⭐ CE-4013 D12 — the shell's phase-6d callback (diagnostic capture, test systems), invoked by the default
+    /// <see cref="RegisterApplicationSystems"/>. ⛔ Four hosts used to declare this same property and the same one-line override.
+    /// </summary>
+    public Action<HrotNodeContext>? ApplicationSystemsRegistrar { get; set; }
 
     /// <summary>
     /// Phase 7+: Called immediately after <see cref="ModuleHostKernel.Initialize()"/> completes.

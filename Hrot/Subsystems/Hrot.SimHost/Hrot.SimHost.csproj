@@ -40,6 +40,8 @@
   <ItemGroup>
     <!-- Hrot data model and map types -->
     <ProjectReference Include="..\..\Engine\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\..\Engine\Hrot.EcsNode\Hrot.EcsNode.csproj" />    <!-- CE-4015: the code every ECS host composes (no host-to-host reference) -->
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />    <!-- AQ93 N6: TrafficPack.Mirroring() -->
     <!-- FDP Kernel and Toolkits -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- W6 (docs/DESIGN_Terrain_World.md §4.1): SimHost solves navigation over a navmesh baked from the terrain world. -->

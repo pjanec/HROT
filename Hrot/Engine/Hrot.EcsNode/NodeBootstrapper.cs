@@ -232,7 +232,14 @@ namespace Hrot.SimHost
             //   ⛔ A caller that HAS an ELM must PASS it — an unpassed one is the silent-default defect, and
             //   the preview/replay boundary then leaves stale entries behind (CE-259ar) and restored
             //   Constructing entities undriven. 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m step 2.
-            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null)
+            Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null,
+            // ⭐ CE-4013 (§4.1ae T1) — the node's terrain content (HrotNodeContext.TerrainContent). ⛔ A caller that HAS a context passes it.
+            Hrot.Map.Common.Services.TerrainContentRegistry? terrainContent = null,
+            // ⭐⭐ CE-4013 D15 — the node's ONE cluster slave and ONE slave translator (HrotNodeBuilder step 8). ⛔ This used to build a
+            //   second pair, so every host on this path ran two NedSlaveOrchestrationTranslators — the builder's never ticked, its DDS
+            //   readers never drained. A caller that HAS them passes them; only a caller with no context builds new ones here.
+            ClusterSlave? clusterSlave = null,
+            Hrot.Core.Network.ISlaveOrchestrationTranslator? slaveTranslator = null)
         {
             if (participant == null && role.HasFlag(NodeRole.Brain))
                 throw new ArgumentNullException(nameof(participant),
@@ -243,10 +250,10 @@ namespace Hrot.SimHost
 
             // P1/CE-285: advertise the full declared role (fdp.role.* tokens → derived mask, CE-286) + fdp.reliable-init.
             // ⭐ + the asset tokens derived from the role (docs/DESIGN_Asset_Management.md §7.3a, CE-3020).
-            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus, role,
+            clusterSlave ??= new ClusterSlave(nodeId, subsystemName, eventBus, role,
                 capabilities: Hrot.Map.Common.ClusterLoad.AssetNeeds.HostCapabilities(role));
-            SlaveTranslator = null;
-            if (participant != null && eventBus != null)
+            SlaveTranslator = slaveTranslator;
+            if (SlaveTranslator == null && participant != null && eventBus != null)
             {
                 // HEXAG2-S012: use factory when available; fall back to null-object otherwise.
                 var nodeFactory = _networkFactory?.ConfigureForNode(participant, nodeId, role);
@@ -348,8 +355,6 @@ namespace Hrot.SimHost
             // ⚠ Providers are offered, not ordered — the chain orders them and drops what this role does
             //   not require (a Perception-only node needs no terrain; every ECS node needs the TKB).
             // 📄 docs/DESIGN_Cluster_Load_Phase.md §4.1b, §4.1c · DESIGN_Node_Roles_And_Policies.md §3.2.
-            var loadProviders = new List<ILoadPartProvider>();
-
             // ⭐⭐⭐ The knowledge base is UNCONDITIONAL for an ECS node, so this host SUPPLIES a default
             //   rather than making every caller remember. 🔒 "every ECS enable node should be able to
             //   create entities so every needs the TKB loaded" — a node that can be asked to create an
@@ -358,12 +363,9 @@ namespace Hrot.SimHost
             //   starts anyway; a scenario that names one then replaces it through the step. ⛔ This is the
             //   host supplying a HOW, not the requirement being relaxed — the chain still throws if the
             //   part is genuinely unsatisfiable.
-            loadProviders.Add(new KnowledgeBaseLoadStep(
-                tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), localTempRoot));
-
-            var residency = new TerrainResidency(localTempRoot, RoadNetworkHolder);
+            // ⭐ CE-4013 (§4.1ae T2) — the knowledge base and the terrain from the ONE shared factory every ECS host uses.
+            var (loadProviders, residency) = HrotUniversalLoadParts.Build(tkbDb, localTempRoot, RoadNetworkHolder, terrainContent);
             if (_navmeshFactory != null) residency.AttachNavmesh(_navmeshFactory, _navmeshTarget!);
-            loadProviders.Add(new TerrainLoadStep(residency, localTempRoot));
 
             // ⭐⭐⭐ D3 — the ONE terrain/zone OP handler, via the shared registrar. Unconditional on every
             //   ECS host: a host with nothing to make resident still ACKs, which is what removes the

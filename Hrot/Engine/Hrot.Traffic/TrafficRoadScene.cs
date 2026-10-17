@@ -30,16 +30,20 @@ public sealed class TrafficRoadScene
 {
     public static readonly TrafficRoadScene Empty = new(Array.Empty<TrafficRoadMesh>(), Array.Empty<TrafficSignal>());
 
-    public TrafficRoadScene(IReadOnlyList<TrafficRoadMesh> meshes, IReadOnlyList<TrafficSignal> signals)
+    public TrafficRoadScene(IReadOnlyList<TrafficRoadMesh> meshes, IReadOnlyList<TrafficSignal> signals, TrafficRoadPlan? plan = null)
     {
         Meshes = meshes;
         Signals = signals;
+        Plan = plan ?? TrafficRoadPlan.Empty;
     }
 
     /// <summary>One mesh per kind present: Asphalt, Junction, LaneMarking, Crosswalk, then AmbientGround.</summary>
     public IReadOnlyList<TrafficRoadMesh> Meshes { get; }
 
     public IReadOnlyList<TrafficSignal> Signals { get; }
+
+    /// <summary>The same roads as the 2-D map draws them (lane strips, ground rows) — <see cref="TrafficRoadPlan"/>.</summary>
+    public TrafficRoadPlan Plan { get; }
 
     public int TriangleCount => Meshes.Sum(m => m.TriangleCount);
 
@@ -74,7 +78,9 @@ public sealed class TrafficRoadScene
                 Local(frame, placement, h.PoleX, h.PoleY, h.PoleZ),
                 Local(frame, placement, h.HeadX, h.HeadY, h.HeadZ)));
 
-        return new TrafficRoadScene(meshes, signals);
+        var plan = new TrafficRoadPlan(TrafficRoadPlan.LaneStrips(net, placement),
+            TrafficRoadPlan.GroundRows(meshes.FirstOrDefault(m => m.Kind == SceneKind.AmbientGround)));
+        return new TrafficRoadScene(meshes, signals, plan);
     }
 
     private static TrafficRoadMesh ToLocal(SceneKind kind, SceneMesh mesh, SceneFrame frame, SumoNetPlacement placement)

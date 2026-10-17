@@ -8,7 +8,10 @@ namespace Sim.Replication.Dds;
 // DdsWireFrame's shape exactly (`SetPayload`/`ReadPayload` bridging the codec) so the same "one blob format,
 // any transport" pattern applies here too.
 
-[DdsTopic]
+// ⭐ HROT H11: the topic NAME and QoS live on the type, so any CycloneDDS.NET tool (ddsmonitor) discovers and decodes it, and every
+// writer/reader uses the 1-arg ctor. The name equals DdsTopicNames.X (a rail pins the two).
+[DdsTopic("sumo/geometry")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 public unsafe partial struct DdsNetworkGeometry
 {
     // Geometry may span multiple chunks for a large net (GeometryCodec.PlanChunks); keyed by ChunkIndex so
@@ -21,6 +24,9 @@ public unsafe partial struct DdsNetworkGeometry
     [DdsId(3)] public float Time;  // optional — sim time at publish (typically 0.0)
     [DdsId(4)] public int ByteCount;
     [DdsId(5)] public fixed byte Payload[DdsWire.MaxPayload];
+    // docs/HROT-INTEGRATION-DESIGN.md H8: the publisher (DdsReplicationSink's `source`); keyed with ChunkIndex
+    // so two traffic nodes' networks are distinct instances. Appended.
+    [DdsKey, DdsId(6)] public uint Source;
 
     public void SetPayload(int chunkIndex, int totalChunks, uint step, float time, ReadOnlySpan<byte> bytes)
     {
@@ -55,7 +61,10 @@ public unsafe partial struct DdsNetworkGeometry
 // Low-rate traffic-light state (SUMOSHARP-DEADRECKONING.md §5.2): NOT on the high-rate vehicle packet by
 // design (§4.3) — a separate topic, same blob pattern. Every committed scenario's TL state fits in one
 // chunk (ChunkIndex kept for symmetry with the other blob topics / future-proofing a very large network).
-[DdsTopic]
+// ⭐ HROT H11: the topic NAME and QoS live on the type, so any CycloneDDS.NET tool (ddsmonitor) discovers and decodes it, and every
+// writer/reader uses the 1-arg ctor. The name equals DdsTopicNames.X (a rail pins the two).
+[DdsTopic("sumo/tl")]
+[DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
 public unsafe partial struct DdsTlState
 {
     [DdsKey, DdsId(0)] public int ChunkIndex;
@@ -63,6 +72,8 @@ public unsafe partial struct DdsTlState
     [DdsId(2)] public float Time;
     [DdsId(3)] public int ByteCount;
     [DdsId(4)] public fixed byte Payload[DdsWire.MaxPayload];
+    // H8: the publisher, keyed with ChunkIndex. Appended.
+    [DdsKey, DdsId(5)] public uint Source;
 
     public void SetPayload(uint step, float time, ReadOnlySpan<byte> bytes, int chunkIndex = 0)
     {
