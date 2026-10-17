@@ -337,6 +337,63 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2233</c> CIV-0 — <c>ua-civ-neutral-gate</c> in-process (the live check's twin; 📄 docs/DESIGN_Civilians_And_Crowd_Control.md
+    /// §5c): the rifleman SEES an unarmed and an ARMED neutral (the armed one nearest of all), kills the Hostile, and neither neutral
+    /// loses a point of health; with only neutrals left he spends no round; once the armed neutral's side flips to Hostile — through
+    /// the one engine write path (<c>EntityWriteRouter</c>, CE-3221) — he is engaged.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2233_CivNeutralGate_NeutralsSeenNeverHit_TheHostileKilled_AFlippedSideIsEngaged()
+    {
+        using var harness = await StartShippedScenario("ua-civ-neutral-gate");
+        var cgf = harness.Cgf!.World!;
+        Assert.True(harness.PumpUntil(() => !ByName(cgf, "Rifleman").IsNull && !ByName(cgf, "Armed Neutral").IsNull, timeoutFrames: 2000),
+            "the cast must spawn on CGF");
+        var rifle = ByName(cgf, "Rifleman");
+        var civ = ByName(cgf, "Civilian");
+        var armed = ByName(cgf, "Armed Neutral");
+        var hostile = ByName(cgf, "Hostile");
+        float Hp(Entity e) => cgf.IsAlive(e) && cgf.HasComponent<Health>(e) ? cgf.GetComponent<Health>(e).Current : -1f;
+        float civFull = Hp(civ), armedFull = Hp(armed), civLow = civFull, armedLow = armedFull;
+        void Sample() { civLow = Math.Min(civLow, Hp(civ)); armedLow = Math.Min(armedLow, Hp(armed)); }
+        unsafe bool Remembers(Entity e)
+        {
+            if (!cgf.HasComponent<TargetMemory>(rifle)) return false;
+            var m = cgf.GetComponent<TargetMemory>(rifle);
+            for (int i = 0; i < m.Count; i++) if (m.EntityIds[i] == (long)e.PackedValue) return true;
+            return false;
+        }
+        string State() => $"civ {Hp(civ)} (low {civLow}) · armed neutral {Hp(armed)} (low {armedLow}) · hostile {Hp(hostile)}";
+
+        Assert.True(harness.PumpUntil(() => { Sample(); return Remembers(civ) && Remembers(armed); }, timeoutFrames: 6000),
+            $"① the rifleman must see both neutrals; {State()}");
+        Assert.True(harness.PumpUntil(() => { Sample(); return Hp(hostile) <= 0f; }, timeoutFrames: 12000), $"② the Hostile must die; {State()}");
+        Assert.Equal(civFull, civLow);
+        Assert.Equal(armedFull, armedLow);
+
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        int a0 = Ammo();
+        harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 480);   // ~8 s at 60 Hz
+        Assert.Equal(a0, Ammo());                                                   // ⑤ nothing left to shoot
+        Assert.Equal(armedFull, armedLow);
+
+        var route = Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(cgf).Write(armed, new[]
+        {
+            new Fdp.Toolkit.Replication.Patching.EntityAttributeChange
+            {
+                AttributeId = Fdp.Toolkit.Replication.Patching.AttributeIds.Affiliation,
+                Value       = Fdp.Toolkit.Replication.Patching.AttributeValue.FromInt((int)Fdp.Toolkit.Replication.ForceIdentifier.Opposing),
+            },
+        });
+        _out.WriteLine($"flip route {route}; {State()}");
+        Assert.True(harness.PumpUntil(() => cgf.GetComponentRO<EntityInfo>(armed).ForceId == ForceId.Hostile, timeoutFrames: 2000),
+            $"⑥ the side flip must land on CGF (route {route})");
+        Assert.True(harness.PumpUntil(() => Hp(armed) < armedFull, timeoutFrames: 6000), $"⑥ once Hostile he must be engaged; {State()}");
+        Assert.Equal(civFull, Hp(civ));
+        _out.WriteLine(State());
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3085</c> — U2 <c>ua-threat-ranking</c> in-process (the live check's twin): once the ranking settles over at
     /// least two remembered contacts with a non-zero top score, the armed, visible, nearest contact ranks first; the
     /// unarmed civilian and the farther armed contact rank below it; the one hidden behind the Tower is never ranked.
