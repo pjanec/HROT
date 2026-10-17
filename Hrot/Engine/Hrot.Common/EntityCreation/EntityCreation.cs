@@ -281,6 +281,37 @@ namespace Hrot.Common.EntityCreation
         /// if (missing.Length > 0) FdpLog&lt;MyHost&gt;.Warn(missing);
         /// </code>
         /// </example>
+        /// <summary>
+        /// ⭐⭐ CE-4013 D6 — schedules EVERY piece of the pack on <paramref name="kernel"/>, in one order, for every host
+        /// (📄 docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae.1). ⛔ Six hosts used to write these eight lines by hand, in
+        /// four orders, with the spawner a global system on two of them and a module on four.
+        /// </summary>
+        /// <remarks>
+        /// The globals first (the network systems, then request → finalization → promotion → obstacle bake → seat presets), then
+        /// <see cref="SpawnSystem"/> as a <c>SingleSystemModule</c> — the host still calls this at ITS point, so its module order is unchanged.
+        /// Anything the pack built and this did not schedule is logged (there is nothing left out by construction; the check guards a
+        /// future piece added to the pack but not here).
+        /// </remarks>
+        public void RegisterOn(Fdp.ModuleHost.ModuleHostKernel kernel)
+        {
+            if (kernel is null) throw new ArgumentNullException(nameof(kernel));
+            foreach (var sys in NetworkSystems)
+                kernel.RegisterGlobalSystem(sys);
+            kernel.RegisterGlobalSystem(RequestSystem);        // Input
+            kernel.RegisterGlobalSystem(FinalizationSystem);   // PostSimulation
+            kernel.RegisterGlobalSystem(PromotionSystem);      // BeforeSync — [UpdateAfter(GhostCreationSystem)] orders it
+            kernel.RegisterGlobalSystem(ObstacleBakeSystem);   // CE-3136 P-7a — static obstacles become terrain
+            kernel.RegisterGlobalSystem(SeatPresetSystem);     // WS-4 (W-I) — a host's seat presets board their seats
+            kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", SpawnSystem));   // BeforeSync
+
+            var missing = Unserviceable(new object[]
+            {
+                SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem,
+            }.Concat(NetworkSystems));
+            if (missing.Length > 0)
+                Fdp.Core.Logging.FdpLog<EntityCreation>.Warn(missing);
+        }
+
         public string Unserviceable(IEnumerable<object> scheduled)
         {
             var seen = new HashSet<object>(scheduled ?? Enumerable.Empty<object>(),

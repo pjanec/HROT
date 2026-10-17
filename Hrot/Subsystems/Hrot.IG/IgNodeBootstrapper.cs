@@ -507,56 +507,22 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             IsBroadcastArbiter = false,
         });
 
-        // ⭐⭐⭐ CE-271 seam ④ / S2b — the cluster-cache pump (DDS NodeHeartbeat) is one of the pack's
-        //    NetworkSystems now, registered below like on every host. WITHOUT it the ownership strategy has
-        //    an empty cache and a Map2D-created tank's grant set is EMPTY. ⛔ IgApplication no longer polls.
-        foreach (var sys in creation.NetworkSystems)
-            context.Kernel.RegisterGlobalSystem(sys);
-
         // ⭐ RegisterSpawningPipeline runs BEFORE RegisterApplicationSystems (SharedApplicationBootstrapper.cs:111 vs :139), so the
         //    registrar callback that constructs MapCommandController always sees the pack. ⭐ CE-3228 — the tools publish their
         //    requests on this world's bus, which the pack reads.
         EntityCreation              = creation;   // CE-515
 
-        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);       // Input
-        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
-
-        // ⭐⭐⭐ CE-144 RESOLVED 2026-09-03 — the spawn system IS scheduled, and IG's private
-        //    GhostDestructionSystem is GONE. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
-        //
-        // 📐 What the old shortcut broke, measured: the wire dispose is written by
-        //    CycloneNetworkCleanupSystem (phase Export), and it triggers on DestructionOrder — which only
-        //    EntityLifecycleModule.BeginDestruction publishes. GhostDestructionSystem destroyed the entity
-        //    WITHOUT the ELM, so no DestructionOrder, so no translator.Dispose(netId), so no DDS dispose
-        //    sample. For an entity IG OWNS that means peers keep the instance forever, silently.
-        //
-        // ⇒ ONE consumer of DestroyEntityCommand on every host: NetworkSpawningSystem.ProcessDestroy,
-        //    which sets TearDown and calls BeginDestruction. The map entry is then removed by the shared
-        //    DisposalMonitoringSystem (NedReplicationModule.cs:420), which is exactly what the ghost path
-        //    was doing eagerly.
-        //
-        // ⚠ The one behavioural difference: a ghost now outlives its dispose by ~1 frame
-        //    (ELM.DrainInstantComplete requires currentFrame > StartFrame). That is the same latency every
-        //    other host already has, and uniformity is the point.
-        context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);         // BeforeSync
-
-        // ⭐⭐⭐ P2 — ghost promotion now comes from the pack, not from NedReplicationModule.
-        //   📄 docs/DESIGN_Role_Affinity_Ownership.md §3.7. ⚠ IG is the host this matters most for: as a
-        //   pure ImageGenerator it receives ghosts of entities other nodes originate, so losing promotion
-        //   would leave every received entity stuck in EntityLifecycle.Ghost with no TKB projection.
-        //   ⭐ No ordering argument needed here — [UpdateAfter(GhostCreationSystem)] carries it.
-        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-        context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.RequestSystem, creation.FinalizationSystem, creation.SpawnSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            FdpLog<IgNodeBootstrapper>.Info(
-                "[IG] entity-creation pieces not scheduled: {0}", unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn). What it carries
+        //   that matters most here:
+        //   · CE-271 seam ④ — the cluster-cache pump (NodeHeartbeat) is one of the NetworkSystems; without it a Map2D-created tank's
+        //     grant set is EMPTY.
+        //   · CE-144 — NetworkSpawningSystem is the ONE consumer of DestroyEntityCommand (it begins the ELM teardown, so the wire
+        //     dispose is written); IG's private GhostDestructionSystem is gone. 📄 DESIGN_Entity_Creation_Unification.md §3.4c.
+        //   · P2 — ghost promotion comes from the pack; IG, which receives ghosts of everything, would otherwise keep every received
+        //     entity in EntityLifecycle.Ghost. 📄 DESIGN_Role_Affinity_Ownership.md §3.7.
+        //   ⚠ The spawner was a GLOBAL system on this host (a module on SimHost, Stride, the editor); it is the module now, like
+        //     everywhere — the one ordering it must keep (LocalAuthorityYieldSystem after it) is declared by [UpdateAfter].
+        creation.RegisterOn(context.Kernel);
 
         // ⭐ CE-221 — the standalone SingleSystemModule registration that used to sit here was the
         //    PRECEDENT for treating UnitHierarchySystem as cross-role infrastructure rather than pack

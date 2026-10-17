@@ -1034,37 +1034,16 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   networked entities … not removing capabilities by design." ⇒ no `if (adapters != null)`
         //   guards any of these three; only the DELETION routing below is network-dependent, and that
         //   was already true.
-        _context.Kernel.RegisterGlobalSystem(creation.SpawnSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.RequestSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);
-        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-        //    ⚠ CGF is the host whose module came from NedNetworkFactory.CreateReplicationModule(), which
-        //    omits tkbEntityTranslators — so its promotion used the ELM fallback. The pack now hands it
-        //    the SAME list instance it gives the ELM and the spawn system, which is §6.3's invariant made
-        //    true by construction for all three rather than two.
-        _context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);
-        _context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-        _context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-        // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this design
-        //    was silent, and CE-138 (this host's own zero-iteration translator loop) was one of them.
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            Fdp.Core.Logging.FdpLog<CgfSubsystem>.Warn(unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack (its network systems too, which this host used to register further down), scheduled
+        //   by the ONE shared registration. ⚠ The spawner was a GLOBAL system here; it is the module now, as on SimHost, Stride, the editor.
+        creation.RegisterOn(_context.Kernel);
 
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(_entityMap!));
         _context.Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
         Hrot.SimHost.Systems.BlueprintGenesisRuntimeRegistration.RegisterBlueprintGenesisSystems(
             _context.Kernel, _blueprintRegistry!);
 
-        // 4. ⭐ S2b — the pack's network systems: the delete-request system (sharing the pack's finalization
-        //    instance) and the cluster-cache poll, which this host used to call from Update(). Empty offline.
-        foreach (var sys in creation.NetworkSystems)
-            _context.Kernel.RegisterGlobalSystem(sys);
+        // 4. ⭐ S2b — the pack's network systems (delete requests, the cluster-cache poll) are registered by creation.RegisterOn above (CE-4013).
 
         // ── Cluster time control (TM-002) ─────────────────────────────────────────
         // CGF is a kernel-owning node and the orchestrator DOES list it in the lockstep

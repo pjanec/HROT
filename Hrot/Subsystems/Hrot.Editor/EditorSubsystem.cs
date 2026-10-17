@@ -1479,7 +1479,6 @@ namespace Hrot.Editor
             EntityCreation = creation;   // CE-515
 
             var elm      = creation.Elm;
-            var spawnSys = creation.SpawnSystem;
             // ⭐⭐ CE-3228 (Entity Creation §3.4d) — a request is PUBLISHED on this world's bus (EntityCreation.Publish); the pack's bus
             //   source reads it. The queue singleton `ST-010` handed around here is gone.
             var extractor          = new StagingEntityExtractor();
@@ -1772,27 +1771,8 @@ namespace Hrot.Editor
             //   was absent — harmless with a NullEntityAckSink, but the pack builds it unconditionally
             //   and scheduling it keeps Unserviceable() honest rather than permanently warning.
             _kernel.RegisterModule(elm);
-            _kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
-            _kernel.RegisterGlobalSystem(creation.RequestSystem);
-            _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
-            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-            //   ⚠ NEW to this host, and harmlessly so: the editor's OfflineNetworkFactory returns a
-            //   NullReplicationModule, so no ghosts ever arrive and the system idles. ⭐ It is scheduled
-            //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
-            //   that skipped it would warn forever through Unserviceable().
-            _kernel.RegisterGlobalSystem(creation.PromotionSystem);
-            _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-            _kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-            // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
-            //   design was silent.
-            var unserviceable = creation.Unserviceable(new object[]
-            {
-                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-            });
-            if (unserviceable.Length > 0)
-                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
+            // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (the spawner stays right after the ELM).
+            creation.RegisterOn(_kernel);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that

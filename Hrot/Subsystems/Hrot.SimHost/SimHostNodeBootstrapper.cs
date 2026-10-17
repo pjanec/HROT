@@ -531,47 +531,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         });
 
         EntityCreation = creation;   // CE-515
-        var spawningSystem = creation.SpawnSystem;
-
-        // ⭐ S2b — the pack's network systems (cluster-cache poll, delete requests); empty offline.
-        foreach (var sys in creation.NetworkSystems)
-            context.Kernel.RegisterGlobalSystem(sys);
-
-        // ⭐⭐⭐ CE-147 step 4 — THE onEntitySpawned HOOK IS GONE, and nothing replaced it.
-        //
-        // 📌 It carried three statements. AX-011's shadow attach moved into GeoSpatialEgressTranslator
-        //    (§13.7), which makes the invariant true for EVERY owning host instead of this one. The other
-        //    two — SetAuthority<SimTransform> and SetAuthority<NetworkVelocity> — were REDUNDANT:
-        //    NetworkSpawningSystem executes `metaNS.AuthorityMask = compNS` immediately before invoking
-        //    the hook, which already sets the bit for every component present on the entity.
-        //
-        // ⚠ Redundant is not unread. `CarKinematicsSystem` filters on `.WithOwned<SimTransform>()`, so
-        //   that bit is load-bearing — it is simply already set by the line above. The cluster rails that
-        //   assert it (TheEgressShadowExistsAtBirthTests, SplitAuthoritySpawnTests) are the proof, not
-        //   this comment.
-
-        // ⭐ The HOST schedules; the pack only constructs. NetworkSpawningSystem is BeforeSync and still
-        //   goes through SimHostModule exactly as before — composition changed, scheduling did not.
-        context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawningSystem));
-        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
-        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);   // PostSimulation
-        // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-        //   📌 This host's `.WithTranslators(...)` was dropped at CE-140 step 3 precisely because its only
-        //   consumer was NedReplicationModule's GhostPromotionSystem construction (see the note at :231);
-        //   the pack now supplies that list directly, which is what that removal was waiting for.
-        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);       // BeforeSync
-        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);    // ⭐ CE-3136 P-7a — static obstacles become terrain
-        context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-        // ⭐⭐ Make an omission LOUD. Every one of the five defects behind this design was silent, so the
-        //   pack reports any piece the host built and then forgot to schedule.
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            Fdp.Core.Logging.FdpLog<SimHostNodeBootstrapper>.Warn(unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (EntityCreation.RegisterOn).
+        creation.RegisterOn(context.Kernel);
 
         // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
         //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →

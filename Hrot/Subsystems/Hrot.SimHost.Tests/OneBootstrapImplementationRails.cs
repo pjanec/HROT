@@ -30,6 +30,12 @@ public class OneBootstrapImplementationRails
                              allowed: "Hrot/Engine/Hrot.Core/Services/LoadPhase/HrotUniversalLoadParts.cs",
                              alsoAllowed: "Hrot/Subsystems/Hrot.ReplayBrowser/ReplayBrowserSubsystem.cs"));
 
+    /// <summary>⭐ CE-4013 D6 — no production root schedules the entity-creation pack by hand: <c>EntityCreation.RegisterOn</c> does.</summary>
+    [Fact]
+    public void NoProductionRoot_SchedulesTheCreationPackByHand()
+        => Assert.Empty(Scan(new Regex(@"RegisterGlobalSystem\(\s*creation\.|SingleSystemModule\(\s*""NetworkSpawning"""),
+                             allowed: "Hrot/Engine/Hrot.Common/EntityCreation/EntityCreation.cs"));
+
     private static List<string> Scan(Regex pattern, string allowed, string? alsoAllowed = null)
     {
         string? root = RepoRoot();

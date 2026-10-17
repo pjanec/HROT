@@ -196,21 +196,7 @@ public sealed class TrafficNodeBootstrapper : SharedApplicationBootstrapper, IDi
         });
         EntityCreation = creation;   // CE-515
 
-        context.Kernel.RegisterModule(new SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
-        foreach (var sys in creation.NetworkSystems)
-            context.Kernel.RegisterGlobalSystem(sys);
-        context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
-        context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);   // PostSimulation
-        context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-        context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);
-        context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);
-
-        var unserviceable = creation.Unserviceable(new object[]
-        {
-            creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-            creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-        }.Concat(creation.NetworkSystems));
-        if (unserviceable.Length > 0)
-            FdpLog<TrafficNodeBootstrapper>.Warn(unserviceable);
+        // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
+        creation.RegisterOn(context.Kernel);
     }
 }

@@ -489,28 +489,8 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
             // ⭐ The HOST schedules. NetworkSpawningSystem is BeforeSync and goes through a module here,
             //   exactly as before — composition changed, scheduling did not.
-            context.Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", creation.SpawnSystem));
-
-            // ⭐ S2b — the pack's network systems (cluster-cache poll, delete requests); empty offline.
-            foreach (var sys in creation.NetworkSystems)
-                context.Kernel.RegisterGlobalSystem(sys);
-            context.Kernel.RegisterGlobalSystem(creation.RequestSystem);        // Input
-            context.Kernel.RegisterGlobalSystem(creation.FinalizationSystem);  // PostSimulation
-            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-            //   ⭐ Ordering carries itself: [UpdateAfter(GhostCreationSystem)] on the system.
-            context.Kernel.RegisterGlobalSystem(creation.PromotionSystem);      // BeforeSync
-            context.Kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-            context.Kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-            // ⭐⭐ The S2b habit: make an omission loud. Every one of the five defects behind this design
-            //   was silent.
-            var unserviceable = creation.Unserviceable(new object[]
-            {
-                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-            }.Concat(creation.NetworkSystems));
-            if (unserviceable.Length > 0)
-                FdpLog<StrideNodeBootstrapper>.Warn(unserviceable);
+            // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration.
+            creation.RegisterOn(context.Kernel);
 
         }
     }
