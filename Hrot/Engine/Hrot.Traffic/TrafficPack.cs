@@ -57,7 +57,9 @@ public sealed class TrafficPack : INodeCapability, IDisposable
                                 List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> simulation,
                                 List<Fdp.ModuleHost.Abstractions.IEcsModuleSystem> postSimulation)
     {
-        if (context is null) throw new ArgumentNullException(nameof(context));
+        // ⚠ A null context is the SHAPE probe several host rails make (every other capability ignores it): the pack composes from the
+        //   node's kernel, participant and allocator, so it contributes nothing there. Every production host passes its context.
+        if (context is null) return;
         if (Mirror is not null) throw new InvalidOperationException("TrafficPack is composed once per node.");
         context.World.RegisterComponent<ReplicationRoute>();
         context.World.RegisterComponent<TrafficCar>();
