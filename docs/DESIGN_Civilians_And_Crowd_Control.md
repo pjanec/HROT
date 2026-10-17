@@ -557,4 +557,16 @@ round: spawns a cloud), Stun (stun grenade: one Stun hit in radius); munitions i
 weapon mounts; the stone and Molotov as `ThrowAt` munitions on the grenade arc (W-12e). ⚠ Baton/melee is a behaviors
 node (D5) whose hit goes through B-1-a's event — backend adds only the warhead.
 
+#### 7.5a AS-BUILT `CE-3223` part 1 *(2026-10-16)* — the rounds whose effect exists, and the security loadouts
+
+| built | where |
+|---|---|
+| three munitions with their own `WarheadDto`: **40 mm baton round** `6036` (Blunt, 4 s, damage 5) · **stun grenade** `6037` (Stun, injury radius 8 m, 8 s, time fuze 1.5 s) · **thrown stone** `6038` (Blunt, 2 s, damage 3); costs 2 / 5 / 0.1 | `MunitionTkbCatalog.cs` |
+| loadouts: shield and baton men carry 2 stun grenades; the launcher man a baton-round launcher (20 rounds, 80 m/s, 50 m) and 2 stun grenades | `CivilianTkbCatalog.Security(…, mounts)` |
+| rail `NonLethalMunitionTests` (3): each round resolves to its effect with no fragments (`ParameterResolver.Warhead`); the real `DamageCalculationSystem` / `AreaEffectSystem` over the built-in TKB knock down / stun; the security types load the rounds. Red-proved: the baton round set to Kinetic ⇒ 2 red | `Hrot.Core.Tests` |
+
+⏳ **Not built, and why:** the gas grenade and gas launcher round wait for the cloud (§7.3, B-1 part 3). The Molotov waits too, since
+its fire is the same kind of lasting area. The stone has no thrower yet: a civilian picks one up through `PersonCarrier`, which is
+behaviors' CE-2236. The baton blow is behaviors' melee node (D5).
+
 ⭐ Ruled `2026-10-16` (R-3013). Tracker: B-1 `CE-3219` · B-2 `CE-3220` · B-3 `CE-3221` · B-4 `CE-3222` · B-5 `CE-3223`.
