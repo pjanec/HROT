@@ -45,6 +45,14 @@ namespace Hrot.Core.Tkb
         public const int TkbCivilianCar        = 1002;
         /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-3) — TKB type code for the CivilianChild template.</summary>
         public const int TkbCivilianChild      = 1003;
+        /// <summary>⭐ AQ93 §12 T1 — the TRAFFIC car block 1050–1059 (SUMO drives these; kept clear of the sequential run): a hatchback.</summary>
+        public const int TkbTrafficHatchback   = 1050;
+        /// <summary>⭐ AQ93 T1 — a delivery van.</summary>
+        public const int TkbTrafficVan         = 1051;
+        /// <summary>⭐ AQ93 T1 — a city bus.</summary>
+        public const int TkbTrafficBus         = 1052;
+        /// <summary>⭐ AQ93 T1 — a box truck.</summary>
+        public const int TkbTrafficTruck       = 1053;
         /// <summary>TKB type code for the MilitaryAPC template.</summary>
         public const int TkbMilitaryApc        = 2001;
         /// <summary>TKB type code for the InfantrySoldier template.</summary>
@@ -175,8 +183,15 @@ namespace Hrot.Core.Tkb
                 t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
+                t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
                 tkb.Register(t);
             }
+
+            // ⭐ AQ93 §12 T1 (R-4056) — the rest of the traffic: each its own type (its own model and size), SUMO's share by weight.
+            TrafficCar(tkb, "Hatchback", TkbTrafficHatchback, 3.9f, 1.75f, 1.45f, 22f, "passenger", 4f);
+            TrafficCar(tkb, "DeliveryVan", TkbTrafficVan, 5.3f, 2.0f, 2.3f, 20f, "delivery", 1.5f);
+            TrafficCar(tkb, "CityBus", TkbTrafficBus, 12.0f, 2.55f, 3.0f, 15f, "bus", 0.4f);
+            TrafficCar(tkb, "BoxTruck", TkbTrafficTruck, 8.0f, 2.5f, 3.4f, 18f, "truck", 0.6f);
 
             // MilitaryAPC (2001)
             {
@@ -333,6 +348,20 @@ namespace Hrot.Core.Tkb
         /// fell into the always-visible fallback) and the Add Entity picker could not group them. Country 0 = generic (the
         /// picker skips an unknown level); 81 = car, 2 = armoured fighting vehicle (SISO-REF-010 land categories).
         /// </summary>
+        /// <summary>⭐ AQ93 T1 — a civilian road vehicle SUMO may drive: a car's descriptors at its own size, plus its SUMO class and weight.</summary>
+        private static void TrafficCar(ITkbDatabase tkb, string name, int type, float length, float width, float height, float maxSpeed,
+                                       string vClass, float weight)
+        {
+            var t = new TkbTemplate(name, type);
+            Master(t, name, new DISEntityType { Kind = 1, Domain = 1, Category = 81 });
+            t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = height });
+            t.AddDescriptor(new VehicleParametersDto { Length = length, Width = width, MaxSpeedFwd = maxSpeed, MaxAccel = 2.0f });
+            t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
+            t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
+            t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = vClass, Weight = weight });
+            tkb.Register(t);
+        }
+
         internal static void Master(TkbTemplate t, string name, DISEntityType dis)
         {
             t.DisType = dis;

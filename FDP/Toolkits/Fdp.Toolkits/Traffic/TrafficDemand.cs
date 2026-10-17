@@ -28,3 +28,33 @@ namespace Fdp.Toolkit.Traffic
         public static TrafficDemand Default => new() { TargetCars = 200, Seed = 1, StepSeconds = 0.5f };
     }
 }
+
+namespace Fdp.Toolkit.Traffic
+{
+    /// <summary>
+    /// ⭐ AQ93 §12 S2 (R-4056) — the TKB marker of the "Traffic" template: it makes the TRAFFIC ownership group apply, so the Brain that
+    /// creates the settings entity grants its <c>TrafficDemand</c> to the least-loaded Traffic node (push-only, G-6), which serves it.
+    /// It carries no values: the settings are authored per scenario (<see cref="TrafficDemand"/>).
+    /// </summary>
+    [Fdp.Toolkit.Tkb.Attributes.TkbDescriptor("Traffic.Demand")]
+    public sealed record TrafficDemandDto;
+}
+
+namespace Fdp.Toolkit.Traffic
+{
+    /// <summary>
+    /// ⭐ AQ93 §12 T1 (R-4056) — "SUMO may drive this car type": on an ordinary car template (its own model, its own TKB id — the same
+    /// catalogue HROT's own civilian cars use), the SUMO vehicle class it stands for and its share of the traffic. The traffic node turns
+    /// every such template into a SUMO vehicle type whose length and width are the TEMPLATE's (<c>VehicleParametersDto</c>), so SUMO's
+    /// footprint is our model's, spawns from their weighted mix, and every node's replica of the car takes that TKB type.
+    /// </summary>
+    [Fdp.Toolkit.Tkb.Attributes.TkbDescriptor("Traffic.Vehicle")]
+    public sealed record TrafficVehicleDto
+    {
+        /// <summary>SUMO's vehicle class (<c>passenger</c>, <c>delivery</c>, <c>bus</c>, <c>truck</c>, …).</summary>
+        public string VClass { get; init; } = "passenger";
+
+        /// <summary>This type's share of the traffic, relative to the other mapped types (0 = never spawned).</summary>
+        public float Weight { get; init; } = 1f;
+    }
+}

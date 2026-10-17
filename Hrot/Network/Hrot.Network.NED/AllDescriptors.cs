@@ -122,6 +122,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud's description, its creator → every node (no group).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b. Measured free on ui, behaviors, backend, coordinator.
         dtAreaEffectCloud             = 144,
+        // ⭐ AQ93 §12 N4 (R-4056) — the TRAFFIC block 160–169, kept clear of the sequential run so lanes cannot collide (TKB 8812
+        //   was allocated twice on 2026-10-17). The scenario's traffic settings: the Brain creates them, the Traffic group serves them.
+        dtTrafficDemand               = 160,
         // etc., all known descriptor types here
     }
 

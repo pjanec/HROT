@@ -30,6 +30,7 @@ namespace Fdp.Core
         public const string Map2D            = "fdp.role.map2d";
         public const string Perception       = "fdp.role.perception";
         public const string NavigationSolver = "fdp.role.navigation-solver";
+        public const string Traffic          = "fdp.role.traffic";   // ⭐ AQ93 — the SUMO traffic node
 
         // The closed table. Each row is (bit, token); the two directions read the same rows so they cannot diverge.
         private static readonly (NodeRole Role, string Token)[] Table =
@@ -39,6 +40,7 @@ namespace Fdp.Core
             (NodeRole.Map2D,            Map2D),
             (NodeRole.Perception,       Perception),
             (NodeRole.NavigationSolver, NavigationSolver),
+            (NodeRole.Traffic,          Traffic),
         };
 
         /// <summary>The <c>fdp.role.*</c> tokens for every bit set in <paramref name="mask"/> (empty for

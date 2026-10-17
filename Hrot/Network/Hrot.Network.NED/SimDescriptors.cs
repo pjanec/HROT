@@ -104,6 +104,27 @@ namespace Hrot.NED.Descriptors
     //   on the World Environment entity, published by its owner (the creating Brain) on change and applied on every other node. Every
     //   node then derives UTC = start + its own synced sim time (ScenarioTime.Utc) — nothing is sent per frame. Reliable +
     //   TransientLocal + KeepLast(1) keyed by entity, like the door: a late joiner gets the current start time.
+    // ⭐ AQ93 §12 N4 (R-4056) — the scenario's TRAFFIC SETTINGS (TrafficDemand), published by the owner of the Traffic group (the
+    //   traffic node the creating Brain granted it to; the Brain itself when no traffic node exists) on change, applied everywhere else.
+    //   Reliable + TransientLocal + KeepLast(1) keyed by entity, like the scenario clock: a late joiner gets the current settings.
+    [DdsTopic("EntityTrafficDemand")]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct EntityTrafficDemand
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary><c>TrafficDemand.TargetCars</c>.</summary>
+        public int TargetCars;
+
+        /// <summary><c>TrafficDemand.Seed</c>.</summary>
+        public uint Seed;
+
+        /// <summary><c>TrafficDemand.StepSeconds</c>.</summary>
+        public float StepSeconds;
+    }
+
     [DdsTopic("EntityScenarioClock")]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
