@@ -235,6 +235,11 @@ namespace Fdp.Toolkit.Combat.Executors
             if (CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, firing, mountIndex)) is not { Indirect: true }
                 && LineOfFire.BlockedByFriendly(world, unit, point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldFriendlyOnLine;
+            // ⭐ AW-20 (R-2026) — the AI's direct round neither, while a NEUTRAL person is on the line or in the spread (an operator — obeyRoe
+            //   false — decides himself, as for the neutral target, CE-2233)
+            if (obeyRoe && CombatTkb.MountOf(world, firing, mountIndex) is var aimed && CombatTkb.WarheadOf(world, aimed) is not { Indirect: true }
+                && LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world))))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
             // ⭐ CE-3136 P-5 (D9) — an empty magazine reloads (held, Running) instead of ending the burst
             if (!Magazine.Ready(weapon))
             {

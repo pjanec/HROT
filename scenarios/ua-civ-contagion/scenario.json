@@ -146,6 +146,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000004": {
@@ -178,6 +183,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000005": {
@@ -210,6 +220,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000006": {
@@ -242,6 +257,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000007": {
@@ -274,6 +294,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000008": {
@@ -306,6 +331,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000009": {
@@ -338,6 +368,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000010": {
@@ -370,6 +405,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000011": {
@@ -402,6 +442,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000012": {
@@ -434,6 +479,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000013": {
@@ -466,6 +516,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000014": {
@@ -498,6 +553,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000015": {
@@ -530,6 +590,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000016": {
@@ -562,6 +627,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     },
     "c2370002-0000-4000-8000-000000000017": {
@@ -594,6 +664,11 @@
       },
       "TargetMemory": {
         "Entries": []
+      },
+      "Behavior": {
+        "Name": "CivilianHsm",
+        "Params": "{\"WanderRadius\":3}",
+        "Origin": "Superior"
       }
     }
   }

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -783,7 +783,19 @@ replicated descriptor first, a backend item that does not exist yet.
 ⭐ **Demos** (§5c): `ua-civ-gathering` and `ua-civ-contagion`, each with a live check and a twin. ⚠ **Known limits:** ① incidents are ground
 truth within 80 m — no line of sight; ② a crowd is one CGF's civilians (two CGF nodes ⇒ two crowds where one stands); ③ an onlooker does
 not turn to face the focus (no facing request exists for a standing person); ④ an onlooker stays as long as the incident does — a casualty
-is never rescued (§5d ③), so the crowd stays.
+is never rescued (§5d ③), so the crowd stays; ⑤ *(`CE-2246`, measured)* **a crowd held together only by its 15 m link breaks as its members
+wander, and contagion stops at the break** — see below.
+
+⭐ **`CE-2246` — why contagion reached the crowd in-process but not live** *(behaviors, 2026-10-17, measured)*. A per-second live trace
+(fear, mode, crowd, x of all 15) showed it: at t ≈ 12 s civilian 11 had wandered 17 m from civilian 10, past `LinkMetres`, so 11–15 were
+a SECOND crowd while 10 cowered at fear 0.84; they re-linked at t ≈ 20 s, by which time the wave had faded (10 → 0.84, 11 → 0.67, 12 → 0.59,
+just under `PanicAt`). At 8 m spacing, two neighbours on the default 12 m wander drift up to 32 m apart, so the line held only by luck —
+the twin was lucky, the live run not. The candidates the row named first (a shorter fight, the check's poll) were measured too: the
+hearers peaked at 0.97–1.00 live as in-process, and the poll was ~4 s a sweep (3 HTTP calls per civilian), fixed but not the cause.
+⭐ **Fix — in the DEMO, not the rule:** the scenario gives its 15 civilians `WanderRadius` 3 (`CivilianHsm` override), so neighbours stay
+within 8 + 2 × 3 = 14 m < 15 m — a crowd standing in the street, which is what the demo means. ⛔ The rule is unchanged: contagion within
+one crowd is CV-5's, and a crowd that walks apart SHOULD stop passing fear. The check now sweeps all 15 under one perspective switch
+(~1.7 s) and prints the same per-second trace as the twin. Live after the fix: 4 of 6 who heard nothing caught it.
 
 ## 5g. CIV-3 behaviour — the protest and its gestures *(behaviors, `CE-2240`, 2026-10-17; build-state: READY-TO-BUILD)*
 
@@ -1100,7 +1112,31 @@ and the status rule for combatants in front of it (B-7 is amended, [NOTE](bluepr
 neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the hostile act moved from the draw to the aim/fire/attack
 (`CE-2238`).
 
-⚠ **Known limits (ruled later, not now):** ① one item in Hands at a time; ② a dead bomber's charge stays live only once a dead-man setting
+### 5h.1 AS-BUILT — AW-20, a neutral in the line or the spread holds the shot *(behaviors, 2026-10-17)*
+
+⭐ **Built as the class diagram's `NeutralInLine` box says — beside `LineOfFire.BlockedByFriendly`, at its four callers.**
+`LineOfFire.BlockedByNeutral(world, shooter, target | point, σ)`: a living PERSON (`PhysicsColliderReaders.IsPerson`) whom
+`ThreatDanger.IsNeutral` calls neutral (the CE-2233 test, reused), other than the target, whose collider — widened by σ (`HitModel.Sigma`,
+the shooter's spread) × his distance along the line — the line crosses; a held round is `ActionReason.HoldNeutralOnLine` (posture stays Aimed).
+
+| caller | as built |
+|---|---|
+| `AimAndFireExecutor` aimed path | after the friendly hold, same shape (Running, nothing spent) |
+| `AimAndFireExecutor.FireBlind` | the point form, after the friendly hold |
+| `FireAtPointExecutor.ShootAtPoint` | only when `obeyRoe` (the AI's) — an operator decides himself, as for the neutral target (CE-2233); an indirect warhead is exempt |
+| `WeaponTaskDispatcherSystem.Engage` (turrets) | entity or point form; an indirect warhead is exempt |
+
+| ⚠ deviation / detail | why |
+|---|---|
+| a neutral is a PERSON, never just `ForceId.Neutral` | `Neutral` is the enum's ZERO: walls, wrecks, dropped weapons would hold every shot |
+| a NEUTRAL shooter is never held by it | the neutrals are his friends — `BlockedByFriendly` already holds him |
+| ⭐ it holds EVERY AI shooter, the insurgent too | the design names no shooter class; one rule is the simple path (AW-24). An insurgent who fires through a crowd on purpose is a later per-unit knob, recorded under the known limits below |
+
+Rails `AimAndFireExecutorTests.AW20_…` (2) — each red under its mutant (the executor's hold removed; the spread term removed). Demo
+`ua-armed-shield` (§5c), live check + twin `PostureScenarioTests.AW20_ArmedShield_…`.
+
+⚠ **Known limits (ruled later, not now):** ⓪ *(AW-20 as built)* an insurgent holds for neutrals like a soldier — human shields used
+on purpose need a per-unit "ruthless" setting; ① one item in Hands at a time; ② a dead bomber's charge stays live only once a dead-man setting
 exists; ③ a search that reveals a Hidden station is the checkpoint slice (SQD-13); ④ the D4 suspicion sensor is its own item; ⑤ *(from the
 review, each its own later item)* Friend → Hostile and disguise (insider attacks, stolen uniforms); a killed soldier's weapon left to pick
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
