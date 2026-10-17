@@ -42,6 +42,12 @@ namespace Hrot.SimHost.Systems
     [UpdateInPhase(SystemPhase.Simulation)]
     public sealed class EqsResultUpdateSystem : IEcsModuleSystem
     {
+        // ⭐ CE-3241 (found by the CE-3222 perf gate) — the sensors by wire key, built ONCE per frame that has results. Was a scan
+        //   of every EqsSensor (resolving its key) per result event: O(events × sensors), both growing with the crowd —
+        //   📐 5.6 ms/frame at 100 civilians, 39.2 at 300 (SimHost, --mode all). First match wins, as the old scan's break did.
+        private readonly System.Collections.Generic.Dictionary<int, Entity> _byIndex = new();
+        private readonly System.Collections.Generic.Dictionary<(long Net, int Index), Entity> _byKey = new();
+
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -99,6 +105,16 @@ namespace Hrot.SimHost.Systems
                 .With<EqsSensor>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
+            _byIndex.Clear();
+            _byKey.Clear();
+            foreach (var candidate in sensorQuery)
+            {
+                _byIndex.TryAdd(candidate.Index, candidate);   // a local-only sensor: matched by entity Index
+                // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) — InstanceId 0 is a valid
+                //   first child index — or a legacy sensor on the networked entity itself.
+                if (EqsSensorKey.Resolve(view, candidate, out long net, out int index, out _) is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy)
+                    _byKey.TryAdd((net, index), candidate);
+            }
 
             for (int i = 0; i < unmanagedEvents.Length; i++)
             {
@@ -106,27 +122,8 @@ namespace Hrot.SimHost.Systems
 
                 // Find the entity whose compound key matches (ParentNetworkId, LocalChildIndex).
                 Entity observer = default;
-                foreach (var candidate in sensorQuery)
-                {
-                    if (evt.ParentNetworkId == 0)
-                    {
-                        // Local-only sensor: matched by entity Index.
-                        if (candidate.Index == evt.LocalChildIndex)
-                        {
-                            observer = candidate;
-                            break;
-                        }
-                    }
-                    else if (EqsSensorKey.Resolve(view, candidate, out long net, out int index, out _)
-                                 is EqsSensorKeyKind.Child or EqsSensorKeyKind.Legacy
-                             && net == evt.ParentNetworkId && index == evt.LocalChildIndex)
-                    {
-                        // ⭐ The ONE wire-key rule (EqsSensorKey): a child sensor by (parent's network id, part id) —
-                        //   InstanceId 0 is a valid first child index — or a legacy sensor on the networked entity itself.
-                        observer = candidate;
-                        break;
-                    }
-                }
+                if (evt.ParentNetworkId == 0) _byIndex.TryGetValue(evt.LocalChildIndex, out observer);
+                else _byKey.TryGetValue((evt.ParentNetworkId, evt.LocalChildIndex), out observer);
                 if (observer.IsNull || !repo.IsAlive(observer)) continue;
                 if (!repo.HasComponent<EqsSensor>(observer)) continue;
                 ref readonly var sensor2 = ref repo.GetComponentRO<EqsSensor>(observer);
