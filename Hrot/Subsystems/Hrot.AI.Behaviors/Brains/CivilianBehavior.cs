@@ -62,6 +62,14 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MillMinSeconds = 8f, MillMaxSeconds = 15f, FistMinSeconds = 3f, FistMaxSeconds = 6f, RestMinSeconds = 2f, RestMaxSeconds = 5f;
         /// <summary>The share of protesters who carry a sign the whole protest.</summary>
         public const float SignShare = 0.4f;
+        // ⭐ CE-2238 — the riot (§5i)
+        public const float DefaultRiotAt = 0.6f;
+        /// <summary>How far a rioter looks for a forces person to go for, m.</summary>
+        public const float RiotReachMetres = 30f;
+        /// <summary>How fast a rioter closes, m/s (a jog).</summary>
+        public const float RiotSpeed = 2.5f;
+        /// <summary>How often a rioter looks again for the nearest forces person, s.</summary>
+        public const float RiotLookSeconds = 1f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct CivilianParams
@@ -73,6 +81,19 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2240
             public Vector3 ProtestAt;
             public byte HasProtest;
+            // ⭐ CE-2238
+            public byte Instigator;
+            public float RiotAt;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> — the rioter's working memory: the forces person he goes for, the point he last ran at, his blow's clock.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RiotState
+        {
+            public Entity Target;
+            public byte Moving;
+            public Vector3 Goal;
+            public double NextLookAt, NextStrikeAt;
         }
 
         /// <summary>⭐ <c>CE-2236</c> — the panic's working memory, shared by Panic, Shelter and Inside: the shelter query, its answer,
@@ -123,6 +144,7 @@ namespace Hrot.AI.Behaviors.Brains
             public PanicState Panic;   // ⭐ CE-2236
             public GatherState Gather;   // ⭐ CE-2237
             public ProtestState Protest;   // ⭐ CE-2240
+            public RiotState Riot;   // ⭐ CE-2238
         }
 
         public static CivilianParams Defaults() => new CivilianParams
@@ -132,6 +154,7 @@ namespace Hrot.AI.Behaviors.Brains
             AlarmAt = DefaultAlarmAt, CalmBelow = DefaultCalmBelow,
             PanicAt = DefaultPanicAt, PanicSpeed = DefaultPanicSpeed, ShelterSearchRadius = DefaultShelterSearchRadius,
             FleeMetres = DefaultFleeMetres, HideMinSeconds = DefaultHideMinSeconds, HideMaxSeconds = DefaultHideMaxSeconds,
+            RiotAt = DefaultRiotAt,
         };
 
         /// <summary>⭐ The defaults, then the authored values — a zero field keeps its default (a TKB-started civilian authors nothing).</summary>
@@ -153,6 +176,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (authored.HideMaxSeconds > 0f) p.HideMaxSeconds = authored.HideMaxSeconds;
             if (p.HideMaxSeconds < p.HideMinSeconds) p.HideMaxSeconds = p.HideMinSeconds;
             if (authored.Protest) { p.ProtestAt = authored.ProtestAt; p.HasProtest = 1; }   // ⭐ CE-2240
+            if (authored.Instigator) p.Instigator = 1;   // ⭐ CE-2238
+            if (authored.RiotAt > 0f) p.RiotAt = authored.RiotAt;
             block = new CivilianBlackboard { Params = p };
         }
 
@@ -183,12 +208,17 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<CivilianBlackboard, CivilianParams, GatherState>(bb => bb.Params, bb => bb.Gather, Gather);
             var protest = builder.State("Protest")
                 .Activity<CivilianBlackboard, CivilianParams, ProtestState>(bb => bb.Params, bb => bb.Protest, Protest);
+            var riot = builder.State("Riot")
+                .Activity<CivilianBlackboard, CivilianParams, RiotState>(bb => bb.Params, bb => bb.Riot, Riot);   // ⭐ CE-2238
 
-            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest })
+            foreach (var s in new[] { routine, alarmed, panic, shelter, cower, gather, protest, riot })
                 s.On(0).GoTo("Casualty").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Wounded).Polled().Priority(1);
             routine.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
             routine.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Protesting).Polled();   // ⭐ CE-2240
             protest.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
+            protest.On(0).GoTo("Riot").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Rioting).Polled();   // ⭐ CE-2238
+            riot.On(0).GoTo("Panic").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Panicked).Polled();
+            riot.On(0).GoTo("Protest").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Calmed).Polled();
             routine.On(0).GoTo("Gather").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Attracted).Polled();   // ⭐ CE-2237
             gather.On(0).GoTo("Alarmed").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, Frightened).Polled();
             gather.On(0).GoTo("Routine").Guard<CivilianBlackboard, CivilianParams>(bb => bb.Params, NotAttracted).Polled();
@@ -426,6 +456,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Protest(ref CivilianParams p, ref ProtestState ws, Entity self, EntityRepository world)
         {
             CivilianMind.SetMode(world, self, CivilianMode.Protest);
+            MarkInstigator(in p, self, world);   // ⭐ CE-2238
             double now = world.SimulationTime;
             if (ws.Started == 0)
             {
@@ -477,6 +508,86 @@ namespace Hrot.AI.Behaviors.Brains
             LocomotionMoveTo.Stop(world, self);
             Gestures.Set(world, self, GestureKind.None);
             ws = default;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> (§5i) — Riot: fist raised, he goes for the nearest forces person within <see cref="RiotReachMetres"/> and,
+        /// within <see cref="Melee.ReachMetres"/>, strikes him every <see cref="Melee.CooldownSeconds"/> (not while he is down). His first
+        /// blow is his HOSTILE ACT (<see cref="HostileActs.Commit"/>: his side flips to Hostile). With nobody in reach he stands. Running
+        /// until his anger falls, his fear passes panic, or a wound.</summary>
+        [SharedAiAction]
+        public static NodeStatus Riot(ref CivilianParams p, ref RiotState ws, Entity self, EntityRepository world)
+        {
+            CivilianMind.SetMode(world, self, CivilianMode.Riot);
+            MarkInstigator(in p, self, world);
+            if (Gestures.Of(world, self) != GestureKind.FistRaised) Gestures.Set(world, self, GestureKind.FistRaised);
+            double now = world.SimulationTime;
+            if (now >= ws.NextLookAt || !Standing(world, ws.Target))
+            {
+                ws.Target = NearestForces(world, self, RiotReachMetres);
+                ws.NextLookAt = now + RiotLookSeconds;
+            }
+            if (ws.Target.IsNull)
+            {
+                if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                return NodeStatus.Running;
+            }
+            if (Melee.InReach(world, self, ws.Target))
+            {
+                if (ws.Moving != 0) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                if (now >= ws.NextStrikeAt && !Effects.IsKnockedDown(world, ws.Target) && Melee.Strike(world, self, ws.Target))
+                {
+                    HostileActs.Commit(world, self);
+                    ws.NextStrikeAt = now + Melee.CooldownSeconds;
+                }
+                return NodeStatus.Running;
+            }
+            var at = world.GetComponentRO<SimTransform>(ws.Target).Position;
+            if (ws.Moving == 0 || Vector2.Distance(new Vector2(ws.Goal.X, ws.Goal.Y), new Vector2(at.X, at.Y)) > 1f)
+                if (LocomotionMoveTo.Issue(world, self, at, RiotSpeed, 0.8f, MoveGait.Upright, onSurface: true)) { ws.Moving = 1; ws.Goal = at; }
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving the riot: he stops and lowers his fist; a next riot looks afresh.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.CivilianBehavior.Riot")]
+        public static void Deactivate_Riot(ref CivilianParams p, ref RiotState ws, Entity self, EntityRepository world)
+        {
+            LocomotionMoveTo.Stop(world, self);
+            Gestures.Set(world, self, GestureKind.None);
+            ws = default;
+        }
+
+        /// <summary>⭐ <c>CE-2238</c> — the nearest living, standing PERSON of the forces (Friend and not of the Civilian class,
+        /// <see cref="Armament.IsCombatant"/>) within <paramref name="reach"/> of <paramref name="self"/>, or <see cref="Entity.Null"/>.</summary>
+        public static Entity NearestForces(EntityRepository world, Entity self, float reach)
+        {
+            if (!world.HasComponent<SimTransform>(self) || !world.IsComponentTypeRegistered<EntityInfo>()) return Entity.Null;
+            var me = world.GetComponentRO<SimTransform>(self).Position;
+            float best = reach * reach;
+            var found = Entity.Null;
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (e == self || world.GetComponentRO<EntityInfo>(e).ForceId != ForceId.Friend) continue;
+                if (!Standing(world, e) || !Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(world, e) || !Armament.IsCombatant(world, e)) continue;
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                float d2 = (at.X - me.X) * (at.X - me.X) + (at.Y - me.Y) * (at.Y - me.Y);
+                if (d2 >= best) continue;
+                best = d2;
+                found = e;
+            }
+            return found;
+        }
+
+        /// <summary>Alive, with health left, and not out of the fight.</summary>
+        private static bool Standing(EntityRepository world, Entity e)
+            => !e.IsNull && world.IsAlive(e) && !(world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f)
+               && !Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(world, e);
+
+        /// <summary>⭐ <c>CE-2238</c> — an instigator says so on his mind, where the <see cref="CrowdSystem"/> reads it.</summary>
+        private static void MarkInstigator(in CivilianParams p, Entity self, EntityRepository world)
+        {
+            if (p.Instigator == 0 || !world.HasComponent<CivilianState>(self)) return;
+            ref var mind = ref world.GetComponentRW<CivilianState>(self);
+            if (mind.Instigator == 0) { mind.Instigator = 1; mind.Anger = 1f; }
         }
 
         /// <summary>⭐ <c>CE-2237</c> — where an onlooker stands: on his own bearing from the focus, <see cref="CrowdRules.RingMetres"/> out plus
@@ -537,6 +648,16 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool BelowPanic(ref CivilianParams p, Entity self, EntityRepository world)
             => CivilianMind.FearOf(world, self) < p.PanicAt;
+
+        /// <summary>⭐ <c>CE-2238</c> — a protester whose anger has reached <see cref="CivilianParams.RiotAt"/> riots.</summary>
+        [SharedAiCondition]
+        public static bool Rioting(ref CivilianParams p, Entity self, EntityRepository world)
+            => p.HasProtest != 0 && world.HasComponent<CivilianState>(self) && world.GetComponentRO<CivilianState>(self).Anger >= p.RiotAt;
+
+        /// <summary>⭐ <c>CE-2238</c> — his anger has fallen below half of <see cref="CivilianParams.RiotAt"/>: back to the protest.</summary>
+        [SharedAiCondition]
+        public static bool Calmed(ref CivilianParams p, Entity self, EntityRepository world)
+            => !world.HasComponent<CivilianState>(self) || world.GetComponentRO<CivilianState>(self).Anger < p.RiotAt * 0.5f;
 
         /// <summary>⭐ <c>CE-2240</c> — he was told to protest.</summary>
         [SharedAiCondition]

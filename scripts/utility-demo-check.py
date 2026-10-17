@@ -3036,6 +3036,36 @@ def run_civ_protest(c, timeout):
     c.ok(not bad, f"③ in 120 s nobody turns Hostile and nobody riots ({sorted(bad)})")
 
 
+# ── CE-2238 CIV-4 part 1 — the riot, the blow, the side flip (Civilians §5c, §5i) ──────────────────────────────────────────
+
+def run_civ_melee(c, timeout):
+    """test-town: an instigator protester 6 m from a policeman. ⓪ he riots · ① his blow knocks the policeman down
+    (EffectState.KnockedDownUntil ahead of sim time) on CGF, SimHost and IG · ② the rioter is Hostile on CGF, SimHost and IG."""
+    ids = ids_by_name()
+    cop, rioter = ids.get("Policeman"), ids.get("Rioter")
+    if not c.ok(None not in (cop, rioter), "the policeman and the rioter are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+    down, hostile = set(), set()
+
+    def watch():
+        t = sim_time() or 0.0
+        for h in hosts:
+            cc = comps_on(h, cop) or {}
+            if ((cc.get("EffectState") or {}).get("KnockedDownUntil") or 0) > t:
+                down.add(h)
+            side = ((comps_on(h, rioter) or {}).get("EntityInfo") or {}).get("ForceId")
+            if side in ("Hostile", 2):
+                hostile.add(h)
+        return len(down) == len(hosts) and len(hostile) == len(hosts)
+    call("POST", "/sim/play", {})
+    riot = wait_for(lambda: civ_mode(rioter) == "Riot", 30, every=0.25)
+    c.ok(riot is not None, f"⓪ the instigator riots ({civ_mode(rioter)})")
+    wait_for(watch, timeout + 30, every=0.25)
+    c.ok(len(down) == len(hosts), f"① his blow knocks the policeman down on every node (seen down on {sorted(down)})")
+    c.ok(len(hostile) == len(hosts), f"② the blow was a hostile act: the rioter is Hostile on every node ({sorted(hostile)})")
+
+
 # ── AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h) ───────────────────────────────────────
 
 def run_armed_shield(c, timeout):
@@ -3085,6 +3115,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-protest": run_civ_protest,
              # ⭐ AW-20 — a neutral in the line or the spread holds the shot (Civilians §5c, §5h)
              "ua-armed-shield": run_armed_shield,
+             # ⭐ CE-2238 CIV-4 — the riot, the blow, the side flip (Civilians §5c, §5i)
+             "ua-civ-melee": run_civ_melee,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,

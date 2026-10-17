@@ -144,5 +144,33 @@ namespace Fdp.Toolkit.Civilians.Tests
             for (int i = 0; i < 100; i++) Frame(w, crowds, fade: true);   // 10 s of the fade at 0.05/s
             Assert.True(Mind(w, a).Fear < 0.4f && Mind(w, b).Fear < 0.4f, $"both fade: {Mind(w, a).Fear}, {Mind(w, b).Fear}");
         }
+
+        /// <summary>⭐ <c>CE-2238</c> (§5i) — an INSTIGATOR raises the anger of his crowd near him (past the 0.6 riot line in a few seconds
+        /// beside him), not of a member beyond <c>ContagionMetres</c> nor of a civilian in another crowd; his own anger is 1; with him
+        /// gone, anger fades.</summary>
+        [Fact]
+        public void CE2238_AnInstigator_RaisesHisCrowdsAngerNearHim_NotFarOrOtherCrowds_AndItFadesWithoutHim()
+        {
+            var w = World();
+            var crowds = new CrowdSystem();
+            var inst = Civ(w, 0, 0, CivilianMode.Protest);
+            Mind(w, inst).Instigator = 1;
+            var near = Civ(w, 3, 0, CivilianMode.Protest);
+            var mid = Civ(w, 14, 0, CivilianMode.Protest);
+            var far = Civ(w, 28, 0, CivilianMode.Protest);                  // linked through mid, 28 m from the instigator
+            var other = new[] { Civ(w, 300, 0), Civ(w, 305, 0), Civ(w, 310, 0) };
+            for (int i = 0; i < 60; i++) Frame(w, crowds);                  // 6 s
+            Assert.Equal(1f, Mind(w, inst).Anger);
+            Assert.True(Mind(w, near).Anger >= 0.6f, $"beside him he is past the riot line: {Mind(w, near).Anger}");
+            Assert.True(Mind(w, mid).Anger > 0f && Mind(w, mid).Anger < Mind(w, near).Anger, $"farther, slower: {Mind(w, mid).Anger}");
+            Assert.Equal(0f, Mind(w, far).Anger);
+            Assert.All(other, o => Assert.Equal(0f, Mind(w, o).Anger));
+
+            Mind(w, inst).Instigator = 0;
+            Move(w, inst, 500, 500);
+            float before = Mind(w, near).Anger;
+            for (int i = 0; i < 100; i++) Frame(w, crowds);                 // 10 s at 0.02/s
+            Assert.InRange(Mind(w, near).Anger, before - 0.21f, before - 0.19f);
+        }
     }
 }
