@@ -59,16 +59,17 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>KC-3 — does <paramref name="observer"/> know <paramref name="man"/> is a combatant: his own list, his commander's, or
-        /// any squad-mate's (<see cref="UnitSubordinate.Commander"/> → <see cref="UnitRoster"/>)?</summary>
+        /// any squad-mate's (<see cref="UnitSubordinate.Commander"/> → <see cref="UnitRoster"/>; a commander reads his own roster)?</summary>
         public static bool Knows(ISimulationView view, Entity observer, Entity man)
         {
             if (man.IsNull || observer.IsNull || view is not EntityRepository world || !world.IsComponentTypeRegistered<TargetMemory>()) return false;
             long id = (long)man.PackedValue;
             if (Holds(world, observer, id)) return true;
-            if (!world.IsComponentTypeRegistered<UnitSubordinate>() || !world.HasComponent<UnitSubordinate>(observer)) return false;
-            var commander = world.GetComponentRO<UnitSubordinate>(observer).Commander;
+            // his squad: the commander he answers to — or, when he IS a commander, his own roster
+            var commander = world.IsComponentTypeRegistered<UnitSubordinate>() && world.HasComponent<UnitSubordinate>(observer)
+                ? world.GetComponentRO<UnitSubordinate>(observer).Commander : observer;
             if (commander.IsNull || !world.IsAlive(commander)) return false;
-            if (Holds(world, commander, id)) return true;
+            if (commander != observer && Holds(world, commander, id)) return true;
             if (!world.IsComponentTypeRegistered<UnitRoster>() || !world.HasComponent<UnitRoster>(commander)) return false;
             ref readonly var roster = ref world.GetComponentRO<UnitRoster>(commander);
             for (int m = 0; m < roster.Count; m++)

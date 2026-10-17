@@ -264,7 +264,8 @@ namespace Fdp.Toolkit.Tests.Combat
         public void CE2238_ALethalAct_MakesHimKnown_ToItsWitnessAndHisSquad_NotToAStalePatrolOrAStranger()
         {
             for (int i = 0; i < 1000; i++) _world.Repo.Tick();
-            var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Neutral, civilian: true);
+            // Hostile, as his act leaves him (CV-4) — a Neutral is no danger before Judge is asked (CE-2233)
+            var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Hostile, civilian: true);
             var witness = Watcher(Vector3.Zero, civ, ticksAgo: 10);
             var mate = Watcher(new Vector3(0f, 5f, 0f), Entity.Null, 0);
             var leader = Watcher(new Vector3(0f, -5f, 0f), Entity.Null, 0);
@@ -284,22 +285,22 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>⭐ KC-1 — the knowledge is STICKY: the witness forgets the contact (out of sight long enough) and still knows him; a
-        /// known combatant with nothing lethal on him reads Nothing (no rifle to fear), and the list keeps the newest
+        /// known combatant with nothing lethal on him (stones) reads Nothing, and the list keeps the newest
         /// <see cref="KnownCombatants.Max"/>. ✅ Red-proof: the knowledge kept in the slot (cleared by Forget) ⇒ red.</summary>
         [Fact]
         public unsafe void CE2238_AKnownCombatant_StaysKnownAfterHisContactIsForgotten_AndReadsOnWhatHeCarries()
         {
             for (int i = 0; i < 100; i++) _world.Repo.Tick();
             var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Neutral, civilian: true);
-            var phone = Man(PhoneCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
+            var stones = Man(StonesCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
             var witness = Watcher(Vector3.Zero, civ, ticksAgo: 0);
             Assert.True(KnownCombatants.Mark(_world.Repo, witness, civ));
-            Assert.True(KnownCombatants.Mark(_world.Repo, witness, phone));
+            Assert.True(KnownCombatants.Mark(_world.Repo, witness, stones));
             ref var mem = ref _world.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(witness);
             Fdp.Toolkit.Perception.Components.TargetMemory.Forget(ref mem, 0);
             Assert.Equal(0, mem.Count);
             Assert.Equal(ArmedJudgement.IdentifiedLethal, Armament.Judge(_world.Repo, witness, civ, Day));
-            Assert.Equal(ArmedJudgement.Nothing, Armament.Judge(_world.Repo, witness, phone, Day));       // a phone is nothing lethal
+            Assert.Equal(ArmedJudgement.Nothing, Armament.Judge(_world.Repo, witness, stones, Day));      // stones are nothing lethal
 
             for (int i = 0; i < KnownCombatants.Max; i++)
                 KnownCombatants.Mark(_world.Repo, witness, Man(PhoneCivType, new Vector3(30f + i, 0f, 0f), ForceId.Neutral, civilian: true));
