@@ -439,10 +439,12 @@ public sealed class PostureScenarioTests : IDisposable
         cgf.GetComponentRW<Health>(victim).Current = 40f;   // ⭐ CGF owns Health (the Brain group): the owner's write
         Assert.True(harness.PumpUntil(() => Mode(victim) == Fdp.Toolkit.Civilians.CivilianMode.Casualty, timeoutFrames: 300),
             $"④ wounded to 40 %, he is a Casualty; {State()}");
+        harness.PumpUntil(() => false, timeoutFrames: 60);   // ⭐ a walking man takes a moment to stop: measure from where he came to rest
         var at = cgf.GetComponent<SimTransform>(victim).Position;
         harness.PumpUntil(() => false, timeoutFrames: 240);
         Assert.Equal(Fdp.Toolkit.Civilians.CivilianMode.Casualty, Mode(victim));
-        Assert.True(Vector3.Distance(at, cgf.GetComponent<SimTransform>(victim).Position) < 0.5f, "④ …and stays where he fell");
+        float drift = Vector3.Distance(at, cgf.GetComponent<SimTransform>(victim).Position);
+        Assert.True(drift < 0.5f, $"④ …and stays where he fell (moved {drift:F2} m in 4 s)");
         _out.WriteLine(State());
     }
 
