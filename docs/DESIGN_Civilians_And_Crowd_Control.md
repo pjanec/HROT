@@ -1432,7 +1432,7 @@ every witness's `TargetMemory` lives.
 
 | id | decision *(lean)* | rejected — one line each |
 |---|---|---|
-| **KC-1** | ⭐ the knowledge is a sticky per-unit LIST in `TargetMemory` (8 ids; full ⇒ the oldest goes) | a byte per memory SLOT (the ruling's sketch): eviction and `Forget` drop it — not "sticky for the exercise" · a new component: needs an id from the shared block for what is perception knowledge |
+| **KC-1** | ⭐ the knowledge is a sticky per-unit LIST (8 ids; full ⇒ the oldest goes). ⭐ *Revised `2026-10-17` (§5h.7b):* its OWN component `KnownCombatantList` (id 405, brain-local, NoScenario) beside the memory. ⛔ SUPERSEDED: "in `TargetMemory`" — `ThreatEvaluationSystem` copies the memory and writes the copy back through the command buffer, which erased a mark made later in the same frame (measured on `ua-armed-blend-back`) | a byte per memory SLOT (the ruling's sketch): eviction and `Forget` drop it — not "sticky for the exercise" · a new component: needs an id from the shared block for what is perception knowledge |
 | **KC-2** | ⭐ the WITNESSES are every unit on the actor's brain node whose memory holds him IDENTIFIED and perceived within 1 s of the act | a line-of-sight test at the act: duplicates the sensors that already decided what each unit perceives |
 | **KC-3** | ⭐ the SQUAD knows it by reading the mates' lists (`UnitSubordinate.Commander` → `UnitRoster`), never by copying | a flag through `SquadPerceptionMergeSystem`'s pool: bounded to 16 pooled contacts, lost when he leaves the pool, on the merge cadence |
 | **KC-4** | ⭐ to an observer who KNOWS, a civilian reads on what he CARRIES — `LethalInHand` (a hidden rifle counts: they saw it) ⇒ IdentifiedLethal, else Nothing; the conduct path is skipped | `ArmedByStatus`: a hidden weapon arms nobody by sight ⇒ he escapes the very patrol that watched him hide it |
@@ -1546,6 +1546,50 @@ for the replicated slot; Failure when he carries nothing to put there.
 | live `run_armed_draw_aim` | ✅ 7/7 — hidden (seat 3), drawn (seat 1) still Neutral, no round (150 → 150), Hostile 10.5 s after the draw on CGF, SimHost and IG, engaged (150 → 149) |
 | the neighbours re-run (`CrowdSystem` grid, same commit range) | twins `CE2237_CivGathering` · `CE2237_CivContagion` · `CE2238_CivMelee` · `CE2238_RiotStone` · `CE2238_GasThrowback` · `CE2239_PoliceLine` · `CE2240_CivProtest` ✅ 7/7 |
 
+### 5h.7b The conduct hold, and the known-combatant list's own home *(behaviors, `CE-2238` part 4, 2026-10-17; build-state: BUILT; ✅ CH-1 approved by the user)*
+
+⭐ **Found by `ua-armed-blend-back`** (two defects, one demo): ① the patrol that SAW the act did not know him — its mark was erased the same
+frame; ② a patrol that never saw it fired at him with his rifle hidden — the R-2027/R-2028 rule ("unarmed: non-lethal force only";
+"everyone else sees a civilian and applies the conduct rules") was never enforced for a unit with a Lethal force level.
+
+```mermaid
+classDiagram
+  direction LR
+  class ForceLevels { <<existing, grows>> Permits · AllowsMount · + ConductPermits(unit, target, lethal) }
+  class Armament { <<existing>> IsCombatant · Judge(observer, man) }
+  class KnownCombatants { <<existing, revised>> Mark · MarkWitnesses · Knows }
+  class KnownCombatantList { <<NEW component 405>> Ids[8] · Count }
+  class TargetMemory { <<existing, shrinks>> − KnownCombatantIds · − KnownCombatantCount }
+  class AimAndFireExecutor { <<existing>> HoldOf: + HoldConduct before HoldForceLevel }
+  ForceLevels ..> Armament : status first, then Judge
+  Armament ..> KnownCombatants : Knows
+  KnownCombatants --> KnownCombatantList : the one writer
+  AimAndFireExecutor ..> ForceLevels
+```
+*What the picture shows that prose hid:* the hold reuses the ONE judgement every threat reader already asks (`Judge`), so "I know him"
+and "I see a rifle" lift it the same way; and the list moves out of the component another system copies wholesale.
+
+```mermaid
+sequenceDiagram
+  participant TE as ThreatEvaluationSystem
+  participant WD as WeaponDispatcher (the aim)
+  participant ECB as command buffer
+  TE->>ECB: SetComponent(witness, copy of his memory) — queued
+  WD->>WD: CO-1 — a Lethal act, MarkWitnesses marks the witness
+  ECB->>ECB: playback — the queued copy overwrites the memory
+  Note over ECB: before the fix the mark lived in that copy and was erased, now it lives in KnownCombatantList, which no one copies
+```
+*What the picture shows that prose hid:* the erase is ORDER, not logic — every rail that marked without a memory system running between
+mark and read passed.
+
+| id | decision | rejected — one line each |
+|---|---|---|
+| **CH-1** | ⭐ *(user, `2026-10-17`: "add the conduct hold")* a LETHAL round at a target who is not a combatant on status (`Armament.IsCombatant` false) is held — `HoldConduct`, "hold: unarmed civilian" — unless this unit's `Judge` reads him IdentifiedLethal (something that looks lethal, or a known combatant: KC-4) or he aims a lethal weapon at this unit. Non-lethal rounds are never held; a point has no target. In `ForceLevels.Permits` / `AllowsMount` (both round and weapon choice) | in the ladder (B2): AW-24 runs the ladder only for graded units, so a soldier would never obey it · on danger alone: danger 0.3 still lets a utility engage |
+| **KC-1′** | ⭐ the known-combatant list is its own component `KnownCombatantList` (405), added beside `TargetMemory` by the perception translator, registered with it; `Mark` adds it when missing (after the witness walk) | a merge in `ThreatEvaluationSystem`'s write-back: the copy is taken before the mark, nothing at record time can see it · writing marks through the same buffer: the later playback then erases the memory's own update |
+
+⭐ **AW-24 holds:** a combatant target costs one class-and-side lookup before the hold returns; the conduct path (`Judge` → conduct) is
+reached only for civilian-class targets.
+
 ## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: BUILT — as-built §5i.1)*
 
 ⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
@@ -1645,7 +1689,7 @@ the brain tick and the crowd system that already run every frame on CGF.
 | who he goes for | ⭐ the nearest living, standing PERSON of the forces — `Friend`, not Neutral, not of the `Civilian` class — within `RiotReach` 30 m | anyone: a rioter beating a bystander is a different act (later) · the crowd's focus point: not every protest point is the police line |
 | the blow | ⭐ `Melee.Strike`: within `MeleeReach` 1.5 m, every `MeleeCooldown` 2 s, a `DamageAssessedEvent{5 hp, Blunt, 3 s}` on the CGF bus — applied by the Health owner (D5); a knocked-down victim is not struck again until he is up | a melee "round" through the ballistic path: a fist has no muzzle · damage on SimHost: CGF is where the brain decides and, for a scenario cast, where Health is claimed |
 | the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
-| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him (⚠ measured §5h.4: an UNORDERED soldier does not — only an attack order makes him) — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
+| a hostile rioter and the soldiers | ⭐ he is Hostile and unarmed (danger 0.3). ⭐ *As of `2026-10-17` (§5h.7b CH-1, user-approved):* no unit fires a LETHAL round at him unless it sees something lethal on him, knows him (it or its squad saw a lethal act) or he aims at it — non-lethal force only (the R-2027 flow's UNARMED arm); a police unit's force level (A6) caps it further. ⛔ SUPERSEDED: "the AI may engage him" | special-casing rioters in the threat rules: the ladder's job |
 
 ⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
 scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
