@@ -126,5 +126,39 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.True(WeaponLaying.IsLaidDown(_world, replica, 0));
             Assert.False(Armament.ArmedByStatus(_world, replica));
         }
+
+        /// <summary>⭐ <c>CE-2241</c> ① (AW-21, R-2027; §5h.5, behaviors) — SURRENDERED is out of the fight: every weapon laid down AND his
+        /// hands up. Hands up alone (a feint, the rifle still up) is not; laid down alone is not; an unarmed man with his hands up is not
+        /// (CV-13a's hold, not a surrender). ✅ Red-proof: the AllLaidDown term dropped from IsOutOfTheFight ⇒ the hands-up-alone line red;
+        /// the ShowsHandsUp term dropped ⇒ the laid-down-alone line red.</summary>
+        [Fact]
+        public void CE2241_OutOfTheFight_OnlyWhenEveryWeaponIsLaidDown_AndHisHandsAreUp()
+        {
+            if (!_world.IsComponentTypeRegistered<Gesture>()) _world.RegisterComponent<Gesture>();
+            var him = Rifleman(Vector3.Zero);
+            Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, him));
+
+            Gestures.Set(_world, him, GestureKind.HandsUp);                  // hands up, the rifle up
+            Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, him));
+            Gestures.Set(_world, him, GestureKind.None);
+            WeaponLaying.LayDownAll(_world, him);                             // laid down, hands down
+            Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, him));
+            Gestures.Set(_world, him, GestureKind.HandsUp);                  // both: surrendered
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, him));
+
+            const long CivilianType = 9502;                                   // a person with no weapon suite: only his hands
+            var civ = new TkbTemplate("Civilian", CivilianType);
+            civ.AddDescriptor(new VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Pedestrian });
+            _db.Register(civ);
+            PersonHands.EnsureOnPersons(_db);
+            var man = _world.CreateEntity();
+            _world.AddComponent(man, new TkbIdentity { TkbType = CivilianType });
+            _world.AddComponent(man, default(BehaviorState));
+            _world.SetAuthority<BehaviorState>(man, true);
+            _db.TryGetByType(CivilianType, out var ct);
+            new CombatTkbTranslator().Inject(_world, man, ct!);
+            Gestures.Set(_world, man, GestureKind.HandsUp);
+            Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, man));
+        }
     }
 }
