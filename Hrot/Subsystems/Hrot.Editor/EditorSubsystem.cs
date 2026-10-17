@@ -329,6 +329,9 @@ namespace Hrot.Editor
         private IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability> _capabilities =
             System.Array.Empty<Hrot.Common.Infrastructure.INodeCapability>();
 
+        /// <summary>⭐ CE-4013 — the ONE capability walk every host runs (§4.1ae); asserted complete before the kernel initializes.</summary>
+        private Hrot.Common.Infrastructure.NodeCapabilityWalk? _capabilityWalk;
+
 
         // `ST-010` backing fields: both were locals inside Initialize; promoted so the
         // host-integration accessors above can project them. Nothing else reads them.
@@ -1235,10 +1238,7 @@ namespace Hrot.Editor
             _geoTransform = geoTransform;
             var entityMap        = _node.EntityMap;
             _entityMap = entityMap;
-            _world.SetSingletonManaged<NetworkEntityMap>(entityMap);
-            // Behavior resolvers (Phase 2b) read the geographic transform from this world singleton;
-            // publish it so the editor's behavior preview/activation resolves geo-aware params correctly.
-            _world.SetSingletonManaged<IGeographicTransform>(geoTransform);
+            // Behavior resolvers read the entity map and the geo transform from world singletons. ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
             var behaviorRegistry = new BehaviorRegistry();
             _behaviorRegistry = behaviorRegistry;
             // Register Urban Combat behaviors so MissionAdapterSystem can resolve Ambush
@@ -1416,7 +1416,7 @@ namespace Hrot.Editor
             //   UrbanCombat templates for EVERY host, so calling it again would THROW —
             //   TkbDatabase.Register rejects a duplicate name or type.
             //   📄 docs/DESIGN_Entity_Creation_Unification.md §3.3.
-            if (!_world.HasSingletonManaged<ITkbDatabase>()) _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
+            // ⭐ CE-4013 D4 — the world's ITkbDatabase is this same context catalogue, published by HrotNodeBuilder.
             // ⭐⭐⭐ CE-203 `E2` — THE SHARED ALLOCATOR, NOT A THIRD COPY OF IT.
             //
             // 📐 There were THREE `SequentialIdAllocator` classes in the tree: `Hrot.Core.Network`'s (the
@@ -1479,7 +1479,6 @@ namespace Hrot.Editor
             EntityCreation = creation;   // CE-515
 
             var elm      = creation.Elm;
-            var spawnSys = creation.SpawnSystem;
             // ⭐⭐ CE-3228 (Entity Creation §3.4d) — a request is PUBLISHED on this world's bus (EntityCreation.Publish); the pack's bus
             //   source reads it. The queue singleton `ST-010` handed around here is gone.
             var extractor          = new StagingEntityExtractor();
@@ -1525,13 +1524,11 @@ namespace Hrot.Editor
             //   navigation locally, so it loads what those need. ⛔ SUPERSEDED: "No terrain step — nothing here
             //   reads the road graph" — the editor's CarKinematicsSystem reads it, and its map draws the
             //   terrain world (R-182). 📄 docs/DESIGN_Terrain_World.md §5, §7.1 W4.
-            var editorLoadProviders = new List<Hrot.Map.Common.ClusterLoad.ILoadPartProvider>
-            {
-                new Hrot.Map.Common.ClusterLoad.KnowledgeBaseLoadStep(
-                    tkbDb ?? Hrot.Map.Common.HrotEnvironment.CreateTkb(), isolatedTempRoot),
-            };
-            TerrainResidency = new Hrot.Map.Common.Services.TerrainResidency(isolatedTempRoot, _roadNetworkHolder);
-            editorLoadProviders.Add(new Hrot.Map.Common.ClusterLoad.TerrainLoadStep(TerrainResidency, isolatedTempRoot));
+            // ⭐ CE-4013 (§4.1ae T2) — the knowledge base and the terrain from the ONE shared factory every ECS host uses, with this node's
+            //   terrain content (the traffic pack adds the SUMO net there when it composes, below).
+            var (editorLoadProviders, editorResidency) = Hrot.Map.Common.ClusterLoad.HrotUniversalLoadParts.Build(
+                tkbDb, isolatedTempRoot, _roadNetworkHolder, _node!.TerrainContent);
+            TerrainResidency = editorResidency;
 
             // ⭐ CE-2056 — the editor HOLDS a behaviour registry, so it passes a remapper built from it (the silent-default
             //   rule): a scenario load that renumbers ids now rewrites the EntityRefs inside mission parameters too, as
@@ -1647,7 +1644,7 @@ namespace Hrot.Editor
             //    programme keeps finding. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ac.
             var compositionPlan = MuscleCapabilitiesFactory == null
                 ? EditorCapabilities.BuildDefault(cgfLogicPackInst, simHostCorePack!, _navSolverCapability!,
-                    _trafficPack = new Hrot.Traffic.TrafficPack(TerrainResidency!))   // ⭐ AQ93 R-4047 — the net rides THIS residency
+                    _trafficPack = Hrot.Traffic.TrafficPack.Serving())   // ⭐ AQ93 R-4047 — the editor is its own traffic node
                 : EditorCapabilities.BuildWithInjectedMuscle(cgfLogicPackInst, injectedMuscleCapabilities);
 
             _capabilities = compositionPlan.Resolve(EditorCapabilities.DefaultRole);
@@ -1655,8 +1652,8 @@ namespace Hrot.Editor
             var planInputSystems   = new List<IEcsModuleSystem>();
             var planSimSystems     = new List<IEcsModuleSystem>();
             var planPostSimSystems = new List<IEcsModuleSystem>();
-            foreach (INodeCapability capability in _capabilities)
-                capability.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
+            _capabilityWalk = new Hrot.Common.Infrastructure.NodeCapabilityWalk(_capabilities);
+            _capabilityWalk.PopulateSystems(_node!, planInputSystems, planSimSystems, planPostSimSystems);
 
             // ⭐⭐⭐ CE-165 — DEDUPLICATE BY TYPE when fusing the Brain and MuscleGround lists.
             // The editor is the one node that runs BOTH packs, and both carry UnitHierarchySystem and
@@ -1721,14 +1718,13 @@ namespace Hrot.Editor
             //    hand-written sequence exactly on BOTH arms: default = perception module then the area
             //    queries; injected = the host's muscle modules then the area queries (there is no
             //    perception module on that arm, and there never was).
-            //   ⭐ ONE ordered pass per capability: the modules it PROVIDES, then its Register hook.
+            //   ⭐ CE-4013 — the shared walk's phase order (every capability's modules, then every Register), the base's order. ⚠ It
+            //   used to interleave per capability; the order is unchanged because no capability ahead of a providing one registers
+            //   anything (EditorCapabilitiesTests pin both arms). The editor runs no NodeBootPlan, so the bag is its own.
             var bootValues = new Hrot.Common.Infrastructure.NodeBootValues();
-            foreach (INodeCapability capability in _capabilities)
-            {
-                foreach (var mod in capability.ProvideModules())
-                    _kernel.RegisterModule(mod);
-                capability.Register(_node!, bootValues);
-            }
+            foreach (var mod in _capabilityWalk.ProvideModules())
+                _kernel.RegisterModule(mod);
+            _capabilityWalk.Register(_node!, bootValues);
             _kernel.RegisterModule(orchPack);
             _kernel.RegisterModule(scenarioMod);
 
@@ -1775,27 +1771,8 @@ namespace Hrot.Editor
             //   was absent — harmless with a NullEntityAckSink, but the pack builds it unconditionally
             //   and scheduling it keeps Unserviceable() honest rather than permanently warning.
             _kernel.RegisterModule(elm);
-            _kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys));
-            _kernel.RegisterGlobalSystem(creation.RequestSystem);
-            _kernel.RegisterGlobalSystem(creation.FinalizationSystem);
-            // ⭐⭐⭐ P2 — ghost promotion moved into the pack (DESIGN_Role_Affinity_Ownership.md §3.7).
-            //   ⚠ NEW to this host, and harmlessly so: the editor's OfflineNetworkFactory returns a
-            //   NullReplicationModule, so no ghosts ever arrive and the system idles. ⭐ It is scheduled
-            //   anyway because Q65 §0 forbids removing a capability by composition — and because a host
-            //   that skipped it would warn forever through Unserviceable().
-            _kernel.RegisterGlobalSystem(creation.PromotionSystem);
-            _kernel.RegisterGlobalSystem(creation.ObstacleBakeSystem);   // ⭐ CE-3136 P-7a — static obstacles become terrain
-            _kernel.RegisterGlobalSystem(creation.SeatPresetSystem);     // ⭐ WS-4 (W-I) — a host's seat presets board their seats
-
-            // ⭐⭐ Make an omission LOUD — the S2b habit. Every one of the five defects behind this
-            //   design was silent.
-            var unserviceable = creation.Unserviceable(new object[]
-            {
-                creation.SpawnSystem, creation.RequestSystem, creation.FinalizationSystem,
-                creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-            });
-            if (unserviceable.Length > 0)
-                Fdp.Core.Logging.FdpLog<EditorSubsystem>.Warn(unserviceable);
+            // ⭐ CE-4013 D6 — every piece of the pack, scheduled by the ONE shared registration (the spawner stays right after the ELM).
+            creation.RegisterOn(_kernel);
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(entityMap));
             _kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.InitialBrainMaterializationSystem());   // ⭐ CE-3042 — saved AI → the ingress
             // BSA-WIRE: register the blueprint genesis + event-ingress systems so that
@@ -2139,6 +2116,7 @@ namespace Hrot.Editor
             _kernel.RegisterGlobalSystem(_editorMapInteraction.CanvasMenu);   // ⭐ CE-1017 — built by the pack
 
             // ── 5. Kernel initialization ─────────────────────────────────────────────
+            _capabilityWalk!.AssertComplete(Name);   // ⭐ CE-4013 — a skipped capability phase fails here, named
             _kernel.Initialize();
 
             // ⭐ CE-3017 — the navigation singletons (INavmeshProvider, IPathRegistry) exist only after the module's

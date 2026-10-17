@@ -562,14 +562,7 @@ namespace Hrot.SimHost
             base.World  = _world;
             base.Kernel = _kernel;
 
-            // Ensure _entityMap is available as a singleton.
-            _world.SetSingletonManaged<NetworkEntityMap>(_entityMap!);
-
-            // Phase 2a: expose the geographic transform as a world singleton so behavior
-            // parameter resolvers can reach it through the world (instead of a factory-captured
-            // closure). Null in Cartesian-only contexts — skip registration then.
-            if (_geoTransform != null)
-                _world.SetSingletonManaged<IGeographicTransform>(_geoTransform);
+            // ⭐ CE-4013 D5 — HrotNodeBuilder publishes the node's entity map, geo transform and TKB on every world; not repeated here.
 
             // Architectural diagnostics service needed for visualization.
             var simHostEntityService = new Fdp.Toolkit.Diagnostics.EntityStateExtractionService(_world, _entityMap);

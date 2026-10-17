@@ -65,3 +65,4 @@ build-output.txt
 .type_index.json
 __pycache__/
 scenarios/perf-civ-*/
+.claude/worktrees/

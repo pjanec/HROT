@@ -15,7 +15,7 @@ namespace Hrot.ClusterRunner.Configuration
         // -- Hrot-specific CLI options ----------------------------------------
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|editor|migrate|replaybrowser or comma-separated combination")]
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|traffic|ci|editor|migrate|replaybrowser or comma-separated combination")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -148,15 +148,16 @@ namespace Hrot.ClusterRunner.Configuration
                 //   Program.cs), which is why it sits beside "ci" and "migrate" rather than in the roster.
                 var validNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                     { "simhost", "ig", "excon", "orchestrator", "cgf", "ci", "editor",
-                      "replaybrowser", "migrate", "dump-api" };
+                      "replaybrowser", "migrate", "dump-api",
+                      "traffic" };   // ⭐ AQ93 N1 — the SUMO traffic node; NOT in "all" (the editor serves traffic embedded)
                 if (!validNames.Contains(normalized))
                     throw new InvalidOperationException(
-                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
+                        $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, traffic, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
                 RequestedSubsystems.Add(normalized);
             }
             if (RequestedSubsystems.Count == 0)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, editor, cgf, traffic, ci, migrate, dump-api, replaybrowser, or comma-separated combination.");
 
             // Parse wait-for list -> WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
