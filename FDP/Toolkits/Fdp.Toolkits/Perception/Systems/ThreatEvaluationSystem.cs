@@ -214,7 +214,7 @@ namespace Fdp.Toolkit.Perception.Systems
         /// ⭐ CE-2233 (CIV-0) — how many of the memory's contacts are THREATS: a heard (anonymous) contact always is (a sound has no
         /// side); a seen one unless it is Neutral (<see cref="ThreatDanger.IsNeutral"/>, read live). What FirstThreat / AllClear count.
         /// </summary>
-        public static int ThreatCount(ISimulationView view, in TargetMemory mem)
+        public static unsafe int ThreatCount(ISimulationView view, in TargetMemory mem)
         {
             int n = 0;
             for (int i = 0; i < mem.Count; i++)
