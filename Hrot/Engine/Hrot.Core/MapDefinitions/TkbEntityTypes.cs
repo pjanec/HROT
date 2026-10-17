@@ -103,6 +103,11 @@ namespace Hrot.Map.Common
         //   the tactical area never have to branch to exclude it. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md §1.
         public const long WeatherRegion = 8811;
 
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3235 (B-13, AW-8) — a STONE SOURCE: an area (EditablePolyline + a SimTransform) whose
+        //   inside tops a man's hands up with stones (ItemSourceDto on its template; ItemSources.Refill). Its OWN type, like the Weather
+        //   Region. 📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-7.
+        public const long StoneSource = 8812;
+
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
         public const long Heli_UH60  = 400;

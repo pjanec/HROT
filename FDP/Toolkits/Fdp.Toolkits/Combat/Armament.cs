@@ -197,7 +197,7 @@ namespace Fdp.Toolkit.Combat
         /// as it was.
         /// </summary>
         public static bool ArmedByStatus(ISimulationView view, Entity man)
-            => view.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(view, man)
+            => view.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(view, man) && !PersonHands.HandsOnly(view, man)   // ⭐ CE-3230 (H-3)
                || view is EntityRepository r && !WeaponSystems.WeaponOf(r, man).IsNull;
 
         /// <summary>
@@ -212,7 +212,8 @@ namespace Fdp.Toolkit.Combat
                 && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
             {
                 for (int i = 0; i < suite.Mounts.Count; i++)
-                    if (ItemAppearances.FiresLethal(world, suite.Mounts[i])) return true;
+                    if (PersonHands.IsHands(suite.Mounts[i]) ? PersonHands.HoldsLethal(world, man)   // ⭐ CE-3230 (H-3) — by what it holds
+                                                             : ItemAppearances.FiresLethal(world, suite.Mounts[i])) return true;
             }
             else if (world.HasComponent<WeaponState>(man) && !Countermeasures.DispenserOnly(world, man)) return true;   // no TKB: a weapon
             Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
@@ -257,7 +258,8 @@ namespace Fdp.Toolkit.Combat
                 && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
             {
                 for (int i = 0; i < suite.Mounts.Count && best < ArmedJudgement.IdentifiedLethal; i++)
-                    best = Max(best, OfItem(ItemAppearances.Of(world, suite.Mounts[i]), distance, seeing));
+                    best = Max(best, PersonHands.IsHands(suite.Mounts[i]) ? OfHands(world, man, distance, seeing)
+                                                                          : OfItem(ItemAppearances.Of(world, suite.Mounts[i]), distance, seeing));
             }
             Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
             int n = WeaponSystems.Controlled(world, man, controlled);
@@ -279,6 +281,21 @@ namespace Fdp.Toolkit.Combat
             if (distance > Identification.RangeM(item.SizeM, seeing)) return ArmedJudgement.Unidentified;
             if (!item.Lethal) return ArmedJudgement.Nothing;
             return item.ReachM > 0f && distance > item.ReachM ? ArmedJudgement.Unidentified : ArmedJudgement.IdentifiedLethal;
+        }
+
+        /// <summary>⭐ <c>CE-3230</c> (H-3) — the hands by what they hold: empty ⇒ nothing to see; each kind a small object in the hand,
+        /// lethal when its round is (a grenade, AW-9), not when it is a stone or a canister.</summary>
+        private static ArmedJudgement OfHands(EntityRepository world, Entity man, float distance, SeeingConditions seeing)
+        {
+            var best = ArmedJudgement.Nothing;
+            PersonHands.Holding(world, man, ammo =>
+            {
+                var item = new ItemAppearance(ItemLook.SmallObject, ItemAppearances.DefaultSize(ItemLook.SmallObject),
+                                              ItemAppearances.IsLethal(world, ammo), 0f);
+                best = Max(best, OfItem(item, distance, seeing));
+                return best == ArmedJudgement.IdentifiedLethal;
+            });
+            return best;
         }
 
         private static ArmedJudgement Max(ArmedJudgement a, ArmedJudgement b) => a >= b ? a : b;

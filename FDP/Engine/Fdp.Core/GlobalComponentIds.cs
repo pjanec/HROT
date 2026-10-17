@@ -977,5 +977,10 @@ namespace Fdp.Core
         /// tear-gas or smoke cloud — a replicated entity its creator owns, drifting on the wind; replicated as <c>dtAreaEffectCloud</c> (144).
         /// ⚠ 401, not 399: behaviors' <c>CivilianState</c> took 399 first (pushed), and 400 is behaviors' <c>Crowd</c> (test-only components in Fdp.Core.Tests also use 400 — their own registry).</summary>
         public const int AreaEffectCloud = 401;
+
+        /// <summary><c>HeldFuze</c> — ⭐ CE-3235 (civilians B-13, AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-6): a LIVE round in a
+        /// man's hands and the fuze it has left — on the man, on his brain's node (never replicated, never saved). ⚠ 402 measured free on
+        /// backend, ui and behaviors 2026-10-17.</summary>
+        public const int HeldFuze = 402;
     }
 }

@@ -132,6 +132,7 @@ public sealed class EntityTypeCatalogTests
     [InlineData(TkbEntityTypes.TacGraphic_Route, "route")]
     [InlineData(TkbEntityTypes.TerrainZone, "zone")]
     [InlineData(TkbEntityTypes.WeatherRegion, "area:8811")]   // ⭐ CE-1161 — an area born as a Weather Region
+    [InlineData(TkbEntityTypes.StoneSource, "area:8812")]     // ⭐ CE-3235 — an area born as a Stone Source
     public void CE1017_Arm_AGraphic_ArmsItsOwnTool_NoSideAsked(long tkbType, string expected)
     {
         var spawn = new RecordingSpawn();
@@ -264,6 +265,7 @@ public sealed class EntityTypeCatalogTests
         8809 Crate | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8810 World Environment | dis - | family Unknown | folder Other | icon -
         8811 Weather Region | dis - | family Unknown | folder Other | icon -
+        8812 Stone Source | dis - | family Unknown | folder Other | icon -
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the

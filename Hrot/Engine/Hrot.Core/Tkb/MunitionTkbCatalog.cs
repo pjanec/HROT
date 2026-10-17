@@ -276,9 +276,9 @@ namespace Hrot.Core.Tkb
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 4f }, damage: 5f);
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
-                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
             Register(tkb, StoneName, TkbStone, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
-                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f }, damage: 3f);
+                     new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 2f, Indirect = true }, damage: 3f);   // ⭐ CE-3230 — a stone arcs
             // ⭐⭐ CE-3219 part 3 (§7.3b) — the CLOUD rounds: no blast, no fragments; the warhead's Cloud* fields make AreaEffectSystem ask
             //   for an AreaEffectCloud where it bursts. A CS grenade's cloud ≈ 6 m across the first minute (public M7A3 figures, rounded);
             //   a smoke grenade's screen ≈ 8 m for about a minute (M18). Starter values — tuning starts here.
@@ -335,6 +335,7 @@ namespace Hrot.Core.Tkb
             var t = new TkbTemplate(name, type) { DisType = dis };
             t.AddDescriptor(new TkbMasterDto { CustomName = name, DisType = dis.ToString(), HideFromPalette = true });
             if (BuiltInLooks.TryGetValue(type, out var look)) t.AddDescriptor(look);   // ⭐ P1 — how its round looks
+            if (HandItems.TryGetValue(type, out var hand)) t.AddDescriptor(hand);       // ⭐ CE-3235 — a hand may pick a lying one up
             if (warhead != null) t.AddDescriptor(warhead);
             // ⭐ M5 — the round's own numbers (generic: from any weapon), what CombatTkb.RoundOf reads for a loadout's other rounds
             if (penetrationMm > 0f || damage > 0f || charges != null)
@@ -370,6 +371,18 @@ namespace Hrot.Core.Tkb
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
+            };
+
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, AW-8 / AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10 PU-1/PU-2) — the built-in munitions a HAND
+        /// may pick up where they lie: the thrown ones and the canister. A stone lies 60 s (AW-8); the others lie until their fuze (or, the
+        /// canister, until it bursts — B-14 makes it vent).
+        /// </summary>
+        public static readonly System.Collections.Generic.IReadOnlyDictionary<long, HandItemDto> HandItems =
+            new System.Collections.Generic.Dictionary<long, HandItemDto>
+            {
+                [TkbStone] = new() { LiesSeconds = 60f },
+                [TkbM67Grenade] = new(), [TkbStunGrenade] = new(), [TkbTearGasGrenade] = new(), [TkbTearGasCanister] = new(), [TkbSmokeGrenade] = new(),
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
@@ -411,6 +424,13 @@ namespace Hrot.Core.Tkb
                 [TkbIglaMissile] = new() { Shape = MunitionShape.Missile, Length = 1.57f, Diameter = 0.072f, ColorHex = "#5A5E3A", SmokeTrail = true },
                 [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
+                // ⭐ CE-3235 (B-13, §7.10 PU-3) — the hand items are SEEN (so a lying one replicates and a brain can pick it up): the grenade
+                //   shape (a short, round-ended body) for each — a stone a grey lump, the canister a can
+                [TkbStone] = new() { Shape = MunitionShape.Grenade, Length = 0.08f, Diameter = 0.07f, ColorHex = "#8A8580" },
+                [TkbStunGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.13f, Diameter = 0.05f, ColorHex = "#2F2F2F" },
+                [TkbTearGasGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#5A6B3A" },
+                [TkbTearGasCanister] = new() { Shape = MunitionShape.Grenade, Length = 0.12f, Diameter = 0.04f, ColorHex = "#5A6B3A" },
+                [TkbSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#7A7A7A" },
             };
 
         /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6035), whether or not it has a look: a round, never a body.</summary>

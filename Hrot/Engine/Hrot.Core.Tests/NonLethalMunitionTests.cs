@@ -28,6 +28,91 @@ namespace Hrot.Map.Common.Tests
             return db;
         }
 
+        /// <summary>⭐ <c>CE-3230</c> (B-8, H-1 / H-6 / H-7; DESIGN_Civilians_And_Crowd_Control §7.9) — on the BUILT-IN catalogue every person type
+        /// ends with exactly one HANDS mount, at an index the replicated per-mount ammo carries (≤ 3), and no other type has one; the stone
+        /// and the stun grenade are thrown on the ARC. ✅ Red-proof: the <c>EnsureOnPersons</c> call dropped from <c>RegisterBuiltInTkb</c> ⇒ red.</summary>
+        [Fact]
+        public void CE3230_EveryBuiltInPerson_EndsWithItsHands_AndStonesAndStunGrenadesArc()
+        {
+            var db = BuiltIn();
+            int persons = 0;
+            foreach (var t in db.GetAll())
+            {
+                var mounts = t.GetDescriptor<WeaponSuiteDto>()?.Mounts;
+                int hands = 0;
+                if (mounts != null) foreach (var m in mounts) if (m.Hands) hands++;
+                bool person = t.GetDescriptor<VehicleParametersDto>()?.VehicleClass == global::CarKinem.Core.VehicleClass.Pedestrian;
+                if (!person) { Assert.True(hands == 0, $"{t.Name}: not a person, yet it has hands"); continue; }
+                persons++;
+                Assert.True(hands == 1 && mounts![^1].Hands, $"{t.Name}: a person ends with exactly one hands mount");
+                Assert.True(mounts!.Count - 1 < Fdp.Toolkit.Combat.Components.WeaponAmmo.MaxMounts,
+                    $"{t.Name}: the hands at index {mounts.Count - 1} — dtWeaponAmmo carries mounts 0…{Fdp.Toolkit.Combat.Components.WeaponAmmo.MaxMounts - 1} only");
+            }
+            Assert.True(persons > 10, $"only {persons} person types found");
+            Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStone).Warhead!.Indirect);
+            Assert.True(ParameterResolver.Warhead(db, MunitionTkbCatalog.TkbStunGrenade).Warhead!.Indirect);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3235</c> (B-13, §7.10 PU-2/PU-3) — on the BUILT-IN catalogue the hand items are the thrown rounds and the canister; each
+        /// has a LOOK (so a lying one replicates to the brain's node); only the stone lies a minute. ✅ Red-proof: the HandItems attach dropped
+        /// from <c>Register</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3235_TheHandItems_AreSeen_AndAStoneLiesAMinute()
+        {
+            var db = BuiltIn();
+            foreach (var ammo in new long[] { MunitionTkbCatalog.TkbStone, MunitionTkbCatalog.TkbM67Grenade, MunitionTkbCatalog.TkbStunGrenade,
+                                              MunitionTkbCatalog.TkbTearGasGrenade, MunitionTkbCatalog.TkbTearGasCanister, MunitionTkbCatalog.TkbSmokeGrenade })
+            {
+                Assert.True(db.TryGetByType(ammo, out var t), $"{ammo}");
+                Assert.True(t!.GetDescriptor<HandItemDto>() != null, $"{t.Name}: a hand may pick it up");
+                Assert.True(t.GetDescriptor<MunitionVisualDto>() != null, $"{t.Name}: it must be SEEN to be picked up on another node");
+            }
+            Assert.Equal(60f, db.GetByType(MunitionTkbCatalog.TkbStone)!.GetDescriptor<HandItemDto>()!.LiesSeconds);
+            Assert.Null(db.GetByType(MunitionTkbCatalog.TkbBatonRound)!.GetDescriptor<HandItemDto>());   // a fired baton round is not picked up
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3235</c> (B-13, AW-8, §7.10 PU-7) — a man standing in a STONE SOURCE (the built-in area type 8812) is topped up to 5 stones;
+        /// outside it, nothing; a second refill takes nothing more. ✅ Red-proof: the point-in-area test inverted ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3235_AManInAStoneSource_IsToppedUpToFive_AndOutsideItGetsNone()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<Hrot.IG.Components.EditablePolyline>();
+            world.RegisterComponent<TkbIdentity>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.AmmoLoadout>();
+            world.RegisterComponent<PartMetadata>();
+            var db = BuiltIn();
+            world.SetSingletonManaged<ITkbDatabase>(db);
+            var source = world.CreateEntity();
+            world.AddComponent(source, new SimTransform { Position = new System.Numerics.Vector3(100, 100, 0), Rotation = System.Numerics.Quaternion.Identity });
+            world.AddComponent(source, new TkbIdentity { TkbType = Hrot.Map.Common.TkbEntityTypes.StoneSource });
+            world.SetManagedComponent(source, new Hrot.IG.Components.EditablePolyline
+                { Points = new() { new(-5, -5), new(5, -5), new(5, 5), new(-5, 5) } });
+
+            Entity Man(float x, float y)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new SimTransform { Position = new System.Numerics.Vector3(x, y, 0), Rotation = System.Numerics.Quaternion.Identity });
+                world.AddComponent(e, new TkbIdentity { TkbType = CivilianTkbCatalog.TkbCivilianAdultMale });
+                new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(world, e, db.GetByType(CivilianTkbCatalog.TkbCivilianAdultMale)!);
+                return e;
+            }
+            var inside = Man(102, 99);
+            var outside = Man(120, 100);
+            Assert.Equal(5, Fdp.Toolkit.Combat.ItemSources.Refill(world, inside));
+            Assert.Equal(5, Fdp.Toolkit.Combat.PersonHands.Rounds(world, inside, MunitionTkbCatalog.TkbStone));
+            Assert.Equal(0, Fdp.Toolkit.Combat.ItemSources.Refill(world, inside));   // already full
+            Assert.Equal(0, Fdp.Toolkit.Combat.ItemSources.Refill(world, outside));
+            Assert.Equal(0, Fdp.Toolkit.Combat.PersonHands.Rounds(world, outside, MunitionTkbCatalog.TkbStone));
+        }
+
         [Fact]
         public void CE3223_EachNonLethalRound_ResolvesToItsEffect_AndNoneCarriesFragments()
         {
@@ -93,6 +178,24 @@ namespace Hrot.Map.Common.Tests
         /// ⭐⭐ <c>CE-3219</c> part 3 (B-5's gas grenade, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — each cloud round, bursting through
         /// the real <see cref="AreaEffectSystem"/> over the built-in TKB, asks for a cloud of its kind and hurts nobody on the spot.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-3239</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §7.3c) — every built-in cloud round FLIES as an area round, so the
+        /// flight bursts it on the ground (the rail below publishes the burst by hand; this is the half it never saw).
+        /// </summary>
+        [Fact]
+        public void CE3239_EveryBuiltInCloudRound_FliesAsAnAreaRound()
+        {
+            var db = BuiltIn();
+            int clouds = 0;
+            foreach (var t in db.GetAll())
+            {
+                if (t.GetDescriptor<WarheadDto>() is not { HasCloud: true } w) continue;
+                clouds++;
+                Assert.True((Fdp.Toolkit.Combat.Components.WarheadRound.BitsOf(w, out _) & Fdp.Toolkit.Combat.Components.WarheadRound.Area) != 0, t.Name);
+            }
+            Assert.True(clouds >= 3, $"tear-gas grenade, canister and smoke: {clouds}");
+        }
+
         [Fact]
         public void CE3219_EachCloudRound_AsksForItsCloud_AndHurtsNobodyOnTheSpot()
         {

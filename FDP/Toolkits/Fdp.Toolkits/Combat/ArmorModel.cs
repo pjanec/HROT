@@ -266,6 +266,15 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>⭐ M4 (D-D) — the guidance of the munition type <paramref name="ammo"/> (its <see cref="MissileDto"/>), or null: a
         /// round that is not a missile, unknown ammo, or no TKB database.</summary>
+        /// <summary>⭐ <c>CE-3235</c> (B-13) — the <see cref="HandItemDto"/> of munition type <paramref name="ammo"/>: present = a hand may pick
+        /// a lying one up.</summary>
+        public static HandItemDto? HandItemOf(EntityRepository world, long ammo)
+        {
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<HandItemDto>() : null;
+        }
+
         public static MissileDto? MissileOf(EntityRepository world, long ammo)
         {
             if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;

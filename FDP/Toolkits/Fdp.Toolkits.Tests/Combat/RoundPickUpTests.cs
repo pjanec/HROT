@@ -1,0 +1,251 @@
+using System;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Combat.Contracts;
+using Fdp.Toolkit.Combat.Events;
+using Fdp.Toolkit.Combat.Systems;
+using Fdp.Toolkit.Combat.Translators;
+using Fdp.Toolkit.Physics;
+using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Tkb;
+using Fdp.Toolkit.Tkb.Domain;
+using Xunit;
+
+namespace Fdp.Toolkit.Tests.Combat
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-3235</c> (B-13, AW-8 / AW-9; docs/DESIGN_Civilians_And_Crowd_Control.md §7.10) — a stone LIES where it stopped for its time,
+    /// then goes without a burst; a man asks for a lying round, the node that flies it grants it to ONE man and removes it; the grant fills
+    /// his hands; a live round keeps its fuze in his hand and, run out, is thrown at his own feet.
+    /// </summary>
+    public sealed class RoundPickUpTests : IDisposable
+    {
+        private const long CivilianType = 9401, StoneAmmo = 9490, GrenadeAmmo = 9491, BulletAmmo = 9492;
+        private const float Dt = 1f / 60f;
+
+        private readonly EntityRepository _world = new();
+        private readonly TkbDatabase _db = new();
+        private readonly RoundPickUpSystem _pickUp = new();
+        private uint _tick = 1;
+
+        public RoundPickUpTests()
+        {
+            _world.RegisterComponent<SimTransform>();
+            _world.RegisterComponent<SimVelocity>();
+            _world.RegisterComponent<WeaponState>();
+            _world.RegisterComponent<WeaponMountInfo>();
+            _world.RegisterComponent<PartMetadata>();
+            _world.RegisterComponent<AmmoLoadout>();
+            _world.RegisterComponent<TkbIdentity>();
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Health>();
+            _world.RegisterComponent<BehaviorState>();
+            _world.RegisterComponent<BallisticProjectile>();
+            _world.RegisterComponent<PhysicsCollider>();
+            _world.RegisterComponent<HeldFuze>();
+            _world.RegisterEvent<WeaponFireIntent>();
+            _world.RegisterEvent<PickUpRoundEvent>();
+            _world.RegisterEvent<PickUpGrantEvent>();
+            _world.RegisterEvent<RaycastRequestEvent>();
+            _world.RegisterEvent<DetonationNotification>();
+            _world.SetSingleton(new GlobalTime { FrameNumber = _tick, TimeScale = 1f });
+
+            var civilian = new TkbTemplate("Civilian", CivilianType);
+            civilian.AddDescriptor(new VehicleParametersDto { VehicleClass = global::CarKinem.Core.VehicleClass.Pedestrian });
+            _db.Register(civilian);
+            _db.Register(Round("Stone", StoneAmmo, new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true }, new HandItemDto { LiesSeconds = 60f }));
+            _db.Register(Round("Grenade", GrenadeAmmo, new WarheadDto { Kind = WarheadKind.Fragmentation, BlastInjuryRadiusM = 5f, Indirect = true,
+                                                                        Fuze = FuzeKind.Time, FuzeDelayS = 4.5f }, new HandItemDto()));
+            _db.Register(Round("Bullet", BulletAmmo, null, null));
+            PersonHands.EnsureOnPersons(_db);
+            _world.SetSingletonManaged<ITkbDatabase>(_db);
+        }
+
+        public void Dispose() => _world.Dispose();
+
+        private static TkbTemplate Round(string name, long type, WarheadDto? warhead, HandItemDto? hand)
+        {
+            var t = new TkbTemplate(name, type);
+            if (warhead != null) t.AddDescriptor(warhead);
+            if (hand != null) t.AddDescriptor(hand);
+            return t;
+        }
+
+        private Entity Man(Vector3 at)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new TkbIdentity { TkbType = CivilianType });
+            _world.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+            _world.AddComponent(e, new Health { Current = 100f, Max = 100f });
+            _world.AddComponent(e, default(BehaviorState));
+            _world.SetAuthority<BehaviorState>(e, true);   // his brain runs here
+            _db.TryGetByType(CivilianType, out var t);
+            new CombatTkbTranslator().Inject(_world, e, t!);
+            return e;
+        }
+
+        /// <summary>A round as the flight leaves it: <paramref name="bits"/>, stopped at <paramref name="at"/>.</summary>
+        private Entity Lying(long ammo, Vector3 at, byte bits, float fuze)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new SimVelocity());
+            _world.AddComponent(e, new BallisticProjectile
+            {
+                PreviousPosition = at, Muzzle = at, SpawnTick = 1, StoppedTick = 1, TerrainFlags = 1, Ammo = ammo, Warhead = bits, FuzeRemaining = fuze,
+            });
+            return e;
+        }
+
+        /// <summary>One frame: the bus swaps (last frame's events become readable), then the pick-up system.</summary>
+        private void Frame()
+        {
+            _world.Bus.SwapBuffers();
+            _pickUp.Execute(_world, Dt);
+        }
+
+        private void Ballistics(BallisticsSystem sys, float dt)
+        {
+            _world.SetSingleton(new GlobalTime { FrameNumber = ++_tick, TimeScale = 1f });
+            _world.Bus.SwapBuffers();
+            sys.Execute(_world, dt);
+        }
+
+        /// <summary>⭐ PU-1 — an inert hand item LINGERS (its lying time rides as the fuze); a round that bursts never does.
+        /// ✅ Red-proof: the Lingers branch dropped from BitsOf ⇒ red.</summary>
+        [Fact]
+        public void CE3235_AnInertHandItem_Lingers_ARoundThatBursts_DoesNot()
+        {
+            byte stone = WarheadRound.BitsOf(new WarheadDto { Kind = WarheadKind.Blunt, Indirect = true }, new HandItemDto { LiesSeconds = 60f }, out float lies);
+            Assert.True((stone & WarheadRound.Lingers) != 0);
+            Assert.Equal(60f, lies);
+            byte grenade = WarheadRound.BitsOf(new WarheadDto { Kind = WarheadKind.Fragmentation, BlastInjuryRadiusM = 5f, Fuze = FuzeKind.Time, FuzeDelayS = 4.5f },
+                                               new HandItemDto { LiesSeconds = 60f }, out float fuze);
+            Assert.Equal(0, grenade & WarheadRound.Lingers);
+            Assert.Equal(4.5f, fuze);   // a live round keeps its own fuze
+            Assert.Equal(0, WarheadRound.BitsOf(new WarheadDto { Kind = WarheadKind.Blunt }, null, out _) & WarheadRound.Lingers);   // not a hand item
+        }
+
+        /// <summary>⭐ PU-1 — a stopped stone stays through the grace, then LIES (Landed) for its time, then goes WITHOUT a burst; an ordinary
+        /// stopped round still goes after the grace. ✅ Red-proof: the linger branch in BallisticsSystem dropped ⇒ the stone is gone at the
+        /// grace ⇒ red.</summary>
+        [Fact]
+        public void CE3235_AStone_LiesItsTimeWhereItStopped_ThenGoesWithoutABurst()
+        {
+            var sys = new BallisticsSystem();
+            var stone = Lying(StoneAmmo, new Vector3(5, 0, 0), WarheadRound.Arc | WarheadRound.Lingers, 60f);
+            var bullet = Lying(BulletAmmo, new Vector3(9, 0, 0), 0, 0f);
+            for (int i = 0; i < CombatConstants.StoppedRoundGraceTicks + 2; i++) Ballistics(sys, Dt);
+            Assert.False(_world.IsAlive(bullet));
+            Assert.True(_world.IsAlive(stone));
+            Assert.True(RoundPickUp.IsLying(_world, stone));
+
+            for (int i = 0; i < 59; i++) Ballistics(sys, 1f);
+            Assert.True(_world.IsAlive(stone), "it lies its full minute");
+            for (int i = 0; i < 2; i++) Ballistics(sys, 1f);
+            Assert.False(_world.IsAlive(stone));
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.Read<DetonationNotification>().ToArray());   // ⛔ a stone does not burst
+        }
+
+        /// <summary>⭐ PU-4/PU-5 — a man at a lying stone asks; the flier grants it and removes it; the grant fills his hands.
+        /// ✅ Red-proof: the round left alive on a grant ⇒ red.</summary>
+        [Fact]
+        public void CE3235_AManAtALyingStone_AsksAndGetsIt_TheStoneIsGone_HisHandsHoldIt()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            var stone = Lying(StoneAmmo, new Vector3(1, 0, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            Assert.True(RoundPickUp.CanAsk(_world, man, stone));
+            Assert.True(RoundPickUp.Ask(_world, man, stone));
+            Frame();   // the flier grants and removes it
+            Assert.False(_world.IsAlive(stone));
+            Assert.Equal(1, _pickUp.Granted);
+            Frame();   // the brain owner receives
+            Assert.Equal(1, _pickUp.Received);
+            Assert.Equal(1, PersonHands.Rounds(_world, man, StoneAmmo));
+            Assert.False(_world.HasComponent<HeldFuze>(man));   // a stone is inert
+        }
+
+        /// <summary>⭐ PU-4 — TWO men ask for one stone in the same frame: ONE gets it. ✅ Red-proof: the round not removed on a grant ⇒ two
+        /// grants ⇒ red.</summary>
+        [Fact]
+        public void CE3235_TwoMenReachForOneStone_OneGetsIt()
+        {
+            var a = Man(new Vector3(0, 0, 0));
+            var b = Man(new Vector3(2, 0, 0));
+            var stone = Lying(StoneAmmo, new Vector3(1, 0, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            Assert.True(RoundPickUp.Ask(_world, a, stone));
+            Assert.True(RoundPickUp.Ask(_world, b, stone));
+            Frame();
+            Frame();
+            Assert.Equal(1, _pickUp.Granted);
+            Assert.Equal(1, PersonHands.Rounds(_world, a, StoneAmmo) + PersonHands.Rounds(_world, b, StoneAmmo));
+        }
+
+        /// <summary>⭐ PU-5 — the flier's own check: out of reach, still flying, or not a hand item ⇒ no grant (an ask the asker should not
+        /// have made is refused where the round is).</summary>
+        [Fact]
+        public void CE3235_OutOfReach_StillFlying_OrNotAHandItem_IsNotGranted()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            var far = Lying(StoneAmmo, new Vector3(3, 0, 0), WarheadRound.Arc | WarheadRound.Lingers | WarheadRound.Landed, 50f);
+            var flying = Lying(StoneAmmo, new Vector3(1, 0, 0), WarheadRound.Arc | WarheadRound.Lingers, 60f);
+            var bullet = Lying(BulletAmmo, new Vector3(0, 1, 0), WarheadRound.Landed, 50f);
+            Assert.False(RoundPickUp.CanAsk(_world, man, far));
+            Assert.False(RoundPickUp.CanAsk(_world, man, flying));
+            Assert.False(RoundPickUp.CanAsk(_world, man, bullet));
+            foreach (var r in new[] { far, flying, bullet }) _world.Bus.Publish(new PickUpRoundEvent { Round = r, Man = man });   // asked anyway
+            Frame();
+            Frame();
+            Assert.Equal(0, _pickUp.Granted);
+            Assert.True(_world.IsAlive(far) && _world.IsAlive(flying) && _world.IsAlive(bullet));
+        }
+
+        /// <summary>⭐ PU-6 — a LIVE grenade picked up keeps its fuze in his hand; run out before he throws, it is thrown at his own feet with
+        /// a near-zero fuze and leaves his hand. ✅ Red-proof: the grant's fuze dropped (0) ⇒ no HeldFuze ⇒ red.</summary>
+        [Fact]
+        public void CE3235_ALiveGrenadePickedUp_KeepsBurning_AndCooksOffAtHisFeet()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            var grenade = Lying(GrenadeAmmo, new Vector3(1, 0, 0),
+                WarheadRound.Area | WarheadRound.Arc | WarheadRound.TimeFuze | WarheadRound.Landed, 1.0f);
+            Assert.True(RoundPickUp.Ask(_world, man, grenade));
+            Frame();
+            Frame();
+            Assert.Equal(1, PersonHands.Rounds(_world, man, GrenadeAmmo));
+            Assert.Equal(1.0f, RoundPickUp.FuzeLeft(_world, man, GrenadeAmmo), 3);
+
+            var fuze = new HandsFuzeSystem();
+            for (int i = 0; i < 70 && fuze.CookedOff == 0; i++) { _world.Bus.SwapBuffers(); fuze.Execute(_world, Dt); }
+            Assert.Equal(1, fuze.CookedOff);
+            Assert.False(_world.HasComponent<HeldFuze>(man));
+            Assert.Equal(0, PersonHands.Rounds(_world, man, GrenadeAmmo));
+            _world.Bus.SwapBuffers();
+            var intent = Assert.Single(_world.Bus.Read<WeaponFireIntent>().ToArray());
+            Assert.Equal((man, GrenadeAmmo, true), (intent.Shooter, intent.AmmoGuid, intent.AtPoint));
+            Assert.Equal(PersonHands.MountIndex(_world, man), intent.WeaponIndex);
+            Assert.Equal(HandsFuzeSystem.CookOffFuzeSeconds, intent.FuzeSeconds);
+            Assert.True(Vector2.Distance(new Vector2(intent.TargetPoint.X, intent.TargetPoint.Y), Vector2.Zero) <= 1f, "at his feet");
+        }
+
+        /// <summary>⭐ PU-6 — thrown in time, the round leaves his hand with the fuze it had left (the intent carries it) and is no longer
+        /// held. ✅ Red-proof: FuzeLeft returning 0 ⇒ red.</summary>
+        [Fact]
+        public void CE3235_AHeldLiveRound_IsThrownWithTheFuzeItHasLeft()
+        {
+            var man = Man(new Vector3(0, 0, 0));
+            Assert.True(RoundPickUp.Receive(_world, new PickUpGrantEvent { Man = man, Ammo = GrenadeAmmo, Rounds = 1, FuzeSeconds = 2.25f }));
+            Assert.Equal(2.25f, RoundPickUp.FuzeLeft(_world, man, GrenadeAmmo));
+            Assert.Equal(0f, RoundPickUp.FuzeLeft(_world, man, StoneAmmo));   // another kind is not that round
+            RoundPickUp.Thrown(_world, man, GrenadeAmmo);
+            Assert.False(_world.HasComponent<HeldFuze>(man));
+        }
+    }
+}

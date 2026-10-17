@@ -22,6 +22,10 @@ namespace Hrot.NED.Messages
         // ⭐ Airborne insertion B-4 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §1) — target = the man, actor = the carrier;
         //   applied by the node owning the man's POSITION.
         StartDescent    = 8,
+        // ⭐ CE-3235 (B-13, docs/DESIGN_Civilians_And_Crowd_Control.md §7.10) — picking a lying round up: the ask (target = the round,
+        //   actor = the man; applied by the node that flies the round) and the grant (target = the man; applied by his brain's owner).
+        PickUpRound     = 9,
+        PickUpGrant     = 10,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -132,6 +136,27 @@ namespace Hrot.NED.Messages
         public float TargetZ;
     }
 
+    /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpRound"/> case (target = the round, actor = the man): nothing more.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PickUpRoundInteractionPayload
+    {
+        public byte Reserved;
+    }
+
+    /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct PickUpGrantInteractionPayload
+    {
+        /// <summary>The munition type.</summary>
+        public long Ammo;
+        /// <summary>How many.</summary>
+        public int Rounds;
+        /// <summary>The fuze it had left (s); 0 = inert.</summary>
+        public float FuzeSeconds;
+    }
+
     /// <summary>⭐ CE-3110 I-2a — the <see cref="EInteractionKind.EjectPassengers"/> case (target = the vehicle).</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -175,6 +200,12 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.StartDescent)]
         public StartDescentInteractionPayload StartDescent;
+
+        [DdsCase(EInteractionKind.PickUpRound)]
+        public PickUpRoundInteractionPayload PickUpRound;   // ⭐ CE-3235
+
+        [DdsCase(EInteractionKind.PickUpGrant)]
+        public PickUpGrantInteractionPayload PickUpGrant;   // ⭐ CE-3235
     }
 
     /// <summary>

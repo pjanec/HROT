@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.10 B-13 pick-up designed, CE-3235) · 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i.1 CIV-4 part 1 AS-BUILT — riot, the blow, the side flip, CE-2238; demo ua-civ-melee live 4/4) · 2026-10-17 (behaviors: §5i CIV-4 part 1 designed READY-TO-BUILD; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -1723,6 +1723,16 @@ creation, ownership and the end, not the drift (`AreaEffectCloudTests` rails the
 is not the default processor crosses the wire inside the forwarded request (`dtAreaEffectCloud` in the request's descriptor union —
 Entity Creation §3.4d ③); it is created `AllPeers` there (the request's `InitType` does not travel).
 
+⛔⛔ **Defect found and fixed `2026-10-17` — `CE-3239`: a cloud round never burst on the GROUND.** 📐 Measured in the B-13 round-lifecycle
+sweep: `FireProcessingSystem` set a round's `Area` bit only for `WarheadDto.HasAreaEffect` (blast or fragments), and only an `Area` round
+bursts when the flight stops it — so a canister was destroyed where it landed (`BallisticsSystem`'s stopped-round grace) and a gas grenade that
+landed before its 1.5 s fuze lay 8 ticks and vanished. ⚠ The rails above published the burst by hand, so none saw it. ⭐ Now
+`WarheadRound.BitsOf` (`Combat/Components/CombatComponents.cs`) is the one derivation of a fired round's bits and sets `Area` for `HasCloud`
+too; the burst asks for the cloud through `AreaEffectSystem.RequestCloud` as drawn, and is still not assessed as a blast. Rails
+`WarheadFlightTests.CE3239_…` (the fuzed grenade bursts on its fuze where it lies; the canister where it lands) and
+`NonLethalMunitionTests.CE3239_…` (every built-in cloud round flies as an area round). ⚠ A gas burst publishes a `DetonationNotification`
+like any area round — the effects layer draws what it draws for one (ui's to decide).
+
 #### 7.3d Gas as a DANGER AREA — and what people do about it *(`CE-3219` part 4; approved `2026-10-17`; build-state: DESIGN)*
 
 🔒 User, `2026-10-17`: *"avoidance via brain yes if sensor can find a cover point and the person can still see (usually not if hit by tear
@@ -1818,6 +1828,96 @@ classDiagram
 *The frame's fences hold:* not in `EffectState` (that is what was done TO a man), not a stance (locomotion), no prop entity. Brain group
 (the behaviour that chooses it owns it); recorded like `EffectState` (`NoScenario` only — it reaches the replay, never a scenario
 file). Absent ⇒ None, so a unit that never gestures costs nothing. `None` after a gesture is a change and is published.
+
+### 7.9 B-8 — the HANDS mount, and stones and stun grenades on the arc *(AW-7, AW-24 — R-2025, R-2029; `CE-3230`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.9a)*
+
+INVENTORY *(grep + reads at `backend@58d6e7a5c`; codebase-memory CLI as in §7.8)*:
+
+| question | measured | where |
+|---|---|---|
+| person types | every TKB type whose `VehicleParametersDto.VehicleClass` is `Pedestrian`: the urban catalog (civilian pedestrian/child 1001/1003, infantry, grenadier, mortar team, insurgent, the AT men), the civilian catalog (the family + security forces), the BDC builder's infantry, and any TKB FILE the knowledge-base step loads | `UrbanCombatTkbCatalog`, `CivilianTkbCatalog.Person`, `BdcTkbBuilder:541`, `KnowledgeBaseLoadStep` |
+| one place every TKB passes through | `HrotEnvironment.RegisterBuiltInTkb` (with a post-pass precedent: `RouteTkbExtensions.ApplyRoutePlanToBlueprint`) and `KnowledgeBaseLoadStep` (file TKB) | `HrotEnvironment.cs:41`, `KnowledgeBaseLoadStep.cs:70+` |
+| how a mount becomes state | `CombatTkbTranslator`: mount 0 ⇒ `WeaponState` on the OWNER, mount 1+ ⇒ a child; an `AmmoLoadout` only when the TKB mount lists one | `CombatTkbTranslator.cs:86-140` |
+| a civilian today | NO suite ⇒ no `WeaponState` ⇒ the hands mount would be his mount 0, on him | `CivilianTkbCatalog.cs:62` |
+| readers that take "a `WeaponState` on the unit" as "he has a weapon" | `PersonBody.PoseOf` (figure armed), `WeaponSystems.WeaponOf`, `Armament.ArmedByStatus`, `Armament.LethalInHand` (`FiresLethal` of a mount naming no round = lethal), the weapon-selection candidates (`UtilityScorer`) | §7.8 table |
+| throwing at a point from a LOADOUT | ⛔ `FireAtPointExecutor` sends the mount's own round (`AmmoGuid = 0`), never spends the loaded type, and checks `Indirect` on the mount's own round — a loadout is ignored on this path today | `FireAtPointExecutor.cs:235-260` |
+| the hand grenade today | the M67 is thrown as an `Indirect` round on a `Grenade` mount — the arc already works | `UrbanCombatTkbCatalog.cs:223`, `BallisticAim.IsIndirect` |
+| replicated per-mount ammo | `WeaponAmmo` (`dtWeaponAmmo`), the breech round of mounts 0…3 | `WeaponAmmo.cs` (`MaxMounts` 4) |
+
+```mermaid
+classDiagram
+  direction LR
+  class WeaponMountDto { <<existing, + Hands bool>> Category Grenade · no AmmoGuid · empty Loadout }
+  class PersonHands { <<NEW static, Fdp.Toolkits/Combat>> Mount() the DTO · EnsureOnPersons(db) · IsHands(mount) · HandsOnly(view, unit) · Give(world, owner, ammo, n) · Rounds(world, owner, ammo) · HoldsLethal(world, owner) · MountIndex(world, owner) }
+  class CombatTkbTranslator { <<existing>> a Hands mount gets WeaponState 0/0 + an EMPTY AmmoLoadout }
+  class AmmoLoadout { <<existing>> up to 4 kinds; Give fills a free slot }
+  class FireAtPointExecutor { <<existing, fixed>> sends + spends the LOADED round; Indirect from it; an empty hands slot reloads the next kind at once }
+  class Armament { <<CE-3229>> hands judged by what it holds }
+  class UtilityScorer { <<existing>> never a hands candidate unless it holds a lethal round }
+  class PersonBody { <<existing>> armed pose: not for the hands }
+  class WeaponOf { <<existing>> a hands-only unit is unarmed }
+  class HrotEnvironment { <<existing>> RegisterBuiltInTkb → EnsureOnPersons }
+  class KnowledgeBaseLoadStep { <<existing>> a file TKB → EnsureOnPersons }
+  HrotEnvironment ..> PersonHands
+  KnowledgeBaseLoadStep ..> PersonHands
+  PersonHands ..> WeaponMountDto
+  CombatTkbTranslator ..> PersonHands : IsHands
+  PersonHands ..> AmmoLoadout
+  FireAtPointExecutor ..> AmmoLoadout
+  Armament ..> PersonHands
+  UtilityScorer ..> PersonHands
+  PersonBody ..> PersonHands
+  WeaponOf ..> PersonHands
+```
+*What the picture shows that prose hid:* the hands is an ordinary mount with one flag, so it rides every existing path (the translator, the
+loadout, `FireAtPoint`, the ammo mirror, the wire) — and the ONLY new behaviour is in the five readers that would otherwise read an empty
+hand as a weapon. The fix to `FireAtPoint` is not hands-specific: a loadout thrown at a point was simply never wired.
+
+```mermaid
+sequenceDiagram
+  participant B as rioter brain (CGF)
+  participant H as PersonHands
+  participant F as FireAtPointExecutor
+  participant S as SimHost FireProcessing
+  B->>H: Give(stone, 3) — B-13's grant, a test today
+  H->>H: free slot ← stone ×3, Loaded = it, WeaponState.Ammo += 3
+  B->>F: FireAtPoint(point, mount = hands)
+  F->>F: loaded = stone (Indirect) ⇒ the arc, no friendly or neutral line hold for an arcing round
+  F->>S: WeaponFireIntent { AmmoGuid = stone, AtPoint }
+  F->>F: Magazine.Spend + SpendLoaded ⇒ 2 left
+  Note over F: a slot emptied ⇒ the next kind with rounds is loaded at once (a hand has no breech)
+```
+*What the picture shows that prose hid:* the round that flies, the round that is spent and the round whose warhead decides "arc or
+straight" are now the SAME round — before, a loadout thrown at a point flew its mount's default and spent nothing of the loadout.
+
+| id | decision *(backend lean, inside AW-7 / AW-24)* | rejected — one line each |
+|---|---|---|
+| **H-1** | **the hands is a TKB mount with `Hands = true`, appended LAST by one pass** `PersonHands.EnsureOnPersons(db)` over every `Pedestrian` type, idempotent — run by `RegisterBuiltInTkb` and after a FILE TKB loads; a type already ending in a hands mount is left alone | a call in every person template: misses the BDC builder's and every file TKB · a synthesized mount the TKB never names: `MountOf(index)` would return null and every suite reader would disagree with the runtime |
+| **H-2** | **it starts empty**: `Category = Grenade`, no `AmmoGuid`, no `Loadout` entries; the translator gives a hands mount `WeaponState` 0/0 and an EMPTY `AmmoLoadout` (`Count = 0`) that `Give` fills (up to 4 kinds, AW-7) | a fixed 4-kind loadout (stone, stun, gas, grenade): a picked-up type outside the list could not be held |
+| **H-3** | **a hands-only unit has NO weapon** (`HandsOnly`: his mount 0 is the hands — exactly the dispenser rule CE-2188): `WeaponOf` ⇒ null, `ArmedByStatus` false, the figure's armed pose false. `LethalInHand` and `Judge` read the hands by WHAT IT HOLDS: empty ⇒ nothing; stones ⇒ a small object, not lethal; a grenade ⇒ lethal (AW-9) | a hands-only civilian read as armed by every "has a WeaponState" reader — the figure would carry a rifle |
+| **H-4** | **never CHOSEN as a weapon unless it holds a lethal round** (AW-24): the weapon-selection candidates skip it; an explicit `FireAtPoint` / `AimAndFire` on its index (behaviors' throw) is not affected | rely on "0 ammo scores 0": stones in a soldier's hand have ammo |
+| **H-5** | **`FireAtPoint` throws the LOADED round**: it sends it on the intent, spends its count, and takes `Indirect` / the line-of-fire exemption from its warhead; a hands slot that empties loads the next kind with rounds at once (no switch time) | a hands-only fire path: the frame's fence, "no second firing path" |
+| **H-6** | **6037 (stun) and 6038 (stone) get `Indirect`** — thrown on the arc like the M67; the security forces' stun grenades arc too | leave them straight: a stone would fly like a bullet (AW-7) |
+| ⚠ **H-7** | the hands index is the type's mount COUNT; every built-in person has ≤ 3 weapon mounts, so it is ≤ 3 and `dtWeaponAmmo` (4 mounts) carries what it holds to every node. A rail fails if a person type ever has more | widen `WeaponAmmo` now: no type needs it |
+
+#### 7.9a AS-BUILT `CE-3230` *(2026-10-17)* — built as §7.9 draws it
+
+| what | where |
+|---|---|
+| `PersonHands` (`Mount`, `EnsureOnPersons`, `IsHands`, `MountIndex`, `HandsOnly`, `MountEntity`, `Give`, `Rounds`, `ReadyNext`, `Holding`, `HoldsLethal`) | `FDP/Toolkits/Fdp.Toolkits/Combat/PersonHands.cs` |
+| `WeaponMountDto.Hands` (appended) | `Tkb/Domain/WeaponSuiteDto.cs` |
+| the pass, run twice: the built-in catalogue and a file TKB | `HrotEnvironment.RegisterBuiltInTkb`, `KnowledgeBaseLoadStep.PrepareAsync` |
+| an empty `AmmoLoadout` for a hands mount | `CombatTkbTranslator.AddLoadout` |
+| H-3 readers: `WeaponOf`, `PrimaryMount`, `Armament.ArmedByStatus` / `LethalInHand` / the conduct path (`OfHands`), `PersonBody.PoseOf` | as named |
+| H-4: the weapon-selection candidates (self and children) | `UtilityScorer` |
+| H-5: `FireAtPoint` sends, spends and judges the LOADED round (`ShootAtPoint`'s friendly / neutral exemptions read that round's warhead) | `FireAtPointExecutor` |
+| H-6: `Indirect` on 6037, 6038 | `MunitionTkbCatalog` |
+| rails: `PersonHandsTests` (5) · `StarterPackIntegrationTests.CE3230_ARiflemanWithStonesInHisHands_StillFiresHisRifle` · `NonLethalMunitionTests.CE3230_EveryBuiltInPerson_…` (every person ends with one hands mount at index ≤ 3; 6037 / 6038 arc) | toolkit tests · `Hrot.Core.Tests` |
+
+⚠ **Known limits.** ① Replicas see the hands' content only through `dtWeaponAmmo`'s breech round (the loaded kind) — enough for
+`Armament.Judge`; the full loadout stays on the brain's node. ② A civilian's hands ARE his mount 0, so `FireAtPoint` on mount 0 throws from
+his hands even when he also carries a weapon system (B-11): the throw names the hands' index, a carried weapon its controlled index — B-11
+decides whether a carried weapon should take mount 0 first. ③ `Give` is the only writer: the pick-up grant (B-13) calls it.
 
 ### 7.6 ui's findings F-1…F-4 — backend's answers *(2026-10-16; [findings](blueprints/batches/HANDOFF_Ui_To_Backend_Civilians_Findings.md))*
 
@@ -1936,6 +2036,142 @@ for the same observer). The dashed reader is not built yet.
 today's items (built-in mounts and controlled weapon systems) and takes optics through `SeeingConditions`. The live `ua-armed-status`
 scenario (§5c) does not exist yet; its in-process twin is `ArmamentTests.CE3229_AnEnemyRiflemanAtNight_…` (status at 300 m at night,
 danger 1, the counter unmoved).
+
+### 7.10 B-13 — picking a round up, stone sources, a stone that lies *(AW-8, AW-9 — R-2025; `CE-3235`; backend, `2026-10-17`; build-state: BUILT — as-built in §7.10a)*
+
+INVENTORY *(grep + reads at `backend@397502d14`; codebase-memory CLI `search_graph` `.*PickUp.*` / `.*Pickup.*` (30: team-carry `PickUp*`, the
+pickup truck — no round pick-up), `.*InteractionKind.*` (1: `EInteractionKind`), `.*StoneSource.*` (0), `.*Zone.*` / `.*Region.*` (Class))*:
+
+| question | measured | where |
+|---|---|---|
+| what ends a round that stops | a NON-area round: frozen at the stop, destroyed after `StoppedRoundGraceTicks` (8); an area round on an impact fuze bursts after `ContactHitWaitTicks`; on a time fuze it is marked `Landed` and waits for its fuze | `BallisticsSystem.cs:93-122` |
+| `Landed` today | only an area round on a time fuze; the `Landed` branch always DETONATES when `FuzeRemaining` runs out | `BallisticsSystem.cs:93-101, 226-229` |
+| a round that hits a unit | goes to `TearDown` and is destroyed — it does not fall | `HitResolutionSystem.cs:181-188` |
+| who sees a round | only a munition with a `MunitionVisualDto` becomes a LIGHTWEIGHT replicated entity (`TkbIdentity` + `WorldPos`, no lifecycle; the master's dispose removes the replicas). ⛔ Stone, stun grenade, tear-gas grenade, canister and smoke have NO look ⇒ the brain's node never sees them | `FireProcessingSystem.MarkIfVisible:396`, `EntityMasterIngressTranslator.cs:214-227`, `MunitionTkbCatalog.BuiltInLooks` |
+| lying, on a viewer | a replica is lying when its speed < 0.2 m/s | `ProjectileLayer.cs:150` |
+| asking the owner of another entity | ⭐ I-1's ONE interaction transport: a codec per kind (event ↔ payload case + who owns the target); egress sends what this node does not own, ingress publishes it remote; "a new interaction kind adds its owner-side system" to the `Interactions` capability (every node) | `InteractionTransport.cs` (`InteractionCodecs.All`, 8 kinds), `CoreInfrastructureCapabilities.Interactions` |
+| who owns a brain / a round | `PossessionSystem.OwnsBrain` (authority over `BehaviorState`); a round is created by `FireProcessingSystem` on the node that runs `CombatModule` (SimHost) | `Possession.cs:268`, `CombatModule.cs:37-45` |
+| what the hands hold, and where | `PersonHands` (B-8): the `AmmoLoadout` on the hands mount, written by `Give` on the node that runs the brain; ⛔ not on the wire (only the breech round, `WeaponAmmo`) | §7.9a |
+| a fire intent's fuze | ⛔ none: `FireProcessingSystem` takes `FuzeDelayS` from the warhead; the intent wire (`WeaponFireRequest`) carries `Charge`, `HighArc`, `RaisedAt` | `FireInteractionMessages.cs:32-59` |
+| an authored AREA of its own kind | ⭐ prior art: `TerrainZone` 8804 and `WeatherRegion` 8811 — an area entity (`EditablePolyline` + `SimTransform`) born as its OWN type, replicated, found by `WeatherField.TryOutline` | `TkbEntityTypes.cs:104`, `WeatherField.cs:200-243`, `PlacementToolRegistry.cs:49` |
+
+```mermaid
+classDiagram
+  direction LR
+  class HandItemDto { <<NEW TKB descriptor on a munition>> LiesSeconds · present = a hand may pick one up }
+  class WarheadRound { <<existing bits, + Lingers 32>> BitsOf sets Lingers + the lying time }
+  class BallisticsSystem { <<existing>> a stopped LINGERING round lies Landed for LiesSeconds, then goes without a burst }
+  class MunitionVisualDto { <<existing>> a look on every throwable ⇒ it replicates }
+  class RoundPickUp { <<NEW static, Fdp.Toolkits/Combat>> ReachM 1.5 · IsLying(world, round) · CanAsk(world, man, round) · Ask(world, man, round) · OwnsRound(world, round) }
+  class PickUpRoundEvent { <<NEW event>> Round · Man · IsRemote }
+  class PickUpGrantEvent { <<NEW event>> Man · Ammo · Rounds · FuzeSeconds · IsRemote }
+  class RoundPickUpSystem { <<NEW, Interactions capability>> owner of the round: check, grant, destroy · owner of the brain: Give }
+  class PersonHands { <<CE-3230, + live round>> Give · HeldFuze(world, man) }
+  class HeldFuze { <<NEW component on the hands mount>> Ammo · Remaining }
+  class HandsFuzeSystem { <<NEW, Interactions capability>> burns a held live round; at 0 it is thrown at his feet }
+  class WeaponFireIntent { <<existing, + FuzeSeconds>> 0 = the warhead's own }
+  class ItemSourceDto { <<NEW TKB descriptor>> Ammo · UpTo }
+  class ItemSources { <<NEW static>> At(world, point) · Refill(world, man) }
+  class StoneSource { <<NEW TKB type 8812, an area>> carries ItemSourceDto stone x5 }
+  class InteractionCodecs { <<existing>> + PickUpRound (9) · PickUpGrant (10) }
+  HandItemDto ..> WarheadRound : BitsOf
+  WarheadRound ..> BallisticsSystem
+  RoundPickUp ..> PickUpRoundEvent : publishes
+  InteractionCodecs ..> PickUpRoundEvent
+  InteractionCodecs ..> PickUpGrantEvent
+  RoundPickUpSystem ..> PickUpRoundEvent : reads where it owns the round
+  RoundPickUpSystem ..> PickUpGrantEvent : publishes · reads where it owns the brain
+  RoundPickUpSystem ..> PersonHands : Give
+  PersonHands *-- HeldFuze
+  HandsFuzeSystem ..> HeldFuze
+  HandsFuzeSystem ..> WeaponFireIntent : cook-off
+  StoneSource *-- ItemSourceDto
+  ItemSources ..> ItemSourceDto
+  ItemSources ..> PersonHands : Give
+```
+
+*What the picture shows that prose hid:* **no new transport, no new component on the wire for the pick-up** — the request and the grant are two
+cases of I-1's one interaction message, both handled by ONE system that every node runs (each half gates itself on what it owns). The only
+new replicated state is the munition looks (so the brain can SEE a lying stone) and one field on the fire request (the fuze left).
+
+```mermaid
+sequenceDiagram
+  participant B as brain node (CGF) — man's brain + hands
+  participant T as I-1 transport
+  participant S as round owner (SimHost)
+  participant V as every viewer
+  Note over S: a stone stops: frozen 8 ticks, then Landed for LiesSeconds (60 s)
+  S->>V: the stone replicates (it has a look) — lying = speed 0
+  B->>B: behaviour: CanAsk (lying, in reach, room in the hands) ⇒ Ask
+  B->>T: PickUpRoundEvent (round not owned here ⇒ sent)
+  T->>S: kind 9, round + man as network ids
+  S->>S: RoundPickUpSystem: alive · Landed · not Spent · Throwable · man alive · within 1.5 m
+  S->>S: grant: PickUpGrantEvent (ammo, 1, fuze left) · destroy the round (a second ask finds it gone — one winner)
+  S->>V: the master's dispose removes the replicas
+  S->>T: PickUpGrantEvent (man not owned here ⇒ sent)
+  T->>B: kind 10
+  B->>B: RoundPickUpSystem: PersonHands.Give, a live round keeps its fuze (HeldFuze)
+  Note over B: thrown: FireAtPoint sends the intent with FuzeSeconds = what is left · or the fuze runs out in hand ⇒ thrown at his own feet
+```
+
+```mermaid
+graph TD
+  subgraph every node
+    I[Interactions capability] --> R[RoundPickUpSystem]
+    I --> H[HandsFuzeSystem]
+  end
+  subgraph SimHost
+    C[CombatModule] --> F[FireProcessingSystem]
+    C --> BS[BallisticsSystem]
+  end
+  R -. "owner of the round: grant + destroy (SimHost)" .-> BS
+  R -. "owner of the brain: Give (CGF)" .-> P[PersonHands]
+  H -. "cook-off intent" .-> F
+  X[ItemSources.Refill]:::lib -. "called by the behaviour on the brain node" .-> P
+  classDef lib fill:#eee,stroke:#999
+```
+
+*Caption:* the two halves of `RoundPickUpSystem` tick on DIFFERENT nodes — the check on the round's owner, the `Give` on the brain's. Both are
+in the `Interactions` capability, which every node builds, so in a one-node world (the in-process rails) both run in one frame-chain.
+`ItemSources.Refill` is a library call, no system: a stone source is unlimited, so there is nothing to arbitrate.
+
+| id | decision *(lean, backend's own — no CV is reopened)* | rejected — one line each |
+|---|---|---|
+| **PU-1** | **a lying round is the round itself, kept**: `HandItemDto.LiesSeconds` (stone 60) ⇒ `BitsOf` sets `WarheadRound.Lingers` and the lying time; a stopped lingering round lies `Landed` after the 8-tick grace and goes WITHOUT a burst when its time is up (the `Landed` branch detonates only an area round) | a new "loose item" entity: a second representation of the same thing, and a hand-off at the moment it stops |
+| **PU-2** | **what a hand may pick up is data**: a `HandItemDto` (`Munition.HandItem`) on the MUNITION type — stone, stun grenade, M67, tear-gas grenade, canister, smoke | a flag on `WarheadDto`: the M67's warhead comes from the reference library, not the TKB (`ParameterResolver.Warhead:283`) · every `Indirect` round: a mortar bomb is indirect · by category: a round has no weapon category |
+| **PU-3** | **a throwable has a LOOK** (`MunitionVisualDto`, the existing grenade shape: a stone a grey lump 8 cm, a canister a can) ⇒ it replicates as a lightweight round, so the brain's node sees it lying; no ui change (the grenade shape is drawn already) | a pick-up list replicated by SimHost: a second channel for what the round entity already is |
+| **PU-4** | **request and grant are two I-1 kinds** (9 `PickUpRound`: target = the round, its owner applies · 10 `PickUpGrant`: target = the man, his brain's owner applies); **one winner by construction** — the owner destroys the round on the first valid ask, a later ask finds it gone; no "denied" message (the asker sees the round gone and his hands unchanged) | a reply topic: I-1 has none and the target's replicated state is the reply · a lock on the round: two writers |
+| **PU-5** | **the owner checks what it can see**: round alive, `Landed`, not `Spent`, `Throwable`; man alive; within **1.5 m** (embark's reach). ⚠ It cannot see his hands (not on the wire) ⇒ the ASKER checks room first (`CanAsk`); a grant that finds the hands full is dropped (stated limit) | the owner checks the hands: it holds a stale copy |
+| **PU-6** | **a live round keeps its fuze**: the grant carries the fuze left; the hands hold it (`HeldFuze`, one live round at a time); thrown, the intent's new `FuzeSeconds` flies it with what is left; run out in hand, it is thrown at his own feet (the ONE firing path) | a fresh fuze on the throw: a cooked grenade is the throwback's whole risk · an in-hand burst published by the brain node: a second detonation path |
+| **PU-7** | **a stone source is an AREA of its own type** (8812, "Stone Source", like Weather Region) whose TKB template carries `ItemSourceDto { Ammo = stone, UpTo = 5 }`; `ItemSources.Refill(world, man)` tops his hands up to `UpTo` when he stands inside one, locally on the brain's node (unlimited ⇒ nothing to arbitrate); the 1.5 s bend is the behaviour's | a flag on the tactical area: every area reader would have to skip it (Terrain Zones §2.1) · stones from the terrain material: no terrain stores loose stones (AW-8) |
+
+⚠ **Known limits, stated before the build:** a round that HITS a man ends (it does not fall at his feet) · a stone thrown onto a roof lies on
+the roof · the canister bursts where it lands (CE-3239) until B-14 makes it vent, so it is not yet pickable · a grant that finds the hands full
+is lost · one live round in the hands at a time.
+
+
+
+#### 7.10a AS-BUILT `CE-3235` *(2026-10-17)* — built as §7.10 draws it
+
+| built | where |
+|---|---|
+| `HandItemDto` (`Munition.HandItem`, `LiesSeconds`) · `ItemSourceDto` (`Area.ItemSource`, `Ammo`, `UpTo` 5) | `Fdp.Toolkits/Tkb/Domain/HandItemDto.cs` |
+| `WarheadRound.Lingers` (32) and `BitsOf(warhead, hand, out fuze)` — an inert hand item's lying time rides as its fuze; `CombatTkb.HandItemOf` | `CombatComponents.cs`, `ArmorModel.cs` (CombatTkb) |
+| a stopped LINGERING round lies `Landed` after the 8-tick grace; the `Landed` branch bursts only a non-lingering round | `BallisticsSystem.cs` |
+| `PickUpRoundEvent` (5011) · `PickUpGrantEvent` (5012) · `HeldFuze` (component 402, `NoScenario`) · `RoundPickUp` (`OwnsRound` = this node holds its `BallisticProjectile` · `IsLying` · `IsHandItem` · `InReach` 1.5 m / ±2 m · `CanAsk` · `Ask` · `TryGrant` · `Receive` · `FuzeLeft` · `Thrown`) | `Combat/RoundPickUp.cs` |
+| `RoundPickUpSystem` (the flier grants and DESTROYS the round — the master's dispose removes the replicas; the brain owner receives) · `HandsFuzeSystem` (a held live round burns; at 0 it is thrown at his feet, 0.5 m ahead, with a 0.05 s fuze, through `WeaponFireIntent`) — both in the `Interactions` capability | `Combat/Systems/RoundPickUpSystem.cs`, `CoreInfrastructureCapabilities.Interactions` |
+| `PersonHands.HasRoom` · `PersonHands.Take` | `PersonHands.cs` |
+| `WeaponFireIntent.FuzeSeconds` + the request wire (`WeaponFireRequest.FuzeSeconds`, appended); `FireProcessingSystem` flies a time-fuzed round with it; `FireAtPointExecutor` sends a held live round's fuze left and drops the `HeldFuze` once thrown | `WeaponFireEvents.cs`, `FireInteractionMessages.cs`, the two SimHost fire translators, `FireAtPointExecutor.cs` |
+| interaction kinds 9 `PickUpRound` / 10 `PickUpGrant` + payload cases; codecs (`OwnsRound`, `PossessionSystem.OwnsBrain`); events registered on every host | `InteractionMessages.cs`, `InteractionTransport.cs`, `HrotSharedComponentRegistry.cs` |
+| built-in data: hand items stone (lies 60 s), M67, stun, tear-gas grenade, canister, smoke — each with a look (grenade shape) | `MunitionTkbCatalog.HandItems`, `BuiltInLooks` |
+| `ItemSources.At` / `Refill` (the area found by `WeatherField.TryOutline`, even-odd inside test) · the **Stone Source** type 8812 (`ItemSourceDto` stone ×5) · its placement tool (ui's `PlacementToolRegistry`, one row — a cross-lane edit, named in the commit) | `Combat/ItemSources.cs`, `TkbEntityTypes.cs`, `BdcTkbCatalog.cs`, `PlacementToolRegistry.cs` |
+
+Rails: `RoundPickUpTests` (7: lingers vs bursts · a stone lies its minute then goes without a burst · ask → grant → hands · two asks, one winner ·
+out of reach / still flying / not a hand item refused · a live grenade cooks off at his feet · a held round thrown with its fuze left) ·
+`NonLethalMunitionTests.CE3235_…` (2: the built-in hand items are seen, a stone lies a minute · a man in a Stone Source is topped up to 5) ·
+`InteractionTransportTests.CE3235_…` (the ask and the grant cross as their union cases) · ⭐ integration
+`EntityOrdersAcrossNodesTests.CE3235_AStoneLyingOnSimHost_IsPickedUpByABrainOnCgf_Once` (SimHost's lying stone seen on CGF, asked twice,
+granted once, gone everywhere, one stone in his hands).
 
 ## 8. UI detailed designs *(ui, 2026-10-16 — U-1…U-4 of the [ui handoff](blueprints/batches/HANDOFF_Behaviors_To_Ui_Civilians.md); ✅ the CVs are RULED (R-3013, 2026-10-16) ⇒ each builds once its backend item exists)*
 

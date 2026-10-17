@@ -47,6 +47,8 @@ public static class PlacementToolRegistry
         new MapGraphicInfo(TkbEntityTypes.TerrainZone,         "Terrain Zone", PlacementToolKind.Zone,  "_zone"),
         // ⭐ CE-1161 (Weather and Time §7 E-4) — an area born as a Weather Region (8811); the arm gives it WeatherConditions.Standard.
         new MapGraphicInfo(TkbEntityTypes.WeatherRegion,       "Weather Region", PlacementToolKind.Area, "_area"),
+        // ⭐ CE-3235 (B-13, AW-8) — an area born as a Stone Source (8812): a man inside it picks stones up (ItemSources.Refill).
+        new MapGraphicInfo(TkbEntityTypes.StoneSource,         "Stone Source", PlacementToolKind.Area, "_area"),
         new MapGraphicInfo(TkbEntityTypes.TacGraphic_FireLine, "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };
