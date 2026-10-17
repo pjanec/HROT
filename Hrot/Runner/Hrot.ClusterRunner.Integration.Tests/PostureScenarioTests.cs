@@ -908,6 +908,60 @@ public sealed class PostureScenarioTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2238</c> part 4 (AW-11, AW-16; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.7) — <c>ua-armed-draw-aim</c> in-process
+    /// (the live check's twin): a covert insurgent (a civilian, a pick-up pistol HIDDEN) goes about his routine, draws the pistol after 8 s
+    /// (<c>StationWeapon</c> Hands, 10 s), then attacks the rifleman (<c>PersonAttack</c>). Sampled every frame: ① drawn, he is still Neutral
+    /// and the rifleman spends no round while he is · ② he is Hostile on CGF, SimHost and IG only after he aims — not at the draw · ③ the
+    /// rifleman engages him.
+    /// </summary>
+    [Fact(Timeout = 600_000)]
+    public async Task CE2238_DrawAim_DrawingIsNotTheAct_AimingAtTheForcesIs_HostileEverywhere_AndHeIsEngaged()
+    {
+        using var harness = await StartShippedScenario("ua-armed-draw-aim");
+        var cgf = harness.Cgf!.World!;
+        var sim = harness.SimHost.World!;
+        var ig = harness.Ig.App.World;
+        var hosts = new[] { ("CGF", cgf), ("SimHost", sim), ("IG", ig) };
+        Assert.True(harness.PumpUntil(() => hosts.All(h => !ByName(h.Item2, "Covert insurgent").IsNull) && !ByName(cgf, "Rifleman").IsNull
+                                            && !ByName(cgf, "Pistol").IsNull, timeoutFrames: 2000), "the cast must spawn on CGF, SimHost and IG");
+        var man = ByName(cgf, "Covert insurgent");
+        var rifle = ByName(cgf, "Rifleman");
+        var pistol = ByName(cgf, "Pistol");
+        int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
+        static ForceId Side(EntityRepository w, Entity e) => e.IsNull ? ForceId.Neutral : w.GetComponentRO<EntityInfo>(e).ForceId;
+        var hostile = new System.Collections.Generic.HashSet<string>();
+        int startAmmo = -1, spentWhileNeutral = 0, hostileAmmo = -1;
+        double hiddenAt = -1, drawnAt = -1, hostileAt = -1, firedAt = -1;
+        ForceId? sideAtDraw = null;
+        void Sample()
+        {
+            if (startAmmo < 0) startAmmo = Ammo();
+            int seat = CarryStations.SeatOf(cgf, pistol, out _);
+            if (hiddenAt < 0 && seat >= 0 && seat == CarryStations.Hidden(cgf, man)) hiddenAt = cgf.SimulationTime;
+            if (drawnAt < 0 && seat >= 0 && seat == CarryStations.Hands(cgf, man)) { drawnAt = cgf.SimulationTime; sideAtDraw = Side(cgf, man); }
+            foreach (var (name, w) in hosts)
+                if (Side(w, ByName(w, "Covert insurgent")) == ForceId.Hostile) hostile.Add(name);
+            if (Side(cgf, man) != ForceId.Hostile) spentWhileNeutral = Math.Max(spentWhileNeutral, startAmmo - Ammo());
+            else if (hostileAt < 0) { hostileAt = cgf.SimulationTime; hostileAmmo = Ammo(); }
+            if (hostileAt >= 0 && firedAt < 0 && Ammo() < hostileAmmo) firedAt = cgf.SimulationTime;
+        }
+        string State() => $"hidden {hiddenAt:F1}, drawn {drawnAt:F1} (side {sideAtDraw}), hostile {hostileAt:F1} [{string.Join(",", hostile)}], " +
+                          $"fired {firedAt:F1}, spent-while-neutral {spentWhileNeutral}, rifle {cgf.GetComponent<ActionStatus>(rifle).Weapon.Reason}, " +
+                          $"insurgent {cgf.GetComponent<ActionStatus>(man).Weapon.Reason}, seat {CarryStations.SeatOf(cgf, pistol, out _)}, " +
+                          $"act {Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man)}, ammo {Ammo()}";
+
+        harness.PumpUntil(() => { Sample(); return (firedAt >= 0 && hostile.Count == hosts.Length) || cgf.SimulationTime > 60.0; }, timeoutFrames: 6000);
+        _out.WriteLine(State());
+        Assert.True(hiddenAt >= 0, $"the pistol starts HIDDEN; {State()}");
+        Assert.True(drawnAt >= 0 && sideAtDraw == ForceId.Neutral, $"① drawn, he is still Neutral; {State()}");
+        Assert.Equal(0, spentWhileNeutral);                                                          // ① no round while he is Neutral
+        Assert.True(hostileAt >= 0 && hostileAt - drawnAt >= 8.0, $"② Hostile only once he aims — the draw held 10 s; {State()}");
+        Assert.Equal(3, hostile.Count);                                                              // ② on every node
+        Assert.Equal(Fdp.Toolkit.Civilians.HostileActKind.Lethal, Fdp.Toolkit.Civilians.HostileActs.Of(cgf, man));
+        Assert.True(firedAt >= 0, $"③ the rifleman engages him; {State()}");
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2241</c> ① (CV-13a; docs/DESIGN_Civilians_And_Crowd_Control.md §5c, §5h.3) — <c>ua-civ-surrender</c> in-process (the live
     /// check's twin): the rioter strikes the policeman (Hostile), the rifleman covers him, he raises his hands. Sampled every frame:
     /// ① his hands are up on CGF, SimHost and IG · ② the rifleman's weapon status is <c>HoldSurrender</c> at least once · ③ from the first

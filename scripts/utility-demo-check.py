@@ -3342,6 +3342,41 @@ def run_armed_surrender(c, timeout):
     c.ok(fired is not None, f"④ armed again, the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
 
 
+def run_armed_draw_aim(c, timeout):
+    """test-town: a covert insurgent (a civilian, a pick-up pistol HIDDEN, seat 3) goes about his routine for 8 s, draws the pistol
+    (StationWeapon Hands, 10 s), then attacks the rifleman (PersonAttack). ① drawn (seat 1), he is still Neutral and the rifleman spends
+    no round while he is · ② he turns Hostile on CGF, SimHost and IG only once he aims (≥ 8 s after the draw, AW-16) · ③ the rifleman
+    engages him. The twin (PostureScenarioTests.CE2238_DrawAim_…) checks every frame."""
+    ids = ids_by_name()
+    man, rifle, pistol = ids.get("Covert insurgent"), ids.get("Rifleman"), ids.get("Pistol")
+    if not c.ok(None not in (man, rifle, pistol), "the insurgent, his pistol and the rifleman are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+
+    def seat():
+        return ((comps_on("CGF", pistol) or {}).get("IsEmbarkedTag") or {}).get("Seat")
+
+    def side(h):
+        return ((comps_on(h, man) or {}).get("EntityInfo") or {}).get("ForceId")
+    c.ok(seat() == 3, f"the pistol starts hidden (seat {seat()})")
+    a0 = (ammo(rifle) or (None,))[0]
+    call("POST", "/sim/play", {})
+    drawn = wait_for(lambda: seat() == 1, timeout + 15, every=0.1)
+    t_draw = sim_time() or 0.0
+    side_at_draw = side("CGF")
+    c.ok(drawn is not None and side_at_draw in ("Neutral", 0), f"① drawn (seat {seat()}), he is still Neutral ({side_at_draw})")
+    hostile = wait_for(lambda: side("CGF") in ("Hostile", 2), 30, every=0.1)
+    t_hostile = sim_time() or 0.0
+    a1 = (ammo(rifle) or (None,))[0]
+    c.ok(a0 is not None and a1 == a0, f"① no round while he is Neutral (ammo {a0} → {a1})")
+    c.ok(hostile is not None and t_hostile - t_draw >= 8.0,
+         f"② Hostile only once he aims — not at the draw ({t_hostile - t_draw:.1f} s after it)")
+    every = wait_for(lambda: all(side(h) in ("Hostile", 2) for h in hosts), 10, every=0.25)
+    c.ok(every is not None, f"② …on every node ({[side(h) for h in hosts]})")
+    fired = wait_for(lambda: (ammo(rifle) or (None,))[0] not in (None, a1), 30, every=0.25)
+    c.ok(fired is not None, f"③ the rifleman engages him (ammo {a1} → {(ammo(rifle) or (None,))[0]})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3367,6 +3402,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-civ-police-line": run_civ_police_line,
              # ⭐ CE-2238 part 3 AW-8/AW-9 — a lying throwable picked up, the canister thrown back (Civilians §5c, §5i.3)
              "ua-armed-gas-throwback": run_armed_gas_throwback,
+             # ⭐ CE-2238 part 4 AW-11/AW-16 — drawing is not the act, aiming at the forces is (Civilians §5c, §5h.7)
+             "ua-armed-draw-aim": run_armed_draw_aim,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
