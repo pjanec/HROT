@@ -13,8 +13,8 @@ namespace Hrot.Core.Tkb
     /// <para>⭐ Each is a person: health, injury, an unarmoured body, the person poses, can carry one casualty or a load, footsteps, and
     /// hears 100 m / sees 30 m (CV-2). DIS Kind 3 / Domain 1 with Category <see cref="DisCategoryCivilian"/> or
     /// <see cref="DisCategorySecurityForce"/>, which the class table names <c>Civilian</c> / <c>SecurityForce</c> (R-280).</para>
-    /// <para>⚠ The civilians' <c>DefaultBehaviorHash</c> stays empty until the behaviors lane registers <c>CivilianHsm</c>
-    /// (<c>CE-2235</c>): a brain tier with nothing bound runs nothing (<c>BehaviorTkbTranslator</c> starts no default). The
+    /// <para>⭐ The civilians' <c>DefaultBehaviorHash</c> is <c>CivilianHsm</c> (<c>CE-2235</c>, behaviors): <c>BehaviorTkbTranslator</c>
+    /// starts it on the brain owner, so a civilian placed with no behaviour lives his routine. The
     /// security forces carry the non-lethal loadouts of B-5 (<c>CE-3223</c>): stun grenades, a baton-round launcher.</para>
     /// <para>⛔ The old <c>CivilianPedestrian</c> (1001) and <c>CivilianChild</c> (1003) are retired only after the neutral-target safety
     /// gate (<c>CE-2233</c>) lands: these civilians have health, and a soldier may otherwise shoot them.</para>
@@ -60,7 +60,9 @@ namespace Hrot.Core.Tkb
             Person(t, height, radius, runSpeed);
             t.AddDescriptor(new PersonDto { Age = age, Sex = sex });   // ⭐ F-4 (design §7.6) — the outfits read who the person is
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
-                                                    CanMove = true, CanInteract = true });   // no weapon: picks one up (PersonCarrier)
+                                                    CanMove = true, CanInteract = true,   // no weapon: picks one up (PersonCarrier)
+                                                    // ⭐ CE-2235 (behaviors, the cross-lane edit backend OK'd; design §5d) — his one behaviour
+                                                    DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CivilianHsm) });
             // the class template (bodies.json "Soldier") gives a helmet and a vest; a civilian wears neither
             t.AddDescriptor(new BodyZonesDto { Zones =
             {

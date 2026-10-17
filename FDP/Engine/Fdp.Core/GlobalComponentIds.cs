@@ -961,5 +961,10 @@ namespace Fdp.Core
         /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
         /// <c>dtGesture</c> (143).</summary>
         public const int Gesture = 398;
+
+        /// <summary><c>CivilianState</c> — ⭐ CE-2235 (civilians CIV-1, CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d): a civilian's
+        /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
+        /// saved). ⚠ 399 measured free on backend, ui and behaviors 2026-10-17.</summary>
+        public const int CivilianState = 399;
     }
 }

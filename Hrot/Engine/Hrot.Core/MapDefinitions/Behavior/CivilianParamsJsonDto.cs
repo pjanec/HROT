@@ -1,0 +1,38 @@
+using System.Text.Json.Serialization;
+using Fdp.Core;
+
+namespace Hrot.Map.Definitions.Behavior
+{
+    /// <summary>
+    /// ⭐ <c>CE-2235</c> (CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d) — the authored contract of <c>CivilianHsm</c>: how his routine
+    /// wanders and when he is alarmed. A civilian started by his TKB type's default carries none of it; every zero field keeps the default.
+    /// </summary>
+    [ParamsDto]   // CE-3185 (R-2000): a params DTO, listed by the one registry with its origin
+    public struct CivilianParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.CivilianHsm;
+
+        /// <summary>How far from home (where he stood when it started) his routine takes him, m. Default 12.</summary>
+        [JsonPropertyName("WanderRadius")]
+        public float WanderRadius;
+
+        /// <summary>His walking speed, m/s. Default 1.4.</summary>
+        [JsonPropertyName("WalkSpeed")]
+        public float WalkSpeed;
+
+        /// <summary>How long he lingers at each spot, s — between the min and the max, at random. Defaults 3 and 10.</summary>
+        [JsonPropertyName("PauseMinSeconds")]
+        public float PauseMinSeconds;
+
+        [JsonPropertyName("PauseMaxSeconds")]
+        public float PauseMaxSeconds;
+
+        /// <summary>The fear (0…1) at which he is alarmed. Default 0.3.</summary>
+        [JsonPropertyName("AlarmAt")]
+        public float AlarmAt;
+
+        /// <summary>The fear below which an alarmed man goes back to his routine. Default 0.1.</summary>
+        [JsonPropertyName("CalmBelow")]
+        public float CalmBelow;
+    }
+}

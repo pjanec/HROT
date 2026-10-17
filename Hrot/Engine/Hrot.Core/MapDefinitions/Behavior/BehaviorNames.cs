@@ -186,5 +186,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-1118 H-3 (§6, D-25) — a downed pilot, once out of his harness, gets away from the nearest known enemy into cover,
         /// goes prone and stays down.</summary>
         public const string EvadeAndSignal = "EvadeAndSignal";
+
+        /// <summary>⭐ CE-2235 (civilians CIV-1, CV-3; DESIGN_Civilians_And_Crowd_Control §5d) — a civilian's one behaviour: his routine,
+        /// alarm and casualty (slice 1), later panic, shelter, protest and riot — modes of one HSM, never types.</summary>
+        public const string CivilianHsm = "CivilianHsm";
     }
 }

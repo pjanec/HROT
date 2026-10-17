@@ -404,6 +404,115 @@ shot" could mean "not seen").
 `wait_for(condition, timeout)` with the condition printed on failure, and every "never" is SAMPLED over the whole run (a minimum, not
 an end state).
 
+## 5d. CIV-1 behaviour — `CivilianHsm` slice 1: Routine, Alarmed, Casualty *(behaviors, `CE-2235`, 2026-10-17)*
+
+INVENTORY *(codebase-memory CLI `search_graph` + grep, one Explore sweep; `check_index_coverage` not available through the CLI)*: hand-built
+HSMs are `[HsmDefinition(Curated)]` graphs (`CuratedMachines.cs`, `ClassOrderBehaviors.cs`) bound through `HsmFluentBindingExtensions`;
+hearing reaches a brain as `SoundContactEvent` → `TargetMemory.HearContact` (`ThreatEvaluationSystem.cs:69`, `PerceptionComponents.cs:282`)
+— ⚠ a sound near an IDENTIFIED contact only refreshes that slot, so memory cannot say "heard now"; moves are `LocomotionMoveTo.Issue/Stop`,
+stances `StanceRequest.Set`, wounds `Injury.StateOf` (fraction below the type's `WoundedBelow`, 0.6); no civilian AI, no fear component
+existed (§1).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianState { <<NEW, Fdp.Toolkits, brain-local, id 399>> Fear Anger Attitude Mode Home LastFrightAt }
+  class CivilianMind { <<NEW>> Ensure SetMode FearOf ModeOf }
+  class CivilianFearSystem { <<NEW, CGF Simulation>> heard sounds + near miss/hit raise fear, then the fade }
+  class CivilianFear { <<NEW>> Impulse(class, distance) DecayPerSecond }
+  class CivilianBehavior { <<NEW, Hrot.AI.Behaviors>> CivilianHsm graph, Resolve, Routine Alarmed Casualty, guards }
+  class CivilianParamsJsonDto { <<NEW, Hrot.Core>> WanderRadius WalkSpeed Pause AlarmAt CalmBelow }
+  class CivilianTkbCatalog { <<existing, backend>> 1101-1104 DefaultBehaviorHash = CivilianHsm }
+  class SoundContactEvent { <<existing>> Observer X Y SourceClass }
+  class SensorChangedEvent { <<existing>> NearMiss Hit }
+  class LocomotionMoveTo { <<existing>> Issue Stop Status }
+  class StanceRequest { <<existing>> Set }
+  class Injury { <<existing>> StateOf }
+  class SimRng { <<existing>> FromSim }
+  CivilianFearSystem ..> SoundContactEvent : reads, grouped by listener
+  CivilianFearSystem ..> SensorChangedEvent : reads
+  CivilianFearSystem ..> CivilianFear
+  CivilianFearSystem --> CivilianState : writes Fear
+  CivilianBehavior ..> CivilianMind : Ensure, SetMode, FearOf
+  CivilianMind --> CivilianState
+  CivilianBehavior ..> LocomotionMoveTo
+  CivilianBehavior ..> StanceRequest
+  CivilianBehavior ..> Injury : Wounded guard
+  CivilianBehavior ..> SimRng : wander spot, linger time
+  CivilianBehavior ..> CivilianParamsJsonDto : resolver
+  CivilianTkbCatalog ..> CivilianBehavior : starts it by default
+```
+*What the picture shows that prose hid:* fear has ONE writer (the system) and the HSM only READS it — so the crowd's contagion
+(`CE-2237`) is a second writer of the same field, not a second fear model; and the mode is written by the HSM's own state, so a reader
+that is not the HSM never needs its metadata.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Routine
+  Routine --> Alarmed : Fear >= AlarmAt (0.3)
+  Alarmed --> Routine : Fear < CalmBelow (0.1)
+  Routine --> Casualty : wounded (priority)
+  Alarmed --> Casualty : wounded (priority)
+```
+*What the picture shows that prose hid:* the slice-1 subset of §2.2 — Casualty has no exit, and the wounded edge outranks the fear edge
+from both states, so a frightened wounded man lies down instead of crouching.
+
+```mermaid
+sequenceDiagram
+  participant SH as SimHost (shooter)
+  participant SN as CGF hearing sensor
+  participant FS as CivilianFearSystem
+  participant CS as CivilianState
+  participant HSM as CivilianHsm (BrainTickSystem)
+  SH-->>SN: weapon fire, a SmallArms sound
+  SN->>FS: SoundContactEvent (Observer = the civilian)
+  FS->>CS: Fear += Impulse(class, distance)
+  HSM->>CS: polled guard reads Fear >= AlarmAt
+  HSM->>HSM: Routine exit (stop), Alarmed (crouch)
+  loop every frame, nothing new heard
+    FS->>CS: Fear -= 0.05 per s
+  end
+  HSM->>HSM: Fear < CalmBelow, Alarmed exit (stand), Routine (walk on)
+```
+*What the picture shows that prose hid:* the alarm's length is the FADE, not a timer in the machine — a burst that frightened him more
+keeps him down longer, and a second shot while he is alarmed extends it without any transition.
+
+```mermaid
+graph TD
+  subgraph CGF["CGF (brain node)"]
+    TE[CgfThreatEvaluationSystem] --> FS[CivilianFearSystem]
+    FS --> BT[BrainTickSystem]
+    BT --> HSM[CivilianHsm per civilian]
+    TKB[BehaviorTkbTranslator] -->|DefaultBehaviorHash| HSM
+    REG[CognitiveComponentRegistry] -.registers.- CS[CivilianState]
+  end
+  subgraph SimHost
+    MV[CarKinematicsSystem HumanGait] 
+  end
+  HSM -->|LocomotionChannel MoveTo| MV
+  subgraph Other["SimHost, IG, maps"]
+    NONE[CivilianState absent: brain-local]
+  end
+  style NONE fill:#f66,color:#000
+```
+*What the picture shows that prose hid:* `CgfLogicPack` puts `CivilianFearSystem` in its Simulation list right after threat evaluation
+and before the cognitive runtime (the brain tick), so a fright is read the same frame; the red box — no other node has `CivilianState`,
+so anything another node needs (the cower pose, the side) travels in its own replicated component, never here.
+
+| decision | ⭐ as built | rejected — one line each |
+|---|---|---|
+| who integrates fear | ⭐ one CGF system, one pass over the frame's `SoundContactEvent`s | a node in the HSM: civilians × events per frame (300 × a burst's samples) · reading `TargetMemory`: it cannot tell "heard now" for an identified contact (§5d inventory) |
+| where fear lives | ⭐ `CivilianState` (id 399), brain-local, registered with the cognitive components, never saved | in the HSM block: the crowd (CE-2237) and a live check could not read it |
+| who adds it | ⭐ the HSM, on its first tick (`CivilianMind.Ensure`, home = where he stands) | the TKB translator: any person may be given `CivilianHsm`, and only a running one needs a mind |
+| the mode | ⭐ each state's activity writes `CivilianState.Mode` | the HSM trace's leaf names: the trace must be armed per entity and the leaves are ids |
+| wounded | ⭐ `Injury.StateOf != Ok` (the type's thresholds: below 60 %) | "health below max": a scratch would make a casualty |
+| the routine | ⭐ wander about home (radius 12 m, 1.4 m/s, linger 3–10 s, `SimRng` per man and leg) | authored routine points: no demo needs them yet — a later round-out |
+
+⚠ **Known limits (slice 1):** ① *seeing* a casualty does not frighten (§2.2's "saw a casualty") — a Neutral observer drops Neutral
+targets in vision (`VisionBroadphase.cs:79`), so the crowd hint (`CE-2237`) carries it. ② Fear's impulses and fade are constants of
+`CivilianFear`, the same for every man — attitude-scaled nerve comes with `CE-2238`. ③ A casualty stays one; a casualty's rescue is not
+civilian behaviour.
+
 ## 6. Known limits
 
 - Only **bt-range** has enterable buildings; other terrains' buildings are solid prisms — civilians there can only Cower or fall back.
