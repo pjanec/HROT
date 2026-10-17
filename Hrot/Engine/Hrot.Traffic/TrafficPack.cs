@@ -59,6 +59,11 @@ public sealed class TrafficPack : INodeCapability, IDisposable
         context.TerrainContent.Add(NetLoaderKey, () => new SumoNetTerrainLoader());
         context.World.RegisterComponent<ReplicationRoute>();
         context.World.RegisterComponent<TrafficCar>();
+        // ⭐ CE-4024 — the vicinity anchors (TrafficReplicas), our bodies for SUMO (TrafficBodyFeedSystem) and every replica key on
+        //   PhysicsCollider. 📌 Measured 2026-10-17 on the five-process cluster: the dedicated traffic node registered no such type, so
+        //   the combat translator gave our units no collider there — no anchor, no replica, and SUMO saw none of our bodies.
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>())
+            context.World.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
         if (_serves)
         {
             long local = 0;

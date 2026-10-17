@@ -1084,6 +1084,13 @@ Rails: upstream `HrotExternalBodyTests` (7, two of them inverse-proven by detach
 | unit (HROT) | the feed classifies a rifleman as a person, a truck as a vehicle, an aircraft and a SUMO replica as nothing; `ToNet ∘ ToLocal` is the identity |
 | live | demo-city: a SUMO car brakes behind our vehicle parked on its lane (its speed drops to ~0 behind it) |
 
+⚠ **Correction `2026-10-17` (CE-4024), found by the slice 5 cluster run:** the live check above ran in the EDITOR only. On the five-process
+cluster the dedicated traffic node registered no `PhysicsCollider` type, so the combat translator gave our units' replicas no collider
+there, and `TrafficBodyFeedSystem.Gather` (which queries `SimTransform` + `PhysicsCollider`) handed SUMO **no bodies at all** on the
+node that runs it. ✅ Fixed in `TrafficPack` (it registers the type; rail in `TrafficNodeBootstrapperTests`). Measured after the fix: the
+traffic node holds 20 car replicas anchored on our riflemen (0 before), so its body set is non-empty. ⏳ A cluster run of the
+"car brakes behind our vehicle" check itself is still to do.
+
 
 ## 14. Slice 4 — handing our vehicle to SUMO and back (R-4023) *(2026-10-17 — build-state: BUILT, ✅ live; §3.3 is its sequence; §14.6 the as-built)*
 
@@ -1344,6 +1351,17 @@ as terrified-civilian requests keeping their ids, and they leave the wire; the c
 **Live (editor, `scripts/sumo-accept-slice5.py`): 11/11** — 15 pedestrian replicas near two riflemen; their shoot-out gave up three
 pedestrians (under the cap of 30), each back as OUR civilian with the same network id, no `TrafficCar`, frightened (`Fear` 0.60 and
 falling from 1, `Mode` Cower, `FrightFrom` = where the round left).
+
+**Live (five-process cluster, `scripts/sumo-accept-slice5-cluster.py`, domain 62): 12/13**, the one red a read-timing threshold, since
+replaced by the exact check. The same 10 pedestrian replicas on CGF, SimHost, IG and the traffic node, each owned by the traffic node
+(800). A shoot-out run by CGF/SimHost reached the traffic node by NED, which gave up 2 pedestrians. **CGF (400) created each as our
+civilian, with the pedestrian's network id.** Each knew the shot's origin with `HeardAt` and `LastFrightAt` at 0, so the fright
+crossed the wire as attributes (`Fear` read 0.39 about 12 s after birth, decaying 0.05/s from 1). Every node saw him as an entity, none as a SUMO replica.
+⚠ Found on the way, fixed: the traffic node had **no `PhysicsCollider` type**, so it had no anchors and no replicas (cars or
+pedestrians), and SUMO saw none of our bodies there (§13.7's correction). After the fix: 20 car replicas and 10 pedestrian replicas
+on the traffic node.
+⚠ Observation for the civilians lane, not changed: a converted pedestrian calms back to Routine about 20 s after birth when nothing new
+frightens him (CE-2235's fade). §8.2 intends panic, then an openable building.
 
 
 ## 7. ⛔ HISTORY
