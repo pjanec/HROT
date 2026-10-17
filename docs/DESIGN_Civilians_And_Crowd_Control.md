@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
+updated: 2026-10-17 (backend: §7.3c CE-3239 a cloud round bursts on the ground) · 2026-10-17 (behaviors: §5i CIV-4 part 1 — riot, the blow, the side flip, READY-TO-BUILD, CE-2238; §5h.2 CV-13a hands up holds fire built) · 2026-10-17 (backend: §7.8 B-7 Armament designed and BUILT, CE-3229) · 2026-10-17 (behaviors: §5h.1 AW-20 as built — a neutral person in the line or the spread holds the shot; §5f CE-2246 — contagion stopped at a crowd split by wandering, fixed in the demo) · 2026-10-17 (behaviors: §5h AW-24 the simple path stays simple, R-2029) · 2026-10-17 (behaviors: §5c the 13 armed-people demos, one per §5h branch) · 2026-10-17 (behaviors: §5h AW-22 civilian → combatant, AW-23 player fratricide, R-2028) · 2026-10-17 (behaviors: §5h AW-21 status vs conduct, R-2027) · 2026-10-17 (behaviors: §5h amended — AW-15…AW-20, R-2026; AW-1/AW-3 superseded) · 2026-10-17 (behaviors: §5h armed people AW-1…AW-14, R-2025) · 2026-10-17 (behaviors: §5f crowds — onlookers gather, fear spreads, CE-2237; §5g the protest and its gestures, CE-2240) · 2026-10-17 (behaviors: §5e CivilianHsm slice 2 panic/shelter/cower, CE-2236 + CE-2245 the stopped-move fix; §5d CivilianHsm slice 1, CE-2235; CV-13 gestures + props, CV-13a hands up holds fire, CV-14 security forces provoke — R-2024; §5b CIV-0 as-built; §5c demos) · 2026-10-16 (behaviors: CV-1 class-table rows, CV-4 dirty-mark, §5a measurements, §5 owners/ids + handoffs; backend: §7 detailed designs B-1…B-5; ui: §8 detailed designs U-1…U-4, CE-1162…CE-1165)
 build-state: BUILDING (backend B-3/B-2 first) — the HOW is RULED too: CV-1…CV-12 approved as written 2026-10-16 (R-3013).
   SUPERSEDED: the programme's scope and order are RULED by the user 2026-10-16 (§0, R-4032…R-4036); the HOW is
   leans per decision (§4, CV-1…CV-12), awaiting the user. §5 is the slice plan; its backend and ui halves are handed off
@@ -1140,12 +1140,129 @@ sight test uses the same 0.3 m collider), so no aimed shot is ever ready (the tw
 hold's own case is the NEAR MISS: a neutral beside the line, inside the spread. Pedestrians also keep ~1 m from each other, so a crowd
 packed closer than that spreads out.
 
+### 5h.2 AS-BUILT — CV-13a, hands up holds fire *(behaviors, `CE-2241` ①, 2026-10-17)*
+
+⭐ **Built exactly where CV-13a's owner column puts it, beside the CE-2233 neutral gate:** `ThreatDanger.ShowsHandsUp(view, target)`
+(`Gestures.Of` == HandsUp, read live) ⇒ `ThreatDanger.Of` = 0 and `AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldSurrender`
+("hold: hands up", posture Aimed — covered, never fired). Any side, a Hostile included; ⛔ the side never flips and nothing is disarmed
+(AW-5); the hands coming down is read the next frame (a feint). An operator's fire is not held (`HoldOf` is the AI's).
+Rail `AimAndFireExecutorTests.CV13a_…`, red under each mutant (the `HoldOf` arm removed; the danger-0 arm removed).
+⏳ **Demo deferred to after `CE-2238` part 1 (§5i):** a live hands-up needs someone who RAISES them — the scenario format cannot set a
+`Gesture` (`DataPolicy.NoScenario`) and the debug API edits only a component that exists. ⭐ Lean: a hostile rioter (§5i) raises his hands
+when a forces person aims at him past `PanicAt` — the `ua-armed-surrender` hands-up half then runs on it.
+
 ⚠ **Known limits (ruled later, not now):** ⓪ *(AW-20 as built)* an insurgent holds for neutrals like a soldier — human shields used
 on purpose need a per-unit "ruthless" setting; ① one item in Hands at a time; ② a dead bomber's charge stays live only once a dead-man setting
 exists; ③ a search that reveals a Hidden station is the checkpoint slice (SQD-13); ④ the D4 suspicion sensor is its own item; ⑤ *(from the
 review, each its own later item)* Friend → Hostile and disguise (insider attacks, stolen uniforms); a killed soldier's weapon left to pick
 up; the bomber's hit-initiated vest, handler trigger and secondary devices; a vehicle ladder (signs, flares, warning and disabling shots);
 the warning-shot step and time to comply; snatching a soldier's weapon.
+
+## 5i. CIV-4 behaviour, part 1 — the riot, the blow, the side flip *(behaviors, `CE-2238` part 1, 2026-10-17; build-state: READY-TO-BUILD)*
+
+⭐ **Scope.** The protest's next edge (§2.2 Protest → Riot), the riot's one act that needs no backend item — the **melee blow** (D5) — and
+the **hostile act** it is, which flips the rioter's side (CV-4 as amended by AW-16). Throwing (`ThrowAt`) waits on backend B-8 / B-13
+(the hands mount, stones); the act's replicated KIND waits on B-16 — this slice stamps the act brain-locally and B-16 swaps the stamp for
+the replicated component later. Demo `ua-civ-melee` (§5c).
+
+**INVENTORY** *(2026-10-17)*: `search_graph name_pattern=".*(Melee|HostileAct|Instigat|Riot|Anger).*" label=Method` ⇒ 89 hits, **none** a
+melee, a hostile act or an anger producer (danger-area and test names); grep `Melee|HostileAct|Instigat|\.Anger\b` ⇒ animation montage ids
+only, and `CrowdSystem.cs:195` READS `Anger` (the crowd's mean). ⇒ nothing to reuse but the pieces below. ⚠ `check_index_coverage` not run.
+Reused, measured: `EntityWriteRouter.For(world).Write(… Affiliation …)` (§7.1a — the flip, Direct on CGF for a scenario cast) ·
+`DamageAssessedEvent{Effect = Blunt, EffectSeconds}` on the publishing node's bus, applied only where Health is claimed
+(`HealthApplicationSystem.cs:77`) — CGF for a scenario cast; `AreaEffectCloudSystem.Pulse` is the CGF-side precedent · `Effects.IsKnockedDown`
+· `Gestures.Set` · `LocomotionMoveTo` · the protest ring (`CivilianBehavior.Protest`).
+
+```mermaid
+classDiagram
+  direction LR
+  class CivilianHsm { <<existing, grows>> + Riot state · Protest ⇄ Riot on his anger }
+  class CivilianState { <<existing>> Anger · + HostileActAt (brain-local stamp until B-16) }
+  class CivilianParams { <<existing, grows>> + Instigator · RiotAt }
+  class CrowdSystem { <<existing, grows>> ⑤ anger: an instigator raises his crowd's anger near him; anger fades }
+  class Melee { <<NEW static, Fdp.Toolkits/Combat>> Strike(world, attacker, victim) a Blunt DamageAssessedEvent }
+  class HostileActs { <<NEW static, Fdp.Toolkits/Civilians>> Commit(world, actor) stamp + flip once }
+  class EntityWriteRouter { <<existing>> Affiliation write, Direct or Requested }
+  class HealthApplicationSystem { <<existing>> damage + EffectState.KnockedDownUntil on the Health owner }
+  class Gestures { <<existing>> FistRaised while rioting }
+  CivilianHsm ..> Melee : within reach, on cooldown
+  CivilianHsm ..> HostileActs : the blow is the act
+  CivilianHsm ..> Gestures
+  CrowdSystem ..> CivilianState : Anger
+  CivilianHsm ..> CivilianState : reads Anger
+  HostileActs ..> EntityWriteRouter
+  HostileActs ..> CivilianState : HostileActAt
+  Melee ..> HealthApplicationSystem : DamageAssessedEvent
+```
+*What the picture shows that prose hid:* the slice adds TWO statics and grows three existing types; the blow and the flip ride paths
+that already reach every node (the damage chain, the attribute write) — nothing new crosses the wire.
+
+```mermaid
+stateDiagram-v2
+  Protest --> Riot : his anger reaches RiotAt
+  Riot --> Protest : his anger falls below half of RiotAt
+  Riot --> Panic : fear past PanicAt
+  Riot --> Casualty : wounded
+  state Riot {
+    [*] --> Mill
+    Mill --> Close : a forces person within RiotReach
+    Close --> Strike : within MeleeReach
+    Strike --> Close : cooldown
+    Close --> Mill : none in reach
+  }
+```
+*What the picture shows that prose hid:* the riot is the protest's crowd turned on the nearest forces person; the blow is an inner
+loop, not a state of its own, so leaving Riot (fear, a wound, anger gone) always stops the walking and the gesture in one deactivator.
+
+```mermaid
+sequenceDiagram
+  participant CS as CGF CrowdSystem
+  participant R as rioter's CivilianHsm (CGF)
+  participant M as Melee
+  participant H as HealthApplicationSystem (CGF, Health owner)
+  participant W as EntityWriteRouter
+  participant N as SimHost, IG
+  CS->>R: anger raised by the instigator beside him
+  R->>R: Protest to Riot, FistRaised, walks at the nearest forces person
+  R->>M: within 1.5 m, cooldown over: Strike(victim)
+  M->>H: DamageAssessedEvent Blunt, 5 hp, 3 s
+  H->>H: Health down, EffectState KnockedDownUntil
+  H-->>N: dtEffectState, Health replicated
+  R->>W: HostileActs.Commit: Affiliation Opposing (once)
+  W-->>N: dtEntityInfo, the rioter reads Hostile everywhere
+```
+*What the picture shows that prose hid:* both writes happen on CGF and leave through EXISTING egress — the knock-down through
+`dtEffectState`, the flip through the dirty-marked `EntityInfo` (§7.1a's rail) — so "on every node" needs no new code.
+
+```mermaid
+graph TD
+  CGF[CGF node] --> CLP[CgfLogicPack]
+  CLP --> CFS[CivilianFearSystem]
+  CLP --> CRS[CrowdSystem: + anger]
+  CGF --> BT[BrainTickSystem]
+  BT --> HSM[CivilianHsm: Riot]
+  HSM --> MEL[Melee.Strike]
+  HSM --> HA[HostileActs.Commit]
+  MEL --> BUS[CGF bus: DamageAssessedEvent]
+  BUS --> HAS[HealthApplicationSystem, Health owner]
+  HA --> EWR[EntityWriteRouter]
+```
+*What the picture shows that prose hid:* no new system is registered — `CgfLogicPackTests`' count is unchanged; the riot runs inside
+the brain tick and the crowd system that already run every frame on CGF.
+
+| decision | ⭐ lean | rejected — one line each |
+|---|---|---|
+| where anger comes from (slice 1) | ⭐ an **instigator** (`Instigator` param; his own anger 1) raises the anger of his crowd's members within `ContagionMetres` toward 1 at `InstigateRate` 0.15/s, faster the nearer; anger fades 0.02/s; the security forces' provocation is CV-14 / `CE-2241` | anger contagion between every member: a wave nobody started · the crowd's mean as the trigger: one instigator in 12 never tips it |
+| when he riots | ⭐ HIS anger ≥ `RiotAt` (default 0.6); back to Protest below half of it (hysteresis); only a protester riots | the crowd's mean: the front rank and the back rank riot together |
+| who he goes for | ⭐ the nearest living, standing PERSON of the forces — `Friend`, not Neutral, not of the `Civilian` class — within `RiotReach` 30 m | anyone: a rioter beating a bystander is a different act (later) · the crowd's focus point: not every protest point is the police line |
+| the blow | ⭐ `Melee.Strike`: within `MeleeReach` 1.5 m, every `MeleeCooldown` 2 s, a `DamageAssessedEvent{5 hp, Blunt, 3 s}` on the CGF bus — applied by the Health owner (D5); a knocked-down victim is not struck again until he is up | a melee "round" through the ballistic path: a fist has no muzzle · damage on SimHost: CGF is where the brain decides and, for a scenario cast, where Health is claimed |
+| the hostile act | ⭐ the FIRST blow commits it: `HostileActs.Commit` flips his side to Hostile (Opposing) through `EntityWriteRouter` and stamps `CivilianState.HostileActAt` — once, sticky (CV-4); its KIND (B-16) is added when backend lands it | flip on entering Riot: AW-16 — anger is not an act · a new replicated component now: B-16 owns it |
+| a hostile rioter and the soldiers | ⭐ unchanged rules: he is Hostile and unarmed (danger 0.3); the AI may engage him — the force LEVEL that keeps it non-lethal is A6 (`Roe.ForceLevel`, `CE-2239`) | special-casing rioters in the threat rules: the ladder's job |
+
+⚠ **Known limits:** ① a blow at a victim whose Health another node claims is dropped there (`HealthApplicationSystem`'s gate) — fine for
+scenario casts (CGF claims them), a limit for a SimHost-created soldier; ② no stone, no Molotov, no knife yet (B-8, B-13, AW-19); ③ the
+hostile act carries no kind yet (B-16) — AW-22's lethal/non-lethal split waits on it; ④ a rioter does not avoid being shot — the force
+level (A6) is what makes the police answer non-lethally.
 
 ## 6. Known limits
 

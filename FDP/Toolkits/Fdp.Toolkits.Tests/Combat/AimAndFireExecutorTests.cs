@@ -1106,6 +1106,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(ShotsIn(shooter2, ref ch2, 60) > 0);
         }
 
+        /// <summary>⭐ <c>CV-13a</c> (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a HOSTILE showing HANDS UP is held like a
+        /// neutral: no round (<c>HoldSurrender</c>) and no danger, his side unchanged; the moment his hands come down (a feint) he is
+        /// fired at again and his danger is back. Any other gesture holds nothing.</summary>
+        [Fact]
+        public void CV13a_TheAiHoldsAtAHostileShowingHandsUp_AndFiresTheMomentTheyComeDown()
+        {
+            if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+            var (shooter, ch, enemy) = TypedShooter(rifle, range: 50f);
+            _world.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
+            float armed = Fdp.Toolkit.Perception.ThreatDanger.Of(_world, shooter, enemy);
+            Assert.True(armed > 0f, $"he is a danger before his hands go up: {armed}");
+            Fdp.Toolkit.Combat.Gestures.Set(_world, enemy, Fdp.Toolkit.Combat.GestureKind.HandsUp);
+
+            Assert.Equal(0, ShotsIn(shooter, ref ch, 60));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldSurrender, AimAndFireExecutor.HoldOf(_world, shooter, enemy, rifle, 0));
+            Assert.Equal(0f, Fdp.Toolkit.Perception.ThreatDanger.Of(_world, shooter, enemy));
+            Assert.Equal(ForceId.Hostile, _world.GetComponent<EntityInfo>(enemy).ForceId);    // ⛔ hands up never flips the side
+
+            Fdp.Toolkit.Combat.Gestures.Set(_world, enemy, Fdp.Toolkit.Combat.GestureKind.FistRaised);   // the hands come down
+            Assert.True(ShotsIn(shooter, ref ch, 60) > 0);
+            Assert.Equal(armed, Fdp.Toolkit.Perception.ThreatDanger.Of(_world, shooter, enemy));
+        }
+
         /// <summary>
         /// ⭐ D-L — an ATGM does not fire on the move (the weapon holds: HoldMoving) — a machine gun does, at twice the spread (the same
         /// <see cref="HitModel.IsMoving"/> test doubles σ). Standing, the ATGM fires.

@@ -27,6 +27,9 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CE-2233 (CIV-0; DESIGN_Civilians_And_Crowd_Control CV-8, R-3013) — a NEUTRAL is no danger: a civilian is not a threat
             //   until a visible hostile act flips its side (CV-4). Here, once, for every threat reader — like the dead above.
             if (IsNeutral(view, target)) return 0f;
+            // ⭐ CV-13a (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a man showing HANDS UP is held like a neutral, whatever his
+            //   side: no danger while his hands are up, the full danger the moment they come down (a feint is read live). Not disarmed (AW-5).
+            if (ShowsHandsUp(view, target)) return 0f;
             // ⭐⭐ CE-3229 (B-7; DESIGN_Civilians_And_Crowd_Control §7.8) — THE armed rule: a combatant on STATUS (today's test — a weapon
             //   not only a dispenser, CE-2188, or a working controlled weapon, WS-4), a civilian by what THIS observer can identify (AW-15).
             //   ⭐ A-6: Unidentified reads unarmed — "never fire on this alone", and danger feeds the Sentry's fire threshold.
@@ -44,6 +47,15 @@ namespace Fdp.Toolkit.Perception
         /// engageable on the next read. Readers: <see cref="Of"/> (danger 0), the threat pick (<c>EqsTacticsNodes.TopThreat</c>) and the
         /// weapon brain's hold (<c>AimAndFireExecutor.HoldOf</c> ⇒ <c>ActionReason.HoldNeutral</c>).
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CV-13a</c> (R-2024; 📄 DESIGN_Civilians_And_Crowd_Control.md §4, §5h.2) — is <paramref name="target"/> showing HANDS UP
+        /// (<see cref="Fdp.Toolkit.Combat.Gestures.Of"/>, read live) — held like a neutral, even Hostile; ⛔ it never flips his side and never
+        /// disarms him (AW-5). Readers: <see cref="Of"/> (danger 0) and the weapon brain's hold (<c>AimAndFireExecutor.HoldOf</c> ⇒
+        /// <c>ActionReason.HoldSurrender</c>).
+        /// </summary>
+        public static bool ShowsHandsUp(ISimulationView view, Entity target)
+            => !target.IsNull && Fdp.Toolkit.Combat.Gestures.Of(view, target) == Fdp.Toolkit.Combat.GestureKind.HandsUp;
+
         public static bool IsNeutral(ISimulationView view, Entity target)
             => !target.IsNull && view.IsAlive(target) && view.HasComponent<EntityInfo>(target)
                && view.GetComponentRO<EntityInfo>(target).ForceId == ForceId.Neutral;
