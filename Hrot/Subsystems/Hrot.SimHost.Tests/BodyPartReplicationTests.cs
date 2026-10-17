@@ -23,6 +23,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<PartDamage>();
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
             var unit = w.CreateEntity();
             w.AddComponent(unit, new NetworkIdentity { Value = netId });
             var map = new NetworkEntityMap();
@@ -101,6 +102,27 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44L, effects with { Cowering = 0 }));
+        }
+
+        /// <summary>⭐ <c>CE-3224</c> (civilians B-6, §7.7) — a person's gesture reaches the other node, and going back to None is
+        /// published too (a protester lowering his fist is a change).</summary>
+        [Fact]
+        public void CE3224_Gesture_ReachesTheOtherNode_AndNoneIsAChange()
+        {
+            var raised = new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised };
+            var sample = EntityGestureEgressTranslator.ToSample(45L, raised);
+
+            var (node, unit, map) = Node(45L);
+            using (node)
+            {
+                var ingress = new EntityGestureIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal(Fdp.Toolkit.Combat.GestureKind.FistRaised, Fdp.Toolkit.Combat.Gestures.Of(node, unit));
+            }
+
+            Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45L, default));
         }
 
         [Fact]
