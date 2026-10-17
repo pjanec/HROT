@@ -141,6 +141,14 @@ namespace Hrot.SimHost.Tests
 
             string dump = serializer.SerializeEntity(a.Repo, unit, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), a.Repo.GetSnapshotableMask()).ToJsonString();
             Assert.Contains("BrainDiagnostics", dump);
+
+            // ⭐ CE-3225 — an ordered ROE: the snapshot's "Roe" key and the Roe component share a name; the dump must still be
+            //   produced (it threw "same key already added: Roe", so GET /entities failed live on ua-civ-neutral-gate).
+            a.Repo.Bus.Publish(new SetRoeEvent { Entity = unit, Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask, Origin = BehaviorOrigin.Superior });
+            a.Frame();
+            string withRoe = serializer.SerializeEntity(a.Repo, unit, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), a.Repo.GetSnapshotableMask()).ToJsonString();
+            Assert.Contains("\"Roe\"", withRoe);
+            Assert.Contains("HoldFire", withRoe);
         }
 
         [Fact]

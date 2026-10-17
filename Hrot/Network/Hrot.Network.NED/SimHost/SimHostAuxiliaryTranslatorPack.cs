@@ -25,6 +25,9 @@ namespace Hrot.Network.NED.SimHost;
 /// to avoid double-registration.
 /// </para>
 ///
+/// <para>⭐ <c>CE-1148</c> (R-3015) — EVERY NED host builds this pack (CGF, SimHost, Stride, and since S3 the IG); the role gates
+/// below decide what each one takes. ⛔ The combat event pairs listed above moved to <c>SharedTranslatorPack</c> in S2.</para>
+///
 /// <para>
 /// <see cref="SimHostApp.OnLoad"/> calls <see cref="Create"/> after building the
 /// <c>HrotNodeContext</c> and registers the resulting translators via

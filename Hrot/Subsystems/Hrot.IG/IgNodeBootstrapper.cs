@@ -622,6 +622,10 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
             : NullIgNetworkAdapter.Instance;
         CommandGateway = NetworkAdapter?.CommandGateway;
 
+        // ⭐ CE-1148 S3 (docs/DESIGN_Node_Roles_And_Policies.md §3.5, R-3015) — the same auxiliary pack every node builds; its role
+        //   gates decide what the IG takes (today: the order egress, so an order given on this station reaches the brain owner).
+        configuredFactory.CreateSimHostAuxiliaryTranslators().RegisterOn(context.Kernel);
+
         var translators = new List<INetworkTranslator>();
 
         // IG-specific ingress translators (entity context-actions, combat, etc.)
