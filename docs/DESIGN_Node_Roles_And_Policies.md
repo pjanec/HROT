@@ -468,7 +468,7 @@ networked?"*; what differs by role is decided inside, where §3.5 already put it
 
 ⭐ **Rejected:** *run the kinematic and cognitive packs on every node too* — R-3015 keeps the role gate inside the set. *Register one
 identical component set on every node* — `DESIGN_Role_Affinity_Ownership.md` §3.9b "registration narrowing" is KEPT; a node instead
-registers what the SHARED pack writes (§3.6 below the table is the gap list, `CE-4013` D19).
+registers what the SHARED pack writes — `HrotSharedComponentRegistry` now carries the six types the shared ingress wrote and it lacked (`EntityInfo`, `UnitSubordinate`, `CmdAssign/RemoveSubordinate`, `EditablePolyline`, `MapOverlayStyle`, `RoutePlan`; `CE-4013` D19, rail `SharedRegistryCoversTheSharedPackTests`, which feeds every shared ingress a default sample on a shared-registry-only world).
 
 ## 4. ⭐⭐ OWNERSHIP — **a role is an EXPECTATION, the mask is the fact**
 
