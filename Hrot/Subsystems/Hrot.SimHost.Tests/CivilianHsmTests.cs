@@ -393,6 +393,8 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<EntityInfo>(bystander).ForceId = ForceId.Neutral;
             var down = Policeman(w, new Vector3(100, 201, 0));
             w.Repo.GetComponentRW<Health>(down).Current = 0f;
+            var enemy = Policeman(w, new Vector3(99, 200, 0));                       // a combatant, but not of the forces
+            w.Repo.GetComponentRW<EntityInfo>(enemy).ForceId = ForceId.Hostile;
             for (int i = 0; i < 8; i++) w.Tick();
             Assert.Equal("Riot", w.State());                       // an instigator's own anger is 1
             int strikes = Melee.Strikes;
@@ -400,6 +402,85 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(strikes, Melee.Strikes);
             Assert.False(HostileActs.Committed(w.Repo, w.Unit));
             Assert.Equal(ForceId.Neutral, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
+        }
+
+        /// <summary>A forces rifleman at <paramref name="at"/> whose weapon posture is <paramref name="kind"/> at <paramref name="target"/>.</summary>
+        private static Entity Covering(World w, Vector3 at, Entity target, WeaponPostureKind kind = WeaponPostureKind.Aimed)
+        {
+            var e = Policeman(w, at);
+            w.Repo.AddComponent(e, new WeaponPosture { Kind = kind, Target = target });
+            return e;
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ① (§5h.3, CV-13a) — a rioter who struck a policeman (Hostile) is covered by a rifleman: he stops and
+        /// raises his hands, and keeps them up while the rifleman HOLDS at him (Ready, the target kept — what <c>HoldSurrender</c> leaves);
+        /// his side stays Hostile; with the rifle lowered for 5 s his hands come down (and not before); a wound still wins.</summary>
+        [Fact]
+        public void CE2241_ACoveredHostile_RaisesHisHands_KeepsThemUpWhileHeldAt_LowersThemWhenUncovered()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0],\"Instigator\":true}");
+            for (int i = 0; i < 8; i++) w.Tick();
+            Assert.Equal("Riot", w.State());
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit));                         // his blow (as §5i lands it)
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);
+
+            var rifle = Covering(w, new Vector3(140, 230, 0), w.Unit);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
+            Assert.Equal(CivilianMode.Surrender, w.Mode);
+            Assert.Equal(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(w.Repo, w.Unit));   // what AimAndFire's HoldOf reads
+            Assert.Equal(0, w.Loco.ActiveAction);                                     // he stands still
+
+            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Ready;   // the rifleman holds at him: still covered
+            for (int i = 0; i < (int)(CivilianBehavior.SurrenderHoldSeconds * 2 / 0.016f); i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
+            Assert.Equal(ForceId.Hostile, w.Repo.GetComponentRO<EntityInfo>(w.Unit).ForceId);   // ⛔ never flips back (CV-13a)
+
+            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.AtEase;  // the rifle comes down
+            for (int i = 0; i < (int)(CivilianBehavior.SurrenderHoldSeconds / 0.016f) - 10; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());                                     // not before 5 s
+            for (int i = 0; i < 20; i++) w.Tick();
+            Assert.NotEqual("Surrender", w.State());
+            Assert.NotEqual(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
+
+            w.Repo.GetComponentRW<WeaponPosture>(rifle).Kind = WeaponPostureKind.Aimed;   // covered again ...
+            for (int i = 0; i < 30; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
+            w.Repo.GetComponentRW<Health>(w.Unit).Current = 40f;                      // ... and wounded: the wound wins
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Casualty", w.State());
+        }
+
+        /// <summary>⭐ <c>CE-2241</c> ① — only a man who COMMITTED an act raises his hands, and only for the FORCES: a covered protester who
+        /// struck nobody does not, and a Hostile gunman (not of the forces) aiming at a man who did strike makes no one surrender.</summary>
+        [Fact]
+        public void CE2241_OnlyAManWhoCommittedAnAct_RaisesHisHands_AndOnlyToTheForces()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new EntityInfo { ForceId = ForceId.Neutral });
+            w.Repo.SetAuthority<EntityInfo>(w.Unit, true);
+            w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            var rifle = Covering(w, new Vector3(140, 230, 0), w.Unit);
+            for (int i = 0; i < 60; i++) w.Tick();
+            Assert.Equal("Protest", w.State());                                       // covered, but he did nothing
+
+            w.Repo.GetComponentRW<EntityInfo>(rifle).ForceId = ForceId.Hostile;      // a gunman, not the forces
+            Assert.True(HostileActs.Commit(w.Repo, w.Unit));
+            for (int i = 0; i < 60; i++) w.Tick();
+            Assert.NotEqual("Surrender", w.State());
+            Assert.NotEqual(GestureKind.HandsUp, Gestures.Of(w.Repo, w.Unit));
+
+            var far = Covering(w, new Vector3(100 + Fdp.Toolkit.Combat.Covering.ReachMetres + 5, 200, 0), w.Unit);   // forces, beyond reach
+            for (int i = 0; i < 60; i++) w.Tick();
+            Assert.NotEqual("Surrender", w.State());
+            w.Repo.GetComponentRW<SimTransform>(far).Position = new Vector3(150, 200, 0);
+            for (int i = 0; i < 4; i++) w.Tick();
+            Assert.Equal("Surrender", w.State());
         }
 
         /// <summary>⭐ <c>CE-2240</c> — a civilian NOT told to protest never does, and his arms stay down.</summary>

@@ -3102,6 +3102,48 @@ def run_armed_shield(c, timeout):
     c.ok(not hurt, f"③ no civilian is hit ({sorted(hurt)}; health {[health(n) for n in civs]})")
 
 
+# ── CE-2241 ① CV-13a — a covered hostile raises his hands, and the AI holds (Civilians §5c, §5h.3) ──────────────────────
+
+def run_civ_surrender(c, timeout):
+    """test-town: an instigator who strikes a policeman (Hostile, §5i) and a rifleman 40 m off. ① the rioter is Hostile and the rifleman
+    covers him · ② his hands go up (Gesture HandsUp) on CGF, SimHost and IG · ③ the rifleman is seen holding ('hold: hands up') · ④ from
+    the first raised-hands sample, for 10 s, the rifleman spends no round and the rioter is not hurt · ⑤ he stays Hostile. The twin
+    (PostureScenarioTests.CE2241_CivSurrender_…) checks every frame."""
+    ids = ids_by_name()
+    cop, rioter, rifle = ids.get("Policeman"), ids.get("Rioter"), ids.get("Rifleman")
+    if not c.ok(None not in (cop, rioter, rifle), "the policeman, the rioter and the rifleman are loaded"):
+        return
+    hosts = ("CGF", "SimHost", "IG")
+    up, held = set(), [0]
+
+    def side():
+        return ((comps(rioter) or {}).get("EntityInfo") or {}).get("ForceId")
+
+    def watch():
+        for h in hosts:
+            if gesture_on(h, rioter) == "HandsUp":
+                up.add(h)
+        reason = ((data(call("GET", f"/entities/{rifle}/weapons")) or {}).get("status") or {}).get("reason") or ""
+        if reason == "hold: hands up":
+            held[0] += 1
+        return len(up) == len(hosts) and held[0] > 0
+    call("POST", "/sim/play", {})
+    hostile = wait_for(lambda: side() in ("Hostile", 2), 60, every=0.25)
+    c.ok(hostile is not None, f"① the rioter struck: Hostile ({side()})")
+    first = wait_for(lambda: gesture_on("CGF", rioter) == "HandsUp", timeout + 60, every=0.1)
+    c.ok(first is not None, f"② covered, he raises his hands (mode {civ_mode(rioter)})")
+    a0, h0 = (ammo(rifle) or (None,))[0], health(rioter)
+    wait_for(watch, 10, every=0.25)
+    c.ok(len(up) == len(hosts), f"② his hands are up on every node ({sorted(up)})")
+    c.ok(held[0] > 0, f"③ the rifleman holds at him ({held[0]} samples 'hold: hands up')")
+    t_end = (sim_time() or 0.0) + 10.0
+    wait_for(lambda: (watch(), (sim_time() or 0.0) >= t_end)[1], 40, every=0.25)
+    a1, h1 = (ammo(rifle) or (None,))[0], health(rioter)
+    c.ok(a0 is not None and a1 == a0, f"④ no round for 10 s from the hands going up (ammo {a0} → {a1})")
+    c.ok(h0 is not None and h1 is not None and h1 >= h0, f"④ …and he is not hurt (health {h0} → {h1})")
+    c.ok(side() in ("Hostile", 2), f"⑤ his side stays Hostile ({side()})")
+
+
 SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              # ⭐ CE-2233 CIV-0 — the neutral safety gate (Civilians §5c)
              "ua-civ-neutral-gate": run_civ_neutral_gate, "ua-danger-crossing": run_danger_crossing,
@@ -3117,6 +3159,8 @@ SCENARIOS = {"ua-posture": run_posture, "ua-threat-ranking": run_threat_ranking,
              "ua-armed-shield": run_armed_shield,
              # ⭐ CE-2238 CIV-4 — the riot, the blow, the side flip (Civilians §5c, §5i)
              "ua-civ-melee": run_civ_melee,
+             # ⭐ CE-2241 ① CV-13a — a covered hostile raises his hands, the AI holds (Civilians §5c, §5h.3)
+             "ua-civ-surrender": run_civ_surrender,
              # CE-3079 B7 — the same cast and the same acceptance, the rifleman's task the BLUEPRINT DangerCrossingBp (H7)
              "ua-danger-crossing-bp": run_danger_crossing,
              "ua-fire-distribution": run_fire_distribution,
