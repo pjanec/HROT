@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -129,7 +130,7 @@ public sealed class DistributedScenarioLoadTests : IDisposable
 
         Assert.True(entitiesLoaded,
             $"CGF world must contain exactly 2 units after scenario load. Actual: {CountUnits(cgfWorld)} " +
-            $"({cgfWorld.EntityCount} entities with their part children).");
+            $"({cgfWorld.EntityCount} entities with their part children): {DescribeUnits(cgfWorld)}.");
 
         // Find the attacker (has ActiveMissionPlan) and target entities.
         Entity attackerEntity = Entity.Null;
@@ -270,6 +271,22 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private static bool IsPart(EntityRepository w, Entity e)
         => w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
            && w.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(e);
+
+    /// <summary>The units found, by TKB type and network id — so a wrong count names the extra one.</summary>
+    private static string DescribeUnits(EntityRepository w)
+    {
+        var parts = new List<string>();
+        for (int i = 0; i <= w.MaxEntityIndex; i++)
+        {
+            var e = w.GetEntityByIndex(i);
+            if (e == Entity.Null || !w.IsAlive(e) || IsPart(w, e)) continue;
+            string tkb = w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType.ToString() : "-";
+            string net = w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
+                ? w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value.ToString() : "-";
+            parts.Add($"[tkb {tkb} net {net}]");
+        }
+        return string.Join(" ", parts);
+    }
 
     private static int CountUnits(EntityRepository w)
     {
