@@ -39,6 +39,9 @@ public static class CapabilityKeys
     /// <summary>⭐ <c>CE-2121</c> — the character body's animation Muscle (stance first), over a backend the host chooses.</summary>
     public const string AnimationMuscle = "cap:animation-muscle";
 
+    /// <summary>⭐ AQ93 — SUMO traffic (<c>Hrot.Traffic.TrafficPack</c>): stepping, the mirror, the vicinity replicas.</summary>
+    public const string Traffic = "cap:traffic";
+
     /// <summary>
     /// Commander/subordinate hierarchy maintenance — <c>CE-221</c>.
     ///

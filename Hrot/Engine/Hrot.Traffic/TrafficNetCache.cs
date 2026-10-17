@@ -13,13 +13,16 @@ namespace Hrot.Traffic;
 [ComponentId(GlobalComponentIds.TrafficNetCache)]
 public sealed class TrafficNetCache
 {
-    public TrafficNetCache(string file, NetworkModel model, string netHash, SumoNetPlacement placement)
+    public TrafficNetCache(string file, string path, NetworkModel model, string netHash, SumoNetPlacement placement)
     {
-        File = file; Model = model; NetHash = netHash; Placement = placement;
+        File = file; Path = path; Model = model; NetHash = netHash; Placement = placement;
     }
 
-    /// <summary>The net file, relative to the terrain folder.</summary>
+    /// <summary>The net file, relative to the terrain folder (as <c>terrain.json</c> names it).</summary>
     public string File { get; }
+
+    /// <summary>The net file on THIS node's disk (the resident terrain's folder + <see cref="File"/>) — what SUMO itself loads.</summary>
+    public string Path { get; }
 
     /// <summary>The parsed net (SumoSharp's model).</summary>
     public NetworkModel Model { get; }

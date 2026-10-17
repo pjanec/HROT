@@ -103,6 +103,14 @@ namespace Hrot.Map.Common
         //   the tactical area never have to branch to exclude it. 📄 docs/designs/weather/DESIGN_Weather_And_Time.md §1.
         public const long WeatherRegion = 8811;
 
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4021 — the scenario's TRAFFIC settings: positionless like the World Environment,
+        //   carrying TrafficDemand. Never in the palette. 📄 docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md §11.3 (D4).
+        public const long TrafficDemand = 8812;
+
+        // ⛔ PERMANENT WIRE VALUE (as above). ⭐ AQ93 R-4038 — a SUMO CAR's replica: an inert body SUMO drives (no brain, no car
+        //   kinematics — the mirror writes its pose every frame), with the civilian car's DIS type. Never in the palette.
+        public const long TrafficCar = 8813;
+
         // ⭐ CE-1041 — Aircraft (400–499): CG-referenced bodies resting on their gear (Body.Geometry).
         //   📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md G4.
         public const long Heli_UH60  = 400;

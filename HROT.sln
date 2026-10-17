@@ -342,6 +342,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Traffic", "Hrot\Engine
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Traffic.Tests", "Hrot\Engine\Hrot.Traffic.Tests\Hrot.Traffic.Tests.csproj", "{DB8DDC0A-CAA1-49BE-8B36-9F03431218ED}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sim.Scene", "FDP\ExtDeps\SumoSharp\src\Sim.Scene\Sim.Scene.csproj", "{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -2032,6 +2034,18 @@ Global
 		{DB8DDC0A-CAA1-49BE-8B36-9F03431218ED}.Release|x64.Build.0 = Release|Any CPU
 		{DB8DDC0A-CAA1-49BE-8B36-9F03431218ED}.Release|x86.ActiveCfg = Release|Any CPU
 		{DB8DDC0A-CAA1-49BE-8B36-9F03431218ED}.Release|x86.Build.0 = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|x64.Build.0 = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Debug|x86.Build.0 = Debug|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|x64.ActiveCfg = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|x64.Build.0 = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|x86.ActiveCfg = Release|Any CPU
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -2201,6 +2215,7 @@ Global
 		{64845A0C-E559-49C1-8050-09B5279210B4} = {466A4431-7391-4833-9990-7500AD57C955}
 		{D13CBC1F-6EF4-4E3C-ADE0-E13978CEC801} = {83CC26EF-40E2-4BAF-830A-EE6931B55DA4}
 		{DB8DDC0A-CAA1-49BE-8B36-9F03431218ED} = {83CC26EF-40E2-4BAF-830A-EE6931B55DA4}
+		{0DBFBCE4-8553-4FEE-A93B-E06EC483D062} = {466A4431-7391-4833-9990-7500AD57C955}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}

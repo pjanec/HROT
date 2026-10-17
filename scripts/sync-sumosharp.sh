@@ -11,7 +11,7 @@
 #   Directory.Build.* files (measured: a build hook in the tree re-entered itself).
 set -euo pipefail
 
-REPO_URL="${SUMOSHARP_REPO:-https://github.com/pjanec/sumosharp}"
+REPO_URL="${SUMOSHARP_REPO:-https://github.com/pjanec/SumoSharp}"
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 DEST="$ROOT/FDP/ExtDeps/SumoSharp"
 SCRATCH="${SUMOSHARP_SCRATCH:-${TMPDIR:-/tmp}/sumosharp-sync}"

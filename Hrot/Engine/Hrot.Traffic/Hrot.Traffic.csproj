@@ -20,7 +20,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
     <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Ingest\Sim.Ingest.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.LiveCity\Sim.LiveCity.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Viewer.Motion\Sim.Viewer.Motion.csproj" />
+    <ProjectReference Include="..\..\..\FDP\ExtDeps\SumoSharp\src\Sim.Scene\Sim.Scene.csproj" />
   </ItemGroup>
 
 </Project>

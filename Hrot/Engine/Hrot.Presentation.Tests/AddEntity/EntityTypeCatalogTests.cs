@@ -264,6 +264,8 @@ public sealed class EntityTypeCatalogTests
         8809 Crate | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8810 World Environment | dis - | family Unknown | folder Other | icon -
         8811 Weather Region | dis - | family Unknown | folder Other | icon -
+        8812 Traffic | dis - | family Unknown | folder Other | icon -
+        8813 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         """;
 
     /// <summary>⭐ The DIS names as <c>DisNames.json</c> held them — the class table must name exactly these levels; ⭐ C3 adds the

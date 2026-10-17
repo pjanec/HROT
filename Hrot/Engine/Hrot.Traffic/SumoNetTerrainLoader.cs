@@ -33,7 +33,7 @@ public sealed class SumoNetTerrainLoader : ITerrainContentLoader
             $"[Traffic] '{terrainName}': SUMO net '{declared.File}' parsed in {sw.ElapsedMilliseconds} ms — {model.Edges.Count} edges, "
           + $"{model.Junctions.Count} junctions, {model.TlLogicsById.Count} traffic lights, hash {hash}, placed "
           + (placement.IsGeoreferenced ? "through its UTM projection and the terrain origin." : $"by the anchor ({declared.AnchorX}, {declared.AnchorY})."));
-        return new TrafficNetCache(declared.File, model, hash, placement);
+        return new TrafficNetCache(declared.File, System.IO.Path.GetFullPath(path), model, hash, placement);
     }
 
     /// <inheritdoc/>

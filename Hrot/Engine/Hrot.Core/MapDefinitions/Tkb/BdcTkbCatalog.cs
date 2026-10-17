@@ -860,6 +860,12 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-3216 S1 (W-1) — a Weather Region: an area like TacGraphic_Area; its outline, position and WeatherConditions arrive with
             //   the request on the creator and on their descriptors everywhere else.
             tkbDb.Register(new TkbTemplate("Weather Region", TkbEntityTypes.WeatherRegion));
+            // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
+            //   the creation request. No SimTransform: it is nowhere.
+            tkbDb.Register(new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand));
+            // ⭐ AQ93 R-4038 — a SUMO car's replica: the TYPE only (like an obstacle — ⛔ no TkbMasterDto, so it is not in the Add Entity
+            //   picker, and ⛔ no VehicleParametersDto, so no car kinematics fights the mirror that poses it). Its collider comes with it.
+            tkbDb.Register(new TkbTemplate("SUMO car", TkbEntityTypes.TrafficCar) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 81 } });
 
             RegisterObstacles(tkbDb);
         }

@@ -93,13 +93,37 @@ public class EditorCapabilitiesTests : IDisposable
     /// (it adds modules only, so the pinned system sequences above are untouched). Before this, nothing answered an
     /// editor path request and every MoveTo steered <c>Direct</c>.
     /// </summary>
+    /// <summary>⭐ AQ93 R-4047 — the default arm's SUMO pack, over a residency of its own (nothing loads in these rails).</summary>
+    private Hrot.Traffic.TrafficPack Traffic()
+    {
+        var pack = new Hrot.Traffic.TrafficPack(new Hrot.Map.Common.Services.TerrainResidency(
+            System.IO.Path.GetTempPath(), new CarKinem.Road.RoadNetworkHolder()));
+        Track(pack);
+        return pack;
+    }
+
+    /// <summary>⭐ AQ93 R-4047 — the editor composes SUMO traffic, last (module-only: every pinned slot is unchanged).</summary>
+    [Fact]
+    public void DefaultArm_ComposesTraffic_Last_AQ93()
+    {
+        using var world = new EntityRepository();
+        var (cgf, muscle) = BuildPacks(world);
+
+        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
+                                     .Resolve(EditorCapabilities.DefaultRole)
+                                     .Select(c => c.Key).ToList();
+
+        Assert.Equal(CapabilityKeys.Traffic, keys[^1]);
+        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), null!));
+    }
+
     [Fact]
     public void DefaultArm_ComposesTheNavigationSolver_AfterThePerceptionSolvers_CE3017()
     {
         using var world = new EntityRepository();
         var (cgf, muscle) = BuildPacks(world);
 
-        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
+        var keys = EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
                                      .Resolve(EditorCapabilities.DefaultRole)
                                      .Select(c => c.Key).ToList();
 
@@ -107,7 +131,7 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.True(nav >= 0, "the editor must compose the NavigationSolver capability its role declares");
         Assert.True(nav > keys.IndexOf(CapabilityKeys.Perception + ":eqs"),
             "appended after the EQS solver, so every module registered before it keeps its slot");
-        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, null!));
+        Assert.Throws<ArgumentNullException>(() => EditorCapabilities.BuildDefault(cgf, muscle, null!, Traffic()));
     }
 
     /// <summary>
@@ -133,7 +157,7 @@ public class EditorCapabilitiesTests : IDisposable
 
         // ── The same thing, resolved from the plan ─────────────────────────────────
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
+            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
                               .Resolve(EditorCapabilities.DefaultRole);
 
         var input = new List<IEcsModuleSystem>();
@@ -211,7 +235,7 @@ public class EditorCapabilitiesTests : IDisposable
         var (cgf, muscle) = BuildPacks(world);
 
         IReadOnlyList<INodeCapability> resolved =
-            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
+            EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
                               .Resolve(EditorCapabilities.DefaultRole);
 
         int brain  = resolved.ToList().FindIndex(c => c.Key == CapabilityKeys.Brain);
@@ -229,7 +253,7 @@ public class EditorCapabilitiesTests : IDisposable
         using var world = new EntityRepository();
         var (cgf, muscle) = BuildPacks(world);
 
-        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle))
+        Assert.NotEmpty(EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic())
                                           .Resolve(EditorCapabilities.DefaultRole));
     }
 
@@ -295,7 +319,7 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Terrain.DoorCommandSystem);
 
         var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.Interactions() };
-        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle)),
+        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic()),
                                      EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
         {
             var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
@@ -323,7 +347,7 @@ public class EditorCapabilitiesTests : IDisposable
         Assert.DoesNotContain(cgf.SimulationSystems, s => s is Fdp.Toolkit.Combat.Systems.HealthApplicationSystem);
 
         var injected = new INodeCapability[] { new CoreInfrastructureCapabilities.HealthApplication() };
-        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle)),
+        foreach (var plan in new[] { EditorCapabilities.BuildDefault(cgf, muscle, Nav(muscle), Traffic()),
                                      EditorCapabilities.BuildWithInjectedMuscle(cgf, injected) })
         {
             var resolved = plan.Resolve(EditorCapabilities.DefaultRole);
