@@ -1695,7 +1695,7 @@ level exists; an Explore sweep for the police half; grep for every call site; `c
 | the last gate before a round | `AimAndFireExecutor.HoldOf` — the neutral (CE-2233), hands up (CV-13a), domain, min range… | `AimAndFireExecutor.cs:585` |
 | what chooses the weapon | `WeaponChoice.Choose` → `WeaponSelectionDecision`; the candidates are filtered in `UtilityScorer` (hands H-4, laid down B-10) | `Utility/Core/UtilityScorer.cs:294-330` |
 | lethal or not | `ItemAppearances.FiresLethal(world, mount)` (a mount whose rounds are all Blunt/Irritant/Stun/Smoke is not) | `Combat/Armament.cs:136` |
-| self-defence signals | fired upon = `RecentSensesOf.Within(Hit|NearMiss, window)` (the ReturnFire rule); aimed at = the target's replicated `WeaponPosture {Aimed, Target = me}` | `AimAndFireExecutor.cs:42`; `WeaponPosture` |
+| self-defence signals | aimed at = the target's replicated `WeaponPosture {Aimed, Target = me}`; a lethal act = B-16's replicated `HostileAct.Kind` (`HostileActs.Of`); ⚠ fired upon (`RecentSensesOf` Hit/NearMiss) names no shooter | `Combat/Components/WeaponPosture.cs`; `Civilians/HostileActs.cs` |
 | the police | types 1201 shield, 1202 baton, 1203 launcher — class `SecurityForce` 3.1.*.3, ONLY non-lethal mounts (stun 6037, gas 6039, the 40 mm baton round 6036 on 1203); no default behaviour; in every scenario a brainless Friend | `Hrot.Core/Tkb/CivilianTkbCatalog.cs:51-104` |
 | a police behaviour | ⛔ none (searched PoliceLine, HoldTheLine, RiotControl, Cordon, SecurityForce, Police) | Explore sweep, 2026-10-17 |
 | the baton | `Melee.Strike` — Blunt, knocks down 3 s; called only by the rioter; nothing checks who strikes | `Combat/Melee.cs:42` |
@@ -1741,7 +1741,7 @@ sequenceDiagram
   X-->>R: a baton round: Hit, fear +1, Panic
   R->>P: closes to 1.5 m
   P->>R: Melee.Strike (the baton)
-  Note over P,X: an aimed rifle at him (AW-18) lifts the cap: SelfDefence
+  Note over P,X: a rifle aimed at him, or a lethal act, lifts the cap against THAT man (AW-18)
 ```
 *What the picture shows that prose hid:* the choice and the gate ask the same question, so a unit whose only weapon is lethal holds
 (`HoldForceLevel`) instead of firing — and self-defence is asked at the gate, per shot, not decided once by the behaviour.
@@ -1762,7 +1762,7 @@ system, the police brain in the brain tick.
 |---|---|---|
 | **FL-1** | ⭐ `Roe.ForceLevel` {ForceUnset 0, Warn 1, NonLethal 2, Lethal 3} — ordered most restrictive first, like `RoeFire`; **unset ⇒ Lethal** (today's behaviour); the field LAST; CE-2095's recipe end to end (SetRoeEvent, RoeSystem, TKB `DefaultRoeForceLevel`, the JSON intent/save, hand-over, materialisation); the security types default **NonLethal** | a separate component: the ROE already owns "what may I fire" and its plumbing · a per-weapon flag: CV-8 rejects weapon-per-target hard-coding |
 | **FL-2** | ⭐ enforced ONCE per path, at the gate: `HoldOf` and `FireAtPoint`'s hold ask `ForceLevels.Permits(world, unit, target, ammo)` ⇒ `HoldForceLevel` — Warn ⇒ no round at all; NonLethal ⇒ no lethal round; Lethal ⇒ anything | in each behaviour: the next behaviour forgets it (why the ROE is enforced in the executor, CE-2075) |
-| **FL-3** | ⭐ AW-18 SELF-DEFENCE lifts the cap to Lethal: the target AIMS at me (`WeaponPosture` Aimed, Target = me) or I was HIT or near-missed within the ROE's ReturnFire window | the cap always binding: no ROE card denies self-defence (AW-18) · any armed target lifts it: that is the ladder's intent row (B2), not self-defence |
+| **FL-3** | ⭐ AW-18 SELF-DEFENCE lifts the cap to Lethal **against THAT target only**: he AIMS a lethal weapon at me (`WeaponPosture` Aimed, Target = me, `LethalInHand`) or he committed a LETHAL hostile act (B-16 `HostileActs.Of` = Lethal); a point (FireAtPoint) has no target ⇒ the cap holds | "I was hit or near-missed" (the ReturnFire signal): one stone would lift the cap against the whole riot — and `ua-civ-escalation` ① needs lethal fire at the armed man ONLY · the cap always binding: no ROE card denies self-defence (AW-18) · any armed target: that is the ladder's intent row (B2) |
 | **FL-4** | ⭐ the weapon CHOICE drops a mount above the cap (the `UtilityScorer` candidate filter, beside H-4 and B-10), so a unit with a non-lethal weapon uses it rather than holding | only the gate: a soldier with a rifle and a baton launcher would pick the rifle and hold forever |
 | **FL-5** | ⭐ the police brain is a NEW library behaviour **`HoldTheLine {Facing, Reach, Hold}`**: stay at the post (or within `Hold` m of it), face `Facing`, engage the nearest Hostile within `Reach` with `AimAndFire MountAuto`, strike with the baton (`Melee`) within 1.5 m; the security types run it by default | `CombatPosture`: it advances, takes cover and flees — a police line does none · a squad formation now: CE-2124 owns the Line formation |
 | **FL-6** | ⭐ a civilian who is STUNNED or IRRITATED is frightened as if hit (`CivilianFearSystem` reads `Effects`, a one-off impulse per new effect) — so gas and a stun grenade break a riot as the design intends | leave it: the demo's "the riot breaks up" would rest on the baton round alone, and tear gas would do nothing to a crowd |

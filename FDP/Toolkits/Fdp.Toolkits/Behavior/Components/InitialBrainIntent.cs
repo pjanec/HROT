@@ -22,6 +22,8 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2095</c> — the ReturnFire window; <c>0</c> = unset (the default). JSON-carried, so the saved scenario
         /// and the replicated intent both take it with no wire change.</summary>
         public float ReturnFireWindowSeconds { get; set; }
+        /// <summary>⭐ <c>CE-2239</c> part 1 — the force level; <c>ForceUnset</c> = the default. JSON-carried, as the window.</summary>
+        public RoeForceLevel ForceLevel { get; set; }
     }
 
     /// <summary>

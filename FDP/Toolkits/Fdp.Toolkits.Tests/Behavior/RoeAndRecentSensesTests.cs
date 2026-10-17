@@ -100,6 +100,34 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-1) — the FORCE LEVEL: no ROE or an unset level reads Lethal (today's behaviour); an
+        /// order sets it; <c>ForceUnset</c> keeps it; the saved / replicated intent carries it. ✅ Red-proof: RoeSystem's ForceLevel line
+        /// dropped ⇒ red; the reader's line dropped ⇒ red.</summary>
+        [Fact]
+        public void CE2239_AnOrderSetsTheForceLevel_UnsetKeepsIt_AndTheIntentCarriesIt()
+        {
+            var world = World();
+            var sys = new RoeSystem();
+            var e = world.CreateEntity();
+            Assert.Equal(RoeForceLevel.Lethal, RoeOf.ForceLevel(world, e));
+            world.AddComponent(e, new Roe());
+            Assert.Equal(RoeForceLevel.Lethal, RoeOf.ForceLevel(world, e));
+
+            world.Bus.Publish(new SetRoeEvent { Entity = e, Origin = BehaviorOrigin.Superior, ForceLevel = RoeForceLevel.NonLethal });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(RoeForceLevel.NonLethal, RoeOf.ForceLevel(world, e));
+
+            Set(world, sys, e, RoeFire.HoldFire, RoeReactions.ReactionsUnset, BehaviorOrigin.Superior);   // ForceUnset ⇒ kept
+            Assert.Equal(RoeForceLevel.NonLethal, RoeOf.ForceLevel(world, e));
+
+            var saved = BrainIntentReader.RoeOf(world, e, BrainIntentScope.Ordered);
+            Assert.Equal(RoeForceLevel.NonLethal, saved!.ForceLevel);
+            var json = System.Text.Json.JsonSerializer.Serialize(saved);
+            Assert.Equal(RoeForceLevel.NonLethal, System.Text.Json.JsonSerializer.Deserialize<SavedRoe>(json)!.ForceLevel);
+            world.Dispose();
+        }
+
         [Fact]
         public void CE2076_ASensingChange_IsRemembered_AfterItsEventIsGone()
         {

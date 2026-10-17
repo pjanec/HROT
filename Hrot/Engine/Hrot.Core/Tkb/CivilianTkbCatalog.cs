@@ -102,7 +102,9 @@ namespace Hrot.Core.Tkb
             Person(t, height: 1.80f, radius: 0.30f, runSpeed: 5.5f);   // the class template's helmet and vest stay
             t.AddDescriptor(new PersonDto { Age = AgeBand.Adult });
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree,
-                                                    CanMove = true, CanShoot = true, CanInteract = true });
+                                                    CanMove = true, CanShoot = true, CanInteract = true,
+                                                    // ⭐ CE-2239 part 1 (CV-8, §5j FL-1) — the police use non-lethal force; self-defence lifts it (AW-18)
+                                                    DefaultRoeForceLevel = Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal });
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 150f, HearingRange = 300f, FieldOfViewDegrees = 360f });
             var suite = new WeaponSuiteDto();
             foreach (var m in mounts) suite.Mounts.Add(m);

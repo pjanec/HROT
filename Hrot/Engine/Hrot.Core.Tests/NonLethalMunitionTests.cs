@@ -192,6 +192,17 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal((ulong)MunitionTkbCatalog.TkbTearGasGrenade, Ammo(CivilianTkbCatalog.TkbSecurityLauncher, 2));   // ⭐ CE-3219 part 3
         }
 
+        /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-1) — the security types use NON-LETHAL force by default (their ROE's force level);
+        /// a soldier's type sets none (unset ⇒ lethal, unchanged). ✅ Red-proof: the security profile's DefaultRoeForceLevel dropped ⇒ red.</summary>
+        [Fact]
+        public void CE2239_TheSecurityForces_DefaultToNonLethalForce_ASoldierToNone()
+        {
+            var db = BuiltIn();
+            foreach (var type in new[] { CivilianTkbCatalog.TkbSecurityShield, CivilianTkbCatalog.TkbSecurityBaton, CivilianTkbCatalog.TkbSecurityLauncher })
+                Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeForceLevel.NonLethal, db.GetByType(type)!.GetDescriptor<BehaviorProfileDto>()!.DefaultRoeForceLevel);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.RoeForceLevel.ForceUnset, db.GetByType(2002)!.GetDescriptor<BehaviorProfileDto>()!.DefaultRoeForceLevel);
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-3219</c> part 3 (B-5's gas grenade, docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b) — each cloud round, bursting through
         /// the real <see cref="AreaEffectSystem"/> over the built-in TKB, asks for a cloud of its kind and hurts nobody on the spot.

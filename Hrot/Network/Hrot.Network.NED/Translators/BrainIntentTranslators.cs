@@ -102,7 +102,7 @@ namespace Hrot.Network.Translators
         internal readonly record struct Signature(
             int Hash, uint Instance, BehaviorOrigin Origin,
             int SopHash, uint SopInstance, BehaviorOrigin SopOrigin,
-            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow)
+            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel)
         {
             public static Signature Of(EntityRepository repo, Entity entity)
             {
@@ -113,7 +113,8 @@ namespace Hrot.Network.Translators
                     ? repo.GetComponentRO<Roe>(entity) : default;
                 return new Signature(state.ActiveBehaviorHash, state.InstanceId, state.Origin,
                                      sop.SopHash, sop.SopInstanceId, sop.SopOrigin, roe.Fire, roe.Reactions, roe.SetBy,
-                                     roe.ReturnFireWindowSeconds);   // CE-2095: a changed window re-publishes
+                                     roe.ReturnFireWindowSeconds,   // CE-2095: a changed window re-publishes
+                                     roe.ForceLevel);               // CE-2239 part 1: and a changed force level
             }
         }
     }
